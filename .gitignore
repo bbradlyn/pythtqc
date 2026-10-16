@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+*.egg-info/
+build/
+dist/
+
+# example output (examples/tqc_*.py write here unless TQC_EXAMPLE_FIGDIR is set)
+examples/figures/
+
+# the documentation site, built by `mkdocs build`
+site/
+
+# local editor and assistant settings
+.claude/

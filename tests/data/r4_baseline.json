@@ -1,0 +1,3778 @@
+{
+ "ebr": {
+  "mm2_s|soc=0.2|free-standing": {
+   "branch_tie": true,
+   "content": {
+    "-GM5": 1,
+    "-S5": 1,
+    "-X5": 1,
+    "-Y5": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "25.58",
+    "missing": 0,
+    "n_rows": 8,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "25.58",
+    "unmapped": 0
+   },
+   "descent": {
+    "from": {
+     "name": "Pmmm1'",
+     "number_str": "47.250",
+     "size": 16
+    },
+    "iterations": 1,
+    "n_dropped": 8,
+    "steps": [
+     {
+      "from": "47.250",
+      "n_dropped": 8,
+      "refuted_by": {
+       "tensor structure": 8
+      },
+      "to": "25.58"
+     }
+    ],
+    "to": {
+     "name": "Pmm21'",
+     "number_str": "25.58",
+     "size": 8
+    }
+   },
+   "environment": "free-standing",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "induced": {
+    "lambda": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "max_dev": 2.4492935982947064e-16,
+    "n_unitary": 4
+   },
+   "kept": 8,
+   "labels": [
+    "-E"
+   ],
+   "n_ops_represented": 8,
+   "name": "Pmm21'",
+   "number_str": "25.58",
+   "occ": 2,
+   "orb": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "product_residual": 4.898587196589413e-16,
+   "size": 8,
+   "time_reversal": "kept"
+  },
+  "mm2_s|soc=0.2|substrate": {
+   "branch_tie": true,
+   "content": {
+    "-GM5": 1,
+    "-S5": 1,
+    "-X5": 1,
+    "-Y5": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "25.58",
+    "missing": 0,
+    "n_rows": 8,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "25.58",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "substrate",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "induced": {
+    "lambda": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "max_dev": 2.4492935982947064e-16,
+    "n_unitary": 4
+   },
+   "kept": 8,
+   "labels": [
+    "-E"
+   ],
+   "n_ops_represented": 8,
+   "name": "Pmm21'",
+   "number_str": "25.58",
+   "occ": 2,
+   "orb": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "product_residual": 4.898587196589413e-16,
+   "size": 8,
+   "time_reversal": "kept"
+  },
+  "mm2_s|soc=0|free-standing": {
+   "branch_tie": true,
+   "content": {
+    "-GM5": 1,
+    "-S5": 1,
+    "-X5": 1,
+    "-Y5": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "47.250",
+    "missing": 0,
+    "n_rows": 8,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "25.58",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "free-standing",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "Z",
+     "2",
+     " ",
+     "x",
+     " ",
+     "Z",
+     "2",
+     " ",
+     "x",
+     " ",
+     "Z",
+     "2",
+     " ",
+     "x",
+     " ",
+     "Z",
+     "4"
+    ],
+    "values": [
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "induced": {
+    "lambda": [
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "max_dev": 2.4492935982947064e-16,
+    "n_unitary": 8
+   },
+   "kept": 16,
+   "labels": [
+    "-Eg"
+   ],
+   "n_ops_represented": 16,
+   "name": "Pmmm1'",
+   "number_str": "47.250",
+   "occ": 2,
+   "orb": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "product_residual": 4.898587196589413e-16,
+   "size": 16,
+   "time_reversal": "kept"
+  },
+  "mm2_s|soc=0|substrate": {
+   "branch_tie": true,
+   "content": {
+    "-GM5": 1,
+    "-S5": 1,
+    "-X5": 1,
+    "-Y5": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "47.250",
+    "missing": 0,
+    "n_rows": 8,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "25.58",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "substrate",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "induced": {
+    "lambda": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "max_dev": 2.4492935982947064e-16,
+    "n_unitary": 4
+   },
+   "kept": 8,
+   "labels": [
+    "-E"
+   ],
+   "n_ops_represented": 8,
+   "name": "Pmm21'",
+   "number_str": "25.58",
+   "occ": 2,
+   "orb": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "product_residual": 4.898587196589413e-16,
+   "size": 8,
+   "time_reversal": "kept"
+  },
+  "p4mm_s_1a|soc=0.2|free-standing": {
+   "branch_tie": false,
+   "content": {
+    "-GM7": 1,
+    "-M7": 1,
+    "-X5": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "99.164",
+    "missing": 0,
+    "n_rows": 16,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "99.164",
+    "unmapped": 0
+   },
+   "descent": {
+    "from": {
+     "name": "P4/mmm1'",
+     "number_str": "123.340",
+     "size": 32
+    },
+    "iterations": 1,
+    "n_dropped": 16,
+    "steps": [
+     {
+      "from": "123.340",
+      "n_dropped": 16,
+      "refuted_by": {
+       "tensor structure": 16
+      },
+      "to": "99.164"
+     }
+    ],
+    "to": {
+     "name": "P4mm1'",
+     "number_str": "99.164",
+     "size": 16
+    }
+   },
+   "environment": "free-standing",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "induced": {
+    "lambda": [
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "max_dev": 3.510833468576701e-16,
+    "n_unitary": 8
+   },
+   "kept": 16,
+   "labels": [
+    "-E1"
+   ],
+   "n_ops_represented": 16,
+   "name": "P4mm1'",
+   "number_str": "99.164",
+   "occ": 2,
+   "orb": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "product_residual": 5.071544317185124e-16,
+   "size": 16,
+   "time_reversal": "kept"
+  },
+  "p4mm_s_1a|soc=0.2|substrate": {
+   "branch_tie": false,
+   "content": {
+    "-GM7": 1,
+    "-M7": 1,
+    "-X5": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "99.164",
+    "missing": 0,
+    "n_rows": 16,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "99.164",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "substrate",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "induced": {
+    "lambda": [
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "max_dev": 3.1401849173675503e-16,
+    "n_unitary": 8
+   },
+   "kept": 16,
+   "labels": [
+    "-E1"
+   ],
+   "n_ops_represented": 16,
+   "name": "P4mm1'",
+   "number_str": "99.164",
+   "occ": 2,
+   "orb": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "product_residual": 5.566395215603501e-16,
+   "size": 16,
+   "time_reversal": "kept"
+  },
+  "p4mm_s_1a|soc=0|free-standing": {
+   "branch_tie": false,
+   "content": {
+    "-GM7": 1,
+    "-M7": 1,
+    "-X5": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "123.340",
+    "missing": 0,
+    "n_rows": 16,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "99.164",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "free-standing",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "Z",
+     "2",
+     " ",
+     "x",
+     " ",
+     "Z",
+     "4",
+     " ",
+     "x",
+     " ",
+     "Z",
+     "8"
+    ],
+    "values": [
+     0,
+     0,
+     0
+    ]
+   },
+   "induced": {
+    "lambda": [
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "max_dev": 3.1401849173675503e-16,
+    "n_unitary": 16
+   },
+   "kept": 32,
+   "labels": [
+    "-E1g"
+   ],
+   "n_ops_represented": 32,
+   "name": "P4/mmm1'",
+   "number_str": "123.340",
+   "occ": 2,
+   "orb": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "product_residual": 5.566395215603501e-16,
+   "size": 32,
+   "time_reversal": "kept"
+  },
+  "p4mm_s_1a|soc=0|substrate": {
+   "branch_tie": false,
+   "content": {
+    "-GM7": 1,
+    "-M7": 1,
+    "-X5": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "123.340",
+    "missing": 0,
+    "n_rows": 16,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "99.164",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "substrate",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "induced": {
+    "lambda": [
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "max_dev": 3.1401849173675503e-16,
+    "n_unitary": 8
+   },
+   "kept": 16,
+   "labels": [
+    "-E1"
+   ],
+   "n_ops_represented": 16,
+   "name": "P4mm1'",
+   "number_str": "99.164",
+   "occ": 2,
+   "orb": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "product_residual": 5.566395215603501e-16,
+   "size": 16,
+   "time_reversal": "kept"
+  }
+ },
+ "layer": {
+  "buckled_graphene|free-standing": {
+   "branch_tie": false,
+   "content": {
+    "GM1+": 1,
+    "M2-": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "164.86",
+    "missing": 0,
+    "n_rows": 12,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "156.50",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "free-standing",
+   "indicator": {
+    "__refusal__": "incomplete_content"
+   },
+   "kept": 24,
+   "labels": [
+    "A1",
+    "A1"
+   ],
+   "n_ops_represented": 24,
+   "name": "P-3m11'",
+   "number_str": "164.86",
+   "occ": 1,
+   "orb": [
+    [
+     0.333333333333,
+     0.333333333333,
+     0.005
+    ],
+    [
+     0.666666666667,
+     0.666666666667,
+     -0.005
+    ]
+   ],
+   "product_residual": 0.0,
+   "size": 24,
+   "time_reversal": "kept"
+  },
+  "buckled_graphene|substrate": {
+   "branch_tie": false,
+   "content": {
+    "GM1": 1,
+    "M1": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "164.86",
+    "missing": 0,
+    "n_rows": 12,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "156.50",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "substrate",
+   "indicator": {
+    "__refusal__": "incomplete_content"
+   },
+   "kept": 12,
+   "labels": [
+    "A1",
+    "A1"
+   ],
+   "n_ops_represented": 12,
+   "name": "P3m11'",
+   "number_str": "156.50",
+   "occ": 1,
+   "orb": [
+    [
+     0.333333333333,
+     0.333333333333,
+     0.005
+    ],
+    [
+     0.666666666667,
+     0.666666666667,
+     -0.005
+    ]
+   ],
+   "product_residual": 0.0,
+   "size": 12,
+   "time_reversal": "kept"
+  },
+  "kane_mele_rashba|free-standing": {
+   "branch_tie": false,
+   "content": {
+    "-GM9": 1,
+    "-K6": 1,
+    "-M5": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "183.186",
+    "missing": 0,
+    "n_rows": 24,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "183.186",
+    "unmapped": 0
+   },
+   "descent": {
+    "from": {
+     "name": "P6/mmm1'",
+     "number_str": "191.234",
+     "size": 48
+    },
+    "iterations": 1,
+    "n_dropped": 24,
+    "steps": [
+     {
+      "from": "191.234",
+      "n_dropped": 24,
+      "refuted_by": {
+       "tensor structure": 24
+      },
+      "to": "183.186"
+     }
+    ],
+    "to": {
+     "name": "P6mm1'",
+     "number_str": "183.186",
+     "size": 24
+    }
+   },
+   "environment": "free-standing",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 24,
+   "labels": [
+    "-E1",
+    "-E1"
+   ],
+   "n_ops_represented": 24,
+   "name": "P6mm1'",
+   "number_str": "183.186",
+   "occ": 2,
+   "orb": [
+    [
+     0.333333333333,
+     0.333333333333,
+     0.0
+    ],
+    [
+     0.666666666667,
+     0.666666666667,
+     0.0
+    ]
+   ],
+   "product_residual": 1.247457973265988e-15,
+   "size": 24,
+   "time_reversal": "kept"
+  },
+  "kane_mele_rashba|substrate": {
+   "branch_tie": false,
+   "content": {
+    "-GM9": 1,
+    "-K6": 1,
+    "-M5": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "183.186",
+    "missing": 0,
+    "n_rows": 24,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "183.186",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "substrate",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 24,
+   "labels": [
+    "-E1",
+    "-E1"
+   ],
+   "n_ops_represented": 24,
+   "name": "P6mm1'",
+   "number_str": "183.186",
+   "occ": 2,
+   "orb": [
+    [
+     0.333333333333,
+     0.333333333333,
+     0.0
+    ],
+    [
+     0.666666666667,
+     0.666666666667,
+     0.0
+    ]
+   ],
+   "product_residual": 1.247457973265988e-15,
+   "size": 24,
+   "time_reversal": "kept"
+  },
+  "kane_mele|free-standing": {
+   "branch_tie": false,
+   "content": {
+    "-GM9": 1,
+    "-K8": 1,
+    "-M6": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "191.234",
+    "missing": 0,
+    "n_rows": 24,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "183.186",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "free-standing",
+   "indicator": {
+    "order": 6,
+    "structure": [
+     "Z",
+     "6",
+     " ",
+     "x",
+     " ",
+     "Z",
+     "1",
+     "2"
+    ],
+    "values": [
+     1,
+     0
+    ]
+   },
+   "kept": 48,
+   "labels": [
+    "-E1",
+    "-E1"
+   ],
+   "n_ops_represented": 48,
+   "name": "P6/mmm1'",
+   "number_str": "191.234",
+   "occ": 2,
+   "orb": [
+    [
+     0.333333333333,
+     0.333333333333,
+     0.0
+    ],
+    [
+     0.666666666667,
+     0.666666666667,
+     0.0
+    ]
+   ],
+   "product_residual": 1.1957467920563633e-15,
+   "size": 48,
+   "time_reversal": "kept"
+  },
+  "kane_mele|substrate": {
+   "branch_tie": false,
+   "content": {
+    "-GM9": 1,
+    "-K6": 1,
+    "-M5": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "191.234",
+    "missing": 0,
+    "n_rows": 24,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "183.186",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "substrate",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 24,
+   "labels": [
+    "-E1",
+    "-E1"
+   ],
+   "n_ops_represented": 24,
+   "name": "P6mm1'",
+   "number_str": "183.186",
+   "occ": 2,
+   "orb": [
+    [
+     0.333333333333,
+     0.333333333333,
+     0.0
+    ],
+    [
+     0.666666666667,
+     0.666666666667,
+     0.0
+    ]
+   ],
+   "product_residual": 1.247457973265988e-15,
+   "size": 24,
+   "time_reversal": "kept"
+  },
+  "km_odd|free-standing": {
+   "branch_tie": false,
+   "content": {
+    "-GM6": 1,
+    "-K5": 1,
+    "-K6": 1,
+    "-M3M4": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "156.50",
+    "missing": 0,
+    "n_rows": 12,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "156.50",
+    "unmapped": 0
+   },
+   "descent": {
+    "from": {
+     "name": "P-6m21'",
+     "number_str": "187.210",
+     "size": 24
+    },
+    "iterations": 1,
+    "n_dropped": 12,
+    "steps": [
+     {
+      "from": "187.210",
+      "n_dropped": 12,
+      "refuted_by": {
+       "tensor structure": 12
+      },
+      "to": "156.50"
+     }
+    ],
+    "to": {
+     "name": "P3m11'",
+     "number_str": "156.50",
+     "size": 12
+    }
+   },
+   "environment": "free-standing",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 12,
+   "labels": [
+    "-E1",
+    "-E1"
+   ],
+   "n_ops_represented": 12,
+   "name": "P3m11'",
+   "number_str": "156.50",
+   "occ": 2,
+   "orb": [
+    [
+     0.333333333333,
+     0.333333333333,
+     0.0
+    ],
+    [
+     0.666666666667,
+     0.666666666667,
+     0.0
+    ]
+   ],
+   "product_residual": 4.47545209131181e-16,
+   "size": 12,
+   "time_reversal": "kept"
+  },
+  "km_odd|substrate": {
+   "branch_tie": false,
+   "content": {
+    "-GM6": 1,
+    "-K5": 1,
+    "-K6": 1,
+    "-M3M4": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "156.50",
+    "missing": 0,
+    "n_rows": 12,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "156.50",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "substrate",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 12,
+   "labels": [
+    "-E1",
+    "-E1"
+   ],
+   "n_ops_represented": 12,
+   "name": "P3m11'",
+   "number_str": "156.50",
+   "occ": 2,
+   "orb": [
+    [
+     0.333333333333,
+     0.333333333333,
+     0.0
+    ],
+    [
+     0.666666666667,
+     0.666666666667,
+     0.0
+    ]
+   ],
+   "product_residual": 4.47545209131181e-16,
+   "size": 12,
+   "time_reversal": "kept"
+  },
+  "lin3g|free-standing": {
+   "branch_tie": false,
+   "content": {
+    "-GM6": 1,
+    "-GM7": 1,
+    "-M6": 1,
+    "-M7": 1,
+    "-X5": 2
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "99.164",
+    "missing": 0,
+    "n_rows": 16,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "99.164",
+    "unmapped": 0
+   },
+   "descent": {
+    "from": {
+     "name": "P4/mmm1'",
+     "number_str": "123.340",
+     "size": 32
+    },
+    "iterations": 1,
+    "n_dropped": 16,
+    "steps": [
+     {
+      "from": "123.340",
+      "n_dropped": 16,
+      "refuted_by": {
+       "tensor structure": 16
+      },
+      "to": "99.164"
+     }
+    ],
+    "to": {
+     "name": "P4mm1'",
+     "number_str": "99.164",
+     "size": 16
+    }
+   },
+   "environment": "free-standing",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 16,
+   "labels": [
+    "-E1",
+    "-E2",
+    "-E",
+    "-E"
+   ],
+   "n_ops_represented": 16,
+   "name": "P4mm1'",
+   "number_str": "99.164",
+   "occ": 4,
+   "orb": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.5,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.5,
+     0.0
+    ]
+   ],
+   "product_residual": 5.534306056034456e-16,
+   "size": 16,
+   "time_reversal": "kept"
+  },
+  "lin3g|substrate": {
+   "branch_tie": false,
+   "content": {
+    "-GM6": 1,
+    "-GM7": 1,
+    "-M6": 1,
+    "-M7": 1,
+    "-X5": 2
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "99.164",
+    "missing": 0,
+    "n_rows": 16,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "99.164",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "substrate",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 16,
+   "labels": [
+    "-E1",
+    "-E2",
+    "-E",
+    "-E"
+   ],
+   "n_ops_represented": 16,
+   "name": "P4mm1'",
+   "number_str": "99.164",
+   "occ": 4,
+   "orb": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.5,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.5,
+     0.0
+    ]
+   ],
+   "product_residual": 5.534306056034456e-16,
+   "size": 16,
+   "time_reversal": "kept"
+  },
+  "p41_chiral|free-standing": {
+   "branch_tie": false,
+   "content": {
+    "-GM5GM7": 1,
+    "-M5M7": 1,
+    "-X3X4": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "75.2",
+    "missing": 0,
+    "n_rows": 8,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "75.2",
+    "unmapped": 0
+   },
+   "descent": {
+    "from": {
+     "name": "P4/mmm1'",
+     "number_str": "123.340",
+     "size": 64
+    },
+    "iterations": 1,
+    "n_dropped": 56,
+    "steps": [
+     {
+      "from": "123.340",
+      "n_dropped": 56,
+      "refuted_by": {
+       "no symmetry matrix": 32,
+       "tensor structure": 24
+      },
+      "to": "75.2"
+     }
+    ],
+    "to": {
+     "name": "P41'",
+     "number_str": "75.2",
+     "size": 8
+    }
+   },
+   "environment": "free-standing",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 8,
+   "labels": [
+    "-1E2E",
+    "-1E2E"
+   ],
+   "n_ops_represented": 8,
+   "name": "P41'",
+   "number_str": "75.2",
+   "occ": 2,
+   "orb": [
+    [
+     0.5,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.5,
+     0.0
+    ]
+   ],
+   "product_residual": 4.440892098500629e-16,
+   "size": 8,
+   "time_reversal": "kept"
+  },
+  "p41_chiral|substrate": {
+   "branch_tie": false,
+   "content": {
+    "-GM5GM7": 1,
+    "-M5M7": 1,
+    "-X3X4": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "75.2",
+    "missing": 0,
+    "n_rows": 8,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "75.2",
+    "unmapped": 0
+   },
+   "descent": {
+    "from": {
+     "name": "P4mm1'",
+     "number_str": "99.164",
+     "size": 32
+    },
+    "iterations": 1,
+    "n_dropped": 24,
+    "steps": [
+     {
+      "from": "99.164",
+      "n_dropped": 24,
+      "refuted_by": {
+       "no symmetry matrix": 16,
+       "tensor structure": 8
+      },
+      "to": "75.2"
+     }
+    ],
+    "to": {
+     "name": "P41'",
+     "number_str": "75.2",
+     "size": 8
+    }
+   },
+   "environment": "substrate",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 8,
+   "labels": [
+    "-1E2E",
+    "-1E2E"
+   ],
+   "n_ops_represented": 8,
+   "name": "P41'",
+   "number_str": "75.2",
+   "occ": 2,
+   "orb": [
+    [
+     0.5,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.5,
+     0.0
+    ]
+   ],
+   "product_residual": 4.440892098500629e-16,
+   "size": 8,
+   "time_reversal": "kept"
+  },
+  "p41_flat_band|free-standing": {
+   "branch_tie": false,
+   "content": {
+    "-GM6": 1,
+    "-M6": 1,
+    "-X5": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "99.164",
+    "missing": 0,
+    "n_rows": 16,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "99.164",
+    "unmapped": 0
+   },
+   "descent": {
+    "from": {
+     "name": "P4/mmm1'",
+     "number_str": "123.340",
+     "size": 64
+    },
+    "iterations": 1,
+    "n_dropped": 48,
+    "steps": [
+     {
+      "from": "123.340",
+      "n_dropped": 48,
+      "refuted_by": {
+       "tensor structure": 48
+      },
+      "to": "99.164"
+     }
+    ],
+    "to": {
+     "name": "P4mm1'",
+     "number_str": "99.164",
+     "size": 16
+    }
+   },
+   "environment": "free-standing",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 16,
+   "labels": [
+    "-E",
+    "-E"
+   ],
+   "n_ops_represented": 16,
+   "name": "P4mm1'",
+   "number_str": "99.164",
+   "occ": 2,
+   "orb": [
+    [
+     0.5,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.5,
+     0.0
+    ]
+   ],
+   "product_residual": 5.071544317185124e-16,
+   "size": 16,
+   "time_reversal": "kept"
+  },
+  "p41_flat_band|substrate": {
+   "branch_tie": false,
+   "content": {
+    "-GM6": 1,
+    "-M6": 1,
+    "-X5": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "99.164",
+    "missing": 0,
+    "n_rows": 16,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "99.164",
+    "unmapped": 0
+   },
+   "descent": {
+    "from": {
+     "name": "P4mm1'",
+     "number_str": "99.164",
+     "size": 32
+    },
+    "iterations": 1,
+    "n_dropped": 16,
+    "steps": [
+     {
+      "from": "99.164",
+      "n_dropped": 16,
+      "refuted_by": {
+       "tensor structure": 16
+      },
+      "to": "99.164"
+     }
+    ],
+    "to": {
+     "name": "P4mm1'",
+     "number_str": "99.164",
+     "size": 16
+    }
+   },
+   "environment": "substrate",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 16,
+   "labels": [
+    "-E",
+    "-E"
+   ],
+   "n_ops_represented": 16,
+   "name": "P4mm1'",
+   "number_str": "99.164",
+   "occ": 2,
+   "orb": [
+    [
+     0.5,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.5,
+     0.0
+    ]
+   ],
+   "product_residual": 5.071544317185124e-16,
+   "size": 16,
+   "time_reversal": "kept"
+  },
+  "pwv_fragile|free-standing": {
+   "branch_tie": false,
+   "content": {
+    "-GM9": 1,
+    "-K6": 1,
+    "-M5": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "183.186",
+    "missing": 0,
+    "n_rows": 24,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "183.186",
+    "unmapped": 0
+   },
+   "descent": {
+    "from": {
+     "name": "P6/mmm1'",
+     "number_str": "191.234",
+     "size": 48
+    },
+    "iterations": 1,
+    "n_dropped": 24,
+    "steps": [
+     {
+      "from": "191.234",
+      "n_dropped": 24,
+      "refuted_by": {
+       "tensor structure": 24
+      },
+      "to": "183.186"
+     }
+    ],
+    "to": {
+     "name": "P6mm1'",
+     "number_str": "183.186",
+     "size": 24
+    }
+   },
+   "environment": "free-standing",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 24,
+   "labels": [
+    "-E1",
+    "-E1"
+   ],
+   "n_ops_represented": 24,
+   "name": "P6mm1'",
+   "number_str": "183.186",
+   "occ": 2,
+   "orb": [
+    [
+     0.333333333333,
+     0.666666666667,
+     0.0
+    ],
+    [
+     0.666666666667,
+     0.333333333333,
+     0.0
+    ]
+   ],
+   "product_residual": 1.0429598422709816e-15,
+   "size": 24,
+   "time_reversal": "kept"
+  },
+  "pwv_fragile|substrate": {
+   "branch_tie": false,
+   "content": {
+    "-GM9": 1,
+    "-K6": 1,
+    "-M5": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "183.186",
+    "missing": 0,
+    "n_rows": 24,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "183.186",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "substrate",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 24,
+   "labels": [
+    "-E1",
+    "-E1"
+   ],
+   "n_ops_represented": 24,
+   "name": "P6mm1'",
+   "number_str": "183.186",
+   "occ": 2,
+   "orb": [
+    [
+     0.333333333333,
+     0.666666666667,
+     0.0
+    ],
+    [
+     0.666666666667,
+     0.333333333333,
+     0.0
+    ]
+   ],
+   "product_residual": 1.0429598422709816e-15,
+   "size": 24,
+   "time_reversal": "kept"
+  },
+  "pxpy|free-standing": {
+   "branch_tie": false,
+   "content": {
+    "GM5+": 1,
+    "K5": 1,
+    "M3-": 1,
+    "M4-": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "191.234",
+    "missing": 0,
+    "n_rows": 24,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "183.186",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "free-standing",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 48,
+   "labels": [
+    "E'",
+    "E'",
+    "E'",
+    "E'"
+   ],
+   "n_ops_represented": 48,
+   "name": "P6/mmm1'",
+   "number_str": "191.234",
+   "occ": 2,
+   "orb": [
+    [
+     0.666666666667,
+     0.666666666667,
+     0.0
+    ],
+    [
+     0.666666666667,
+     0.666666666667,
+     0.0
+    ],
+    [
+     0.333333333333,
+     0.333333333333,
+     0.0
+    ],
+    [
+     0.333333333333,
+     0.333333333333,
+     0.0
+    ]
+   ],
+   "product_residual": 1.227370256589304e-15,
+   "size": 48,
+   "time_reversal": "kept"
+  },
+  "pxpy|substrate": {
+   "branch_tie": false,
+   "content": {
+    "GM5": 1,
+    "K3": 1,
+    "M3": 1,
+    "M4": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "191.234",
+    "missing": 0,
+    "n_rows": 24,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "183.186",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "substrate",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 24,
+   "labels": [
+    "E",
+    "E",
+    "E",
+    "E"
+   ],
+   "n_ops_represented": 24,
+   "name": "P6mm1'",
+   "number_str": "183.186",
+   "occ": 2,
+   "orb": [
+    [
+     0.666666666667,
+     0.666666666667,
+     0.0
+    ],
+    [
+     0.666666666667,
+     0.666666666667,
+     0.0
+    ],
+    [
+     0.333333333333,
+     0.333333333333,
+     0.0
+    ],
+    [
+     0.333333333333,
+     0.333333333333,
+     0.0
+    ]
+   ],
+   "product_residual": 3.621809659963659e-15,
+   "size": 24,
+   "time_reversal": "kept"
+  },
+  "square_s_pz_mixed|free-standing": {
+   "branch_tie": false,
+   "content": {
+    "GM1+": 1,
+    "S3-": 1,
+    "X1+": 1,
+    "Y1+": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "47.250",
+    "missing": 0,
+    "n_rows": 8,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "25.58",
+    "unmapped": 0
+   },
+   "descent": {
+    "from": {
+     "name": "P4/mmm1'",
+     "number_str": "123.340",
+     "size": 32
+    },
+    "iterations": 1,
+    "n_dropped": 16,
+    "steps": [
+     {
+      "from": "123.340",
+      "n_dropped": 16,
+      "refuted_by": {
+       "no symmetry matrix": 16
+      },
+      "to": "47.250"
+     }
+    ],
+    "to": {
+     "name": "Pmmm1'",
+     "number_str": "47.250",
+     "size": 16
+    }
+   },
+   "environment": "free-standing",
+   "indicator": {
+    "__refusal__": "indicator_not_evaluable"
+   },
+   "kept": 16,
+   "labels": [
+    "Ag",
+    "B3u"
+   ],
+   "n_ops_represented": 16,
+   "name": "Pmmm1'",
+   "number_str": "47.250",
+   "occ": 1,
+   "orb": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "product_residual": 0.0,
+   "size": 16,
+   "time_reversal": "kept"
+  },
+  "square_s_pz_mixed|substrate": {
+   "branch_tie": false,
+   "content": {
+    "GM1": 1,
+    "S4": 1,
+    "X1": 1,
+    "Y1": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "47.250",
+    "missing": 0,
+    "n_rows": 8,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "25.58",
+    "unmapped": 0
+   },
+   "descent": {
+    "from": {
+     "name": "P4mm1'",
+     "number_str": "99.164",
+     "size": 16
+    },
+    "iterations": 1,
+    "n_dropped": 8,
+    "steps": [
+     {
+      "from": "99.164",
+      "n_dropped": 8,
+      "refuted_by": {
+       "no symmetry matrix": 8
+      },
+      "to": "25.58"
+     }
+    ],
+    "to": {
+     "name": "Pmm21'",
+     "number_str": "25.58",
+     "size": 8
+    }
+   },
+   "environment": "substrate",
+   "indicator": {
+    "__refusal__": "not_a_band_structure"
+   },
+   "kept": 8,
+   "labels": [
+    "A1",
+    "B1"
+   ],
+   "n_ops_represented": 8,
+   "name": "Pmm21'",
+   "number_str": "25.58",
+   "occ": 1,
+   "orb": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "product_residual": 0.0,
+   "size": 8,
+   "time_reversal": "kept"
+  },
+  "square_s_pz|free-standing": {
+   "branch_tie": false,
+   "content": {
+    "GM1+": 1,
+    "M1+": 1,
+    "X1+": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "123.340",
+    "missing": 0,
+    "n_rows": 16,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "99.164",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "free-standing",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 32,
+   "labels": [
+    "A1g",
+    "A1g"
+   ],
+   "n_ops_represented": 32,
+   "name": "P4/mmm1'",
+   "number_str": "123.340",
+   "occ": 1,
+   "orb": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "product_residual": 0.0,
+   "size": 32,
+   "time_reversal": "kept"
+  },
+  "square_s_pz|substrate": {
+   "branch_tie": false,
+   "content": {
+    "GM1": 1,
+    "M1": 1,
+    "X1": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "123.340",
+    "missing": 0,
+    "n_rows": 16,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "99.164",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "substrate",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 16,
+   "labels": [
+    "A1",
+    "A1"
+   ],
+   "n_ops_represented": 16,
+   "name": "P4mm1'",
+   "number_str": "99.164",
+   "occ": 1,
+   "orb": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "product_residual": 0.0,
+   "size": 16,
+   "time_reversal": "kept"
+  }
+ },
+ "r1": {
+  "fkm_bond_strong": {
+   "branch_tie": false,
+   "content": {
+    "-F5F6": 1,
+    "-GM9": 1,
+    "-L5L6": 1,
+    "-T8": 1
+   },
+   "cross_check": null,
+   "descent": null,
+   "environment": null,
+   "indicator": {
+    "order": 4,
+    "structure": [
+     "Z",
+     "2",
+     " ",
+     "x",
+     " ",
+     "Z",
+     "4"
+    ],
+    "values": [
+     0,
+     1
+    ]
+   },
+   "kept": 24,
+   "labels": [
+    "-E1",
+    "-E1"
+   ],
+   "n_ops_represented": 24,
+   "name": "R-3m1'",
+   "number_str": "166.98",
+   "occ": 2,
+   "orb": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.25,
+     0.25,
+     0.25
+    ]
+   ],
+   "product_residual": 1.0623534945633305e-15,
+   "size": 24,
+   "time_reversal": "kept"
+  },
+  "fkm_bond_trivial": {
+   "branch_tie": false,
+   "content": {
+    "-F5F6": 1,
+    "-GM9": 1,
+    "-L5L6": 1,
+    "-T9": 1
+   },
+   "cross_check": null,
+   "descent": null,
+   "environment": null,
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "Z",
+     "2",
+     " ",
+     "x",
+     " ",
+     "Z",
+     "4"
+    ],
+    "values": [
+     0,
+     0
+    ]
+   },
+   "kept": 24,
+   "labels": [
+    "-E1",
+    "-E1"
+   ],
+   "n_ops_represented": 24,
+   "name": "R-3m1'",
+   "number_str": "166.98",
+   "occ": 2,
+   "orb": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.25,
+     0.25,
+     0.25
+    ]
+   ],
+   "product_residual": 1.0623534945633305e-15,
+   "size": 24,
+   "time_reversal": "kept"
+  },
+  "fkm_bond_weak": {
+   "branch_tie": false,
+   "content": {
+    "-F3F4": 1,
+    "-GM9": 1,
+    "-L5L6": 1,
+    "-T8": 1
+   },
+   "cross_check": null,
+   "descent": null,
+   "environment": null,
+   "indicator": {
+    "order": 2,
+    "structure": [
+     "Z",
+     "2",
+     " ",
+     "x",
+     " ",
+     "Z",
+     "4"
+    ],
+    "values": [
+     1,
+     0
+    ]
+   },
+   "kept": 24,
+   "labels": [
+    "-E1",
+    "-E1"
+   ],
+   "n_ops_represented": 24,
+   "name": "R-3m1'",
+   "number_str": "166.98",
+   "occ": 2,
+   "orb": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.25,
+     0.25,
+     0.25
+    ]
+   ],
+   "product_residual": 1.0623534945633305e-15,
+   "size": 24,
+   "time_reversal": "kept"
+  },
+  "fkm_diamond": {
+   "branch_tie": false,
+   "content": {
+    "-GM9": 1,
+    "-L8": 1,
+    "-W5W6": 1
+   },
+   "cross_check": null,
+   "descent": null,
+   "environment": null,
+   "indicator": {
+    "__refusal__": "incomplete_content"
+   },
+   "kept": 96,
+   "labels": [
+    "-E1",
+    "-E1"
+   ],
+   "n_ops_represented": 96,
+   "name": "Fd-3m1'",
+   "number_str": "227.129",
+   "occ": 2,
+   "orb": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.25,
+     0.25,
+     0.25
+    ]
+   ],
+   "product_residual": 2.8435583831733384e-15,
+   "size": 96,
+   "time_reversal": "kept"
+  },
+  "km_even|free-standing": {
+   "branch_tie": false,
+   "content": {
+    "-GM6": 1,
+    "-K4": 1,
+    "-K5": 1,
+    "-M3M4": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "156.50",
+    "missing": 0,
+    "n_rows": 12,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "156.50",
+    "unmapped": 0
+   },
+   "descent": {
+    "from": {
+     "name": "P-6m21'",
+     "number_str": "187.210",
+     "size": 24
+    },
+    "iterations": 1,
+    "n_dropped": 12,
+    "steps": [
+     {
+      "from": "187.210",
+      "n_dropped": 12,
+      "refuted_by": {
+       "tensor structure": 12
+      },
+      "to": "156.50"
+     }
+    ],
+    "to": {
+     "name": "P3m11'",
+     "number_str": "156.50",
+     "size": 12
+    }
+   },
+   "environment": "free-standing",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 12,
+   "labels": [
+    "-E1",
+    "-E1"
+   ],
+   "n_ops_represented": 12,
+   "name": "P3m11'",
+   "number_str": "156.50",
+   "occ": 2,
+   "orb": [
+    [
+     0.333333333333,
+     0.333333333333,
+     0.0
+    ],
+    [
+     0.666666666667,
+     0.666666666667,
+     0.0
+    ]
+   ],
+   "product_residual": 4.47545209131181e-16,
+   "size": 12,
+   "time_reversal": "kept"
+  },
+  "km_even|substrate": {
+   "branch_tie": false,
+   "content": {
+    "-GM6": 1,
+    "-K4": 1,
+    "-K5": 1,
+    "-M3M4": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "156.50",
+    "missing": 0,
+    "n_rows": 12,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "156.50",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "substrate",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 12,
+   "labels": [
+    "-E1",
+    "-E1"
+   ],
+   "n_ops_represented": 12,
+   "name": "P3m11'",
+   "number_str": "156.50",
+   "occ": 2,
+   "orb": [
+    [
+     0.333333333333,
+     0.333333333333,
+     0.0
+    ],
+    [
+     0.666666666667,
+     0.666666666667,
+     0.0
+    ]
+   ],
+   "product_residual": 4.47545209131181e-16,
+   "size": 12,
+   "time_reversal": "kept"
+  },
+  "km_layer_sigma_h|free-standing": {
+   "branch_tie": false,
+   "content": {
+    "-GM12": 1,
+    "-K9": 1,
+    "-M5": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "191.234",
+    "missing": 0,
+    "n_rows": 24,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "183.186",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "free-standing",
+   "indicator": {
+    "order": 6,
+    "structure": [
+     "Z",
+     "6",
+     " ",
+     "x",
+     " ",
+     "Z",
+     "1",
+     "2"
+    ],
+    "values": [
+     5,
+     0
+    ]
+   },
+   "kept": 48,
+   "labels": [
+    "-E2",
+    "-E2"
+   ],
+   "n_ops_represented": 48,
+   "name": "P6/mmm1'",
+   "number_str": "191.234",
+   "occ": 2,
+   "orb": [
+    [
+     0.333333333333,
+     0.333333333333,
+     0.0
+    ],
+    [
+     0.666666666667,
+     0.666666666667,
+     0.0
+    ]
+   ],
+   "product_residual": 1.1957467920563633e-15,
+   "size": 48,
+   "time_reversal": "kept"
+  },
+  "km_layer_sigma_h|substrate": {
+   "branch_tie": false,
+   "content": {
+    "-GM9": 1,
+    "-K6": 1,
+    "-M5": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "191.234",
+    "missing": 0,
+    "n_rows": 24,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "183.186",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "substrate",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 24,
+   "labels": [
+    "-E1",
+    "-E1"
+   ],
+   "n_ops_represented": 24,
+   "name": "P6mm1'",
+   "number_str": "183.186",
+   "occ": 2,
+   "orb": [
+    [
+     0.333333333333,
+     0.333333333333,
+     0.0
+    ],
+    [
+     0.666666666667,
+     0.666666666667,
+     0.0
+    ]
+   ],
+   "product_residual": 1.247457973265988e-15,
+   "size": 24,
+   "time_reversal": "kept"
+  },
+  "km_odd|free-standing": {
+   "branch_tie": false,
+   "content": {
+    "-GM6": 1,
+    "-K5": 1,
+    "-K6": 1,
+    "-M3M4": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "156.50",
+    "missing": 0,
+    "n_rows": 12,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "156.50",
+    "unmapped": 0
+   },
+   "descent": {
+    "from": {
+     "name": "P-6m21'",
+     "number_str": "187.210",
+     "size": 24
+    },
+    "iterations": 1,
+    "n_dropped": 12,
+    "steps": [
+     {
+      "from": "187.210",
+      "n_dropped": 12,
+      "refuted_by": {
+       "tensor structure": 12
+      },
+      "to": "156.50"
+     }
+    ],
+    "to": {
+     "name": "P3m11'",
+     "number_str": "156.50",
+     "size": 12
+    }
+   },
+   "environment": "free-standing",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 12,
+   "labels": [
+    "-E1",
+    "-E1"
+   ],
+   "n_ops_represented": 12,
+   "name": "P3m11'",
+   "number_str": "156.50",
+   "occ": 2,
+   "orb": [
+    [
+     0.333333333333,
+     0.333333333333,
+     0.0
+    ],
+    [
+     0.666666666667,
+     0.666666666667,
+     0.0
+    ]
+   ],
+   "product_residual": 4.47545209131181e-16,
+   "size": 12,
+   "time_reversal": "kept"
+  },
+  "km_odd|substrate": {
+   "branch_tie": false,
+   "content": {
+    "-GM6": 1,
+    "-K5": 1,
+    "-K6": 1,
+    "-M3M4": 1
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "156.50",
+    "missing": 0,
+    "n_rows": 12,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "156.50",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "substrate",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 12,
+   "labels": [
+    "-E1",
+    "-E1"
+   ],
+   "n_ops_represented": 12,
+   "name": "P3m11'",
+   "number_str": "156.50",
+   "occ": 2,
+   "orb": [
+    [
+     0.333333333333,
+     0.333333333333,
+     0.0
+    ],
+    [
+     0.666666666667,
+     0.666666666667,
+     0.0
+    ]
+   ],
+   "product_residual": 4.47545209131181e-16,
+   "size": 12,
+   "time_reversal": "kept"
+  },
+  "lin3g|free-standing": {
+   "branch_tie": false,
+   "content": {
+    "-GM6": 2,
+    "-GM7": 1,
+    "-M6": 1,
+    "-M7": 2,
+    "-X5": 3
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "99.164",
+    "missing": 0,
+    "n_rows": 16,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "99.164",
+    "unmapped": 0
+   },
+   "descent": {
+    "from": {
+     "name": "P4/mmm1'",
+     "number_str": "123.340",
+     "size": 32
+    },
+    "iterations": 1,
+    "n_dropped": 16,
+    "steps": [
+     {
+      "from": "123.340",
+      "n_dropped": 16,
+      "refuted_by": {
+       "tensor structure": 16
+      },
+      "to": "99.164"
+     }
+    ],
+    "to": {
+     "name": "P4mm1'",
+     "number_str": "99.164",
+     "size": 16
+    }
+   },
+   "environment": "free-standing",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 16,
+   "labels": [
+    "-E1",
+    "-E2",
+    "-E",
+    "-E"
+   ],
+   "n_ops_represented": 16,
+   "name": "P4mm1'",
+   "number_str": "99.164",
+   "occ": 6,
+   "orb": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.5,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.5,
+     0.0
+    ]
+   ],
+   "product_residual": 5.534306056034456e-16,
+   "size": 16,
+   "time_reversal": "kept"
+  },
+  "lin3g|substrate": {
+   "branch_tie": false,
+   "content": {
+    "-GM6": 2,
+    "-GM7": 1,
+    "-M6": 1,
+    "-M7": 2,
+    "-X5": 3
+   },
+   "cross_check": {
+    "agrees": true,
+    "extra": 0,
+    "flipping": 0,
+    "free_standing": "99.164",
+    "missing": 0,
+    "n_rows": 16,
+    "outcome": "agree",
+    "refusal_gate": null,
+    "substrate": "99.164",
+    "unmapped": 0
+   },
+   "descent": null,
+   "environment": "substrate",
+   "indicator": {
+    "order": 1,
+    "structure": [
+     "t",
+     "r",
+     "i",
+     "v",
+     "i",
+     "a",
+     "l"
+    ],
+    "values": []
+   },
+   "kept": 16,
+   "labels": [
+    "-E1",
+    "-E2",
+    "-E",
+    "-E"
+   ],
+   "n_ops_represented": 16,
+   "name": "P4mm1'",
+   "number_str": "99.164",
+   "occ": 6,
+   "orb": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.5,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.5,
+     0.0
+    ]
+   ],
+   "product_residual": 5.534306056034456e-16,
+   "size": 16,
+   "time_reversal": "kept"
+  }
+ },
+ "srsi": {
+  "fkm_strong": {
+   "splitting_2": {
+    "c_atomic_possible": false,
+    "consistent_pairs": [],
+    "moduli": [],
+    "n_bands_c": 2,
+    "n_bands_v": 2,
+    "n_consistent_pairs": 0,
+    "nsit": false,
+    "number_str": "166.98",
+    "repr": "Splitting(#166.98, stable topological, 0 consistent pair(s))",
+    "same_content": [],
+    "spinor": true,
+    "theta_Z_c": [
+     "1/4",
+     "0/1",
+     "1/2",
+     "0/1",
+     "-1/4",
+     "1/2",
+     "1/4",
+     "-1/4"
+    ],
+    "theta_Z_total": [
+     "0/1",
+     "0/1",
+     "1/1",
+     "1/1",
+     "0/1",
+     "0/1",
+     "0/1",
+     "0/1"
+    ],
+    "theta_Z_v": [
+     "-1/4",
+     "0/1",
+     "1/2",
+     "1/1",
+     "1/4",
+     "-1/2",
+     "-1/4",
+     "1/4"
+    ],
+    "theta_Zn_total": {},
+    "v_atomic_possible": false,
+    "verdict": "stable topological"
+   },
+   "srsi_of_bands_2": {
+    "denominator": 4,
+    "indicator_values": [
+     0,
+     1
+    ],
+    "n_bands": 2,
+    "names": [
+     "theta_1",
+     "theta_2",
+     "theta_3",
+     "theta_4",
+     "theta_5",
+     "theta_6",
+     "theta_7",
+     "theta_8"
+    ],
+    "number_str": "166.98",
+    "p": [
+     "-1/4",
+     "0/1",
+     "1/2",
+     "1/1",
+     "1/4",
+     "0/1",
+     "-1/2",
+     "0/1",
+     "-1/4",
+     "0/1",
+     "1/4",
+     "0/1"
+    ],
+    "stable": true,
+    "theta_Z": [
+     "-1/4",
+     "0/1",
+     "1/2",
+     "1/1",
+     "1/4",
+     "-1/2",
+     "-1/4",
+     "1/4"
+    ]
+   },
+   "srsi_of_model": {
+    "moduli": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "names": [
+     "theta_1",
+     "theta_2",
+     "theta_3",
+     "theta_4",
+     "theta_5",
+     "theta_6",
+     "theta_7",
+     "theta_8"
+    ],
+    "number_str": "166.98",
+    "orbits": [
+     "OrbitSRSIs(orbitals [0, 1] @ 6c, 2 localization(s))"
+    ],
+    "spinor": true,
+    "structure": "Z x Z x Z x Z x Z x Z x Z x Z",
+    "theta_Z": [
+     "0/1",
+     "0/1",
+     "1/1",
+     "1/1",
+     "0/1",
+     "0/1",
+     "0/1",
+     "0/1"
+    ],
+    "theta_Zn": {}
+   }
+  },
+  "fkm_trivial": {
+   "splitting_2": {
+    "c_atomic_possible": true,
+    "consistent_pairs": [
+     [
+      0,
+      0
+     ]
+    ],
+    "moduli": [],
+    "n_bands_c": 2,
+    "n_bands_v": 2,
+    "n_consistent_pairs": 1,
+    "nsit": false,
+    "number_str": "166.98",
+    "repr": "Splitting(#166.98, no Z_n SRSIs, 1 consistent pair(s))",
+    "same_content": [],
+    "spinor": true,
+    "theta_Z_c": [
+     "0/1",
+     "0/1",
+     "1/1",
+     "0/1",
+     "0/1",
+     "0/1",
+     "0/1",
+     "0/1"
+    ],
+    "theta_Z_total": [
+     "0/1",
+     "0/1",
+     "1/1",
+     "1/1",
+     "0/1",
+     "0/1",
+     "0/1",
+     "0/1"
+    ],
+    "theta_Z_v": [
+     "0/1",
+     "0/1",
+     "0/1",
+     "1/1",
+     "0/1",
+     "0/1",
+     "0/1",
+     "0/1"
+    ],
+    "theta_Zn_total": {},
+    "v_atomic_possible": true,
+    "verdict": "no Z_n SRSIs"
+   },
+   "srsi_of_bands_2": {
+    "denominator": 1,
+    "indicator_values": [
+     0,
+     0
+    ],
+    "n_bands": 2,
+    "names": [
+     "theta_1",
+     "theta_2",
+     "theta_3",
+     "theta_4",
+     "theta_5",
+     "theta_6",
+     "theta_7",
+     "theta_8"
+    ],
+    "number_str": "166.98",
+    "p": [
+     "0/1",
+     "0/1",
+     "0/1",
+     "1/1",
+     "0/1",
+     "0/1",
+     "0/1",
+     "0/1",
+     "0/1",
+     "0/1",
+     "0/1",
+     "0/1"
+    ],
+    "stable": false,
+    "theta_Z": [
+     "0/1",
+     "0/1",
+     "0/1",
+     "1/1",
+     "0/1",
+     "0/1",
+     "0/1",
+     "0/1"
+    ]
+   },
+   "srsi_of_model": {
+    "moduli": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "names": [
+     "theta_1",
+     "theta_2",
+     "theta_3",
+     "theta_4",
+     "theta_5",
+     "theta_6",
+     "theta_7",
+     "theta_8"
+    ],
+    "number_str": "166.98",
+    "orbits": [
+     "OrbitSRSIs(orbitals [0, 1] @ 6c, 2 localization(s))"
+    ],
+    "spinor": true,
+    "structure": "Z x Z x Z x Z x Z x Z x Z x Z",
+    "theta_Z": [
+     "0/1",
+     "0/1",
+     "1/1",
+     "1/1",
+     "0/1",
+     "0/1",
+     "0/1",
+     "0/1"
+    ],
+    "theta_Zn": {}
+   }
+  },
+  "fkm_weak": {
+   "splitting_2": {
+    "c_atomic_possible": false,
+    "consistent_pairs": [],
+    "moduli": [],
+    "n_bands_c": 2,
+    "n_bands_v": 2,
+    "n_consistent_pairs": 0,
+    "nsit": false,
+    "number_str": "166.98",
+    "repr": "Splitting(#166.98, stable topological, 0 consistent pair(s))",
+    "same_content": [],
+    "spinor": true,
+    "theta_Z_c": [
+     "0/1",
+     "0/1",
+     "0/1",
+     "0/1",
+     "-1/2",
+     "0/1",
+     "1/2",
+     "0/1"
+    ],
+    "theta_Z_total": [
+     "0/1",
+     "0/1",
+     "1/1",
+     "1/1",
+     "0/1",
+     "0/1",
+     "0/1",
+     "0/1"
+    ],
+    "theta_Z_v": [
+     "0/1",
+     "0/1",
+     "1/1",
+     "1/1",
+     "1/2",
+     "0/1",
+     "-1/2",
+     "0/1"
+    ],
+    "theta_Zn_total": {},
+    "v_atomic_possible": false,
+    "verdict": "stable topological"
+   },
+   "srsi_of_bands_2": {
+    "denominator": 2,
+    "indicator_values": [
+     1,
+     0
+    ],
+    "n_bands": 2,
+    "names": [
+     "theta_1",
+     "theta_2",
+     "theta_3",
+     "theta_4",
+     "theta_5",
+     "theta_6",
+     "theta_7",
+     "theta_8"
+    ],
+    "number_str": "166.98",
+    "p": [
+     "0/1",
+     "0/1",
+     "1/1",
+     "1/1",
+     "1/2",
+     "0/1",
+     "0/1",
+     "0/1",
+     "-1/2",
+     "0/1",
+     "0/1",
+     "0/1"
+    ],
+    "stable": true,
+    "theta_Z": [
+     "0/1",
+     "0/1",
+     "1/1",
+     "1/1",
+     "1/2",
+     "0/1",
+     "-1/2",
+     "0/1"
+    ]
+   },
+   "srsi_of_model": {
+    "moduli": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "names": [
+     "theta_1",
+     "theta_2",
+     "theta_3",
+     "theta_4",
+     "theta_5",
+     "theta_6",
+     "theta_7",
+     "theta_8"
+    ],
+    "number_str": "166.98",
+    "orbits": [
+     "OrbitSRSIs(orbitals [0, 1] @ 6c, 2 localization(s))"
+    ],
+    "spinor": true,
+    "structure": "Z x Z x Z x Z x Z x Z x Z x Z",
+    "theta_Z": [
+     "0/1",
+     "0/1",
+     "1/1",
+     "1/1",
+     "0/1",
+     "0/1",
+     "0/1",
+     "0/1"
+    ],
+    "theta_Zn": {}
+   }
+  },
+  "lin3g": {
+   "splitting_4": {
+    "c_atomic_possible": true,
+    "consistent_pairs": [
+     [
+      0,
+      2
+     ],
+     [
+      2,
+      0
+     ]
+    ],
+    "moduli": [
+     2
+    ],
+    "n_bands_c": 4,
+    "n_bands_v": 4,
+    "n_consistent_pairs": 2,
+    "nsit": false,
+    "number_str": "99.164",
+    "repr": "Splitting(#99.164, invisible to the SRSIs, 2 consistent pair(s))",
+    "same_content": [],
+    "spinor": true,
+    "theta_Z_c": [
+     "1/1",
+     "1/1",
+     "0/1"
+    ],
+    "theta_Z_total": [
+     "2/1",
+     "2/1",
+     "0/1"
+    ],
+    "theta_Z_v": [
+     "1/1",
+     "1/1",
+     "0/1"
+    ],
+    "theta_Zn_total": {
+     "2": [
+      0,
+      1
+     ]
+    },
+    "v_atomic_possible": true,
+    "verdict": "invisible to the SRSIs"
+   },
+   "splitting_6": {
+    "c_atomic_possible": true,
+    "consistent_pairs": [],
+    "moduli": [
+     2
+    ],
+    "n_bands_c": 2,
+    "n_bands_v": 6,
+    "n_consistent_pairs": 0,
+    "nsit": true,
+    "number_str": "99.164",
+    "repr": "Splitting(#99.164, diagnosed topological, 0 consistent pair(s))",
+    "same_content": [],
+    "spinor": true,
+    "theta_Z_c": [
+     "1/1",
+     "1/1",
+     "-1/1"
+    ],
+    "theta_Z_total": [
+     "2/1",
+     "2/1",
+     "0/1"
+    ],
+    "theta_Z_v": [
+     "1/1",
+     "1/1",
+     "1/1"
+    ],
+    "theta_Zn_total": {
+     "2": [
+      0,
+      1
+     ]
+    },
+    "v_atomic_possible": true,
+    "verdict": "diagnosed topological"
+   },
+   "srsi_of_model": {
+    "moduli": [
+     null,
+     null,
+     null,
+     2,
+     2
+    ],
+    "names": [
+     "theta_1",
+     "theta_2",
+     "theta_3"
+    ],
+    "number_str": "99.164",
+    "orbits": [
+     "OrbitSRSIs(orbitals [0, 1] @ 1a, 1 localization(s))",
+     "OrbitSRSIs(orbitals [2, 3] @ 2c, 1 localization(s))"
+    ],
+    "spinor": true,
+    "structure": "Z x Z x Z x Z2 x Z2",
+    "theta_Z": [
+     "2/1",
+     "2/1",
+     "0/1"
+    ],
+    "theta_Zn": {
+     "2": [
+      0,
+      1
+     ]
+    }
+   }
+  },
+  "p41_chiral": {
+   "number_str": "75.2",
+   "splitting_2": {
+    "c_atomic_possible": true,
+    "consistent_pairs": [],
+    "moduli": [
+     2
+    ],
+    "n_bands_c": 2,
+    "n_bands_v": 2,
+    "n_consistent_pairs": 0,
+    "nsit": true,
+    "number_str": "75.2",
+    "repr": "Splitting(#75.2, diagnosed topological, 0 consistent pair(s))",
+    "same_content": [],
+    "spinor": true,
+    "theta_Z_c": [
+     "0/1",
+     "1/1",
+     "0/1"
+    ],
+    "theta_Z_total": [
+     "1/1",
+     "1/1",
+     "0/1"
+    ],
+    "theta_Z_v": [
+     "1/1",
+     "0/1",
+     "0/1"
+    ],
+    "theta_Zn_total": {
+     "2": [
+      0,
+      1
+     ]
+    },
+    "v_atomic_possible": true,
+    "verdict": "diagnosed topological"
+   },
+   "srsi_of_bands_2": {
+    "denominator": 1,
+    "indicator_values": [],
+    "n_bands": 2,
+    "names": [
+     "theta_1",
+     "theta_2",
+     "theta_3"
+    ],
+    "number_str": "75.2",
+    "p": [
+     "0/1",
+     "1/1",
+     "0/1",
+     "0/1",
+     "0/1"
+    ],
+    "stable": false,
+    "theta_Z": [
+     "1/1",
+     "0/1",
+     "0/1"
+    ]
+   },
+   "srsi_of_model": {
+    "moduli": [
+     null,
+     null,
+     null,
+     2,
+     2
+    ],
+    "names": [
+     "theta_1",
+     "theta_2",
+     "theta_3"
+    ],
+    "number_str": "75.2",
+    "orbits": [
+     "OrbitSRSIs(orbitals [0, 1] @ 2c, 1 localization(s))"
+    ],
+    "spinor": true,
+    "structure": "Z x Z x Z x Z2 x Z2",
+    "theta_Z": [
+     "1/1",
+     "1/1",
+     "0/1"
+    ],
+    "theta_Zn": {
+     "2": [
+      0,
+      1
+     ]
+    }
+   }
+  },
+  "tables_147_double": {
+   "moduli": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "n_pairs": 0,
+   "n_rows": 9,
+   "names": [
+    "theta_1",
+    "theta_2",
+    "theta_3",
+    "theta_4",
+    "theta_5",
+    "theta_6",
+    "theta_7",
+    "theta_8",
+    "theta_9"
+   ],
+   "pairs": [],
+   "repr": "SRSITables(#147.14, double-valued, 9 SRSIs = Z x Z x Z x Z x Z x Z x Z x Z x Z, 14 EBR columns, 2 indicators, 0 split EBRs)"
+  },
+  "tables_147_single": {
+   "moduli": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "n_pairs": 0,
+   "n_rows": 9,
+   "names": [
+    "theta_1",
+    "theta_2",
+    "theta_3",
+    "theta_4",
+    "theta_5",
+    "theta_6",
+    "theta_7",
+    "theta_8",
+    "theta_9"
+   ],
+   "pairs": [],
+   "repr": "SRSITables(#147.14, single-valued, 9 SRSIs = Z x Z x Z x Z x Z x Z x Z x Z x Z, 14 EBR columns, 2 indicators, 0 split EBRs)"
+  },
+  "tables_162_double": {
+   "moduli": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    2
+   ],
+   "n_pairs": 0,
+   "n_rows": 10,
+   "names": [
+    "theta_1",
+    "theta_2",
+    "theta_3",
+    "theta_4",
+    "theta_5",
+    "theta_6",
+    "theta_7",
+    "theta_8",
+    "theta_9",
+    "theta_10"
+   ],
+   "pairs": [],
+   "repr": "SRSITables(#162.74, double-valued, 10 SRSIs = Z x Z x Z x Z x Z x Z x Z x Z x Z x Z2, 16 EBR columns, 2 indicators, 0 split EBRs)"
+  },
+  "tables_162_single": {
+   "moduli": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    2
+   ],
+   "n_pairs": 0,
+   "n_rows": 13,
+   "names": [
+    "theta_1",
+    "theta_2",
+    "theta_3",
+    "theta_4",
+    "theta_5",
+    "theta_6",
+    "theta_7",
+    "theta_8",
+    "theta_9",
+    "theta_10",
+    "theta_11",
+    "theta_12",
+    "theta_13"
+   ],
+   "pairs": [],
+   "repr": "SRSITables(#162.74, single-valued, 13 SRSIs = Z x Z x Z x Z x Z x Z x Z x Z x Z x Z x Z x Z x Z2, 26 EBR columns, 1 indicators, 0 split EBRs)"
+  },
+  "tables_163_double": {
+   "moduli": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    2
+   ],
+   "n_pairs": 0,
+   "n_rows": 7,
+   "names": [
+    "theta_1",
+    "theta_2",
+    "theta_3",
+    "theta_4",
+    "theta_5",
+    "theta_6",
+    "theta_7"
+   ],
+   "pairs": [],
+   "repr": "SRSITables(#163.80, double-valued, 7 SRSIs = Z x Z x Z x Z x Z x Z x Z2, 12 EBR columns, 1 indicators, 0 split EBRs)"
+  },
+  "tables_163_single": {
+   "moduli": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    2
+   ],
+   "n_pairs": 0,
+   "n_rows": 8,
+   "names": [
+    "theta_1",
+    "theta_2",
+    "theta_3",
+    "theta_4",
+    "theta_5",
+    "theta_6",
+    "theta_7",
+    "theta_8"
+   ],
+   "pairs": [],
+   "repr": "SRSITables(#163.80, single-valued, 8 SRSIs = Z x Z x Z x Z x Z x Z x Z x Z2, 15 EBR columns, 1 indicators, 0 split EBRs)"
+  },
+  "tables_211_double": {
+   "moduli": [
+    null,
+    null,
+    null,
+    2,
+    2,
+    2,
+    2
+   ],
+   "n_pairs": 0,
+   "n_rows": 7,
+   "names": [
+    "theta_1",
+    "theta_2",
+    "theta_3",
+    "theta_4",
+    "theta_5",
+    "theta_6",
+    "theta_7"
+   ],
+   "pairs": [],
+   "repr": "SRSITables(#211.57, double-valued, 7 SRSIs = Z x Z x Z x Z2 x Z2 x Z2 x Z2, 8 EBR columns, 0 indicators, 5 split EBRs)"
+  },
+  "tables_211_single": {
+   "moduli": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    2,
+    2,
+    2
+   ],
+   "n_pairs": 1,
+   "n_rows": 10,
+   "names": [
+    "theta_1",
+    "theta_2",
+    "theta_3",
+    "theta_4",
+    "theta_5",
+    "theta_6",
+    "theta_7",
+    "theta_8",
+    "theta_9",
+    "theta_10"
+   ],
+   "pairs": [
+    "StablePair(#211.57, B2/B3 @ d)"
+   ],
+   "repr": "SRSITables(#211.57, single-valued, 10 SRSIs = Z x Z x Z x Z x Z x Z x Z x Z2 x Z2 x Z2, 17 EBR columns, 0 indicators, 6 split EBRs)"
+  }
+ }
+}

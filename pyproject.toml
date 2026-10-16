@@ -1,0 +1,141 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pythtqc"
+version = "0.1.0a2"
+description = "Crystalline-symmetry diagnostics for PythTB v2.0 tight-binding models."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [
+  { name = "Barry Bradlyn" },
+]
+maintainers = [
+  { name = "Barry Bradlyn", email = "bbradlyn@illinois.edu" },
+]
+keywords = [
+  "tight binding",
+  "space group",
+  "topological quantum chemistry",
+  "band representation",
+  "symmetry indicator",
+  "PythTB",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Physics",
+]
+# Space-group data comes from irrep, whose character tables ship as the SEPARATE
+# package `irreptables` (irrep silently degrades to a dummy-table fallback
+# without it — `groups` refuses in that state), and whose integer EBR
+# decompositions need ortools.
+dependencies = [
+  "numpy>=2.0",
+  # The Bloch sum and the model rebuilds read pythtb 2.0.2's own hopping table
+  # and bulk appender directly (`TBModel._hoptable`, `_append_hops`,
+  # `_evaluate_params`, and the parameter and k-point checks `hamiltonian`
+  # runs), so the version is pinned from below at that release.
+  "pythtb>=2.0.2",
+  "irrep>=3.2",
+  "irreptables>=3.1",
+  "ortools>=9.10",
+  # imported directly by `groups` (they also arrive transitively via irrep,
+  # but a direct import deserves a direct pin)
+  "spglib>=2.0",
+  "sympy>=1.12",
+]
+
+[project.urls]
+Homepage = "https://github.com/bbradlyn/pythtqc"
+Repository = "https://github.com/bbradlyn/pythtqc"
+
+[project.optional-dependencies]
+examples = [
+  "matplotlib>=3.8",
+]
+# The documentation site (mkdocs.yml): `mkdocs serve` previews it, and the
+# gates build it strictly. MkDocs 2.0 removes the plugin and theme system the
+# Material theme is built on, so the site stays on 1.x.
+docs = [
+  "mkdocs>=1.6,<2",
+  "mkdocs-material>=9.5,<10",
+]
+test = [
+  "pytest>=9.0",
+  "matplotlib>=3.8",
+  "mkdocs>=1.6,<2",
+  "mkdocs-material>=9.5,<10",
+]
+dev = [
+  "build>=1.2",
+  "matplotlib>=3.8",
+  "pytest>=9.0",
+  "mkdocs>=1.6,<2",
+  "mkdocs-material>=9.5,<10",
+]
+
+# src-layout with package auto-discovery: everything under src/ ships, so a new
+# module can never be silently left out of the wheel.
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# The converted stable-RSI tables, shipped in the repository and in the wheel
+# (scripts/convert_srsi_tables.py writes them from the paper's TeX supplement,
+# which is NOT shipped).  `pythtqc.srsi` refuses with `srsi_data` where an
+# installation lacks them, rather than failing at import.
+[tool.setuptools.package-data]
+pythtqc = ["data/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+# The tests come in four tiers, and a test's mark says which one it is in:
+#
+#   fast   no tier mark: the contracts a change is checked against while it is
+#          being written.  A bare `pytest` runs this tier and nothing else.
+#   slow   `slow`: the tests that measure large models, or many of them, and
+#          are costly one by one.  `pytest -m slow`.
+#   gates  `gates`: every example's printed output against its golden copy
+#          (tests/test_examples.py) and the stored baseline records
+#          (tests/test_baseline_r4.py), run whole before a commit.
+#          `pytest -m gates`.
+#   data   `data`: sweeps over the character tables and the converted SRSI
+#          data, which change only when that data changes.  `pytest -m data`.
+#
+# `pytest -m "slow or not slow"` runs all four, and it is also how one module
+# is run whole: `pytest tests/test_spin.py -m "slow or not slow"`.  A `-m` on
+# the command line replaces the default below.  An empty `-m ""` is not a
+# portable spelling of "everything": Windows PowerShell drops the empty
+# argument, and then nothing is selected.  `strict_markers` makes a misspelt
+# tier mark an error rather than a test silently left in the fast tier.  It is
+# pytest 9's setting and not the `--strict-markers` flag, because pytest 9
+# ignores that flag when it comes from `addopts`.
+addopts = ["-m", "not slow and not gates and not data"]
+strict_markers = true
+markers = [
+  "slow: a costly test, left out of a bare run; run with -m slow",
+  "gates: the example goldens and the stored baseline, run whole before a commit with -m gates",
+  "data: a sweep over the character tables or the converted SRSI data; run with -m data",
+]
+# Every deprecation message this package emits starts `pythtqc: `, and this
+# filter turns one into an error: should a spelling ever be deprecated, neither
+# the package's own code nor the suite can go on using it silently, and a test
+# of that spelling has to capture the warning (`pytest.deprecated_call()`).
+# The filter's second field is a regex matched at the START of the message, and
+# `:` separates the filter's own fields, so the prefix is spelled here without
+# its colon.  Third-party deprecations are untouched.
+# The package's own magnetic-scope notice is silenced in tests/conftest.py, not
+# here: a filter naming a pythtqc class makes pytest import the package while it
+# reads this file, before a coverage plugin starts.
+filterwarnings = [
+  "error:pythtqc:DeprecationWarning",
+]

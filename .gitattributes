@@ -1,0 +1,6 @@
+# The example goldens are compared byte for byte with a script's stdout, which
+# arrives LF-only (subprocess universal-newline translation).  Without this line
+# a Windows checkout with core.autocrlf=true rewrites them to CRLF and every
+# comparison fails.  Nothing else in the tree is pinned: the rest keeps git's
+# default handling.
+tests/data/example_goldens/* text eol=lf

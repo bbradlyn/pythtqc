@@ -1,0 +1,80 @@
+Lin et al., Nat. Commun. 15, 550 (2024), SM Sec. 3G: eight bands from
+four spinful orbitals, and the no-go criterion on two different gaps of them.
+
+1. the model, its two site orbits and its total band representation
+   realized group    : #99.164 P4mm1', orbitals at Wyckoff 1a and 2c, 8 bands
+P4mm1' #99.164, double-valued: stable real-space invariants Z x Z x Z x Z2 x Z2   (.structure)
+  the model's: Z-valued (2, 2, 0), Z_n-valued mod 2 (0, 1)   (.theta_Z, .theta_Zn)
+  each site orbit: its orbitals, its Wyckoff position, and its content, written m (irrep)_w, m copies of a site irrep at Wyckoff position w; then its invariants   (.orbits)
+    orbitals 0-1 at 1a: 1 (-E1)_a + 1 (-E2)_a
+      (1, 1, 0), mod 2 (0, 0)
+    orbitals 2-3 at 2c: 1 (-E)_c
+      (1, 1, 0), mod 2 (0, 1)
+   the 1a orbit      : -GM6 + -GM7 + -M6 + -M7 + 2×-X5
+   the 2c orbit      : -GM6 + -GM7 + -M6 + -M7 + 2×-X5
+                       — one content, told apart only by the mod 2 invariants above
+   all eight bands   : 2×-GM6 + 2×-GM7 + 2×-M6 + 2×-M7 + 4×-X5
+   decompose         : symmetry-indicated decomposable, 6 solutions:
+                       1a+1a+1a+1a, 1a+1a+1b+1b, 1a+1a+2c, 1b+1b+1b+1b, 1b+1b+2c, 2c+2c
+   -> the orbitals' own localization, 1a+1a+2c, is one of the six: the eight
+      bands are three elementary band representations at two Wyckoff
+      positions, not one of the single-EBR splittings the supplement
+      tabulates.  The invariants of all eight, H in the splittings below,
+      are the model's own above: the whole Hilbert space is an atomic
+      insulator.
+
+2. bands 4 and 5: the Z_n invariants come from the orbitals, not the bands
+   bands 4 and 5     : -GM6 + -M7 + -X5
+   decompose         : symmetry-indicated decomposable, 1 x -E2↑G(2)@1b(4mm1',4mm)
+                       (that verdict is about symmetry indicators, nothing finer)
+   srsi_of_bands     : theta_Z = (0, 0, 1), and no Z_n values at all
+   the solved-back p : (1, 1, -1, 0, 0) over the EBR columns, one rational
+                       solution of BR.p = y: theta_Z = (0, 0, 1), theta_Zn = {2: (0, 0)}
+   the 1b EBR column : the configuration decompose names above:
+                       theta_Z = (0, 0, 1), theta_Zn = {2: (1, 0)}
+   -> the same Z-SRSIs, different Z2-SRSIs.  The Z_n invariants are not
+      functions of the symmetry-data vector, so read them only for a
+      configuration that is known: the model's own, an EBR column, or a
+      decompose solution.
+
+3. splitting(r, bands=6): the six occupied bands against the two above them
+P4mm1' #99.164, double-valued, diagnosed topological: the two sides of the gap cannot both be atomic insulators   (.verdict)
+  V, the 6 bands asked for; C, the model's other 2; H, all 8   (.n_bands_v, .n_bands_c)
+  theta_Z, the Z-valued stable real-space invariants: H (2, 2, 0) = V (1, 1, 1) + C (1, 1, -1)   (.theta_Z_total, .theta_Z_v, .theta_Z_c)
+  theta_Zn, the Z_n-valued ones of H: mod 2 (0, 1)   (.theta_Zn_total)
+  V's symmetry-indicator group is trivial   (.indicator)
+  V's atomic realizations, every set of orbitals at maximal Wyckoff positions with V's symmetry data, written m (irrep)_w, m copies of a site irrep at Wyckoff position w, with its own theta_Zn   (.realizations_v)
+    [0] 1 (-E2)_b + 1 (-E)_c   mod 2 (1, 1)
+    [1] 1 (-E1)_b + 2 (-E2)_b   mod 2 (0, 0)
+    [2] 1 (-E1)_a + 1 (-E2)_a + 1 (-E2)_b   mod 2 (1, 0)
+  C's atomic realizations   (.realizations_c)
+    [0] 1 (-E1)_b   mod 2 (0, 0)
+  no realization of V with one of C has theta_Zn adding up to H's, modulo each n   (.consistent_pairs)
+   -> bands 4 and 5 are among the six, and the obstruction their
+      decomposition verdict could not see is this arithmetic.
+
+4. splitting(r, bands=4): the same model, the gap two bands lower
+P4mm1' #99.164, double-valued, invisible to the SRSIs: the stable real-space invariants (SRSIs) allow both sides of the gap to be atomic insulators, which does not make them so   (.verdict)
+  V, the 4 bands asked for; C, the model's other 4; H, all 8   (.n_bands_v, .n_bands_c)
+  theta_Z, the Z-valued stable real-space invariants: H (2, 2, 0) = V (1, 1, 0) + C (1, 1, 0)   (.theta_Z_total, .theta_Z_v, .theta_Z_c)
+  theta_Zn, the Z_n-valued ones of H: mod 2 (0, 1)   (.theta_Zn_total)
+  V's symmetry-indicator group is trivial   (.indicator)
+  V's atomic realizations, every set of orbitals at maximal Wyckoff positions with V's symmetry data, written m (irrep)_w, m copies of a site irrep at Wyckoff position w, with its own theta_Zn   (.realizations_v)
+    [0] 1 (-E)_c   mod 2 (0, 1)
+    [1] 1 (-E1)_b + 1 (-E2)_b   mod 2 (1, 0)
+    [2] 1 (-E1)_a + 1 (-E2)_a   mod 2 (0, 0)
+  C's atomic realizations   (.realizations_c)
+    [0] 1 (-E)_c   mod 2 (0, 1)
+    [1] 1 (-E1)_b + 1 (-E2)_b   mod 2 (1, 0)
+    [2] 1 (-E1)_a + 1 (-E2)_a   mod 2 (0, 0)
+  the pairs of a realization of V and one of C whose theta_Zn add up to H's, modulo each n   (.consistent_pairs)
+    V[0] with C[2]
+    V[2] with C[0]
+   -> the same Hamiltonian, the same total, one gap lower: the criterion
+      diagnoses the gap that contains bands 4 and 5 and not the other.
+
+5. the eight bands along GM-X-M-GM, with the two splittings marked
+   the two gaps      : over a 41x41 mesh, min E4 - max E3 = 0.661624 and
+                       min E6 - max E5 = 0.581572 — both splittings are gapped
+
+Done — figure written to <FIGDIR>

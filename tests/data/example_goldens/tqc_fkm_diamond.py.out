@@ -1,0 +1,58 @@
+Fu-Kane-Mele on the diamond lattice, PRL 98, 106803 (2007): four bands, two
+occupied, one of the four nearest-neighbour bonds detuned along [111].
+
+1. the undistorted crystal
+   realized group   : #227.129 Fd-3m1', s orbitals at Wyckoff 8a, 4 bands
+   GM  E = [-4.000000, -4.000000, +4.000000, +4.000000]   gap 8.000000
+   L   E = [-2.000000, -2.000000, +2.000000, +2.000000]   gap 4.000000
+   W   E = [-1.000000, -1.000000, +1.000000, +1.000000]   gap 2.000000
+   X   gap 0.000000: the four bands meet
+   all four bands   : -GM6 + -GM9 + -L8 + -L9 + -W5W6 + -W7 + -X5
+                      = 1 x -E1↑G(4)@8a(-43m1',-43m)
+   the valence pair : no label at X, where all four bands meet; the
+                      undistorted crystal is a semimetal
+
+2. delta_t = +0.4 on the [111] bond
+   realized group   : #166.98 R-3m1', orbitals at Wyckoff 6c
+                      (measured from the Hamiltonian: the detuned bond lowers
+                      Fd-3m to R-3m, although no atom moved)
+   GM  E = [-4.400000, -4.400000, +4.400000, +4.400000]   gap 8.800000
+   T   E = [-1.600000, -1.600000, +1.600000, +1.600000]   gap 3.200000
+   F   E = [-0.400000, -0.400000, +0.400000, +0.400000]   gap 0.800000
+   L   E = [-2.400000, -2.400000, +2.400000, +2.400000]   gap 4.800000
+   valence content  : GM: -GM9   T: -T8   F: -F5F6   L: -L5L6
+   decompose        : none (no sum of elementary band representations has
+                      this content: not an atomic limit)
+
+3. delta_t = -0.4 on the same bond
+   realized group   : #166.98 R-3m1', orbitals at Wyckoff 6c
+   gaps GM/T/F/L    : 7.200000 / 4.800000 / 0.800000 / 3.200000
+   valence content  : GM: -GM9   T: -T8   F: -F3F4   L: -L5L6
+   decompose        : none
+
+4. three bonds cut: decoupled dimers along [111]
+   realized group   : #166.98 R-3m1', orbitals at Wyckoff 6c
+   gaps GM/T/F/L    : 2.000000 / 2.000000 / 2.000000 / 2.000000
+   valence content  : GM: -GM9   T: -T9   F: -F5F6   L: -L5L6
+   decompose        : 1 x -E1u↑G(2)@3a(-3m1',-3m): an atomic limit, the
+                      antibonding pair of each dimer's two s orbitals at 3a
+                      on the [111] axis
+
+5. the content at the eight TRIM
+   the four k-orbits of #166.98 cover the cell's eight time-reversal-invariant
+   momenta: GM (1), T (1), F (3), L (3)
+   strong vs dimers : the content changes at T          (1 of 8 TRIM)
+   weak   vs dimers : the content changes at F and T    (4 of 8 TRIM)
+   #166.98 has inversion, so nu_0 is the parity product over these eight points
+
+6. the symmetry-indicator class in {BS}/{AI}
+   X_BS(#166.98) = Z2 x Z4
+   phase             class    order    z4   z2w,1/2/3   nu_0 = z4 mod 2
+   strong            (0, 1)   4        3    1 1 1       1
+   weak              (1, 0)   2        0    1 1 1       0
+   dimers            (0, 0)   1        0    0 0 0       0
+   in the paper's indices: (1;111), (0;111), (0;000)
+
+7. the bands along GM-T-F-L-GM, one panel per phase
+
+Done — figure written to <FIGDIR>

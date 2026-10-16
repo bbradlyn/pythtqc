@@ -1,0 +1,51 @@
+cff-version: 1.2.0
+message: >-
+  If you use pythtqc, please cite the paper its stable real-space invariants
+  come from, given below as the preferred citation, and the package itself.
+title: pythtqc
+abstract: >-
+  Crystalline-symmetry diagnostics for PythTB tight-binding models: the space
+  group a Hamiltonian obeys, the corep content of its bands, whether that
+  content could be an atomic limit, and its symmetry indicator and stable
+  real-space invariants.
+type: software
+authors:
+  - family-names: Bradlyn
+    given-names: Barry
+    affiliation: University of Illinois Urbana-Champaign
+version: 0.1.0a2
+license: GPL-3.0-or-later
+repository-code: "https://github.com/bbradlyn/pythtqc"
+keywords:
+  - tight binding
+  - space group
+  - topological quantum chemistry
+  - band representation
+  - symmetry indicator
+  - PythTB
+preferred-citation:
+  type: article
+  title: Stable real-space invariants and topology beyond symmetry indicators
+  authors:
+    - family-names: Hwang
+      given-names: Y.
+    - family-names: Gupta
+      given-names: V.
+    - family-names: Schindler
+      given-names: F.
+    - family-names: Elcoro
+      given-names: L.
+    - family-names: Song
+      given-names: Z.
+    - family-names: Bernevig
+      given-names: B. A.
+    - family-names: Bradlyn
+      given-names: B.
+  journal: Nature Communications
+  volume: 17
+  start: 8564
+  year: 2026
+  doi: 10.1038/s41467-026-74844-w
+  identifiers:
+    - type: other
+      value: "arXiv:2505.09697"

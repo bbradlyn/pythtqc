@@ -1,0 +1,104 @@
+# The documentation site: the pages under docs/, as they are, with the README as
+# its home page.  `mkdocs serve` previews it; `pytest -m gates` builds it strictly.
+site_name: pythtqc
+site_description: Crystalline-symmetry diagnostics for PythTB tight-binding models
+repo_url: https://github.com/bbradlyn/pythtqc
+repo_name: bbradlyn/pythtqc
+edit_uri: ""
+
+docs_dir: docs
+site_dir: site
+
+# The silicon data stays in the repository; the map, docs/README.md, is served
+# as map.md, the README taking the home page (scripts/mkdocs_hooks.py).
+exclude_docs: |
+  /README.md
+  /data/
+
+hooks:
+  - scripts/mkdocs_hooks.py
+
+# outside docs/, and read by the build: `mkdocs serve` reloads on them too
+watch:
+  - README.md
+  - scripts/mkdocs_hooks.py
+
+nav:
+  - Home: index.md
+  - The map: map.md
+  - The first hour:
+      - start/quickstart.md
+      - start/tutorial-3d.md
+      - start/tutorial-wannier90.md
+  - The guide:
+      - guide/group.md
+      - guide/layers.md
+      - guide/orbitals.md
+      - guide/spin.md
+      - guide/labels.md
+      - guide/atomic-limits.md
+      - guide/indicators.md
+      - guide/srsi.md
+      - guide/numerical.md
+      - guide/refusals.md
+  - The full account:
+      - background/measurement.md
+      - background/tqc-primer.md
+      - background/conventions.md
+      - background/limits.md
+  - Reference:
+      - reference/functions.md
+      - reference/records.md
+      - reference/refusals.md
+      - reference/glossary.md
+  - Examples: examples.md
+  - Citing: citing.md
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Light mode
+
+markdown_extensions:
+  - tables
+  # GitHub's anchors, which every link on the pages is written against
+  - toc:
+      permalink: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+
+plugins:
+  - search
+
+# A page left out of the navigation, a dead link or a dead anchor fails a strict build.
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+    absolute_links: warn
+  links:
+    not_found: warn
+    absolute_links: warn
+    unrecognized_links: warn
+    anchors: warn

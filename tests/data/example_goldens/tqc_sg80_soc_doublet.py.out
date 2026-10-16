@@ -1,0 +1,54 @@
+I4_1 (SG 80) at P = (1/4, 1/4, 1/4), which is not a time-reversal-invariant
+momentum: time reversal glues one of the two conjugate coreps to itself, and
+the trace of the twofold says which.
+
+1. the spinful atomic limit
+   realized group   : #80.30 I4_11', s orbitals at Wyckoff 4a and 8b, 12 bands
+   P = [0.25, 0.25, 0.25] in the primitive cell: 2P is no reciprocal-lattice vector
+   P valence levels : [-2.50036, -2.50036, -2.50036, -2.50036]
+   χ(E, C2(z)) = (4, 0)
+   one fourfold level: spin-independent hoppings commute with every spin
+   operator, so this degeneracy is SU(2)'s and decides nothing here
+
+2. what the little group at P allows, and the same table read at -P
+   the little group at P, χ(E, C2(z)):
+      -P3      dim 1   (1, −i)
+      -P4P4    dim 2   (2, 2i)
+   the same table read at -P, the point it is printed for, χ(E, C2(z)):
+      -P3P3    dim 2   (2, −2i)
+      -P4      dim 1   (1, i)
+   four units of dimension either way, and the two pages are entrywise
+   conjugates: BCS's labels attach to -k, an operation taking P to -P
+   interchanges conjugate labels, and the trace is the observable
+
+3. i41_soc('generic', lam=0.4): one group-averaged spin-orbit bond set
+   realized group   : #80.30 I4_11'
+   P valence levels : [-2.744031, -2.501964, -2.501964, -2.259907]
+   degeneracies     : [1, 2, 1], level gaps 0.242066 / 0.242057
+
+4. the three levels, each labelled from that same solve
+   states [0]       E = -2.744031   χ(E, C2(z)) = (1, −i)   -P3
+   states [1, 2]    E = -2.501964   χ(E, C2(z)) = (2, 2i)   -P4P4
+   states [3]       E = -2.259907   χ(E, C2(z)) = (1, −i)   -P3
+   the doubled corep is -P4P4: its trace on C2(z) is 2i, two copies of i,
+   so that is the irrep the antiunitary glues to itself
+   the unitary little group at P has 2 elements and so no two-dimensional irrep,
+   so the pair is symmetry-enforced; the -P page read at P would make it
+   two copies of -P4, an accidental degeneracy
+
+5. the four valence bands as an elementary band representation
+   content          : -GM5GM7 + -GM6GM8 + -M5M7 + -M6M8 + 2×-N2N2 + 2×-P3 + -P4P4 + 2×-X3X4
+                      = 1 x -1E2E↑G(4)@4a(21',2)
+   -P4P4 belongs to a labelling of the whole set, not a choice made at P
+
+6. the control: P6_2 at H
+   realized group   : #171.122 P6_21', s orbitals at Wyckoff 3a and 6c, 18 bands
+   the little group at H, χ(E, C3(z), C3^-1(z)):
+      -H4      dim 1   (1, −1, 1)
+      -H5H6    dim 2   (2, 1, −1)
+   valence content at H: 2×-H4 + 2×-H5H6
+   -H5H6 glues two different irreps; at P -P4P4 glues one to itself
+
+7. the same P-point levels against the spin-orbit strength λ
+
+Done — figure written to <FIGDIR>
