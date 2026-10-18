@@ -38,7 +38,7 @@ import numpy as np
 from . import _bloch, _sitechars
 from . import groups as _groups
 from . import sewing as _sewing
-from ._tolerance import (CHARACTERS_TOL, ROUNDING, _INT_TOL, _MOVED_PRESENTATION_RELATIVE,
+from ._tolerance import (CHARACTERS_TOL, ROUNDING, _INT_TOL, _PRESENTATION_RELATIVE,
                          _TABLE_MATRIX_TOL)
 from .refusal import InternalError, Refusal
 from .symmetry import _sum_lines
@@ -3241,7 +3241,7 @@ def _stack_hamiltonian(rep, c):
         if float(kz) == 0.0:
             at_zero = d
     threshold = (0.0 if extent == 0.0 else
-                 _MOVED_PRESENTATION_RELATIVE * float(np.abs(flat).max()))
+                 _PRESENTATION_RELATIVE * float(np.abs(flat).max()))
     return stack, {"residual": worst, "threshold": threshold, "at_zero": at_zero,
                    "period": period, "extent": extent}
 

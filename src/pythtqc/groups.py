@@ -72,7 +72,7 @@ from ._tolerance import (ASSEMBLED, CHARACTER, DEFAULT_ENERGY, DEFAULT_FINDER, E
                          HEADROOM, IN_SPACE, IN_SPAN, ROUNDING, SINGULAR, SNAP,
                          WYCKOFF_REFERENCE_TOL, ZERO, _CARRY_TOL, _CHAR_TOL, _CLASS_MARGIN,
                          _EIGEN_WINDOW_CEIL, _EXACT_CLOSURE, _IN_BLOCKS, _LATTICE_TOL,
-                         _MOVED_PRESENTATION_RELATIVE, _PHASE_REAL_TOL, _SU2_TOL,
+                         _PHASE_REAL_TOL, _PRESENTATION_RELATIVE, _SU2_TOL,
                          _TIME_REVERSAL_SQUARE_MARGIN, Tolerances, eigen_window,
                          finder_distance, noise_floor, within)
 from .refusal import InternalError, MagneticScopeWarning, Refusal
@@ -7216,7 +7216,7 @@ def _slab_presentation(model, *, c=SLAB_C, check=True, n_check=_bloch.CHECK_K,
                     phase = np.repeat(phase, 2, axis=1)
                 carried = np.conj(phase)[:, :, None] * a * phase[:, None, :]
                 worst = float(np.abs(carried - b).max())
-                gate = _MOVED_PRESENTATION_RELATIVE * max(float(np.abs(a).max()), 1e-300)
+                gate = _PRESENTATION_RELATIVE * max(float(np.abs(a).max()), 1e-300)
                 spectrum = float(np.abs(np.linalg.eigvalsh(a) - np.linalg.eigvalsh(b)).max())
             else:
                 worst = float(np.abs(a - b).max())
@@ -7447,7 +7447,7 @@ def stack_presentation(model, *, c=STACK_C, params=None):
     if int(model.nspin) == 2:
         phase = np.repeat(phase, 2)
     # the phases round where the heights are not zero, and nowhere else
-    gate = 0.0 if extent == 0.0 else _MOVED_PRESENTATION_RELATIVE * float(np.abs(a).max())
+    gate = 0.0 if extent == 0.0 else _PRESENTATION_RELATIVE * float(np.abs(a).max())
     for kz in (0.0, 0.25, 0.5, *rng.uniform(-0.5, 0.5, size=3)):
         k3 = np.concatenate([k2, np.full((_bloch.CHECK_K, 1), float(kz))], axis=1)
         b = np.asarray(stack(k3))

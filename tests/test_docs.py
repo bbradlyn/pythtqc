@@ -7,7 +7,8 @@ under ``docs/start``, ``docs/guide``, ``docs/background`` and
 statement prints under it as comment lines.  Each page is run through
 ``scripts/check_page.py``: in a fresh process, from the repository root, its
 blocks in order and its statements one at a time, each statement's printout
-against the lines under it.  The pages are read off the tree by that script's
+against the lines under it, a printed number that is rounding matching any
+other rounding.  The pages are read off the tree by that script's
 listing, the one the register scans too, so a page is under this test the day
 it exists.  A failure is a unified diff per statement, at the page's own line
 numbers.

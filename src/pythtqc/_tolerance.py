@@ -382,13 +382,17 @@ _DROP_RELATIVE = 1e-14
 #: decades above that.
 _RANGE_RELATIVE = 1e-10
 
-#: How far a slab presentation that moved its orbitals may differ from the
-#: model once carried back through that move, relative to ``max|H|``: the
-#: phases ``e^{2πi k·τ}`` are evaluated at the moved centres and round there,
-#: measured below 5e-16 on slabs moved by up to four cells, and the gate is more
-#: than four decades above that.  A presentation that moves no orbital is held
-#: to bit identity instead.
-_MOVED_PRESENTATION_RELATIVE = 1e-11
+#: How far a presentation may differ from the model it presents, relative to
+#: ``max|H|``, where the two evaluate the phases ``e^{2πi k·τ}`` differently.  A
+#: slab that moved its orbitals, carried back through that move, evaluates them
+#: at the moved centres; the spinless presentation of a spinful model evaluates
+#: one for each of its ``2N`` orbitals where the model evaluates ``N`` and
+#: repeats each for the spin, in a matrix product whose rounding can depend on
+#: its shape.  Measured below 5e-16 on slabs moved by up to four cells and at
+#: 5.2e-17 on a twelve-state spin–orbit model; the gate is more than four
+#: decades above both.  A presentation that moves no orbital and evaluates the
+#: same phases is held to bit identity instead.
+_PRESENTATION_RELATIVE = 1e-11
 
 #: How far a carried operation, site or lattice shift may sit from what it must
 #: be in the stack's cell.  The two cells share their in-plane vectors and

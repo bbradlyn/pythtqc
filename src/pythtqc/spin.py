@@ -19,6 +19,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from . import _bloch
+from ._tolerance import _PRESENTATION_RELATIVE
 from .refusal import InternalError, Refusal
 
 __all__ = ["SpinBasis", "spin_basis", "spin_operator", "spinless_presentation"]
@@ -295,8 +296,8 @@ def spinless_presentation(model, *, order="interleaved", pairs=None, params=None
         ``pairs`` that do not hold every orbital once, or an ``order`` other
         than ``"interleaved"`` or ``"blocked"``.
     ..refusal.InternalError
-        The two Hamiltonians differ, which a relabelling of the states cannot
-        make them: a defect to report.
+        The two Hamiltonians differ by more than the rounding of their phases,
+        which a relabelling of the states cannot make them: a defect to report.
 
     Refusals
     --------
@@ -384,18 +385,21 @@ def spinless_presentation(model, *, order="interleaved", pairs=None, params=None
     sb = (spin_basis(out, pairs=layout) if pairs is not None
           else spin_basis(out, order=order))
     # the identity, measured on every call, on the k-set every presentation
-    # here is measured on
+    # here is measured on: the amplitudes are copied, and the phases are
+    # evaluated once per orbital, 2N of them here against the model's N
+    # repeated for the spin, so the two agree to the rounding of the phases
     Pi = sb.permutation_matrix
     k = np.random.default_rng(_bloch.CHECK_SEED).uniform(
         -0.5, 0.5, size=(_bloch.CHECK_K, int(model.lattice.dim_k)))
     a = np.asarray(_bloch.hamiltonian(model, k, params))
     b = np.asarray(_bloch.hamiltonian(out, k, params))
     worst = float(np.abs(b - Pi @ a @ Pi.T).max())
-    if worst != 0.0:
+    gate = _PRESENTATION_RELATIVE * float(np.abs(a).max())
+    if worst > gate:
         raise InternalError(
-            f"the spinless presentation is not bit-identical to the spinful model: "
-            f"max|H_flat(k) - Pi H_native(k) Pi^T| = {worst:.3g} over {_bloch.CHECK_K} "
-            f"random k. The spinless presentation only relabels the state index and "
-            f"changes nothing, so this is the package disagreeing with itself, not a "
-            f"property of the model.")
+            f"the spinless presentation is not the spinful model's Hamiltonian to "
+            f"rounding: max|H_flat(k) - Pi H_native(k) Pi^T| = {worst:.3g} over "
+            f"{_bloch.CHECK_K} random k, against {gate:.3g}. The spinless presentation "
+            f"only relabels the state index and changes nothing, so this is the "
+            f"package disagreeing with itself, not a property of the model.")
     return out, sb

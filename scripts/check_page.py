@@ -11,17 +11,21 @@ output is prose, or a comment with one space above the statement::
 Each page runs in a fresh process, from the repository root, with the
 checkout's ``src`` first on ``PYTHONPATH``: its ``python`` blocks in order and
 in one namespace, each split into its top-level statements, which run one at a
-time.  What each statement prints is compared with the output lines under it;
-trailing whitespace is ignored and nothing else is.  A block fenced ``python
+time.  What each statement prints is compared with the output lines under it,
+character for character but for trailing whitespace and rounding: a printed
+number no larger than ``1e-13`` matches any other that small, and two numbers
+within one part in ``1e12`` of each other match, so a page shows one machine's
+rounding without pinning it (:func:`_same_output`).  A block fenced ``python
 template`` -- the reader's own data, a file on their disk -- is not run.  A
 warning goes to stderr and is not output, and ``sys.exit`` in a page is a
 failure: a page shows a refusal by printing it.  The report gives each block's
 statements and time, and the page's wall time.
 
-``--update`` rewrites each statement's output lines from what it printed,
-keeping every other line as it stands, and says what changed: a page's output
-is never typed by hand.  ``--register`` adds the page's count under every rule
-of ``tests/test_register.py``, read from that module's own patterns, and any
+``--update`` rewrites each statement's output lines from what it printed where
+they differ beyond rounding, keeping every other line as it stands, and says
+what changed: a page's output is never typed by hand.  ``--register`` adds the
+page's count under every rule of ``tests/test_register.py``, read from that
+module's own patterns, and any
 ``§`` anywhere in the page, which a page may not carry.  ``--links`` adds the
 check that every relative link resolves to a file in the tree, and every
 ``#anchor`` to a heading of that file by GitHub's rule.  With no page named,
@@ -146,6 +150,46 @@ def _shown(line):
 def _as_output(printed, indent=""):
     """One printed line, written as the page writes it."""
     return indent + ("#  " + printed if printed else "#")
+
+
+#: A printed number no larger than this is rounding, whatever its digits -- a
+#: residual, a defect, a commutator of exact numbers -- and matches any other
+#: that small, so a page shows one machine's rounding without pinning it.
+ROUNDOFF = 1e-13
+
+#: Two printed numbers this close, relative to the larger, are one number
+#: rounded two ways, as ``1.0`` and ``0.9999999999999999`` are.
+RELATIVE = 1e-12
+
+#: A number as Python prints one: an integer, a decimal, an exponent.
+_NUMBER = re.compile(r"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
+
+
+def _same_number(shown, printed):
+    """Whether two printed numbers are one: equal, both rounding, or one rounded two ways."""
+    if shown == printed:
+        return True
+    a, b = float(shown), float(printed)
+    larger = max(abs(a), abs(b))
+    return larger <= ROUNDOFF or abs(a - b) <= RELATIVE * larger
+
+
+def _same_output(shown, printed):
+    """Whether printed lines are the shown ones: character for character, but for rounding.
+
+    The text around the numbers is compared as it stands, and the numbers by
+    :func:`_same_number`.
+    """
+    if len(shown) != len(printed):
+        return False
+    for s, p in zip(shown, printed):
+        if s == p:
+            continue
+        if _NUMBER.split(s) != _NUMBER.split(p):
+            return False
+        if not all(_same_number(x, y) for x, y in zip(_NUMBER.findall(s), _NUMBER.findall(p))):
+            return False
+    return True
 
 
 def _python_blocks(lines):
@@ -330,7 +374,7 @@ def check(page, update=False, root=ROOT):
             printed = printed[:-1]          # the statement that raised is reported as such
         for statement, out in zip(block["statements"], printed):
             got = [line.rstrip() for line in out.splitlines()]
-            if got != statement["shown"]:
+            if not _same_output(statement["shown"], got):
                 mismatches.append((statement, block["indent"], got))
 
     deleted, inserted = set(), {}

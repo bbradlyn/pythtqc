@@ -81,6 +81,7 @@ from pythtqc import models as tqm
 from pythtqc import sewing as tqw
 from pythtqc import spin as tqsp
 from pythtqc import symmetry as tqs
+from pythtqc._tolerance import _PRESENTATION_RELATIVE
 from pythtqc.refusal import InternalError, MagneticScopeWarning, Refusal
 
 import tqc_models
@@ -246,7 +247,8 @@ def reencoded(request, natives):
 
     Returns ``(name, layout, native_bundle, flat, basis, flat_bundle,
     presentation_residual)`` -- everything the theorem is read off, measured
-    once per parameter and shared by every test below.
+    once per parameter and shared by every test below; the residual is
+    relative to ``max|H|``.
     """
     name, layout = request.param
     spec = FIXTURES[name]
@@ -261,7 +263,7 @@ def reencoded(request, natives):
     k = rng.uniform(-0.5, 0.5, size=(8, int(model.lattice.dim_k)))
     a = np.asarray(model.hamiltonian(k_pts=k, flatten_spin_axis=True))
     b = np.asarray(flat.hamiltonian(k_pts=k, flatten_spin_axis=True))
-    identity = float(np.abs(b - Pi @ a @ Pi.T).max())
+    identity = float(np.abs(b - Pi @ a @ Pi.T).max()) / float(np.abs(a).max())
 
     chan = basis.pair_of_orbital
     typat = (None if spec["typat"] is None
@@ -290,17 +292,22 @@ def reencoded(request, natives):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.slow
-def test_the_spinless_presentation_is_bit_identical(reencoded):
-    """``H_flat(k) = Pi H_native(k) Pi^T`` exactly, on every fixture and layout.
+def test_the_spinless_presentation_is_the_same_hamiltonian(reencoded):
+    """``H_flat(k) = Pi H_native(k) Pi^T`` to rounding, on every fixture and layout.
 
     The whole construction rests on this: the spinless model is the *same*
     Hamiltonian with the state index renamed, so every later disagreement is
-    about the symmetry machinery and never about the model.  The gate is exact
-    zero -- the re-presentation copies amplitudes, it does not recompute them --
-    and ``spinless_presentation`` measures it itself and raises ``InternalError``
-    on any nonzero.  This test re-measures it on a *different* random k-set
-    from the one the constructor used, so the number is not the constructor
-    grading its own homework.
+    about the symmetry machinery and never about the model.  The re-presentation
+    copies amplitudes, it does not recompute them; only the phases are
+    evaluated anew, one per orbital -- ``2N`` against the native model's ``N``
+    repeated for the spin, in a matrix product whose rounding can depend on its
+    shape.  On the machines the suite was first measured on the two agree bit
+    for bit; Apple's Accelerate rounds the two products differently, 5.2e-17 on
+    ``i41``.  ``spinless_presentation``
+    measures the identity itself and raises ``InternalError`` beyond
+    ``_PRESENTATION_RELATIVE`` of ``max|H|``.  This test re-measures it on a
+    *different* random k-set from the one the constructor used, so the number is
+    not the constructor grading its own homework.
 
     Both members of a pair sit exactly where the spinful orbital sat.  That is
     the lossless principle: no model is ever inflated to ``nspin = 2`` inside
@@ -310,7 +317,8 @@ def test_the_spinless_presentation_is_bit_identical(reencoded):
     """
     name, layout, native, flat, basis, _bundle_, identity = reencoded
     model = native[0]
-    assert identity == 0.0, f"{name}/{layout}: max|H_flat - Pi H Pi^T| = {identity:.3g}"
+    assert identity <= _PRESENTATION_RELATIVE, \
+        f"{name}/{layout}: max|H_flat - Pi H Pi^T| / max|H| = {identity:.3g}"
     assert int(flat.norb) == 2 * int(model.norb)
     assert int(flat.nspin) == 1 and not flat.spinful
     assert int(flat.nstate) == int(model.nstate), "the same number of states, renamed"

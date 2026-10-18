@@ -832,7 +832,7 @@ def test_a_spectrum_too_degenerate_to_parametrize_is_refused_not_guessed(monkeyp
 # ---------------------------------------------------------------------------
 
 @pytest.mark.slow
-def test_the_grid_evaluator_is_bounded_and_bit_identical(many_hopping):
+def test_the_grid_evaluator_is_bounded_and_streams_pythtbs_numbers(many_hopping):
     """``_GridHamiltonians``: pythtb's numbers, in one call where the mesh fits.
 
     One k-point of the Bloch sum holds one phase per lattice vector and per
@@ -841,9 +841,11 @@ def test_the_grid_evaluator_is_bounded_and_bit_identical(many_hopping):
     it is evaluated in one call, bit for bit ``TBModel.hamiltonian`` on the
     same points, and a point read from it costs no second evaluation.
     Squeezed to a budget of forty points, the same mesh streams in chunks of
-    forty and returns the same numbers.
+    forty and returns the same numbers to the roundoff of the sum: a matrix
+    product over forty points need not round as one over 512 does, and on
+    Apple's Accelerate it does not.
 
-    Bit-identity is asserted always; the memory only where ``psutil`` is
+    The numbers are asserted always; the memory only where ``psutil`` is
     installed, since that is what measures RSS at all.
     """
     k = _mesh(8, 3)
@@ -864,7 +866,11 @@ def test_the_grid_evaluator_is_bounded_and_bit_identical(many_hopping):
     for lo, hi, blk in squeezed.chunks():
         assert hi - lo <= 40
         out[lo:hi] = blk
-    assert np.array_equal(out, reference), "chunking changes the arithmetic not at all"
+    # the roundoff of a sum at the scale of max|H|, 1000 eps max|H|, as the
+    # perturbation test above holds its difference to
+    streamed = float(np.abs(out - reference).max())
+    assert streamed <= 1000.0 * _ULP * float(np.abs(reference).max()), \
+        f"chunking changes the arithmetic beyond its rounding: {streamed:.3g}"
     assert squeezed.n_evaluated == len(k)
     print(f"\n512 points in one call, {many_hopping.nhops} hoppings: {seconds:.2f} s, "
           f"peak +{peak} MB")

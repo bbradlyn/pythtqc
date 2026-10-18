@@ -48,12 +48,13 @@ def _child(body):
     return proc.stdout
 
 
-#: The table versions every pinned label, corep name, k-point name and
-#: conjugated point in this suite was measured against.  Pinned because those
-#: pins are properties of *these* tables and of nothing in this package: if an
-#: upgrade moves a label, this is the assertion that says so, instead of a dozen
-#: unexplained failures elsewhere.  Bumping it is a deliberate act -- re-measure
-#: the affected pins in the same commit.
+#: The oldest table versions the suite holds: every pinned label, corep name,
+#: k-point name and conjugated point in it was measured against these, and holds
+#: on irrep 3.3.0 as well.  A later release is accepted, as ``pyproject.toml``
+#: accepts it.  Those pins are properties of the tables and of nothing in this
+#: package, so a release that moves a label fails the tests that pin it and the
+#: stored baseline: read such failures against the release first, and
+#: re-measure the affected pins in the same commit.
 TABLE_VERSIONS = {"irrep_version": "3.2.0", "irreptables_version": "3.1.0"}
 
 
@@ -71,17 +72,19 @@ def test_irrep_did_not_fall_back_to_dummy_tables():
             f"importable, and every downstream irrep result would be meaningless")
 
 
-def test_the_table_versions_are_the_ones_the_suite_was_pinned_against():
-    """``tables_status`` reports the ``irrep`` / ``irreptables`` the pins assume."""
+def test_the_table_versions_are_at_least_the_ones_the_suite_was_measured_against():
+    """``tables_status`` reports an ``irrep`` / ``irreptables`` no older than the pins assume."""
+    from packaging.version import Version
     from pythtqc import groups as tqg
 
     status = tqg.tables_status()
     assert status["tables"], status["reason"]
     got = {k: status[k] for k in TABLE_VERSIONS}
-    assert got == TABLE_VERSIONS, (
-        f"character tables are {got}, not {TABLE_VERSIONS}: every pinned irrep "
-        f"label, corep name and conjugated point in this suite was measured "
-        f"against the latter, so re-measure them before bumping this")
+    older = {k: v for k, v in got.items() if Version(v) < Version(TABLE_VERSIONS[k])}
+    assert not older, (
+        f"character tables are {got}, older than {TABLE_VERSIONS}: every pinned irrep "
+        f"label, corep name and conjugated point in this suite was measured against "
+        f"the latter, and pyproject.toml asks for them")
 
 
 #: ``(sg_number, spinor, n_irreps, n_symmetries, kpoints)`` of the four tables
