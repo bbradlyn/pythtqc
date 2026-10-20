@@ -11,6 +11,3 @@ examples/figures/
 
 # the documentation site, built by `mkdocs build`
 site/
-
-# local editor and assistant settings
-.claude/
