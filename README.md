@@ -93,6 +93,11 @@ from, Y. Hwang *et al.*, Nat. Commun. **17**, 8564 (2026), and the package itsel
 [`CITATION.cff`](CITATION.cff) holds both, and GitHub's "Cite this repository"
 reads it. The papers behind each method are listed in [citing](docs/citing.md).
 
+## Acknowledgements
+
+Development of these tools was supported by the National Science Foundation under
+grant no. DMR-2510219.
+
 ## License
 
 GPL-3.0-or-later; see [`LICENSE`](LICENSE).
