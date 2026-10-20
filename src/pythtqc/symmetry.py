@@ -8181,7 +8181,9 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
         if joint and dim != len(keys):
             n = len(keys)
             noun = "Wannier function" if paired else "orbital"
-            wide = (f"holds {dim} Wannier function{'' if dim == 1 else 's'}" if paired
+            # a content in the site coreps is counted in what holds it, each
+            # orbital with both its spin states
+            wide = (f"holds {dim} {noun}{'' if dim == 1 else 's'}" if paired or corep
                     else f"is {dim}-dimensional")
             # the spelling to offer: separate words for a content of one, and
             # otherwise what the site holds says what fits it
@@ -8227,7 +8229,7 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
         if len(keys) % dim:
             orbs = tuple(pool["orbs"])
             noun = "Wannier function" if paired else "orbital"
-            wide = (f"holds {dim} Wannier function{'' if dim == 1 else 's'}" if paired
+            wide = (f"holds {dim} {noun}{'' if dim == 1 else 's'}" if paired or rec["corep"]
                     else f"is {dim}-dimensional")
             raise _sitechars.DeclarationError(
                 "ambiguous_multiplet",
@@ -8246,7 +8248,8 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
         label = rec["label"]
         if copies > 1:
             chi = [cons.get(int(cls[0]), 0.0) for cls in table.classes]
-            label = _sitechars.content_label(table, chi) or f"{copies}x{label}"
+            named = _sitechars.corep_label if rec["corep"] else _sitechars.content_label
+            label = named(table, chi) or f"{copies}x{label}"
         _one(dict(rec, cons=cons, label=label, dim=len(keys)), _members(keys), keys)
     return decls
 

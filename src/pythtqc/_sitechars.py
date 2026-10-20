@@ -982,11 +982,11 @@ def fitting_words(table, n) -> tuple:
     ``n`` counts the site's orbitals, or, where the states carry spin, its
     Wannier functions, two states each.  The site irreps of dimension at most
     ``n``, by the name a declaration writes them in -- the orbital factor's
-    where the states carry spin -- and there the site coreps of at most ``2n``
-    states besides: at a ``3m`` site holding one Wannier function, ``A1``,
-    ``A2``, ``-E1`` and ``-1E2E``.  The irreps come in order of dimension, the
-    one nearest the trivial character first and otherwise in the order the
-    tables list them, and the coreps after them.
+    where the states carry spin -- and there each of them times the spinor
+    too, a site corep or a sum: at a ``3m`` site holding one Wannier function,
+    ``A1``, ``A2`` and ``-E1``.  The irreps come in order of dimension, the one
+    nearest the trivial character first and otherwise in the order the tables
+    list them, and the coreps after them.
     """
     rank = {p: i for i, p in enumerate(_listed(table))}
     rows = sorted((p for p in range(len(table.labels)) if int(table.dims[p]) <= int(n)),
@@ -997,40 +997,12 @@ def fitting_words(table, n) -> tuple:
         if word and word not in out:
             out.append(word)
     if any(table.declarable):
-        for word, states in _corep_dims(table):
-            if states <= 2 * int(n) and word not in out:
+        # with spin, a row's label is its irrep times the spinor
+        for p in rows:
+            word = table.labels[p]
+            if word and word not in out:
                 out.append(word)
     return tuple(out)
-
-
-def _corep_dims(table) -> tuple:
-    """``((corep, states), ...)``: each site corep a row lifts to, and the states it holds.
-
-    A row of dimension ``d`` lifts to ``2d`` states, spelled by its label as a
-    sum of coreps, and the coreps' own dimensions are the ones that make every
-    row's sum come out: read off the labels, the smallest first.  Empty where a
-    row has no name or the labels do not fix every corep's dimension.
-    """
-    names, rows = [], []
-    for label in table.labels:
-        if not label:
-            return ()
-        got = {}
-        for word, k in (_sum_terms(label) or [(label, 1)]):
-            word = str(word).strip()
-            got[word] = got.get(word, 0) + int(k)
-            if word not in names:
-                names.append(word)
-        rows.append(got)
-    N = np.array([[got.get(w, 0) for w in names] for got in rows], dtype=float)
-    states = 2.0 * np.asarray(table.dims, dtype=float)
-    if int(np.linalg.matrix_rank(N)) < len(names):
-        return ()
-    dims = np.rint(np.linalg.lstsq(N, states, rcond=None)[0])
-    if not np.array_equal(N @ dims, states) or np.any(dims < 1):
-        return ()
-    return tuple(sorted(((w, int(d)) for w, d in zip(names, dims)),
-                        key=lambda t: (t[1], names.index(t[0]))))
 
 
 def table_summary(table) -> str:
@@ -1289,19 +1261,49 @@ def content_label(table, chi) -> str:
     ``"2xE"``).  ``""`` where the character is no sum of the table's rows, or
     holds a row nothing names.
     """
-    mult = decompose(table, np.asarray(chi, dtype=complex))
+    rows = _content_rows(table, chi)
+    if rows is None:
+        return ""
     parts = []
-    for p, n in enumerate(mult):
+    for p, k in rows.items():
+        name = _declared_name(table, p)
+        if not name:
+            return ""
+        parts.append((f"{k}x" if k > 1 else "") + name)
+    return " + ".join(parts)
+
+
+def corep_label(table, chi) -> str:
+    """A site content spelled as the site coreps it becomes with spin, as a returned row spells them.
+
+    ``chi`` is an orbital content over the table's classes.  Each row's corep
+    content is read off its label, and the coreps are counted across the rows:
+    ``A1 + E`` at a ``3m`` site is ``2x-E1 + -1E2E``, and ``A1`` and ``A2`` are
+    both ``-E1``.  ``""`` where the character is no sum of the table's rows, or
+    holds a row nothing names.
+    """
+    rows = _content_rows(table, chi)
+    if rows is None:
+        return ""
+    counts = {}
+    for p, k in rows.items():
+        if not table.labels[p]:
+            return ""
+        for word, j in (_sum_terms(table.labels[p]) or [(table.labels[p], 1)]):
+            counts[word] = counts.get(word, 0) + k * j
+    return " + ".join(word if k == 1 else f"{k}x{word}" for word, k in counts.items())
+
+
+def _content_rows(table, chi):
+    """``{row: copies}`` of a site content given over the table's classes, or ``None`` where it is no sum of rows."""
+    rows = {}
+    for p, n in enumerate(decompose(table, np.asarray(chi, dtype=complex))):
         n = complex(n)
         if abs(n.imag) > 1e-6 or abs(n.real - round(n.real)) > 1e-6 or round(n.real) < 0:
-            return ""
-        k = int(round(n.real))
-        if k:
-            name = _declared_name(table, p)
-            if not name:
-                return ""
-            parts.append((f"{k}x" if k > 1 else "") + name)
-    return " + ".join(parts)
+            return None
+        if round(n.real):
+            rows[p] = int(round(n.real))
+    return rows
 
 
 def _sum_terms(spec):
@@ -1430,12 +1432,13 @@ def _resolve_sum(table, terms, *, rotations=None):
     to one sum (``A1 + E`` and ``A2 + E`` above, ``A1`` and ``A2`` for ``-E1``,
     and at a ``-43m`` site the ``E + T2`` of a ``d`` shell and ``A2 + 2xE``).
     Such a sum states the corep content alone
-    (:func:`named_in_coreps`), and the orbital content read here is the one
-    its record names: the one the lowest-angular-momentum rule puts lowest --
-    the lowest single shell of real harmonics holding it, then the per-orbital
-    sum (:func:`_content_shells`, over ``rotations``, the Cartesian matrix of
-    each operation of the site group) -- then the one of the fewest irreps,
-    then the one closest to the trivial character.
+    (:func:`named_in_coreps`), which every comparison with the Hamiltonian
+    reads and the record names (:func:`corep_label`), and the orbital content
+    read here stands for it: the one the lowest-angular-momentum rule puts
+    lowest -- the lowest single shell of real harmonics holding it, then the
+    per-orbital sum (:func:`_content_shells`, over ``rotations``, the Cartesian
+    matrix of each operation of the site group) -- then the one of the fewest
+    irreps, then the one closest to the trivial character.
     """
     spinful = any(table.declarable)
     rows = {}
@@ -1917,9 +1920,10 @@ def resolve_spec(group, table, spec, where):
     ``"A1 + E"``; a content written in the site coreps the rows are returned
     as, one corep or a sum of them, ``"-E1"`` or a returned row's own
     ``"2x-E1 + -1E2E"``, which states the corep content alone
-    (:func:`named_in_coreps`) and is represented by the orbital content lifting
-    to it that the lowest-angular-momentum rule puts lowest (:func:`_resolve_sum`);
-    or generator characters.  A shell or a sum is a content of several irreps,
+    (:func:`named_in_coreps`), is named in the coreps (:func:`corep_label`) and
+    is represented by the orbital content lifting to it that the
+    lowest-angular-momentum rule puts lowest (:func:`_resolve_sum`); or
+    generator characters.  A shell or a sum is a content of several irreps,
     and its ``dim`` is theirs together.
 
     A :class:`DeclaredContent` passes through unchanged but **restricted**: its
@@ -1998,18 +2002,22 @@ def resolve_spec(group, table, spec, where):
             for ind in table.indices})
     if rows:
         chi = sum(n * np.asarray(table.characters[p], dtype=complex) for p, n in rows.items())
-        label = content_label(table, chi)
+        # a content written in the site coreps is named in them: the orbital
+        # content standing for it is one of several that lift to it
+        label = corep_label(table, chi) if corep else content_label(table, chi)
         return ({int(ind): complex(chi[table.class_of[int(ind)]]) for ind in table.indices},
                 label, int(sum(n * int(round(float(np.real(table.dims[p]))))
                                for p, n in rows.items())),
-                (f"{spec!r} states a corep content, and {label} is the lowest-l "
-                 "orbital content lifting to it" if corep else
+                (f"{spec!r} states the corep content, and the orbital factor under it is "
+                 "assigned as for an undeclared orbital" if corep else
                  f"{spec!r} resolved to {label} on this site group"))
 
+    said = (f"{spec!r} is not a site irrep times the spinor, or a sum of them" if corep else
+            f"{spec!r} is not an irrep of this site group, a sum of its irreps, "
+            f"a shell or a known shorthand")
     raise DeclarationError(
         "unknown_label",
-        f"{where}: {spec!r} is not an irrep of this site group, a sum of its irreps, "
-        f"a shell or a known shorthand.\n"
+        f"{where}: {said}.\n"
         f"  site group: order {table.order}, classes "
         f"{', '.join(table.class_names)}\n"
         f"  valid labels: {', '.join(declaration_words(table)) or '(none: name the '

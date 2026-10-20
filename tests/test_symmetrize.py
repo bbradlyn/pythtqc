@@ -1888,6 +1888,8 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
         assert part.descent is None
         rows = part.rep.characters.orbitals
         assert [o.determined_by for o in rows[1:]] == ["declaration"] * 2
+        assert [o.declared_irrep for o in rows[1:]] == ["2x-E1"] * 2, \
+            "the corep content declared, recorded as written"
         assert [o.irrep for o in rows[1:]] == (
             ["2x-E1 + -1E2E"] if precision is None else ["-1E2E + -E1"]) * 2, \
             "each row its own multiplet's: the whole shell at the defaults, the pair apart"

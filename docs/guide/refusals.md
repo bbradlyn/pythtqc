@@ -69,7 +69,7 @@ after the group never loses it:
 ```python
 bad = tqc.realized_group(km, typat=[0, 1], characters={0: "E"})
 print(bad)
-#  Refusal[ambiguous_multiplet]: The group identified is P3m11' #156.50, every operation of it obeyed; its representation was not built: orbital 0: 'E' is 2-dimensional, and the 1 orbital of site 0 written with it makes no whole number of copies of it, so which orbitals hold it is not said. Site 0 carries 1 orbital (0,), so no 2-dimensional multiplet sits on it at all: name a content of one orbital instead (A1, A2, -E1, -1E2E).
+#  Refusal[ambiguous_multiplet]: The group identified is P3m11' #156.50, every operation of it obeyed; its representation was not built: orbital 0: 'E' is 2-dimensional, and the 1 orbital of site 0 written with it makes no whole number of copies of it, so which orbitals hold it is not said. Site 0 carries 1 orbital (0,), so no 2-dimensional multiplet sits on it at all: name a content of one orbital instead (A1, A2, -E1).
 #      context: declared_irrep, dim, group, multiplet, multiplets, orbitals, site
 print(bad.context["group"].name, bad.context["group"].number_str)
 #  P3m11' 156.50

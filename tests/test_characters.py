@@ -759,8 +759,8 @@ def test_kane_mele_covers_the_3m_site_group_family(km_realized):
     assert rows["E"] == ["2", "-1", "0", "-1E2E", "+", "-E1"]
     # ... and what fits a site holding one orbital, as a hint offers it: the E
     # doublet and the pair it becomes hold two
-    assert tqc_sitechars.fitting_words(table, 1) == ("A1", "A2", "-E1", "-1E2E")
-    assert tqc_sitechars.fitting_words(table, 2) == ("A1", "A2", "E", "-E1", "-1E2E")
+    assert tqc_sitechars.fitting_words(table, 1) == ("A1", "A2", "-E1")
+    assert tqc_sitechars.fitting_words(table, 2) == ("A1", "A2", "E", "-E1", "-1E2E + -E1")
 
     # A multiplet the site's own operations bind across irreps -- a p shell
     # whose orbitals are turned inside the site -- is named from its character
@@ -809,6 +809,10 @@ def test_kane_mele_covers_the_3m_site_group_family(km_realized):
     assert corep, str(corep)
     assert same_matrices(twisted, corep)
     assert [o.determined_by for o in corep.characters.orbitals] == ["declaration"] * 2
+    assert [o.declared_irrep for o in corep.characters.orbitals] == ["A2", "-E1"], \
+        "the corep declared is recorded as written"
+    assert round(corep.characters.orbitals[1].generator_character["m(x)"].real) == -1, \
+        "and the orbital factor under it is the A2 the hoppings carry"
 
     clash = rebuild(km_realized, characters=["s", "A2"])
     assert not clash and clash.gate == "declaration_breaks_group"
@@ -1329,12 +1333,10 @@ def test_the_diamond_site_irreps_are_the_names_the_tables_print(spinless_diamond
     assert not any("_" in word for word in tqc_sitechars.declaration_words(dtable)), \
         "no placeholder survives in the words a declaration at this site may use"
     # a sum written in the coreps the rows are returned as states the corep
-    # content alone, and is named by the orbital content lifting to it that the
-    # lowest-angular-momentum rule puts lowest: the d shell's own -E2 + 2x-F is
-    # E + T2 and not A2 + 2xE, and -F + -E1 is T1, at l = 3, and not A1 + E,
-    # which only l = 4 holds whole; a sum in the orbital names states that content
-    for spec, want, coreps in (("-E2 + 2x-F", {"E", "T2"}, True),
-                               ("-F + -E1", {"T1"}, True), ("d", {"E", "T2"}, False),
+    # content alone, and is named in the coreps; a sum in the orbital names
+    # states that content, and is named in them
+    for spec, want, coreps in (("-E2 + 2x-F", {"-E2", "2x-F"}, True),
+                               ("-F + -E1", {"-E1", "-F"}, True), ("d", {"E", "T2"}, False),
                                ("T2 + E", {"E", "T2"}, False)):
         _, label, _dim, _note = tqc_sitechars.resolve_spec(spinful.group, dtable, spec,
                                                            "orbital 0")
@@ -1343,13 +1345,14 @@ def test_the_diamond_site_irreps_are_the_names_the_tables_print(spinless_diamond
 
     # ... and the corep's own name declares as well as the orbital name it lifts
     # from, which is what the shared record declares: the two resolve to one
-    # constraint on the site group's operations, one label and one dimension,
-    # which is what the matrices are built from
+    # constraint on the site group's operations and one dimension, which is what
+    # the matrices are built from, each named as it was written
     as_corep = tqc_sitechars.resolve_spec(spinful.group, dtable, "-E1", "orbital 0")
     as_orbital = tqc_sitechars.resolve_spec(spinful.group, dtable, "s", "orbital 0")
-    assert as_corep[:3] == as_orbital[:3], \
+    assert as_corep[0] == as_orbital[0] and as_corep[2] == as_orbital[2] == 1, \
         "the corep's name and the orbital name it lifts from are one declaration"
-    assert as_corep[1:3] == ("A1", 1) and len(as_corep[0]) == len(dtable.indices)
+    assert (as_corep[1], as_orbital[1]) == ("-E1", "A1")
+    assert len(as_corep[0]) == len(dtable.indices)
 
 
 @pytest.mark.slow

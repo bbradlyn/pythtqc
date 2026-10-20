@@ -1404,7 +1404,18 @@ def test_a_joint_shorthand_of_the_wrong_dimension_suggests_a_valid_spelling():
     assert not single and single.gate == "ambiguous_multiplet", str(single)
     assert "{(0,)" not in single.reason, "that was never a spelling"
     assert ("no 2-dimensional multiplet sits on it at all: name a content of one orbital "
-            "instead (A1, A2, -E1, -1E2E).") in single.reason
+            "instead (A1, A2, -E1).") in single.reason
+    for word in single.reason.split("instead (")[1].split(")")[0].split(", "):
+        assert tqg.realized_group(_km(), typat=[0, 1], cross_check=False,
+                                  characters={0: word}), f"the offered {word!r} is accepted"
+    # ... and -1E2E, which E becomes only beside -E1, is no content of one orbital
+    lone = tqg.realized_group(_km(), typat=[0, 1], characters={0: "-1E2E"})
+    assert not lone and lone.gate == "unknown_label", str(lone)
+    assert "'-1E2E' is not a site irrep times the spinor, or a sum of them." in lone.reason
+    # ... and E in its coreps is named as written, counted in orbitals
+    doublet = tqg.realized_group(_km(), typat=[0, 1], characters={0: "-1E2E + -E1"})
+    assert not doublet and doublet.gate == "ambiguous_multiplet", str(doublet)
+    assert "orbital 0: '-1E2E + -E1' holds 2 orbitals, and the 1 orbital" in doublet.reason
 
     # a declared spinor basis counts Wannier functions: a doublet written on one
     # of them, by one orbital or by the pair, is told what one Wannier function
@@ -1416,7 +1427,7 @@ def test_a_joint_shorthand_of_the_wrong_dimension_suggests_a_valid_spelling():
         assert not out and out.gate == "ambiguous_multiplet", str(out)
         assert ("Site 0 carries 1 Wannier function, the spin pair (0, 1), so no multiplet "
                 "of 2 Wannier functions sits on it at all: name a content of one Wannier "
-                "function instead (A1, A2, -E1, -1E2E).") in out.reason, out.reason
+                "function instead (A1, A2, -E1).") in out.reason, out.reason
         assert "{0: 'E'}" not in out.reason and "{(0, 1): 'E'}" not in out.reason
     # ... and where the site holds two, the joint form names one orbital of each:
     # one site of a square lattice carrying two spinor Wannier functions
