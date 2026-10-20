@@ -239,9 +239,9 @@ subgroup that carries one, each operation left out recorded with
 A layer's largest such subgroup is found once, free-standing, where each
 operation composed with the horizontal mirror carries its partner's matrix
 times the mirror's sign
-([a spinless layer's mirror](../background/limits.md#a-spinless-free-standing-layers-horizontal-mirror)),
-and on a substrate the layer keeps the operations of that subgroup that keep
-its side: read this way, Kane–Mele without a staggered potential,
+([the horizontal mirror](layers.md#the-horizontal-mirror-and-what-breaks-it)),
+and on a substrate the layer keeps the operations of that subgroup that
+preserve its normal: read this way, Kane–Mele without a staggered potential,
 `kane_mele(0.0, -1.0, 0.3, 0.25)`, is `P6/m` free-standing and `P6` on a
 substrate. Neither is the spinful crystal: declare the pairing.
 

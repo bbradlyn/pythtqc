@@ -114,21 +114,6 @@ A free-standing layer handed in with nothing declared is returned its
 one-sided group, without its inversion and the indicator that would read it
 ([a 2D model](../guide/layers.md)).
 
-## A spinless free-standing layer's horizontal mirror
-
-On a flat layer, an operation and its product with the horizontal mirror act alike on
-every orbital and every in-plane `k`, so the hoppings pose one problem for the two.
-Without spin they do not measure the sign the orbitals they couple carry under the
-mirror, and that sign is chosen with the rest of
-[what the hoppings leave open](measurement.md#what-the-hoppings-fix): the parity the
-declared content states, `s` even and `p_z` odd, and otherwise the even one
-[the lowest-angular-momentum rule](measurement.md#the-lowest-angular-momentum-rule)
-assigns. A free-standing `p_x, p_y` pair reads `(p_x, p_y)` against `(d_zx, d_yz)`, and a
-declaration states the other. The product of each operation with the mirror then carries
-the operation's matrix times that sign, inversion among them, so every operation of the
-free-standing layer has its matrix. With spin, each operation is held to its own spin
-rotation, and the two are told apart whatever the multiplets.
-
 ## The spin frame is the model's
 
 The package assumes pythtb's spin quantization axis, `+z` in a right-handed frame: an

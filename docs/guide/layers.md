@@ -108,9 +108,8 @@ out-of-plane geometry such as buckling breaks the horizontal mirror, and so does
 a declaration that gives coupled orbitals opposite signs under it, `s` on one
 sublattice and `pz` on the other; a substrate removes it. Without spin, nothing
 in the hoppings measures the sign a flat layer's coupled orbitals carry under
-the mirror: it is the parity declared, or the even one, and each operation
-composed with the mirror carries its partner's matrix times that sign
-([a spinless layer's mirror](../background/limits.md#a-spinless-free-standing-layers-horizontal-mirror)).
+the mirror: it is the parity declared, or the even one, so a pair that rotates
+as `(x, y)` reads as `(p_x, p_y)` unless `(d_zx, d_yz)` is declared.
 
 ## What the environment does to the labels
 
