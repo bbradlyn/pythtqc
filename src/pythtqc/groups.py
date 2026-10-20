@@ -11313,11 +11313,12 @@ def realized_group(model, *, typat=None, environment=None, cross_check=True,
         content as one species.
     characters : sequence or mapping, optional
         What the orbitals are: a function (``"s"``, ``"px"``, ``"dx2-y2"``), a
-        shell (``"p"``), a site irrep (``"A1"``) or a sum of them
-        (``"A1 + E"``), one per orbital, or a mapping from an orbital, or from
-        several orbitals of one site, to such a word.  The group loses the
-        operations that do not carry the declared content.  An orbital left
-        undeclared takes the lowest angular momentum the hoppings allow.
+        shell (``"p"``), a site irrep (``"A1"``), with spin a site corep
+        (``"-E1"``), or a sum of them (``"A1 + E"``), one per orbital, or a
+        mapping from an orbital, or from several orbitals of one site, to such
+        a word.  The group loses the operations that do not carry the
+        declared content.  An orbital left undeclared takes the lowest angular
+        momentum the hoppings allow.
     environment : {"substrate", "free-standing"}, optional
         For a layer: on a substrate, no operation turns the layer over;
         free-standing, the whole layer group applies.  Default: the substrate

@@ -46,12 +46,12 @@ print(r.rep.characters.summary())
   supply.
 - `spin="interleaved"` declares it: `(0↑, 0↓, 1↑, 1↓)`. `typat=` takes one
   entry per orbital, the two members of a pair one atom. `characters=` states
-  a pair's spatial factor, exactly as for a native spinful model, and an entry
-  on either member speaks for the pair: `{0: "A1"}` declares pair 0, an
-  ordered list gives a pair's two members one word or `None` for one of them,
-  and a key of several orbitals groups the pairs they belong to: on two pairs
-  that share a site, `(0, 1)` and `(2, 3)`, `{(0, 2): "E"}` declares one
-  doublet.
+  a pair's spatial factor or its site corep, exactly as for a native spinful
+  model, and an entry on either member speaks for the pair: `{0: "A1"}`
+  declares pair 0, an ordered list gives a pair's two members one word or
+  `None` for one of them, and a key of several orbitals groups the pairs they
+  belong to: on two pairs that share a site, `(0, 1)` and `(2, 3)`,
+  `{(0, 2): "E"}` declares one doublet.
 - The two group lines agree: `P3m11'`, and the same corep content of the two
   lowest bands at every high-symmetry point (`hsp_table`,
   [labelling the bands](labels.md)), for the import and for the native model.

@@ -50,8 +50,8 @@ per orbital:
   the site group. With spin it is the double-valued site
   [corep](../background/tqc-primer.md#little-groups-irreps-and-coreps), marked
   by its leading `-`: `-E1` is `A1` of `3m`, what an `s` orbital carries,
-  times the spinor. A declaration names the orbital factor, `s` or `A1`, with
-  spin or without, and a spinful row returns the corep it becomes.
+  times the spinor. A declaration names the orbital factor, `s` or `A1`, or
+  the corep, `-E1`.
 - **named by**: `tables`: the tables list the
   [band representation](../background/tqc-primer.md#band-representations-and-atomic-limits)
   these states induce at that position, and the name is the one they give the
@@ -180,6 +180,8 @@ print(irreps(["s", "dx2-y2", "s", "s"]))        # one word per orbital
 #  ('-E1', '-E2', '-E', '-E')
 print(irreps(["A1", "B1", None, None]))         # site irreps; None claims nothing
 #  ('-E1', '-E2', '-E', '-E')
+print(irreps(["-E1", "-E2", None, None]))       # site coreps
+#  ('-E1', '-E2', '-E', '-E')
 print(irreps({1: "dx2-y2"}))                    # a mapping: only the orbitals named
 #  ('-E1', '-E2', '-E', '-E')
 print(irreps({(0, 1): "A1 + B1"}))              # what two orbitals hold together
@@ -194,6 +196,8 @@ print(tqc.operations(lin.rep)[3].name, tqc.operations(lin.rep)[6].name)
 
 - **A list**, one entry per orbital, a function or a site irrep, `None` where
   nothing is claimed.
+- **A site corep**, with spin: `-E1` of `4mm` is `A1` or `A2` times the
+  spinor, and the lowest-ℓ rule chooses between them.
 - **A mapping** from orbital to word: `{1: "dx2-y2"}` fixes orbital 0 too,
   through the hoppings.
 - **A key of several orbitals**, for what the orbitals of one site hold
@@ -239,9 +243,7 @@ operations, as the Hamiltonian carries them, mix among themselves: at a `3m`
 site holding a `(p_x, p_y)` pair as orbitals 0 and 1, `{0: "px", 1: "py"}`
 and `{(0, 1): "px"}` both state the doublet `E`. Given to one of them, a
 shorthand names one direction
-([below](#a-declaration-that-lowers-the-group)). A corep's own name states the
-corep and nothing finer: `A1` and `A2` of `3m` both become `-E1` with spin,
-and declaring `-E1` leaves which one to the lowest-ℓ rule.
+([below](#a-declaration-that-lowers-the-group)).
 
 **A site's content, not its partition.** A declaration states what each site
 holds; how the orbitals are partitioned inside the site is their basis. It is
