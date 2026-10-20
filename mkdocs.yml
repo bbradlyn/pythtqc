@@ -1,7 +1,11 @@
 # The documentation site: the pages under docs/, as they are, with the README as
-# its home page.  `mkdocs serve` previews it; `pytest -m gates` builds it strictly.
+# its home page.  `mkdocs serve` previews it; `pytest -m gates` builds it strictly;
+# Read the Docs builds and hosts it, by .readthedocs.yaml.
 site_name: pythtqc
 site_description: Crystalline-symmetry diagnostics for PythTB tight-binding models
+# the address Read the Docs serves a build at, for each page's canonical link and
+# the 404 page; unset in a local build
+site_url: !ENV READTHEDOCS_CANONICAL_URL
 repo_url: https://github.com/bbradlyn/pythtqc
 repo_name: bbradlyn/pythtqc
 edit_uri: ""

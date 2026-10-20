@@ -71,7 +71,8 @@ and `tqc.tables_status()` says which tables are installed.
 - **What each call takes and what it returns:** [every function](docs/reference/functions.md),
   and [every returned record](docs/reference/records.md), field by field.
 - **A call that refused:** [when a call refuses](docs/guide/refusals.md).
-- **Everything, by depth:** [the map of the documentation](docs/README.md).
+- **Everything, by depth:** [the map of the documentation](docs/README.md), also
+  on [the documentation site](https://pythtqc.readthedocs.io/).
 
 ## Tests
 
@@ -84,7 +85,9 @@ pytest -m "slow or not slow"  # everything
 
 ## The documentation site
 
-The pages under `docs/` build as a site with MkDocs and its Material theme:
+The pages under `docs/` are the site at
+[pythtqc.readthedocs.io](https://pythtqc.readthedocs.io/), built with MkDocs and
+its Material theme:
 
 ```bash
 pip install ".[docs]"

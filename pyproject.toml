@@ -53,6 +53,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/bbradlyn/pythtqc"
+Documentation = "https://pythtqc.readthedocs.io/"
 Repository = "https://github.com/bbradlyn/pythtqc"
 
 [project.optional-dependencies]
