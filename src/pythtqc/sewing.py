@@ -29,16 +29,16 @@ corep tables and the labels are ``irrep``'s.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from fractions import Fraction
 from typing import Any, Mapping
 
 import numpy as np
 
-from . import _bloch, _sitechars
-from . import groups as _groups
-from ._tolerance import (_LATTICE_TOL, CHARACTER, DEGENERACY_TOL, FLAT_ZERO, LABEL_TOL,
-                         MESH_TOL, STATES_AT_K_GATE)
+from . import _bloch
+from . import _spacegroup
+from . import _tables
 from .refusal import InternalError, Refusal
+from ._tolerance import DEGENERACY_TOL, FLAT_ZERO, LABEL_TOL, MESH_TOL, STATES_AT_K_GATE
+from ._text import _character_text, _k_text, _listed, _operation_name, _runs
 
 __all__ = [
     "FLAT_ZERO", "DEGENERACY_TOL",
@@ -50,73 +50,6 @@ __all__ = [
     "CorepContent", "corep_content",
     "HSPTable", "hsp_table",
 ]
-
-
-# ==========================================================================
-# the words a summary prints
-# ==========================================================================
-
-def _runs(indices) -> str:
-    """Sorted indices as runs, ``0-3, 5, 7-8``."""
-    runs, start, prev = [], None, None
-    for i in sorted(int(i) for i in indices):
-        if start is not None and i == prev + 1:
-            prev = i
-            continue
-        if start is not None:
-            runs.append(f"{start}-{prev}" if prev > start else f"{start}")
-        start = prev = i
-    if start is not None:
-        runs.append(f"{start}-{prev}" if prev > start else f"{start}")
-    return ", ".join(runs)
-
-
-def _listed(items) -> str:
-    """Names as a sentence lists them: ``A``, ``A and B``, ``A, B and C``."""
-    items = [str(item) for item in items]
-    if len(items) <= 1:
-        return "".join(items)
-    return ", ".join(items[:-1]) + " and " + items[-1]
-
-
-#: The largest denominator a reduced coordinate is written as a fraction with:
-#: a tabulated point's coordinates are halves, thirds, quarters, sixths and
-#: eighths.
-_DENOMINATOR = 24
-
-
-def _k_text(k) -> str:
-    """A k-point in reduced coordinates, ``(1/3, 2/3)``, a decimal where it is no fraction."""
-    out = []
-    for x in np.asarray(k, dtype=float).reshape(-1) + 0.0:
-        value = Fraction(float(x)).limit_denominator(_DENOMINATOR)
-        out.append(f"{float(x):.4g}" if abs(float(value) - x) > _LATTICE_TOL
-                   else str(value.numerator) if value.denominator == 1
-                   else f"{value.numerator}/{value.denominator}")
-    return "(" + ", ".join(out) + ")"
-
-
-def _character_text(value) -> str:
-    """A character as a table prints it: ``2``, ``-1.414``, ``0.5+0.866i``, ``-i``."""
-    z = complex(value)
-
-    def part(x):
-        return str(int(round(x))) if abs(x - round(x)) <= CHARACTER else f"{x:.4g}"
-
-    if abs(z.imag) <= CHARACTER:
-        return part(z.real + 0.0)
-    imaginary = {"1": "i", "-1": "-i"}.get(part(z.imag), part(z.imag) + "i")
-    if abs(z.real) <= CHARACTER:
-        return imaginary
-    return part(z.real) + ("" if imaginary.startswith("-") else "+") + imaginary
-
-
-def _operation_name(rep, ind) -> str:
-    """One operation's name in the model's frame, as the operation table writes it."""
-    op = rep._operation(int(ind))
-    return (_sitechars.operation_name(op, np.asarray(rep.group.lattice, dtype=float))
-            + ("'" if op.time_reversal else ""))
-
 
 # ==========================================================================
 # the two-tier threshold contract
@@ -186,7 +119,6 @@ class Thresholds:
                 f"nf={self.noise_floor:.2g}, |H|={self.norm:.4g}, "
                 f"sep={self.separation:.4g})")
 
-
 def two_tier_thresholds(hamiltonian, separation, *, flat=FLAT_ZERO,
                         degeneracy_tol=DEGENERACY_TOL) -> Thresholds:
     r"""The zero thresholds at one k-point, from ``H(k)`` and the smallest gap between distinct multiplets there.
@@ -230,7 +162,6 @@ def two_tier_thresholds(hamiltonian, separation, *, flat=FLAT_ZERO,
     return Thresholds(flat=float(flat), noise_floor=nf, effective=max(float(flat), nf),
                       norm=norm, separation=sep, degeneracy_tol=float(degeneracy_tol))
 
-
 def disagreements(thresholds: Thresholds, readouts: Mapping[str, Any]) -> tuple:
     """Every number the two zero thresholds at one k-point classify differently.
 
@@ -260,7 +191,6 @@ def disagreements(thresholds: Thresholds, readouts: Mapping[str, Any]) -> tuple:
                         "zero_flat": thresholds.zero_flat(v)})
     return tuple(out)
 
-
 # ==========================================================================
 # the multiplet analysis — small functions over pythtb's energy arrays
 # ==========================================================================
@@ -281,7 +211,6 @@ def _clusters(values, degeneracy_tol):
             out.append([i])
     return tuple(tuple(c) for c in out)
 
-
 def _ascending(energies):
     w = np.asarray(energies, dtype=float).reshape(-1)
     if w.size == 0:
@@ -291,7 +220,6 @@ def _ascending(energies):
                          "and WFArray.energies already are); sort them, and sort the "
                          "eigenvectors with them, before grouping multiplets")
     return w
-
 
 def multiplets(energies, degeneracy_tol=DEGENERACY_TOL) -> tuple:
     """Which bands of a spectrum are one degenerate level, at a stated energy tolerance.
@@ -321,7 +249,6 @@ def multiplets(energies, degeneracy_tol=DEGENERACY_TOL) -> tuple:
     """
     return _clusters(_ascending(energies), float(degeneracy_tol))
 
-
 def multiplet_separation(energies, degeneracy_tol=DEGENERACY_TOL) -> float:
     """The smallest energy gap between distinct degenerate levels at one k.
 
@@ -348,7 +275,6 @@ def multiplet_separation(energies, degeneracy_tol=DEGENERACY_TOL) -> float:
         return float("inf")
     return float(min(w[c[0]] - w[p[-1]] for p, c in zip(mult[:-1], mult[1:])))
 
-
 def multiplet_spread(energies, degeneracy_tol=DEGENERACY_TOL) -> float:
     """The largest energy spread inside any one degenerate level.
 
@@ -371,7 +297,6 @@ def multiplet_spread(energies, degeneracy_tol=DEGENERACY_TOL) -> float:
     """
     w = _ascending(energies)
     return float(max(w[c[-1]] - w[c[0]] for c in _clusters(w, float(degeneracy_tol))))
-
 
 # ==========================================================================
 # resolving the single eigenvector source
@@ -403,7 +328,6 @@ def solve_at(model, k, *, params=None):
     """
     return _bloch.solve(model, np.atleast_2d(np.asarray(k, dtype=float).reshape(-1)), params)
 
-
 def _as_columns(states) -> np.ndarray:
     """A fiber of eigenvector **rows** -> the matrix whose **columns** they are.
 
@@ -421,7 +345,6 @@ def _as_columns(states) -> np.ndarray:
             f"{np.asarray(states).shape}")
     return np.ascontiguousarray(arr.T)
 
-
 def _flat_k_points(wf) -> np.ndarray:
     """A ``WFArray``'s mesh k-points, flattened in the order its fibers are stored."""
     mesh = wf.mesh
@@ -430,7 +353,6 @@ def _flat_k_points(wf) -> np.ndarray:
             "sewing_matrix consumes a pure-k WFArray; this one carries lambda axes "
             f"({mesh.dim_lambda}), whose fibers are not indexed by k alone")
     return np.asarray(wf.k_points, dtype=float).reshape(-1, int(wf.dim_k))
-
 
 def _wfarray_fiber(wf, k, *, mesh_tol=MESH_TOL):
     """``(energies_or_None, V)`` at ``k`` from a solved ``WFArray``, or a Refusal.
@@ -466,7 +388,6 @@ def _wfarray_fiber(wf, k, *, mesh_tol=MESH_TOL):
     except ValueError:
         w = None                      # a sector WFArray carries states, not energies
     return w, V
-
 
 def _resolve_states(source, rep, k, *, mesh_tol=MESH_TOL, params=None):
     """The **single** eigenvector source at ``k`` -> ``(energies_or_None, V)``.
@@ -504,18 +425,15 @@ def _resolve_states(source, rep, k, *, mesh_tol=MESH_TOL, params=None):
 
     return None, _as_columns(source)
 
-
 def _hamiltonian_at(rep, k, params=None) -> np.ndarray:
     """``H(k)`` from ``rep.model``, Hermitized — recomputed on demand, never stored."""
     k = np.asarray(k, dtype=float).reshape(-1)
     H = np.asarray(_bloch.hamiltonian(rep.model, np.atleast_2d(k), params))[0]
     return 0.5 * (H + H.conj().T)
 
-
 def _states_at_k(H, w, V):
     """``max |H V - V diag(w)|`` — the measured "these states are at this k" number."""
     return float(np.abs(H @ V - V * np.asarray(w, dtype=float)[None, :]).max())
-
 
 def _foreign_states(H, k, residual):
     """The ``states_not_at_k`` refusal, or ``None`` when the residual closes."""
@@ -531,7 +449,6 @@ def _foreign_states(H, k, residual):
         f"anywhere else, produce a matrix that is still unitary and whose trace is "
         f"silently wrong.",
         value=float(residual), threshold=float(gate), context={"k": np.asarray(k, float)})
-
 
 def _band_block(nstate, bands):
     """The sorted band indices a band count or a band sequence names.
@@ -554,7 +471,6 @@ def _band_block(nstate, bands):
         raise ValueError(f"the bands {idx} are not all among the {nstate} bands "
                          f"0..{nstate - 1}")
     return tuple(sorted(idx))
-
 
 # ==========================================================================
 # the sewing matrix
@@ -659,7 +575,6 @@ class SewingMatrix:
         return (f"SewingMatrix(#{self.operation}, {len(self.bands)} bands, "
                 f"tr={self.trace:.6g}, unitarity={self.unitarity:.2e})")
 
-
 def _sewing_core(rep, operation, k, V, idx, H, *, atol=1e-8, residual=float("nan"),
                  **kwargs) -> SewingMatrix | Refusal:
     """``B = V†UV`` on ``idx`` with its two self-checks — the shared inner loop.
@@ -692,7 +607,6 @@ def _sewing_core(rep, operation, k, V, idx, H, *, atol=1e-8, residual=float("nan
                         commutator=comm, antiunitary=anti, eigenvalues=ev,
                         trace=complex(np.trace(B)), residual=float(residual),
                         _name=_operation_name(rep, operation))
-
 
 def sewing_matrix(rep, operation=None, k=None, *, states=None, bands=None, atol=1e-8,
                   degeneracy_tol=DEGENERACY_TOL, mesh_tol=MESH_TOL, check=True,
@@ -810,7 +724,6 @@ def sewing_matrix(rep, operation=None, k=None, *, states=None, bands=None, atol=
 
     return _sewing_core(rep, operation, k, V, idx, H, atol=atol, residual=resid, **kwargs)
 
-
 # ==========================================================================
 # the character table
 # ==========================================================================
@@ -922,7 +835,6 @@ class CharacterTable:
         return (f"CharacterTable(k={np.round(self.k, 6).tolist()}, bands {_runs(self.bands)} "
                 f"in {n} multiplet{'' if n == 1 else 's'}, group={self.group_provenance})")
 
-
 def characters(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
                atol=1e-8, mesh_tol=MESH_TOL, params=None) -> CharacterTable | Refusal:
     r"""The characters of a set of bands at one k: the trace of each unitary operation of the little group over each degenerate multiplet of the set.
@@ -983,7 +895,7 @@ def characters(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL
         raise TypeError("characters() missing required argument 'bands'")
     if isinstance(rep, Refusal):
         return rep
-    gate = _groups._lattice_not_descended(rep.group)
+    gate = _spacegroup._lattice_not_descended(rep.group)
     if gate is not None:
         return gate
     k = np.asarray(k, dtype=float).reshape(-1)
@@ -1028,7 +940,7 @@ def characters(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL
                          "energies": w[list(m)]})
         rows.append(m)
 
-    lg = _groups.little_group(rep.group, k)
+    lg = _tables.little_group(rep.group, k)
     if isinstance(lg, Refusal):
         return lg
     ours = [int(i) for i in rep.little_group(k, atol=atol)]
@@ -1070,7 +982,6 @@ def characters(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL
         spread=multiplet_spread(w, degeneracy_tol), residual=resid,
         disagreements=dis, group_provenance=str(rep.group.provenance), _names=names)
 
-
 # ==========================================================================
 # corep content
 # ==========================================================================
@@ -1097,7 +1008,6 @@ def format_counts(counts) -> str:
     """
     return " + ".join(f"{n}×{lab}" if n > 1 else lab
                       for lab, n in sorted(counts.items()))
-
 
 @dataclass(frozen=True)
 class CorepContent:
@@ -1168,7 +1078,6 @@ class CorepContent:
         return (f"CorepContent({self.kpname}: {format_counts(self.counts)}, "
                 f"partition={self.partition})")
 
-
 def _isolation(spectrum, bands):
     """Energy gap from a band block to the rest of the spectrum."""
     w = np.asarray(spectrum, dtype=float).reshape(-1)
@@ -1177,7 +1086,6 @@ def _isolation(spectrum, bands):
     if not outside or not inside:
         return float("inf")
     return float(min(abs(w[a] - w[b]) for a in inside for b in outside))
-
 
 def corep_content(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
                   label_tol=LABEL_TOL, ktol=1e-5, kpname=None, atol=1e-8,
@@ -1269,7 +1177,7 @@ def corep_content(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_
         raise TypeError("corep_content() missing required argument 'bands'")
     if isinstance(rep, Refusal):
         return rep
-    gate = _groups._lattice_not_descended(rep.group)
+    gate = _spacegroup._lattice_not_descended(rep.group)
     if gate is not None:
         return gate
     tab = characters(rep, k, states=states, bands=bands, degeneracy_tol=degeneracy_tol,
@@ -1277,7 +1185,7 @@ def corep_content(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_
     if isinstance(tab, Refusal):
         return tab
 
-    out = _groups.identify_from_characters(
+    out = _tables.identify_from_characters(
         rep.group, tab.k, tab.characters, multiplet_dims=list(tab.dims),
         kpname=kpname, label_tol=label_tol, ktol=ktol)
     if isinstance(out, Refusal):
@@ -1291,7 +1199,6 @@ def corep_content(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_
                         partition=out.partition, content=out, table=tab,
                         thresholds=tab.thresholds,
                         isolation=_isolation(tab.spectrum, tab.bands))
-
 
 # ==========================================================================
 # the high-symmetry-point table an EBR analysis consumes
@@ -1342,6 +1249,11 @@ class HSPTable:
         of all the bands and can label some of them differently; or, where the
         Hamiltonian conserves a pseudospin and nothing declares what its copies
         carry, that content itself.
+    rep : ..symmetry.SpaceGroupRep
+        The representation the table was read with, ``r.rep``: its group,
+        ``rep.group``, is the group whose coreps the labels name.  Every call
+        that reads the table with a group or a representation checks that
+        they are this one, and raises ``ValueError`` where they are not.
     """
 
     bands: tuple
@@ -1356,6 +1268,7 @@ class HSPTable:
     complete: bool
     group_provenance: str = "cell"
     note: str = ""
+    rep: Any = field(default=None, repr=False, compare=False)
 
     def summary(self) -> str:
         """The coreps of these bands, a line for each part, with the attribute that holds it."""
@@ -1385,7 +1298,6 @@ class HSPTable:
                 f"{len(self.refusals)} refused, {len(self.skipped)} skipped, "
                 f"group={self.group_provenance})")
 
-
 #: What the labelling returned rests on, by the key that set the others aside:
 #: the site content at the lowest angular momentum, the functions the orbitals
 #: read as, and the band labels themselves.
@@ -1395,7 +1307,6 @@ _DECIDED_BY = {
                  "carrying their site content"),
     "bands": "the one whose band labels come first in the tables' order",
 }
-
 
 def _labelling_note(rep, block) -> str:
     """The sentence :attr:`HSPTable.note` carries, or ``""``.
@@ -1428,7 +1339,6 @@ def _labelling_note(rep, block) -> str:
             f"and labels these {len(block)} differently; the lowest-angular-momentum rule "
             f"chose {_DECIDED_BY[decided]}")
 
-
 def _labelled_apart(chosen, other, held) -> bool:
     """Whether the multiplets the bands ``held`` fill carry other labels under ``other``.
 
@@ -1455,7 +1365,6 @@ def _labelled_apart(chosen, other, held) -> bool:
         if whole and mine_sum != their_sum:
             return True
     return False
-
 
 def _parts_named(rep, parts, states_of) -> str:
     """Coupled parts by their orbitals: ``"the coupled part holding orbitals 1 and 5"``.
@@ -1485,7 +1394,6 @@ def _parts_named(rep, parts, states_of) -> str:
         return (f"{named}, the Hamiltonian conserving a pseudospin on orbitals "
                 + " and ".join(str(c) for c in copies))
     return named
-
 
 def _multiplicity_note(rep, block, fibers) -> str:
     """The sentence :attr:`HSPTable.note` carries where a pseudospin sets the content, or ``""``.
@@ -1531,7 +1439,6 @@ def _multiplicity_note(rep, block, fibers) -> str:
                     f"{space.content or '(unnamed)'}, of the {len(space._distinct())} the "
                     "group's own table admits, and another can label them differently")
     return "; ".join(said)
-
 
 def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
               label_tol=LABEL_TOL, ktol=1e-5, atol=1e-8, mesh_tol=MESH_TOL,
@@ -1599,12 +1506,12 @@ def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
     if isinstance(rep, Refusal):
         return rep
     block = _band_block(int(rep.model.nstate), bands)
-    gate = _groups._lattice_not_descended(rep.group)
+    gate = _spacegroup._lattice_not_descended(rep.group)
     if gate is not None:
         return gate
     if states is not None and hasattr(states, "solve_ham") and states is not rep.model:
         raise ValueError("hsp_table(rep, states=...) must be handed rep.model")
-    points = _groups.high_symmetry_points(rep.group)
+    points = _tables.high_symmetry_points(rep.group)
     if isinstance(points, Refusal):
         return points
 
@@ -1616,7 +1523,7 @@ def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
     # route for "a handful of high-symmetry points", with no container built.
     wanted = []
     for name, k in points.items():
-        lg = _groups.little_group(rep.group, k)
+        lg = _tables.little_group(rep.group, k)
         if isinstance(lg, Refusal):
             refusals[name] = lg
             continue
@@ -1656,4 +1563,4 @@ def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
                     records=records, refusals=refusals, skipped=skipped,
                     counts=counts, thresholds=thr, complete=not refusals,
                     group_provenance=str(rep.group.provenance),
-                    note="; ".join(n for n in notes if n))
+                    note="; ".join(n for n in notes if n), rep=rep)

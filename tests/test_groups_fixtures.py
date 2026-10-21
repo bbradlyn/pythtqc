@@ -66,7 +66,10 @@ import tqc_models as tqm   # loaded by conftest.py -- see its docstring
 
 from pythtqc import groups as G
 from pythtqc.refusal import Refusal
-from pythtqc.symmetry import _find_intertwiners
+from pythtqc._detector import _find_intertwiners
+from pythtqc import _measure
+from pythtqc import _spacegroup
+from pythtqc import _tables
 
 # Third-party deprecations (spglib, irrep) are noise here; a deprecated pythtqc
 # spelling is not, and the second mark keeps the suite's own guard in force
@@ -128,7 +131,7 @@ def own_solve(model, group, ind, nk=8, tol=1e-8):
     """
     sym = next(s for s in group.symmetries if int(s.ind) == ind)
     space = _find_intertwiners(model, group.k_action_of(sym),
-                               G._detection_grid(int(group.dim_k), nk),
+                               _measure._detection_grid(int(group.dim_k), nk),
                                antiunitary=bool(sym.time_reversal), tol=tol)
     best = float(np.min(space.residuals)) if space.dim else np.inf
     return int(space.dim), bool(space.dim and best <= tol)
@@ -181,7 +184,7 @@ def p4232_candidate_cell(inversion, generic=(0.13, 0.27, 0.41)):
 @pytest.fixture(scope="module")
 def lin3g_group(lin3g):
     """lin3g's slab cell group, grey (the adapter's ``include_TR=True`` default)."""
-    g = G._group_of(lin3g)
+    g = _spacegroup._group_of(lin3g)
     assert not isinstance(g, Refusal), g
     return g
 
@@ -189,20 +192,20 @@ def lin3g_group(lin3g):
 @pytest.fixture(scope="module")
 def lin3g_validated(lin3g, lin3g_group):
     """What lin3g's Hamiltonian obeys, at the API's default grid and tolerance."""
-    return G._validate_group(lin3g, lin3g_group)
+    return _measure._validate_group(lin3g, lin3g_group)
 
 
 @pytest.fixture(scope="module")
 def km_odd_group(km_odd):
     """Kane-Mele's cell group with the *default* species labelling -> P6/mmm."""
-    g = G._group_of(km_odd, include_TR=False)
+    g = _spacegroup._group_of(km_odd, include_TR=False)
     assert not isinstance(g, Refusal), g
     return g
 
 
 @pytest.fixture(scope="module")
 def km_odd_validated(km_odd, km_odd_group):
-    return G._validate_group(km_odd, km_odd_group)
+    return _measure._validate_group(km_odd, km_odd_group)
 
 
 @pytest.fixture(scope="module")
@@ -212,7 +215,7 @@ def p4232_candidate_group():
     assert ndeco == 48, "the generic orbit and its inversion image must be disjoint"
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        g = G._group_of(model, typat=typat)
+        g = _spacegroup._group_of(model, typat=typat)
     assert not isinstance(g, Refusal), g
     return g
 
@@ -220,7 +223,7 @@ def p4232_candidate_group():
 @pytest.fixture(scope="module")
 def p4232_validated(p4232, p4232_candidate_group):
     """The audit: the golden's H(k) measured against the Pm-3n candidate set."""
-    return G._validate_group(p4232, p4232_candidate_group)
+    return _measure._validate_group(p4232, p4232_candidate_group)
 
 
 # ---------------------------------------------------------------------------
@@ -241,7 +244,7 @@ def test_p4232_bare_orbital_cell_is_body_centred_and_is_served_as_a_supergroup(p
     ``realized_group`` that measures the translation and descends;
     ``tests/test_lattice_descent.py`` carries that.
     """
-    r = G._group_of(p4232)
+    r = _spacegroup._group_of(p4232)
     assert r, str(r)
     assert (r.number_str, r.name, r.size) == ("229.141", "Im-3m1'", 192)
     assert sum(1 for s in r.symmetries if not s.time_reversal) == 96
@@ -348,7 +351,7 @@ def test_kane_mele_hamiltonian_keeps_exactly_the_Pminus6m2_subgroup(km_odd, km_o
 
     # the survivors are the P-6m2 operations, matched by rotation and translation;
     # the cell typed apart reads that group, the number the fixture records
-    staggered = G._group_of(km_odd, include_TR=False, typat=[0, 1])
+    staggered = _spacegroup._group_of(km_odd, include_TR=False, typat=[0, 1])
     assert (staggered.sg_number, staggered.name, staggered.size) == (187, "P-6m2", 12)
     assert tqm.KANE_MELE["odd"].slab_sg_number == 187
     survivors = [s for s in g.symmetries if int(s.ind) in v.indices]
@@ -427,7 +430,7 @@ def test_lin3g_orbitals_sit_on_the_1a_and_2c_orbits_of_the_slab_group(lin3g, lin
     being the two-site orbit ``(1/2,0,0), (0,1/2,0)``.  spglib's independent
     per-site answer agrees, which is the cross-check ``OrbitalAssignment`` ships.
     """
-    asg = G._assign_orbitals(lin3g, lin3g_group)
+    asg = _tables._assign_orbitals(lin3g, lin3g_group)
     assert not isinstance(asg, Refusal), asg
     assert asg.orbits == ((0,), (1, 2))          # site 0 alone; sites 1 and 2 one orbit
     assert asg.wyckoff_spglib == ("a", "f")     # measured lock; p4mm's 1a and 2c
@@ -468,7 +471,7 @@ def test_p4232_orbitals_form_the_two_site_2a_orbit(p4232, p4232_candidate_group)
     being assigned against.  ``site_symmetry`` is read off the operations of
     the group assigned against, and is asserted.
     """
-    asg = G._assign_orbitals(p4232, p4232_candidate_group)
+    asg = _tables._assign_orbitals(p4232, p4232_candidate_group)
     assert not isinstance(asg, Refusal), asg
     assert asg.orbits == ((0, 1),)               # the two 2a sites, one orbit
     assert asg.site_orbitals == ((0, 1), (2, 3))  # (d_z2, d_x2-y2) on each site

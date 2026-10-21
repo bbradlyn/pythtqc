@@ -13,28 +13,28 @@ returns their records on ``.positions`` and ``.symmetrization``.
 
 from __future__ import annotations
 
-import inspect
 from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
 
 from . import _bloch
-from ._tolerance import (_DROP_RELATIVE, _EXACT_CLOSURE, _IN_BLOCKS, _RANGE_RELATIVE,
-                         EXACT_TOL, within)
+from . import _centres
+from . import _measure
 from .refusal import InternalError, Refusal
-from .symmetry import (SiteMultiplets, _GridHamiltonians, _budget_that_runs, _counted_as,
-                       _declaration_grammar, _exact_gate, _index_ranges, _orbitals_named,
-                       _resolve_spin, _size, bloch_operator, _build_rep, covariance_gate)
+from ._tolerance import (
+    EXACT_TOL, _DROP_RELATIVE, _EXACT_CLOSURE, _IN_BLOCKS, _RANGE_RELATIVE, within)
+from ._text import _counted_as, _index_ranges, _orbitals_named
+from ._detector import _GridHamiltonians, _budget_that_runs, _size
+from ._matrices import (
+    SiteMultiplets, _BLOCH_TOL, _default_of, _resolve_spin, bloch_operator,
+    covariance_gate)
+from ._grammar import _declaration_grammar
+from ._centres import _position_defect
+from ._build import _build_rep, _exact_gate
 
 __all__ = ["Symmetrization", "symmetrize", "symmetrize_positions",
            "classify_operations", "EXACT_GATE"]
-
-
-def _default_of(func, name):
-    """A default read off a function's own signature, never retyped here."""
-    return inspect.signature(func).parameters[name].default
-
 
 #: The least covariance an operation obeyed exactly is held to, ``5e-14`` in the
 #: units of ``H``.  A model's own boundary between exact and near is
@@ -46,13 +46,6 @@ EXACT_GATE = float(EXACT_TOL)
 #: ``_build_rep``'s own internal-factor gate, the floor of the provisional pass's
 #: loosened one.
 _INTERNAL_GATE = float(_default_of(_build_rep, "internal_tol"))
-
-#: The tolerance :func:`..symmetry.bloch_operator` checks the integer-shift
-#: identity ``A·τ_a + t = τ_{g(a)} + s`` to, read off its own signature: the
-#: statement that the operations carry the centres onto one another, which the
-#: projection's operators are built on.
-_BLOCH_TOL = float(_default_of(bloch_operator, "tol"))
-
 
 # --------------------------------------------------------------------------
 # the classification: exact / near / broken, per operation
@@ -102,7 +95,6 @@ def classify_operations(validated, tol, *, exact_gate=EXACT_GATE, anchored=None)
                          "near" if r <= tol else "broken")
     return out
 
-
 def _named(sets) -> str:
     """Sets of orbitals in words: ``"orbitals 0-3"``, ``"orbitals 0-1 and 4-5"``."""
     sets = [tuple(int(o) for o in s) for s in sets]
@@ -110,14 +102,12 @@ def _named(sets) -> str:
         return _orbitals_named(sets[0])
     return "orbitals " + " and ".join(_index_ranges(s) for s in sets)
 
-
 def _residual_read(validated, anchored, ind, *, missing):
     """The residual one operation is classified at: the detector's, or the larger of it and the anchored one."""
     r = float(validated.residuals.get(int(ind), missing))
     if anchored and int(ind) in anchored:
         r = max(r, float(anchored[int(ind)]))
     return r
-
 
 # --------------------------------------------------------------------------
 # the record
@@ -303,7 +293,6 @@ class Symmetrization:
                 f"{len(self.near)} of {len(self.classes)} operations near, "
                 f"{_counted_as(self._spinful)})")
 
-
 # --------------------------------------------------------------------------
 # the transform grid: the hopping range, and the box the group action reaches
 # --------------------------------------------------------------------------
@@ -340,7 +329,6 @@ def _range_box(model, syms, per):
     R_box = np.ceil(worst + spread - 1e-9).astype(int)
     return R_max[list(per)].astype(int), np.maximum(R_box[list(per)], 0)
 
-
 def _divisions(group, syms, R_box):
     r"""``(box, divisions)`` — the reach each periodic direction is read to, and the grid's divisions along it.
 
@@ -374,14 +362,12 @@ def _divisions(group, syms, R_box):
                     for a in range(dim_k)], dtype=int)
     return box, 2 * (box + 1) + 1
 
-
 def _grid(divisions):
     """The Γ-centred grid with ``divisions`` along the periodic directions, as integer multiples and reduced k."""
     counts = [int(c) for c in divisions]
     m = np.stack(np.meshgrid(*[np.arange(c) for c in counts], indexing="ij"),
                  axis=-1).reshape(-1, len(counts))
     return m, m / np.asarray(counts, dtype=float)
-
 
 # --------------------------------------------------------------------------
 # the memory the projection may take
@@ -412,7 +398,6 @@ _PROJECTION_GRIDS = 2.1
 #: of 129 to 235 points: 5.95 matrices a point on every one.
 _POINT_MATRICES = 6.0
 
-
 def _memory_budget(max_bytes) -> float:
     """``max_bytes`` read as a number of bytes; anything else is a malformed call.
 
@@ -434,7 +419,6 @@ def _memory_budget(max_bytes) -> float:
             "levels.")
     return budget
 
-
 def _search_ceiling(max_candidates) -> int:
     """``max_candidates`` read as a whole number of candidates; anything else is a malformed call.
 
@@ -451,11 +435,9 @@ def _search_ceiling(max_candidates) -> int:
             "`rep_search_too_large`.")
     return int(max_candidates)
 
-
 def _slice_points(work, point_bytes, n_points) -> int:
     """How many grid points one slice of the streamed arithmetic takes within ``work`` bytes."""
     return int(min(int(n_points), max(1, int(float(work) // float(point_bytes)))))
-
 
 def _projection_too_large(n_bytes, budget, *, divisions, least, n_states, R_max, R_box):
     r"""The projection whose transform grid the memory budget does not hold.
@@ -488,14 +470,13 @@ def _projection_too_large(n_bytes, budget, *, divisions, least, n_states, R_max,
                  "n_states": int(n_states), "R_max": R_max.tolist(),
                  "R_box": R_box.tolist()})
 
-
 # --------------------------------------------------------------------------
 # the operators
 # --------------------------------------------------------------------------
 
 def _provisional_rep(model, group, assignment, validated, *, tol, scale, params,
                      build_kw):
-    r"""The exact ``D(g)``, from a provisional :func:`..symmetry._build_rep`.
+    r"""The exact ``D(g)``, from a provisional :func:`.._build._build_rep`.
 
     Two tolerances move for this pass and nothing else does.
 
@@ -537,7 +518,7 @@ def _provisional_rep(model, group, assignment, validated, *, tol, scale, params,
     are all involutions with Hermitian representatives — inversion and a
     two-fold axis, which is most of what a real crystal offers — builds the
     *same* unitary matrices on both orientation branches, differing only by a
-    phase per generator.  :func:`..symmetry._build_rep` settles that tie itself,
+    phase per generator.  :func:`.._build._build_rep` settles that tie itself,
     by convention and with ``_branch_tie`` on the record, so the ordinary route
     through here never has a branch to decide and ``branch_ambiguity`` is
     ``None``.  What can still arrive is the tie the search never *asked* —
@@ -593,7 +574,6 @@ def _provisional_rep(model, group, assignment, validated, *, tol, scale, params,
                  "branch_ambiguity": ambiguity,
                  "covariance": float(max(rep.residuals.values(), default=0.0))}
 
-
 def _projection_operators(model, group, assignment, validated, *, tol, params, build_kw):
     r"""``(rep, record)`` -- the representation a projection of this model is built with.
 
@@ -608,42 +588,6 @@ def _projection_operators(model, group, assignment, validated, *, tol, params, b
     scale = _bloch.magnitude(_bloch.hamiltonian(model, probe, params), mu)
     return _provisional_rep(model, group, assignment, validated, tol=tol, scale=scale,
                             params=params, build_kw=build_kw)
-
-
-def _position_defect(model, group, assignment, ops):
-    r"""How far this model's own positions are from the group's action on them.
-
-    :func:`..symmetry.bloch_operator` *checks* the integer-shift identity
-    ``A·τ_a + t = τ_{g(a)} + s`` rather than assuming it, at a tolerance whose
-    default (``1e-9``) is a statement about a model built from exact numbers. A
-    **wannier90** model's centres are numerically determined and satisfy it only
-    to the Wannierization's own precision — measured **7.7e-9** on a real
-    import.  This measures how far they miss it: the largest residual of the
-    identity over the operations ``ops`` and every orbital, each component
-    modulo the lattice.
-    """
-    from .symmetry import _orb_positions_3d
-
-    pos = _orb_positions_3d(model, group)
-    site_of = np.asarray(assignment.site_of_orbital, dtype=int)
-    perm = np.asarray(assignment.permutations, dtype=int)
-    shift = np.asarray(assignment.lattice_shift, dtype=float)
-    first = {}
-    for a in range(int(model.norb)):
-        first.setdefault(int(site_of[a]), a)
-    pos_of_ind = {int(s.ind): i for i, s in enumerate(group.symmetries)}
-    worst = 0.0
-    for ind, sym in ops.items():
-        p = pos_of_ind[int(ind)]
-        A = np.asarray(sym.rotation, dtype=float)
-        t = np.asarray(sym.translation, dtype=float)
-        for a in range(int(model.norb)):
-            s = int(site_of[a])
-            b = first[int(perm[p, s])]
-            resid = A @ pos[a] + t - shift[p, s] - pos[b]
-            worst = max(worst, float(np.abs(resid - np.rint(resid)).max()))
-    return worst
-
 
 def _with_centres(model, orb, *, check=True, n_check=_bloch.CHECK_K, seed=_bloch.CHECK_SEED,
                   params=None):
@@ -687,7 +631,6 @@ def _with_centres(model, orb, *, check=True, n_check=_bloch.CHECK_K, seed=_bloch
                 "with itself, not a property of the model.")
     return out, resid
 
-
 # --------------------------------------------------------------------------
 # the average, and the way back to a hopping list
 # --------------------------------------------------------------------------
@@ -712,7 +655,6 @@ def _same_part(parts, model):
             "cover every orbital.")
     return part_of[:, None] == part_of[None, :]
 
-
 def _parts_coupling(model, parts, params=None) -> float:
     r"""The largest entry of ``H(k)`` between two of the coupled parts ``parts`` holds.
 
@@ -726,11 +668,10 @@ def _parts_coupling(model, parts, params=None) -> float:
     H = np.asarray(_bloch.hamiltonian(model, probe, params))
     return float(np.abs(H[:, ~same]).max(initial=0.0))
 
-
 def _as_held(X, held):
     r"""``X`` with what the sectors read at the declared precision keep apart held apart.
 
-    ``held`` is :func:`..symmetry._held_sets`'s: ``"copies"``, each set of
+    ``held`` is :func:`.._labelling._held_sets`'s: ``"copies"``, each set of
     identical copies' basis in the states, copy-major, with its number of
     copies, the states one copy holds and its orbitals; and ``"shares"``,
     each set of sectors splitting multiplets between orbits no operation
@@ -758,7 +699,6 @@ def _as_held(X, held):
             out = out + Pt @ X @ Pt
     return out
 
-
 def _held_off(model, held, params=None) -> dict:
     r"""``{"copies", "shares"}`` -- the largest entry of ``H(k)`` each kind ``held`` holds leaves out.
 
@@ -775,7 +715,6 @@ def _held_off(model, held, params=None) -> dict:
             alone = {kind: held[kind]}
             out[kind] = float(np.abs(H - _as_held(H, alone)).max(initial=0.0))
     return out
-
 
 def _average_on_grid(model, group, assignment, ops, D, kpts, divisions, params, *,
                      bloch_tol, work, apart=None, held=None):
@@ -847,7 +786,6 @@ def _average_on_grid(model, group, assignment, ops, D, kpts, divisions, params, 
         scale = max(scale, float(np.abs(H[lo:hi]).max()))
     return acc, moved, scale
 
-
 def _average_at(model, group, assignment, ops, D, k, params, *, bloch_tol, apart=None,
                 held=None):
     r"""``(H_sym, residue)`` at arbitrary k — the average **pulled back**.
@@ -888,7 +826,6 @@ def _average_at(model, group, assignment, ops, D, k, params, *, bloch_tol, apart
     if held:
         acc = _as_held(acc, held)
     return acc, residue
-
 
 def _inverse_transform(Hsym, model, kpts, divisions, per, *, work):
     r"""``(t, R)`` — the hopping coefficients, exactly, in place of ``H_sym``.
@@ -938,11 +875,9 @@ def _inverse_transform(Hsym, model, kpts, divisions, per, *, work):
     R = np.stack(np.meshgrid(*labs, indexing="ij"), axis=-1).reshape(-1, dim_k)
     return Hsym, R
 
-
 def _blocks(t, norb, nspin):
     """``t`` reshaped to ``(R, i, j, spin, spin)`` — the spin block is the unit."""
     return np.transpose(t.reshape(t.shape[0], norb, nspin, norb, nspin), (0, 1, 3, 2, 4))
-
 
 def _block_norms(t, norb, nspin, step):
     """``‖t_ij(R)‖_F`` per ``(R, i, j)`` — the spin block is the unit, not the entry.
@@ -956,13 +891,12 @@ def _block_norms(t, norb, nspin, step):
         out[lo:hi] = np.linalg.norm(_blocks(t[lo:hi], norb, nspin), axis=(3, 4))
     return out
 
-
 #: The half-decades :func:`_drop_threshold` sorts the norms into, and the index
 #: of the one starting at 1: ``floor(2·log10(v))`` of a positive double lies in
 #: ``[-647, 617]``.
 _HALF_DECADE_ZERO = 650
-_HALF_DECADES = 1300
 
+_HALF_DECADES = 1300
 
 def _drop_threshold(norms, relative=_DROP_RELATIVE, *, step=None):
     r"""A drop threshold that never splits a symmetry orbit.
@@ -1013,7 +947,6 @@ def _drop_threshold(norms, relative=_DROP_RELATIVE, *, step=None):
         nxt = float(least[b])
     return 0.0, float(edge / float(least[occupied[0]]))
 
-
 def _kept_terms(t, R, model, per, keep, step):
     """The terms of ``t(R)`` a pythtb model is written from, read off the grid.
 
@@ -1062,7 +995,6 @@ def _kept_terms(t, R, model, per, keep, step):
     amps = blocks[rr, ii, jj] if nspin == 2 else blocks[rr, ii, jj, 0, 0]
     return ons, amps, ii, jj, Rfull, herm
 
-
 def _to_model(model, ons, amps, ii, jj, Rfull):
     """A pythtb model on ``model``'s own lattice, from the terms :func:`_kept_terms` read."""
     from pythtb import Lattice, TBModel
@@ -1074,7 +1006,6 @@ def _to_model(model, ons, amps, ii, jj, Rfull):
     out.set_onsite(ons, mode="set")
     out._append_hops(amps, ii, jj, Rfull)
     return out
-
 
 # --------------------------------------------------------------------------
 # the entry point
@@ -1183,7 +1114,6 @@ def symmetrize(model, group, assignment, validated, *, tol, k_grid=None, params=
                         characters=characters, multiplets=multiplets, spin=spin,
                         max_candidates=max_candidates)
 
-
 def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None, params=None,
                  max_passes=3, verify=True, verify_nk=None, verify_tol=None,
                  max_bytes=1e9, _parts=None, _held=None, **build_kw):
@@ -1193,7 +1123,6 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None, param
     parts of the crystal and the identical copies it read apart (``_parts``,
     ``_held``) and whatever the build it will make is asked for.
     """
-    from . import groups as _groups
 
     tol = float(tol)
     if not np.isfinite(tol) or tol <= 0.0:
@@ -1464,11 +1393,11 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None, param
     # ---- 6. the verification: the exact pipeline may now run ---------------
     verification: dict[str, Any] = {}
     if verify:
-        vtol = (float(_default_of(_groups._validate_group, "tol")) if verify_tol is None
+        vtol = (float(_default_of(_measure._validate_group, "tol")) if verify_tol is None
                 else float(verify_tol))
         nk = (int(verify_nk) if verify_nk is not None
               else max(2, int(round(float(validated.n_kpts) ** (1.0 / dim_k)))))
-        again = _groups._validate_group(current, group, nk=nk, tol=vtol, keep_intertwiners=False,
+        again = _measure._validate_group(current, group, nk=nk, tol=vtol, keep_intertwiners=False,
                                         max_bytes=budget)
         if isinstance(again, Refusal):
             return again                    # the detector's memory limit, as it came
@@ -1537,7 +1466,6 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None, param
         multiplets=held, parts=uncoupled, copies=as_copies, shares=as_shares,
         _spinful=bool(group.spinor))
     return current, record
-
 
 # --------------------------------------------------------------------------
 # the other half of the model: the orbital centres
@@ -1609,16 +1537,15 @@ def symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=None
     >>> f"{rec['defect_before']:.1e} -> {rec['defect_after']:.1e}", rec["frame"]  # doctest: +SKIP
     ('2.0e-08 -> 1.1e-16', 'model')
     """
-    from . import groups as _groups
 
-    frame = _groups._assigned_sites(model, group, assignment)
+    frame = _centres._assigned_sites(model, group, assignment)
     syms = group.symmetries
     unitary = [k for k, s in enumerate(syms) if not s.time_reversal]
     rotations = np.array([np.asarray(syms[k].rotation, dtype=float) for k in unitary])
     perm = np.asarray(assignment.permutations, dtype=int)[unitary]
     shift = np.asarray(assignment.lattice_shift, dtype=float)[unitary]
     rows = list(range(len(unitary)))
-    x, trans, closure = _groups._symmetric_sites(frame, perm, shift, rotations, rows)
+    x, trans, closure = _centres._symmetric_sites(frame, perm, shift, rotations, rows)
     if not closure <= _EXACT_CLOSURE:          # pragma: no cover - an assignment is an action
         raise InternalError(
             f"the unitary operations of {group.name} #{group.number_str} do not carry "
@@ -1627,9 +1554,9 @@ def symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=None
             "in this package failing, not a measurement about the model.")
     raw = np.asarray(model.orb_vecs, dtype=float)
     dim_r = int(model.lattice.dim_r)
-    moves = _groups._moves_of(frame, x)
+    moves = _centres._moves_of(frame, x)
     worst = float(np.abs(moves).max(initial=0.0))
-    before = _groups._frame_defect(frame, perm, rotations, trans, rows)
+    before = _centres._frame_defect(frame, perm, rotations, trans, rows)
     if not within(worst, max_move):
         return Refusal(
             "positions_not_nearly_symmetric",
@@ -1642,10 +1569,10 @@ def symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=None
             value=worst, threshold=float(max_move),
             context={"defect_before": float(before),
                      "n_moved": int(np.count_nonzero(np.abs(moves).max(axis=1) > 0.0))})
-    delta = _groups._rational_offset(trans, rotations, rows, model.periodic_dirs)
+    delta = _centres._rational_offset(trans, rotations, rows, model.periodic_dirs)
     in_frame = delta is not None and within(float(np.abs(delta).max(initial=0.0)), max_move)
     final = x - delta if in_frame else x
-    shifted = _groups._moves_of(frame, final)
+    shifted = _centres._moves_of(frame, final)
     orb = raw + shifted[:, :dim_r]
     if np.array_equal(orb, raw):
         out, resid, measured = model, 0.0, 0
@@ -1655,8 +1582,8 @@ def symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=None
                             for r in rows])
     offset = (0.0 - np.asarray(delta) * frame["scale"])[:dim_r] if in_frame else np.zeros(dim_r)
     return out, {
-        "defect_before": _groups._frame_defect(frame, perm, rotations, final_trans, rows),
-        "defect_after": _groups._frame_defect(frame, perm, rotations, final_trans, rows,
+        "defect_before": _centres._frame_defect(frame, perm, rotations, final_trans, rows),
+        "defect_after": _centres._frame_defect(frame, perm, rotations, final_trans, rows,
                                               sites=final),
         "max_move": worst, "offset": tuple(float(c) for c in offset),
         "frame": "model" if in_frame else "fitted",

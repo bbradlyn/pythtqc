@@ -43,6 +43,7 @@ import pytest
 from pythtqc import groups as tqg
 from pythtqc import sewing as tqw
 from pythtqc import srsi as tqr
+from pythtqc import _srsitables
 
 import tqc_models as tqm                                            # noqa: F401
 from conftest import FKM_BOND, fkm_regime, km_z2_regime
@@ -179,7 +180,7 @@ def test_the_band_count_is_a_unique_linear_form_in_the_z_srsis_everywhere():
                 deficient.append((sg, spinor))
             keys = table.maximal_keys
             form = table.band_count_form
-            theta_columns = tqr._maximal_basis(sg, spinor)[1]
+            theta_columns = _srsitables._maximal_basis(sg, spinor)[1]
             for index, key in enumerate(keys):
                 theta = theta_columns[index]
                 if not any(theta):
@@ -313,7 +314,7 @@ def _realizations_over_br(table, y, n_bands):
     ``n_bands // dim_j``, and the recursion walks all of them.  Returned sorted,
     because a set is what is being compared.
     """
-    data = tqg.ebr_data(tqr._TableKey(table.number_str, table.spinor))
+    data = tqg.ebr_data(_srsitables._TableKey(table.number_str, table.spinor))
     matrix = np.asarray(data["matrix"], dtype=int)
     dims = [int(_EBR_BANDS.search(str(name)).group(1))
             for name, _position in data["ebrs"]]
@@ -354,7 +355,7 @@ def test_the_theta_enumeration_is_the_band_representation_enumeration(sg211):
     keys = sg211.maximal_keys
     assert len(keys) == len(sg211.ebrs)
     assert all(key.ebr and key.column == index for index, key in enumerate(keys))
-    data = tqg.ebr_data(tqr._TableKey(sg211.number_str, False))
+    data = tqg.ebr_data(_srsitables._TableKey(sg211.number_str, False))
     matrix = np.asarray(data["matrix"], dtype=int)
 
     def theta_z_of(index):
@@ -390,7 +391,7 @@ def test_the_enumeration_bound_is_a_bound_and_not_a_guess(sg211):
     realizations at 12 bands, **four** of them carrying a multiplicity of 2, and
     the brute force over ``BR`` finds the same eleven.
     """
-    data = tqg.ebr_data(tqr._TableKey(sg211.number_str, False))
+    data = tqg.ebr_data(_srsitables._TableKey(sg211.number_str, False))
     matrix = np.asarray(data["matrix"], dtype=int)
 
     def doubled(index):

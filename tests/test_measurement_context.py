@@ -25,12 +25,19 @@ package.  What is asserted is that the sharing is invisible in the answer.
 
 import numpy as np
 import pytest
+
+from conftest import patch_everywhere
 from pythtb import Lattice, TBModel
 from pythtb.models import kane_mele
 
 import tqc_models
 from pythtqc import groups as tqg
 from pythtqc.refusal import Refusal
+from pythtqc import _layers
+from pythtqc import _detector
+from pythtqc import _measure
+from pythtqc import _realized
+from pythtqc import _spacegroup
 
 
 # ---------------------------------------------------------------------------
@@ -93,10 +100,10 @@ def _two_site_cell(shift=0.0):
 #: staggered Kane-Mele slab, its two sublattices read as one species, refutes half
 #: of its ``P6/mmm1'``, so the two routes' refuted operations are compared too.
 GOLDENS = {
-    "lin3g": (lambda: tqg._slab_presentation(tqc_models.lin3g()),
+    "lin3g": (lambda: _layers._slab_presentation(tqc_models.lin3g()),
               dict(typat=[0, 0, 1, 1]), 0),
-    "kane_mele": (lambda: tqg._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.0)), {}, 0),
-    "km_staggered": (lambda: tqg._slab_presentation(tqc_models.kane_mele_z2("odd")),
+    "kane_mele": (lambda: _layers._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.0)), {}, 0),
+    "km_staggered": (lambda: _layers._slab_presentation(tqc_models.kane_mele_z2("odd")),
                      {}, 24),
 }
 
@@ -121,12 +128,12 @@ def test_a_context_changes_nothing_validate_group_measures(name):
     build, kw, n_refuted = GOLDENS[name]
     model = build()
     assert not isinstance(model, Refusal), str(model)
-    group = tqg._group_of(model, **kw)
+    group = _spacegroup._group_of(model, **kw)
     assert group, str(group)
 
-    plain = tqg._validate_group(model, group, nk=4)
-    ctx = tqg._MeasurementContext()
-    shared = tqg._validate_group(model, group, nk=4, context=ctx)
+    plain = _measure._validate_group(model, group, nk=4)
+    ctx = _measure._MeasurementContext()
+    shared = _measure._validate_group(model, group, nk=4, context=ctx)
 
     assert shared.indices == plain.indices
     assert shared.closed == plain.closed
@@ -181,27 +188,27 @@ def test_a_second_measurement_of_the_same_group_is_all_hits(monkeypatch):
     honesty audit — with the lookup's result thrown away the counters do not
     move and a ``np.array_equal`` on the bases still passes).
     """
-    model = tqg._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.0))
-    group = tqg._group_of(model)
+    model = _layers._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.0))
+    group = _spacegroup._group_of(model)
     assert group, str(group)
-    ctx = tqg._MeasurementContext()
+    ctx = _measure._MeasurementContext()
 
     solves = []
-    _find_intertwiners = tqg._find_intertwiners
+    _find_intertwiners = _detector._find_intertwiners
 
     def counted(*args, **kwargs):
         solves.append(1)
         return _find_intertwiners(*args, **kwargs)
 
-    monkeypatch.setattr(tqg, "_find_intertwiners", counted)
+    patch_everywhere(monkeypatch, "_find_intertwiners", counted)
 
-    first = tqg._validate_group(model, group, nk=4, context=ctx)
+    first = _measure._validate_group(model, group, nk=4, context=ctx)
     solved = int(ctx.misses)
     assert solved == len(first.k_action_classes) > 1
     assert len(solves) == solved, "the first call solves each class exactly once"
     hits_before = int(ctx.hits)
 
-    second = tqg._validate_group(model, group, nk=4, context=ctx)
+    second = _measure._validate_group(model, group, nk=4, context=ctx)
     assert len(solves) == solved, (
         f"the second measurement solved {len(solves) - solved} problems again")
     assert ctx.misses == solved, "nothing was solved a second time"
@@ -236,9 +243,9 @@ def test_the_context_is_rebuilt_by_exactly_what_the_answer_depends_on():
     same key: the *same* object changed in place is a rebuild, and the grid
     bound to it is the Hamiltonian it now has.
     """
-    model = tqg._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.0))
-    grid = tqg._detection_grid(int(model.lattice.dim_k), 4)
-    ctx = tqg._MeasurementContext()
+    model = _layers._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.0))
+    grid = _measure._detection_grid(int(model.lattice.dim_k), 4)
+    ctx = _measure._MeasurementContext()
 
     first = ctx.bind(model, grid, {}, tol=1e-8, cut=None, window=None, solver="eigen")
     assert ctx.rebuilds == 1
@@ -261,7 +268,7 @@ def test_the_context_is_rebuilt_by_exactly_what_the_answer_depends_on():
     changed = [
         ("a moved hopping", dict(model=_nudged_hopping(model))),
         ("a moved centre", dict(model=_moved_orbital(model))),
-        ("a different mesh", dict(k_pts=tqg._detection_grid(
+        ("a different mesh", dict(k_pts=_measure._detection_grid(
             int(model.lattice.dim_k), 6))),
         ("a different tol", dict(tol=1e-6)),
         ("a declared cut", dict(cut=1e-6)),
@@ -272,7 +279,7 @@ def test_the_context_is_rebuilt_by_exactly_what_the_answer_depends_on():
         ("a floor a declared precision sets at the gate", dict(floor=1e-8)),
     ]
     for what, override in changed:
-        ctx = tqg._MeasurementContext()
+        ctx = _measure._MeasurementContext()
         base = ctx.bind(model, grid, {}, tol=1e-8, cut=None, window=None,
                         solver="eigen")
         ctx.remember(("probe",), "a solution space")
@@ -290,7 +297,7 @@ def test_the_context_is_rebuilt_by_exactly_what_the_answer_depends_on():
     # the same object, its first hopping moved in place: its content is new, so
     # the grid is rebuilt and sums the Hamiltonian as it now is
     same = _copy_model(model)
-    ctx = tqg._MeasurementContext()
+    ctx = _measure._MeasurementContext()
     base = ctx.bind(same, grid, {}, tol=1e-8, cut=None, window=None, solver="eigen")
     before = base.full().copy()
     hop = same.hoppings[0]
@@ -310,7 +317,7 @@ def test_the_context_is_rebuilt_by_exactly_what_the_answer_depends_on():
     b = a.copy()
     b[1000] = 1.0
     assert repr(a) == repr(b), "the premise: repr cannot tell them apart"
-    ctx = tqg._MeasurementContext()
+    ctx = _measure._MeasurementContext()
     one = ctx.bind(model, grid, {"p": a}, tol=1e-8, cut=None, window=None,
                    solver="eigen")
     assert ctx.bind(model, grid, {"p": a.copy()}, tol=1e-8, cut=None, window=None,
@@ -326,15 +333,15 @@ def test_the_grid_is_only_served_for_the_mesh_it_was_built_on():
     The lattice measurement reads ``H`` off the detector's own grid, and the
     thing that makes that sound is that the two k-sets are the same one.
     """
-    model = tqg._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.0))
-    grid = tqg._detection_grid(2, 4)
-    ctx = tqg._MeasurementContext()
+    model = _layers._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.0))
+    grid = _measure._detection_grid(2, 4)
+    ctx = _measure._MeasurementContext()
     assert ctx.grid_for(model, grid) is None, "nothing is bound yet"
     bound = ctx.bind(model, grid, {}, tol=1e-8, cut=None, window=None, solver="eigen")
     assert ctx.grid_for(model, grid) is bound
     assert ctx.grid_for(model, grid.copy()) is bound, \
         "the same points, a different array"
-    assert ctx.grid_for(model, tqg._detection_grid(2, 6)) is None
+    assert ctx.grid_for(model, _measure._detection_grid(2, 6)) is None
     assert ctx.grid_for(model, grid[:-1]) is None
     # and it is the model's own grid, not merely a grid on the same points: a
     # bit-identical copy shares the SPACES (same H(k)) but is not the object the
@@ -373,14 +380,14 @@ def test_the_position_pass_and_the_projection_both_invalidate_the_context():
                       hop["from_orbital"], hop["to_orbital"],
                       list(hop.get("lattice_vector", [0, 0])), mode="add")
 
-    ctx = tqg._MeasurementContext()
+    ctx = _measure._MeasurementContext()
     # the input Hamiltonian, on the mesh the detector will use (`realized_group`'s
     # own `nk=6`): the first bind is spent here, so the pass and the projection
     # are the two that follow
-    bound = ctx.bind(dirty, tqg._detection_grid(2, 6), {}, tol=1e-8, cut=None,
+    bound = ctx.bind(dirty, _measure._detection_grid(2, 6), {}, tol=1e-8, cut=None,
                      window=None, solver="eigen")
     assert bound is not None and ctx.rebuilds == 1
-    shared = tqg._realize(dirty, precision=1e-8, characters={0: "pz"},
+    shared = _realized._realize(dirty, precision=1e-8, characters={0: "pz"},
                           cross_check=False, context=ctx)
     assert not isinstance(shared, Refusal), str(shared)
     assert shared.positions is not None and shared.positions["adjusted"] is True
@@ -388,9 +395,9 @@ def test_the_position_pass_and_the_projection_both_invalidate_the_context():
     assert ctx.rebuilds == 3, (
         "the input, the moved centres and the projected hoppings are three "
         f"different Hamiltonians: {ctx.record()}")
-    assert tqg._model_key(ctx.grid.model) == tqg._model_key(shared.model), \
+    assert _measure._model_key(ctx.grid.model) == _measure._model_key(shared.model), \
         "the last Hamiltonian bound is the projected one the answer is about"
-    assert tqg._model_key(dirty) != tqg._model_key(shared.model), \
+    assert _measure._model_key(dirty) != _measure._model_key(shared.model), \
         "and it is not the one handed in"
 
 
@@ -401,22 +408,22 @@ def test_the_position_pass_and_the_projection_both_invalidate_the_context():
 @pytest.fixture
 def clean_memo():
     """The memo, emptied before and after — it is process-level state."""
-    tqg._identification_memo_clear()
+    _spacegroup._identification_memo_clear()
     yield
-    tqg._identification_memo_clear()
+    _spacegroup._identification_memo_clear()
 
 
 def test_the_identification_memo_answers_a_repeated_cell_once(clean_memo):
     """One miss, then hits — and a hit is the object the first call built."""
-    first = tqg._group_of(_two_site_cell())
+    first = _spacegroup._group_of(_two_site_cell())
     assert first, str(first)
-    assert tqg._identification_memo_stats()["misses"] == 1
-    assert tqg._identification_memo_stats()["hits"] == 0
+    assert _spacegroup._identification_memo_stats()["misses"] == 1
+    assert _spacegroup._identification_memo_stats()["hits"] == 0
 
     # a different object, the same cell: the *positions* are what is keyed on
-    again = tqg._group_of(_two_site_cell())
+    again = _spacegroup._group_of(_two_site_cell())
     assert again is first, "a repeated cell is identified once per process"
-    stats = tqg._identification_memo_stats()
+    stats = _spacegroup._identification_memo_stats()
     assert (stats["hits"], stats["misses"], stats["stores"]) == (1, 1, 1)
 
     # and the answer is the same answer, not merely the same object
@@ -450,18 +457,18 @@ def test_every_flag_the_answer_depends_on_is_in_the_memo_key(clean_memo):
         ("positions", _two_site_cell(shift=0.05), {}),
     ]
     for what, cell, call in questions:
-        tqg._identification_memo_clear()
-        base = tqg._group_of(_two_site_cell())
+        _spacegroup._identification_memo_clear()
+        base = _spacegroup._group_of(_two_site_cell())
         assert base, str(base)
-        other = tqg._group_of(cell, **call)
-        stats = tqg._identification_memo_stats()
+        other = _spacegroup._group_of(cell, **call)
+        stats = _spacegroup._identification_memo_stats()
         assert (stats["hits"], stats["misses"], stats["size"]) == (0, 2, 2), \
             f"{what} was not in the key: {stats}"
         assert other is not base, what
         if not isinstance(other, Refusal):
             # asked again, the *other* question is memoized on its own terms
-            assert tqg._group_of(cell, **call) is other, what
-            assert tqg._identification_memo_stats()["hits"] == 1, what
+            assert _spacegroup._group_of(cell, **call) is other, what
+            assert _spacegroup._identification_memo_stats()["hits"] == 1, what
         if what == "spinor":
             assert base.spinor is False and other.spinor is True
 
@@ -479,7 +486,7 @@ def test_the_memo_is_bounded_and_evicts_the_least_recently_used(clean_memo,
     only thing that makes that true, and a FIFO fails it.  (Until 2026-09-09 the
     eviction *counter* was the whole of the evidence and a FIFO passed.)
     """
-    monkeypatch.setattr(tqg, "_IDENT_MEMO_MAX", 3)
+    patch_everywhere(monkeypatch, "_IDENT_MEMO_MAX", 3)
 
     def cell(i):
         lat = Lattice([[1.0 + 0.1 * i, 0.0], [0.0, 1.3]], [[0.0, 0.0]],
@@ -487,29 +494,29 @@ def test_the_memo_is_bounded_and_evicts_the_least_recently_used(clean_memo,
         m = TBModel(lat, spinful=False)
         m.set_onsite([0.0])
         m.set_hop(-1.0, 0, 0, [1, 0])
-        return tqg._slab_presentation(m)
+        return _layers._slab_presentation(m)
 
     cells = [cell(i) for i in range(7)]
     for c in cells[:5]:
-        assert tqg._group_of(c), "every one of them identifies"
-    stats = tqg._identification_memo_stats()
+        assert _spacegroup._group_of(c), "every one of them identifies"
+    stats = _spacegroup._identification_memo_stats()
     assert stats["size"] == 3 and stats["evictions"] == 2, stats
 
     # cells[2:5] are what is left.  Ask for the oldest of the three: a hit, which
     # moves it to the young end of the order.
-    assert tqg._group_of(cells[2]) is not None
-    assert tqg._identification_memo_stats()["hits"] == 1
+    assert _spacegroup._group_of(cells[2]) is not None
+    assert _spacegroup._identification_memo_stats()["hits"] == 1
 
     # two more cells evict two more entries -- and under recency they are
     # cells[3] and cells[4], not the one just used
     for c in cells[5:]:
-        assert tqg._group_of(c), "the two further cells identify"
-    stats = tqg._identification_memo_stats()
+        assert _spacegroup._group_of(c), "the two further cells identify"
+    stats = _spacegroup._identification_memo_stats()
     assert (stats["size"], stats["evictions"]) == (3, 4), stats
     hits, misses = stats["hits"], stats["misses"]
-    assert tqg._group_of(cells[2]) is not None
-    assert tqg._identification_memo_stats()["hits"] == hits + 1, \
+    assert _spacegroup._group_of(cells[2]) is not None
+    assert _spacegroup._identification_memo_stats()["hits"] == hits + 1, \
         "the entry used most recently outlived the two inserts"
-    assert tqg._group_of(cells[3]) is not None
-    assert tqg._identification_memo_stats()["misses"] == misses + 1, \
+    assert _spacegroup._group_of(cells[3]) is not None
+    assert _spacegroup._identification_memo_stats()["misses"] == misses + 1, \
         "and cells[3], never asked for again, is the one that went"

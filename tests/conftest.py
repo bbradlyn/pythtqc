@@ -133,6 +133,32 @@ def realized_once(builder, **kwargs):
     return _REALIZED[key]
 
 
+def patch_everywhere(monkeypatch, name, value):
+    """``monkeypatch.setattr`` of ``name`` in every module of the package that binds it.
+
+    A private function is imported by name into the modules that call it, so a
+    caller reaches it as a global of its own module: a replacement set on the
+    defining module alone would not be seen there.  This sets it wherever the
+    package binds the name -- the defining module and every module that imported
+    it -- and ``monkeypatch.undo()`` restores all of them.  The modules patched
+    are given back.
+    """
+    import importlib
+    import pkgutil
+
+    import pythtqc
+
+    patched = []
+    for info in pkgutil.iter_modules(pythtqc.__path__):
+        module = importlib.import_module(f"pythtqc.{info.name}")
+        if name in vars(module):
+            monkeypatch.setattr(module, name, value)
+            patched.append(module.__name__)
+    if not patched:
+        raise AttributeError(f"no module of pythtqc binds {name!r}")
+    return patched
+
+
 @pytest.fixture(scope="session")
 def realized():
     """The session-scoped :func:`realized_once`, as a fixture."""
@@ -225,18 +251,20 @@ def p4232_decorated():
     import numpy as np
     from pythtb import Lattice, TBModel
 
-    import pythtqc.groups as _tqg
-    import pythtqc.symmetry as _tqs
+    from pythtqc import _build
+    from pythtqc import _measure
+    from pythtqc import _spacegroup
+    from pythtqc import _tables
 
     model = tqc_models.p4232_cano2018()
     cell = tqc_models.p4232_symmetry_cell()
     decorated = TBModel(Lattice(np.eye(3), cell["positions"].tolist(),
                                 periodic_dirs=[0, 1, 2]), spinful=False)
-    group = _tqg._group_of(decorated, typat=cell["typat"].tolist())
+    group = _spacegroup._group_of(decorated, typat=cell["typat"].tolist())
     assert group and group.sg_number == 208, str(group)
-    assignment = _tqg._assign_orbitals(model, group)
-    validated = _tqg._validate_group(model, group, nk=5)
-    rep = _tqs._build_rep(model, group, assignment, validated=validated, n_battery=4)
+    assignment = _tables._assign_orbitals(model, group)
+    validated = _measure._validate_group(model, group, nk=5)
+    rep = _build._build_rep(model, group, assignment, validated=validated, n_battery=4)
     assert rep, str(rep)
     return model, group, assignment, validated, rep
 
@@ -354,6 +382,7 @@ def every_table():
     """
     import pythtqc.groups as _tqg
     import pythtqc.srsi as _tqr
+    from pythtqc import _srsitables
 
     out = []
     for sg in range(1, 231):
@@ -362,7 +391,7 @@ def every_table():
             if not table:
                 assert table.gate == "srsi_table_absent", (sg, spinor, table.gate)
                 continue
-            data = _tqg.ebr_data(_tqr._TableKey(table.number_str, spinor))
+            data = _tqg.ebr_data(_srsitables._TableKey(table.number_str, spinor))
             assert data, f"#{table.number_str}: {data}"
             out.append((table, data))
     return out

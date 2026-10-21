@@ -76,9 +76,12 @@ from pythtqc import ebr as tqe
 from pythtqc import groups as tqg
 from pythtqc import srsi as tqr
 from pythtqc.refusal import Refusal
+from pythtqc import _smith
+from pythtqc import _spacegroup
+from pythtqc import _srsitables
 
 import tqc_models as tqm                                            # noqa: F401
-from conftest import OMITTED
+from conftest import OMITTED, patch_everywhere
 
 # lin3g band blocks, from LIN3G.band_sets (the same names test_ebr.py uses)
 P4, P2, P6 = (0, 1, 2, 3), (4, 5), 6
@@ -86,7 +89,7 @@ P4, P2, P6 = (0, 1, 2, 3), (4, 5), 6
 
 def _ebr_keys(data):
     """``ebr_data``'s columns as ``(label, Wyckoff letter)``, in column order."""
-    return tuple(tqr._ebr_key(name, position) for name, position in data["ebrs"])
+    return tuple(_srsitables._ebr_key(name, position) for name, position in data["ebrs"])
 
 
 # ---------------------------------------------------------------------------
@@ -133,7 +136,7 @@ def test_every_term_of_every_group_resolves_to_exactly_one_ebr_or_says_why(every
         letters = {letter for _label, letter in keys}
         symbols = {}
         for _name, wyckoff in data["ebrs"]:
-            match = tqr._POSITION.match(str(wyckoff))
+            match = _srsitables._POSITION.match(str(wyckoff))
             symbols[match.group(2)] = match.group(3)
         kind = "double" if table.spinor else "single"
         seen_alias, seen_absent = set(), set()
@@ -416,7 +419,7 @@ def test_pmm2_reproduces_the_paper_s_own_distinguishing_example():
     assert theta(a) == ((Fraction(1),), {2: (0, 0, 0)})
     assert theta(b) == ((Fraction(1),), {2: (1, 0, 0)})
 
-    data = tqg.ebr_data(tqr._TableKey(table.number_str, True))
+    data = tqg.ebr_data(_srsitables._TableKey(table.number_str, True))
     matrix = np.asarray(data["matrix"], dtype=int)
     assert (matrix @ np.array(a) == matrix @ np.array(b)).all(), (
         "the two EBRs have the same symmetry-data vector")
@@ -452,7 +455,7 @@ def test_i432_without_soc_rows_satisfy_the_adiabatic_relation():
 
     # the premise of the arithmetic, from pyxtal's Wyckoff list of SG 211 -- an
     # oracle the shipped rows cannot influence
-    wyckoffs = {w["letter"]: w for w in tqg._pyxtal_wyckoff(211)[0]}
+    wyckoffs = {w["letter"]: w for w in _spacegroup._pyxtal_wyckoff(211)[0]}
     general = max(wyckoffs.values(), key=lambda w: w["multiplicity"])
     assert (general["letter"], general["multiplicity"]) == ("j", 48)
     assert general["n_free"] == 3, "the general position: trivial site symmetry"
@@ -500,13 +503,13 @@ def test_f43c_with_soc_rows_satisfy_the_adiabatic_relation():
     assert table and len(table.rows) == 5
 
     # the premise, from pyxtal's Wyckoff list and irreptables' EBR list
-    wyckoffs = {w["letter"]: w for w in tqg._pyxtal_wyckoff(219)[0]}
+    wyckoffs = {w["letter"]: w for w in _spacegroup._pyxtal_wyckoff(219)[0]}
     general = max(wyckoffs.values(), key=lambda w: w["multiplicity"])
     assert (general["letter"], general["multiplicity"]) == ("h", 96)
     assert general["n_free"] == 3, "the general position: trivial site symmetry"
     assert wyckoffs["c"]["multiplicity"] == 24
     at_c = {label for label, letter
-            in _ebr_keys(tqg.ebr_data(tqr._TableKey(table.number_str, True)))
+            in _ebr_keys(tqg.ebr_data(_srsitables._TableKey(table.number_str, True)))
             if letter == "c"}
     assert at_c == {"-1E12E1", "-1E22E2"}, "24c is maximal: irreptables lists its two"
 
@@ -603,7 +606,7 @@ def test_the_kernel_check_that_gates_the_conversion(every_table):
     """
     checked = kernel_vectors = 0
     for table, data in every_table:
-        u, v, d, matrix = tqe._smith_system(data, table.number_str)
+        u, v, d, matrix = _smith._smith_system(data, table.number_str)
         u, v, matrix = (np.asarray(x, dtype=np.int64) for x in (u, v, matrix))
         n_row, n_col = matrix.shape
         # every product below stays far inside int64, so the arithmetic is exact
@@ -723,7 +726,7 @@ def test_srsi_tables_refuses_a_unitary_group(lin3g, lin3g_declared_cross_checked
     unitary group rather than an answer: the band route, the model route, the
     splitting and the pairs the SRSIs do not distinguish.
     """
-    group = tqg._group_of(lin3g, include_TR=False)
+    group = _spacegroup._group_of(lin3g, include_TR=False)
     assert group, str(group)
     out = tqr.srsi_tables(group)
     assert not out and out.gate == "srsi_scope", str(out)
@@ -758,12 +761,12 @@ def test_srsi_tables_refuses_a_stale_ebr_basis_and_names_both_lists(
     """
     _model, group, _asg, _val, _rep = lin3g_declared_cross_checked
     valuedness = "double" if group.spinor else "single"
-    real = tqr._document(valuedness)
+    real = _srsitables._document(valuedness)
     doctored = dict(real, groups=dict(real["groups"]))
     record = dict(doctored["groups"][str(group.sg_number)])
     record["ebrs"] = list(reversed(record["ebrs"]))
     doctored["groups"][str(group.sg_number)] = record
-    monkeypatch.setattr(tqr, "_document",
+    patch_everywhere(monkeypatch, "_document",
                         lambda kind: doctored if kind == valuedness else real)
 
     out = tqr.srsi_tables(group)
@@ -951,7 +954,8 @@ def test_the_frozen_api_and_the_names_kept_off_the_top_level():
     import pythtqc as tqc
 
     served = {name for name in tqc.__all__
-              if getattr(getattr(tqc, name), "__module__", None) == tqr.__name__}
+              if getattr(getattr(tqc, name), "__module__", None)
+              in (tqr.__name__, _srsitables.__name__)}
     expected = FROZEN_TOP_LEVEL - {"wyckoff_sites_tables"}
     assert served == expected, sorted(served ^ expected)
     assert ("wyckoff_sites_tables" in tqc.__all__
@@ -1013,17 +1017,17 @@ def test_the_srsi_module_all_is_complete():
 def test_the_gate_list_is_measured_against_the_source():
     """``srsi.GATES`` is every gate the layer can return, checked by grepping for them.
 
-    Every ``Refusal("...")`` literal in ``srsi.py`` and in
-    ``groups.wyckoff_sites_tables`` — the one function outside the module the
-    SRSI layer refuses through — must appear in :data:`srsi.GATES`, and nothing
-    else may.  A gate added without an entry there, saying what it measures,
+    Every ``Refusal("...")`` literal in ``srsi.py``, in ``_srsitables.py``, the
+    tables beneath it, and in ``wyckoff_sites_tables`` — the one function outside
+    the two the SRSI layer refuses through — must appear in :data:`srsi.GATES`,
+    and nothing else may.  A gate added without an entry there, saying what it measures,
     fails here.
     """
     import ast
     import inspect
 
     literals = set()
-    for source in (inspect.getsource(tqr),
+    for source in (inspect.getsource(tqr), inspect.getsource(_srsitables),
                    inspect.getsource(tqg.wyckoff_sites_tables)):
         for node in ast.walk(ast.parse(source)):
             if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
@@ -1099,9 +1103,9 @@ def test_the_four_corrected_rows_are_the_derived_ones(sg, name):
         assert total.denominator == 1 and int(total) % modulus == 0, (
             column, total, "the derived row must vanish on every EBR")
 
-    data = tqg.ebr_data(tqr._TableKey(table.number_str, False))
-    u, v, d, matrix = tqe._smith_system(data, table.number_str)
-    u_inv = tqe._unimodular_inverse(u)
+    data = tqg.ebr_data(_srsitables._TableKey(table.number_str, False))
+    u, v, d, matrix = _smith._smith_system(data, table.number_str)
+    u_inv = _smith._unimodular_inverse(u)
     checked = 0
     for i, di in enumerate(d):
         if di == 0:

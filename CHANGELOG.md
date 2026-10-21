@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- An `HSPTable` carries the representation it was read with, `t.rep`, and
+  `decompose`, `symmetry_indicator`, `completeness_check`, `regular_completion`
+  and `srsi_of_bands` raise `ValueError` when handed the table with another group
+  or another representation, as they do for `bands=` naming other bands; a table
+  read in one group was decomposed in another with no refusal before.
+- The package is re-sorted into thirty-four modules in one acyclic order, each reading
+  only the ones beneath it; `groups` and `symmetry` are assembled from the private
+  modules below them, and every public name stays where it was.
 - `frontier_subspace` and its record `Frontier` leave `pythtqc.sewing` and the
   top level: nothing in the package called them.
 

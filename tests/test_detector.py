@@ -42,11 +42,18 @@ import time
 
 import numpy as np
 import pytest
+
+from conftest import patch_everywhere
 from pythtb import Lattice, Mesh, TBModel
 
 from pythtqc import _bloch
 from pythtqc import groups as G
 from pythtqc import symmetry as S
+from pythtqc import _detector
+from pythtqc import _tolerance
+from pythtqc import _layers
+from pythtqc import _measure
+from pythtqc import _spacegroup
 
 sys.path.insert(0, __file__.rsplit("test_detector.py", 1)[0])
 import tqc_models                                            # noqa: E402
@@ -223,8 +230,8 @@ def _agreement(model, group, k):
             continue
         n_ops += 1
         tr = bool(sym.time_reversal)
-        eig = S._find_intertwiners(model, action, k, antiunitary=tr)
-        old = S._find_intertwiners(model, action, k, antiunitary=tr, solver="stacked")
+        eig = _detector._find_intertwiners(model, action, k, antiunitary=tr)
+        old = _detector._find_intertwiners(model, action, k, antiunitary=tr, solver="stacked")
         assert eig.dim == old.dim, (
             f"operation {int(sym.ind)} (antiunitary={tr}): eigen dim {eig.dim} against "
             f"stacked {old.dim}; eigen basis sizes {eig.basis_size}, window {eig.window}")
@@ -278,7 +285,7 @@ def test_the_two_solvers_agree_on_the_inline_fixtures():
              (diamond(), False, 3, 4)]
     total, measured = 0, 0
     for model, with_tr, dim_k, nk in cases:
-        group = G._group_of(model, include_TR=with_tr)
+        group = _spacegroup._group_of(model, include_TR=with_tr)
         n_ops, n_measured, _, _ = _agreement(model, group, _mesh(nk, dim_k))
         total, measured = total + n_ops, measured + n_measured
     assert total == 336, "the census the agreement claim is made over"
@@ -318,7 +325,7 @@ def test_the_two_solvers_agree_on_the_golden_fixtures(name):
         model, group, k = kane_mele(0.0, -1.0, 0.3, 0.0), None, _mesh(6, 2)
     elif name == "i41_axial":
         model = tqc_models.i41_soc("axial")
-        group, k = G._group_of(model, spinor=True, include_TR=True), _mesh(4, 3)
+        group, k = _spacegroup._group_of(model, spinor=True, include_TR=True), _mesh(4, 3)
     elif name == "fkm":
         model, group, k = tqc_models.fu_kane_mele_z2("strong"), None, _mesh(4, 3)
     else:
@@ -326,9 +333,9 @@ def test_the_two_solvers_agree_on_the_golden_fixtures(name):
         cell = tqc_models.p4232_symmetry_cell()
         decorated = TBModel(Lattice(np.eye(3), cell["positions"].tolist(),
                                     periodic_dirs=[0, 1, 2]), spinful=False)
-        group, k = G._group_of(decorated, typat=cell["typat"].tolist()), _mesh(5, 3)
+        group, k = _spacegroup._group_of(decorated, typat=cell["typat"].tolist()), _mesh(5, 3)
     if group is None:
-        group = G._group_of(model)
+        group = _spacegroup._group_of(model)
     n_ops, n_measured, worst_e, worst_s = _agreement(model, group, k)
     assert n_ops >= 4
     assert n_measured, "every fixture keeps at least the identity, so at least one"
@@ -353,7 +360,7 @@ def test_the_two_solvers_agree_on_the_golden_fixtures(name):
         x = np.asarray(X, dtype=complex).ravel()
         return float(np.linalg.norm(x - Q @ (Q.conj().T @ x)) / np.linalg.norm(x))
 
-    cands, search = S._candidates_and_search(plane, 2, n)
+    cands, search = _detector._candidates_and_search(plane, 2, n)
     assert len(cands) == 3, "the searched candidate is appended to the basis"
     assert search["sigma_min_basis"] <= 1e-20, \
         "the diagonal projectors are singular beyond anything the search could use"
@@ -411,7 +418,7 @@ def near_symmetry():
     model.set_hop(1e-7 * np.eye(2), int(hop["from_orbital"]), int(hop["to_orbital"]),
                   list(np.asarray(hop["lattice_vector"], dtype=int)),
                   mode="add", allow_conjugate_pair=True)
-    group = G._group_of(model)
+    group = _spacegroup._group_of(model)
     k = _mesh(6, 2)
     delta = float(np.abs(np.asarray(model.hamiltonian(k_pts=k, flatten_spin_axis=True))
                          - np.asarray(base.hamiltonian(k_pts=k, flatten_spin_axis=True))
@@ -498,13 +505,13 @@ def test_a_raised_tol_moves_the_window_with_it(near_symmetry):
         pair = _split_copies(1e-8, turned)
         scale = _max_H(pair, k)
         gate, cut = 10.0 * 1e-6 * scale, 10.0 * 1e-6
-        held = S._find_intertwiners(pair, np.eye(2), k, tol=gate, cut=cut,
-                                    window=S.eigen_window(cut), _floor=gate)
+        held = _detector._find_intertwiners(pair, np.eye(2), k, tol=gate, cut=cut,
+                                    window=_tolerance.eigen_window(cut), _floor=gate)
         assert held.dim == 4, ("a splitting below the declared precision is no gap",
                                turned, held.dim)
 
-    strict_e = S._find_intertwiners(model, action, k, antiunitary=tr, tol=1e-8)
-    strict_s = S._find_intertwiners(model, action, k, antiunitary=tr, tol=1e-8,
+    strict_e = _detector._find_intertwiners(model, action, k, antiunitary=tr, tol=1e-8)
+    strict_s = _detector._find_intertwiners(model, action, k, antiunitary=tr, tol=1e-8,
                                     solver="stacked")
     assert strict_e.dim == 0, "the eigen route refuses at the default tolerance"
     assert strict_e.window == pytest.approx(0.1), "escalated to the widest useful window"
@@ -514,7 +521,7 @@ def test_a_raised_tol_moves_the_window_with_it(near_symmetry):
     assert strict_s.dim == 1 and float(np.min(strict_s.residuals)) > 1e-8, \
         "the oracle refuses too, on the covariance residual instead"
 
-    loose = S._find_intertwiners(model, action, k, antiunitary=tr, tol=1e-6)
+    loose = _detector._find_intertwiners(model, action, k, antiunitary=tr, tol=1e-6)
     assert loose.dim >= 1, "a declared tolerance above the defect finds the operator"
     assert loose.window == pytest.approx(1e-2) and loose.escalations == ()
     for route, space in (("eigen", loose), ("stacked", strict_s)):
@@ -549,7 +556,7 @@ def test_validate_group_forwards_the_one_declared_tolerance(near_symmetry):
     ind = int(sym.ind)
     swapped = _axis_swapping(group)
 
-    strict = G._validate_group(model, group, k_pts=k, tol=1e-8)
+    strict = _measure._validate_group(model, group, k_pts=k, tol=1e-8)
     assert set(strict.indices) == {int(s.ind) for s in group.symmetries} - swapped, \
         "the perturbed bond's geometry names the refusals, one for one"
     assert ind not in strict.indices, "refused at machine tolerance"
@@ -561,17 +568,17 @@ def test_validate_group_forwards_the_one_declared_tolerance(near_symmetry):
         "the cut the solve ran at is the declared number itself"
 
     # the default is the declaration: spelling the cut out changes nothing
-    spelled = G._validate_group(model, group, k_pts=k, tol=1e-8, cut=1e-8)
+    spelled = _measure._validate_group(model, group, k_pts=k, tol=1e-8, cut=1e-8)
     assert spelled.indices == strict.indices
     assert spelled._records[ind] == strict._records[ind]
 
-    loose = G._validate_group(model, group, k_pts=k, tol=1e-6)
+    loose = _measure._validate_group(model, group, k_pts=k, tol=1e-6)
     assert ind in loose.indices, "kept once the tolerance is declared above the defect"
     assert loose._records[ind]["window"] == pytest.approx(1e-2)
     assert loose._records[ind]["cut"] == 1e-6, "the cut followed the declaration"
 
     # the oracle stays reachable and refuses for its own (weaker) reason
-    old = G._validate_group(model, group, k_pts=k, tol=1e-8, solver="stacked")
+    old = _measure._validate_group(model, group, k_pts=k, tol=1e-8, solver="stacked")
     assert ind not in old.indices
     assert next(d["refuted_by"] for d in old.discrepancies if d["ind"] == ind) \
         == "covariance"
@@ -608,7 +615,7 @@ def test_the_cut_finds_the_space_and_the_gate_judges_it(near_symmetry):
     tr = bool(sym.time_reversal)
     ind = int(sym.ind)
 
-    raised_cut = S._find_intertwiners(model, action, k, antiunitary=tr,
+    raised_cut = _detector._find_intertwiners(model, action, k, antiunitary=tr,
                                       tol=1e-8, cut=1e-6)
     assert raised_cut.dim == 1, "the cut alone decides whether the space is found"
     assert raised_cut.window == pytest.approx(1e-3), \
@@ -618,13 +625,13 @@ def test_the_cut_finds_the_space_and_the_gate_judges_it(near_symmetry):
     assert float(np.min(raised_cut.residuals)) == pytest.approx(2.0 * delta, rel=0.1,
                                                                 abs=0.0)
 
-    raised_gate = S._find_intertwiners(model, action, k, antiunitary=tr,
+    raised_gate = _detector._find_intertwiners(model, action, k, antiunitary=tr,
                                        tol=1e-6, cut=1e-8)
     assert raised_gate.dim == 0, "a raised gate does not move the cut"
     assert raised_gate.window == pytest.approx(0.1), "the window followed tol"
     assert raised_gate.escalations == (1e-2,), "starting one decade wider than before"
 
-    refused = G._validate_group(model, group, k_pts=k, tol=1e-8, cut=1e-6)
+    refused = _measure._validate_group(model, group, k_pts=k, tol=1e-8, cut=1e-6)
     assert set(refused.indices) == {int(s.ind) for s in group.symmetries} \
         - _axis_swapping(group), "the gate still names the same survivors"
     entry = next(d for d in refused.discrepancies if d["ind"] == ind)
@@ -654,17 +661,17 @@ def test_one_solve_per_k_action_class_and_the_record_names_it(monkeypatch):
     """
     from pythtb.models import kane_mele
 
-    layer = G._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.25))
-    group = G._group_of(layer)
+    layer = _layers._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.25))
+    group = _spacegroup._group_of(layer)
     calls = []
-    real = G._find_intertwiners
+    real = _detector._find_intertwiners
 
     def counted(*args, **kwargs):
         calls.append(kwargs.get("antiunitary"))
         return real(*args, **kwargs)
 
-    monkeypatch.setattr(G, "_find_intertwiners", counted)
-    validated = G._validate_group(layer, group, nk=4)
+    patch_everywhere(monkeypatch, "_find_intertwiners", counted)
+    validated = _measure._validate_group(layer, group, nk=4)
     assert len(validated.indices) == 48 == group.size
     assert len(calls) == 24 == len(validated.k_action_classes), \
         f"{len(calls)} solves for 48 operations in 24 k-action classes"
@@ -680,7 +687,7 @@ def test_one_solve_per_k_action_class_and_the_record_names_it(monkeypatch):
             if i == owner:
                 continue
             sym = by_ind[i]
-            space = S._find_intertwiners(layer, group.k_action_of(sym), k,
+            space = _detector._find_intertwiners(layer, group.k_action_of(sym), k,
                                          antiunitary=bool(sym.time_reversal), tol=1e-8)
             n_independent += 1
             assert space.dim == validated._records[owner]["dim"], (
@@ -715,7 +722,7 @@ def test_the_detector_at_a_hundred_orbitals(sc108):
     """
     k = _mesh(4, 3)
     (space,), seconds, peak = _peak_rss(
-        lambda: (S._find_intertwiners(sc108, -np.eye(3), k),))
+        lambda: (_detector._find_intertwiners(sc108, -np.eye(3), k),))
     assert sc108.nstate == 108
     assert space.dim == 1, "inversion is exact and nothing else is conserved"
     # machine level at n = 108: measured 2.4e-13 against n eps max|H| = 3.4e-14
@@ -744,7 +751,7 @@ def test_a_supercells_own_translations_are_read_off_it():
     """
     model = _supercell([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
     k = _mesh(4, 3)
-    space = S._find_intertwiners(model, -np.eye(3), k)
+    space = _detector._find_intertwiners(model, -np.eye(3), k)
     assert model.nstate == 32
     assert space.dim == 8, "the 2x2x2 supercell's own translations"
     # machine level at n = 32: measured 2.8e-14 against n eps max|H| = 9.9e-15
@@ -782,13 +789,13 @@ def test_a_spectrum_too_degenerate_to_parametrize_is_refused_not_guessed(monkeyp
     km = tqc_models.kane_mele_inversion()
     k = _mesh(4, 2)
     pair = 16 * km.nstate ** 2                   # one pair's matrix, in bytes
-    default = S._find_intertwiners(km, -np.eye(2), k)
-    tight = S._find_intertwiners(km, -np.eye(2), k, max_bytes=7 * pair)
+    default = _detector._find_intertwiners(km, -np.eye(2), k)
+    tight = _detector._find_intertwiners(km, -np.eye(2), k, max_bytes=7 * pair)
     assert not tight and tight.gate == "detector_too_large"
     assert tight.context["n_pairs"] == 8
     assert (tight.value, tight.threshold) == (9 * pair, 7 * pair)
     assert "`realized_group(..., max_bytes=2.4e3)` runs it" in tight.reason
-    ceiling = S._find_intertwiners(km, -np.eye(2), k, max_bytes=7 * pair,
+    ceiling = _detector._find_intertwiners(km, -np.eye(2), k, max_bytes=7 * pair,
                                    degenerate_max_bytes=tight.value)
     assert (ceiling.dim, ceiling.window) == (default.dim, default.window)
     assert np.array_equal(ceiling.residuals, default.residuals)
@@ -805,16 +812,16 @@ def test_a_spectrum_too_degenerate_to_parametrize_is_refused_not_guessed(monkeyp
             for R in ([1, 0], [0, 1]):
                 flat.set_hop(1e-5 * rng.normal(), i, j, R, mode="add")
     five = 5 * 16 * flat.nstate ** 2
-    valve = S._find_intertwiners(flat, np.eye(2), k, max_bytes=five)
-    raised = S._find_intertwiners(flat, np.eye(2), k, max_bytes=five,
+    valve = _detector._find_intertwiners(flat, np.eye(2), k, max_bytes=five)
+    raised = _detector._find_intertwiners(flat, np.eye(2), k, max_bytes=five,
                                   degenerate_max_bytes=1e9)
-    assert valve.window < S._find_intertwiners(flat, np.eye(2), k).window, "narrowed"
+    assert valve.window < _detector._find_intertwiners(flat, np.eye(2), k).window, "narrowed"
     assert (raised.window, raised.basis_size) == (valve.window, valve.basis_size)
     assert np.array_equal(raised.residuals, valve.residuals)
 
     # through realized_group: returned, the cell's group named, max_bytes the ceiling
-    monkeypatch.setattr(G, "_find_intertwiners",
-                        functools.partial(S._find_intertwiners, max_bytes=7 * pair))
+    patch_everywhere(monkeypatch, "_find_intertwiners",
+                        functools.partial(_detector._find_intertwiners, max_bytes=7 * pair))
     refused = G.realized_group(km, typat=[0, 1], cross_check=False, max_bytes=1e3)
     assert not refused and refused.gate == "detector_too_large"
     assert refused.reason.startswith(
@@ -852,14 +859,14 @@ def test_the_grid_evaluator_is_bounded_and_streams_pythtbs_numbers(many_hopping)
     assert many_hopping.nhops > 25000 and many_hopping.nstate == 27
     reference = np.asarray(many_hopping.hamiltonian(k_pts=k, flatten_spin_axis=True))
 
-    whole = S._GridHamiltonians(many_hopping, k)
+    whole = _detector._GridHamiltonians(many_hopping, k)
     assert whole.fits and whole.chunk >= len(k)
     (full,), seconds, peak = _peak_rss(lambda: (whole.full(),))
     assert np.array_equal(full, reference), "one call is pythtb's own sum, bit for bit"
     assert np.array_equal(whole.at(17), reference[17])
     assert whole.n_evaluated == len(k), "a point of a mesh that fits is read off the one call"
 
-    squeezed = S._GridHamiltonians(many_hopping, k,
+    squeezed = _detector._GridHamiltonians(many_hopping, k,
                                    max_bytes=40 * whole._sum().point_bytes)
     assert not squeezed.fits and squeezed.chunk == 40
     out = np.empty_like(reference)
@@ -922,7 +929,7 @@ def test_the_grid_is_the_models_own_bloch_sum_bit_for_bit():
         for nk in (1, 5, 64):
             k = rng.uniform(-0.7, 0.7, size=(nk, int(model.lattice.dim_k)))
             want = model.hamiltonian(k_pts=k, flatten_spin_axis=True, **params)
-            assert np.array_equal(S._GridHamiltonians(model, k, params).full(), want)
+            assert np.array_equal(_detector._GridHamiltonians(model, k, params).full(), want)
             evals, evecs = model.solve_ham(k, return_eigvecs=True, flatten_spin_axis=True,
                                            **params)
             got_evals, got_evecs = _bloch.solve(model, k, params)
@@ -957,19 +964,19 @@ def test_the_grid_is_the_models_own_bloch_sum_bit_for_bit():
     class _Sum:
         point_bytes = _bloch.point_bytes(79, 96, 96)
 
-    wannier = S._GridHamiltonians(_Model(), _mesh(8, 3), bloch=_Sum())
+    wannier = _detector._GridHamiltonians(_Model(), _mesh(8, 3), bloch=_Sum())
     assert wannier.fits and wannier.chunk >= 512, wannier.chunk
 
     # and the shared instance is what a group uses: one grid, every operation
     model = tqc_models.lin3g()
     k = _mesh(6, 2)
-    shared = S._GridHamiltonians(model, k)
-    group = G._group_of(model)
+    shared = _detector._GridHamiltonians(model, k)
+    group = _spacegroup._group_of(model)
     for sym in list(group.symmetries)[:4]:
-        S._find_intertwiners(model, group.k_action_of(sym), k,
+        _detector._find_intertwiners(model, group.k_action_of(sym), k,
                              antiunitary=bool(sym.time_reversal), hamiltonians=shared)
     assert shared.n_evaluated == len(k), "the source grid is evaluated once, not once per op"
     assert shared.rotated(-k)._sum() is shared._sum(), "a rotated grid shares the blocks"
 
     with pytest.raises(ValueError, match="different k-grid"):
-        S._find_intertwiners(model, np.eye(2), _mesh(4, 2), hamiltonians=shared)
+        _detector._find_intertwiners(model, np.eye(2), _mesh(4, 2), hamiltonians=shared)

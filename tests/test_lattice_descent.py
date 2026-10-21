@@ -31,6 +31,9 @@ import tqc_models
 from pythtqc import groups as tqg
 from pythtqc import sewing as tqsew
 from pythtqc.refusal import Refusal
+from pythtqc import _layers
+from pythtqc import _spacegroup
+from pythtqc import _tables
 
 _ULP = np.finfo(float).eps          # one unit of double-precision roundoff, 2.2e-16
 _FEW_ULP = 16 * _ULP                # a few ulp: thirds arithmetic accumulated in a
@@ -182,7 +185,7 @@ def uncoupled_sublattices(t=1.0, ty=0.4, tz=0.3):
 @pytest.fixture(scope="module")
 def cubic_supergroup():
     """``_group_of`` on the ``2x1x1`` cell — the lattice supergroup itself."""
-    return tqg._group_of(cubic_2x1x1(1.0, 0.5))
+    return _spacegroup._group_of(cubic_2x1x1(1.0, 0.5))
 
 
 @pytest.fixture(scope="module")
@@ -564,7 +567,7 @@ def test_i213_conventional_cell_is_refused_as_a_supercell():
     are therefore equal entry for entry on every cell, and no test can separate
     them.
     """
-    g = tqg._group_of(tqc_models.i213_conventional())
+    g = _spacegroup._group_of(tqc_models.i213_conventional())
     assert not isinstance(g, Refusal), str(g)
     assert (g.number_str, g.name, g.size) == ("199.13", "I2_131'", 48)
     assert g._lattice_index == 2 and g._fractional_translations == ((0.5, 0.5, 0.5),)
@@ -707,7 +710,7 @@ def test_the_lifted_fkm_supercells_are_served_as_lattice_supergroups(
     ``2x2x2`` cell is the other half of it.
     """
     model, typat = _lifted_supercell(sc)
-    g = tqg._group_of(model)
+    g = _spacegroup._group_of(model)
     assert not isinstance(g, Refusal), str(g)
     assert (g.number_str, g.name, g.size) == (*served, size)
     assert g._lattice_index == index
@@ -718,7 +721,7 @@ def test_the_lifted_fkm_supercells_are_served_as_lattice_supergroups(
         assert g._closure_measured == 0.0
     assert g._closure_repaired == 0.0, "and nothing was repaired"
     # the typed route is unchanged and is what the suite uses everywhere else
-    typed = tqg._group_of(model, typat=typat)
+    typed = _spacegroup._group_of(model, typat=typat)
     assert typed and typed.number_str == typed_number and typed._lattice_index == 1
 
 
@@ -752,7 +755,7 @@ def test_every_table_consumer_refuses_a_lattice_supergroup():
     ``2x1`` square supercell's lattice supergroup, whose ``τ = (½,0,0)`` is the
     ``2x1x1`` chain's.
     """
-    supergroup = tqg._group_of(supercell_square())
+    supergroup = _spacegroup._group_of(supercell_square())
     assert not isinstance(supergroup, Refusal), str(supergroup)
     assert supergroup._lattice_index == 2
     for name, call in _TABLE_CONSUMERS.items():
@@ -811,7 +814,7 @@ def test_the_assignment_is_geometric_on_a_supergroup(cubic_supergroup):
     x**.  So ``perm == [1, 0]`` and ``lattice_shift == [[0,0,0], [1,0,0]]``, and
     the second entry is the one a shift that was never measured cannot produce.
     """
-    a = tqg._assign_orbitals(cubic_2x1x1(1.0, 0.5), cubic_supergroup)
+    a = _tables._assign_orbitals(cubic_2x1x1(1.0, 0.5), cubic_supergroup)
     assert not isinstance(a, Refusal), str(a)
     assert a.orbits == ((0, 1),)
     assert a.wyckoff_spglib == ("",)
@@ -927,12 +930,12 @@ def test_the_substrate_decoration_does_not_hide_the_translation():
     and the decoration removes exactly the operations with ``R[2,2] = −1`` —
     ``P-6m21' #187.210``, 24 operations, down to ``P3m11' #156.50``, 12.
     """
-    m3 = tqg._slab_presentation(supercell_square(), c=tqg.SLAB_C)
-    assert tqg._substrate_decorations(m3, [0, 0]) == (
+    m3 = _layers._slab_presentation(supercell_square(), c=tqg.SLAB_C)
+    assert _layers._substrate_decorations(m3, [0, 0]) == (
         ([0.0, 0.0, -0.05], 1), ([0.5, 0.0, -0.05], 1))
-    cell, cell_typat = tqg._decorated_cell(m3, [0, 0])
+    cell, cell_typat = _layers._decorated_cell(m3, [0, 0])
     assert int(cell.norb) == 4 and list(cell_typat) == [0, 0, 1, 1]
-    g = tqg._group_of(cell, typat=cell_typat)
+    g = _spacegroup._group_of(cell, typat=cell_typat)
     assert not isinstance(g, Refusal), str(g)
     assert (g.number_str, g.name, g.size) == ("25.58", "Pmm21'", 16)
     assert g._lattice_index == 2 and g._fractional_translations == ((0.5, 0.0, 0.0),)
@@ -944,7 +947,7 @@ def test_the_substrate_decoration_does_not_hide_the_translation():
     assert r.context["lattice"]["operations"][0]["residual"] == pytest.approx(0.0, abs=1e-14)
 
     # ... and the bare cell, read free-standing: the same supergroup's refusal
-    bare = tqg._group_of(supercell_square(), include_TR=False)
+    bare = _spacegroup._group_of(supercell_square(), include_TR=False)
     assert not isinstance(bare, Refusal), str(bare)
     assert (bare.number_str, bare.size) == ("123", 16)
     assert bare._lattice_index == 2 and bare._fractional_translations == ((0.5, 0.0, 0.0),)
@@ -957,12 +960,12 @@ def test_the_substrate_decoration_does_not_hide_the_translation():
         0.0, abs=1e-14)
 
     # the honeycomb: no fractional repeat, and the recipe does its own job
-    m3 = tqg._slab_presentation(tqc_models.kane_mele_z2("odd"))
-    bare = tqg._group_of(m3, typat=[0, 1], spinor=True)
+    m3 = _layers._slab_presentation(tqc_models.kane_mele_z2("odd"))
+    bare = _spacegroup._group_of(m3, typat=[0, 1], spinor=True)
     assert not isinstance(bare, Refusal), str(bare)
     assert (bare.number_str, bare.size) == ("187.210", 24)
-    decorated, decorated_typat = tqg._decorated_cell(m3, [0, 1])
-    h = tqg._group_of(decorated, typat=decorated_typat, spinor=True)
+    decorated, decorated_typat = _layers._decorated_cell(m3, [0, 1])
+    h = _spacegroup._group_of(decorated, typat=decorated_typat, spinor=True)
     assert not isinstance(h, Refusal), str(h)
     assert (h.number_str, h.name, h.size) == ("156.50", "P3m11'", 12)
     assert h._lattice_index == 1 and h._fractional_translations == ()
@@ -1104,7 +1107,7 @@ def test_magnetic_translations_leave_the_cell_its_bare_subgroup():
     pose it -- and the magnetic symmetry common to both gauges is the unsupported feature.
     """
     m = pi_flux_2x2()
-    g = tqg._group_of(m)
+    g = _spacegroup._group_of(m)
     assert (g.number_str, g.size, g._lattice_index) == ("123.340", 128, 4)
     taus = {(0.5, 0.0, 0.0), (0.0, 0.5, 0.0), (0.5, 0.5, 0.0)}
     assert set(g._fractional_translations) == taus

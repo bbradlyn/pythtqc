@@ -74,6 +74,8 @@ import pytest
 
 from pythtqc import groups as tqg
 from pythtqc.refusal import Refusal
+from pythtqc import _seitz
+from pythtqc import _spacegroup
 
 import tqc_models as tqm                                            # noqa: F401
 from conftest import FKM_BOND, fkm_regime, km_z2_regime
@@ -128,7 +130,7 @@ def census_group(realized, key):
     if kw is not None:
         out = record(realized, key)
         return out.group, out.rep
-    group = tqg._group_of(build())
+    group = _spacegroup._group_of(build())
     assert group, f"{key}: {group}"
     assert group.number_str == number_str, f"{key}: {group.number_str}"
     return group, None
@@ -183,16 +185,16 @@ def test_every_operation_resolves_to_a_symbol_that_names_it_back(realized, key):
               else sorted(int(i) for i in rep.matrices))
     assert [row.ind for row in table.values()] == listed
 
-    centering = tqg._centering_of(group)
+    centering = _seitz._centering_of(group)
     by_ind = {int(s.ind): s for s in group.symmetries}
     for row in table.values():
         sym = by_ind[row.ind]
-        parsed = tqg._parse_seitz(row.seitz, centering)
+        parsed = _seitz._parse_seitz(row.seitz, centering)
         assert parsed is not None, f"{key} #{row.ind}: {row.seitz!r} does not parse"
         wanted, wanted_tr = parsed
         # `_seitz_key` is `rotation_refUC` and `translation_refUC` put in the
         # quantities the symbol is written from; `_matches` compares the two.
-        assert tqg._matches(tqg._seitz_key(sym, group), bool(sym.time_reversal),
+        assert _seitz._matches(_seitz._seitz_key(sym, group), bool(sym.time_reversal),
                             wanted, wanted_tr), f"{key} #{row.ind}: {row.seitz}"
         assert tqg.operation_index(named, row.seitz) == row.ind, row.seitz
         assert tqg.seitz(named, row.ind) == row.seitz
@@ -202,7 +204,7 @@ def test_every_operation_resolves_to_a_symbol_that_names_it_back(realized, key):
     refUC = np.asarray(group._refUC, dtype=float)
     seen = set()
     for sym in group.symmetries:
-        det, order, axis, sense, _ = tqg._seitz_key(sym, group)
+        det, order, axis, sense, _ = _seitz._seitz_key(sym, group)
         if order <= 2:
             continue
         seen.add(("" if det > 0 else "-") + str(order))
@@ -221,16 +223,16 @@ def test_every_operation_resolves_to_a_symbol_that_names_it_back(realized, key):
     assert group.sg_number not in NOT_SHORTEST, (
         f"{key} reaches #{group.sg_number}: the outright half below is no longer "
         "the claim for it")
-    tabulated = tqg._tabulated_translations(group)
+    tabulated = _seitz._tabulated_translations(group)
     for sym in group.symmetries:
         rotation = np.asarray(sym.rotation_refUC(refUC), dtype=int)
         # the fall-back would make this test vacuous, so it is ruled out first
         assert (rotation.tobytes(), bool(sym.time_reversal)) in tabulated, (
             f"{key} #{int(sym.ind)}: the tables carry no entry for this rotation")
-        shortest = tqg._seitz_key(sym, group)[4]
-        written = tqg._written_translation(sym, group, tabulated, shortest)
+        shortest = _seitz._seitz_key(sym, group)[4]
+        written = _seitz._written_translation(sym, group, tabulated, shortest)
         difference = np.array([float(a) - float(b) for a, b in zip(written, shortest)])
-        assert tqg._is_translation(difference, centering), (
+        assert _spacegroup._is_translation(difference, centering), (
             f"{key} #{int(sym.ind)}: the tables carry {[str(p) for p in written]} "
             f"and the shortest representative is {[str(p) for p in shortest]}, "
             "which differ by no lattice translation")

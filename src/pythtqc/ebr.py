@@ -21,27 +21,35 @@ multiplicities.
 
 A sum is necessary for an atomic limit and never sufficient: the content at
 isolated k-points is blind to what happens between them.  The group's data is
-``irrep``'s tables, read through :mod:`.groups` and carried into the convention
+``irrep``'s tables, read through :mod:`._tables` and carried into the convention
 in which a lattice translation acts as ``e^{-ik·t}``.
 """
 
 from __future__ import annotations
 
-import os
-import re
 from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from typing import Mapping
 
 import numpy as np
 
-from . import _bloch, _sitechars
-from . import groups as _groups
+from . import _bloch
+from . import _layers
+from . import _spacegroup
+from . import _srsitables
+from . import _tables
+from . import _text
 from . import sewing as _sewing
-from ._tolerance import (CHARACTERS_TOL, ROUNDING, _INT_TOL, _PRESENTATION_RELATIVE,
-                         _TABLE_MATRIX_TOL)
 from .refusal import InternalError, Refusal
-from .symmetry import _sum_lines
+from ._tolerance import CHARACTERS_TOL, ROUNDING, _INT_TOL, _PRESENTATION_RELATIVE
+from ._text import _moduli, _sum_lines, _times
+from ._tables import (
+    _bands_spanned, _letter_only, _wyckoff_letter, ebr_rows, kpoint_of_label)
+from ._matrices import _orb_positions_3d, covariance_gate
+from ._smith import (
+    _compatibility, _divisors_of, _filled_content, _smith_system, _structure,
+    _verify_smith)
+from ._srsitables import to_irreptables_name
 
 __all__ = [
     "WannierCaveat", "Restriction", "EBRDecomposition", "CompletenessReport",
@@ -56,29 +64,12 @@ __all__ = [
 #: enumeration is recorded as such; it never silently becomes "these are all".
 DEFAULT_ENUMERATION_CAP = 200
 
-
 CAVEAT_TEXT = (
     "symmetry-indicated decomposable does not mean Wannierizable: a nonnegative-integer "
     "EBR decomposition of high-symmetry-point content is necessary for an atomic "
     "limit, never sufficient, so an obstruction beyond symmetry indicators can "
     "survive this verdict. No nonnegative-integer solution means no atomic limit."
 )
-
-
-# --------------------------------------------------------------------------
-# the words a summary prints
-# --------------------------------------------------------------------------
-
-def _moduli(divisors) -> str:
-    """A class's coordinates in words: ``an integer mod 6 and one mod 12``."""
-    words = [f"an integer mod {divisors[0]}"] + [f"one mod {d}" for d in divisors[1:]]
-    return _sewing._listed(words)
-
-
-def _times(n) -> str:
-    """How many times, in words: ``once``, ``twice``, ``3 times``."""
-    return {1: "once", 2: "twice"}.get(int(n), f"{int(n)} times")
-
 
 # --------------------------------------------------------------------------
 # records
@@ -98,7 +89,6 @@ class WannierCaveat:
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
         return "WannierCaveat(necessary for an atomic limit, not sufficient)"
-
 
 @dataclass(frozen=True)
 class Restriction:
@@ -158,24 +148,24 @@ class Restriction:
         if not self.applied:
             return "every tabulated point is measured, and no corep is left out   (.applied)"
         points = sorted({kpoint_of_label(label) for label in self.dropped})
-        lines = [f"the coreps at {_sewing._listed(points)} are not measured, and are left "
+        lines = [f"the coreps at {_text._listed(points)} are not measured, and are left "
                  "out   (.dropped)"]
         copied = {label: rows for label, rows in self.copies.items() if rows}
         if copied:
-            which = "each" if self.exact else "each but " + _sewing._listed(self.orphans)
+            which = "each" if self.exact else "each but " + _text._listed(self.orphans)
             lines.append(f"  {which} occurs in every elementary band representation as often "
                          "as a measured one, and leaving it out changes no verdict   (.copies)")
             lines.append("    " + ", ".join(f"{label} as {rows[0]}"
                                             for label, rows in copied.items()))
         if self.orphans:
-            lines.append(f"  {_sewing._listed(self.orphans)} repeat no measured corep: leaving "
+            lines.append(f"  {_text._listed(self.orphans)} repeat no measured corep: leaving "
                          "them out gives up a condition, and a verdict is a necessary "
                          "condition only   (.orphans, .exact)")
         outside = sorted(self.outside_layer)
         if outside:
             lowest, highest = self.layer_extent or (0.0, 0.0)
             off = "off the layer" if highest - lowest <= ROUNDING else "outside the slab"
-            lines.append(f"  {_sewing._listed(outside)} lie {off}, so their band "
+            lines.append(f"  {_text._listed(outside)} lie {off}, so their band "
                          "representations are left out   (.outside_layer)")
         return "\n".join(lines)
 
@@ -184,7 +174,6 @@ class Restriction:
             return "Restriction(none: every tabulated point is in-plane)"
         return (f"Restriction({len(self.retained)} rows kept, {len(self.dropped)} dropped, "
                 f"exact={self.exact}, rank {self.rank}/{self.full_rank})")
-
 
 @dataclass(frozen=True)
 class EBRDecomposition:
@@ -341,18 +330,18 @@ class EBRDecomposition:
         away = sorted({kpoint_of_label(label) for label in r.dropped} - set(refused))
         where = []
         if refused:
-            where.append(f"{_sewing._listed(refused)} refused, and "
+            where.append(f"{_text._listed(refused)} refused, and "
                          f"{'are' if len(refused) > 1 else 'is'} left out with "
                          f"{'their' if len(refused) > 1 else 'its'} coreps")
         if away:
-            where.append(f"{_sewing._listed(away)} "
+            where.append(f"{_text._listed(away)} "
                          + ("lie out of the layer's plane" if r.layer_extent is not None
                             else "are not measured"))
         if where:
             lines.append("  " + "; ".join(where) + ": "
                          + ("every corep there occurs in every elementary band representation "
                             "as often as a measured one, so the verdict is exact" if r.exact
-                            else f"{_sewing._listed(r.orphans)} repeat no measured corep, so "
+                            else f"{_text._listed(r.orphans)} repeat no measured corep, so "
                             "the verdict is a necessary condition only")
                          + "   (.restriction, .completeness)")
         if self.completeness.get("source") == "mapping":
@@ -362,7 +351,7 @@ class EBRDecomposition:
         if outside:
             lowest, highest = r.layer_extent or (0.0, 0.0)
             off = "off the layer" if highest - lowest <= ROUNDING else "outside the slab"
-            lines.append(f"  {_sewing._listed(outside)} lie {off}, so their band representations "
+            lines.append(f"  {_text._listed(outside)} lie {off}, so their band representations "
                          "are left out   (.restriction.outside_layer)")
         return lines
 
@@ -371,7 +360,6 @@ class EBRDecomposition:
         return (f"EBRDecomposition({self.verdict}, {n} solution{'' if n == 1 else 's'}, "
                 + ("exact)" if self.completeness["claim"] == "exact"
                    else "necessary condition only)"))
-
 
 def _signed_sums_line(probe) -> str:
     """What the search with negative multiplicities allowed found, in one line.
@@ -393,7 +381,6 @@ def _signed_sums_line(probe) -> str:
     return (f"no combination of elementary band representations with multiplicities "
             f"between -{bound} and {bound} reproduces the content (evidence of a stable "
             "obstruction)")
-
 
 @dataclass(frozen=True)
 class CompletenessReport:
@@ -437,7 +424,7 @@ class CompletenessReport:
                      f"representations carr{'ies' if n == 1 else 'y'} this content   (.complete)"]
             counts = sorted(set(self.band_counts))
             each = (f"each sum is {counts[0]} band{'' if counts[0] == 1 else 's'}"
-                    if len(counts) == 1 else f"the sums are {_sewing._listed(counts)} bands")
+                    if len(counts) == 1 else f"the sums are {_text._listed(counts)} bands")
             if self.band_count_matches is None:
                 lines.append(f"  {each}   (.band_counts)")
             elif self.band_count_matches:
@@ -455,7 +442,6 @@ class CompletenessReport:
     def __repr__(self) -> str:  # pragma: no cover - convenience only
         return (f"CompletenessReport(complete={self.complete}, "
                 f"n_bands={self.n_bands}, band_counts={self.band_counts})")
-
 
 @dataclass(frozen=True)
 class RegularCompletion:
@@ -518,7 +504,6 @@ class RegularCompletion:
         return (f"RegularCompletion({self.copies} x {self.bands_per_copy} bands, "
                 f"padding={self.padding}, {self.decomposition.verdict})")
 
-
 #: The statement of the convention every indicator record carries.
 INDICATOR_CONVENTION = (
     "the indicator is evaluated in this package's physical convention, in which a "
@@ -537,7 +522,6 @@ INDICATOR_CONVENTION = (
     "re-keyed by the row permutation of the change of convention before they can be "
     "read on a returned symmetry vector."
 )
-
 
 @dataclass(frozen=True)
 class SymmetryIndicator:
@@ -694,7 +678,6 @@ class SymmetryIndicator:
         """
         if self.canonical is None:
             return None
-        from .srsi import to_irreptables_name
 
         out = {}
         for name, value in self.canonical.items():
@@ -739,7 +722,7 @@ class SymmetryIndicator:
                      f"{_sewing.format_counts(self.content)}   (.content)")
         if self.reconstructed:
             points = sorted({kpoint_of_label(label) for label in self.reconstructed})
-            lines.append(f"  the coreps at {_sewing._listed(points)} are not measured: each "
+            lines.append(f"  the coreps at {_text._listed(points)} are not measured: each "
                          "occurs in every elementary band representation as often as a "
                          "measured one, and takes its multiplicity   (.reconstructed)")
             lines.append("    " + ", ".join(f"{label} as {source}" for label, source
@@ -748,7 +731,7 @@ class SymmetryIndicator:
         comp = self.completion
         if comp and comp.get("outcome") == "completed":
             points = sorted({kpoint_of_label(label) for label in comp["input"]["orphans"]})
-            lines.append(f"  {_sewing._listed(points)}, at k_z = ½ out of the layer's plane: "
+            lines.append(f"  {_text._listed(points)}, at k_z = ½ out of the layer's plane: "
                          "their coreps measured on the layer's decoupled stack, the layer "
                          "repeated along its normal with no hopping between copies, in the "
                          f"layer's own group #{comp['input']['number_str']}   (.completion)")
@@ -784,7 +767,6 @@ class SymmetryIndicator:
                 + (f", [{body}]" if self.divisors else "")
                 + (f", {self.completion['outcome']} on the stack" if self.completion
                    and self.completion.get("outcome") != "stopped" else "") + ")")
-
 
 # --------------------------------------------------------------------------
 # content plumbing
@@ -844,1288 +826,6 @@ def content_of(content) -> dict | Refusal:
             out[str(lab)] = iv
     return out
 
-
-def kpoint_of_label(label: str) -> str:
-    """The tables' name of the point a corep label belongs to: ``-GM6`` to ``GM``, ``-M3M4`` to ``M``.
-
-    A leading ``-``, which marks a double-valued corep, is dropped, and the
-    letters before the first digit are the point.
-
-    Parameters
-    ----------
-    label : str
-        A corep label, ``"-GM6"``, ``"GM2-"``, ``"X1"``.
-
-    Returns
-    -------
-    str
-        The point's name.
-    """
-    s = str(label)
-    if s.startswith("-"):
-        s = s[1:]
-    i = 0
-    while i < len(s) and not s[i].isdigit():
-        i += 1
-    return s[:i]
-
-
-def ebr_rows(group) -> dict | Refusal:
-    r"""Each elementary band representation of the group as a symmetry vector: the coreps it carries at the high-symmetry points.
-
-    The coreps are in the convention every returned label is, a lattice
-    translation acting as ``e^{-ik·t}``, where the Bilbao Crystallographic
-    Server's tables have ``e^{+ik·t}``: away from the time-reversal-invariant
-    points a row can carry other labels than the server's page, ``K3`` for its
-    ``K2`` in the row of ``A1`` at ``1b`` of space group 143, and the Wyckoff
-    positions never move.
-
-    Parameters
-    ----------
-    group : .groups.GroupData
-        The group, ``r.group``.
-
-    Returns
-    -------
-    dict or Refusal
-        ``{key: {corep: multiplicity}}``, the zeros dropped, each key an
-        elementary band representation at its Wyckoff position,
-        ``"-E1↑G(2)@1a(6mm1',6mm)"``.  A ``Refusal`` in its place is falsy and
-        names what stopped the call.
-
-    Refusals
-    --------
-    ``ebr_tables`` / ``irrep_tables`` / ``ebr_convention``
-        no elementary band representations of this group in the tables
-        installed, or none that can be read in this package's convention.
-    """
-    gate = _groups._lattice_not_descended(group)
-    if gate is not None:
-        return gate
-    data = _groups.ebr_data(group)
-    if isinstance(data, Refusal):
-        return data
-    out = {}
-    labels = data["labels_physics_convention"]
-    for (name, wy), col in zip(data["ebrs"], np.asarray(data["matrix"]).T):
-        out[f"{name}@{wy}"] = {lab: int(v) for lab, v in zip(labels, col) if v}
-    return out
-
-
-def _wyckoff_letter(position: str) -> str:
-    """``"1a(4mm1',4mm)" → "1a"`` — the multiplicity+letter, without the site groups."""
-    return str(position).split("(")[0]
-
-
-def _letter_only(position: str) -> str:
-    """``"1a(4mm1',4mm)" → "a"`` — the Wyckoff letter alone, without its multiplicity."""
-    return _wyckoff_letter(position).lstrip("0123456789")
-
-
-def _bands_spanned(name: str) -> int:
-    """``"-E1↑G(4)" → 4`` — how many bands an elementary band representation spans."""
-    name = str(name)
-    return int(name[name.rindex("(") + 1:name.rindex(")")])
-
-
-# --------------------------------------------------------------------------
-# naming a site irrep by the band representation it induces
-# --------------------------------------------------------------------------
-#
-# A site irrep of a measured site group has no name of its own: the names a
-# physicist looks up are the tables' names for the irreps of the Wyckoff
-# positions of the identified space group.  What connects the two is the band
-# representation the site irrep induces, which is exactly what an EBR column
-# holds -- so the name is read by inducing and matching, never by a character
-# lookup that would need an orientation convention no measurement carries.
-
-
-def _unitary_frame(group):
-    """``(positions, inverse, product table, position of each .ind)``.
-
-    The product table comes back as nested lists: the conjugations below run
-    ``|P|^2`` times per site and an element of a numpy array is an object to
-    build, while an element of a list is one to read.
-    """
-    prod, _, _ = group.get_product_table(get_diff=True)
-    prod = np.asarray(prod, dtype=int).tolist()
-    syms = group.symmetries
-    pos_of = {int(s.ind): p for p, s in enumerate(syms)}
-    unitary = [p for p, s in enumerate(syms) if not s.time_reversal]
-    ident = next(p for p in unitary
-                 if np.array_equal(np.asarray(syms[p].rotation), np.eye(3, dtype=int))
-                 and np.allclose(np.asarray(syms[p].translation) % 1.0, 0.0, atol=1e-8))
-    inverse = {p: next(q for q in unitary if prod[p][q] == ident) for p in unitary}
-    return unitary, inverse, prod, pos_of
-
-
-def _decompose_against_coreps(table, chi, *, where, tol=_INT_TOL):
-    """Multiplicity of every corep of ``table`` in the character ``chi``.
-
-    Orthogonality over the little group's unitary operations, with the
-    tabulated characters' own rounding absorbed by ``tol``.  A multiplicity
-    that is not an integer is a defect in this package and raises, since the
-    character being decomposed is a character of that little group by
-    construction.
-
-    Parameters
-    ----------
-    table : dict
-        ``{corep label: {ind: character}}``, as :func:`..groups.corep_table`
-        holds it.
-    chi : dict
-        ``{ind: character}`` over the same operations.
-    where : str
-        What was being decomposed, for the message of a defect.
-    tol : float, optional
-        Integrality tolerance.
-
-    Returns
-    -------
-    dict
-        ``{corep label: multiplicity}``, the zeros dropped.
-    """
-    inds = sorted(next(iter(table.values())))
-    out = {}
-    for label, char in table.items():
-        norm = sum(abs(complex(char[i])) ** 2 for i in inds)
-        m = sum(complex(chi[i]) * np.conj(complex(char[i])) for i in inds) / norm
-        if abs(m.imag) > tol or abs(m.real - round(m.real)) > tol:
-            raise InternalError(
-                f"the induced content of {where} contains {label} with multiplicity "
-                f"{m:.6g}, which is not an integer: a character induced from a site "
-                "group is a character of the little group and decomposes over its "
-                "coreps with whole multiplicities. That is arithmetic in this package "
-                "failing, not a tolerance to loosen.")
-        if round(m.real):
-            out[label] = int(round(m.real))
-    return out
-
-
-def _induction_plan(group, assignment, site, fixers, *, k=None, kpname=None):
-    r"""Everything the induction at one point needs except the character itself.
-
-    The weight of the site group's operation :math:`h` in the induced character
-    of the little group's operation :math:`g` does not depend on which site
-    irrep is being induced, so it is built once for a site and used for every
-    row of its table — which is what keeps the naming group-sized rather than
-    row-times-group-sized.
-
-    Parameters
-    ----------
-    group : ..groups.GroupData
-    assignment : ..groups.OrbitalAssignment
-    site : int
-    fixers : sequence of int
-        ``.ind`` of the site's unitary fixers.
-    k : array, optional
-        The point in the model's reduced coordinates; ``None`` is
-        :math:`\Gamma`.
-    kpname : str, optional
-        Forced tabulated label, forwarded to :func:`..groups.corep_table`.
-
-    Returns
-    -------
-    tuple or None
-        ``(corep table, {ind of g: {ind of h: weight}})``, and ``None`` where
-        the tabulated characters at that point are unavailable or the site's
-        fixers are a proper subgroup of what fixes it.
-    """
-    fixer_inds = {int(i) for i in fixers}
-    if not fixer_inds:
-        return None
-    point = k
-    if point is None:
-        point = _gamma_point(group)
-        if isinstance(point, Refusal):
-            return None
-        kpname = kpname or "GM"
-    table = _groups.corep_table(group, point, kpname=kpname)
-    if isinstance(table, Refusal):
-        return None
-    unitary, inverse, prod, pos_of = _unitary_frame(group)
-    syms = group.symmetries
-    held = {pos_of[i] for i in fixer_inds}
-    weights: dict = {}
-    if k is None:
-        for i in sorted(next(iter(table.values()))):
-            p, row = pos_of[int(i)], {}
-            for x in unitary:
-                y = prod[inverse[x]][prod[p][x]]
-                if y in held:
-                    ind = int(syms[y].ind)
-                    row[ind] = row.get(ind, 0.0) + 1.0 / len(held)
-            weights[int(i)] = row
-        return table, weights
-    k3 = np.asarray(group.k_to_3d(np.asarray(k, dtype=float)[None, :])[0], dtype=float)
-    perm = np.asarray(assignment.permutations, dtype=int)
-    shift = np.asarray(assignment.lattice_shift, dtype=float)
-    orbit = sorted({int(perm[p, int(site)]) for p in unitary})
-    carry = {j: next(p for p in unitary if int(perm[p, int(site)]) == j) for j in orbit}
-    for i in sorted(next(iter(table.values()))):
-        p, row = pos_of[int(i)], {}
-        for j in orbit:
-            if int(perm[p, j]) != j:
-                continue
-            q = carry[j]
-            ind = int(syms[prod[inverse[q]][prod[p][q]]].ind)
-            if ind not in fixer_inds:
-                return None
-            row[ind] = row.get(ind, 0j) + np.exp(-2j * np.pi * float(k3 @ shift[p, j]))
-        weights[int(i)] = row
-    return table, weights
-
-
-def _induced_content(group, assignment, site, chi, *, k=None, kpname=None,
-                     plan=None) -> dict:
-    r"""The band representation a site character induces, as corep multiplicities.
-
-    ``chi`` is one character of the site group of ``site`` — the operations of
-    ``group`` that fix it, measured by ``..groups._assign_orbitals`` — and what
-    comes back is the content of the band representation it induces, at ``k``.
-
-    At :math:`\Gamma` the induction is the real-space one,
-    :math:`\chi_{\rm ind}(g) = |H|^{-1}\sum_{x\in P}[x^{-1}gx\in H]\,
-    \chi(x^{-1}gx)` over the unitary operations :math:`P` modulo the lattice,
-    taken through the group's own product table.  Away from it the sum is the
-    Frobenius one over the sites the operation fixes, each carrying the phase
-    :math:`e^{-2\pi i\,k\cdot m}` of its own displacement
-    :math:`m = R\tau_j + t - \tau_j`, the integer vector
-    ``assignment.lattice_shift`` holds; that phase carries the operation's
-    fractional translation and any reciprocal-lattice vector the little group
-    needs, so no further factor enters.  The sign is the one the EBR rows are
-    transported into (:func:`..groups.ebr_data`) and is what makes an induced
-    content comparable with them at a point away from a TRIM.
-
-    Parameters
-    ----------
-    group : ..groups.GroupData
-    assignment : ..groups.OrbitalAssignment
-        The orbit and the displacements the phases are read from.
-    site : int
-        Which site of ``assignment`` the character belongs to.
-    chi : dict
-        ``{ind: character}`` over the site's **unitary** fixers, which are its
-        keys.  For a group with double-valued tables the character already
-        carries the operations' spin-½ lift.
-    k : array, optional
-        The point, in the model's reduced coordinates.  ``None`` is
-        :math:`\Gamma`.
-    kpname : str, optional
-        Forced tabulated label, forwarded to :func:`..groups.corep_table`.
-    plan : tuple, optional
-        :func:`_induction_plan` for this site and point, to be shared across the
-        rows of one table instead of rebuilt for each.
-
-    Returns
-    -------
-    dict
-        ``{corep label: multiplicity}`` at that point, the zeros dropped.
-        Empty where the transported character cannot be read on the orbit —
-        the site's fixers are a proper subgroup of what fixes it — or where the
-        tabulated characters at that point are unavailable.
-    """
-    if plan is None:
-        plan = _induction_plan(group, assignment, int(site), tuple(chi),
-                               k=k, kpname=kpname)
-    if plan is None:
-        return {}
-    table, weights = plan
-    chi_ind = {ind: sum(w * complex(chi[h]) for h, w in row.items())
-               for ind, row in weights.items()}
-    return _decompose_against_coreps(
-        table, chi_ind, where=f"a site irrep of the site group of site {int(site)}")
-
-
-def _gamma_point(group):
-    """The tabulated :math:`\\Gamma` in the model's own reduced coordinates."""
-    points = _groups.high_symmetry_points(group)
-    if isinstance(points, Refusal):
-        return points
-    return points["GM"]
-
-
-def _rows_at_letter(rows, letter) -> dict:
-    """``{EBR name: content}`` of the entries of ``rows`` at one Wyckoff letter."""
-    return {name.split("@")[0]: content for name, content in rows.items()
-            if _letter_only(name.split("@")[1]) == str(letter)}
-
-
-def _gamma_ties(group) -> dict | Refusal:
-    r"""Which EBRs of one group share their :math:`\Gamma` content at a position.
-
-    Two site irreps at one Wyckoff position can induce the same coreps at
-    :math:`\Gamma` and part only away from it — ``B1↑G`` and ``B2↑G`` at ``2c``
-    of P4mm are both ``GM5`` there and differ at X, M, A, R and Z — so a
-    :math:`\Gamma` content alone names a site irrep at every position except
-    these.  The list is a property of the group's EBR file and needs no model.
-
-    Parameters
-    ----------
-    group : ..groups.GroupData
-
-    Returns
-    -------
-    dict or Refusal
-        ``{Wyckoff position: (tied EBR names, ...)}``, holding only the
-        positions where two or more EBRs share a :math:`\Gamma` content.
-
-    Refusals
-    --------
-    ``"ebr_tables"``, ``"irrep_tables"``, ``"ebr_convention"``, ``"lattice_not_descended"``
-        propagated from :func:`ebr_rows`.
-    """
-    rows = ebr_rows(group)
-    if isinstance(rows, Refusal):
-        return rows
-    return _gamma_ties_of(rows)
-
-
-def _gamma_ties_of(rows) -> dict:
-    """:func:`_gamma_ties` on EBR rows already in hand."""
-    by_position: dict = {}
-    for name, content in rows.items():
-        base, position = name.split("@")
-        key = tuple(sorted((lab, mult) for lab, mult in content.items()
-                           if kpoint_of_label(lab) == "GM"))
-        by_position.setdefault(position, {}).setdefault(key, []).append(base)
-    out = {}
-    for position, shared in by_position.items():
-        tied = tuple(tuple(names) for names in shared.values() if len(names) > 1)
-        if tied:
-            out[position] = tied
-    return out
-
-
-def _site_irrep_names(group, assignment, site, table) -> tuple:
-    r"""The tables' name of every row of one computed site-group character table.
-
-    Each row is induced to the group's high-symmetry points and matched against
-    the EBR entries at the site's Wyckoff letter in the tables' setting
-    (``assignment.wyckoff_tables``): :math:`\Gamma` first, and, where the
-    entries at that position leave more than one candidate there, the remaining
-    points in the order :func:`..groups.high_symmetry_points` holds them until
-    one entry is left.  Which positions of a group that can happen at is
-    :func:`_gamma_ties`, read from the EBR file with no model in hand, and the
-    list is checked against the induction: candidates that survive
-    :math:`\Gamma` together must be entries that list holds as sharing a
-    content, and a disagreement raises rather than naming a row on it.  A row of
-    a group with double-valued tables is induced together with the operations'
-    spin-½ lift, so what it matches is a double-valued EBR entry.
-
-    Raises
-    ------
-    ..refusal.InternalError
-        The induction leaves two entries at :math:`\Gamma` that the group's own
-        tie list does not carry as tied.
-
-    Parameters
-    ----------
-    group : ..groups.GroupData
-    assignment : ..groups.OrbitalAssignment
-    site : int
-    table : .._sitechars.SiteGroupTable
-        The computed character table of that site's measured group.
-
-    Returns
-    -------
-    tuple
-        One entry per row of ``table``: the EBR entry's full name where the
-        match is unique, and ``""`` where the position is not tabulated, the
-        induced content is reducible, or two rows claim one entry.
-    """
-    blank = ("",) * len(table.labels)
-    letters = tuple(assignment.wyckoff_tables or ())
-    if int(site) >= len(letters) or not letters[int(site)]:
-        return blank
-    rows = ebr_rows(group)
-    if isinstance(rows, Refusal):
-        return blank
-    at_letter = _rows_at_letter(rows, letters[int(site)])
-    if not at_letter:
-        return blank
-    points = _groups.high_symmetry_points(group)
-    if isinstance(points, Refusal):
-        return blank
-    tied_here = ()
-    for position, shared in _gamma_ties_of(rows).items():
-        if _letter_only(position) == letters[int(site)]:
-            tied_here = shared
-    lift = None
-    if group.spinor:
-        lift = {int(s.ind): complex(np.trace(np.asarray(s.spinor_rotation)))
-                for s in group.symmetries}
-    order = ["GM"] + [name for name in points if name != "GM"]
-    plans: dict = {}
-    characters = [{int(i): (table.character_on(row, int(i))
-                            * (1.0 if lift is None else lift[int(i)]))
-                   for i in table.indices}
-                  for row in range(len(table.labels))]
-    named = []
-    for chi in characters:
-        left = set(at_letter)
-        for point in order:
-            if point not in plans:
-                plans[point] = _induction_plan(
-                    group, assignment, int(site), tuple(table.indices),
-                    k=None if point == "GM" else points[point], kpname=point)
-            content = ({} if plans[point] is None
-                       else _induced_content(group, assignment, int(site), chi,
-                                             plan=plans[point]))
-            if not content:
-                left = set()
-                break
-            left &= {name for name, full in at_letter.items()
-                     if {lab: mult for lab, mult in full.items()
-                         if kpoint_of_label(lab) == point} == content}
-            if len(left) <= 1:
-                break
-            if not any(left <= set(names) for names in tied_here):
-                raise InternalError(
-                    f"the induced content of a site irrep at {letters[int(site)]} of "
-                    f"#{group.number_str} matches {sorted(left)} at {point}, which the "
-                    "tie list the EBR file itself carries does not hold as sharing a "
-                    "content. Those are two readings of one table and have to agree; "
-                    "the two disagreeing is a defect in this package.")
-        named.append(next(iter(left)) if len(left) == 1 else "")
-    claimed = [name for name in named if name]
-    return tuple(name if name and claimed.count(name) == 1 else "" for name in named)
-
-
-def _site_irrep_labels(group, assignment, site, table) -> tuple:
-    r"""The site-irrep labels of one computed table, and where each name comes from.
-
-    A name the tables carry at the position is the part of the EBR entry
-    before ``↑G``, which is what a Wyckoff position is looked up by; a row the
-    entries there do not reach keeps the table's own name and where it came
-    from (``..symmetry._site_group_table``): the tables' name for that irrep of
-    the site's point group, its Mulliken symbol, or none.  Labels have to be
-    unique within one table, so a name from the entries that collides with a
-    kept one leaves the whole table on its own names.
-
-    Parameters
-    ----------
-    group : ..groups.GroupData
-    assignment : ..groups.OrbitalAssignment
-    site : int
-    table : .._sitechars.SiteGroupTable
-
-    Returns
-    -------
-    tuple
-        ``(labels, named_by)``, one entry of each per row: the label, and
-        ``"tables"``, ``"point group"``, ``"Mulliken"`` or, for a row nothing
-        names, ``"unnamed"``.
-    """
-    names = _site_irrep_names(group, assignment, int(site), table)
-    own = tuple(table.labels)
-    mine = tuple(table.named_by) if len(table.named_by) == len(own) else (
-        tuple("point group" if label else "unnamed" for label in own))
-    labels, named_by = [], []
-    for row, name in enumerate(names):
-        base = str(name).split("↑G")[0] if name else ""
-        if base:
-            labels.append(base)
-            named_by.append("tables")
-        else:
-            labels.append(own[row])
-            named_by.append(mine[row])
-    named = [label for label in labels if label]
-    if len(set(named)) != len(named):
-        return own, mine
-    return tuple(labels), tuple(named_by)
-
-
-# --------------------------------------------------------------------------
-# naming a site rep by the entries its induced content is the sum of
-# --------------------------------------------------------------------------
-#
-# A row of the computed table of a spinful model's site group carries the
-# *orbital* factor; what the model's states carry there is that row times the
-# operations' spin-1/2 lift, which is a double-valued representation of the site
-# group and need not be irreducible -- a ``T`` row of a tetrahedral site times
-# the lift is a double-valued pair.  Its name is therefore the sum of the
-# double-valued site irreps it contains, and those are read the same way a
-# single one is: by the band representation the whole thing induces, matched
-# against the EBR entries at the position.
-
-#: Largest multiplicity of one EBR entry a site representation is searched for,
-#: and the most matching combinations kept before the search gives up.  Both are
-#: far above anything a site group of order <= 48 can produce: a row of
-#: dimension ``d`` times the lift induces ``2d`` times the position's
-#: multiplicity bands, and an entry carries at least two of them.
-_MAX_ENTRY_MULTIPLICITY = 4
-_MAX_COMBINATIONS = 64
-
-
-def _entry_combinations(contents, target, *, cap=_MAX_COMBINATIONS):
-    """Which multisets of ``contents`` sum to ``target``.
-
-    ``contents`` is ``{entry name: {corep label: multiplicity}}`` at one point
-    and ``target`` the induced content there.  What comes back is every multiset
-    of entry names that sums to it, each in ``contents``' own order and with its
-    repeats written out, and an empty list where nothing does.
-
-    The search is exhaustive with two ceilings (:data:`_MAX_ENTRY_MULTIPLICITY`,
-    ``cap``), which is what keeps a pathological table from turning a naming
-    into a search: reaching either is reported as "no name", never as a wrong
-    one.
-    """
-    names = list(contents)
-    labels = sorted({lab for c in contents.values() for lab in c} | set(target))
-    want = tuple(int(target.get(lab, 0)) for lab in labels)
-    vecs = [tuple(int(contents[n].get(lab, 0)) for lab in labels) for n in names]
-    out: list = []
-
-    def walk(i, rest, acc):
-        if not any(rest):
-            out.append(tuple(acc))
-            return
-        if i >= len(names) or len(out) >= cap or not any(rest[j] > 0 for j in range(len(rest))):
-            return
-        here = vecs[i]
-        if not any(here):                     # an entry with no content at this point
-            walk(i + 1, rest, acc)
-            return
-        left = rest
-        for n in range(_MAX_ENTRY_MULTIPLICITY + 1):
-            walk(i + 1, left, acc + [names[i]] * n)
-            left = tuple(a - b for a, b in zip(left, here))
-            if any(x < 0 for x in left):
-                break
-    walk(0, want, [])
-    return out
-
-
-def _spelled(names) -> str:
-    """``("-E1", "-E1", "-F") → "2x-E1 + -F"`` — a multiset of entries as one label."""
-    order, count = [], {}
-    for name in names:
-        base = str(name).split("↑G")[0]
-        if base not in count:
-            order.append(base)
-        count[base] = count.get(base, 0) + 1
-    return " + ".join(base if count[base] == 1 else f"{count[base]}x{base}"
-                      for base in order)
-
-
-def _names_by_content(group, assignment, site, table, letter) -> tuple:
-    r"""Each row of ``table``, named by the EBR entries at ``letter`` it induces.
-
-    The row's character is taken with the operations' spin-1/2 lift where the
-    group's tables are double-valued, so that what is matched is what the
-    model's states carry at the site.  A site representation that is not
-    irreducible is honestly the sum of the site irreps it contains, so a row may
-    be named by several entries.  It is induced at :math:`\Gamma` first and at
-    the other high-symmetry points while more than one multiset of entries
-    reproduces it: the tie-break by which :func:`_site_irrep_names` names a
-    single row, in the form a sum needs.
-
-    Parameters
-    ----------
-    group : ..groups.GroupData
-    assignment : ..groups.OrbitalAssignment
-    site : int
-    table : .._sitechars.SiteGroupTable
-    letter : str
-        The site's own Wyckoff letter, whose entries are the vocabulary.
-
-    Returns
-    -------
-    tuple
-        One label per row: the entries' names summed (``"-E1 + -F"``), and
-        ``""`` where the entries at that letter reproduce the row's content in
-        no way or in more than one way.
-    """
-    blank = ("",) * len(table.labels)
-    if not letter:
-        return blank
-    # The tables' entries at a position are keyed by the irreps of the site
-    # group that position HAS.  Where the represented operations are a proper
-    # subgroup of what fixes the site -- a free-standing layer, whose
-    # Hamiltonian leaves the sigma_h family undetermined -- a row of the
-    # computed table is an irrep of the smaller group, and inducing it gives a
-    # sum of entries that is a true statement about the band representation and
-    # no name for the row.  So the naming declines, rather than spelling the
-    # sum.  (:func:`_induction_plan` makes the same check away from Gamma.)
-    fixers = {int(i) for i in assignment.site_group[int(site)]}
-    unitary = {int(s.ind) for s in group.symmetries if not s.time_reversal}
-    if fixers & unitary != {int(i) for i in table.indices}:
-        return blank
-    rows = ebr_rows(group)
-    if isinstance(rows, Refusal):
-        return blank
-    at_letter = _rows_at_letter(rows, str(letter))
-    if not at_letter:
-        return blank
-    points = _groups.high_symmetry_points(group)
-    if isinstance(points, Refusal):
-        return blank
-    lift = None
-    if group.spinor:
-        lift = {int(s.ind): complex(np.trace(np.asarray(s.spinor_rotation)))
-                for s in group.symmetries}
-    order = ["GM"] + [name for name in points if name != "GM"]
-    plans: dict = {}
-    out = []
-    for row in range(len(table.labels)):
-        chi = {int(i): (table.character_on(row, int(i))
-                        * (1.0 if lift is None else lift[int(i)]))
-               for i in table.indices}
-        left = None
-        for point in order:
-            if point not in plans:
-                plans[point] = _induction_plan(
-                    group, assignment, int(site), tuple(table.indices),
-                    k=None if point == "GM" else points[point], kpname=point)
-            content = ({} if plans[point] is None
-                       else _induced_content(group, assignment, int(site), chi,
-                                             plan=plans[point]))
-            if not content:
-                left = []
-                break
-            here = {name: {lab: m for lab, m in full.items()
-                           if kpoint_of_label(lab) == point}
-                    for name, full in at_letter.items()}
-            got = _entry_combinations(here, content)
-            left = got if left is None else [c for c in left if c in got]
-            if len(left) <= 1:
-                break
-        out.append(_spelled(left[0]) if left and len(left) == 1 else "")
-    return tuple(out)
-
-
-def _induced_bands(group, assignment, site, chi) -> int:
-    r"""How many bands the site character ``chi`` induces, or ``0``.
-
-    The dimension of the band representation, read off its own :math:`\Gamma`
-    content: the multiplicity of each corep times that corep's dimension.  It
-    is the one number a **composite** site irrep — one no EBR column carries,
-    so that no name can be matched — still shares with the SRSI tables, which
-    carry it as :attr:`..srsi.MaximalKey.dim`.
-    """
-    plan = _induction_plan(group, assignment, int(site), tuple(chi))
-    if plan is None:
-        return 0
-    table, _weights = plan
-    content = _induced_content(group, assignment, int(site), chi, plan=plan)
-    ident = next((int(s.ind) for s in group.symmetries
-                  if not s.time_reversal
-                  and np.array_equal(np.asarray(s.rotation), np.eye(3, dtype=int))
-                  and np.allclose(np.asarray(s.translation) % 1.0, 0.0, atol=1e-8)), None)
-    if ident is None or any(ident not in table[label] for label in content):
-        return 0                               # pragma: no cover - a guard
-    return int(round(sum(m * float(np.real(table[label][ident]))
-                         for label, m in content.items())))
-
-
-def _site_corep_labels(group, assignment, site, table) -> tuple:
-    r"""``(labels, named_by)`` for one site of a model whose states carry spin.
-
-    Each row of the computed (single-valued) table stands for the
-    double-valued site representation the model's states carry there — the
-    row times the operations' lift — and takes the name the group's own
-    double-valued EBR entries give it at the site's Wyckoff position,
-    ``named_by = "tables"``: a sum there is a site representation that is not
-    irreducible, which a row times the spin-1/2 lift can be.  Two rows can
-    legitimately take **one** name, because two orbital characters differing by
-    a character the lift's trace vanishes on are one site corep; that is the
-    physics and not a collision.
-
-    A row those entries do not name — the tables list none at the position, or
-    none whose band representation is the row's, the row's being composite —
-    takes the site point group's own double-valued name
-    (:func:`_point_group_names`), ``named_by = "point group"``, as a
-    single-valued row keeps the point group's own name.  One name for two rows
-    whose states carry different characters would be two conventions meeting in
-    one table, and the whole table then takes the point group's names.  A row
-    nothing names reads ``""`` and ``"unnamed"``, which leaves its generator
-    characters as the whole statement.
-    """
-    letters = tuple(assignment.wyckoff_tables or ())
-    letter = letters[int(site)] if int(site) < len(letters) else ""
-    blank = ("",) * len(table.labels)
-    names = (_names_by_content(group, assignment, int(site), table, letter)
-             if letter else blank)
-    if all(names):
-        return names, ("tables",) * len(names)
-    own = _point_group_names(group, table)
-    labels = tuple(name or mine for name, mine in zip(names, own))
-    lift = {int(s.ind): complex(np.trace(np.asarray(s.spinor_rotation)))
-            for s in group.symmetries}
-    carried: dict = {}
-    for row, label in enumerate(labels):
-        chi = tuple(table.character_on(row, int(i)) * lift[int(i)] for i in table.indices)
-        if label and any(abs(a - b) > _TABLE_MATRIX_TOL
-                         for a, b in zip(carried.setdefault(label, chi), chi)):
-            return own, tuple("point group" if mine else "unnamed" for mine in own)
-    return labels, tuple("tables" if name else "point group" if mine else "unnamed"
-                         for name, mine in zip(names, own))
-
-
-# --------------------------------------------------------------------------
-# the orbital factor's own name, from the single-valued tables
-# --------------------------------------------------------------------------
-#
-# A row of a computed site table is the ORBITAL factor of what sits at the site,
-# and it is single-valued whether or not the states carry spin: the spin is the
-# other factor.  So a row has a single-valued name at the position too -- the one
-# the group's single-valued EBR entries give the band representation the orbital
-# alone induces -- and that name is what a declaration states.  It is read here
-# exactly as a spinless model's rows are named, against the group's
-# single-valued tables instead of its double-valued ones.
-
-
-def _single_valued_view(group):
-    r"""``group`` as its own **single-valued** tables read it.
-
-    Which of the two table files a query loads — the irrep table, the EBR file,
-    the transport record — is chosen by one flag, ``GroupData.spinor``, and
-    nothing else: the tables are a property of the crystal and of the valuedness
-    asked for.  So the view is this record with that flag turned over. Every
-    other field is the same object — the same operations in the same order, the
-    same lattice, the same ``refUC``/``shiftUC`` — and the multiplication table
-    is therefore literally the same table, carried across rather than recomputed.
-
-    **What may be asked of it.** A character and a Wyckoff letter: the view is
-    consumed by :func:`_site_orbital_labels` alone, which induces the orbital
-    factor of a site's rows and compares the multiplicities that come out with
-    the single-valued entries at the letter. No representation is built on it,
-    no lift is taken from it, and it is never returned or stored. That is what
-    keeps it a reading of the tables rather than a single-valued question put to
-    a spinful model, which is a question with no answer: a spinful model's
-    *states* carry the electron's own spin-1/2 and its little-group content is
-    double-valued, and that is what the returned label stays.
-    """
-    if not group.spinor:
-        return group
-    view = replace(group, spinor=False)
-    # `replace` starts a fresh product-table memo, deliberately, because a table
-    # computed for another `_sg` would be the wrong one.  Here `_sg` is the same
-    # object, so the memo is the right one and copying it is what keeps the
-    # second reading free.
-    view._product_tables.update(group._product_tables)
-    return view
-
-
-def _site_orbital_labels(group, assignment, site, table) -> tuple:
-    r"""The single-valued name of every row of one computed site table.
-
-    The row's *orbital* name at the site's Wyckoff position: what the tables
-    call the site irrep the orbital factor carries, which is the word a
-    declaration of that orbital is written in
-    (:attr:`.._sitechars.SiteGroupTable.declarable`). For a model whose states
-    carry spin that is a different name from the one the row is returned under
-    — the returned one is the double-valued site corep the states carry — and
-    the two are read from the two table files of the one group.
-
-    Parameters
-    ----------
-    group : ..groups.GroupData
-    assignment : ..groups.OrbitalAssignment
-    site : int
-    table : .._sitechars.SiteGroupTable
-
-    Returns
-    -------
-    tuple
-        One entry per row: the single-valued entry's name at the site's own
-        Wyckoff position, and ``""`` for a row the single-valued entries there
-        do not reach.
-    """
-    names = _site_irrep_names(_single_valued_view(group), assignment, int(site), table)
-    return tuple(str(name).split("↑G")[0] if name else "" for name in names)
-
-
-# --------------------------------------------------------------------------
-# the site point group's own double-valued names, read off the tables
-# --------------------------------------------------------------------------
-#
-# The tables name a point group's double-valued irreps only through the
-# elementary band representations those induce, so a site irrep whose band
-# representation is composite, or a site at a position the tables list no
-# entries at, has no double-valued name there.  Every
-# crystallographic point group is, though, the site group of the origin of a
-# symmorphic space group, and at a position whose site group is the whole point
-# group the band representation a site irrep induces is, at Gamma, that irrep
-# itself.  So each symmorphic group's own tables hold its point group's
-# double-valued names -- the EBR entries at the origin -- and their characters
-# -- the Gamma corep each entry induces -- on every operation, together with the
-# SU(2) matrix every character is written against.  That is the point group's
-# own vocabulary, read and not typed, in the tables' convention.
-#
-# A site row is named by comparing characters with it, operation by operation.
-# The site group and the reference are one point group in orientations that
-# can differ, so the comparison runs through a rotation carrying the one onto
-# the other, and each character follows the operation it belongs to -- its axis,
-# its sense, and the sign of the SU(2) matrix the tables lift it by -- never its
-# place in a list.
-
-
-#: The order of a proper rotation, from its trace, which is ``1 + 2 cos θ`` and
-#: an integer for every crystallographic one.
-_ORDER_OF_TRACE = {3: 1, 2: 6, 1: 4, 0: 3, -1: 2}
-
-
-def _orthogonal_of(S, det) -> np.ndarray:
-    r"""The Cartesian matrix of an operation, read off its SU(2) matrix.
-
-    :math:`R_{ij} = \tfrac12\,\mathrm{tr}(\sigma_i S \sigma_j S^\dagger)` is the
-    rotation ``S`` lifts, in the frame the tables write their SU(2) matrices in,
-    and an improper operation is that rotation times ``det = -1``: the tables
-    lift an improper operation by its proper part.
-    """
-    S = np.asarray(S, dtype=complex)
-    pauli = _groups._PAULI
-    rotation = np.real(np.einsum("iab,bc,jcd,da->ij", pauli, S, pauli, S.conj().T)) / 2.0
-    return float(det) * rotation
-
-
-@lru_cache(maxsize=None)
-def _tabulated_operations(number_str: str, magnetic: bool) -> tuple:
-    """``(R, O, S)`` per operation of one group's double-valued table.
-
-    ``R`` is the integer matrix the table writes the operation in (its lattice
-    basis), ``O`` the Cartesian matrix in the frame of the table's own SU(2)
-    matrix ``S``.  The unitary operations come first and the antiunitary ones
-    after them, in the table's own order: the order :attr:`..groups.GroupData.symmetries`
-    is indexed in, so operation ``ind`` is entry ``ind - 1``.
-    """
-    from irreptables.irreps import IrrepTable
-
-    return _operations_of(IrrepTable(str(number_str), True, magnetic=bool(magnetic)))
-
-
-def _operations_of(table) -> tuple:
-    """:func:`_tabulated_operations` of a table already read."""
-    out = []
-    for sym in list(table.u_symmetries) + list(table.au_symmetries):
-        R = np.rint(np.asarray(sym.R, dtype=float)).astype(int)
-        det = int(round(float(np.linalg.det(R))))
-        out.append((R, _orthogonal_of(sym.S, det), np.asarray(sym.S, dtype=complex)))
-    return tuple(out)
-
-
-def _magnetic_numbers() -> dict:
-    """``{symbol: number}`` of every magnetic space group, as ``irrep`` itself lists them.
-
-    ``irrep`` numbers a magnetic group by the line of this list the group sits
-    on, which is how a grey group read off a model gets its number; the grey
-    group of a space group is the one spelled as the space group's own symbol
-    with ``1'`` appended.
-    """
-    import irrep
-
-    path = os.path.join(os.path.dirname(irrep.__file__), "data", "msg_numbers.data")
-    named = {}
-    with open(path, encoding="utf-8") as handle:
-        for line in handle:
-            parts = line.split()
-            if len(parts) == 2 and "." in parts[0]:
-                named[parts[1]] = parts[0]
-    return named
-
-
-def _origin_letter(raw, centering) -> str:
-    """The first position of an EBR list whose site group is the whole point group.
-
-    That is the position with one site per primitive cell — conventional
-    multiplicity one more than the centering translations — and in a symmorphic
-    group the first such is the origin.
-    """
-    per_cell = 1 + len(tuple(centering))
-    for entry in raw["ebrs"]:
-        match = re.match(r"^(\d+)([a-zA-Z])\(", str(entry["wyckoff_position"]))
-        if match is not None and int(match.group(1)) == per_cell:
-            return match.group(2)
-    return ""
-
-
-@lru_cache(maxsize=None)
-def _origin_coreps(grey: bool) -> dict:
-    """``{point group: references}`` — every symmorphic group's origin, in its tables' words.
-
-    A space group is symmorphic where every operation its table lists is a pure
-    rotation, its translation a lattice or centering vector.  For each such
-    group, in the order of its number, the reference holds the table's number,
-    its unitary operations ``(R, O, S)`` (:func:`_tabulated_operations`), and
-    every double-valued EBR entry at its origin: the site irrep's name, and the
-    characters on those operations of the one Gamma corep that entry induces.
-    ``grey`` reads the grey tables, where a complex-conjugate pair is one corep
-    under time reversal.
-
-    Raises
-    ------
-    ..refusal.InternalError
-        An entry at the origin induces anything but one corep at Gamma of the
-        entry's own dimension, or a grey group's operations are not the space
-        group's own with time reversal: the tables disagreeing with themselves.
-    """
-    return _origin_references(grey, True)
-
-
-@lru_cache(maxsize=None)
-def _origin_irreps(grey: bool) -> dict:
-    """:func:`_origin_coreps`, read in the single-valued tables.
-
-    The same symmorphic origins, each single-valued EBR entry there with the
-    characters of the one Gamma irrep it induces, on the same operations: the
-    double-valued table of the same group orients them, since a single-valued
-    table carries no SU(2) matrix, and it lists them in the same order, which is
-    checked.  ``grey`` reads the grey tables, where a complex-conjugate pair is
-    one corep under time reversal (``1E2E``).
-
-    Raises
-    ------
-    ..refusal.InternalError
-        As :func:`_origin_coreps`, or the two tables of one group list different
-        operations.
-    """
-    return _origin_references(grey, False)
-
-
-def _origin_references(grey: bool, double: bool) -> dict:
-    """The body of :func:`_origin_coreps` (``double``) and :func:`_origin_irreps`."""
-    from irreptables.ebrs import load_ebr_data
-    from irreptables.irreps import IrrepTable
-
-    named = _magnetic_numbers() if grey else {}
-    out: dict = {}
-    for sg in range(1, 231):
-        plain = IrrepTable(str(sg), True, magnetic=False)
-        centering = _groups._centering(plain)
-        if not all(_groups._is_translation(np.asarray(sym.t, dtype=float), centering)
-                   for sym in plain.symmetries):
-            continue
-        number = (named.get(str(plain.name).strip() + "1'", "") if grey else str(sg))
-        if not number or number.split(".")[0] != str(sg):
-            raise InternalError(
-                f"irrep's own list of magnetic groups names no grey group of space group "
-                f"{sg} ({plain.name}), so its point-group names cannot be read with time "
-                "reversal.")
-        table = IrrepTable(number, True, magnetic=grey) if grey else plain
-        unitary = [(i + 1, sym) for i, sym in enumerate(table.symmetries)
-                   if not sym.time_reversal]
-        if grey and (len(table.au_symmetries) != len(unitary)
-                     or len(unitary) != len(plain.symmetries)):
-            raise InternalError(
-                f"#{number} is listed as the grey group of space group {sg}, and its "
-                "table does not carry each operation once with time reversal and once "
-                "without.")
-        ops = tuple(_operations_of(table)[:len(unitary)])
-        # the characters: the double-valued table's own, or the single-valued
-        # table of the same group, which has to list the same operations
-        source = table if double else IrrepTable(number, False, magnetic=grey)
-        if not double and (len(source.symmetries) != len(table.symmetries) or any(
-                np.abs(np.asarray(a.R, dtype=float)
-                       - np.asarray(b.R, dtype=float)).max() > _TABLE_MATRIX_TOL
-                or bool(a.time_reversal) != bool(b.time_reversal)
-                for a, b in zip(source.symmetries, table.symmetries))):
-            raise InternalError(
-                f"#{number}'s single- and double-valued tables list different operations "
-                "in one order, so a single-valued character cannot be read on the "
-                "operations the double-valued table orients.")
-        gamma = {str(irr.name): {int(k): complex(v) for k, v in irr.characters.items()}
-                 for irr in source.irreps if str(irr.kpname) == "GM"}
-        raw = load_ebr_data(number, double)
-        letter = _origin_letter(raw, centering)
-        labels = [str(label) for label in raw["basis"]["irrep_labels"]]
-        degeneracy = dict(zip(labels, (int(d) for d in raw["basis"]["degeneracies"])))
-        names = []
-        for entry in raw["ebrs"]:
-            match = re.match(r"^(\d+)([a-zA-Z])\(", str(entry["wyckoff_position"]))
-            if match is None or match.group(2) != letter:
-                continue
-            name = str(entry["ebr_name"]).split("↑")[0]
-            bands = int(re.search(r"\((\d+)\)", str(entry["ebr_name"])).group(1))
-            at_gamma = [(label, int(round(float(m)))) for label, m
-                        in zip(labels, entry["vector"])
-                        if m and kpoint_of_label(label) == "GM"]
-            if (len(at_gamma) != 1 or at_gamma[0][1] != 1
-                    or degeneracy[at_gamma[0][0]] != bands
-                    or at_gamma[0][0] not in gamma):
-                raise InternalError(
-                    f"at the origin of #{number} the site irrep {name} induces "
-                    f"{at_gamma} at Gamma, where a position whose site group is the whole "
-                    "point group induces each site irrep as itself: the EBR list and the "
-                    "irrep table do not agree.")
-            chars = gamma[at_gamma[0][0]]
-            names.append((name, tuple(chars[i] for i, _sym in unitary)))
-        symbol = _sitechars.point_group_of(R for R, _O, _S in ops)
-        out.setdefault(symbol, []).append((number, ops, tuple(names)))
-    return {symbol: tuple(refs) for symbol, refs in out.items()}
-
-
-def _matrix_key(M) -> tuple:
-    """A hashable reading of one Cartesian matrix, to the tables' precision."""
-    return tuple(float(x) + 0.0 for x in np.round(np.asarray(M, dtype=float), 3).ravel())
-
-
-def _proper_axis(R, O) -> tuple:
-    """``(axis, order, det)`` of one operation's proper rotation; ``axis`` ``None`` for ``±1``.
-
-    The order and the determinant are read off the integer matrix ``R``,
-    exactly; the axis off the Cartesian ``O``, oriented so that the rotation
-    turns counterclockwise about it, a twofold's either way.
-    """
-    det = int(round(float(np.linalg.det(np.asarray(R, dtype=float)))))
-    order = _ORDER_OF_TRACE.get(int(round(det * float(np.trace(R)))), 0)
-    if order <= 1:
-        return None, order, det
-    P = det * np.asarray(O, dtype=float)
-    if order == 2:
-        half = (P + np.eye(3)) / 2.0
-        col = int(np.argmax(np.diag(half)))
-        axis = half[:, col]
-    else:
-        axis = np.array([P[2, 1] - P[1, 2], P[0, 2] - P[2, 0], P[1, 0] - P[0, 1]])
-    return axis / np.linalg.norm(axis), order, det
-
-
-def _frame(x, y) -> np.ndarray:
-    """The right-handed orthonormal frame whose first axis is ``x`` and whose second lies towards ``y``."""
-    x = np.asarray(x, dtype=float) / np.linalg.norm(x)
-    y = np.asarray(y, dtype=float) - float(np.asarray(y, dtype=float) @ x) * x
-    y = y / np.linalg.norm(y)
-    return np.stack([x, y, np.cross(x, y)], axis=1)
-
-
-def _rotation_between(a, b) -> np.ndarray:
-    """The proper rotation of least angle taking the unit vector ``a`` to ``b``."""
-    a, b = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
-    v, c = np.cross(a, b), float(a @ b)
-    if float(np.linalg.norm(v)) < 1e-9:
-        if c > 0:
-            return np.eye(3)
-        p = np.cross(a, [1.0, 0.0, 0.0])
-        if float(np.linalg.norm(p)) < 1e-6:
-            p = np.cross(a, [0.0, 1.0, 0.0])
-        p = p / np.linalg.norm(p)
-        return 2.0 * np.outer(p, p) - np.eye(3)
-    K = np.array([[0.0, -v[2], v[1]], [v[2], 0.0, -v[0]], [-v[1], v[0], 0.0]])
-    return np.eye(3) + K + K @ K / (1.0 + c)
-
-
-def _carries(Q, source, target) -> bool:
-    """Whether the rotation ``Q`` carries the operations ``source`` onto ``target``, as sets."""
-    Q = np.asarray(Q, dtype=float)
-    return ({_matrix_key(Q @ np.asarray(O, dtype=float) @ Q.T) for _R, O in source}
-            == {_matrix_key(O) for _R, O in target})
-
-
-def _conjugators(source, target, tol=_TABLE_MATRIX_TOL) -> tuple:
-    """Every proper rotation ``Q`` with ``Q·source·Qᵀ = target``, the two taken as sets.
-
-    ``source`` and ``target`` are ``(R, O)`` per operation, as
-    :func:`_proper_axis` reads them.  A candidate carries an axis of the highest
-    order in ``source`` onto an axis of the same order and determinant in
-    ``target``, and, where ``source`` has a second axis, that one onto one at the
-    same angle; each candidate is kept only where it carries the whole set onto
-    the other.  A group with one axis admits any turn about it, which commutes
-    with every operation and so changes nothing a character sees.
-    """
-    src = [info for info in (_proper_axis(R, O) for R, O in source) if info[0] is not None]
-    dst = [info for info in (_proper_axis(R, O) for R, O in target) if info[0] is not None]
-
-    def carries(Q):
-        return _carries(Q, source, target)
-
-    if not src:
-        return (np.eye(3),) if carries(np.eye(3)) else ()
-    src.sort(key=lambda info: -info[1])
-    first = src[0]
-    second = next((info for info in src
-                   if abs(abs(float(info[0] @ first[0])) - 1.0) > tol), None)
-    candidates = []
-    for n1, order1, det1 in dst:
-        if (order1, det1) != first[1:]:
-            continue
-        for s1 in (1.0, -1.0):
-            if second is None:
-                candidates.append(_rotation_between(first[0], s1 * n1))
-                continue
-            for n2, order2, det2 in dst:
-                if (order2, det2) != second[1:]:
-                    continue
-                for s2 in (1.0, -1.0):
-                    if abs(float(first[0] @ second[0]) - s1 * s2 * float(n1 @ n2)) > tol:
-                        continue
-                    candidates.append(_frame(s1 * n1, s2 * n2)
-                                      @ _frame(first[0], second[0]).T)
-    found = []
-    for Q in candidates:
-        if carries(Q) and not any(float(np.abs(Q - P).max()) < tol for P in found):
-            found.append(Q)
-    return tuple(found)
-
-
-def _su2_of(Q) -> np.ndarray:
-    r"""An SU(2) matrix lifting the proper rotation ``Q``, read off its quaternion.
-
-    ``cos(θ/2) − i sin(θ/2) n·σ`` for a turn by ``θ`` about ``n``, the
-    quaternion taken from the largest of its four squares so that no turn —
-    a half turn included — divides by a small number.  Which of the two lifts
-    comes back does not matter: the matrix is only ever used to conjugate.
-    """
-    U, _s, Vt = np.linalg.svd(np.asarray(Q, dtype=float))
-    Q = U @ Vt
-    trace = float(np.trace(Q))
-    squares = [1.0 + trace, 1.0 + 2.0 * Q[0, 0] - trace,
-               1.0 + 2.0 * Q[1, 1] - trace, 1.0 + 2.0 * Q[2, 2] - trace]
-    k = int(np.argmax(squares))
-    big = np.sqrt(max(squares[k], 0.0)) / 2.0
-    if k == 0:
-        w = big
-        x, y, z = ((Q[2, 1] - Q[1, 2]) / (4 * w), (Q[0, 2] - Q[2, 0]) / (4 * w),
-                   (Q[1, 0] - Q[0, 1]) / (4 * w))
-    elif k == 1:
-        x = big
-        w, y, z = ((Q[2, 1] - Q[1, 2]) / (4 * x), (Q[0, 1] + Q[1, 0]) / (4 * x),
-                   (Q[0, 2] + Q[2, 0]) / (4 * x))
-    elif k == 2:
-        y = big
-        w, x, z = ((Q[0, 2] - Q[2, 0]) / (4 * y), (Q[0, 1] + Q[1, 0]) / (4 * y),
-                   (Q[1, 2] + Q[2, 1]) / (4 * y))
-    else:
-        z = big
-        w, x, y = ((Q[1, 0] - Q[0, 1]) / (4 * z), (Q[0, 2] + Q[2, 0]) / (4 * z),
-                   (Q[1, 2] + Q[2, 1]) / (4 * z))
-    pauli = _groups._PAULI
-    return (w * np.eye(2, dtype=complex)
-            - 1j * (x * pauli[0] + y * pauli[1] + z * pauli[2]))
-
-
-def _carried_characters(reference, here, Q, tol=_TABLE_MATRIX_TOL, *, double=True):
-    """The reference's characters, carried by ``Q`` onto the site's operations.
-
-    ``here`` is ``(R, O, S)`` per operation of the site.  Each is the image under
-    ``Q`` of one reference operation, and its SU(2) matrix the image of that
-    operation's under the lift of ``Q`` up to a sign: the sign is the tables'
-    own choice of lift for the two, and a double-valued character carries it,
-    since the other lift is the operation times the rotation by ``2π``.  A
-    single-valued character (``double=False``) is the operation's own and
-    carries no sign.  Returns ``[(name, [character per site operation])]``, or
-    ``None`` where some operation has no image.
-    """
-    _number, ops, names = reference
-    by_key = {_matrix_key(O): i for i, (_R, O, _S) in enumerate(ops)}
-    V = _su2_of(Q)
-    back = []
-    for _R, O, S in here:
-        i = by_key.get(_matrix_key(Q.T @ np.asarray(O, dtype=float) @ Q))
-        if i is None:
-            return None
-        if not double:
-            back.append((i, 1.0))
-            continue
-        carried = V @ ops[i][2] @ V.conj().T
-        lam = complex(np.trace(np.asarray(S, dtype=complex).conj().T @ carried)) / 2.0
-        if abs(abs(lam) - 1.0) > tol or abs(lam.imag) > tol:
-            return None
-        back.append((i, 1.0 if lam.real > 0 else -1.0))
-    return [(name, [sign * chars[i] for i, sign in back]) for name, chars in names]
-
-
-def _point_group_names(group, table) -> tuple:
-    r"""Each row of a site table, with the spin, named by the site point group's own irreps.
-
-    The row times the operations' spin-½ lift is the double-valued site
-    representation the states carry; it is decomposed over the double-valued
-    irreps of the site's point group as the tables name them at the origin of a
-    symmorphic group (:func:`_origin_coreps`), grey where the group carries time
-    reversal, and spelled as the sum of what it holds (``"-1E2E + -E1"``).
-
-    **Which reference, and how the characters are carried.**  Where the site's
-    operations are, as Cartesian matrices in the tables' own frame, exactly the
-    operations of a symmorphic group's origin — the same axes, the same senses —
-    the lowest-numbered such group is the reference and each character is read
-    off the operation it is of, its sign the tables' own lift.  Otherwise the
-    reference is the lowest-numbered group of the point group and the
-    characters are carried by every rotation taking its origin's operations
-    onto the site's: a row takes a name where all of them agree on it.  They
-    agree on every double-valued name of a grey group, and where they part —
-    the ``1``/``2`` members of a complex-conjugate pair of a group without time
-    reversal, whose names follow a sense of rotation no table fixes at an axis
-    no symmorphic origin shares — the row is left unnamed.
-
-    Returns
-    -------
-    tuple
-        One label per row of ``table``, ``""`` where nothing names it.
-    """
-    names = _point_group_reading(group, table, double=True)
-    return ("",) * len(table.labels) if names is None else names
-
-
-def _point_group_irreps(group, table):
-    r"""Each row of a site table named by the site point group's own single-valued irreps.
-
-    :func:`_point_group_names` without the spin: the row itself, the orbital
-    character, decomposed over the single-valued irreps of the site's point
-    group as the tables name them at the origin of a symmorphic group
-    (:func:`_origin_irreps`), grey where the table's rows are glued by time
-    reversal.  The same irrep then has the tables' name at every position, the
-    ones their entries list and the ones they do not; a ``1``/``2`` member of a
-    complex-conjugate pair whose name follows a sense of rotation no table
-    fixes at this site is left unnamed.
-
-    Returns
-    -------
-    tuple or None
-        One label per row, ``""`` where the references do not agree on one, and
-        ``None`` where no reference reads the site at all, the tables not set up
-        for the group.
-    """
-    return _point_group_reading(group, table, double=False)
-
-
-def _point_group_reading(group, table, *, double):
-    """:func:`_point_group_names` (``double``) or :func:`_point_group_irreps`; ``None`` where unread."""
-    if not getattr(group, "_tables_ready", False) or (double and not group.spinor):
-        return None
-    symbol = _sitechars.point_group_symbol(group, table.indices)
-    if double:
-        references = _origin_coreps(_groups._magnetic_type(group) == "II").get(symbol, ())
-    else:
-        references = _origin_irreps(bool(getattr(table, "antiunitary", ()))).get(symbol, ())
-    tabulated = _tabulated_operations(str(group.number_str), bool(group.magnetic))
-    if not references or len(tabulated) != len(group.symmetries):
-        return None
-    here = [tabulated[int(ind) - 1] for ind in table.indices]
-    target = [(R, O) for R, O, _S in here]
-    aligned = next((reference for reference in references
-                    if _carries(np.eye(3), [(R, O) for R, O, _S in reference[1]], target)),
-                   None)
-    if aligned is not None:
-        readings = [_carried_characters(aligned, here, np.eye(3), double=double)]
-    else:
-        readings = [_carried_characters(references[0], here, Q, double=double) for Q in
-                    _conjugators([(R, O) for R, O, _S in references[0][1]], target)]
-    if not readings or any(reading is None for reading in readings):
-        return None
-    pos_of = {int(s.ind): i for i, s in enumerate(group.symmetries)}
-    lift = ([complex(np.trace(np.asarray(group.symmetries[pos_of[int(ind)]].spinor_rotation)))
-             for ind in table.indices] if double else [1.0] * len(table.indices))
-    out = []
-    for row in range(len(table.labels)):
-        chi = np.array([table.character_on(row, int(ind)) * lift[j]
-                        for j, ind in enumerate(table.indices)], dtype=complex)
-        spelled = set()
-        for reading in readings:
-            basis = np.array([chars for _name, chars in reading], dtype=complex).T
-            n = np.linalg.lstsq(basis, chi, rcond=None)[0]
-            whole = np.round(n.real)
-            if (float(np.abs(basis @ whole - chi).max()) > _TABLE_MATRIX_TOL
-                    or float(np.abs(n - whole).max()) > _TABLE_MATRIX_TOL
-                    or float(whole.min()) < 0 or not whole.any()):
-                spelled.add("")
-                continue
-            spelled.add(_spelled([name for (name, _chars), m in zip(reading, whole)
-                                  for _ in range(int(m))]))
-        out.append(spelled.pop() if len(spelled) == 1 else "")
-    return tuple(out)
-
-
 # --------------------------------------------------------------------------
 # the in-plane restriction
 # --------------------------------------------------------------------------
@@ -2165,10 +865,10 @@ def in_plane_restriction(group, *, points=None, require_exact=True,
         no elementary band representations of this group, or no tables in this
         cell.
     """
-    gate = _groups._lattice_not_descended(group)
+    gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
-    data = _groups.ebr_data(group)
+    data = _tables.ebr_data(group)
     if isinstance(data, Refusal):
         return data
     labels = list(data["labels_physics_convention"])
@@ -2179,7 +879,7 @@ def in_plane_restriction(group, *, points=None, require_exact=True,
         matrix = matrix[:, list(_layer["columns"])]
 
     if points is None:
-        hsp = _groups.high_symmetry_points(group)
+        hsp = _tables.high_symmetry_points(group)
         if isinstance(hsp, Refusal):
             return hsp
         points = tuple(hsp)
@@ -2200,7 +900,7 @@ def in_plane_restriction(group, *, points=None, require_exact=True,
     # and keep the positions within it within it.  That is a statement about
     # the whole plane, so it is checked where every point of it was compared
     if _layer is not None and missing:
-        hsp = _groups.high_symmetry_points(group)
+        hsp = _tables.high_symmetry_points(group)
         whole = not isinstance(hsp, Refusal) and set(hsp) <= set(points)
         off_plane = set(hsp.missing) if whole else set()
         unrepeated = [label for label in missing if kpoint_of_label(label) in off_plane]
@@ -2233,7 +933,6 @@ def in_plane_restriction(group, *, points=None, require_exact=True,
         layer_extent=None if _layer is None else tuple(_layer["extent"]),
         outside_layer={} if _layer is None else dict(_layer["outside"]))
 
-
 def _layer_reading(group, data, rep=None):
     r"""The band representations a layer's atomic limits are written over, or ``None`` for a crystal.
 
@@ -2263,7 +962,7 @@ def _layer_reading(group, data, rep=None):
     padded = tuple(int(d) for d in (getattr(group, "vacuum_dirs", ()) or ()))
     if int(getattr(group, "dim_k", 3)) >= 3 or len(padded) != 1:
         return None
-    if isinstance(_groups.wyckoff_sites_tables(group), Refusal):
+    if isinstance(_tables.wyckoff_sites_tables(group), Refusal):
         return None              # the letters are keys only once the settings agree
     normal_dir = padded[0]
     lattice = np.asarray(group.lattice, dtype=float)
@@ -2277,7 +976,6 @@ def _layer_reading(group, data, rep=None):
 
     model = getattr(rep, "model", None)
     if model is not None:
-        from .symmetry import _orb_positions_3d
 
         where = _orb_positions_3d(model, group)
     else:
@@ -2287,7 +985,7 @@ def _layer_reading(group, data, rep=None):
     margin = float(group.symprec)
     refuc = np.asarray(group._refUC, dtype=float)
     shift = np.asarray(group._shiftUC, dtype=float)
-    arms_of = {p["letter"]: p["arms"] for p in _groups._pyxtal_wyckoff(int(group.sg_number))[0]}
+    arms_of = {p["letter"]: p["arms"] for p in _spacegroup._pyxtal_wyckoff(int(group.sg_number))[0]}
     columns, outside = [], {}
     for j, (_name, position) in enumerate(data["ebrs"]):
         arms = arms_of[_letter_only(position)]
@@ -2301,19 +999,81 @@ def _layer_reading(group, data, rep=None):
             outside[_wyckoff_letter(position)] = heights
     return {"columns": tuple(columns), "outside": outside, "extent": (lowest, highest)}
 
-
 # --------------------------------------------------------------------------
 # the integer solve
 # --------------------------------------------------------------------------
 
 _NO_BLOCK = object()
 
+def _same_group(a, b) -> bool:
+    """Whether two group records are one group written in one cell.
+
+    The same entry of the tables, the same lattice and the same operations,
+    each rotation exactly and each translation modulo the lattice to rounding:
+    two records of one measurement are one group, and a group written in
+    another cell, or another group, is not.
+    """
+    if a is b:
+        return True
+    if ((str(a.number_str), bool(a.spinor), bool(a.magnetic))
+            != (str(b.number_str), bool(b.spinor), bool(b.magnetic))):
+        return False
+    if len(a.symmetries) != len(b.symmetries):
+        return False
+    if not np.allclose(np.asarray(a.lattice, dtype=float), np.asarray(b.lattice, dtype=float)):
+        return False
+
+    def keyed(symmetries):
+        out = set()
+        for sym in symmetries:
+            rot = tuple(int(x) for x in np.asarray(sym.rotation).reshape(-1))
+            trans = np.asarray(sym.translation, dtype=float)
+            trans = trans - np.floor(trans + ROUNDING)
+            out.add((rot, tuple(int(x) for x in np.round(trans / ROUNDING))))
+        return out
+
+    return keyed(a.symmetries) == keyed(b.symmetries)
+
+def _same_rep(a, b) -> bool:
+    """Whether two representations are one: the same group, the same operations and the same matrices."""
+    if a is b:
+        return True
+    if not _same_group(a.group, b.group):
+        return False
+    if tuple(a.indices) != tuple(b.indices) or tuple(a.antiunitary) != tuple(b.antiunitary):
+        return False
+    return all(np.allclose(a.matrices[i], b.matrices[i]) for i in a.indices)
+
+def _table_binding(content, group, rep, *, where):
+    """A table is read in one group with one representation, and is read with no other.
+
+    An :class:`~.sewing.HSPTable` carries the representation it was read with
+    on ``rep``; a group handed in beside it that is not that representation's,
+    or a ``rep=`` that is not it, is a contradiction only the call can resolve,
+    as ``bands=`` naming other bands is, and is raised.  A content written out
+    by hand carries nothing and takes its group as given.
+    """
+    own = getattr(content, "rep", None) if hasattr(content, "counts") else None
+    if own is None:
+        return
+    if not _same_group(group, own.group):
+        raise ValueError(
+            f"{where}(): the table was read in {own.group.name} #{own.group.number_str}, "
+            f"and group is {group.name} #{group.number_str}. A table's labels are the "
+            "coreps of the group it was read in, so there is nothing to read in another "
+            "group; the table carries its own as t.rep.group, and hsp_table(rep, bands=...) "
+            "on a representation of the other group reads the bands in that one.")
+    if rep is not None and not _same_rep(rep, own):
+        raise ValueError(
+            f"{where}(): rep= is not the representation the table was read with, which "
+            "the table carries as t.rep: its group, its operations or its matrices differ. "
+            "The labels were read off t.rep, so another representation says nothing about "
+            "them; pass t.rep, or read the bands again with hsp_table(rep, bands=...).")
 
 def _table_bands(table):
     """The band block an :class:`~.sewing.HSPTable` was handed, as it was handed in."""
     block = getattr(table, "bands", _NO_BLOCK)
     return getattr(table, "occ", None) if block is _NO_BLOCK else block
-
 
 def _table_nstate(table):
     """How many states the fiber a table was measured on carries, if it says.
@@ -2327,7 +1087,6 @@ def _table_nstate(table):
         if spectrum is not None and len(spectrum):
             return int(len(spectrum))
     return None
-
 
 def _as_block(bands, nstate):
     """``bands`` as sorted band indices, or ``None`` when it names none.
@@ -2343,7 +1102,6 @@ def _as_block(bands, nstate):
     if np.isscalar(bands):
         return tuple(range(int(bands)))
     return tuple(sorted(int(b) for b in bands))
-
 
 def _bands_of(content, bands, *, where):
     """Which bands a call is about, table and declaration agreed.
@@ -2372,7 +1130,6 @@ def _bands_of(content, bands, *, where):
             "measurement and `bands=` is an assertion about which bands it counts; "
             "they disagree, so there is nothing to report on.")
     return own if own is not None else asked
-
 
 def _band_count_rows(group, table, data, block, counts, resolved):
     """``(counts, resolved)`` with the points a table skipped read as the band count.
@@ -2405,7 +1162,6 @@ def _band_count_rows(group, table, data, block, counts, resolved):
         resolved = tuple(resolved) + tuple(name for name in skipped if name not in resolved)
     return counts, resolved
 
-
 def _resolved_points(table, points, *, where):
     """Which k-point names the restriction runs over, table and declaration agreed.
 
@@ -2429,7 +1185,6 @@ def _resolved_points(table, points, *, where):
             "asked; they disagree, so there is nothing to restrict to.")
     return resolved
 
-
 def _cpsat(matrix, y, lo, hi, cap):
     """Enumerate ``{x integer, lo ≤ x ≤ hi : M x = y}`` — CP-SAT, status reported.
 
@@ -2439,7 +1194,7 @@ def _cpsat(matrix, y, lo, hi, cap):
     point of a "proof of none".  So the model is built here, over whatever
     matrix the restriction produced, and the solver's status enum is returned
     with the solutions.  (Building it here also sidesteps the ortools-9.15
-    ``status_name`` breakage ``groups._ebr_solve_shim`` works around.)
+    ``status_name`` breakage ``_tables._ebr_solve_shim`` works around.)
     """
     from ortools.sat.python import cp_model
 
@@ -2473,7 +1228,6 @@ def _cpsat(matrix, y, lo, hi, cap):
             tuple(sorted(found, key=lambda t: (sum(abs(v) for v in t), t))),
             collector.truncated)
 
-
 def _content_system(data, counts, retained):
     """``(matrix, y, bound)``: the EBR matrix and the content on the rows ``retained``.
 
@@ -2487,7 +1241,6 @@ def _content_system(data, counts, retained):
     y = np.array([int(counts.get(label, 0)) for label in retained], dtype=int)
     return matrix, y, int(max(int(y.max()) if y.size else 0, 1))
 
-
 def _lifted(solutions, columns, n) -> tuple:
     """Solutions over the band representations ``columns`` as multiplicities over all ``n``."""
     out = []
@@ -2497,7 +1250,6 @@ def _lifted(solutions, columns, n) -> tuple:
             vector[int(j)] = int(multiplicity)
         out.append(tuple(vector))
     return tuple(out)
-
 
 def _ordered(solutions) -> tuple:
     """Sums of elementary band representations, the fewest in all first, then in the tables' order.
@@ -2509,14 +1261,12 @@ def _ordered(solutions) -> tuple:
     return tuple(sorted(solutions, key=lambda s: (sum(abs(int(m)) for m in s),
                                                   tuple(-int(m) for m in s))))
 
-
 def _terms(solutions, ebrs):
     out = []
     for s in solutions:
         out.append(tuple((int(m), str(ebrs[j][0]), str(ebrs[j][1]))
                          for j, m in enumerate(s) if m))
     return tuple(out)
-
 
 def _site_content_record(rep):
     """The site content a record's labels rest on, or ``None`` without a ``rep``."""
@@ -2529,7 +1279,6 @@ def _site_content_record(rep):
             "irreps": tuple(str(x) for x in ch.irreps),
             "determined_by": tuple(str(o.determined_by) for o in ch.orbitals),
             "residual": float(ch.residual)}
-
 
 # --------------------------------------------------------------------------
 # the public solvers
@@ -2590,7 +1339,8 @@ def decompose(content, group, *, rep=None, points=None, allow_incomplete=False,
     ------
     ValueError
         ``bands=`` or ``points=`` naming other bands or points than the table
-        measured.
+        measured; or a group, or ``rep=``, that is not the one the table was
+        read in, which it carries as ``t.rep``.
     ..refusal.InternalError
         On a layer's own band representations a corep out of its plane repeats
         none in it: the package disagreeing with itself.
@@ -2619,7 +1369,7 @@ def decompose(content, group, *, rep=None, points=None, allow_incomplete=False,
     >>> d.verdict, d.positions                                        # doctest: +SKIP
     ('symmetry-indicated decomposable', (('1b', '2c'), ('1a', '1a', '1b'), ('1b', '1b', '1b')))
     """
-    gate = _groups._lattice_not_descended(group)
+    gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
     counts = content_of(content)
@@ -2627,6 +1377,7 @@ def decompose(content, group, *, rep=None, points=None, allow_incomplete=False,
         return counts
 
     table = content if hasattr(content, "counts") else None
+    _table_binding(content, group, rep, where="decompose")
     block = _bands_of(content, bands, where="decompose")
     skipped = dict(getattr(table, "skipped", {}) or {}) if table is not None else {}
     refused = ({name: r.gate for name, r in (table.refusals or {}).items()}
@@ -2644,7 +1395,7 @@ def decompose(content, group, *, rep=None, points=None, allow_incomplete=False,
             context={"refusals": refused, "skipped": tuple(skipped),
                      "resolved": tuple(getattr(table, "content", {}))})
 
-    data = _groups.ebr_data(group)
+    data = _tables.ebr_data(group)
     if isinstance(data, Refusal):
         return data
     labels_all = list(data["labels_physics_convention"])
@@ -2764,219 +1515,11 @@ def decompose(content, group, *, rep=None, points=None, allow_incomplete=False,
         n_bands=None if block is None else len(block),
         _status=status)
 
-
-# --------------------------------------------------------------------------
-# the Smith path: exact integer arithmetic, shared with the future witness
-# --------------------------------------------------------------------------
-
-def _snf(matrix):
-    """Smith normal form over ℤ, by elimination: ``(U, D, V)`` with ``U M V = D``.
-
-    Deterministic and exact — plain Python integers throughout, no floats and no
-    pivoting choices left to chance, so two runs on the same table return the
-    same matrices.  ``U`` and ``V`` are unimodular and ``D`` is diagonal with
-    ``d_i | d_{i+1}``.  Written out here rather than delegated because it is the
-    *verifier*: its whole job is to be an independent computation of the Smith
-    form ``irreptables`` ships.
-    """
-    A = [[int(x) for x in row] for row in matrix]
-    m = len(A)
-    n = len(A[0]) if m else 0
-    U = [[int(i == j) for j in range(m)] for i in range(m)]
-    V = [[int(i == j) for j in range(n)] for i in range(n)]
-
-    def rswap(i, j):
-        A[i], A[j] = A[j], A[i]
-        U[i], U[j] = U[j], U[i]
-
-    def cswap(i, j):
-        for r in A:
-            r[i], r[j] = r[j], r[i]
-        for r in V:
-            r[i], r[j] = r[j], r[i]
-
-    def radd(dst, src, c):
-        A[dst] = [a + c * b for a, b in zip(A[dst], A[src])]
-        U[dst] = [a + c * b for a, b in zip(U[dst], U[src])]
-
-    def cadd(dst, src, c):
-        for r in A:
-            r[dst] += c * r[src]
-        for r in V:
-            r[dst] += c * r[src]
-
-    t = 0
-    while t < min(m, n):
-        piv = None
-        for i in range(t, m):
-            for j in range(t, n):
-                if A[i][j] and (piv is None or abs(A[i][j]) < abs(A[piv[0]][piv[1]])):
-                    piv = (i, j)
-        if piv is None:
-            break
-        rswap(t, piv[0])
-        cswap(t, piv[1])
-        while True:
-            for i in range(t + 1, m):
-                if A[i][t]:
-                    radd(i, t, -(A[i][t] // A[t][t]))
-            bad = next((i for i in range(t + 1, m) if A[i][t]), None)
-            if bad is not None:
-                rswap(t, bad)
-                continue
-            for j in range(t + 1, n):
-                if A[t][j]:
-                    cadd(j, t, -(A[t][j] // A[t][t]))
-            bad = next((j for j in range(t + 1, n) if A[t][j]), None)
-            if bad is not None:
-                cswap(t, bad)
-                continue
-            off = next(((i, j) for i in range(t + 1, m) for j in range(t + 1, n)
-                        if A[i][j] % A[t][t]), None)
-            if off is None:
-                break
-            radd(t, off[0], 1)                 # pull a non-divisible entry into the row
-        if A[t][t] < 0:
-            A[t] = [-a for a in A[t]]
-            U[t] = [-a for a in U[t]]
-        t += 1
-    return U, A, V
-
-
-def _matmul(a, b):
-    """Exact integer matrix product of two lists of lists."""
-    n = len(b)
-    return [[sum(row[k] * b[k][j] for k in range(n)) for j in range(len(b[0]))]
-            for row in a]
-
-
-def _unimodular_inverse(u):
-    """The (integer) inverse of a unimodular integer matrix, by exact elimination."""
-    from fractions import Fraction
-
-    n = len(u)
-    a = [[Fraction(int(x)) for x in row] + [Fraction(int(i == j)) for j in range(n)]
-         for i, row in enumerate(u)]
-    for c in range(n):
-        p = next((r for r in range(c, n) if a[r][c]), None)
-        if p is None:
-            raise InternalError(
-                "the tabulated Smith factor u is singular, so it is not a change of "
-                "basis at all; the shipped Smith form is not one.")
-        a[c], a[p] = a[p], a[c]
-        piv = a[c][c]
-        a[c] = [x / piv for x in a[c]]
-        for r in range(n):
-            if r != c and a[r][c]:
-                f = a[r][c]
-                a[r] = [x - f * y for x, y in zip(a[r], a[c])]
-    out = []
-    for r in range(n):
-        row = []
-        for x in a[r][n:]:
-            if x.denominator != 1:
-                raise InternalError(
-                    "the tabulated Smith factor u has a non-integer inverse, so it is "
-                    "not unimodular; the shipped Smith form is not one.")
-            row.append(int(x))
-        out.append(row)
-    return out
-
-
-def _smith_system(data, number_str):
-    """``(u, v, d, matrix)`` from :func:`.groups.ebr_data`, as exact integers.
-
-    ``d`` is the diagonal of ``R`` extended with zeros to one entry per EBR row, so
-    ``d[i] == 0`` says exactly "row ``i`` of ``R`` is empty", which is the
-    compatibility-relation half of ``y'``.  ``irreptables`` stores a degenerate
-    Smith factor as a bare scalar where the group has a single EBR column
-    (measured on 63 of the 920 unitary-and-grey systems); both shapes are
-    normalized here.
-    """
-    u, r, v = data["smith"]
-    matrix = np.asarray(data["matrix"], dtype=int)
-    n_row, n_col = matrix.shape
-    u = np.asarray(u, dtype=int)
-    r = np.asarray(r, dtype=int)
-    v = np.atleast_2d(np.asarray(v, dtype=int))
-    if u.shape != (n_row, n_row) or v.shape != (n_col, n_col):
-        raise InternalError(
-            f"#{number_str}: the tabulated Smith factors have shapes u{u.shape}, "
-            f"v{v.shape} against an EBR matrix {matrix.shape}. The Smith form the "
-            "tables ship is what fixes this package's indicator basis, so a shape "
-            "that cannot be that form is a bug here, not a property of the model.")
-    if r.ndim == 1:                            # single EBR column: R is stored flat
-        d = [int(x) if i == 0 else 0 for i, x in enumerate(r)]
-    else:
-        diag = [int(r[i, i]) for i in range(min(r.shape))]
-        d = diag + [0] * (n_row - len(diag))
-    return ([[int(x) for x in row] for row in u], [[int(x) for x in row] for row in v],
-            d, [[int(x) for x in row] for row in matrix])
-
-
-def _filled_content(counts, restriction, labels):
-    """``(y, reconstructed)``: the content on every row of the basis, a dropped row read off the row it repeats.
-
-    A dropped row that duplicates a kept one carries that row's multiplicity
-    in any sum of the band representations it was compared on, so its value is
-    arithmetic and nothing is guessed: :func:`symmetry_indicator` and
-    :func:`decompose` complete the vector this way before the compatibility
-    relations are read, each once every dropped row repeats a kept one.  A
-    value supplied for a dropped row is left as it is, and the relations say
-    whether it agrees.
-    """
-    filled = dict(counts)
-    reconstructed = {}
-    for dropped, sources in restriction.copies.items():
-        if not sources or dropped in counts:
-            continue
-        filled[dropped] = int(counts.get(sources[0], 0))
-        reconstructed[str(dropped)] = str(sources[0])
-    return [int(filled.get(label, 0)) for label in labels], reconstructed
-
-
-def _compatibility(data, number_str, labels, y):
-    """``(smith, y_prime, refusal)``: the content in the Smith coordinates of the EBR matrix.
-
-    ``smith`` is :func:`_smith_system`'s ``(u, v, d, matrix)`` and ``y_prime``
-    is ``u y``.  The coordinates where ``d`` is zero vanish for every band
-    structure of the group -- they are its compatibility relations -- and
-    ``refusal`` is ``"not_a_band_structure"`` where one does not, ``None``
-    otherwise.  :func:`symmetry_indicator` reads its class off the same
-    coordinates, and :func:`decompose` asks the same question before it solves.
-    """
-    u, v, d, matrix = _smith_system(data, number_str)
-    y_prime = [sum(u[i][j] * y[j] for j in range(len(y))) for i in range(len(u))]
-    off = [(i, labels[i] if i < len(labels) else i, y_prime[i])
-           for i in range(len(y_prime)) if d[i] == 0 and y_prime[i]]
-    if not off:
-        return (u, v, d, matrix), y_prime, None
-    return (u, v, d, matrix), y_prime, Refusal(
-        "not_a_band_structure",
-        f"the content violates {len(off)} of #{number_str}'s compatibility "
-        f"relations: the Smith coordinates {[(i, int(v2)) for i, _l, v2 in off]} must "
-        "vanish for any band structure of this group and do not. These multiplicities "
-        "are those of no set of bands separated from the rest at every k-point, as when "
-        "the bands counted cut through a crossing between two high-symmetry points, so "
-        "they have no class in {BS}/{AI} and no decomposition. Check that a gap separates "
-        "the bands counted from the others at every k-point and that the labels came "
-        "from this group.",
-        value=float(max(abs(int(v2)) for _i, _l, v2 in off)), threshold=0.0,
-        context={"violations": tuple((int(i), str(l), int(v2)) for i, l, v2 in off),
-                 "y_prime": tuple(int(x) for x in y_prime),
-                 "number_str": str(number_str)})
-
-
-def _structure(divisors) -> str:
-    return " x ".join(f"Z{d}" for d in divisors) or "trivial"
-
-
 #: ``"I"`` (unitary), ``"II"`` (grey), ``"III"`` or ``"IV"``, measured from the
 #: operations rather than parsed out of a BNS number.  One detector serves the
-#: whole package: :func:`..groups._group_of` gates on it at construction, and
+#: whole package: :func:`.._spacegroup._group_of` gates on it at construction, and
 #: :func:`symmetry_indicator` re-checks it here.
-_magnetic_type = _groups._magnetic_type
-
+_magnetic_type = _spacegroup._magnetic_type
 
 @lru_cache(maxsize=None)
 def _indicator_formulas(spinor: bool, magnetic: bool) -> dict:
@@ -2991,7 +1534,6 @@ def _indicator_formulas(spinor: bool, magnetic: bool) -> dict:
     from irreptables.symmetry_indicators import load_si_table
 
     return load_si_table(spinor=spinor, magnetic=magnetic)
-
 
 def _named_forms(group, data, matrix, y, magnetic_type):
     """``irreptables``' named indicator forms for the group, in this package's convention.
@@ -3080,7 +1622,6 @@ def _named_forms(group, data, matrix, y, magnetic_type):
                                     "permutation of the change of convention and "
                                     "checked to vanish on every EBR of this group"), coeffs
 
-
 def _two_dimensional_reading(group, labels, u, slots, divisors, values, coeffs,
                              plane=None):
     """For a layer: the class read in a three-dimensional group, and its rows out of the plane.
@@ -3114,7 +1655,7 @@ def _two_dimensional_reading(group, labels, u, slots, divisors, values, coeffs,
     if plane is None:
         if int(getattr(group, "dim_k", 3)) >= 3:
             return None                        # a fully periodic model
-        hsp = _groups.high_symmetry_points(group)
+        hsp = _tables.high_symmetry_points(group)
         if isinstance(hsp, Refusal):
             return None
         in_plane = set(hsp)
@@ -3160,7 +1701,6 @@ def _two_dimensional_reading(group, labels, u, slots, divisors, values, coeffs,
             "components": components, "irreptables_support": support,
             "note": note}
 
-
 def _block_characters(record) -> dict:
     """``{ind: tr B(g, k)}`` of a whole band block, from a :class:`.sewing.CorepContent`."""
     rows = np.asarray(record.table.characters, dtype=complex)
@@ -3168,22 +1708,14 @@ def _block_characters(record) -> dict:
                                                         dtype=complex)
     return {int(c): complex(v) for c, v in zip(record.table.columns, total)}
 
-
 def _same_k(k_a, k_b, *, atol=1e-6) -> bool:
     """Equal reduced k in the plane, modulo a reciprocal lattice vector."""
     d = np.asarray(k_a, dtype=float).reshape(-1)[:2] - np.asarray(
         k_b, dtype=float).reshape(-1)[:2]
     return bool(np.allclose(d, np.round(d), atol=atol))
 
-
-def _divisors_of(data, number_str) -> tuple:
-    """The nontrivial elementary divisors of a group's EBR matrix — its ``X_BS``."""
-    return tuple(int(x) for x in _smith_system(data, number_str)[2] if int(x) > 1)
-
-
 #: The ``k_z`` at which the decoupled stack's Hamiltonian is held to the layer's.
 _KZ_PROBE = (0.0, 0.25, 0.5)
-
 
 def _stack_record(table, group, rep, restriction, *, c, environment, note) -> dict:
     """The record a decoupled stack's measurement starts from: the layer as handed in."""
@@ -3202,7 +1734,6 @@ def _stack_record(table, group, rep, restriction, *, c, environment, note) -> di
         "stack": {}, "gates": {}, "note": note,
     }
 
-
 def _stack_hamiltonian(rep, c):
     """The layer's decoupled stack, and how far its ``H(k, k_z)`` is from the layer's ``H(k)``.
 
@@ -3218,7 +1749,7 @@ def _stack_hamiltonian(rep, c):
     and is held to zero (``"at_zero"``), the stack's period (``"period"``) and
     the layer's extent along its normal (``"extent"``).
     """
-    stack = _groups.stack_presentation(rep.model, c=c)
+    stack = _layers.stack_presentation(rep.model, c=c)
     if isinstance(stack, Refusal):
         return stack, None
     period = float(np.linalg.norm(np.asarray(stack.lat_vecs, dtype=float)[2]))
@@ -3245,7 +1776,6 @@ def _stack_hamiltonian(rep, c):
     return stack, {"residual": worst, "threshold": threshold, "at_zero": at_zero,
                    "period": period, "extent": extent}
 
-
 def _identity_record(rep, identity) -> dict:
     """The stack's Hamiltonian against the layer's, and the hoppings between copies."""
     return {"hamiltonian_identity": {
@@ -3260,11 +1790,9 @@ def _identity_record(rep, identity) -> dict:
                 "n_hoppings": int(rep.model.nhops), "worst": 0,
                 "note": "measured by stack_presentation, which refuses on any nonzero"}}
 
-
 def _identity_holds(identity) -> bool:
     """Whether the stack is the layer: equal at ``k_z = 0``, to the gauge's rounding elsewhere."""
     return identity["at_zero"] == 0.0 and identity["residual"] <= identity["threshold"]
-
 
 def _shared_characters(table, table3, matched) -> tuple:
     """The two presentations' band characters where they meet.
@@ -3292,7 +1820,6 @@ def _shared_characters(table, table3, matched) -> tuple:
                     n += 1
                     worst = max(worst, abs(x - chi3[j3]))
     return worst, n, tuple(shared)
-
 
 def _stack_fibers(table3, tol) -> tuple:
     """Each fiber at ``k_z = ½`` against the fiber in the plane at the same in-plane k.
@@ -3331,7 +1858,6 @@ def _stack_fibers(table3, tol) -> tuple:
                 return tuple(fibers), fibers[-1]
     return tuple(fibers), None
 
-
 def _stack_reading(group, g3, indicator3, data3):
     """The two-dimensional reading of a class completed on the stack.
 
@@ -3340,7 +1866,7 @@ def _stack_reading(group, g3, indicator3, data3):
     group's own, split by whether their k lies in the layer's plane, and no
     name is carried across.
     """
-    hsp3 = _groups.high_symmetry_points(g3)
+    hsp3 = _tables.high_symmetry_points(g3)
     in_plane = () if isinstance(hsp3, Refusal) else tuple(
         n for n, k in hsp3.items()
         if abs(float(np.asarray(k, dtype=float).reshape(-1)[2])
@@ -3358,7 +1884,6 @@ def _stack_reading(group, g3, indicator3, data3):
                "vacuum_dirs": tuple(int(p) for p in group.vacuum_dirs),
                "presentation": "decoupled-STACK"})
 
-
 def _stack_in_group(table, group, rep, restriction, *, c, bands, verify, characters_tol):
     """The rows at ``k_z = ½`` measured on the layer's decoupled stack, in the layer's own group.
 
@@ -3368,7 +1893,7 @@ def _stack_in_group(table, group, rep, restriction, *, c, bands, verify, charact
     translation, carries one copy onto itself and is an operation of the
     layer, and an operation of the layer is one of the stack's.  So the stack's
     group is the group handed in, carried onto the stack's cell by each
-    operation's Cartesian action (:func:`.groups._layer_on_stack`), and its
+    operation's Cartesian action (:func:`._layers._layer_on_stack`), and its
     matrices are the layer's own, the orbitals being the same; neither is
     measured again.  What the stack adds is a crystal with the points at
     ``k_z = ½``, and the rows there are measured on it.
@@ -3388,7 +1913,6 @@ def _stack_in_group(table, group, rep, restriction, *, c, bands, verify, charact
         physics guarantees all four, so a failure is the package disagreeing
         with itself, and the message names the check and its number.
     """
-    from .symmetry import covariance_gate
 
     record = _stack_record(
         table, group, rep, restriction, c=c,
@@ -3438,10 +1962,10 @@ def _stack_in_group(table, group, rep, restriction, *, c, bands, verify, charact
     if unrepresented:
         return stop("representation",
                     "the representation handed in has no matrix for operations "
-                    f"{_sewing._runs(unrepresented)} of {group.name} #{group.number_str}, "
+                    f"{_text._runs(unrepresented)} of {group.name} #{group.number_str}, "
                     "so the decoupled stack's rows at k_z = ½ cannot be read in that group",
                     unrepresented=unrepresented)
-    g3, asg3 = _groups._layer_on_stack(group, rep.assignment, stack)
+    g3, asg3 = _layers._layer_on_stack(group, rep.assignment, stack)
     by_ind = {int(s.ind): s for s in g3.symmetries}
     rng = np.random.default_rng(20241004)
     battery = rng.uniform(-0.5, 0.5, size=(8, 3))
@@ -3512,16 +2036,15 @@ def _stack_in_group(table, group, rep, restriction, *, c, bands, verify, charact
     if isinstance(indicator3, Refusal):
         return stop("stack_indicator", f"{within} has no class there: "
                     + indicator3.reason, gate=indicator3.gate)
-    data3 = _groups.ebr_data(g3)
+    data3 = _tables.ebr_data(g3)
     record["stack"]["divisors"] = _divisors_of(data3, g3.number_str)
     record["outcome"] = "completed"
     return replace(indicator3, completion=record,
                    two_dimensional=_stack_reading(group, g3, indicator3, data3)), record
 
-
 def symmetry_indicator(content, group, *, rep=None, points=None, bands=None,
                        verify=True,
-                       stack_period=_groups.STACK_C) -> SymmetryIndicator | Refusal:
+                       stack_period=_layers.STACK_C) -> SymmetryIndicator | Refusal:
     r"""The symmetry-indicator class of a band set's content: the class of its symmetry vector among the band structures modulo the atomic limits.
 
     A nonzero class says no band set with this content is an atomic limit, nor
@@ -3571,7 +2094,8 @@ def symmetry_indicator(content, group, *, rep=None, points=None, bands=None,
     ------
     ValueError
         ``bands=`` or ``points=`` naming other bands or points than the table
-        measured.
+        measured; or a group, or ``rep=``, that is not the one the table was
+        read in, which it carries as ``t.rep``.
     ..refusal.InternalError
         The tables' Smith form and the one computed again disagree, a check
         that ties the decoupled stack to the layer fails, or two classes share
@@ -3606,7 +2130,7 @@ def symmetry_indicator(content, group, *, rep=None, points=None, bands=None,
     >>> si.structure, si.values, si.canonical                       # doctest: +SKIP
     ('Z2 x Z4', (0, 1), {'z2w,1': 1, 'z2w,2': 1, 'z2w,3': 1, 'z4': 3})
     """
-    gate = _groups._lattice_not_descended(group)
+    gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
     counts = content_of(content)
@@ -3614,11 +2138,12 @@ def symmetry_indicator(content, group, *, rep=None, points=None, bands=None,
         return counts
 
     mtype = _magnetic_type(group)
-    out_of_scope = _groups._magnetic_scope_refusal(group)
+    out_of_scope = _spacegroup._magnetic_scope_refusal(group)
     if out_of_scope is not None:
         return out_of_scope
 
     table = content if hasattr(content, "counts") else None
+    _table_binding(content, group, rep, where="symmetry_indicator")
     block = _bands_of(content, bands, where="symmetry_indicator")
     if table is not None and not table.complete:
         refused = {name: r.gate for name, r in (table.refusals or {}).items()}
@@ -3634,7 +2159,7 @@ def symmetry_indicator(content, group, *, rep=None, points=None, bands=None,
             context={"refusals": refused, "resolved": tuple(getattr(table, "content", {})),
                      "completion": "stable-rsi"})
 
-    data = _groups.ebr_data(group)
+    data = _tables.ebr_data(group)
     if isinstance(data, Refusal):
         return data
     labels = tuple(str(l) for l in data["labels_physics_convention"])
@@ -3726,9 +2251,8 @@ def symmetry_indicator(content, group, *, rep=None, points=None, bands=None,
     # the canonical vocabulary: the same class, spoken in the SRSI paper's own
     # names.  One rational solve of BR.p = y -- the identical arithmetic
     # `srsi.srsi_of_bands` does on the same y -- and then the tabulated forms.
-    from . import srsi as _srsi
 
-    canonical, canonical_note, canonical_tex = _srsi._canonical_reading(
+    canonical, canonical_note, canonical_tex = _srsitables._canonical_reading(
         group, mtype, u, v, d, y, divisors)
 
     verdict = ("trivial indicator group" if not divisors
@@ -3756,83 +2280,6 @@ def symmetry_indicator(content, group, *, rep=None, points=None, bands=None,
         canonical=canonical, canonical_note=canonical_note,
         canonical_tex=canonical_tex, free_standing_group=free)
 
-
-def _verify_smith(number_str, matrix, u, v, d, y, slots, divisors, values,
-                  order) -> dict:
-    """The de-novo Smith computation, and what it is allowed to disagree about.
-
-    The elementary divisors and the order of the class are properties of the
-    *matrix* and of the *content*: no choice of Smith basis can move them, so a
-    disagreement is this package misapplying a convention the tables fix, and
-    raises :class:`~.refusal.InternalError`.  The individual components can
-    legitimately differ between two Smith bases — that freedom is an
-    automorphism of ``⊕ᵢ ℤ_{d_i}`` — so the change of basis is *recorded*
-    instead, and whether it is the identity is reported rather than assumed.
-    """
-    where = (f"#{number_str}: the Smith form of the EBR matrix is what fixes this "
-             "package's indicator basis, and irreptables ships it with the rows; "
-             "failing to apply it consistently is a bug here, not a property of any "
-             "model")
-    if _matmul(_matmul(u, matrix), v) != [[int(x) for x in row] for row in
-                                          _diagonal_like(d, matrix)]:
-        raise InternalError(
-            f"{where}: the shipped factors do not satisfy u M v = R on the transported "
-            "EBR matrix, so what was transported is not a Smith decomposition of it.")
-
-    u0, d0, _v0 = _snf(matrix)
-    divisors0 = tuple(int(d0[i][i]) for i in range(min(len(d0), len(d0[0])))
-                      if int(d0[i][i]) > 1)
-    if sorted(divisors0) != sorted(divisors):
-        raise InternalError(
-            f"{where}: an independent integer Smith computation of the same matrix gives "
-            f"elementary divisors {sorted(divisors0)} against the shipped "
-            f"{sorted(divisors)}. The divisors are a property of the matrix; two "
-            "computations of them cannot disagree unless one is wrong.")
-
-    slots0 = [i for i in range(min(len(d0), len(d0[0]))) if int(d0[i][i]) > 1]
-    y0 = [sum(u0[i][j] * y[j] for j in range(len(y))) for i in range(len(u0))]
-    values0 = tuple(int(y0[i]) % int(d0[i][i]) for i in slots0)
-    order0 = 1
-    for val, div in zip(values0, (int(d0[i][i]) for i in slots0)):
-        step = div // np.gcd(int(val), int(div)) if val else 1
-        order0 = int(np.lcm(order0, int(step)))
-    if order0 != order or bool(any(values0)) != bool(any(values)):
-        raise InternalError(
-            f"{where}: the de-novo computation puts this content in a class of order "
-            f"{order0} against the shipped basis's {order}. The order of a class is "
-            "basis-independent, so the two Smith bases are not identifying the same "
-            "quotient.")
-
-    change = _matmul(u0, _unimodular_inverse(u))
-    restricted = tuple(tuple(int(change[a][b]) % int(divisors[k])
-                             for k, b in enumerate(slots))
-                       for a in slots0)
-    identity = all(restricted[i][j] == (1 % int(divisors[j]) if i == j else 0)
-                   for i in range(len(slots0)) for j in range(len(slots)))
-    return {
-        "performed": True,
-        "divisors_denovo": tuple(sorted(divisors0)),
-        "agrees": True,
-        "shipped_is_smith": True,
-        "denovo_is_smith": True,
-        "values_denovo": values0,
-        "order_denovo": int(order0),
-        "change_of_basis": restricted,
-        "change_of_basis_is_identity": bool(identity),
-        "note": ("an independent exact-integer Smith normal form of the transported EBR "
-                 "matrix reproduces the shipped elementary divisors and the class order; "
-                 "the two Smith bases differ by the recorded automorphism of the "
-                 "indicator group, and the returned values are the shipped basis's"),
-    }
-
-
-def _diagonal_like(d, matrix):
-    """``R`` rebuilt from its diagonal, in the shape of ``matrix``."""
-    n_row, n_col = len(matrix), len(matrix[0])
-    return [[int(d[i]) if i == j and i < len(d) else 0 for j in range(n_col)]
-            for i in range(n_row)]
-
-
 def subtract(content_a, content_b) -> dict | Refusal:
     """The content of the bands in one set and not in another: ``a − b`` as a symmetry vector.
 
@@ -3847,6 +2294,11 @@ def subtract(content_a, content_b) -> dict | Refusal:
         ``{corep: multiplicity}``, the zeros dropped: empty, and so falsy, where
         the two are equal, so ``isinstance(out, Refusal)`` is what tells a
         refusal apart.
+
+    Raises
+    ------
+    ValueError
+        Two tables read in different groups, whose coreps are not one alphabet.
 
     Refusals
     --------
@@ -3863,6 +2315,13 @@ def subtract(content_a, content_b) -> dict | Refusal:
     b = content_of(content_b)
     if isinstance(b, Refusal):
         return b
+    own_a = getattr(content_a, "rep", None) if hasattr(content_a, "counts") else None
+    own_b = getattr(content_b, "rep", None) if hasattr(content_b, "counts") else None
+    if own_a is not None and own_b is not None and not _same_group(own_a.group, own_b.group):
+        raise ValueError(
+            f"subtract(): the tables were read in different groups, {own_a.group.name} "
+            f"#{own_a.group.number_str} and {own_b.group.name} #{own_b.group.number_str}, "
+            "whose coreps cannot be subtracted label by label.")
 
     out, bad = {}, {}
     for lab in set(a) | set(b):
@@ -3881,7 +2340,6 @@ def subtract(content_a, content_b) -> dict | Refusal:
             value=float(min(bad.values())), threshold=0.0,
             context={"negative": bad, "a": a, "b": b})
     return out
-
 
 def completeness_check(content, group, *, bands=None,
                        **kwargs) -> CompletenessReport | Refusal:
@@ -3908,12 +2366,18 @@ def completeness_check(content, group, *, bands=None,
         ``c.decomposition`` holds the sums.  A ``Refusal`` in its place is
         falsy and names what stopped the call.
 
+    Raises
+    ------
+    ValueError
+        As :func:`decompose` raises: ``bands=`` naming other bands than the
+        table measured, or a group or ``rep=`` that is not the table's own.
+
     Refusals
     --------
     ``incomplete_content``, ``not_a_band_structure``, ``unknown_label``, ``restriction_not_exact``, ...
         those of :func:`decompose`.
     """
-    gate = _groups._lattice_not_descended(group)
+    gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
     out = decompose(content, group, bands=bands, **kwargs)
@@ -3934,7 +2398,6 @@ def completeness_check(content, group, *, bands=None,
     return CompletenessReport(complete=out.decomposable, decomposition=out,
                               n_bands=out.n_bands,
                               band_counts=band_counts, band_count_matches=matches)
-
 
 def regular_content(group, *, points=None) -> dict | Refusal:
     r"""The content of one copy of the regular band representation of the group: ``|U|`` bands at every k.
@@ -3972,10 +2435,10 @@ def regular_content(group, *, points=None) -> dict | Refusal:
     ``tables_not_ready`` / ``out_of_plane``
         no tables in this cell, or a point out of a layer's plane.
     """
-    gate = _groups._lattice_not_descended(group)
+    gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
-    hsp = _groups.high_symmetry_points(group)
+    hsp = _tables.high_symmetry_points(group)
     if isinstance(hsp, Refusal):
         return hsp
     wanted = tuple(hsp) if points is None else tuple(str(p) for p in points)
@@ -3984,10 +2447,10 @@ def regular_content(group, *, points=None) -> dict | Refusal:
     out, bands = {}, {}
     for name in wanted:
         k = hsp[name]
-        lg = _groups.little_group(group, k)
+        lg = _tables.little_group(group, k)
         if isinstance(lg, Refusal):
             return lg
-        table = _groups.corep_table(group, k)
+        table = _tables.corep_table(group, k)
         if isinstance(table, Refusal):
             return table
         ident = min(lg.indices)
@@ -4017,7 +2480,6 @@ def regular_content(group, *, points=None) -> dict | Refusal:
             value=float(max(off.values())), threshold=float(n_u),
             context={"bands": bands, "n_unitary": n_u})
     return out
-
 
 def regular_completion(content, group, *, bands=None, rep=None, points=None,
                        **kwargs) -> RegularCompletion | Refusal:
@@ -4052,6 +2514,12 @@ def regular_completion(content, group, *, bands=None, rep=None, points=None,
         ``rc.regular`` one copy's content and ``rc.bands_per_copy`` its bands.
         A ``Refusal`` in its place is falsy and names what stopped the call.
 
+    Raises
+    ------
+    ValueError
+        A group, or ``rep=``, that is not the one the table was read in, which
+        it carries as ``t.rep``.
+
     Refusals
     --------
     ``not_a_regular_multiple``
@@ -4074,9 +2542,10 @@ def regular_completion(content, group, *, bands=None, rep=None, points=None,
     """
     if bands is None:
         raise TypeError("regular_completion() missing required argument 'bands'")
-    gate = _groups._lattice_not_descended(group)
+    gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
+    _table_binding(content, group, rep, where="regular_completion")
     target_one = regular_content(group, points=points)
     if isinstance(target_one, Refusal):
         return target_one

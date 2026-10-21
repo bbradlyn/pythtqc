@@ -991,6 +991,7 @@ one-dimensional character returned; its partition does not. The points `A`,
 | `thresholds` | per point, the zero thresholds in force |
 | `note` | where the labels of these bands rest on the labelling returned, a one-dimensional character the hoppings leave open on a coupled part of the crystal: the orbitals that part holds, and what chose it; empty otherwise |
 | `group_provenance` | the provenance of the group the labels are read in, as [`GroupData`](#groupdata) gives it: `"realized"` for a group measured on `H`, `"descended"` for one measured after the cell was lowered |
+| `rep` | the representation the table was read with, `r.rep`; `rep.group` is the group whose coreps the labels name, and a group or a `rep=` handed to `decompose`, `symmetry_indicator`, `completeness_check`, `regular_completion` or `srsi_of_bands` beside the table that is not this one raises `ValueError` |
 
 ## `EBRDecomposition`
 

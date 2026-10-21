@@ -83,9 +83,17 @@ from pythtqc import spin as tqsp
 from pythtqc import symmetry as tqs
 from pythtqc._tolerance import _PRESENTATION_RELATIVE
 from pythtqc.refusal import InternalError, MagneticScopeWarning, Refusal
+from pythtqc import _build
+from pythtqc import _descent
+from pythtqc import _layers
+from pythtqc import _measure
+from pythtqc import _realized as _rz
+from pythtqc import _spacegroup
+from pythtqc import _subgroups
+from pythtqc import _tables
 
 import tqc_models
-from conftest import FKM_BOND, fkm_regime
+from conftest import FKM_BOND, fkm_regime, patch_everywhere
 # every 2x2 block of a spinful model conjugated by one SU(2) element, the
 # recipe the layer tests turn a spin frame with
 from test_layer import spin_blocks_turned
@@ -133,12 +141,12 @@ def _bundle(model, *, group=None, group_kw=None, typat=None, nk=6, **build_kw):
     a build by hand does not have.
     """
     if group is None:
-        group = tqg._group_of(model, **(group_kw or {}))
+        group = _spacegroup._group_of(model, **(group_kw or {}))
     assert group, str(group)
-    assignment = tqg._assign_orbitals(model, group, typat=typat)
+    assignment = _tables._assign_orbitals(model, group, typat=typat)
     assert assignment, str(assignment)
-    validated = tqg._validate_group(model, group, nk=nk)
-    rep = tqs._build_rep(model, group, assignment, validated=validated, **build_kw)
+    validated = _measure._validate_group(model, group, nk=nk)
+    rep = _build._build_rep(model, group, assignment, validated=validated, **build_kw)
     return group, assignment, validated, rep, None
 
 
@@ -176,7 +184,7 @@ def _realized(model, *, typat=None, nk=6, **build_kw):
     and not something a Hamiltonian can realize: see
     ``test_the_declared_build_is_the_native_one_under_the_permutation``.
     """
-    rg = tqg._realize(model, typat=typat, nk=nk, **build_kw)
+    rg = _rz._realize(model, typat=typat, nk=nk, **build_kw)
     assert rg, str(rg)
     return rg.group, rg.assignment, rg.validated, rg.rep, rg.time_reversal
 
@@ -278,7 +286,7 @@ def reencoded(request, natives):
                            characters=characters,
                            reference_orbital=basis.states(0)[0], **spec["build_kw"])
     else:
-        group = tqg._group_of(flat, spinor=True,
+        group = _spacegroup._group_of(flat, spinor=True,
                               **{k_: v for k_, v in spec["group_kw"].items()
                                 if k_ != "spinor"})
         bundle = _bundle(flat, group=group, typat=typat, nk=spec["nk"], spin=basis,
@@ -653,11 +661,11 @@ def km_flat():
     """
     km = tqc_models.kane_mele_z2("odd")
     flat, basis = tqsp.spinless_presentation(km, order="interleaved")
-    group = tqg._group_of(flat, spinor=True)
+    group = _spacegroup._group_of(flat, spinor=True)
     assert group and group.number_str == "191.234", str(group)
-    assignment = tqg._assign_orbitals(flat, group)
+    assignment = _tables._assign_orbitals(flat, group)
     assert assignment.site_orbitals == ((0, 1), (2, 3))
-    validated = tqg._validate_group(flat, group, nk=6)
+    validated = _measure._validate_group(flat, group, nk=6)
     return km, flat, basis, group, assignment, validated
 
 
@@ -758,7 +766,7 @@ def test_a_pair_split_across_two_sites_refuses(km_flat):
 
     _km, flat, _basis, group, assignment, validated = km_flat
     split = tqsp.spin_basis(flat, pairs=[(0, 2), (1, 3)])
-    out = tqs._build_rep(flat, group, assignment, validated=validated, spin=split)
+    out = _build._build_rep(flat, group, assignment, validated=validated, spin=split)
     assert isinstance(out, Refusal) and not out, str(out)
     assert out.gate == "spin_pair_split"
     assert out.value == pytest.approx(0.5773502691896257, abs=1e-12)
@@ -822,12 +830,12 @@ def two_spinors_per_site():
         model.set_hop(0.2, 1, 2, R, mode="add")
 
     flat, _basis = tqsp.spinless_presentation(model, order="interleaved")
-    group = tqg._group_of(flat, spinor=True)
+    group = _spacegroup._group_of(flat, spinor=True)
     assert group and group.number_str == "191.234", str(group)
-    assignment = tqg._assign_orbitals(flat, group)
+    assignment = _tables._assign_orbitals(flat, group)
     assert assignment.site_orbitals == ((0, 1, 2, 3), (4, 5, 6, 7))
     assert assignment.orbits == ((0, 1),), "the two sites are one orbit"
-    validated = tqg._validate_group(flat, group, nk=4)
+    validated = _measure._validate_group(flat, group, nk=4)
     assert len(validated.indices) == 48 == group.size
     return model, flat, group, assignment, validated
 
@@ -882,7 +890,7 @@ def test_a_pairing_is_read_pair_by_pair_and_a_wrong_one_descends(two_spinors_per
     for up, dn in crossed.pairs:
         assert site_of[up] == site_of[dn], "within a site: this is not a split pair"
     with pytest.raises(InternalError, match="not realized on this orbital content"):
-        tqs._build_rep(flat, group, assignment, validated=validated, spin=crossed,
+        _build._build_rep(flat, group, assignment, validated=validated, spin=crossed,
                        n_battery=4)
 
     with pytest.warns(MagneticScopeWarning):
@@ -1006,13 +1014,13 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     the same way, and the unitary ``I4_1`` returned.
     """
     _km, flat, basis, _group, _assignment, _validated = km_flat
-    single = tqg._group_of(flat, spinor=False)
+    single = _spacegroup._group_of(flat, spinor=False)
     assert single and single.spinor is False, str(single)
-    assignment = tqg._assign_orbitals(flat, single)
-    validated = tqg._validate_group(flat, single, nk=6)
+    assignment = _tables._assign_orbitals(flat, single)
+    validated = _measure._validate_group(flat, single, nk=6)
 
     with pytest.raises(ValueError, match="declared to carry spin"):
-        tqs._build_rep(flat, single, assignment, validated=validated, spin=basis)
+        _build._build_rep(flat, single, assignment, validated=validated, spin=basis)
 
     flat_r, _basis_r = tqsp.spinless_presentation(tqc_models.r3m_s_6c())
     with pytest.warns(MagneticScopeWarning):
@@ -1113,7 +1121,7 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     # ... and _build_rep, handed the fixed group P4/mmm it cannot lower, still
     # names the pair and the sign no single-valued representation carries
     fixed = refused.context["group"]
-    no_rep = tqs._build_rep(flat_p, fixed, tqg._assign_orbitals(flat_p, fixed),
+    no_rep = _build._build_rep(flat_p, fixed, _tables._assign_orbitals(flat_p, fixed),
                             validated=refused.context["validated"])
     assert isinstance(no_rep, Refusal) and no_rep.gate == "rep_not_multiplicative"
     assert no_rep.value == pytest.approx(2.0, abs=1e-9)
@@ -1130,7 +1138,7 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
         screw = tqg.realized_group(flat_s)
     assert screw, str(screw)
     assert (screw.group.number_str, len(screw.validated.indices)) == ("80", 4)
-    again = tqs._build_rep(screw.model, screw.group, screw.assignment,
+    again = _build._build_rep(screw.model, screw.group, screw.assignment,
                            validated=screw.validated)
     assert again, str(again)
     assert again._search["strategy"] == "readoff", again._search["fallback_reason"]
@@ -1147,9 +1155,9 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     assert tie, str(tie)
     assert (tie.group.name, tie.group.number_str, tie.group.size) == ("P2/m", "10", 4)
     step = tie.descent["steps"][0]["projective"]
-    parent = tqg._group_of(flat_o, include_TR=False, spinor=False)
+    parent = _spacegroup._group_of(flat_o, include_TR=False, spinor=False)
     assert parent.number_str == "47" and tie.descent["from"]["number_str"] == "47"
-    axes = tqg._setting_axes(parent)
+    axes = _subgroups._setting_axes(parent)
     twofold = [next(axes[i][2] for i in s if axes[i][:2] == (1, 2)) for s in step["tied"]]
     assert twofold == [(0, 0, 1), (1, 0, 0), (0, 1, 0)], "c, then a, then b"
     assert tuple(step["kept"]) == step["tied"][0]
@@ -1199,10 +1207,10 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     steps = [{"from": {"number_str": "47", "size": 8}, "to": {"number_str": "3", "size": 2},
               "dropped": [{"refuted_by": why} for why in
                           ("no symmetry matrix",) * 3 + ("closure",) * 2 + ("tie",)]}]
-    counts = tqg._descent_counts(steps, None)
+    counts = _descent._descent_counts(steps, None)
     assert counts == {"centres": 0, "hoppings": 3, "declaration": 0, "closure": 2, "tie": 1,
                       "time reversal": 0, "projective class": 0}
-    assert tqg._descent_clauses(counts) == (
+    assert _descent._descent_clauses(counts) == (
         "the Hamiltonian broke 3 of them by its hoppings, and 2 more are left out so that the "
         "operations kept form a group, and 1 more belongs only to the subgroups the tie rule "
         "did not keep",
@@ -1352,7 +1360,7 @@ def test_every_spelling_of_spin_builds_the_same_representation(km_flat, pxpy_spi
                  {"pairs": [(0, 1), (2, 3)]}, basis)
     built = []
     for spec in spellings:
-        rep = tqs._build_rep(flat, group, assignment, validated=validated, spin=spec)
+        rep = _build._build_rep(flat, group, assignment, validated=validated, spin=spec)
         assert rep, f"{spec!r}: {rep}"
         assert rep.spin.pairs == basis.pairs
         built.append(rep)
@@ -1385,13 +1393,13 @@ def test_a_wrong_basis_size_is_a_grammar_error(km_flat):
         tqsp.spinless_presentation(tqc_models.lin3g())[0], order="interleaved")
     assert other.norb == 8 != int(flat.norb)
     with pytest.raises(ValueError, match="8 orbitals and this one has 4"):
-        tqs._build_rep(flat, group, assignment, validated=validated, spin=other)
+        _build._build_rep(flat, group, assignment, validated=validated, spin=other)
     with pytest.raises(ValueError, match="SpinBasis, the shorthand"):
-        tqs._build_rep(flat, group, assignment, validated=validated, spin=17)
+        _build._build_rep(flat, group, assignment, validated=validated, spin=17)
 
     # the native spinful model, in the group of the same cell
     with pytest.raises(ValueError, match="natively spinful"):
-        tqs._build_rep(km, group, tqg._assign_orbitals(km, group), spin="interleaved")
+        _build._build_rep(km, group, _tables._assign_orbitals(km, group), spin="interleaved")
     with pytest.raises(ValueError, match="spinor=False"):
         tqg.realized_group(km, spin="interleaved", spinor=False)
 
@@ -1450,15 +1458,15 @@ def test_a_declaration_on_a_declared_basis_is_about_the_pairs_spatial_character(
     both members is one multiplet of dimension one -- not a doublet.
     """
     km, flat, basis, group, assignment, validated = km_flat
-    gN = tqg._group_of(km)
-    asgN = tqg._assign_orbitals(km, gN)
-    valN = tqg._validate_group(km, gN, nk=6)
+    gN = _spacegroup._group_of(km)
+    asgN = _tables._assign_orbitals(km, gN)
+    valN = _measure._validate_group(km, gN, nk=6)
 
     def _flat_rep(**kw):
-        return tqs._build_rep(flat, group, assignment, validated=validated, spin=basis,
+        return _build._build_rep(flat, group, assignment, validated=validated, spin=basis,
                               **kw)
 
-    native = tqs._build_rep(km, gN, asgN, validated=valN, characters=["s", "s"])
+    native = _build._build_rep(km, gN, asgN, validated=valN, characters=["s", "s"])
     assert native, str(native)
     ordered = _flat_rep(characters=["s", "s", "s", "s"])
     assert ordered, str(ordered)
@@ -1474,7 +1482,7 @@ def test_a_declaration_on_a_declared_basis_is_about_the_pairs_spatial_character(
     assert [o.determined_by for o in native.characters.orbitals] == ["declaration"] * 2, \
         "every orbital declared on both sides, so no row rests on the lowest-l rule"
 
-    native_one = tqs._build_rep(km, gN, asgN, validated=valN, characters={0: "s"})
+    native_one = _build._build_rep(km, gN, asgN, validated=valN, characters={0: "s"})
     mapped = _flat_rep(characters={0: "s"})
     assert mapped, str(mapped)
     assert [o.determined_by for o in mapped.characters.orbitals[::2]] == \
@@ -1507,20 +1515,20 @@ def test_a_pair_given_two_different_characters_is_a_grammar_error(km_flat, monke
     _km, flat, basis, group, assignment, validated = km_flat
     for characters in (["s", "pz", None, None], {0: "s", 1: "pz"}):
         with pytest.raises(ValueError, match="spin pair 0") as raised:
-            tqs._build_rep(flat, group, assignment, validated=validated, spin=basis,
+            _build._build_rep(flat, group, assignment, validated=validated, spin=basis,
                            characters=characters)
         assert "one Wannier function" in str(raised.value)
         assert "'s' and 'pz'" in str(raised.value) and "Orbitals 0 and 1" in str(raised.value)
     # ... and the two spellings that are not a contradiction still build
-    assert tqs._build_rep(flat, group, assignment, validated=validated, spin=basis,
+    assert _build._build_rep(flat, group, assignment, validated=validated, spin=basis,
                           characters=["s", None, None, None])
-    assert tqs._build_rep(flat, group, assignment, validated=validated, spin=basis,
+    assert _build._build_rep(flat, group, assignment, validated=validated, spin=basis,
                           characters=["s", "s", None, None])
 
     def measured(*args, **kwargs):
         raise AssertionError("the declaration's grammar is read before any group")
 
-    monkeypatch.setattr(tqg, "_group_of", measured)
+    patch_everywhere(monkeypatch, "_group_of", measured)
     with pytest.raises(ValueError, match="spin pair 0"):
         tqg.realized_group(flat, spin="interleaved", characters={0: "s", 1: "pz"})
     with pytest.raises(ValueError, match="split between"):
@@ -1545,25 +1553,25 @@ def test_the_padded_slab_operations_are_represented_too():
     """
     km = tqc_models.kane_mele_inversion()
     flat, basis = tqsp.spinless_presentation(km, order="interleaved")
-    slab = tqg._slab_presentation(flat)
-    group = tqg._group_of(slab, spinor=True)
+    slab = _layers._slab_presentation(flat)
+    group = _spacegroup._group_of(slab, spinor=True)
     assert group and group.number_str == "191.234" and group.size == 48
-    assignment = tqg._assign_orbitals(slab, group)
-    validated = tqg._validate_group(slab, group, nk=4)
+    assignment = _tables._assign_orbitals(slab, group)
+    validated = _measure._validate_group(slab, group, nk=4)
     assert len(validated.indices) == 48
 
-    native_slab = tqg._slab_presentation(km)
-    ngroup = tqg._group_of(native_slab, spinor=True)
-    nasg = tqg._assign_orbitals(native_slab, ngroup)
-    nval = tqg._validate_group(native_slab, ngroup, nk=4)
+    native_slab = _layers._slab_presentation(km)
+    ngroup = _spacegroup._group_of(native_slab, spinor=True)
+    nasg = _tables._assign_orbitals(native_slab, ngroup)
+    nval = _measure._validate_group(native_slab, ngroup, nk=4)
 
-    got = tqs._build_rep(slab, group, assignment, validated=validated, spin=basis,
+    got = _build._build_rep(slab, group, assignment, validated=validated, spin=basis,
                          n_battery=4, include_vacuum_ops=True)
     assert got, str(got)
     assert len(got.indices) == 48
     assert max(got.residuals.values()) <= GATE
 
-    want = tqs._build_rep(native_slab, ngroup, nasg, validated=nval, n_battery=4,
+    want = _build._build_rep(native_slab, ngroup, nasg, validated=nval, n_battery=4,
                           include_vacuum_ops=True)
     assert want, str(want)
     Pi = basis.permutation_matrix
@@ -1758,19 +1766,19 @@ def test_a_wrong_but_well_formed_pairing_dies_before_anything_is_built(km_flat):
     km, flat, sb, group, assignment, validated = km_flat
     assert sb.kind == "interleaved" and sb.pairs == ((0, 1), (2, 3))
 
-    good = tqs._build_rep(flat, group, assignment, validated=validated, spin=sb)
+    good = _build._build_rep(flat, group, assignment, validated=validated, spin=sb)
     assert good and good._search["n_survivors"] == 1, str(good)
 
     with pytest.raises(InternalError) as err:
-        tqs._build_rep(flat, group, assignment, validated=validated,
+        _build._build_rep(flat, group, assignment, validated=validated,
                        spin={"pairs": [(1, 0), (3, 2)]})
     said = str(err.value)
     assert "8 of the" in said and said.count("its spin lift") == 8, said
     assert "H(Rk) to 1.3," in said, said
 
-    g0 = tqg._group_of(km)
+    g0 = _spacegroup._group_of(km)
     with pytest.raises(InternalError, match="its spin lift") as err:
-        tqs._build_rep(km, g0, tqg._assign_orbitals(km, g0),
-                       validated=tqg._validate_group(km, g0, nk=6),
+        _build._build_rep(km, g0, _tables._assign_orbitals(km, g0),
+                       validated=_measure._validate_group(km, g0, nk=6),
                        include_vacuum_ops=True)
     assert "site permutation" not in str(err.value)

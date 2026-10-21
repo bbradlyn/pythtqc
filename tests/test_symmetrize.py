@@ -75,9 +75,17 @@ from pythtqc import symmetry as tqs
 from pythtqc.refusal import InternalError, Refusal
 from pythtqc.symmetrization import (EXACT_GATE, classify_operations, symmetrize,
                                     symmetrize_positions)
+from pythtqc import _build
+from pythtqc import _tolerance
+from pythtqc import _detector
+from pythtqc import _layers
+from pythtqc import _measure
+from pythtqc import _realized
+from pythtqc import _spacegroup
+from pythtqc import _tables
 
 import tqc_models
-from conftest import FKM_BOND, fkm_regime, km_z2_regime
+from conftest import FKM_BOND, fkm_regime, km_z2_regime, patch_everywhere
 
 #: Relative size of the jitter every fixture below is perturbed by — the
 #: measured defect scale of a symmetrized wannier90 import.
@@ -192,21 +200,21 @@ def _pipeline(model, typat=None, *, tol, nk=6, decorations=None, spinor=None,
               include_TR=True):
     """slab -> decorate -> _group_of -> assign -> validate, at a declared tol."""
     three_d = int(model.lattice.dim_k) == 3
-    m3 = model if three_d else tqg._slab_presentation(model)
+    m3 = model if three_d else _layers._slab_presentation(model)
     assert not isinstance(m3, Refusal), str(m3)
     labels = [0] * int(model.norb) if typat is None else list(typat)
     if three_d and decorations is None:
         cell, cell_typat = m3, labels
     else:
-        cell, cell_typat = tqg._decorated_cell(m3, labels, decorations=decorations)
+        cell, cell_typat = _layers._decorated_cell(m3, labels, decorations=decorations)
     if spinor is None:
         spinor = int(model.nspin) == 2
-    group = tqg._group_of(cell, typat=cell_typat, spinor=bool(spinor),
+    group = _spacegroup._group_of(cell, typat=cell_typat, spinor=bool(spinor),
                           include_TR=include_TR)
     assert group, str(group)
-    asg = tqg._assign_orbitals(m3, group, typat=labels)
+    asg = _tables._assign_orbitals(m3, group, typat=labels)
     assert asg, str(asg)
-    return m3, group, asg, tqg._validate_group(m3, group, nk=nk, tol=tol)
+    return m3, group, asg, _measure._validate_group(m3, group, nk=nk, tol=tol)
 
 
 # ---------------------------------------------------------------------------
@@ -302,7 +310,7 @@ def test_the_jittered_lin3g_comes_back_as_the_clean_one(lin3g_clean, lin3g_jitte
     # it moved by O(the residuals), and less than the jitter itself did
     k = np.random.default_rng(5).uniform(-0.5, 0.5, size=(24, 2))
     clean_H = np.asarray(lin3g_clean.model.hamiltonian(k_pts=k, flatten_spin_axis=True))
-    jit_H = np.asarray(tqg._slab_presentation(model).hamiltonian(
+    jit_H = np.asarray(_layers._slab_presentation(model).hamiltonian(
         k_pts=k, flatten_spin_axis=True))
     sym_H = np.asarray(out.model.hamiltonian(k_pts=k, flatten_spin_axis=True))
     # the docstring's number, not the gate it passed: `symmetrize` refuses above
@@ -414,7 +422,7 @@ def test_the_operators_carry_none_of_the_models_noise(lin3g_jittered, lin3g_clea
     """
     out, model, tol = lin3g_jittered
     m3, group, asg, val = _pipeline(model, [0, 0, 1, 1], tol=tol)
-    prov = tqs._build_rep(m3, group, asg, validated=val, tol=tol,
+    prov = _build._build_rep(m3, group, asg, validated=val, tol=tol,
                           internal_tol=10 * max(val.residuals[i] for i in val.indices)
                           / _max_H(m3), characters=["s", "dx2-y2", "s", "s"])
     assert prov, str(prov)
@@ -593,7 +601,7 @@ def test_a_magnetic_model_is_symmetrized_without_inventing_time_reversal():
 
     k = np.stack(np.meshgrid(*([np.linspace(0, 1, 6, endpoint=False)] * 2),
                              indexing="ij"), axis=-1).reshape(-1, 2)
-    assert tqs._find_intertwiners(out.model, -np.eye(2), k, antiunitary=True).dim == 0
+    assert _detector._find_intertwiners(out.model, -np.eye(2), k, antiunitary=True).dim == 0
     # The clean model's *beyond-grey* composite (C2z.T, k-action +1 and
     # antiunitary — `test_groups.py` measures its dim = 2) is broken by the
     # jitter like everything else, and it is **not** restored: it is not an
@@ -601,8 +609,8 @@ def test_a_magnetic_model_is_symmetrized_without_inventing_time_reversal():
     # average ran over.  Symmetrization projects onto the group it was handed
     # and no further, which is the same discipline `realized_group` states for
     # magnetic models.
-    assert tqs._find_intertwiners(jit, np.eye(2), k, antiunitary=True).dim == 0
-    assert tqs._find_intertwiners(out.model, np.eye(2), k, antiunitary=True).dim == 0
+    assert _detector._find_intertwiners(jit, np.eye(2), k, antiunitary=True).dim == 0
+    assert _detector._find_intertwiners(out.model, np.eye(2), k, antiunitary=True).dim == 0
 
     # and the symmetrized model IS exactly symmetric under the three it kept --
     # measured against the operators it was built with, and against the stacked
@@ -610,7 +618,7 @@ def test_a_magnetic_model_is_symmetrized_without_inventing_time_reversal():
     # on the record: its accuracy floor is eps*||H||/(smallest level splitting),
     # and the jitter split this model's spin degeneracy at 1e-7.
     assert rec.checks["covariance_residue"] < 1e-12
-    again = tqg._validate_group(out.model, out.group, nk=6, solver="stacked")
+    again = _measure._validate_group(out.model, out.group, nk=6, solver="stacked")
     assert not again.broken and max(again.residuals.values()) < 1e-13
     if not rec.verification["near_kept"]:
         assert "smallest level splitting" in rec.verification["note"]
@@ -758,7 +766,7 @@ def test_the_covariance_refusal_points_at_the_route_when_a_tolerance_was_declare
                        value=0.5, threshold=float(kwargs["tol"]),
                        context={"n_candidates": 2})
 
-    monkeypatch.setattr(_projection, "_build_rep", refusing)
+    patch_everywhere(monkeypatch, "_build_rep", refusing)
     with pytest.raises(InternalError, match="onto its invariant part, still does not") as err:
         tqg.realized_group(model, typat=[0, 0, 1, 1], tol=tol,
                            characters=["s", "dx2-y2", "s", "s"])
@@ -767,7 +775,7 @@ def test_the_covariance_refusal_points_at_the_route_when_a_tolerance_was_declare
 
     # rep_search_too_large: the same group named and carried
     # the enumeration forced through the private entry, which takes the strategy
-    capped = tqg._realize(tqc_models.lin3g(), typat=[0, 0, 1, 1],
+    capped = _realized._realize(tqc_models.lin3g(), typat=[0, 0, 1, 1],
                           characters=["s", "dx2-y2", "s", "s"],
                           strategy="enumerate", max_candidates=8)
     assert not capped and capped.gate == "rep_search_too_large"
@@ -814,8 +822,8 @@ def test_symmetrizing_a_symmetrized_model_changes_nothing(lin3g_jittered):
     """Idempotence: every operation is ``exact`` afterwards, and a second pass moves 5e-15."""
     out, _model, tol = lin3g_jittered
     m3 = out.model
-    asg = tqg._assign_orbitals(m3, out.group, typat=[0, 0, 1, 1])
-    val = tqg._validate_group(m3, out.group, nk=6, tol=tol)
+    asg = _tables._assign_orbitals(m3, out.group, typat=[0, 0, 1, 1])
+    val = _measure._validate_group(m3, out.group, nk=6, tol=tol)
     assert set(classify_operations(val, tol).values()) == {"exact"}
     sym2, rec2 = symmetrize(m3, out.group, asg, val, tol=tol,
                             characters=["s", "dx2-y2", "s", "s"])
@@ -900,13 +908,13 @@ def test_a_multiplet_site_symmetrizes_through_the_representation_nearest_its_blo
     cell = tqc_models.p4232_symmetry_cell()
     decorated = TBModel(Lattice(np.eye(3), cell["positions"].tolist(),
                                 periodic_dirs=[0, 1, 2]), spinful=False)
-    group = tqg._group_of(decorated, typat=cell["typat"].tolist())
+    group = _spacegroup._group_of(decorated, typat=cell["typat"].tolist())
     assert group and group.sg_number == 208, str(group)
 
     jit = jitter(p4232)
     tol = TOL_FACTOR * JITTER * _max_H(p4232)
-    asg = tqg._assign_orbitals(jit, group)
-    val = tqg._validate_group(jit, group, nk=5, tol=tol)
+    asg = _tables._assign_orbitals(jit, group)
+    val = _measure._validate_group(jit, group, nk=5, tol=tol)
     assert len(val.indices) == 48, "the whole group survives at the declared tolerance"
     assert set(classify_operations(val, tol).values()) == {"exact", "near"}
     assert asg.site_orbitals == ((0, 1), (2, 3))
@@ -1063,18 +1071,18 @@ def test_a_tied_orientation_branch_is_measured_the_same_representation():
     model, typat = _lifted_supercell([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
     tol = TOL_FACTOR * JITTER * _max_H(model)
     model = block_jitter(model)
-    group = tqg._group_of(model, typat=typat)
+    group = _spacegroup._group_of(model, typat=typat)
     assert group and group.number_str == "2.5", str(group)
-    asg = tqg._assign_orbitals(model, group, typat=typat)
-    val = tqg._validate_group(model, group, nk=3, tol=tol)
+    asg = _tables._assign_orbitals(model, group, typat=typat)
+    val = _measure._validate_group(model, group, nk=3, tol=tol)
     assert len(val.indices) == 4, "the grey group survives the block jitter"
 
     # the tie this test is about, now served rather than refused
-    rep = tqs._build_rep(model, group, asg, validated=val, tol=tol, internal_tol=1e-5)
+    rep = _build._build_rep(model, group, asg, validated=val, tol=tol, internal_tol=1e-5)
     assert rep, str(rep)
     assert rep._branch_tie is True and rep._choice["orientation"] == 1
     assert rep._search["n_survivors"] == 2, "both branches closed all three gates"
-    other = tqs._build_rep(model, group, asg, validated=val, tol=tol, internal_tol=1e-5,
+    other = _build._build_rep(model, group, asg, validated=val, tol=tol, internal_tol=1e-5,
                            orientation_branch=-1)
     assert other, str(other)
     assert max(float(np.abs(rep.matrices[i] - other.matrices[i]).max())
@@ -1197,7 +1205,7 @@ def test_a_declared_position_tol_snaps_the_centres_before_anything_else(
 
     # the gauge: the spectrum is the DISPLACED model's, not merely the clean one's
     k = np.random.default_rng(11).uniform(-0.5, 0.5, size=(16, 2))
-    Ea = np.linalg.eigvalsh(np.asarray(tqg._slab_presentation(displaced).hamiltonian(
+    Ea = np.linalg.eigvalsh(np.asarray(_layers._slab_presentation(displaced).hamiltonian(
         k_pts=k, flatten_spin_axis=True)))
     Eb = np.linalg.eigvalsh(np.asarray(out.model.hamiltonian(
         k_pts=k, flatten_spin_axis=True)))
@@ -1375,10 +1383,10 @@ def test_centres_too_far_from_symmetric_break_the_operations_they_miss(km_odd):
     # 2. `max_move` is `position_tol`, so the direct call refuses above it --
     #    the existing gate, at the tolerance the pipeline hands it, on the move
     #    the pipeline measures: the origin fitted, half the displacement each
-    clean3 = tqg._slab_presentation(km_odd)
-    cell, cell_typat = tqg._decorated_cell(clean3, [0, 1])
-    group = tqg._group_of(cell, typat=cell_typat, spinor=True)
-    asg = tqg._assign_orbitals(clean3, group, typat=[0, 1])
+    clean3 = _layers._slab_presentation(km_odd)
+    cell, cell_typat = _layers._decorated_cell(clean3, [0, 1])
+    group = _spacegroup._group_of(cell, typat=cell_typat, spinor=True)
+    asg = _tables._assign_orbitals(clean3, group, typat=[0, 1])
     refused = symmetrize_positions(_move_one_centre(clean3, 1e-3), group, asg,
                                    max_move=1e-6)
     assert not refused and refused.gate == "positions_not_nearly_symmetric"
@@ -1428,9 +1436,9 @@ def _rigid_shift(model, delta, which=None):
 
 def _cell_group(model2d, typat=(0, 1)):
     """slab -> decorate -> ``_group_of``, the cell identification on its own."""
-    m3 = tqg._slab_presentation(model2d)
-    cell, cell_typat = tqg._decorated_cell(m3, list(typat))
-    group = tqg._group_of(cell, typat=cell_typat, spinor=True)
+    m3 = _layers._slab_presentation(model2d)
+    cell, cell_typat = _layers._decorated_cell(m3, list(typat))
+    group = _spacegroup._group_of(cell, typat=cell_typat, spinor=True)
     assert group, str(group)
     return m3, group
 
@@ -1516,7 +1524,7 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
     # back.  Measured 0.5 ulp of a reduced coordinate (1.1e-16): the rebuilt
     # translations come through spglib's own origin shift, which the noisy
     # positions put off a dyadic value
-    assert tqg._translation_closure(group.symmetries) <= _FEW_ULP
+    assert _spacegroup._translation_closure(group.symmetries) <= _FEW_ULP
     # the rotations were not touched: the same integer matrices as the exact cell
     rots = sorted(np.asarray(s.rotation, dtype=int).tobytes() for s in group.symmetries)
     assert rots == sorted(np.asarray(s.rotation, dtype=int).tobytes()
@@ -1524,7 +1532,7 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
     # a representation built by hand on the displaced centres, at a declared
     # tolerance: built, and its orbits read no content, each saying why
     m3, cell_group, asg, val = _pipeline(displaced, [0, 1], tol=1e-6)
-    by_hand = tqs._build_rep(m3, cell_group, asg, validated=val, tol=1e-6,
+    by_hand = _build._build_rep(m3, cell_group, asg, validated=val, tol=1e-6,
                              characters={0: "A1"})
     assert by_hand, str(by_hand)
     orbits = by_hand.characters.band_representations
@@ -1667,28 +1675,28 @@ def test_a_cell_built_from_exact_numbers_closes_exactly_and_is_untouched(name):
     exact = {"km_odd": True, "km_inversion": False}
     model, kw = cases[name]
     three_d = int(model.lattice.dim_k) == 3
-    m3 = model if three_d else tqg._slab_presentation(model)
+    m3 = model if three_d else _layers._slab_presentation(model)
     labels = list(kw.get("typat", [0] * int(model.norb)))
     if three_d and "decorations" not in kw:
         cell, cell_typat = m3, labels
     else:
-        cell, cell_typat = tqg._decorated_cell(m3, labels,
+        cell, cell_typat = _layers._decorated_cell(m3, labels,
                                                decorations=kw.get("decorations"))
-    group = tqg._group_of(cell, typat=cell_typat,
+    group = _spacegroup._group_of(cell, typat=cell_typat,
                           spinor=int(model.nspin) == 2 or not three_d)
     assert group, str(group)
-    assert group._closure_measured <= tqg._EXACT_CLOSURE, "arithmetic, not noise"
+    assert group._closure_measured <= _tolerance._EXACT_CLOSURE, "arithmetic, not noise"
     if exact[name]:
         assert group._closure_measured == 0.0
         assert group._closure_repaired == 0.0, "nothing was touched"
-        assert tqg._translation_closure(group.symmetries) == 0.0
+        assert _spacegroup._translation_closure(group.symmetries) == 0.0
     else:
         assert group._closure_measured <= _FEW_ULP
         assert group._closure_repaired <= _FEW_ULP, "the repair moved nothing past roundoff"
-        assert tqg._translation_closure(group.symmetries) <= _FEW_ULP
+        assert _spacegroup._translation_closure(group.symmetries) <= _FEW_ULP
         # alpha-quartz: Si at 3a and O at 6c of P3_121, its screw axis's thirds
         # rebuilt from the tables' own translations
-        positions, _centering = tqg._pyxtal_wyckoff(152)
+        positions, _centering = _spacegroup._pyxtal_wyckoff(152)
         sites, species = [], []
         for kind, (letter, x) in enumerate((("a", (0.4697, 0.0, 0.0)),
                                             ("c", (0.4135, 0.2669, 0.1191)))):
@@ -1700,7 +1708,7 @@ def test_a_cell_built_from_exact_numbers_closes_exactly_and_is_untouched(name):
         quartz = TBModel(Lattice([[4.913, 0.0, 0.0], [-2.4565, 4.913 * np.sqrt(3) / 2, 0.0],
                                   [0.0, 0.0, 5.405]], [list(s) for s in sites],
                                  periodic_dirs=[0, 1, 2]), spinful=False)
-        assert tqg._group_of(quartz, typat=species, spinor=False,
+        assert _spacegroup._group_of(quartz, typat=species, spinor=False,
                              include_TR=False).number_str == "152"
 
 
@@ -2045,7 +2053,7 @@ def test_the_finders_tolerance_is_raised_only_when_the_declaration_would_defeat_
     measured no-op: nothing moves, and nothing is projected.
     """
     # L, measured: the periodic vectors are the model's own, the padded one is not
-    slab = tqg._slab_presentation(km_odd)
+    slab = _layers._slab_presentation(km_odd)
     lat = np.asarray(slab.lat_vecs, dtype=float)
     per = [int(d) for d in slab.periodic_dirs]
     assert per == [0, 1] and float(np.linalg.norm(lat[2])) == 30.0
@@ -2141,7 +2149,7 @@ def test_a_defect_above_the_declaration_descends_as_the_explicit_knobs_do(km_odd
     from irrep.spacegroup_irreps import SpaceGroupIrreps
 
     real = SpaceGroupIrreps.from_cell.__func__
-    first = np.random.RandomState(tqg._SETTING_SEEDS[0]).get_state()[1][:4]
+    first = np.random.RandomState(_spacegroup._SETTING_SEEDS[0]).get_state()[1][:4]
     unlucky = []
 
     def _first_seed_fails(cls, *args, **kwargs):
@@ -2160,7 +2168,7 @@ def test_a_defect_above_the_declaration_descends_as_the_explicit_knobs_do(km_odd
 
     try:
         monkeypatch.setattr(SpaceGroupIrreps, "from_cell", classmethod(_first_seed_fails))
-        tqg._identification_memo_clear()
+        _spacegroup._identification_memo_clear()
         np.random.seed(20260927)
         state = np.random.get_state()
         again = tqg.realized_group(bad, typat=[0, 1], characters={0: "A1"},
@@ -2175,15 +2183,15 @@ def test_a_defect_above_the_declaration_descends_as_the_explicit_knobs_do(km_odd
 
         # ... and where every seed fails, the group without tables, said so
         monkeypatch.setattr(SpaceGroupIrreps, "from_cell", classmethod(_every_seed_fails))
-        tqg._identification_memo_clear()
+        _spacegroup._identification_memo_clear()
         blank = tqg.realized_group(km_odd, typat=[0, 1], cross_check=False)
         assert blank and blank.group.number_str == "156.50", str(blank)
         assert not blank.group._tables_ready
         assert "the accurcy is only 0.5" in blank.group._setup_note
-        assert f"in {len(tqg._SETTING_SEEDS)} searches" in blank.group._setup_note
+        assert f"in {len(_spacegroup._SETTING_SEEDS)} searches" in blank.group._setup_note
         for o in blank.rep.characters.orbitals:
             assert (o.irrep, o.named_by) == ("", "unnamed")
             assert "unavailable" in o.note and "the accurcy is only 0.5" in o.note
     finally:
         monkeypatch.undo()
-        tqg._identification_memo_clear()
+        _spacegroup._identification_memo_clear()

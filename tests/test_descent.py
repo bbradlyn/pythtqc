@@ -92,9 +92,15 @@ from pythtqc import sewing as tqw
 from pythtqc import srsi as tqr
 from pythtqc import symmetry as tqs
 from pythtqc.refusal import InternalError, Refusal
+from pythtqc import _descent
+from pythtqc import _layers
+from pythtqc import _measure
+from pythtqc import _multiplets
+from pythtqc import _spacegroup
+from pythtqc import _tables
 
 import tqc_models as tqm                                            # noqa: F401
-from conftest import FKM_BOND, fkm_regime
+from conftest import FKM_BOND, fkm_regime, patch_everywhere
 
 
 def anisotropic_stack(tx=-1.0, ty=-0.6, tz=-0.4):
@@ -165,7 +171,7 @@ def test_the_distorted_diamond_descends_to_the_group_it_obeys(fkm_phases):
         assert {b["refuted_by"] for b in d["dropped"]} == {"no symmetry matrix"}
         assert {b["name"] for b in d["dropped"]} >= {
             "{C4(z)|1/4,1/4,1/4}", "{m(x)|1/4,1/4,1/4}", "S4(z)", "{C4(z)|1/4,1/4,1/4}'"}
-        assert d["cell"]["generic_point"] == tqg._DESCENT_POINT   # all three directions
+        assert d["cell"]["generic_point"] == _descent._DESCENT_POINT   # all three directions
         assert len(down.validated.indices) == down.group.size == 24
         assert not down.validated.broken
         assert down.group.provenance == down.rep.group.provenance == "descended"
@@ -529,8 +535,8 @@ def test_a_flat_fixture_reaches_the_same_group_by_the_layer_descent(
 def _cheap_parent():
     """The anisotropic stack, its cell group and the detector's verdicts: 8 unitary kept."""
     model = anisotropic_stack()
-    group = tqg._group_of(model)
-    validated = tqg._validate_group(model, group, nk=4, tol=1e-8)
+    group = _spacegroup._group_of(model)
+    validated = _measure._validate_group(model, group, nk=4, tol=1e-8)
     return model, group, validated
 
 
@@ -555,12 +561,12 @@ def test_an_identification_that_is_not_the_kept_set_raises():
                                periodic_dirs=[0, 1, 2]), spinful=False)
 
     with pytest.raises(InternalError, match="are not that set") as err:
-        tqg._descend_once(lopsided, [0, 0], group, validated, spinor=False,
+        _descent._descend_once(lopsided, [0, 0], group, validated, spinor=False,
                           include_TR=True, symprec=1e-5, step=1)
     said = str(err.value)
     assert "#123.340" in said and "#1.2" in said
     assert "7 kept operations" in said and "are not among" not in said
-    assert f"last of {len(tqg._DESCENT_POINTS)} generic points" in said
+    assert f"last of {len(_descent._DESCENT_POINTS)} generic points" in said
 
 
 def test_the_operation_matcher_pairs_one_to_one_in_both_directions():
@@ -584,41 +590,41 @@ def test_the_operation_matcher_pairs_one_to_one_in_both_directions():
     ``symprec`` would fail the second, and one reading the reduced difference
     against ``symprec`` as though it were a length would fail the second too.
     """
-    group = tqg._group_of(anisotropic_stack())
+    group = _spacegroup._group_of(anisotropic_stack())
     assert not isinstance(group, Refusal), str(group)
     unitary = [s for s in group.symmetries if not s.time_reversal]
     four = unitary[:4]
     lattice = group.lattice
 
-    pairs, missing, extra = tqg._match_operations(four, four, 1e-5, lattice)
+    pairs, missing, extra = _descent._match_operations(four, four, 1e-5, lattice)
     assert len(pairs) == 4 and not missing and not extra
     assert [a for a, _b in pairs] == [int(s.ind) for s in four]
 
-    pairs, missing, extra = tqg._match_operations(four, four[:2], 1e-5, lattice)
+    pairs, missing, extra = _descent._match_operations(four, four[:2], 1e-5, lattice)
     assert len(pairs) == 2 and missing == tuple(int(s.ind) for s in four[2:])
     assert extra == ()
 
-    pairs, missing, extra = tqg._match_operations(four[:2], four, 1e-5, lattice)
+    pairs, missing, extra = _descent._match_operations(four[:2], four, 1e-5, lattice)
     assert len(pairs) == 2 and missing == ()
     assert extra == tuple(int(s.ind) for s in four[2:])
 
     # a translation moved by more than symprec is a different operation
     moved = [_TranslatedOp(s, 0.5) for s in four[:1]]
-    pairs, missing, extra = tqg._match_operations(moved, four, 1e-5, lattice)
+    pairs, missing, extra = _descent._match_operations(moved, four, 1e-5, lattice)
     assert not pairs and len(missing) == 1 and len(extra) == 4
 
     # ... and one moved by a whole lattice vector is the SAME operation
     same = [_TranslatedOp(s, 1.0) for s in four[:1]]
-    pairs, missing, extra = tqg._match_operations(same, four, 1e-5, lattice)
+    pairs, missing, extra = _descent._match_operations(same, four, 1e-5, lattice)
     assert len(pairs) == 1 and missing == () and len(extra) == 3
 
     # the gate itself: symprec = 1e-5, straddled as a length
     just_out = [_TranslatedOp(s, 6e-6) for s in four[:1]]
-    pairs, missing, extra = tqg._match_operations(just_out, four, 1e-5, lattice)
+    pairs, missing, extra = _descent._match_operations(just_out, four, 1e-5, lattice)
     assert not pairs and len(missing) == 1 and len(extra) == 4
 
     just_in = [_TranslatedOp(s, 4e-6) for s in four[:1]]
-    pairs, missing, extra = tqg._match_operations(just_in, four, 1e-5, lattice)
+    pairs, missing, extra = _descent._match_operations(just_in, four, 1e-5, lattice)
     assert len(pairs) == 1 and missing == () and len(extra) == 3
 
 
@@ -700,12 +706,12 @@ def test_the_slab_mirror_is_refuted_by_tensor_structure_and_the_cell_descends(
     assert min(b["residual"] for b in d["dropped"]) > 1e4 * tqs.ANSATZ_GATE
 
     # the broken set IS the sigma_h family, read off the rotations themselves
-    m3 = tqg._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.25))
+    m3 = _layers._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.25))
     # a third real direction and still two periodic ones: the layer gets a
     # coordinate to be mirrored in, and no third momentum
     assert m3.lattice.dim_r == 3 and tuple(m3.periodic_dirs) == (0, 1)
-    cell, cell_typat = tqg._decorated_cell(m3, [0, 0], environment="free-standing")
-    parent = tqg._group_of(cell, typat=cell_typat, spinor=True)
+    cell, cell_typat = _layers._decorated_cell(m3, [0, 0], environment="free-standing")
+    parent = _spacegroup._group_of(cell, typat=cell_typat, spinor=True)
     rot = {int(s.ind): int(np.rint(np.asarray(s.rotation, dtype=float)[2, 2]))
            for s in parent.symmetries}
     assert {rot[b["ind"]] for b in d["dropped"]} == {-1}
@@ -799,17 +805,17 @@ def test_the_ansatz_defects_of_an_exact_model_are_at_machine_level(realized):
     assert not r.validated.undetermined, "a 3D primitive group has singleton classes"
     cases.append((r.model, r.group, r.assignment, r.validated, set(r.validated.indices)))
 
-    m3 = tqg._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.0))
-    cell, cell_typat = tqg._decorated_cell(m3, [0, 0], environment="free-standing")
-    group = tqg._group_of(cell, typat=cell_typat, spinor=True)
-    asg = tqg._assign_orbitals(m3, group, typat=[0, 0])
-    val = tqg._validate_group(m3, group, nk=6, tol=1e-8)
+    m3 = _layers._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.0))
+    cell, cell_typat = _layers._decorated_cell(m3, [0, 0], environment="free-standing")
+    group = _spacegroup._group_of(cell, typat=cell_typat, spinor=True)
+    asg = _tables._assign_orbitals(m3, group, typat=[0, 0])
+    val = _measure._validate_group(m3, group, nk=6, tol=1e-8)
     assert len(val.undetermined) == 48
     cases.append((m3, group, asg, val, set(val.undetermined)))
 
     for model, group, asg, val, inds in cases:
         positions = [i for i, s in enumerate(group.symmetries) if int(s.ind) in inds]
-        got = tqs._ansatz_defects(model, group, asg, val, positions)
+        got = _multiplets._ansatz_defects(model, group, asg, val, positions)
         assert not isinstance(got, Refusal), str(got)
         assert set(got) == inds
         assert all(rec["realizable"] for rec in got.values())
@@ -857,8 +863,9 @@ def test_the_consistency_guard_surfaces_a_descent_that_did_not_clear_the_gate(
     a tolerance.
     """
     import pythtqc.symmetry as _sym
+    from pythtqc import _build
 
-    real_build_rep = _sym._build_rep
+    real_build_rep = _build._build_rep
 
     def refusing_at(value):
         def refusing(*args, **kwargs):
@@ -871,7 +878,7 @@ def test_the_consistency_guard_surfaces_a_descent_that_did_not_clear_the_gate(
                            context={"n_candidates": 4})
         return refusing
 
-    monkeypatch.setattr(_sym, "_build_rep", refusing_at(1.42))
+    patch_everywhere(monkeypatch, "_build_rep", refusing_at(1.42))
     with pytest.raises(InternalError,
                        match=r"still does not carry H\(k\) onto itself within the "
                              "tolerance") as err:
@@ -885,7 +892,7 @@ def test_the_consistency_guard_surfaces_a_descent_that_did_not_clear_the_gate(
     assert "a defect to report, not a tolerance to loosen" in said
 
     # inside the declared tolerance the guard is not what the caller is told
-    monkeypatch.setattr(_sym, "_build_rep", refusing_at(1e-9))
+    patch_everywhere(monkeypatch, "_build_rep", refusing_at(1e-9))
     near = tqg.realized_group(build(), **kw)
     assert not near and isinstance(near, Refusal)
     assert near.gate == "rep_not_covariant"

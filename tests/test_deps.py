@@ -181,7 +181,8 @@ def test_importing_pythtqc_first_binds_the_real_tables_whatever_follows():
         m.set_onsite([0.0])
         m.set_hop(-1.0, 0, 0, [1, 0])
         m.set_hop(-1.0, 0, 0, [0, 1])
-        g = tqg._group_of(m)
+        from pythtqc import _spacegroup
+        g = _spacegroup._group_of(m)
         print("GROUP", json.dumps({"served": bool(g),
                                    "tables_ready": bool(getattr(g, "_tables_ready", False)),
                                    "number_str": str(getattr(g, "number_str", ""))}))

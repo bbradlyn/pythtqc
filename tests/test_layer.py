@@ -36,6 +36,8 @@ what the default is, and every number is measured.
 
 import numpy as np
 import pytest
+
+from conftest import patch_everywhere
 from pythtb import Lattice, TBModel
 from pythtb.models import graphene, kane_mele
 
@@ -47,6 +49,13 @@ from pythtqc import sewing as tqw
 from pythtqc import srsi as tqr
 from pythtqc import symmetry as tqs
 from pythtqc.refusal import InternalError, Refusal
+from pythtqc import _build
+from pythtqc import _descent
+from pythtqc import _layers
+from pythtqc import _measure
+from pythtqc import _realized
+from pythtqc import _spacegroup
+from pythtqc import _subgroups
 
 FREE = dict(environment="free-standing")
 SUB = dict(environment="substrate")
@@ -592,8 +601,8 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
     assert bare.cross_check["substrate"]["number_str"] == "183.186"
 
     # the other choice: the statement fails for it, and that is "ambiguous"
-    ranked = tqg._tie_ranked
-    monkeypatch.setattr(tqg, "_tie_ranked",
+    ranked = _subgroups._tie_ranked
+    patch_everywhere(monkeypatch, "_tie_ranked",
                         lambda group, subgroups: ranked(group, subgroups)[::-1])
     other = tqg.realized_group(tqc_models.p41_flat_band(chiral=True))
     assert not isinstance(other, Refusal), str(other)
@@ -697,8 +706,8 @@ def test_the_subgroup_enumeration_is_complete_on_a_group_it_can_be_checked_again
     """
     import itertools
 
-    cell, typ = tqg._decorated_cell(tqg._slab_presentation(square_layer()), [0])
-    group = tqg._group_of(cell, typat=typ)
+    cell, typ = _layers._decorated_cell(_layers._slab_presentation(square_layer()), [0])
+    group = _spacegroup._group_of(cell, typat=typ)
     assert not isinstance(group, Refusal), str(group)
     assert (group.number_str, group.name) == ("99.164", "P4mm1'")
     unit = [int(s.ind) for s in group.symmetries if not s.time_reversal]
@@ -713,7 +722,7 @@ def test_the_subgroup_enumeration_is_complete_on_a_group_it_can_be_checked_again
 
     brute = {frozenset(c) for n in range(1, 9)
              for c in itertools.combinations(unit, n) if closed(c)}
-    assert tqg._subgroups_inside(group, unit) == brute
+    assert _subgroups._subgroups_inside(group, unit) == brute
     assert len(brute) == 10
 
 
@@ -756,14 +765,14 @@ def test_a_flat_spinless_layer_keeps_sigma_h_and_the_declaration_names_it():
     assert complex(chars["m(z)"]).real == pytest.approx(-1.0, abs=1e-9)
     assert complex(chars["i"]).real == pytest.approx(-1.0, abs=1e-9)
 
-    partners = tqg._mirror_partners(r.group, r.validated, r.assignment)
+    partners = _descent._mirror_partners(r.group, r.validated, r.assignment)
     assert len(partners) == 16 and len(set(partners) | set(partners.values())) == 32
-    decls, _layout = tqg._declared_contents(r.model, r.group, r.assignment, r.validated,
+    decls, _layout = _descent._declared_contents(r.model, r.group, r.assignment, r.validated,
                                             r.rep.multiplets, spin=None,
                                             characters={0: "pz"})
-    assert tqg._mirror_sign(r.group, partners, decls) == {"sign": -1,
+    assert _descent._mirror_sign(r.group, partners, decls) == {"sign": -1,
                                                           "determined_by": "declaration"}
-    assert tqg._mirror_sign(r.group, partners) == {"sign": 1, "determined_by": "lowest-l"}
+    assert _descent._mirror_sign(r.group, partners) == {"sign": 1, "determined_by": "lowest-l"}
     for flipped, kept in partners.items():
         assert np.abs(r.rep.matrices[flipped] + r.rep.matrices[kept]).max() < 1e-12
 
@@ -1113,10 +1122,10 @@ def test_the_record_names_the_side_flippers_and_the_error_reads_them():
     itself.  The group is the cell's own, what the honeycomb point set allows
     before the Hamiltonian is asked.
     """
-    group = tqg._group_of(tqg._slab_presentation(tqc_models.kane_mele_inversion()))
+    group = _spacegroup._group_of(_layers._slab_presentation(tqc_models.kane_mele_inversion()))
     assert not isinstance(group, Refusal), str(group)
     assert (group.sg_number, group.number_str, group.size) == (191, "191.234", 48)
-    record = tqg._environment_record(group, group)
+    record = _layers._environment_record(group, group)
     assert record["agrees"] is False and record["outcome"] is None
     assert len(record["flipping"]) == 24
     assert record["missing"] == () and record["extra"] == (), \
@@ -1124,7 +1133,7 @@ def test_the_record_names_the_side_flippers_and_the_error_reads_them():
     assert {r["name"] for r in record["flipping"]} >= {"i", "m(z)", "C2(x)", "S3(z)"}
 
     with pytest.raises(InternalError, match="flip the layer's side") as err:
-        tqg._raise_environment_contradiction(record)
+        _layers._raise_environment_contradiction(record)
     assert "24 operations of the substrate group" in str(err.value)
     assert "191.234" in str(err.value)
 
@@ -1241,14 +1250,14 @@ def test_realized_group_itself_raises_when_the_two_environments_disagree(monkeyp
         if spelling is None:
             undeclared = free
     # the reference orbital named, through the private entry that takes it
-    other = tqg._realize(p_shell_honeycomb(), reference_orbital=1, cross_check=False,
+    other = _realized._realize(p_shell_honeycomb(), reference_orbital=1, cross_check=False,
                          **FREE)
     assert not isinstance(other, Refusal), str(other)
     assert max(float(np.abs(np.asarray(D) - np.asarray(undeclared.rep.matrices[i])).max())
                for i, D in other.rep.matrices.items()) < 1e-12, \
         "the same matrices whichever part holds the reference orbital"
 
-    original = tqg._realized_selection
+    original = _realized._realized_selection
     calls = {"selection": 0}
 
     def wrapper(model, **kw):
@@ -1257,7 +1266,7 @@ def test_realized_group_itself_raises_when_the_two_environments_disagree(monkeyp
         return original(tqc_models.kane_mele_z2("odd"), typat=[0, 1],
                         characters={0: "A1"}, cross_check=False, **SUB)
 
-    monkeypatch.setattr(tqg, "_realized_selection", wrapper)
+    patch_everywhere(monkeypatch, "_realized_selection", wrapper)
     with pytest.raises(InternalError, match="missing from the substrate group") as err:
         tqg.realized_group(kane_mele(0.0, -1.0, 0.3, 0.0), characters={0: "pz"},
                            **FREE)
@@ -1277,7 +1286,7 @@ def test_realized_group_itself_raises_when_the_two_environments_disagree(monkeyp
         return original(tqc_models.pxpy_honeycomb(), typat=[0] * 4, cross_check=False,
                         **SUB)
 
-    monkeypatch.setattr(tqg, "_realized_selection", planted)
+    patch_everywhere(monkeypatch, "_realized_selection", planted)
     with pytest.raises(InternalError, match="183.186") as err:
         tqg.realized_group(tqc_models.pxpy_honeycomb(), typat=[0] * 4,
                            characters={(0, 1): "E'", (2, 3): "E''"}, **FREE)
@@ -1299,7 +1308,7 @@ def test_cross_check_false_skips_the_gate_and_records_nothing(monkeypatch):
     **one** — the substrate reading — with the default, and the same
     ``#123.340``, 32 of 32, served either way.
     """
-    original = tqg._realized_selection
+    original = _realized._realized_selection
     selections = []
 
     def counting(model, **kw):
@@ -1307,7 +1316,7 @@ def test_cross_check_false_skips_the_gate_and_records_nothing(monkeypatch):
         selections.append(str(kw.get("environment")))
         return original(model, **kw)
 
-    monkeypatch.setattr(tqg, "_realized_selection", counting)
+    patch_everywhere(monkeypatch, "_realized_selection", counting)
     r = tqg.realized_group(square_layer(), cross_check=False, **FREE)
     assert selections == [], "no second identification ran"
     checked = tqg.realized_group(square_layer(), **FREE)
@@ -1417,7 +1426,7 @@ def test_the_opposite_axis_transcription_on_a_substrate_is_the_axial_mm2():
 
     built = {}
     for branch in (1, -1):
-        one = tqs._build_rep(full.model, g, full.assignment,
+        one = _build._build_rep(full.model, g, full.assignment,
                              validated=full.validated, orientation_branch=branch)
         assert not isinstance(one, Refusal), str(one)
         assert one._choice["orientation"] == branch
@@ -1497,11 +1506,11 @@ def test_the_closed_gate_raises_on_the_raw_blocks_on_the_tables_own_lift(p41_sub
     host = p41_substrate                # the session's shared record of that reading
     assert not isinstance(host, Refusal), str(host)
     assert host.group.number_str == "99.164"
-    m3 = tqg._slab_presentation(raw)
+    m3 = _layers._slab_presentation(raw)
     assert not isinstance(m3, Refusal), str(m3)
-    val = tqg._validate_group(m3, host.group, nk=6)
+    val = _measure._validate_group(m3, host.group, nk=6)
     with pytest.raises(InternalError) as err:
-        tqs._build_rep(m3, host.group, host.assignment, validated=val)
+        _build._build_rep(m3, host.group, host.assignment, validated=val)
     said = str(err.value)
     assert "8 of the" in said, "the four site-swapping ones, and with T"
     assert said.count("its spin lift") == 8, said

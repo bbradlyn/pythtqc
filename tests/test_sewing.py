@@ -86,6 +86,10 @@ from pythtqc import groups as tqg
 from pythtqc import sewing as tqw
 from pythtqc import symmetry as tqs
 from pythtqc.refusal import InternalError, Refusal
+from pythtqc import _build
+from pythtqc import _measure
+from pythtqc import _spacegroup
+from pythtqc import _tables
 
 import tqc_models
 
@@ -124,11 +128,11 @@ def hamiltonian_at(model, k, **params):
 @pytest.fixture(scope="module")
 def lin3g_slab(lin3g):
     """lin3g on its bare slab cell, P4/mmm1' (#123.340), represented by a build by hand."""
-    group = tqg._group_of(lin3g)
+    group = _spacegroup._group_of(lin3g)
     assert group, str(group)
-    assignment = tqg._assign_orbitals(lin3g, group)
-    validated = tqg._validate_group(lin3g, group, nk=6)
-    rep = tqs._build_rep(lin3g, group, assignment, validated=validated)
+    assignment = _tables._assign_orbitals(lin3g, group)
+    validated = _measure._validate_group(lin3g, group, nk=6)
+    rep = _build._build_rep(lin3g, group, assignment, validated=validated)
     assert rep, str(rep)
     return lin3g, group, assignment, validated, rep
 
@@ -722,11 +726,11 @@ def test_hsp_table_skips_a_trivial_little_group():
     m.set_hop(-0.25, 0, 1, [0, 0, 0])
     m.set_hop(-0.15, 1, 1, [0, 0, 1])
     m.set_hop(0.07, 0, 1, [1, 1, 0])
-    group = tqg._group_of(m, include_TR=False, typat=[0, 1])
+    group = _spacegroup._group_of(m, include_TR=False, typat=[0, 1])
     assert group and group.sg_number == 1
-    assignment = tqg._assign_orbitals(m, group, typat=[0, 1])
-    rep = tqs._build_rep(m, group, assignment,
-                         validated=tqg._validate_group(m, group, nk=4), n_battery=3)
+    assignment = _tables._assign_orbitals(m, group, typat=[0, 1])
+    rep = _build._build_rep(m, group, assignment,
+                         validated=_measure._validate_group(m, group, nk=4), n_battery=3)
     assert rep, str(rep)
     table = tqw.hsp_table(rep, bands=1)
     assert table.complete and table.refusals == {} and table.content == {}

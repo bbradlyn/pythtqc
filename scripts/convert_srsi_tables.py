@@ -55,7 +55,7 @@ every :math:`p` this package builds.
 The grey BNS number of each space group is **measured** from ``irreptables``'
 own tables (the unique magnetic entry of that space group whose antiunitary
 coset contains :math:`\{1|0\}\cdot T`, the same detector
-``pythtqc.groups._magnetic_type`` uses), never typed.
+``pythtqc._spacegroup._magnetic_type`` uses), never typed.
 
 Output
 ------
@@ -120,8 +120,8 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(_HERE, "..", "src"))
 
 from pythtqc.groups import ebr_data, tables_status          # noqa: E402
-from pythtqc.ebr import (_named_forms, _smith_system,       # noqa: E402
-                         _unimodular_inverse)
+from pythtqc.ebr import _named_forms
+from pythtqc._smith import _smith_system, _unimodular_inverse
 
 DOI = "https://doi.org/10.1038/s41467-026-74844-w"
 PAPER = ("Hwang et al., 'Stable real-space invariants and topology beyond "
@@ -156,7 +156,7 @@ def grey_numbers() -> dict[int, str]:
     r"""``{sg: "<sg>.<bns>"}`` for the grey (type-II) entry of every space group.
 
     Measured from ``irreptables``' shipped correpresentation tables, with the
-    same test :func:`pythtqc.groups._magnetic_type` applies to a measured
+    same test :func:`pythtqc._spacegroup._magnetic_type` applies to a measured
     operation list: a group is grey exactly when its antiunitary coset contains
     time reversal itself, :math:`\{1|0\}\cdot T` up to a lattice vector.  Each
     ``irreps-SG=<n>.<m>-scal.dat`` header lists the operations as

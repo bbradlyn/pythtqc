@@ -26,14 +26,22 @@ import warnings
 
 import numpy as np
 import pytest
+
+from conftest import patch_everywhere
 from pythtb import Lattice, TBModel
 from pythtb.models import graphene
 
 from pythtqc import groups as G
-from pythtqc import symmetry as S
 from pythtqc import InternalError
 from pythtqc.models import i213_flicker2018
 from pythtqc.refusal import MagneticScopeWarning, Refusal, RefusalError
+from pythtqc import _build
+from pythtqc import _detector
+from pythtqc import _layers
+from pythtqc import _matrices
+from pythtqc import _measure
+from pythtqc import _spacegroup
+from pythtqc import _tables
 
 # Third-party deprecations (spglib, irrep) are noise here; a deprecated pythtqc
 # spelling is not, and the second mark keeps the suite's own guard in force
@@ -239,7 +247,7 @@ def test_tables_tripwire_refuses_on_the_dummy_fallback(monkeypatch):
     assert st["tables"] is False and "DummyMethodTables" in st["reason"]
     assert "irreptables" in st["reason"]
 
-    r = G._group_of(square())
+    r = _spacegroup._group_of(square())
     assert not r and isinstance(r, Refusal)
     assert r.gate == "irrep_tables"
     assert "irreptables" in str(r)
@@ -258,11 +266,11 @@ def test_refusal_semantics():
 # ---------------------------------------------------------------------------
 
 def test_square_lattice_slab_group():
-    g = G._group_of(square(), include_TR=False)
+    g = _spacegroup._group_of(square(), include_TR=False)
     assert g, g
     assert (g.sg_number, g.name, g.size) == (123, "P4/mmm", 16)   # slab number, option (c)
     assert g._tables_ready and g.periodic_dirs == (0, 1) and g.vacuum_dirs == (2,)
-    asg = G._assign_orbitals(square(), g)
+    asg = _tables._assign_orbitals(square(), g)
     assert asg.wyckoff_spglib == ("a",) and asg.wyckoff_spglib_dataset == ("a",)
     assert asg.site_symmetry == ("4/mmm",)
     assert len(asg.site_group[0]) == 16
@@ -279,11 +287,11 @@ def test_graphene_slab_group():
     ``P-6m2``.
     """
     m = graphene(0.0, -1.0)
-    g = G._group_of(m, include_TR=False)
+    g = _spacegroup._group_of(m, include_TR=False)
     assert g, g
     assert (g.sg_number, g.name, g.size) == (191, "P6/mmm", 24)   # slab number, option (c)
     assert g.number_str == "191" and g.magnetic is False
-    asg = G._assign_orbitals(m, g)
+    asg = _tables._assign_orbitals(m, g)
     assert asg.orbits == ((0, 1),)                                # one orbit, both sublattices
     assert asg.wyckoff_spglib == ("c",) and asg.wyckoff_spglib_dataset == ("c", "c")
     assert asg.site_symmetry == ("-6m2", "-6m2")
@@ -292,13 +300,13 @@ def test_graphene_slab_group():
     assert repr(asg) == ("OrbitalAssignment(2 orbitals on 2 sites: sites (0, 1), "
                          "letter c, site symmetry -6m2)")
 
-    grey = G._group_of(m, include_TR=True)
+    grey = _spacegroup._group_of(m, include_TR=True)
     assert grey.number_str.startswith("191.") and grey.sg_number == 191
     assert grey.magnetic is True and grey.name.endswith("1'")
     assert grey.size == 48 and len(grey.u_symmetries) == 24 and len(grey.au_symmetries) == 24
 
-    staggered = G._group_of(m, include_TR=False, typat=[0, 1])
-    split = G._assign_orbitals(m, staggered, typat=[0, 1])
+    staggered = _spacegroup._group_of(m, include_TR=False, typat=[0, 1])
+    split = _tables._assign_orbitals(m, staggered, typat=[0, 1])
     assert not isinstance(split, Refusal), split
     assert split.orbits == ((0,), (1,))
     assert split.wyckoff_spglib == ("e", "c")   # 1e = (1/3,1/3,0), 1c = (2/3,2/3,0)
@@ -316,7 +324,7 @@ def test_the_wyckoff_match_gate_is_a_position_tolerance():
     a special one, which is what a gate of ``0.5`` shows here.
     """
     m = graphene(0.0, -1.0)
-    g = G._group_of(m, include_TR=False)
+    g = _spacegroup._group_of(m, include_TR=False)
 
     tight = G.wyckoff_sites_tables(g, [[0.13, 0.29, 0.41]],
                                    position_tol=G.WYCKOFF_REFERENCE_TOL)
@@ -333,8 +341,8 @@ def test_the_wyckoff_match_gate_is_a_position_tolerance():
 
 @pytest.mark.parametrize("build", [lambda: graphene(0.0, -1.0), bilayer_slab])
 def test_slab_group_is_independent_of_the_padding_length(build):
-    a = G._group_of(build(), include_TR=False, vacuum_length=20.0)
-    b = G._group_of(build(), include_TR=False, vacuum_length=40.0)
+    a = _spacegroup._group_of(build(), include_TR=False, vacuum_length=20.0)
+    b = _spacegroup._group_of(build(), include_TR=False, vacuum_length=40.0)
     assert a and b
     assert (a.number_str, a.name, a.size) == (b.number_str, b.name, b.size)
     # and the padding really did change the cell
@@ -379,7 +387,7 @@ def test_the_decoupled_stack_is_the_layer_in_three_periodic_directions():
         middle.set_hop(h["amplitude"], h["from_orbital"], h["to_orbital"], [R[0], 0, R[1]],
                        mode="add")
     two_d = G.stack_presentation(layer)
-    from_slab = G.stack_presentation(G._slab_presentation(layer))
+    from_slab = G.stack_presentation(_layers._slab_presentation(layer))
     from_middle = G.stack_presentation(middle)
     assert two_d and from_slab and from_middle
     for st in (two_d, from_slab, from_middle):
@@ -405,10 +413,10 @@ def test_the_decoupled_stack_is_the_layer_in_three_periodic_directions():
     # the middle slab's group, carried onto its stack across the reversed normal,
     # is the stack cell's own: the same operations under the same indices, the
     # same setting of the tables, the same k-points
-    cell = G._group_of(middle)
+    cell = _spacegroup._group_of(middle)
     assert cell.number_str == "191.234" and cell.vacuum_dirs == (1,)
-    carried, _sites = G._layer_on_stack(cell, G._assign_orbitals(middle, cell), from_middle)
-    found = G._group_of(from_middle)
+    carried, _sites = _layers._layer_on_stack(cell, _tables._assign_orbitals(middle, cell), from_middle)
+    found = _spacegroup._group_of(from_middle)
     assert [int(s.ind) for s in carried.symmetries] == [int(s.ind) for s in found.symmetries]
     for s, f in zip(carried.symmetries, found.symmetries):
         assert np.array_equal(np.asarray(s.rotation), np.asarray(f.rotation))
@@ -419,10 +427,10 @@ def test_the_decoupled_stack_is_the_layer_in_three_periodic_directions():
     assert {n: tuple(np.round(k, 9)) for n, k in G.high_symmetry_points(carried).items()} \
         == {n: tuple(np.round(k, 9)) for n, k in G.high_symmetry_points(found).items()}
 
-    g = G._group_of(two_d)
+    g = _spacegroup._group_of(two_d)
     assert g.number_str == "191.234" and g.dim_k == 3 and g.vacuum_dirs == ()
     assert sorted(G.high_symmetry_points(g)) == ["A", "GM", "H", "K", "L", "M"]
-    wide = G._group_of(G.stack_presentation(layer, c=13.7))
+    wide = _spacegroup._group_of(G.stack_presentation(layer, c=13.7))
     assert (wide.number_str, wide.size) == (g.number_str, g.size), "c cannot matter"
 
     # the gate, a measurement: a fully periodic model is already its own stack
@@ -448,9 +456,9 @@ def test_the_decoupled_stack_is_the_layer_in_three_periodic_directions():
         gauged = np.conj(lam)[None, :, None] * layer_h * lam[None, None, :]
         assert np.abs(stack_h - gauged).max() <= (0.0 if kz == 0.0 else 1e-12)
         assert (np.abs(stack_h - layer_h).max() > 1e-3) == (kz != 0.0)
-    cell = G._group_of(slab)
-    carried, _sites = G._layer_on_stack(cell, G._assign_orbitals(slab, cell), two)
-    found = G._group_of(two)
+    cell = _spacegroup._group_of(slab)
+    carried, _sites = _layers._layer_on_stack(cell, _tables._assign_orbitals(slab, cell), two)
+    found = _spacegroup._group_of(two)
     assert (cell.number_str, found.number_str) == ("123.340", "123.340")
     assert [int(s.ind) for s in carried.symmetries] == [int(s.ind) for s in found.symmetries]
     for s, f in zip(carried.symmetries, found.symmetries):
@@ -470,7 +478,7 @@ def test_padded_cell_preserves_reduced_k_and_positions():
     columns are read back.
     """
     m = bilayer_slab()
-    g = G._group_of(m, include_TR=False, vacuum_length=40.0)
+    g = _spacegroup._group_of(m, include_TR=False, vacuum_length=40.0)
     assert np.allclose(g.site_positions[:, :2], m.orb_vecs[:, :2] % 1.0)
     assert tuple(g.periodic_dirs) == (0, 1) and tuple(g.vacuum_dirs) == (2,)
     assert np.array_equal(g.k_to_3d([[0.23, 0.41]]), [[0.23, 0.41, 0.0]])
@@ -493,25 +501,25 @@ def test_default_typat_treats_same_content_sites_as_one_species():
     declaration that removes the appearance.  ``tests/test_lattice_descent.py``
     carries the rest.
     """
-    r = G._group_of(square_two_orbitals(0.0), include_TR=False)
+    r = _spacegroup._group_of(square_two_orbitals(0.0), include_TR=False)
     assert r, str(r)
     assert (r.number_str, r.name, r.size) == ("123", "P4/mmm", 32)
     assert r._lattice_index == 2
     assert r._fractional_translations == ((0.5, 0.5, 0.0),)
     assert r._tables_ready is False
-    labelled = G._group_of(square_two_orbitals(0.0), include_TR=False, typat=[0, 1])
+    labelled = _spacegroup._group_of(square_two_orbitals(0.0), include_TR=False, typat=[0, 1])
     assert labelled and labelled.sg_number == 123
     assert labelled._lattice_index == 1
 
 
 def test_orbital_off_every_wyckoff_orbit_refuses():
     ideal = square_two_orbitals(0.0)
-    g = G._group_of(ideal, include_TR=False, typat=[0, 1])
+    g = _spacegroup._group_of(ideal, include_TR=False, typat=[0, 1])
     assert g and g.sg_number == 123
-    assert G._assign_orbitals(ideal, g, typat=[0, 1])       # the ideal model is fine
+    assert _tables._assign_orbitals(ideal, g, typat=[0, 1])       # the ideal model is fine
 
     broken = square_two_orbitals(shift=-0.06)             # 1c orbital pushed off its orbit
-    r = G._assign_orbitals(broken, g, typat=[0, 1])
+    r = _tables._assign_orbitals(broken, g, typat=[0, 1])
     assert not r and isinstance(r, Refusal)
     assert r.gate == "wyckoff_orbit"
     assert r.value == pytest.approx(0.12, abs=1e-9)       # 2 * 0.06, the C4-image mismatch
@@ -528,10 +536,10 @@ def test_a_model_and_a_group_built_on_another_lattice_raise():
     from two cells is a malformed argument: it raises, saying how far apart the
     two lattices are.
     """
-    g = G._group_of(graphene(0.0, -1.0), include_TR=False)
+    g = _spacegroup._group_of(graphene(0.0, -1.0), include_TR=False)
     assert g and g.sg_number == 191
     with pytest.raises(ValueError, match="the group was built for another cell"):
-        G._assign_orbitals(square(), g)
+        _tables._assign_orbitals(square(), g)
 
 
 # ---------------------------------------------------------------------------
@@ -575,7 +583,7 @@ def test_magnetic_types_iii_and_iv_are_refused_at_the_constructor(monkeypatch):
     served with ``magnetic=True`` and a BNS ``number_str``, which is what makes
     the structural detection necessary in the first place.
     """
-    three = G._group_of(graphene(0.0, -1.0), **AFM)
+    three = _spacegroup._group_of(graphene(0.0, -1.0), **AFM)
     assert not three and three.gate == "magnetic_type_out_of_scope"
     assert three.context["magnetic_type"] == "III"
     assert three.context["number_str"] == "191.236"        # P6'/mm'm
@@ -585,7 +593,7 @@ def test_magnetic_types_iii_and_iv_are_refused_at_the_constructor(monkeypatch):
     assert "types I and II" in three.reason
     assert "not the corep type at a k-point" in three.reason
 
-    four = G._group_of(square_two_orbitals(0.0), **AFM)
+    four = _spacegroup._group_of(square_two_orbitals(0.0), **AFM)
     assert not four and four.gate == "magnetic_type_out_of_scope"
     assert four.context["magnetic_type"] == "IV"
     assert four.context["number_str"] == "127.397"         # P_C4/mbm
@@ -598,22 +606,22 @@ def test_magnetic_types_iii_and_iv_are_refused_at_the_constructor(monkeypatch):
     # (`lattice_index == 2`), that makes the magnetic group type IV rather than
     # type II.  Grey it stays type II, which is what `_magnetic_type` reads off
     # `{1|0}.T` before any of this.
-    bare = G._group_of(square_two_orbitals(0.0))
+    bare = _spacegroup._group_of(square_two_orbitals(0.0))
     assert bare and bare._lattice_index == 2
     assert bare._fractional_translations == ((0.5, 0.5, 0.0),)
-    assert G._magnetic_type(bare) == "II"
+    assert _spacegroup._magnetic_type(bare) == "II"
 
     # the type, read off the operations: what the antiunitary coset contains
     m = graphene(0.0, -1.0)
-    assert G._magnetic_type(G._group_of(m, include_TR=False)) == "I"
-    grey = G._group_of(m, include_TR=True)
-    assert G._magnetic_type(grey) == "II"
+    assert _spacegroup._magnetic_type(_spacegroup._group_of(m, include_TR=False)) == "I"
+    grey = _spacegroup._group_of(m, include_TR=True)
+    assert _spacegroup._magnetic_type(grey) == "II"
     with monkeypatch.context() as mp:                 # build what the gate stops
-        mp.setattr(G, "_magnetic_scope_refusal", lambda _sg: None)
-        built_three = G._group_of(m, **AFM)
-        built_four = G._group_of(square_two_orbitals(0.0), **AFM)
+        patch_everywhere(mp, "_magnetic_scope_refusal", lambda _sg: None)
+        built_three = _spacegroup._group_of(m, **AFM)
+        built_four = _spacegroup._group_of(square_two_orbitals(0.0), **AFM)
     assert built_three.number_str == "191.236" and built_four.number_str == "127.397"
-    assert G._magnetic_type(built_three) == "III" and G._magnetic_type(built_four) == "IV"
+    assert _spacegroup._magnetic_type(built_three) == "III" and _spacegroup._magnetic_type(built_four) == "IV"
 
     def identity_rotation_translations(g):
         out = []
@@ -628,16 +636,16 @@ def test_magnetic_types_iii_and_iv_are_refused_at_the_constructor(monkeypatch):
     assert identity_rotation_translations(grey) == [pytest.approx(0.0)]
     assert identity_rotation_translations(built_three) == []
     assert identity_rotation_translations(built_four) == [pytest.approx(0.5)]
-    assert G._magnetic_scope_refusal(grey) is None
-    assert G._magnetic_scope_refusal(built_three).context["magnetic_type"] == "III"
+    assert _spacegroup._magnetic_scope_refusal(grey) is None
+    assert _spacegroup._magnetic_scope_refusal(built_three).context["magnetic_type"] == "III"
 
     # ... and magmom= in scope still reaches the group
-    zero = G._group_of(m, magmom=[[0, 0, 0.0], [0, 0, 0.0]])
-    assert zero and zero.number_str == "191.234" and G._magnetic_type(zero) == "II"
-    generic = G._group_of(m, magmom=[[0.3, 0.5, 1.0], [0.7, -0.2, 0.4]])
+    zero = _spacegroup._group_of(m, magmom=[[0, 0, 0.0], [0, 0, 0.0]])
+    assert zero and zero.number_str == "191.234" and _spacegroup._magnetic_type(zero) == "II"
+    generic = _spacegroup._group_of(m, magmom=[[0.3, 0.5, 1.0], [0.7, -0.2, 0.4]])
     assert generic and generic.number_str == "1.1"         # P1, type I(BNS)
     assert generic.magnetic is True and not list(generic.au_symmetries)
-    assert G._magnetic_type(generic) == "I"
+    assert _spacegroup._magnetic_type(generic) == "I"
 
 
 @pytest.mark.data
@@ -664,7 +672,7 @@ def test_the_bns_census_the_scope_statement_rests_on():
 
 
 def test_out_of_plane_k_refuses():
-    g = G._group_of(square(), include_TR=False)
+    g = _spacegroup._group_of(square(), include_TR=False)
     r = G.little_group(g, [0.0, 0.0, 0.5])
     assert not r and r.gate == "out_of_plane"
     assert G.little_group(g, [0.0, 0.0, 0.0])             # in-plane 3-vector is fine
@@ -678,7 +686,7 @@ def test_out_of_plane_k_refuses():
 
 @pytest.mark.slow
 def test_product_table_with_spinor_factors():
-    g = G._group_of(square(spinful=True), include_TR=False)
+    g = _spacegroup._group_of(square(spinful=True), include_TR=False)
     assert g and g.spinor is True and g.size == 16
     table, dt, spinor = g.get_product_table(get_diff=True)
 
@@ -740,7 +748,7 @@ def test_the_product_table_is_memoized_and_still_handed_out_fresh(monkeypatch):
     # may already be warm from an earlier test in this session; `replace` is
     # the documented route to a copy that starts empty, and it is the very
     # thing asserted at the end.
-    g = dataclasses.replace(G._group_of(square(spinful=True), include_TR=False))
+    g = dataclasses.replace(_spacegroup._group_of(square(spinful=True), include_TR=False))
     builds = []
     real_build = g._sg.get_product_table
 
@@ -783,8 +791,8 @@ def test_the_product_table_is_memoized_and_still_handed_out_fresh(monkeypatch):
 def test_graphene_doublet_at_K_is_the_two_dimensional_irrep():
     """Literature anchor: the K doublet is 2D -- K5 for s-like, K6 for p_z-like orbitals."""
     m = graphene(0.0, -1.0)
-    g = G._group_of(m, include_TR=False)
-    asg = G._assign_orbitals(m, g)
+    g = _spacegroup._group_of(m, include_TR=False)
+    asg = _tables._assign_orbitals(m, g)
     k = G.high_symmetry_points(g)["K"]
     assert np.allclose(k, [1 / 3, 2 / 3]), "the tables' K = (1/3,1/3) is (1/3,2/3) in this cell"
 
@@ -801,8 +809,8 @@ def test_graphene_doublet_at_K_is_the_two_dimensional_irrep():
 
 def test_graphene_gamma_content_and_the_phase_invariant_partition():
     m = graphene(0.0, -1.0)
-    g = G._group_of(m, include_TR=False)
-    asg = G._assign_orbitals(m, g)
+    g = _spacegroup._group_of(m, include_TR=False)
+    asg = _tables._assign_orbitals(m, g)
     chars = bloch_characters(m, g, asg, np.zeros(2), [[0], [1]])
     out = G.identify_from_characters(g, np.zeros(2), chars, multiplet_dims=[1, 1])
     assert out, out
@@ -816,7 +824,7 @@ def test_graphene_gamma_content_and_the_phase_invariant_partition():
 
 def test_identify_refuses_a_k_point_the_tables_do_not_carry():
     m = graphene(0.0, -1.0)
-    g = G._group_of(m, include_TR=False)
+    g = _spacegroup._group_of(m, include_TR=False)
     lg = G.little_group(g, [0.17, 0.31])
     chars = np.ones((1, len(lg.unitary)))
     r = G.identify_from_characters(g, [0.17, 0.31], chars)
@@ -826,7 +834,7 @@ def test_identify_refuses_a_k_point_the_tables_do_not_carry():
 
 def test_corep_table_is_keyed_by_our_operation_indices():
     m = graphene(0.0, -1.0)
-    g = G._group_of(m, include_TR=True)                     # grey group -> coreps
+    g = _spacegroup._group_of(m, include_TR=True)                     # grey group -> coreps
     k = G.high_symmetry_points(g)["K"]
     lg = G.little_group(g, k)
     tab = G.corep_table(g, k)
@@ -845,7 +853,7 @@ def test_corep_table_is_keyed_by_our_operation_indices():
 
 def test_identify_raises_on_a_wrongly_shaped_character_table():
     m = graphene(0.0, -1.0)
-    g = G._group_of(m, include_TR=False)
+    g = _spacegroup._group_of(m, include_TR=False)
     with pytest.raises(ValueError, match="one column per unitary"):
         G.identify_from_characters(g, np.zeros(2), np.ones((1, 3)))
 
@@ -873,13 +881,13 @@ def test_diamond_content_matches_the_EBR_oracle_at_every_point_including_W():
     exercises both ``refUC`` and ``shiftUC``.
     """
     m = diamond()
-    g = G._group_of(m, include_TR=False)
+    g = _spacegroup._group_of(m, include_TR=False)
     assert (g.sg_number, g.name, g.size) == (227, "Fd-3m", 48)
     frac = sum(1 for s in g.symmetries if np.abs(s.translation).max() > 1e-8)
     assert frac == 24, "half of Fd-3m's operations carry a fractional translation"
     assert not np.allclose(g._refUC, np.eye(3)), "refUC must be exercised by this fixture"
     assert np.abs(g._shiftUC).max() > 1e-8, "shiftUC must be exercised by this fixture"
-    asg = G._assign_orbitals(m, g)
+    asg = _tables._assign_orbitals(m, g)
     assert asg.orbits == ((0, 1),)
     assert asg.wyckoff_spglib == asg.wyckoff_spglib_dataset[:1], "our letters must track spglib's"
     assert len(asg.site_group[0]) == 24                        # Td
@@ -1030,7 +1038,7 @@ def test_the_transported_table_conjugates_only_the_factor_system(build, kname, k
     numbers.
     """
     m = build()
-    g = G._group_of(m, include_TR=False)
+    g = _spacegroup._group_of(m, include_TR=False)
     hsp = G.high_symmetry_points(g)
     assert kname in hsp, sorted(hsp)
     tab = G.corep_table(g, hsp[kname])
@@ -1070,7 +1078,7 @@ def test_irreps_own_transport_is_not_a_character_of_ours_at_diamonds_W():
     little group at all: worst class-function violation 2.83 = 2√2, which is
     exactly where the old ``0.5 / 0.5`` multiplicities came from.
     """
-    g = G._group_of(diamond(), include_TR=False)
+    g = _spacegroup._group_of(diamond(), include_TR=False)
     hsp = G.high_symmetry_points(g)
     lg_of = {n: G.little_group(g, hsp[n]) for n in ("GM", "X", "L", "W")}
 
@@ -1108,10 +1116,10 @@ def test_ebr_roundtrip_for_the_cubic_s_orbital_band():
     one entry each, in the same row order.
     """
     m = cubic()
-    g = G._group_of(m, include_TR=False)
+    g = _spacegroup._group_of(m, include_TR=False)
     assert (g.sg_number, g.name, g.size) == (221, "Pm-3m", 48)
     assert g.vacuum_dirs == () and g.periodic_dirs == (0, 1, 2)
-    asg = G._assign_orbitals(m, g)
+    asg = _tables._assign_orbitals(m, g)
     assert asg.wyckoff_spglib == ("a",) and asg.site_symmetry == ("m-3m",)
 
     counts = {}
@@ -1159,7 +1167,7 @@ def test_decompose_ebrs_refuses_a_vector_that_misses_one_of_the_groups_points():
     and is reported back.
     """
     m = cubic()
-    g = G._group_of(m, include_TR=False)
+    g = _spacegroup._group_of(m, include_TR=False)
     counts = {"GM1+": 1, "X1+": 1, "M1+": 1, "R1+": 1}
     assert G.decompose_ebrs(g, counts)["classification"] == "atomic limit"
 
@@ -1242,9 +1250,9 @@ def test_indicator_group_serves_the_smith_structure_and_the_grey_forms():
     grep the ``note`` for.  ``reason`` carries the withholding text and is
     ``None`` wherever nothing is withheld.
     """
-    spinless = G._group_of(cubic(), include_TR=False)
-    spinful = G._group_of(square(spinful=True), include_TR=False)
-    grey = G._group_of(square(spinful=True), include_TR=True)
+    spinless = _spacegroup._group_of(cubic(), include_TR=False)
+    spinful = _spacegroup._group_of(square(spinful=True), include_TR=False)
+    grey = _spacegroup._group_of(square(spinful=True), include_TR=True)
     for g in (spinless, spinful, grey):
         ind = G.indicator_group(g)
         assert not isinstance(ind, Refusal), ind
@@ -1306,7 +1314,7 @@ def test_indicator_group_serves_a_group_whose_shipped_smith_r_is_flat():
     m.set_hop(0.07, 0, 0, [1, 0, 0], mode="add")
     m.set_hop(0.05, 1, 1, [0, 0, 1], mode="add")
 
-    g = G._group_of(m, spinor=False, include_TR=False, typat=[0, 1])
+    g = _spacegroup._group_of(m, spinor=False, include_TR=False, typat=[0, 1])
     assert g and (g.number_str, g.name) == ("1", "P1")
 
     data = G.ebr_data(g)
@@ -1348,9 +1356,9 @@ def test_the_bare_key_indicator_forms_are_withheld_from_a_unitary_group():
     """
     from irreptables.symmetry_indicators import load_si_table
 
-    unitary = G._group_of(rhombohedral(), include_TR=False)
+    unitary = _spacegroup._group_of(rhombohedral(), include_TR=False)
     assert unitary and (unitary.number_str, unitary.name) == ("166", "R-3m")
-    grey = G._group_of(rhombohedral(), include_TR=True)
+    grey = _spacegroup._group_of(rhombohedral(), include_TR=True)
     assert grey and grey.number_str == "166.98"
 
     data = G.ebr_data(unitary)
@@ -1424,7 +1432,7 @@ def test_high_symmetry_points_names_the_tabulated_points_out_of_the_plane():
     ``in``, ``len``, indexing, equality with a plain dict -- which is what
     every other call site in this suite and in the examples relies on.
     """
-    layer = G._group_of(square(spinful=True))
+    layer = _spacegroup._group_of(square(spinful=True))
     hsp = G.high_symmetry_points(layer)
     assert sorted(hsp) == ["GM", "M", "X"]
     assert hsp.missing == ("A", "R", "Z")
@@ -1436,7 +1444,7 @@ def test_high_symmetry_points_names_the_tabulated_points_out_of_the_plane():
     assert all(np.asarray(k).shape == (2,) for k in hsp.values())
 
     # a fully periodic cell has a k for every tabulated point
-    solid = G.high_symmetry_points(G._group_of(cubic(), include_TR=False))
+    solid = G.high_symmetry_points(_spacegroup._group_of(cubic(), include_TR=False))
     assert sorted(solid) == ["GM", "M", "R", "X"] and solid.missing == ()
 
 
@@ -1445,7 +1453,7 @@ def test_high_symmetry_points_names_the_tabulated_points_out_of_the_plane():
 # ---------------------------------------------------------------------------
 
 def test_k_grid_reports_which_high_symmetry_points_it_contains():
-    g = G._group_of(graphene(0.0, -1.0), include_TR=False)
+    g = _spacegroup._group_of(graphene(0.0, -1.0), include_TR=False)
     six = G.k_grid(g, 6)
     seven = G.k_grid(g, 7)
     eight = G.k_grid(g, 8)
@@ -1473,7 +1481,7 @@ def test_k_grid_returns_a_pythtb_mesh_the_membership_record_describes():
     from pythtb import Mesh, WFArray
 
     model = graphene(0.0, -1.0)
-    g = G._group_of(model, include_TR=False)
+    g = _spacegroup._group_of(model, include_TR=False)
     grid = G.k_grid(g, 6)
 
     assert isinstance(grid.mesh, Mesh)
@@ -1506,7 +1514,7 @@ def test_k_grid_returns_a_pythtb_mesh_the_membership_record_describes():
 
 def test_k_grid_refuses_a_grid_the_group_does_not_respect():
     """A 4x6 mesh cannot respect a four-fold rotation that exchanges the two axes."""
-    g = G._group_of(bilayer_slab(), include_TR=False)
+    g = _spacegroup._group_of(bilayer_slab(), include_TR=False)
     assert g.sg_number == 123
     r = G.k_grid(g, [4, 6])
     assert not r and r.gate == "asymmetric_grid"
@@ -1556,16 +1564,16 @@ def test_validate_group_handles_antiunitary_operations():
         return kane_mele(0.0, -1.0, 0.3, 0.0)
 
     m = km()
-    g = G._group_of(m)
+    g = _spacegroup._group_of(m)
     assert (g.number_str, g.size) == ("191.234", 48)
     assert sum(1 for s in g.symmetries if s.time_reversal) == 24
 
-    H = np.asarray(m.hamiltonian(k_pts=G._detection_grid(int(g.dim_k), 6),
+    H = np.asarray(m.hamiltonian(k_pts=_measure._detection_grid(int(g.dim_k), 6),
                                  flatten_spin_axis=True))
     hmax = float(np.abs(H).max())
     assert np.abs(H.conj() - H).max() > 1.0, "conjugation is not the identity on this H"
 
-    v = G._validate_group(m, g, nk=6)
+    v = _measure._validate_group(m, g, nk=6)
     assert len(v.indices) == 48 and v.closed        # P6/mmm1' = 24 unitary + 24 antiunitary
     # the kept operations as `operations(group)` writes them, keyed on the index
     assert isinstance(v.operations, G.OperationTable) and list(v.operations) == \
@@ -1584,7 +1592,7 @@ def test_validate_group_handles_antiunitary_operations():
     assert len(expect) == 24 and len(expect & {int(s.ind) for s in g.symmetries
                                                if s.time_reversal}) == 12
 
-    vz = G._validate_group(mz, g, nk=6)
+    vz = _measure._validate_group(mz, g, nk=6)
     assert set(vz.indices) == expect, "the axial-vector rule names the survivors"
     assert vz.closed and len(vz.indices) == 24
     assert sum(1 for s in vz.operations.values() if s.time_reversal) == 12
@@ -1609,9 +1617,9 @@ def test_the_validation_record_prints_what_a_survivor_count_alone_would_hide():
     """
     from pythtb.models import kane_mele
 
-    layer = G._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.25))
-    g2 = G._group_of(layer)
-    v2 = G._validate_group(layer, g2, nk=6)
+    layer = _layers._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.25))
+    g2 = _spacegroup._group_of(layer)
+    v2 = _measure._validate_group(layer, g2, nk=6)
     assert g2.number_str == "191.234" and len(v2.indices) == 48 == g2.size
     assert len(v2.undetermined) == 48, "every class on a flat cell has a partner"
 
@@ -1628,7 +1636,7 @@ def test_the_validation_record_prints_what_a_survivor_count_alone_would_hide():
     # ... and a fully periodic primitive cell has nothing to qualify: the
     # nonsymmorphic diamond obeys all 48 operations of its cell, to roundoff
     m3 = diamond()
-    v3 = G._validate_group(m3, G._group_of(m3, include_TR=False), nk=4)
+    v3 = _measure._validate_group(m3, _spacegroup._group_of(m3, include_TR=False), nk=4)
     assert len(v3.indices) == 48 and v3.discrepancies == () and v3.closed
     assert max(v3.residuals.values()) < 1e-13
     assert v3.undetermined == (), \
@@ -1650,22 +1658,22 @@ def test_find_intertwiners_zero_nullspace_is_a_proof():
     k = np.stack(np.meshgrid(*([np.linspace(0, 1, 8, endpoint=False)] * 2),
                              indexing="ij"), axis=-1).reshape(-1, 2)
     for solver in ("eigen", "stacked"):
-        c4 = S._find_intertwiners(m, np.array([[0.0, -1.0], [1.0, 0.0]]), k, solver=solver)
+        c4 = _detector._find_intertwiners(m, np.array([[0.0, -1.0], [1.0, 0.0]]), k, solver=solver)
         assert c4.dim == 0
         assert c4.singular_values[0] / c4.scale > 1e-3, "the breaking is far above the cut"
 
-        c2 = S._find_intertwiners(m, -np.eye(2), k, solver=solver)
+        c2 = _detector._find_intertwiners(m, -np.eye(2), k, solver=solver)
         assert c2.dim == 1
         assert c2.residuals[0] < 1e-13 and c2.unitarity[0] < 1e-13
         assert c2.n_kpts == c2.n_kpts_solve == 64
 
-    assert S._find_intertwiners(m, -np.eye(2), k).method == "eigen"
-    assert S._find_intertwiners(m, -np.eye(2), k, solver="stacked").method == "stacked"
+    assert _detector._find_intertwiners(m, -np.eye(2), k).method == "eigen"
+    assert _detector._find_intertwiners(m, -np.eye(2), k, solver="stacked").method == "stacked"
 
     with pytest.raises(ValueError, match="at least two k-points"):
-        S._find_intertwiners(m, -np.eye(2), np.zeros((1, 2)))
+        _detector._find_intertwiners(m, -np.eye(2), np.zeros((1, 2)))
     with pytest.raises(ValueError, match="solver must be"):
-        S._find_intertwiners(m, -np.eye(2), k, solver="gram")
+        _detector._find_intertwiners(m, -np.eye(2), k, solver="gram")
 
 
 def test_find_intertwiners_subset_solve_moves_the_solve_not_the_verdict():
@@ -1697,8 +1705,8 @@ def test_find_intertwiners_subset_solve_moves_the_solve_not_the_verdict():
     k = np.stack(np.meshgrid(*([np.linspace(0, 1, 4, endpoint=False)] * 3),
                              indexing="ij"), axis=-1).reshape(-1, 3)
     action = np.array([[0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]])   # a C3 on reduced k
-    a = S._find_intertwiners(m, action, k, solver="stacked")
-    b = S._find_intertwiners(m, action, k, max_solve_entries=8 * m.nstate ** 4,
+    a = _detector._find_intertwiners(m, action, k, solver="stacked")
+    b = _detector._find_intertwiners(m, action, k, max_solve_entries=8 * m.nstate ** 4,
                              solver="stacked")
     assert a.method == "stacked" and b.method == "stacked_subset"
     assert (a.n_kpts, a.n_kpts_solve) == (64, 64)
@@ -1712,7 +1720,7 @@ def test_find_intertwiners_subset_solve_moves_the_solve_not_the_verdict():
 
     # the same economy, one layer up: the eigen route stops after 5 points and
     # verifies on all 64 -- and lands on the same dimension and the same gate
-    e = S._find_intertwiners(m, action, k)
+    e = _detector._find_intertwiners(m, action, k)
     assert e.method == "eigen" and e.dim == 1 and (e.n_kpts, e.n_kpts_solve) == (64, 5)
     assert e.basis_size == (2, 1, 1, 1, 1) and e.window == 1e-3
     assert e.residuals[0] < 1e-13 and e.singular_values[0] / e.scale < 1e-14
@@ -1749,7 +1757,7 @@ def _census(model, group, k, **kw):
     for sym in group.symmetries:
         action = group.k_action_of(sym)
         assert action is not None, "a fully periodic cell moves no k out of plane"
-        out.append((S._find_intertwiners(model, action, k,
+        out.append((_detector._find_intertwiners(model, action, k,
                                          antiunitary=bool(sym.time_reversal), **kw), sym))
     return out
 
@@ -1779,13 +1787,13 @@ def test_the_same_false_proof_on_the_one_orbital_tetragonal():
     band is degenerate at every point, so the eigen route scans the whole grid.
     """
     m = tetragonal()
-    g = G._group_of(m, include_TR=True)
+    g = _spacegroup._group_of(m, include_TR=True)
     assert g.sg_number == 123 and g.size == 32 and m.nstate == 1
     k = _grid(4, 3)
     h_scale = float(np.abs(np.asarray(
         m.hamiltonian(k_pts=k, flatten_spin_axis=True))).max())
 
-    v = G._validate_group(m, g, nk=4)
+    v = _measure._validate_group(m, g, nk=4)
     assert len(v.indices) == 32 and v.discrepancies == () and v.closed
     assert max(v.residuals.values()) <= _ROUNDOFF * h_scale
 
@@ -1823,13 +1831,13 @@ def test_vacuity_is_about_scalar_H_not_about_one_band():
     ulp of ``max |H|``, which is what is asserted.
     """
     m = square(spinful=True, td=-0.3)
-    g = G._group_of(m, include_TR=False)
+    g = _spacegroup._group_of(m, include_TR=False)
     assert m.nstate == 2 and m.nspin == 2 and g.size == 16
     k = _grid(8, 2)
     h_scale = float(np.abs(np.asarray(
         m.hamiltonian(k_pts=k, flatten_spin_axis=True))).max())
 
-    v = G._validate_group(m, g, nk=8)
+    v = _measure._validate_group(m, g, nk=8)
     assert len(v.indices) == g.size and v.discrepancies == () and v.closed
     assert max(v.residuals.values()) <= _ROUNDOFF * h_scale
     assert set(v._nullspace_dims.values()) == {4}, "nstate**2, the whole of M_2"
@@ -1862,7 +1870,7 @@ def test_a_genuinely_broken_operation_is_not_vacuous_at_any_number_of_states():
     """
     for m, k in ((square(tx=-1.0, ty=-0.6), _grid(8, 2)),
                  (cubic(spinful=True, tz=-0.4), _grid(4, 3))):
-        g = G._group_of(m, include_TR=False)
+        g = _spacegroup._group_of(m, include_TR=False)
         seen = _census(m, g, k)
         broken = [sp for sp in (s for s, _ in seen) if not sp.vacuous]
         held = [sp for sp in (s for s, _ in seen) if sp.vacuous]
@@ -1878,7 +1886,7 @@ def test_a_genuinely_broken_operation_is_not_vacuous_at_any_number_of_states():
             "measured 2.0 * max|H| -- nine decades above the 1e-9 vacuity cut"
         assert max(float(sp.singular_values[-1]) for sp in held) < 1e-15 * h_scale
 
-        v = G._validate_group(m, g, nk=8 if g.dim_k == 2 else 4)
+        v = _measure._validate_group(m, g, nk=8 if g.dim_k == 2 else 4)
         assert len(v.indices) == len(held) and v.closed
         assert all(d["refuted_by"] == "no symmetry matrix" for d in v.discrepancies)
         assert len(v.discrepancies) == len(broken)
@@ -1919,7 +1927,7 @@ def test_the_isotropic_square_passes_by_the_vacuity_test_not_by_luck():
     ``|h(k) - h(Rk)|``.
     """
     m = square()
-    g = G._group_of(m, include_TR=False)
+    g = _spacegroup._group_of(m, include_TR=False)
     k = _grid(8, 2)
     lucky = _census(m, g, k, solver="stacked")
     assert all(sp.vacuous and sp.dim == 1 for sp, _ in lucky)
@@ -1927,7 +1935,7 @@ def test_the_isotropic_square_passes_by_the_vacuity_test_not_by_luck():
     assert all(sp.vacuous and sp.dim == 1 for sp, _ in lucky_e)
 
     m2 = square(td=-0.3)
-    g2 = G._group_of(m2, include_TR=False)
+    g2 = _spacegroup._group_of(m2, include_TR=False)
     assert g2.sg_number == 123 and g2.size == 16, "the diagonals break nothing"
     noisy = _census(m2, g2, k, solver="stacked")
     assert all(sp.vacuous and sp.dim == 1 for sp, _ in noisy)
@@ -1946,7 +1954,7 @@ def test_the_isotropic_square_passes_by_the_vacuity_test_not_by_luck():
             assert float(sp.singular_values[-1]) <= _ROUNDOFF * sp.scale
             assert float(np.min(sp.residuals)) <= _ROUNDOFF * sp.scale
 
-    v = G._validate_group(m2, g2, nk=8)
+    v = _measure._validate_group(m2, g2, nk=8)
     assert len(v.indices) == 16 and v.discrepancies == () and v.closed
 
 
@@ -1998,7 +2006,7 @@ def test_a_generic_multi_band_model_never_reaches_the_vacuity_branch():
     the eigen scale is of order ``||H||``.
     """
     m = diamond()
-    g = G._group_of(m, include_TR=False)
+    g = _spacegroup._group_of(m, include_TR=False)
     k = _grid(4, 3)
     H = np.asarray(m.hamiltonian(k_pts=k, flatten_spin_axis=True))
     h_scale = float(np.abs(H).max())
@@ -2014,7 +2022,7 @@ def test_a_generic_multi_band_model_never_reaches_the_vacuity_branch():
             "the constraint has singular values of order ||H||, holding or not"
 
         # the identity, where the searched path runs, is untouched as well
-        ident = S._find_intertwiners(m, np.eye(3), k, solver=solver)
+        ident = _detector._find_intertwiners(m, np.eye(3), k, solver=solver)
         assert not ident.vacuous and ident.dim == 1
 
     # the gap the verdict rests on, in the form each record supports
@@ -2041,7 +2049,7 @@ def test_the_anisotropic_square_descends_from_the_cell_the_isotropic_one_allows(
     low = G.realized_group(square(ty=-0.5), environment="free-standing",
                            characters={0: "s"}, cross_check=False)
     assert low, str(low)
-    assert G._group_of(square(ty=-0.5)).number_str == G._group_of(square()).number_str \
+    assert _spacegroup._group_of(square(ty=-0.5)).number_str == _spacegroup._group_of(square()).number_str \
         == "123.340", "the positions alone allow the isotropic square's group"
     assert (low.group.number_str, low.group.size) == ("47.250", 16)
     assert low.descent["from"]["number_str"] == "123.340"
@@ -2117,10 +2125,10 @@ def test_realized_group_takes_a_3d_model_and_matches_the_hand_chain(realized):
 
     # ... and the same answer as the four calls, measured against them, at the
     # one call's own defaults
-    g = G._group_of(model)
-    asg = G._assign_orbitals(model, g)
-    val = G._validate_group(model, g, nk=6)
-    rep = S._build_rep(model, g, asg, validated=val)
+    g = _spacegroup._group_of(model)
+    asg = _tables._assign_orbitals(model, g)
+    val = _measure._validate_group(model, g, nk=6)
+    rep = _build._build_rep(model, g, asg, validated=val)
     assert rep, str(rep)
     assert [s.ind for s in g.symmetries] == [s.ind for s in r.group.symmetries]
     assert tuple(val.indices) == tuple(r.validated.indices)
@@ -2263,7 +2271,7 @@ def test_time_reversal_is_measured_down_and_the_descent_is_on_the_record():
     assert "the unitary group's own" in message
 
     assert magnetic.group.number_str == "143" and magnetic.group.name == "P3"
-    assert not magnetic.group.include_TR and G._magnetic_type(magnetic.group) == "I"
+    assert not magnetic.group.include_TR and _spacegroup._magnetic_type(magnetic.group) == "I"
     tr = magnetic.time_reversal
     assert tr["outcome"] == "measured broken"
     assert tr["grey_number_str"] == "143.2" and tr["grey_name"] == "P31'"
@@ -2283,11 +2291,11 @@ def test_time_reversal_is_measured_down_and_the_descent_is_on_the_record():
     k = np.stack(np.meshgrid(*([np.linspace(0, 1, 6, endpoint=False)] * 2),
                              indexing="ij"), axis=-1).reshape(-1, 2)
     model = _staggered_zeeman()
-    assert S._find_intertwiners(model, -np.eye(2), k, antiunitary=True).dim == 0
-    assert S._find_intertwiners(model, -np.eye(2), k, antiunitary=False).dim == 0
-    assert S._find_intertwiners(model, np.eye(2), k, antiunitary=True).dim == 2
+    assert _detector._find_intertwiners(model, -np.eye(2), k, antiunitary=True).dim == 0
+    assert _detector._find_intertwiners(model, -np.eye(2), k, antiunitary=False).dim == 0
+    assert _detector._find_intertwiners(model, np.eye(2), k, antiunitary=True).dim == 2
     # ... and plain Kane-Mele, for contrast, does have time reversal
-    assert S._find_intertwiners(kane_mele(0.0, -1.0, 0.3, 0.0), -np.eye(2), k,
+    assert _detector._find_intertwiners(kane_mele(0.0, -1.0, 0.3, 0.0), -np.eye(2), k,
                                 antiunitary=True).dim == 2
 
 
@@ -2369,7 +2377,7 @@ def test_a_surviving_antiunitary_operation_is_served_in_scope_and_warned_about()
             r = G.realized_group(model, typat=typat, cross_check=False)
         assert r, str(r)
         assert (r.group.name, r.group.number_str) == returned
-        assert not r.group.include_TR and G._magnetic_type(r.group) == "I"
+        assert not r.group.include_TR and _spacegroup._magnetic_type(r.group) == "I"
         assert r.time_reversal["outcome"] == "measured broken"
         assert r.time_reversal["n_obeyed"] == 0, "the grey group measured holds no mirror"
         beyond = r.beyond_grey
@@ -2430,12 +2438,12 @@ def test_a_surviving_antiunitary_operation_is_served_in_scope_and_warned_about()
     # THE MATRICES ARE READ, up to a one-dimensional character of P6: the
     # build hands back its representation relabelled by a complex one, and
     # turned by a unitary
-    chi = next(c for c in S._characters_of_subgroup(
+    chi = next(c for c in _matrices._characters_of_subgroup(
         hal.group, [int(s.ind) for s in hal.group.symmetries], roots=True)
         if any(abs(v.imag) > 0.5 for v in c.values()))
     U = np.array([[np.cos(0.7), 1j * np.sin(0.7)], [1j * np.sin(0.7), np.cos(0.7)]]) @ np.diag(
         [1.0, np.exp(0.4j)])
-    real_build = S._build_rep
+    real_build = _build._build_rep
     for change, named in ((lambda i, D: chi[int(i)] * D, 6),
                           (lambda i, D: U @ D @ U.conj().T, 0)):
         def build(*args, change=change, **kw):
@@ -2445,7 +2453,7 @@ def test_a_surviving_antiunitary_operation_is_served_in_scope_and_warned_about()
                 rep, matrices={i: change(i, np.asarray(D)) for i, D in rep.matrices.items()})
 
         with pytest.MonkeyPatch.context() as mp:
-            mp.setattr(S, "_build_rep", build)
+            patch_everywhere(mp, "_build_rep", build)
             with pytest.warns(MagneticScopeWarning):
                 again = G.realized_group(haldane(0.0, -1.0, 0.15), cross_check=False)
         assert (again.beyond_grey or {"n_operations": 0})["n_operations"] == named
@@ -2455,7 +2463,7 @@ def test_a_surviving_antiunitary_operation_is_served_in_scope_and_warned_about()
 
     # PROVOKED, on the group time reversal is measured on: a g.T the detector
     # keeps beside its own g, which holds, while time reversal is refuted
-    real = G._validate_group
+    real = _measure._validate_group
     kept = {}               # {number_str: (ind, rotation)} the fake chose to keep
 
     def leaves_one_antiunitary(model, group, **kw):
@@ -2478,7 +2486,7 @@ def test_a_surviving_antiunitary_operation_is_served_in_scope_and_warned_about()
                                 for i in killed))
 
     with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(G, "_validate_group", leaves_one_antiunitary)
+        patch_everywhere(mp, "_validate_group", leaves_one_antiunitary)
         out = G.realized_group(kane_mele(0.0, -1.0, 0.3, 0.0),
                                environment="free-standing", characters={0: "pz"},
                                cross_check=False)
@@ -2487,7 +2495,7 @@ def test_a_surviving_antiunitary_operation_is_served_in_scope_and_warned_about()
     # served in scope: the largest validated group, and it is a real one
     assert out.group.number_str == "191" and out.group.name == "P6/mmm"
     assert out.group.size == 24 and out.group.provenance == "realized"
-    assert not out.group.include_TR and G._magnetic_type(out.group) == "I"
+    assert not out.group.include_TR and _spacegroup._magnetic_type(out.group) == "I"
     assert out.validated.broken == () and len(out.rep.indices) == 24
     #  the one the fake kept is C2(z) with time reversal, and C2(z) holds
     _ind, rotation = kept["191.234"]
@@ -2576,7 +2584,7 @@ def _transported(number_str, spinor, magnetic):
     """The same rows, in this package's convention (the adapter's own transport)."""
     from irreptables.ebrs import load_ebr_data
 
-    raw = G._to_physical_convention(load_ebr_data(number_str, spinor),
+    raw = _tables._to_physical_convention(load_ebr_data(number_str, spinor),
                                     number_str, spinor, magnetic)
     labels = list(raw["basis"]["irrep_labels"])
     rows = [{l: int(v) for l, v in zip(labels, e["vector"]) if v} for e in raw["ebrs"]]
@@ -2652,7 +2660,7 @@ def test_the_EBR_transport_fixes_Gamma_the_dimensions_and_the_positions():
             f"{instance}: the invariants below are checked against a transport " \
             "that moved something"
 
-        point = {l: G._label_kpoint(l) for l in labels}
+        point = {l: _tables._label_kpoint(l) for l in labels}
         degen = dict(zip(labels,
                          load_ebr_data(number_str, spinor)["basis"]["degeneracies"]))
         for (name, wy), a, b in zip(keys, old, new):
@@ -2782,7 +2790,7 @@ def test_the_EBR_transport_swaps_1b_and_1c_of_spinful_SG156():
         rows = {f"{n}@{w.split('(')[0]}": (a, b) for (n, w), a, b in zip(keys, old, new)}
         for key, (a, b) in rows.items():
             moved = {l for l in set(a) | set(b) if a.get(l, 0) != b.get(l, 0)}
-            assert all(G._label_kpoint(l) in ("K", "H") for l in moved), key
+            assert all(_tables._label_kpoint(l) in ("K", "H") for l in moved), key
             assert ("@1a" in key) == (not moved), f"only 1b/1c move, not {key}"
         def block(letter, which):
             return sorted((tuple(sorted(v[which].items()))
@@ -3014,7 +3022,7 @@ def shipped_tables():
 @pytest.fixture(scope="module")
 def shipped_naming(shipped_tables):
     """``{instance: (c, conjugated, broken)}``: :func:`groups._table_conjugation` of every table, once."""
-    return {key: G._table_conjugation(table) for key, table in shipped_tables.items()}
+    return {key: _tables._table_conjugation(table) for key, table in shipped_tables.items()}
 
 
 @pytest.mark.data
@@ -3092,9 +3100,9 @@ def test_the_served_table_is_a_physical_representation_for_every_group(shipped_t
             phi = np.array([np.exp(-4j * np.pi * k @ t_of[i]) for i in inds])
             chi = {irr.name: np.array([complex(irr.characters[i]) for i in inds])
                    for irr in irreps}
-            if G._matching(chi, lambda v, p=phi: np.conj(v) / p) is None:
+            if _tables._matching(chi, lambda v, p=phi: np.conj(v) / p) is None:
                 no_pairing.append((number_str, spinor, magnetic, kp))
-            if G._matching(chi, np.conj) is None:
+            if _tables._matching(chi, np.conj) is None:
                 divergent.append((number_str, spinor, magnetic, kp))
             elif all(np.abs(v.imag).max() < 1e-9 for v in chi.values()):
                 all_real.append((number_str, spinor, magnetic, kp))
@@ -3134,10 +3142,10 @@ def test_the_served_table_is_a_physical_representation_for_every_group(shipped_t
     #  against the scan above -- which would be the same loop over the same
     #  predicate on both sides (measured 2026-09-09); the transport-record test
     #  reads #199 spinful, #80.30 and #143 through the published record
-    assert G._divergent_kpoints("199", False, False) == frozenset({"P"})
-    assert G._divergent_kpoints("199.12", False, True) == frozenset({"P", "PA"})
-    assert G._divergent_kpoints("227", True, False) == frozenset({"W"})
-    assert G._divergent_kpoints("80.29", True, True) == frozenset()
+    assert _tables._divergent_kpoints("199", False, False) == frozenset({"P"})
+    assert _tables._divergent_kpoints("199.12", False, True) == frozenset({"P", "PA"})
+    assert _tables._divergent_kpoints("227", True, False) == frozenset({"W"})
+    assert _tables._divergent_kpoints("80.29", True, True) == frozenset()
 
     #  the owner's suspected equivalence, measured (2026-08-24): "exchange ⟺ all
     #  characters real" vs "irreducible ⟺ some character complex".  One
@@ -3197,7 +3205,7 @@ def test_whole_character_conjugation_is_load_bearing_where_it_is_applied():
     n_old_cf = n_old_cy = n_rows = n_points = n_named_only = 0
     for number_str, spinor, magnetic in cases:
         table = IrrepTable(number_str, spinor, magnetic=magnetic)
-        _, conjugated, _ = G._table_conjugation(table)
+        _, conjugated, _ = _tables._table_conjugation(table)
         assert conjugated, f"#{number_str} was chosen because it conjugates"
         t_of = {i + 1: np.asarray(s.t, dtype=float)
                 for i, s in enumerate(table.symmetries)}
@@ -3217,7 +3225,7 @@ def test_whole_character_conjugation_is_load_bearing_where_it_is_applied():
             phi = np.array([np.exp(-4j * np.pi * k @ t_of[i]) for i in inds])
             chi = {irr.name: np.array([complex(irr.characters[i]) for i in inds])
                    for irr in irreps}
-            paired = G._matching(chi, lambda v, p=phi: np.conj(v) / p) is not None
+            paired = _tables._matching(chi, lambda v, p=phi: np.conj(v) / p) is not None
             new = _served_rows(table, kp, irreps, True)
             old = _served_rows(table, kp, irreps, False)
             stranded = [name for name in old
@@ -3300,7 +3308,7 @@ def test_the_sweeps_served_rows_are_what_transported_table_serves():
     worst = 0.0
     for number_str, spinor, magnetic, kp, n_phase, n_ops in cases:
         group, table = _identity_gauge_group(number_str, spinor, magnetic)
-        c, conjugated, broken = G._table_conjugation(table)
+        c, conjugated, broken = _tables._table_conjugation(table)
         assert kp not in broken, (number_str, kp)
         irreps = [irr for irr in table.irreps if irr.kpname == kp]
         inds = sorted(irreps[0].characters)
@@ -3310,7 +3318,7 @@ def test_the_sweeps_served_rows_are_what_transported_table_serves():
         assert (int(sum(abs(p - 1) > 1e-9 for p in phi)), len(inds)) == (
             n_phase, n_ops), (number_str, kp, phi)
 
-        served = G._transported_table(group, kp, np.round(k, 5) % 1)
+        served = _tables._transported_table(group, kp, np.round(k, 5) % 1)
         local = _served_named(table, kp, irreps, kp in conjugated, c)
         assert sorted(served) == sorted(local), (number_str, kp,
                                                  sorted(served), sorted(local))
@@ -3363,7 +3371,7 @@ def test_the_two_transport_rules_agree_as_sets_wherever_the_tabulated_one_stands
     for number_str, spinor, magnetic in _TRANSPORT_CASES + [
             ("91", False, False), ("152", False, False), ("76.8", False, True)]:
         table = IrrepTable(number_str, spinor, magnetic=magnetic)
-        conj, conjugated, _ = G._table_conjugation(table)
+        conj, conjugated, _ = _tables._table_conjugation(table)
         by_kp = {}
         for irr in table.irreps:
             by_kp.setdefault(irr.kpname, []).append(irr)
@@ -3452,8 +3460,8 @@ def test_the_A_twisted_gluing_reproduces_every_shipped_grey_corep_table(shipped_
     n_points = n_glued = n_names = n_twisted = 0
     for number_str, spinor, magnetic in grey:
         table = shipped_tables[(number_str, spinor, magnetic)]
-        parent = G._parent_table(number_str, spinor)
-        centering = G._centering(table)
+        parent = _tables._parent_table(number_str, spinor)
+        centering = _spacegroup._centering(table)
         by_u, by_g = {}, {}
         for irr in parent.irreps:
             by_u.setdefault(irr.kpname, []).append(irr)
@@ -3465,7 +3473,7 @@ def test_the_A_twisted_gluing_reproduces_every_shipped_grey_corep_table(shipped_
             n_points += 1
             uirreps = by_u[kp]
             k = np.asarray(uirreps[0].k, dtype=float)
-            H, coset, squares, twist = G._herring_data(table, k, centering)
+            H, coset, squares, twist = _tables._herring_data(table, k, centering)
             assert sorted(H) == sorted(int(i) for i in uirreps[0].characters), (
                 number_str, kp, H)                                    # 1
             assert len(coset) in (0, len(H)), (number_str, kp, coset)  # 2
@@ -3474,10 +3482,10 @@ def test_the_A_twisted_gluing_reproduces_every_shipped_grey_corep_table(shipped_
                    for irr in uirreps}
             shipped = []
             for irr in girreps:
-                parts = G._decompose_into(
+                parts = _tables._decompose_into(
                     bcs, H, {int(i): complex(v) for i, v in irr.characters.items()})
                 assert parts is not None, (number_str, kp, irr.name)   # 3
-                assert G._corep_name(parts, spinor) == irr.name, (     # 4
+                assert _tables._corep_name(parts, spinor) == irr.name, (     # 4
                     number_str, kp, irr.name, parts)
                 n_names += 1
                 shipped.append(tuple(sorted(parts)))
@@ -3499,7 +3507,7 @@ def test_the_A_twisted_gluing_reproduces_every_shipped_grey_corep_table(shipped_
                 n_twisted += 1
             assert all(partner[partner[n]] == n for n in partner), (
                 number_str, kp, partner)
-            want = G._corep_gluing(bcs, k, H, squares, twist, +1)
+            want = _tables._corep_gluing(bcs, k, H, squares, twist, +1)
             assert want is not None, (number_str, kp)                  # 5
             assert sorted(v for v, _ in want) == sorted(shipped), (     # 6
                 f"#{number_str} spinor={spinor} {kp}: BCS's own Herring "
@@ -3535,7 +3543,7 @@ def test_every_served_corep_name_spells_its_own_unitary_constituents(shipped_tab
     checked, bad = 0, []
     for number_str, spinor, magnetic in _sweep_instances()[1]:
         table = shipped_tables[(number_str, spinor, magnetic)]
-        parent = G._parent_table(number_str, spinor)
+        parent = _tables._parent_table(number_str, spinor)
         cg, conj_g, broken_g = shipped_naming[(number_str, spinor, magnetic)]
         cu, conj_u, _ = shipped_naming[(number_str.split(".")[0], spinor, False)]
         by_u = {}
@@ -3556,8 +3564,8 @@ def test_every_served_corep_name_spells_its_own_unitary_constituents(shipped_tab
             served_g = _served_rows(table, kp, girreps, kp in conj_g)
             for irr in girreps:
                 name = cg[irr.name] if kp in conj_g else irr.name
-                parts = G._decompose_into(served_u, H, served_g[irr.name])
-                if parts is None or G._corep_name(parts, spinor) != name:
+                parts = _tables._decompose_into(served_u, H, served_g[irr.name])
+                if parts is None or _tables._corep_name(parts, spinor) != name:
                     bad.append((number_str, spinor, kp, name, parts))
     assert checked == 2700, checked
     assert bad == [], bad[:8]
@@ -3595,15 +3603,15 @@ def test_every_group_transports_and_the_only_refusal_is_a_data_defect():
     refused = {}
     for number_str, spinor, magnetic in unitary + list(grey):
         try:
-            G._to_physical_convention(load_ebr_data(number_str, spinor),
+            _tables._to_physical_convention(load_ebr_data(number_str, spinor),
                                       number_str, spinor, magnetic)
-            G._transport_record(number_str, spinor, magnetic)
-        except G._EBRTransportError as exc:
+            _tables._transport_record(number_str, spinor, magnetic)
+        except _spacegroup._EBRTransportError as exc:
             refused[(number_str, spinor, magnetic)] = str(exc)
 
     assert refused == {}, sorted(refused)
 
-    partners = {(number_str, spinor): G._partner_points(number_str, spinor)
+    partners = {(number_str, spinor): _tables._partner_points(number_str, spinor)
                 for number_str, spinor, _magnetic in unitary}
     partners = {key: arms for key, arms in partners.items() if arms}
     assert (len(partners), sum(len(arms) for arms in partners.values())) == (40, 62)
@@ -3645,12 +3653,12 @@ def test_every_group_transports_and_the_only_refusal_is_a_data_defect():
                 checked += 1
     assert checked == 218
 
-    with pytest.raises(G._EBRTransportError) as exc:
-        G._to_physical_convention(load_ebr_data("80.31", False), "80.31", False, True)
+    with pytest.raises(_spacegroup._EBRTransportError) as exc:
+        _tables._to_physical_convention(load_ebr_data("80.31", False), "80.31", False, True)
     assert "wyckoff_position" in str(exc.value), "the one remaining data defect"
 
     # and 80.30 -- the retracted one -- transports, conserving dimension at P
-    raw = G._to_physical_convention(load_ebr_data("80.30", True), "80.30", True, True)
+    raw = _tables._to_physical_convention(load_ebr_data("80.30", True), "80.30", True, True)
     labels = list(raw["basis"]["irrep_labels"])
     degen = {l: int(d) for l, d in zip(labels, raw["basis"]["degeneracies"])}
     assert [l for l in labels if l.startswith("-P")] == ["-P4P4", "-P3"]
@@ -3698,7 +3706,7 @@ def test_the_transport_record_publishes_where_the_characters_were_conjugated():
             ("199", True, False, ("N",), ("P",)),
             ("171", True, False, ("A", "H"), ()),
             ("80.30", True, True, ("M", "P"), ("P",))):
-        record = G._transport_record(number_str, spinor, magnetic)
+        record = _tables._transport_record(number_str, spinor, magnetic)
         assert tuple(record["conjugated_points"]) == want, number_str
         assert tuple(record["divergent_points"]) == diverge, number_str
         #  (`_conjugated_kpoints`/`_divergent_kpoints` are where the record's two
@@ -3750,7 +3758,7 @@ def test_the_served_table_is_BCS_printed_table_wherever_a_bijection_exists(shipp
         for irr in table.irreps:
             by_kp.setdefault(irr.kpname, []).append(irr)
         for kp, irreps in by_kp.items():
-            if kp in broken or kp in G._divergent_kpoints(
+            if kp in broken or kp in _tables._divergent_kpoints(
                     number_str, spinor, magnetic):
                 continue
             inds = sorted(irreps[0].characters)
@@ -3778,12 +3786,12 @@ def test_the_served_table_is_BCS_printed_table_wherever_a_bijection_exists(shipp
     #  renamed `-W3`/`-W5`.  The spelling invariant wins and the exchange is
     #  refused (this is the "demote to class 3" case of the census).
     assert demoted == [("203.27", True, True, "W")], demoted
-    parent = G._parent_table("203.27", True)
+    parent = _tables._parent_table("203.27", True)
     wp = [irr for irr in parent.irreps if irr.kpname == "W"]
     winds = sorted(wp[0].characters)
     chi = {irr.name: np.array([complex(irr.characters[i]) for i in winds])
            for irr in wp}
-    assert G._matching(chi, np.conj) is None, (
+    assert _tables._matching(chi, np.conj) is None, (
         "SG 203's unitary W is exactly the case with no exchange to induce")
 
     #  the anchor, in numbers: 171.122's spinful H, grey and unitary alike
@@ -3797,10 +3805,10 @@ def test_the_served_table_is_BCS_printed_table_wherever_a_bijection_exists(shipp
     assert [round(served["-H5H6"][i].real, 6) for i in inds] == [2.0, 1.0, -1.0]
     assert max(abs(served[n][i].imag) for n in served for i in inds) < 1e-9
     #  ... and the parent unitary rename the spelling invariant forces
-    parent = G._parent_table("171.122", True)
-    cu, conj_u, _ = G._table_conjugation(parent)
+    parent = _tables._parent_table("171.122", True)
+    cu, conj_u, _ = _tables._table_conjugation(parent)
     assert "H" in conj_u, "SG 171's H had to start conjugating to carry the rename"
-    assert {d: cu[d] for d in cu if G._label_kpoint(d) == "H"} == {
+    assert {d: cu[d] for d in cu if _tables._label_kpoint(d) == "H"} == {
         "-H4": "-H4", "-H5": "-H6", "-H6": "-H5"}
 
 
@@ -3871,13 +3879,13 @@ def test_at_a_divergent_point_the_served_table_conjugates_onto_the_shipped_one(
     kept = renamed = fallback = (0, 0)
     reglued, published = [], {}
     for number_str, spinor, magnetic in unitary + list(grey):
-        divergent = G._divergent_kpoints(number_str, spinor, magnetic)
+        divergent = _tables._divergent_kpoints(number_str, spinor, magnetic)
         if not divergent:
             continue
         table = shipped_tables[(number_str, spinor, magnetic)]
         c, conjugated, broken = shipped_naming[(number_str, spinor, magnetic)]
         if magnetic:
-            record = G._transport_record(number_str, spinor, magnetic)
+            record = _tables._transport_record(number_str, spinor, magnetic)
             published[number_str, spinor] = record
             assert set(record["reglued_points"]) <= divergent, number_str
         by_kp = {}
@@ -3894,14 +3902,14 @@ def test_at_a_divergent_point_the_served_table_conjugates_onto_the_shipped_one(
                        for irr in irreps}
             #  no shipped name matches a served row -- that is what divergent means
             chi = {n: np.array([shipped[n][i] for i in inds]) for n in shipped}
-            assert G._matching(chi, np.conj) is None, (number_str, kp)
+            assert _tables._matching(chi, np.conj) is None, (number_str, kp)
             #  did the *parent unitary* table rename its irreps here?  Then the
             #  corep name spells constituents that moved, and must move too.
             moved_parent = False
             if magnetic:
-                cu, _conj_u, _broken_u = G._unitary_conjugation(number_str, spinor)
+                cu, _conj_u, _broken_u = _tables._unitary_conjugation(number_str, spinor)
                 moved_parent = any(cu.get(irr.name, irr.name) != irr.name
-                                   for irr in G._parent_table(number_str,
+                                   for irr in _tables._parent_table(number_str,
                                                               spinor).irreps
                                    if irr.kpname == kp)
             #  ... and conj(served[c(D)]) is chi_BCS[D], row for row
@@ -3927,11 +3935,11 @@ def test_at_a_divergent_point_the_served_table_conjugates_onto_the_shipped_one(
                 reglued.append((number_str, spinor, kp))
                 #  never a TRIM, so pure time reversal is in no member's extended
                 #  little group and the pairing antiunitary is some g.T
-                centering = G._centering(table)
+                centering = _spacegroup._centering(table)
                 k = np.asarray(irreps[0].k, dtype=float)
-                _H, coset, _sq, _tw = G._herring_data(table, k, centering)
+                _H, coset, _sq, _tw = _tables._herring_data(table, k, centering)
                 assert coset, (number_str, kp)
-                assert not G._is_reciprocal(-2 * k, centering), (number_str, kp)
+                assert not _spacegroup._is_reciprocal(-2 * k, centering), (number_str, kp)
             else:
                 fallback = (fallback[0] + 1, fallback[1] + len(shipped))
                 #  the identity naming: the content left is that the numbers moved
@@ -3960,12 +3968,12 @@ def test_at_a_divergent_point_the_served_table_conjugates_onto_the_shipped_one(
             ("80.30", "P"): (("-P3P3", "-P4"), ("-P4P4", "-P3")),
             ("210.53", "W"): (("-W2W4", "-W3", "-W5"), ("-W3W5", "-W4", "-W2"))}.items():
         conjugation = published[number_str, True]["conjugation"]
-        at_kp = [label for label in conjugation if G._label_kpoint(label) == kp]
+        at_kp = [label for label in conjugation if _tables._label_kpoint(label) == kp]
         assert (tuple(at_kp), tuple(conjugation[label] for label in at_kp)) == want
 
     #  the anchor, in numbers
-    parent = G._parent_table("80.30", True)
-    cu, conj_u, _ = G._table_conjugation(parent)
+    parent = _tables._parent_table("80.30", True)
+    cu, conj_u, _ = _tables._table_conjugation(parent)
     up = [irr for irr in parent.irreps if irr.kpname == "P"]
     uinds = sorted(up[0].characters)
     served_u = _served_named(parent, "P", up, "P" in conj_u, cu)
@@ -4068,14 +4076,14 @@ def synthetic_spinor_groups(shipped_tables):
 
 def _canonical_with_frames(sg, frames):
     """``_canonical_spinor_signs`` restricted to ``frames``; ``None`` if none applies."""
-    saved = G._TABLE_SPIN_FRAMES
+    saved = _spacegroup._TABLE_SPIN_FRAMES
     try:
-        G._TABLE_SPIN_FRAMES = tuple(frames)
-        return G._canonical_spinor_signs(sg)
+        _spacegroup._TABLE_SPIN_FRAMES = tuple(frames)
+        return _spacegroup._canonical_spinor_signs(sg)
     except InternalError:
         return None
     finally:
-        G._TABLE_SPIN_FRAMES = saved
+        _spacegroup._TABLE_SPIN_FRAMES = saved
 
 
 def _perp_two_fold(sg):
@@ -4133,12 +4141,12 @@ def test_the_spinor_branch_is_pinned_for_every_shipped_table(synthetic_spinor_gr
     frames, worst, worst_at, ambiguous = {}, 0.0, None, []
     for number_str, magnetic in spinful:
         sg = synthetic_spinor_groups[(number_str, magnetic)]
-        record = G._canonical_spinor_signs(sg)          # raises if it cannot decide
+        record = _spacegroup._canonical_spinor_signs(sg)          # raises if it cannot decide
         frames[record["frame"]] = frames.get(record["frame"], 0) + 1
         if record["defect"] > worst:
             worst, worst_at = record["defect"], (number_str, magnetic)
         others = _canonical_with_frames(
-            sg, [f for f in G._TABLE_SPIN_FRAMES if f[0] != record["frame"]])
+            sg, [f for f in _spacegroup._TABLE_SPIN_FRAMES if f[0] != record["frame"]])
         if others is not None:                          # a second frame also fits ...
             ambiguous.append((number_str, magnetic))
             assert others["signs"] == record["signs"], (number_str, magnetic)
@@ -4209,7 +4217,7 @@ def test_the_canonical_lifts_realize_the_tabulated_factor_system_everywhere(
         theirs = [np.asarray(t.S, dtype=complex) for t in tsyms]
         #  a copy: the correction below rewrites the group's lifts in place
         sg = copy.deepcopy(synthetic_spinor_groups[(number_str, magnetic)])
-        rec = G._pin_spinor_branch(sg)          # the library applies the correction
+        rec = _spacegroup._pin_spinor_branch(sg)          # the library applies the correction
         if rec["cocycle"] > worst_cocycle:                                  # 1
             worst_cocycle, worst_at = rec["cocycle"], (number_str, magnetic)
         if rec["mixed"]:
@@ -4231,7 +4239,7 @@ def test_the_canonical_lifts_realize_the_tabulated_factor_system_everywhere(
             after.append(1 if lam.real > 0 else -1)
             worst_lift = max(worst_lift, float(np.abs(lift - carried).max()))
         assert set(after) == {1}, (number_str, magnetic, after)
-        _dev, mixed_after, pairs_after, at = G._lift_set_cocycle(
+        _dev, mixed_after, pairs_after, at = _spacegroup._lift_set_cocycle(
             [t.R for t in tsyms], theirs, after)
         assert mixed_after == 0, (number_str, magnetic, mixed_after, at)
         checked_pairs += pairs_after
@@ -4269,7 +4277,7 @@ def test_the_two_spinor_branches_differ_by_a_character_of_the_point_group():
                   "191": False, "187": False}
     for number_str, det_too in equals_det.items():
         sg = _synthetic_spinor_group(number_str, False)
-        base = G._canonical_spinor_signs(sg)
+        base = _spacegroup._canonical_spinor_signs(sg)
         twisted = _canonical_with_frames(
             sg, ((base["frame"], base["correction"] @ perp),))
         assert twisted is not None, number_str          # the twist is a solution too
@@ -4280,7 +4288,7 @@ def test_the_two_spinor_branches_differ_by_a_character_of_the_point_group():
         assert np.array_equal(ratio, dets) == det_too, number_str
 
     cubic = _synthetic_spinor_group("227", False)       # m-3m: no ambiguity to have
-    base = G._canonical_spinor_signs(cubic)
+    base = _spacegroup._canonical_spinor_signs(cubic)
     assert _canonical_with_frames(cubic, ((base["frame"], base["correction"] @ perp),)) \
         is None, "a cubic group's spin frame is unique; the twist must not solve it"
 
@@ -4297,15 +4305,15 @@ def test_an_undecidable_spinor_frame_raises_an_internal_error_not_a_refusal():
     *model* has been measured.
     """
     sg = _synthetic_spinor_group("183", False)          # P6mm: the defect's home
-    assert G._canonical_spinor_signs(sg)["frame"] == "hexagonal"
+    assert _spacegroup._canonical_spinor_signs(sg)["frame"] == "hexagonal"
 
-    saved = G._TABLE_SPIN_FRAMES
+    saved = _spacegroup._TABLE_SPIN_FRAMES
     try:
-        G._TABLE_SPIN_FRAMES = (("standard-only", np.eye(3)),)
+        _spacegroup._TABLE_SPIN_FRAMES = (("standard-only", np.eye(3)),)
         with pytest.raises(InternalError) as exc:
-            G._canonical_spinor_signs(sg)
+            _spacegroup._canonical_spinor_signs(sg)
     finally:
-        G._TABLE_SPIN_FRAMES = saved
+        _spacegroup._TABLE_SPIN_FRAMES = saved
     text = str(exc.value)
     assert "the tables fix the spin frame completely" in text, text
     assert "#183" in text and "'standard-only'" in text, text
@@ -4314,7 +4322,7 @@ def test_an_undecidable_spinor_frame_raises_an_internal_error_not_a_refusal():
 
     sg.symmetries[7].spinor_rotation = np.array([[0.6, 0.8], [-0.8, 0.6]], dtype=complex)
     with pytest.raises(InternalError) as exc:
-        G._canonical_spinor_signs(sg)
+        _spacegroup._canonical_spinor_signs(sg)
     assert "operation #8" in str(exc.value), str(exc.value)
 
 
@@ -4323,6 +4331,8 @@ import numpy as np
 from pythtb import Lattice, TBModel
 from pythtb.models import kane_mele
 import pythtqc as tqc
+from pythtqc import _spacegroup
+from pythtqc import _layers
 
 
 def served(group, point):
@@ -4334,14 +4344,14 @@ def served(group, point):
         for name in sorted(table))
 
 
-cell, labels = tqc.groups._decorated_cell(tqc.groups._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.25)))
-km = tqc.groups._group_of(cell, typat=labels, spinor=True)
+cell, labels = _layers._decorated_cell(_layers._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.25)))
+km = _spacegroup._group_of(cell, typat=labels, spinor=True)
 print(km.number_str, km._spin_frame["frame"], km._spin_frame["signs"])
 print("K", served(km, "K"))
 
 lat = Lattice([[1.0, 0.0, 0.0], [-0.5, np.sqrt(3) / 2, 0.0], [0.0, 0.0, 1.6]],
               [[0.0, 0.0, 0.0], [1 / 3, 2 / 3, 0.3]], periodic_dirs=[0, 1, 2])
-p3m1 = tqc.groups._group_of(TBModel(lattice=lat, spinful=True), typat=[0, 1], spinor=True)
+p3m1 = _spacegroup._group_of(TBModel(lattice=lat, spinful=True), typat=[0, 1], spinor=True)
 print(p3m1.number_str, p3m1._spin_frame["frame"], p3m1._spin_frame["signs"])
 for point in ("K", "H"):
     print(point, served(p3m1, point))
@@ -4441,9 +4451,9 @@ def test_the_served_page_at_K_of_183_is_bcs_element_by_element():
 
     from pythtb.models import kane_mele
 
-    cell, labels = G._decorated_cell(
-        G._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.25)))
-    g = G._group_of(cell, typat=labels, spinor=True)
+    cell, labels = _layers._decorated_cell(
+        _layers._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.25)))
+    g = _spacegroup._group_of(cell, typat=labels, spinor=True)
     assert g.number_str == "183.186", g.number_str
     K = G.high_symmetry_points(g)["K"]
     lg = G.little_group(g, K)
@@ -4594,7 +4604,7 @@ def test_transporting_a_little_group_table_to_the_other_star_member_needs_the_ba
     """
     lat, typat = build()
     kw = dict(spinor=True) if typat is None else dict(spinor=True, typat=typat)
-    g = G._group_of(TBModel(lattice=lat, spinful=True), **kw)
+    g = _spacegroup._group_of(TBModel(lattice=lat, spinful=True), **kw)
     k3 = G.high_symmetry_points(g)[point]
     served = G.corep_table(g, k3)
     assert served and not isinstance(served, Refusal), served
@@ -4650,13 +4660,13 @@ def test_a_shipped_lift_set_that_does_not_close_raises_an_internal_error(monkeyp
         return table
 
     sg = _synthetic_spinor_group("183", False)
-    assert G._canonical_spinor_signs(sg)["cocycle"] < 1e-4      # ... before poisoning
+    assert _spacegroup._canonical_spinor_signs(sg)["cocycle"] < 1e-4      # ... before poisoning
     monkeypatch.setattr(IT, "IrrepTable", poisoned)
     sg.symmetries[spoiled].spinor_rotation = 1j * np.asarray(
         sg.symmetries[spoiled].spinor_rotation, dtype=complex)
 
     with pytest.raises(InternalError) as exc:
-        G._canonical_spinor_signs(sg)
+        _spacegroup._canonical_spinor_signs(sg)
     text = str(exc.value)
     assert "do not close as a lift set" in text, text
     assert "S(g)S(h) is not ±S(gh)" in text, text

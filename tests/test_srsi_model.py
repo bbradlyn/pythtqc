@@ -37,6 +37,7 @@ import pytest
 from pythtqc import groups as tqg
 from pythtqc import sewing as tqw
 from pythtqc import srsi as tqr
+from pythtqc import _spacegroup
 
 import tqc_models as tqm                                            # noqa: F401
 from conftest import FKM_BOND, fkm_regime, km_z2_regime
@@ -146,9 +147,9 @@ def test_wyckoff_tables_reads_the_letters_the_tables_are_keyed_by(
     positions = sorted(tuple(np.round(reference, 6)) for reference in references)
     assert positions == [(0.125, 0.125, 0.125), (0.875, 0.875, 0.875)]
     arms = {position["letter"]: position["arms"]
-            for position in tqg._pyxtal_wyckoff(int(group.sg_number))[0]}
-    assert tqg._variety_residual(arms["a"], references).max() < 1e-9
-    assert tqg._variety_residual(arms["b"], references) == pytest.approx(
+            for position in _spacegroup._pyxtal_wyckoff(int(group.sg_number))[0]}
+    assert _spacegroup._variety_residual(arms["a"], references).max() < 1e-9
+    assert _spacegroup._variety_residual(arms["b"], references) == pytest.approx(
         [0.25, 0.25], abs=1e-12)
 
 
@@ -239,9 +240,9 @@ def test_pyxtal_is_in_the_tables_setting_for_every_one_of_the_230_space_groups()
             positions.append((int(match.group(1)), match.group(2), match.group(3)))
         table = IrrepTable(str(sg), False, magnetic=False)
         ops = [(np.rint(np.asarray(sym.R, dtype=float)).astype(int),
-                tqg._snap_rational(np.asarray(sym.t, dtype=float)))
+                _spacegroup._snap_rational(np.asarray(sym.t, dtype=float)))
                for sym in table.symmetries if not bool(sym.time_reversal)]
-        audit = tqg._wyckoff_setting_audit(sg, ops, positions)
+        audit = _spacegroup._wyckoff_setting_audit(sg, ops, positions)
         if not audit["ok"]:
             offenders.append((sg, audit["offenders"]))
         checked += audit["checked"]
@@ -274,7 +275,7 @@ def test_a_drifted_centre_reads_as_the_general_position_rather_than_refusing():
     a Wyckoff letter is a property of the cell's point set, which is all this
     asks, and no Hamiltonian has to be measured to ask it.
     """
-    group = tqg._group_of(tqm.fu_kane_mele_z2("uniform"))
+    group = _spacegroup._group_of(tqm.fu_kane_mele_z2("uniform"))
     assert group and group.number_str == "227.129", str(group)
     out = tqg.wyckoff_sites_tables(group, [[0.03, 0.11, 0.27]])
     assert out and len(out) == 1, str(out)
@@ -286,11 +287,11 @@ def test_a_drifted_centre_reads_as_the_general_position_rather_than_refusing():
     assert "wyckoff_unresolved" in tqg.wyckoff_sites_tables.__doc__
     # what drifting cost: the point is no longer on the maximal variety
     arms = {position["letter"]: position["arms"]
-            for position in tqg._pyxtal_wyckoff(int(group.sg_number))[0]}
-    drifted = float(tqg._variety_residual(arms["a"], [site.reference])[0])
+            for position in _spacegroup._pyxtal_wyckoff(int(group.sg_number))[0]}
+    drifted = float(_spacegroup._variety_residual(arms["a"], [site.reference])[0])
     assert drifted > tqg.WYCKOFF_REFERENCE_TOL, drifted
     assert drifted == pytest.approx(0.18, abs=1e-12)
-    on_site = tqg._variety_residual(
+    on_site = _spacegroup._variety_residual(
         arms["a"], [s.reference for s in tqg.wyckoff_sites_tables(group)])
     assert on_site.max() < 1e-9, on_site
 

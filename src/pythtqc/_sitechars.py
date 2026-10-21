@@ -3,7 +3,7 @@ r"""Site-symmetry character mathematics, computed from the *measured* group.
 A ``characters=`` declaration of :mod:`.symmetry` is resolved against these
 tables.  The site groups come from
 :attr:`..groups.OrbitalAssignment.site_group` (which
-:func:`..groups._assign_orbitals` measured from the operations' action on the
+:func:`.._tables._assign_orbitals` measured from the operations' action on the
 model's own orbital positions), the multiplication comes from
 ``GroupData.get_product_table``, and the irreducible characters are computed
 from that multiplication by the **class-sum** construction below: arithmetic on
@@ -13,7 +13,7 @@ A declaration is resolved against the character table of exactly the group that
 was measured to fix that site, so a table exists for every site of every model.
 The **names** of its rows are the tables' own: a row is named by the band
 representation it induces, matched against the EBR entries at the site's Wyckoff
-position (:mod:`..ebr`), which is physics and needs no orientation convention —
+position (:mod:`.._naming`), which is physics and needs no orientation convention —
 and it is the name a position is tabulated under, so a declaration may be
 written in it.  For a model whose states carry spin the match is against the
 group's **double-valued** entries, and what a row is named is the double-valued
@@ -23,7 +23,7 @@ the row's, the row's being composite — it keeps the site point group's own
 name: for a single-valued row the names of section 3 below, and for a
 double-valued one the name the tables give that irrep of the point group at the
 origin of a symmorphic space group, the one position where every point group is
-a site group whole (:mod:`..ebr`).  A row nothing names has **no name** — an
+a site group whole (:mod:`.._naming`).  A row nothing names has **no name** — an
 empty label, :attr:`..symmetry.AtomicLimitRow.named_by` reading ``"unnamed"``,
 and the generator characters as the whole statement.  Every label is echoed
 together with those characters (:func:`generator_frame`), which no naming
@@ -111,7 +111,7 @@ import numpy as np
 from ._tolerance import ASSEMBLED, CHARACTER, ZERO
 
 # --------------------------------------------------------------------------
-# the declaration error, turned into a Refusal by `symmetry._build_rep`
+# the declaration error, turned into a Refusal by `_build._build_rep`
 # --------------------------------------------------------------------------
 
 
@@ -122,10 +122,10 @@ class DeclarationError(ValueError):
     express, or a site whose character table could not be built to declare
     against.  It never leaves
     the package: the ``gate``, ``message`` and ``context`` it carries are what
-    :func:`..symmetry._build_rep` and :func:`..groups.realized_group` return as
+    :func:`.._build._build_rep` and :func:`..groups.realized_group` return as
     a :class:`..refusal.Refusal`.  A declaration outside the grammar raises
     ``ValueError`` where the call starts
-    (:func:`..symmetry._declaration_grammar`).
+    (:func:`.._grammar._declaration_grammar`).
     """
 
     def __init__(self, gate, message, context=None):
@@ -292,7 +292,7 @@ class SiteGroupTable:
     labels : tuple of str
         The rows' names, unique within the table where present: the tables'
         own names for the point group's irreps wherever a site table is read
-        (``..symmetry._site_group_table``), the Mulliken-style names of section
+        (``.._naming._site_group_table``), the Mulliken-style names of section
         3 where it is not, and empty for a row nothing names.
     dims : ndarray
         ``characters[:, class of identity]``, real.
@@ -670,9 +670,9 @@ def site_group_table(group, indices, antiunitary=(), seed=101) -> SiteGroupTable
 
     The rows come back with the Mulliken names of section 3, which only the
     **represented group's own** table keeps, for its characters.  A **site**
-    table is renamed by :func:`..symmetry._site_group_table`, each row under the
+    table is renamed by :func:`.._naming._site_group_table`, each row under the
     tables' own name for that irrep of the point group, and then by
-    :func:`..symmetry._site_tables`, which reads every name a row has off the
+    :func:`.._naming._site_tables`, which reads every name a row has off the
     tables: the one it is returned under, and — where the states carry spin, so
     that the returned one is the double-valued corep — the single-valued name
     of its orbital factor, which is what a declaration is written in
@@ -856,7 +856,7 @@ class DeclaredContent:
         difference is what step 1 reads: a function's span at a site need not
         be invariant under that site's symmetry, and where it is not, the
         operations that carry it out of itself are not symmetries of the
-        crystal that was declared (:func:`..symmetry._content_compatible`).
+        crystal that was declared (:func:`.._declaration._content_compatible`).
     reduced_in : str
         ``"m in Pm1' #6.4"`` — the site group this content was **resolved** in
         after a step 1 reduction, and the group it was reduced to.  Empty where
@@ -1931,7 +1931,7 @@ def resolve_spec(group, table, spec, where):
     group no longer has are dropped, which is the subduction of the declared
     irrep.  The label it carries is the one it was declared as, in the group it
     was read in; naming what the restriction is *here* belongs to
-    (:func:`..symmetry._label_character`), since a subduced irrep can be
+    (:func:`.._declaration._label_character`), since a subduced irrep can be
     reducible and has a sum for a name rather than a row of this table.
 
     Raises

@@ -50,11 +50,12 @@ The rules, by name:
     Every gate a public function -- or a public method of an exported class --
     can return is named in its own docstring, so a reader meets the verdict
     before the code returns it.  A gate reaches a reader whether the
-    ``Refusal`` literal stands in the public body or in a private function of
-    the same module whose result that body hands back as it is, so the scan
-    follows those hand-backs transitively; a private function's refusal the
-    caller unpacks, raises on or replaces is not the caller's verdict and is
-    not counted.  A gate the walk reaches that no public call can actually
+    ``Refusal`` literal stands in the public body or in a private function,
+    of its own module or imported from another module of the package, whose
+    result that body hands back as it is, so the scan follows those hand-backs
+    transitively and across modules; a private function's refusal the caller
+    unpacks, raises on or replaces is not the caller's verdict and is not
+    counted.  A gate the walk reaches that no public call can actually
     serve is carved out in ``_UNSERVABLE``, with what was measured -- by
     ``(module, name, gate)`` where one call is the exception, or by the bare
     gate name where no public call anywhere can produce it, which is the case
@@ -1157,6 +1158,45 @@ def _private_functions(tree):
             and node.name.startswith("_")}
 
 
+def _imported_privates(tree):
+    """Every private name a module imports from another module of the package: bound name -> (module, name)."""
+    out = {}
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom) and node.level == 1 and node.module:
+            for alias in node.names:
+                if alias.name.startswith("_"):
+                    out[alias.asname or alias.name] = (node.module.split(".")[0], alias.name)
+    return out
+
+
+_MODULES = {}
+
+
+def _modules():
+    """Every module of the package, parsed once: its path, its tree, its private functions and the private names it imports."""
+    if not _MODULES:
+        for path in _source_files(_SRC, _SRC_NAME):
+            tree = ast.parse(_read(path))
+            _MODULES[os.path.basename(path)[:-3]] = (
+                path, tree, _private_functions(tree), _imported_privates(tree))
+    return _MODULES
+
+
+def _resolve(module, name):
+    """The definition a private name stands for in ``module``: ``(module, node)``, through its imports; ``None`` for a name that is no function."""
+    seen = set()
+    while (module, name) not in seen:
+        seen.add((module, name))
+        _, _, own, imported = _modules()[module]
+        if name in own:
+            return module, own[name]
+        if name in imported:
+            module, name = imported[name]
+            continue
+        return None
+    return None
+
+
 def _result_positions(value):
     """The expressions a ``return`` hands back as they are.
 
@@ -1172,13 +1212,13 @@ def _result_positions(value):
 
 
 def _is_private_call(value, privates):
-    """Whether ``value`` is a bare-name call of a private function of the module."""
+    """Whether ``value`` is a bare-name call of a private function the module can see."""
     return (isinstance(value, ast.Call) and isinstance(value.func, ast.Name)
             and value.func.id in privates)
 
 
 def _privates_handed_back(node, privates):
-    """The private functions of the same module whose result a body returns as it is.
+    """The private functions whose result a body returns as it is.
 
     Two idioms hand a callee's verdict back unchanged, and only they count:
     ``return _f(...)``, and ``x = _f(...)`` with a ``return x`` somewhere in the
@@ -1187,6 +1227,8 @@ def _privates_handed_back(node, privates):
     unpacked, indexed, iterated, raised on or replaced never reaches the
     caller's reader as a refusal (``_maximal_basis(...)[1]``; ``_stable_pairs``
     answering ``()`` on it), so its gates are not this function's gates.
+    ``privates`` is every private name the module can call by its bare name:
+    its own functions and the ones it imports.
     """
     handed, bound, returned = set(), {}, set()
     for child in ast.walk(node):
@@ -1207,9 +1249,16 @@ def _privates_handed_back(node, privates):
     return handed
 
 
-def _reachable_gates(node, privates):
-    """Every gate a body can return: its own literals, and those of every
-    private function of the same module whose result it hands back.
+def _visible_privates(module):
+    """Every private name ``module`` can call by its bare name: its own functions and the ones it imports."""
+    _, _, own, imported = _modules()[module]
+    return set(own) | set(imported)
+
+
+def _reachable_gates(node, module):
+    """Every gate a body in ``module`` can return: its own literals, and those of
+    every private function whose result it hands back, in its own module or in
+    the module it imports the function from.
 
     A gate reaches a reader through whichever public name returns it, and a
     public name that hands a private function's verdict straight back returns
@@ -1219,19 +1268,22 @@ def _reachable_gates(node, privates):
     (:func:`_privates_handed_back`): a private function whose refusal the
     caller unpacks, raises on or replaces cannot put that verdict in front of
     the caller's reader, so its literals are not collected.  The walk applies
-    the same rule at every step, with a visited set, so a chain of hand-backs
-    is measured and a chain broken anywhere stops there.
+    the same rule at every step, each callee read in the module that defines
+    it, with a visited set, so a chain of hand-backs is measured and a chain
+    broken anywhere stops there.
     """
     gates = set(_gates_in(node))
-    seen, todo = set(), sorted(_privates_handed_back(node, privates))
+    seen = set()
+    todo = [(module, name) for name in sorted(_privates_handed_back(node, _visible_privates(module)))]
     while todo:
-        name = todo.pop()
-        if name in seen:
+        target = _resolve(*todo.pop())
+        if target is None or target in seen:
             continue
-        seen.add(name)
-        body = privates[name]
+        seen.add(target)
+        defining, body = target
         gates |= _gates_in(body)
-        todo.extend(sorted(_privates_handed_back(body, privates) - seen))
+        todo.extend((defining, name)
+                    for name in sorted(_privates_handed_back(body, _visible_privates(defining))))
     return gates
 
 
@@ -1271,13 +1323,12 @@ def _public_names(tree, exported):
 #: producer of one, and it is private: `realized_group` either refuses
 #: `supercell` (the Hamiltonian obeys the pure translation) or makes the
 #: lattice descent its first step, and `tests/test_lattice_descent.py` asserts
-#: `r.group.lattice_index == 1` afterwards.  So the eleven public names in
-#: `groups.py` whose walk reaches it -- and the nineteen elsewhere that
-#: propagate it -- can never serve it, and it is named for the reader in
+#: `r.group.lattice_index == 1` afterwards.  So the public names whose walk
+#: reaches it can never serve it, and it is named for the reader in
 #: `docs/guide/group.md` as the `supercell` refusal of `realized_group`, which
 #: is the verdict a user can actually meet.
 _UNSERVABLE = frozenset({
-    ("src/pythtqc/groups.py", "realized_group", "magnetic_type_out_of_scope"),
+    ("src/pythtqc/_realized.py", "realized_group", "magnetic_type_out_of_scope"),
     "lattice_not_descended",
 })
 
@@ -1288,13 +1339,10 @@ def _public_gates():
     The gates are the ones :func:`_reachable_gates` finds, less what
     ``_UNSERVABLE`` names: what the walk reaches and no public call can serve.
     """
-    for path in _source_files(_SRC, _SRC_NAME):
-        source = _read(path)
-        tree = ast.parse(source)
-        privates = _private_functions(tree)
+    for module, (path, tree, own, imported) in _modules().items():
         for name, node in _public_names(tree, _exported(tree)):
             doc = ast.get_docstring(node, clean=False) or ""
-            for gate in sorted(_reachable_gates(node, privates)):
+            for gate in sorted(_reachable_gates(node, module)):
                 if gate in _UNSERVABLE or (_relative(path), name, gate) in _UNSERVABLE:
                     continue
                 yield _relative(path), node.lineno, name, gate, doc
@@ -1307,8 +1355,9 @@ def unnamed_gates():
     class -- ``SpaceGroupRep.sewing_operator`` refuses, and a reader calling it
     meets its gate in its own docstring, not in the module's.  The gates counted
     are the ones :func:`_reachable_gates` finds: the literals in the body, and
-    the literals of every private function of the same module whose result
-    the body hands back as it is.  ``_UNSERVABLE`` names what the walk reaches
+    the literals of every private function whose result the body hands back as
+    it is, wherever in the package that function is defined.  ``_UNSERVABLE``
+    names what the walk reaches
     and no public call can serve, by triple or by bare gate name.
     """
     return [(path, lineno, name, gate)

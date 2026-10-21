@@ -72,6 +72,12 @@ from pythtqc import spin as tqsp
 from pythtqc import symmetry as tqs
 from pythtqc.models import cubic_3c_perp_doublet
 from pythtqc.refusal import Refusal
+from pythtqc import _build
+from pythtqc import _declaration
+from pythtqc import _measure
+from pythtqc import _multiplets
+from pythtqc import _spacegroup
+from pythtqc import _tables
 
 import tqc_models as tqm                                            # noqa: F401
 
@@ -714,12 +720,12 @@ def test_a_declaration_a_complex_twist_serves_is_served_with_it():
     pair at Γ reads ``-GM5 + -GM8`` where ``+i`` would read ``-GM6 + -GM7``.
     """
     model = tqm.i41_soc("generic", lam=0.4)
-    group = tqg._group_of(model, include_TR=False)
+    group = _spacegroup._group_of(model, include_TR=False)
     assert group and group.sg_number == 80, str(group)
-    assignment = tqg._assign_orbitals(model, group)
-    validated = tqg._validate_group(model, group, nk=4)
+    assignment = _tables._assign_orbitals(model, group)
+    validated = _measure._validate_group(model, group, nk=4)
 
-    default = tqs._build_rep(model, group, assignment, validated=validated, n_battery=5)
+    default = _build._build_rep(model, group, assignment, validated=validated, n_battery=5)
     assert default, str(default)
     assert default.characters.irreps == ("-1E + -2E", "-1E + -2E") + ("2x-A",) * 4, (
         "the 4a pair's states are the spinor pair the tables name at that position; "
@@ -727,7 +733,7 @@ def test_a_declaration_a_complex_twist_serves_is_served_with_it():
         "carry, so each is named by its trivial site group itself: a spin doublet "
         "there is two copies of that group's one double-valued irrep")
 
-    out = tqs._build_rep(model, group, assignment, validated=validated, n_battery=5,
+    out = _build._build_rep(model, group, assignment, validated=validated, n_battery=5,
                          characters={0: "B"})
     assert out, str(out)
     assert out.characters.irreps == ("-1E + -2E", "-1E + -2E") + ("2x-A",) * 4, \
@@ -775,7 +781,7 @@ def test_a_declaration_a_complex_twist_serves_is_served_with_it():
                    ({"-P4": 2}, {"-P3": 2}),
                    ({"-P3": 1}, {"-P4": 1})], got
 
-    ok = tqs._build_rep(model, group, assignment, validated=validated, n_battery=5,
+    ok = _build._build_rep(model, group, assignment, validated=validated, n_battery=5,
                         characters={0: "A"})
     assert ok, str(ok)
     assert max(float(np.abs(np.asarray(ok.matrices[i])
@@ -805,20 +811,20 @@ def test_the_measured_blocks_enumeration_is_capped_and_says_so():
     declaration that settles it.
     """
     def _bundle(model, n=4):
-        group = tqg._group_of(model, typat=[0] * n)
+        group = _spacegroup._group_of(model, typat=[0] * n)
         assert group, str(group)
-        assignment = tqg._assign_orbitals(model, group, typat=[0] * n)
-        return model, group, assignment, tqg._validate_group(model, group)
+        assignment = _tables._assign_orbitals(model, group, typat=[0] * n)
+        return model, group, assignment, _measure._validate_group(model, group)
 
     # the orbitals nothing couples, each its own choice: 4 x 4 x 4 x 4 ways
     model, group, assignment, validated = _bundle(_decoupled((1.0, 1.1, 1.2, 1.3)))
-    out = tqs._build_rep(model, group, assignment, validated=validated,
+    out = _build._build_rep(model, group, assignment, validated=validated,
                          multiplets=[[(0, 1, 2, 3)]], max_candidates=64)
     assert not out and out.gate == "rep_search_too_large", str(out)
     assert out.context["multiplet"] == (0, 1, 2, 3) and out.context["sets"] == 4
     assert out.value == 256.0 and out.threshold == 64.0
     assert "4 sets of states" in out.reason and "`characters=`" in out.reason
-    wide = tqs._build_rep(model, group, assignment, validated=validated,
+    wide = _build._build_rep(model, group, assignment, validated=validated,
                           multiplets=[[(0, 1, 2, 3)]])
     assert wide, str(wide)
     assert [(o.irrep, o.determined_by) for o in wide.characters.orbitals] == \
@@ -826,7 +832,7 @@ def test_the_measured_blocks_enumeration_is_capped_and_says_so():
 
     # ... and the pseudospin's own enumeration: the sums of dimension four
     model, group, assignment, validated = _bundle(_decoupled((1.0,) * 4))
-    out = tqs._build_rep(model, group, assignment, validated=validated,
+    out = _build._build_rep(model, group, assignment, validated=validated,
                          multiplets=[[(0, 1, 2, 3)]], max_candidates=16)
     assert not out and out.gate == "rep_search_too_large", str(out)
     assert out.context["multiplet"] == (0, 1, 2, 3) and out.context["multiplicity"] == 4
@@ -855,7 +861,7 @@ def test_several_maximal_readings_of_a_declaration_name_the_first_by_the_tie_rul
     km = realized(tqm.kane_mele_inversion, environment="substrate", cross_check=False,
                   characters={0: "A1"})
     assert km and km.group.number_str == "183.186", str(km)
-    wide = tqs._build_rep(km.model, km.group, km.assignment, validated=km.validated,
+    wide = _build._build_rep(km.model, km.group, km.assignment, validated=km.validated,
                           characters=["s", "A2"])
     assert not wide and wide.gate == "declaration_breaks_group", str(wide)
     assert wide.context["relative_character"] == "A2"
@@ -974,9 +980,9 @@ def test_the_verdict_stage_chooses_and_the_build_does_not_re_measure(realized):
     assert base, str(base)
     model, group, assignment, validated, _rep = base.bundle
     assert group.number_str == "99.164", str(group)
-    layout = tqs._site_multiplets(model, group, assignment, None, validated)
+    layout = _multiplets._site_multiplets(model, group, assignment, None, validated)
     u_pos = [p for p, s in enumerate(group.symmetries) if not s.time_reversal]
-    got = tqs._verdicts_and_choices(model, group, assignment, None, validated,
+    got = _declaration._verdicts_and_choices(model, group, assignment, None, validated,
                                     layout, (), u_pos)
     assert not isinstance(got, Refusal), str(got)
     assert got["nclass"] == 2 and got["free_classes"] == frozenset({1}), \
@@ -986,8 +992,8 @@ def test_the_verdict_stage_chooses_and_the_build_does_not_re_measure(realized):
     assert not [k for k in got["chosen"] if k[1] == 1], \
         "nothing was measured about the free class, so nothing was recorded for it"
 
-    plain = tqs._build_rep(model, group, assignment, validated=validated)
-    handed = tqs._build_rep(model, group, assignment, validated=validated, _choices=got)
+    plain = _build._build_rep(model, group, assignment, validated=validated)
+    handed = _build._build_rep(model, group, assignment, validated=validated, _choices=got)
     assert plain and handed, (str(plain), str(handed))
     assert max(float(np.abs(np.asarray(plain.matrices[i])
                             - np.asarray(handed.matrices[i])).max())
@@ -1239,7 +1245,7 @@ def test_one_px_at_a_3m_site_is_the_crystal_with_one_mirror():
 
     # one orbit, its second site undeclared: the largest group the declared
     # function is carried by, and nothing descends
-    outside = tqs._OUTSIDE_THE_GROUP
+    outside = _declaration._OUTSIDE_THE_GROUP
     turned = "the declared function at this site is not carried to itself"
 
     def _by_reason(red):
@@ -1318,7 +1324,7 @@ def test_one_px_at_a_3m_site_is_the_crystal_with_one_mirror():
     assert red["to"] == {"number_str": "115.284", "name": "P-4m21'", "size": 16}
     assert _by_reason(red) == {
         turned: primed({"C4(z)", "C4^-1(z)", "m([110])", "m([1-10])"}),
-        tqs._OUTSIDE_THE_TIE: primed({"C2(x)", "C2(y)", "i", "m(z)"})}
+        _declaration._OUTSIDE_THE_TIE: primed({"C2(x)", "C2(y)", "i", "m(z)"})}
     note = next(e["note"] for e in red["excluded"] if e["name"] == "i")
     assert "{E, C2(z), C2(y), C2(x), i, m(z), m(y), m(x)}" in note
     assert "the tie rule" in note and "keeps the first since" in note

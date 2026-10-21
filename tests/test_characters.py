@@ -62,6 +62,8 @@ import re
 
 import numpy as np
 import pytest
+
+from conftest import patch_everywhere
 from pythtb import Lattice, TBModel
 
 from pythtqc import _sitechars as tqc_sitechars
@@ -70,6 +72,10 @@ from pythtqc import groups as tqg
 from pythtqc import sewing as tqw
 from pythtqc import symmetry as tqs
 from pythtqc.models import cubic_3c_axis_p, cubic_3c_perp_doublet
+from pythtqc import _build
+from pythtqc import _declaration
+from pythtqc import _naming
+from pythtqc import _tables
 
 import tqc_models
 # The oracle below runs on exactly the models the baseline gate builds, so the
@@ -114,7 +120,7 @@ solve_at = tqw.solve_at
 def rebuild(bundle, **kwargs):
     """The same representation, with the declarations under test."""
     model, group, assignment, validated, _ = bundle
-    return tqs._build_rep(model, group, assignment, validated=validated, **kwargs)
+    return _build._build_rep(model, group, assignment, validated=validated, **kwargs)
 
 
 def same_matrices(a, b, atol=0.0):
@@ -391,7 +397,7 @@ def test_declaring_either_orbital_of_the_pair_is_the_same_twist(lin3g_undeclared
     assert [o.determined_by for o in a.characters.orbitals] == \
         ["declaration", "hamiltonian", "hamiltonian", "hamiltonian"]
 
-    other = tqs._build_rep(model, group, assignment, validated=validated, reference_orbital=1)
+    other = _build._build_rep(model, group, assignment, validated=validated, reference_orbital=1)
     assert max(float(np.abs(a.matrices[i] - other.matrices[i]).max())
                for i in rep.indices) < 1e-14
     hsp = tqg.high_symmetry_points(group)
@@ -453,7 +459,7 @@ def test_unknown_label_names_the_site_group_and_prints_the_frame(lin3g_undeclare
     def measured(*args, **kwargs):
         raise AssertionError("the declaration's grammar is read before any group")
 
-    monkeypatch.setattr(tqg, "_group_of", measured)
+    patch_everywhere(monkeypatch, "_group_of", measured)
     with pytest.raises(ValueError, match="orbital 0 is named twice"):
         tqg.realized_group(lin3g_undeclared.source, characters={0: "s", (0, 1): "E"})
     monkeypatch.undo()
@@ -568,7 +574,7 @@ def test_the_flat_list_refuses_when_it_cannot_group_a_multiplet(lin3g_undeclared
     def measured(*args, **kwargs):
         raise AssertionError("the sites are read off the centres before any group")
 
-    monkeypatch.setattr(tqg, "_group_of", measured)
+    patch_everywhere(monkeypatch, "_group_of", measured)
     with pytest.raises(ValueError, match=re.escape("names orbitals of sites")):
         tqg.realized_group(lin3g_undeclared.source, typat=[0, 0, 1, 1],
                            characters={(1, 3): "A1"})
@@ -691,7 +697,7 @@ def test_p4232_refuses_an_irrep_of_the_wrong_dimension_as_grammar(p4232_decorate
     assert [tuple(int(o) for o in orbs) for orbs in assignment.site_orbitals] \
         == [(0, 1), (2, 3)], "four orbitals, two to a site, on the two 2a sites"
     record = {}
-    orb = tqs._build_rep(model, group, assignment, validated=validated,
+    orb = _build._build_rep(model, group, assignment, validated=validated,
                          multiplets=[[(0,), (1,)], [(2,), (3,)]], n_battery=4,
                          _search_record=record)
     assert not orb and orb.gate == "rep_not_covariant"
@@ -713,7 +719,7 @@ def test_p4232_refuses_an_irrep_of_the_wrong_dimension_as_grammar(p4232_decorate
     # caller means by it -- the answer is the physics rather than the search:
     # what was described is a crystal whose 23 site group is not a symmetry at
     # all, and the verdict names the subgroup that is left.
-    declared = tqs._build_rep(model, group, assignment, validated=validated,
+    declared = _build._build_rep(model, group, assignment, validated=validated,
                               multiplets=[[(0,), (1,)], [(2,), (3,)]],
                               n_battery=4, characters={0: "A", 1: "A"})
     assert not declared and declared.gate == "declaration_breaks_group"
@@ -741,7 +747,7 @@ def test_kane_mele_covers_the_3m_site_group_family(km_realized):
         "the double-valued site coreps the tables name at this position: the two "
         "one-dimensional orbital characters both lift to the spinor doublet, and "
         "the orbital E lifts to the pair")
-    assert tqe._point_group_names(group, table) == table.labels
+    assert _naming._point_group_names(group, table) == table.labels
     assert [(orbit.orbitals, orbit.wyckoff, orbit.terms)
             for orbit in rec.band_representations] == [
         ((0,), "1c", ((1, "-E1↑G(2)", "1c(3m1',3m)"),)),
@@ -772,18 +778,18 @@ def test_kane_mele_covers_the_3m_site_group_family(km_realized):
         return {int(i): sum(n * table.character_on(row[name], i) for name, n in copies.items())
                 for i in table.indices}
 
-    assert tqs._named_content(table, of(A1=1, E=1)) == ("2x-E1 + -1E2E", "tables")
-    assert tqs._named_content(table, of(E=2))[0] == "2x-1E2E + 2x-E1", \
+    assert _declaration._named_content(table, of(A1=1, E=1)) == ("2x-E1 + -1E2E", "tables")
+    assert _declaration._named_content(table, of(E=2))[0] == "2x-1E2E + 2x-E1", \
         "a multiplicity multiplies every term of a row whose own name is a sum"
     # named only as directly as its least direct part, and not at all where a
     # part has no name: naming the sum would claim one for that row too
     weaker = dataclasses.replace(table, named_by=tuple(
         "point group" if p == row["E"] else n for p, n in enumerate(table.named_by)))
-    assert tqs._named_content(weaker, of(A1=1, E=1)) == ("2x-E1 + -1E2E", "point group")
+    assert _declaration._named_content(weaker, of(A1=1, E=1)) == ("2x-E1 + -1E2E", "point group")
     blank = dataclasses.replace(
         table, labels=tuple("" if p == row["E"] else n for p, n in enumerate(table.labels)),
         named_by=tuple("unnamed" if p == row["E"] else n for p, n in enumerate(table.named_by)))
-    assert tqs._named_content(blank, of(A1=1, E=1)) == ("", "unnamed")
+    assert _declaration._named_content(blank, of(A1=1, E=1)) == ("", "unnamed")
 
     assert [o.determined_by for o in rec.orbitals] == ["hamiltonian"] * 2, \
         "A1 and A2 of 3m lift to the one -E1, so every labelling gives both rows -E1"
@@ -1285,18 +1291,18 @@ def test_the_diamond_site_irreps_are_the_names_the_tables_print(spinless_diamond
         assert (set(label.split(" + ")), got) == (want, dim), spec
 
     assert r.rep.characters.irreps == ("A1", "A1"), "undeclared, the lowest-l rule's A1"
-    out = tqs._build_rep(r.model, r.group, r.assignment, validated=r.validated,
+    out = _build._build_rep(r.model, r.group, r.assignment, validated=r.validated,
                          characters={0: "A2"})
     assert out, str(out)
     assert out.characters.irreps == ("A2", "A2"), \
         "both sites of the orbit carry what was declared on one of them"
 
-    gone = tqs._build_rep(r.model, r.group, r.assignment, validated=r.validated,
+    gone = _build._build_rep(r.model, r.group, r.assignment, validated=r.validated,
                           characters={0: "A_b"})
     assert not gone and gone.gate == "unknown_label", "the placeholder names nothing"
     assert set(gone.context["irreps"]) == {"A1", "A2", "E", "T1", "T2"}
 
-    wide = tqs._build_rep(r.model, r.group, r.assignment, validated=r.validated,
+    wide = _build._build_rep(r.model, r.group, r.assignment, validated=r.validated,
                           characters={0: "T2"})
     assert not wide and wide.gate == "ambiguous_multiplet", \
         "a three-dimensional irrep on a one-orbital channel is a dimension, not a name"
@@ -1317,7 +1323,7 @@ def test_the_diamond_site_irreps_are_the_names_the_tables_print(spinless_diamond
         "A2": "-E2", "A1": "-E1", "E": "-F",
         "T1": "-E1 + -F", "T2": "-E2 + -F"}
     assert set(dtable.named_by) == {"tables"}
-    assert tqe._point_group_names(spinful.group, dtable) == dtable.labels, (
+    assert _naming._point_group_names(spinful.group, dtable) == dtable.labels, (
         "-43m's own double-valued names, read at the origin of a symmorphic group "
         "and carried onto 8a of Fd-3m operation by operation, are the names the "
         "tables give every row there")
@@ -1379,7 +1385,7 @@ def test_a_tie_at_gamma_is_broken_at_the_other_high_symmetry_points():
     assert on_substrate, str(on_substrate)
     assert on_substrate.group.number_str == "99.164"
     assert on_substrate.assignment.wyckoff_tables == ("c", "c")
-    ties = tqe._gamma_ties(on_substrate.group)
+    ties = _naming._gamma_ties(on_substrate.group)
     assert {frozenset(names) for names in ties["2c(mm21',mm2)"]} == \
         {frozenset({"B1↑G(2)", "B2↑G(2)"})}, \
         "the tables say these two share their Γ content and nothing else does"
@@ -1532,9 +1538,9 @@ def test_every_ebr_column_at_a_fixture_position_comes_from_its_computed_rows(key
         seen.add((fixers, anti, letter))
         columns = {name: {lab: mult for lab, mult in content.items()
                           if tqe.kpoint_of_label(lab) in points}
-                   for name, content in tqe._rows_at_letter(rows, letter).items()}
+                   for name, content in _naming._rows_at_letter(rows, letter).items()}
         if not columns:
-            assert letter not in {tqe._letter_only(name.split("@")[1]) for name in rows}, \
+            assert letter not in {_tables._letter_only(name.split("@")[1]) for name in rows}, \
                 f"{key}: site {site} sits at {letter}, which the EBR table does carry"
             continue
         table = tqc_sitechars.site_group_table(group, fixers, antiunitary=anti)
@@ -1545,7 +1551,7 @@ def test_every_ebr_column_at_a_fixture_position_comes_from_its_computed_rows(key
                    for i in table.indices}
             content: dict = {}
             for name in points:
-                content.update(tqe._induced_content(
+                content.update(_naming._induced_content(
                     group, assignment, site, chi,
                     k=None if name == "GM" else points[name], kpname=name))
             parts = _peel(content, columns)

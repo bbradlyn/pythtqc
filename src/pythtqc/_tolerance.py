@@ -339,7 +339,7 @@ _LAYOUT_MERGE = 0.5
 # rounding
 # --------------------------------------------------------------------------
 
-#: The exact floor of :func:`..symmetry._build_rep`'s covariance gate,
+#: The exact floor of :func:`.._build._build_rep`'s covariance gate,
 #: ``max_k ‖D H(k) D† − H(Rk)‖`` of a built representation, **absolute and in
 #: the units of** ``H``.  The gate itself is :func:`..symmetry.covariance_gate`:
 #: this floor, or the rounding the representation's own arithmetic carries
@@ -359,7 +359,7 @@ EXACT_TOL = 5e-14
 #: confused.  Of the repair, only the branch that has *no tabulated operations to
 #: repair from* reads this constant: where ``irrep`` matched the cell the repair
 #: rebuilds the translations from the tabulated operations and never consults
-#: it.  :func:`..groups._shared_origin` reads it too, as the scale below which two
+#: it.  :func:`.._descent._shared_origin` reads it too, as the scale below which two
 #: translations of one operation are the same translation.
 _EXACT_CLOSURE = 1e-12
 
@@ -445,7 +445,7 @@ class Tolerances:
     cut : float or None
         The detector's nullspace cut, relative and dimensionless: ``energy /
         max|H| = 10 · p`` under a precision, a declared ``cut`` as given, and
-        ``None`` where it follows ``energy`` (:func:`..symmetry._find_intertwiners`).
+        ``None`` where it follows ``energy`` (:func:`.._detector._find_intertwiners`).
     window : float or None
         The detector's matching window, relative: ``clip(10·sqrt(cut), 1e-3,
         0.3)`` under a precision, a declared ``window`` as given, and ``None``

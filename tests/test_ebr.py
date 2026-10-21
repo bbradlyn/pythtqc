@@ -29,6 +29,7 @@ EBR sum, are what ``examples/tqc_kane_mele_realized_group.py`` and
 
 import numpy as np
 import pytest
+from pythtb.models import graphene
 
 from pythtqc import ebr as tqe
 from pythtqc import groups as tqg
@@ -36,9 +37,15 @@ from pythtqc import sewing as tqw
 from pythtqc import srsi as tqr
 from pythtqc import symmetry as tqs
 from pythtqc.refusal import Refusal
+from pythtqc import _build
+from pythtqc import _layers
+from pythtqc import _measure
+from pythtqc import _smith
+from pythtqc import _spacegroup
+from pythtqc import _tables
 
 import tqc_models as tqm
-from conftest import FKM_BOND, fkm_regime, km_z2_regime
+from conftest import FKM_BOND, fkm_regime, km_z2_regime, patch_everywhere
 
 # lin3g band blocks, from LIN3G.band_sets
 P4, P2, P6, Q2 = (0, 1, 2, 3), (4, 5), 6, (6, 7)
@@ -619,7 +626,7 @@ def km_slab_191():
     """
     from pythtb.models import kane_mele
 
-    group = tqg._group_of(tqg._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.0)))
+    group = _spacegroup._group_of(_layers._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.0)))
     assert group and group.number_str == "191.234", str(group)
     return group
 
@@ -686,8 +693,8 @@ def test_the_shipped_smith_basis_is_the_convention_and_a_de_novo_snf_verifies_it
     # the hand-rolled Smith normal form is exact and unimodular, on a matrix
     # whose divisors are not all 1
     matrix = [[int(x) for x in row] for row in np.asarray(tqg.ebr_data(group)["matrix"])]
-    u0, d0, v0 = tqe._snf(matrix)
-    assert tqe._matmul(tqe._matmul(u0, matrix), v0) == d0
+    u0, d0, v0 = _smith._snf(matrix)
+    assert _smith._matmul(_smith._matmul(u0, matrix), v0) == d0
     assert abs(round(np.linalg.det(np.array(u0, dtype=float)))) == 1
     assert abs(round(np.linalg.det(np.array(v0, dtype=float)))) == 1
     assert sorted(d0[i][i] for i in range(len(d0)) if d0[i][i] > 1) == [2, 4]
@@ -707,11 +714,11 @@ def test_the_shipped_smith_basis_is_the_convention_and_a_de_novo_snf_verifies_it
     u_bad[0] *= 2
     r_bad[0, 0] *= 2
     doctored = dict(real, smith=(u_bad, r_bad, real["smith"][2]))
-    assert (tqe._matmul(tqe._matmul([[int(x) for x in row] for row in u_bad], matrix),
+    assert (_smith._matmul(_smith._matmul([[int(x) for x in row] for row in u_bad], matrix),
                         [[int(x) for x in row]
                          for row in np.asarray(real["smith"][2], dtype=int)])
             == [[int(x) for x in row] for row in r_bad]), "check (i) still passes"
-    monkeypatch.setattr(tqg, "ebr_data", lambda g: doctored)
+    patch_everywhere(monkeypatch, "ebr_data", lambda g: doctored)
     with pytest.raises(InternalError) as excinfo:
         tqe.symmetry_indicator(tqw.hsp_table(rep, bands=2), group, rep=rep)
     assert "elementary divisors" in str(excinfo.value)
@@ -755,7 +762,7 @@ def test_the_indicator_sweep_over_every_group_this_package_validates():
             if any("wyckoff_position" not in e for e in raw["ebrs"]):
                 continue           # ten such files, every one type III
             systems += 1
-            labels, _conj, _partner, _moved, _new, perm = tqg._ebr_transport(
+            labels, _conj, _partner, _moved, _new, perm = _tables._ebr_transport(
                 number_str, spinor, magnetic)
             r = np.asarray(raw["smith_form"]["r"], dtype=int)
             d = ([int(x) if i == 0 else 0 for i, x in enumerate(r)] if r.ndim == 1 else
@@ -775,11 +782,11 @@ def test_the_indicator_sweep_over_every_group_this_package_validates():
 
             # (ii) a de-novo Smith form agrees, raw and transported
             divisors = sorted(x for x in d if x > 1)
-            phys = tqg._to_physical_convention(raw, number_str, spinor, magnetic)
+            phys = _tables._to_physical_convention(raw, number_str, spinor, magnetic)
             transported = np.rint(np.array([e["vector"] for e in phys["ebrs"]],
                                            dtype=float)).astype(int).T
             for m in (matrix, transported):
-                _u0, d0, _v0 = tqe._snf([[int(x) for x in row] for row in m])
+                _u0, d0, _v0 = _smith._snf([[int(x) for x in row] for row in m])
                 got = sorted(d0[i][i] for i in range(min(len(d0), len(d0[0])))
                              if d0[i][i] > 1)
                 assert got == divisors, (number_str, spinor, got, divisors)
@@ -1009,7 +1016,7 @@ def test_the_layer_class_moves_only_by_the_declaration_it_states():
     assert even.site_content["determined_by"][0] == "declaration", \
         "the even labelling is the one this record states"
 
-    odd_rep = tqs._build_rep(stack.model, stack.group, stack.assignment,
+    odd_rep = _build._build_rep(stack.model, stack.group, stack.assignment,
                              validated=stack.validated, characters={0: "A2'"})
     assert odd_rep, str(odd_rep)
     odd = tqe.symmetry_indicator(tqw.hsp_table(odd_rep, bands=2), stack.group,
@@ -1224,7 +1231,7 @@ def test_the_declared_slab_reaches_the_same_class_through_the_layer_route(monkey
     assert hand.lattice.dim_r == 3 and tuple(hand.periodic_dirs) == (0, 1)
     assert np.abs(np.asarray(hand.orb_vecs)[:, 2]).max() == 0.0
 
-    from_cell = tqg._group_of(hand)
+    from_cell = _spacegroup._group_of(hand)
     assert from_cell.number_str == "191.234", "the cell says it before anything is built"
     assert from_cell.dim_k == 2 and from_cell.vacuum_dirs == (2,)
 
@@ -1287,7 +1294,7 @@ def test_the_declared_slab_reaches_the_same_class_through_the_layer_route(monkey
     from pythtqc import _bloch
 
     with monkeypatch.context() as mp:
-        mp.setattr(tqg, "stack_presentation",
+        patch_everywhere(mp, "stack_presentation",
                    lambda *a, **k: Refusal("hopping_across_the_stack", "synthetic",
                                            value=1.0))
         stopped = tqe.symmetry_indicator(content, slab.group, rep=slab.rep, bands=2)
@@ -1488,9 +1495,9 @@ def test_a_layer_whose_own_group_can_answer_never_builds_the_stack():
 
     # (1)-(2) the cell allows more than the Hamiltonian obeys, and which half
     # is refuted is the physics: mirrors die, rotations live
-    bare = tqg._group_of(_qwz(1.0), include_TR=False, spinor=False)
+    bare = _spacegroup._group_of(_qwz(1.0), include_TR=False, spinor=False)
     assert bare.number_str == "123" and bare.name == "P4/mmm" and bare.size == 16
-    bare_v = tqg._validate_group(tqg._slab_presentation(_qwz(1.0)), bare, nk=8)
+    bare_v = _measure._validate_group(_layers._slab_presentation(_qwz(1.0)), bare, nk=8)
     assert len(bare_v.indices) == 8 and len(bare_v.broken) == 8 and bare_v.closed
     assert len(bare_v.undetermined) == 8, \
         "every survivor shares its k-action with a partner"
@@ -1514,7 +1521,7 @@ def test_a_layer_whose_own_group_can_answer_never_builds_the_stack():
     # ... and _build_rep called again on that group reads the fourth root of unity
     # between the two channels off the solution spaces, whatever `phases=`
     # offers, and builds the representation realized_group returned
-    plain = tqs._build_rep(tqg._slab_presentation(model), group, _asg,
+    plain = _build._build_rep(_layers._slab_presentation(model), group, _asg,
                            validated=validated)
     assert plain, str(plain)
     assert plain._search["strategy"] == "readoff", plain._search["fallback_reason"]
@@ -1528,7 +1535,7 @@ def test_a_layer_whose_own_group_can_answer_never_builds_the_stack():
     assert all(restriction.copies[l] for l in restriction.dropped)
 
     # (5) ... and this group has an indicator to read
-    assert tqe._divisors_of(tqg.ebr_data(group), group.number_str) == (4,)
+    assert _smith._divisors_of(tqg.ebr_data(group), group.number_str) == (4,)
 
     # (6) so the class is served in the group that was handed in, and no stack
     # was ever built
@@ -1636,12 +1643,12 @@ def test_the_indicator_refuses_on_physics_and_raises_on_a_broken_convention(
     # the shipped route at all.  Lift it, build the record anyway, and the
     # indicator refuses it on its own: one gate name, one detector, two places.
     km_afm = dict(magmom=[[0, 0, 1.0], [0, 0, -1.0]])
-    refused = tqg._group_of(kane_mele(0.0, -1.0, 0.3, 0.0), **km_afm)
+    refused = _spacegroup._group_of(kane_mele(0.0, -1.0, 0.3, 0.0), **km_afm)
     assert isinstance(refused, Refusal)
     assert refused.gate == "magnetic_type_out_of_scope"
     with monkeypatch.context() as mp:
-        mp.setattr(tqg, "_magnetic_scope_refusal", lambda _sg: None)
-        magnetic = tqg._group_of(kane_mele(0.0, -1.0, 0.3, 0.0), **km_afm)
+        patch_everywhere(mp, "_magnetic_scope_refusal", lambda _sg: None)
+        magnetic = _spacegroup._group_of(kane_mele(0.0, -1.0, 0.3, 0.0), **km_afm)
     assert magnetic and magnetic.number_str == "191.236", str(magnetic)
     assert tqe._magnetic_type(magnetic) == "III"
     out = tqe.symmetry_indicator({}, magnetic)
@@ -1649,7 +1656,7 @@ def test_the_indicator_refuses_on_physics_and_raises_on_a_broken_convention(
     assert out.context["magnetic_type"] == "III"
     # ... and the two types that ARE in scope are told apart by the operations
     assert tqe._magnetic_type(group) == "II"
-    assert tqe._magnetic_type(tqg._group_of(kane_mele(0.0, -1.0, 0.3, 0.0),
+    assert tqe._magnetic_type(_spacegroup._group_of(kane_mele(0.0, -1.0, 0.3, 0.0),
                                             include_TR=False)) == "I"
 
     # --- and the convention failure raises ---------------------------------
@@ -1659,7 +1666,7 @@ def test_the_indicator_refuses_on_physics_and_raises_on_a_broken_convention(
     bad = np.array(u, dtype=int)
     bad[0] *= 2
     broken["smith"] = (bad, r, v)
-    monkeypatch.setattr(tqg, "ebr_data", lambda g: broken)
+    patch_everywhere(monkeypatch, "ebr_data", lambda g: broken)
     with pytest.raises(InternalError) as excinfo:
         tqe.symmetry_indicator(table, group)
     assert "Smith" in str(excinfo.value)
@@ -1719,8 +1726,13 @@ def test_named_indicator_forms_are_transported_before_they_are_read():
     assert {tqe.kpoint_of_label(l) for l in moved_labels} == {"P", "PA"}
 
 
+def _graphene_even():
+    """pythtb's graphene with no on-site offset, ``graphene(0.0, -1.0)``: ``P6mm1'`` on a substrate."""
+    return graphene(0.0, -1.0)
+
+
 def test_points_or_bands_that_contradict_the_table_raise_rather_than_being_overridden(
-        lin3g_declared_cross_checked):
+        lin3g_declared_cross_checked, lin3g_undeclared, p4232_descended, realized):
     """A measured table and an asserted point or band set have to name the same set.
 
     ``points=`` states which k-points the model can be asked about; an
@@ -1728,6 +1740,14 @@ def test_points_or_bands_that_contradict_the_table_raise_rather_than_being_overr
     letting either one silently win answers a question nobody asked, so the
     contradiction is a malformed argument and is raised.  Naming the same set
     is no contradiction and changes nothing.
+
+    And it holds for the group and the representation: a table carries the
+    representation it was read with as ``rep``, so a group or a ``rep=`` handed
+    in beside it that is not the table's own is a contradiction and is raised.
+    Another record of the same group written in the same cell is the same
+    group, and the same labelling reached by declaration and by the
+    lowest-angular-momentum rule is one representation; graphene declared
+    ``A2`` keeps its group and is another labelling, so it raises.
 
     The same law holds for ``bands=``, which states which bands the content
     counts — an int is the lowest *n*, a sequence is exactly those indices —
@@ -1765,6 +1785,30 @@ def test_points_or_bands_that_contradict_the_table_raise_rather_than_being_overr
     assert tqe.symmetry_indicator(table, group, rep=rep, bands=(5, 4)).n_bands == 2, \
         "the block is a set of bands, not an order"
 
+    assert table.rep is rep, "the table carries the representation it was read with"
+    even = realized(_graphene_even)                            # A1 at 2b, by the rule
+    other = realized(_graphene_even, characters={0: "A2"})     # the same group, relabelled
+    assert even and other and other.group.number_str == even.group.number_str
+    t_even = tqw.hsp_table(even.rep, bands=2)             # both bands: they touch at K
+    with pytest.raises(ValueError) as exc:
+        tqe.symmetry_indicator(t_even, even.group, rep=other.rep)
+    assert "t.rep" in str(exc.value), "the message names the table's own representation"
+    assert tqe.decompose(t_even, other.group, rep=even.rep), \
+        "another record of the same group in the same cell is the same group"
+    elsewhere = p4232_descended.group         # another group altogether
+    for call in (tqe.decompose, tqe.symmetry_indicator, tqe.completeness_check):
+        with pytest.raises(ValueError) as exc:
+            call(table, elsewhere, rep=rep)
+        assert "#99.164" in str(exc.value) and "#208.45" in str(exc.value), \
+            "the message names both groups"
+    with pytest.raises(ValueError):
+        tqe.regular_completion(table, elsewhere, rep=rep, bands=list(P2))
+    with pytest.raises(ValueError):
+        tqe.subtract(table, tqw.hsp_table(p4232_descended.rep, bands=2))
+    same = tqe.decompose(table, lin3g_undeclared.group, rep=lin3g_undeclared.rep)
+    assert same and same.terms == agreed.terms, \
+        "the declared and the undeclared reading of lin3g are one representation"
+
 
 def test_module_surface():
     """The names phase A5 and the docs will import."""
@@ -1795,7 +1839,7 @@ def test_module_surface():
         assert getattr(tqc, name) is getattr(tqg, name), name
     for name in ("_slab_presentation", "_decorated_cell"):
         assert name not in tqg.__all__ and not hasattr(tqc, name), name
-        assert callable(getattr(tqg, name)), name
+        assert callable(getattr(_layers, name)), name
     # the convention statement travels on every record
     assert "e^(-ik.t)" in tqe.INDICATOR_CONVENTION
     assert "Wyckoff positions never move" in tqe.INDICATOR_CONVENTION

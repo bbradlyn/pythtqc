@@ -252,7 +252,9 @@ flowchart TD
 ```
 
 `t` and `r.group` come from one `realized_group`: a table's labels name the
-coreps of the group it was read in. `rep=r.rep` says how each site irrep is known
+coreps of the group it was read in, and the table carries that representation as
+`t.rep`, so a group or a `rep=` handed in beside it that is not the table's own
+raises `ValueError`. `rep=r.rep` says how each site irrep is known
 and, on a layer, which Wyckoff positions lie within it. An `EBRDecomposition` and
 a `SymmetryIndicator` hold the `Restriction` they were read with on
 `.restriction`, and a decomposition holds what it does not certify on `.caveat`,
@@ -302,13 +304,43 @@ with on `.tables`.
 
 ## Beneath the path
 
+Every module of the package, from the ground up: a module reads only the modules
+above it in this table, the public ones among them.
+
 | module | what it holds |
 |---|---|
-| `_bloch` | the Bloch Hamiltonian `H(k)`, summed from the model's hoppings |
-| `_sitechars` | the characters of a site's symmetry group |
-| `_sectors` | the sectors the conserved matrices acting within sites split the states into |
-| `_tolerance` | what a measurement judges noise against, resolved once |
 | `refusal` | `Refusal`, returned in place of a value a call cannot measure, and `InternalError`, raised where the package disagrees with itself |
+| `_tolerance` | what a measurement judges noise against, resolved once |
+| `_sitechars` | the characters of a site's symmetry group |
+| `_bloch` | the Bloch Hamiltonian `H(k)`, summed from the model's hoppings |
+| `spin` | which orbitals of a spinless model are one Wannier function's spin states, and the spin operator on them |
+| `_text` | the words the records' printouts share: a coordinate, a k-point, a character, a count of operations, a sum of elementary band representations |
+| `_spacegroup` | the space group of a cell, found on its point set and written in the model's own cell, with the records every measurement is written on |
+| `_seitz` | each operation of a group by its index, with its Seitz symbol in the tables' setting and its name in the model's frame |
+| `_tables` | irrep's tables in the model's own cell: the high-symmetry points, the little groups, the corep tables, the elementary band representations and the indicator group |
+| `_subgroups` | the subgroups inside the operations the Hamiltonian keeps, and the tie rule that picks one where several of one order qualify |
+| `_detector` | the eigen-sift detector: every matrix `X` with `X H(k) = H(Rk) X` on a grid of `k` |
+| `_matrices` | the arithmetic of the operations' matrices: their composition, their phase, the Bloch operator, the members of a solution space inside given blocks |
+| `_grammar` | the grammar of `characters=` and `multiplets=`, read where a call starts |
+| `_centres` | the orbital centres against the group's action: where the operations put them, and how far they miss |
+| `_naming` | site irreps named off the tables, each by the elementary band representation it induces |
+| `symmetry` | the representation's records: each operation's matrix on the model's states, the atomic-limit table and each orbital's row |
+| `_sectors` | the sectors the conserved matrices acting within sites split the states into |
+| `_multiplets` | the multiplets the Hamiltonian binds each site's orbitals into, and the block of every operation on each |
+| `_declaration` | what a declaration states, read on the measured multiplets, and the verdict per operation it gives |
+| `_layers` | a layer's slab and its decoupled stack, the substrate under every site, and the check that the two environments agree |
+| `sewing` | the coreps a set of bands carries at every high-symmetry point, read off its eigenvectors |
+| `_smith` | the Smith normal form of the elementary band representations' matrix, and the compatibility relations read off it |
+| `_srsitables` | the tables of the stable real-space invariants as shipped, and the paper's names for the symmetry indicators |
+| `ebr` | whether a content could be an atomic limit, and its symmetry-indicator class |
+| `srsi` | the stable real-space invariants of a set of bands and of a model, and the no-go criterion on a gapped splitting |
+| `_labelling` | the labelling the Hamiltonian leaves open, chosen once by the lowest-angular-momentum rule, and the atomic-limit table read off it |
+| `_measure` | `H(k)` on the detection grid and one solution space per k-action: the verdict on each operation of a group |
+| `_build` | the representation, built once on what the verdict stage measured |
+| `symmetrization` | a model symmetric only to its declared precision, made exactly symmetric |
+| `_descent` | the unitary descent: one verdict per operation of the cell, and the cell lowered to the operations that hold |
+| `_realized` | the space group a Hamiltonian obeys, measured round after round until it settles, and the record `realized_group` returns |
+| `groups` | the space group a Hamiltonian obeys and the group's tables in the model's cell: `realized_group`, and the calls on `r.group` |
 | `models` | the crystals the pages measure |
 | `utils` | `save_figure`, which writes the examples' figures |
 

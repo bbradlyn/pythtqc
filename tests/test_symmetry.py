@@ -33,6 +33,8 @@ import time
 
 import numpy as np
 import pytest
+
+from conftest import patch_everywhere
 from pythtb import Lattice, TBModel
 
 from pythtqc import _sitechars
@@ -43,6 +45,12 @@ from pythtqc import sewing as tqw
 from pythtqc import symmetry as tqs
 from pythtqc import InternalError
 from pythtqc.refusal import Refusal
+from pythtqc import _build
+from pythtqc import _layers
+from pythtqc import _matrices
+from pythtqc import _measure
+from pythtqc import _spacegroup
+from pythtqc import _tables
 
 import tqc_models
 
@@ -61,12 +69,12 @@ def _nspin(rep):
 
 def _rep_bundle(model, group=None, **kwargs):
     """``(group, assignment, validated, rep)`` for one model, built once."""
-    group = tqg._group_of(model) if group is None else group
+    group = _spacegroup._group_of(model) if group is None else group
     assert group, str(group)
-    assignment = tqg._assign_orbitals(model, group)
+    assignment = _tables._assign_orbitals(model, group)
     assert assignment, str(assignment)
-    validated = tqg._validate_group(model, group, nk=kwargs.pop("nk", 6))
-    rep = tqs._build_rep(model, group, assignment, validated=validated, **kwargs)
+    validated = _measure._validate_group(model, group, nk=kwargs.pop("nk", 6))
+    rep = _build._build_rep(model, group, assignment, validated=validated, **kwargs)
     return group, assignment, validated, rep
 
 
@@ -88,7 +96,7 @@ def lin3g_rep_enum(lin3g_rep):
     measured against each other.
     """
     group, assignment, validated, rep = lin3g_rep
-    out = tqs._build_rep(rep.model, group, assignment, validated=validated,
+    out = _build._build_rep(rep.model, group, assignment, validated=validated,
                          strategy="enumerate")
     assert out, str(out)
     return group, assignment, validated, out
@@ -258,17 +266,17 @@ def test_the_product_table_gate_kills_what_covariance_cannot_see():
     what this test is for is the gate, not a served representation.
     """
     model = _decoupled_two_class_layer()
-    group = tqg._group_of(model, typat=[0, 1])
+    group = _spacegroup._group_of(model, typat=[0, 1])
     assert group and group.number_str == "123.340", str(group)
-    assignment = tqg._assign_orbitals(model, group)
+    assignment = _tables._assign_orbitals(model, group)
     assert assignment and assignment.orbits == ((0,), (1,)), str(assignment)
-    validated = tqg._validate_group(model, group, nk=6)
+    validated = _measure._validate_group(model, group, nk=6)
     assert validated, str(validated)
     assert set(validated._nullspace_dims.values()) == {2}, \
         "the decoupling IS the second dimension: the relative phase commutes with H"
 
     record = {}
-    out = tqs._build_rep(model, group, assignment, validated=validated,
+    out = _build._build_rep(model, group, assignment, validated=validated,
                          phases=(1, -1, 1j, -1j), strategy="enumerate",
                          _search_record=record)
     assert not out and out.gate == "rep_not_unique", str(out)
@@ -322,7 +330,7 @@ def test_lin3g_reps_reproduce_the_product_table_with_spinor_factors(lin3g_rep):
             pa, pb = pos[a], pos[b]
             c = int(group.symmetries[int(prod[pa, pb])].ind)
             assert c in rep.matrices, "the represented set is not closed"
-            lhs = tqs._compose(rep.matrices[a], bool(rep._operation(a).time_reversal),
+            lhs = _matrices._compose(rep.matrices[a], bool(rep._operation(a).time_reversal),
                                rep.matrices[b])
             worst = max(worst, float(np.abs(lhs - int(spf[pa, pb]) * rep.matrices[c]).max()))
             seen.add(int(spf[pa, pb]))
@@ -353,12 +361,12 @@ def km191_bundle():
     ``_build_rep`` with different gate settings on the *same* group.
     """
     model = tqc_models.kane_mele_inversion()
-    m3 = tqg._slab_presentation(model)
-    cell, cell_typat = tqg._decorated_cell(m3, [0, 0])
-    group = tqg._group_of(cell, typat=cell_typat, spinor=True)
+    m3 = _layers._slab_presentation(model)
+    cell, cell_typat = _layers._decorated_cell(m3, [0, 0])
+    group = _spacegroup._group_of(cell, typat=cell_typat, spinor=True)
     assert group and group.number_str == "183.186"
-    assignment = tqg._assign_orbitals(m3, group, typat=[0, 0])
-    validated = tqg._validate_group(m3, group, nk=6)
+    assignment = _tables._assign_orbitals(m3, group, typat=[0, 0])
+    validated = _measure._validate_group(m3, group, nk=6)
     return m3, group, assignment, validated
 
 
@@ -386,7 +394,7 @@ def test_kane_mele_at_191_pins_with_default_settings(km191_bundle):
     (``chi(C3) = -0.5``).
     """
     model, group, assignment, validated = km191_bundle
-    rep = tqs._build_rep(model, group, assignment, validated=validated,
+    rep = _build._build_rep(model, group, assignment, validated=validated,
                          characters={0: "A1"})
     assert rep, str(rep)
     s = rep._search
@@ -405,14 +413,14 @@ def test_kane_mele_at_191_pins_with_default_settings(km191_bundle):
     assert rep.characters.irreps == ("-E1", "-E1") and rep.characters.residual < 1e-12
 
     # ... and it is bit-for-bit what the old workaround produced
-    old = tqs._build_rep(model, group, assignment, validated=validated,
+    old = _build._build_rep(model, group, assignment, validated=validated,
                          characters={0: "A1"}, orientation_branch=+1)
     assert old, str(old)
     assert max(float(np.abs(old.matrices[i] - rep.matrices[i]).max())
                for i in rep.indices) == 0.0
 
     # the losing branch alone, the internal-factor gate opened
-    loser = tqs._build_rep(model, group, assignment, validated=validated,
+    loser = _build._build_rep(model, group, assignment, validated=validated,
                            orientation_branch=-1, internal_tol=np.inf)
     assert loser, str(loser)
     assert loser._choice["orientation"] == -1
@@ -429,7 +437,7 @@ def test_kane_mele_at_191_pins_with_default_settings(km191_bundle):
 
     # with the gate at its default, that branch alone is a refusal, not a rep
     record = {}
-    refused = tqs._build_rep(model, group, assignment, validated=validated,
+    refused = _build._build_rep(model, group, assignment, validated=validated,
                              orientation_branch=-1, _search_record=record)
     assert not refused and refused.gate == "rep_internal_factor"
     assert refused.value > 0.5 and refused.threshold == 1e-9
@@ -491,7 +499,7 @@ def _relative_character(child_rep, child_group, parent_rep, parent_group):
         if ind not in child_rep.matrices:
             continue
         pind = parent[_op_key(s)]
-        r, res = tqs._proportionality(np.asarray(child_rep.matrices[ind]),
+        r, res = _matrices._proportionality(np.asarray(child_rep.matrices[ind]),
                                       np.asarray(parent_rep.matrices[pind]))
         rho[ind], defect = complex(r), max(defect, float(res))
     snapped, off = _snap(rho)
@@ -606,7 +614,7 @@ def test_a_weakly_broken_4mm_model_restricts_to_its_parent_on_the_pinned_branch(
     assert worst <= _FEW_ULP, f"roundoff, not a function of delta: got {worst:.3g}"
 
     # the branch is not what any of this is about
-    other = tqs._build_rep(child.rep.model, child.group, child.assignment,
+    other = _build._build_rep(child.rep.model, child.group, child.assignment,
                            validated=child.validated, orientation_branch=-1)
     assert other, str(other)
     assert other._choice["orientation"] == -1 and other._branch_tie is False
@@ -835,7 +843,7 @@ def test_a_pure_ebr_is_the_induced_representation_in_the_tables_convention(
     induced = _induced_rep(rep.model, got.group, got.assignment, set(rep.indices))
     measured, defect = {}, 0.0
     for ind, Dind in induced.items():
-        r, res = tqs._proportionality(np.asarray(rep.matrices[ind]), Dind)
+        r, res = _matrices._proportionality(np.asarray(rep.matrices[ind]), Dind)
         measured[ind], defect = complex(r), max(defect, float(res))
     assert defect <= 1e-15, f"a multiple of the induced block, not merely close: {defect:.3g}"
     lam, off = _snap(measured)
@@ -860,7 +868,7 @@ def test_a_pure_ebr_is_the_induced_representation_in_the_tables_convention(
     assert worst <= _FEW_ULP, \
         f"measured 2.4e-16 (1a) / 3.1e-16 (2-fold), got {worst:.3g}"
 
-    other = tqs._build_rep(rep.model, got.group, got.assignment,
+    other = _build._build_rep(rep.model, got.group, got.assignment,
                            validated=got.validated, orientation_branch=-1)
     assert other, str(other)
     shared = [i for i in rep.indices if i in other.matrices]
@@ -877,7 +885,7 @@ def test_a_pure_ebr_is_the_induced_representation_in_the_tables_convention(
         b2 = {"E": 1.0, "C2(z)": -1.0, "m(y)": -1.0, "m(x)": 1.0}
         b2_of = {int(s.ind): b2[_sitechars.operation_name(s, got.group.lattice)]
                  for s in got.group.symmetries if int(s.ind) in induced}
-        declared = tqs._build_rep(
+        declared = _build._build_rep(
             rep.model, got.group, got.assignment, validated=got.validated,
             characters={0: "B2"})
         assert declared, str(declared)
@@ -983,7 +991,7 @@ def test_a_spinful_s_orbital_off_the_mirror_planes_is_the_tables_induced_represe
     assert counts != total(other_rows), "the two spinor rows differ, so the check has teeth"
 
     # ... and the other spinor is the declared odd / A2 orbital
-    declared = tqs._build_rep(model, got.group, got.assignment, validated=got.validated,
+    declared = _build._build_rep(model, got.group, got.assignment, validated=got.validated,
                               characters={0: other})
     assert declared, str(declared)
     # the declaration fixes the character on the SITE group only; the group is
@@ -1319,7 +1327,7 @@ def test_repr_smoke(lin3g_rep, lin3g_rep_enum):
 def i41_soc_unitary():
     """``(group, assignment, validated, rep)`` for ``i41_soc`` on the UNITARY tables."""
     model = tqc_models.i41_soc("generic", lam=0.4)
-    group = tqg._group_of(model, include_TR=False)
+    group = _spacegroup._group_of(model, include_TR=False)
     assert group and group.number_str == "80", str(group)
     return _rep_bundle(model, group=group, nk=4, n_battery=5)
 
@@ -1400,7 +1408,7 @@ def test_the_positivity_tie_is_what_left_the_unitary_gauge_free(i41_soc_unitary)
 
     # where no table lift stands behind the reference: the table itself chooses
     flat, _basis = tqspin.spinless_presentation(tqc_models.r3m_s_6c())
-    trig = tqg._group_of(flat, spinor=False, include_TR=False)
+    trig = _spacegroup._group_of(flat, spinor=False, include_TR=False)
     assert (trig.number_str, trig.size, trig.spinor) == ("166", 12, False), str(trig)
     _trig, _tassign, tvalid, srep = _rep_bundle(flat, group=trig, nk=4)
     assert len(tvalid.indices) == 12 and srep, str(srep)
@@ -1486,12 +1494,12 @@ def test_the_table_anchor_errors_rather_than_refusing(monkeypatch):
     and says so with the phases it was offered.
     """
     model = tqc_models.i41_atomic()
-    group = tqg._group_of(model, include_TR=False)
+    group = _spacegroup._group_of(model, include_TR=False)
     assert group and group.number_str == "80", str(group)
-    assignment = tqg._assign_orbitals(model, group)
-    validated = tqg._validate_group(model, group, nk=4)
+    assignment = _tables._assign_orbitals(model, group)
+    validated = _measure._validate_group(model, group, nk=4)
 
-    true_internal = tqs._internal_from_table
+    true_internal = _matrices._internal_from_table
     gen = 3                                    # the four-fold screw, #80's only generator
 
     # the two screws fix no site, which is why the fixed-channel gate was blind
@@ -1504,9 +1512,9 @@ def test_the_table_anchor_errors_rather_than_refusing(monkeypatch):
         return S @ np.diag([1.0, -1.0]).astype(complex) if int(sym.ind) == gen else S
 
     with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(tqs, "_internal_from_table", one_operation)
+        patch_everywhere(mp, "_internal_from_table", one_operation)
         record = {}
-        caught = tqs._build_rep(model, group, assignment, validated=validated,
+        caught = _build._build_rep(model, group, assignment, validated=validated,
                                 n_battery=5, _search_record=record)
     assert isinstance(caught, Refusal) and not caught
     assert caught.gate == "rep_internal_factor"
@@ -1519,9 +1527,9 @@ def test_the_table_anchor_errors_rather_than_refusing(monkeypatch):
     def conjugated(sym):
         return V @ true_internal(sym) @ V.conj().T
 
-    monkeypatch.setattr(tqs, "_internal_from_table", conjugated)
+    patch_everywhere(monkeypatch, "_internal_from_table", conjugated)
     with pytest.raises(InternalError) as excinfo:
-        tqs._build_rep(model, group, assignment, validated=validated, n_battery=5)
+        _build._build_rep(model, group, assignment, validated=validated, n_battery=5)
 
     message = str(excinfo.value)
     assert not isinstance(excinfo.value, Refusal), "the ruling: it must ERROR"
@@ -1533,17 +1541,17 @@ def test_the_table_anchor_errors_rather_than_refusing(monkeypatch):
 
     # 3.  the helper-level branch: a ratio no offered phase can make real
     S = np.diag([-1j, 1j])
-    ok = tqs._table_anchored((1.0 + 0j, 1j, -1.0 + 0j, -1j), S, S,
+    ok = _matrices._table_anchored((1.0 + 0j, 1j, -1.0 + 0j, -1j), S, S,
                              op_ind=3, order=4, zeta=-1)
     assert ok == (1.0 + 0j, -1.0 + 0j), "the real pair, in the order it was offered"
 
     with pytest.raises(InternalError) as excinfo:
-        tqs._table_anchored((np.exp(1j * np.pi / 3),), S, S, op_ind=3, order=4, zeta=-1)
+        _matrices._table_anchored((np.exp(1j * np.pi / 3),), S, S, op_ind=3, order=4, zeta=-1)
     assert "real multiple" in str(excinfo.value)
     assert "one-dimensional character of the group" in str(excinfo.value)
 
     with pytest.raises(InternalError) as excinfo:
-        tqs._table_anchored((1.0 + 0j,), np.diag([-1j, -1j]), S,
+        _matrices._table_anchored((1.0 + 0j,), np.diag([-1j, -1j]), S,
                             op_ind=3, order=4, zeta=-1)
     assert "not a multiple of the operation's own sym.spinor_rotation" in str(excinfo.value)
 
@@ -1593,23 +1601,23 @@ def test_the_skipped_reference_block_is_a_branch_covariance_has_already_killed()
     one, and the anchor fires on it (``table_anchored``).
     """
     model = tqc_models.p62_atomic()
-    group = tqg._group_of(model, include_TR=False)
+    group = _spacegroup._group_of(model, include_TR=False)
     assert group and group.number_str == "171", str(group)
-    assignment = tqg._assign_orbitals(model, group)
-    validated = tqg._validate_group(model, group, nk=4)
+    assignment = _tables._assign_orbitals(model, group)
+    validated = _measure._validate_group(model, group, nk=4)
     # `strategy="enumerate"`: what is regressed here is the enumeration's kill
     # record -- that the `g^-1` candidates it proposes die on covariance, two
     # gates before `normalize_rep` runs.  The read-off never proposes them on
     # this model (the reference channel moves, so the `g^-1` pattern has nothing
     # in the reference block to read a phase off), which is a different
     # statement that no test pins.
-    rep = tqs._build_rep(model, group, assignment, validated=validated, n_battery=5,
+    rep = _build._build_rep(model, group, assignment, validated=validated, n_battery=5,
                          strategy="enumerate")
     assert rep and rep.antiunitary_operator[0] is None, str(rep)
 
     gen = int(rep._generators[0])
     p = next(i for i, s in enumerate(group.symmetries) if int(s.ind) == gen)
-    cperm = tqs._orbital_permutation(assignment, p, model)
+    cperm = _matrices._orbital_permutation(assignment, p, model)
     ref = int(rep._reference["multiplet"])
     img = int(cperm[ref])
     assert (ref, img) == (0, 1) and int(cperm[img]) == 2, "the reference channel moves"
@@ -1675,11 +1683,11 @@ def spinless_asked_double_valued():
 
     model = haldane(0.0, -1.0, 0.15, 0.5)
     assert int(model.nspin) == 1 and not model.spinful, "the model has no spin axis"
-    group = tqg._group_of(model, spinor=True, include_TR=False)
+    group = _spacegroup._group_of(model, spinor=True, include_TR=False)
     assert group, str(group)
-    assignment = tqg._assign_orbitals(model, group)
+    assignment = _tables._assign_orbitals(model, group)
     assert assignment, str(assignment)
-    return model, group, assignment, tqg._validate_group(model, group)
+    return model, group, assignment, _measure._validate_group(model, group)
 
 
 @pytest.mark.slow
@@ -1708,7 +1716,7 @@ def test_a_spinless_model_asked_with_double_valued_tables_refuses(
         "the Haldane mass and flux refute half of P6/mmm; the group still stands"
 
     try:
-        out = tqs._build_rep(model, group, assignment, validated=validated)
+        out = _build._build_rep(model, group, assignment, validated=validated)
     except InternalError as exc:            # pragma: no cover - the defect
         pytest.fail("the anchor's premise is false here, so its verdict -- 'a bug in "
                     f"this package' -- is wrong; it must refuse instead: {exc}")
@@ -1727,12 +1735,12 @@ def test_a_spinless_model_asked_with_double_valued_tables_refuses(
     # structural, so neither the stated multiplets nor time reversal changes the
     # verdict: on the grey group the antiunitary anchor would otherwise answer
     # `antiunitary_anchor`, a true measurement of a false setup.
-    stated = tqs._build_rep(model, group, assignment, validated=validated,
+    stated = _build._build_rep(model, group, assignment, validated=validated,
                             multiplets=[[(0,)], [(1,)]])
     assert stated.gate == "rep_double_valued_spinless", str(stated)
-    grey = tqg._group_of(model, spinor=True, include_TR=True)
+    grey = _spacegroup._group_of(model, spinor=True, include_TR=True)
     assert grey and grey.number_str == "191.234", str(grey)
-    with_tr = tqs._build_rep(model, grey, tqg._assign_orbitals(model, grey))
+    with_tr = _build._build_rep(model, grey, _tables._assign_orbitals(model, grey))
     assert with_tr.gate == "rep_double_valued_spinless", str(with_tr)
 
 
@@ -1756,24 +1764,24 @@ def test_a_spinful_model_cannot_be_asked_for_single_valued_tables():
     assert int(model.nspin) == 2 and model.spinful
 
     for include_TR in (False, True):
-        out = tqg._group_of(model, spinor=False, include_TR=include_TR)
+        out = _spacegroup._group_of(model, spinor=False, include_TR=include_TR)
         assert isinstance(out, Refusal) and not out, str(out)
         assert out.gate == "single_valued_spinful"
         assert "no single-valued question to put to it" in out.reason
         assert out.context["nspin"] == 2 and out.context["spinor"] is False
 
     # the second enforcement point, reached without the constructor's help
-    m3 = tqg._slab_presentation(model)
-    cell, cell_typat = tqg._decorated_cell(m3, [0, 0])
+    m3 = _layers._slab_presentation(model)
+    cell, cell_typat = _layers._decorated_cell(m3, [0, 0])
     assert int(cell.nspin) == 1, "_decorated_cell builds a spinless geometry cell"
 
-    group = tqg._group_of(cell, typat=cell_typat, spinor=False, include_TR=False)
+    group = _spacegroup._group_of(cell, typat=cell_typat, spinor=False, include_TR=False)
     assert group and group.spinor is False, str(group)
 
-    assignment = tqg._assign_orbitals(m3, group, typat=[0, 0])
-    validated = tqg._validate_group(m3, group, nk=6)
+    assignment = _tables._assign_orbitals(m3, group, typat=[0, 0])
+    validated = _measure._validate_group(m3, group, nk=6)
     with pytest.raises(ValueError, match="the model is spinful"):
-        tqs._build_rep(m3, group, assignment, validated=validated, n_battery=3)
+        _build._build_rep(m3, group, assignment, validated=validated, n_battery=3)
 
 
 # ---------------------------------------------------------------------------
@@ -1807,15 +1815,15 @@ def test_a_spinful_model_cannot_be_asked_for_single_valued_tables():
 
 def _readoff_pair(model, *, group=None, group_kw=None, typat=None, nk=6, **build_kw):
     """``(validated, readoff_rep, enumerated_rep)`` for one model, one measurement."""
-    group = tqg._group_of(model, **(group_kw or {})) if group is None else group
+    group = _spacegroup._group_of(model, **(group_kw or {})) if group is None else group
     assert group, str(group)
-    assignment = tqg._assign_orbitals(model, group, typat=typat)
+    assignment = _tables._assign_orbitals(model, group, typat=typat)
     assert assignment, str(assignment)
-    validated = tqg._validate_group(model, group, nk=nk)
+    validated = _measure._validate_group(model, group, nk=nk)
     common = dict(validated=validated, **build_kw)
     return (validated,
-            tqs._build_rep(model, group, assignment, strategy="readoff", **common),
-            tqs._build_rep(model, group, assignment, strategy="enumerate", **common))
+            _build._build_rep(model, group, assignment, strategy="readoff", **common),
+            _build._build_rep(model, group, assignment, strategy="enumerate", **common))
 
 
 def _lin3g_spinor_basis():
@@ -1853,7 +1861,7 @@ def readoff_pairs(lin3g_rep, lin3g_rep_enum, p4232_decorated):
     """
     _group, _assignment, validated, readoff = lin3g_rep
     model, group, assignment, p_validated, p_readoff = p4232_decorated
-    p_enumerated = tqs._build_rep(model, group, assignment, validated=p_validated,
+    p_enumerated = _build._build_rep(model, group, assignment, validated=p_validated,
                                   n_battery=4, strategy="enumerate")
     return {"lin3g": (validated, readoff, lin3g_rep_enum[3]),
             "km_rashba0": _readoff_pair(tqc_models.kane_mele_inversion()),
@@ -1936,7 +1944,7 @@ def test_an_enumeration_larger_than_max_candidates_is_refused_not_run(lin3g_rep)
     """
     group, assignment, validated, rep = lin3g_rep
 
-    out = tqs._build_rep(rep.model, group, assignment, validated=validated,
+    out = _build._build_rep(rep.model, group, assignment, validated=validated,
                          strategy="enumerate", max_candidates=8)
     assert not out and out.gate == "rep_search_too_large", str(out)
     assert out.value == 32 and out.threshold == 8
@@ -1948,7 +1956,7 @@ def test_an_enumeration_larger_than_max_candidates_is_refused_not_run(lin3g_rep)
     assert "32 candidates" in out.reason.replace(",", "")
 
     # the read-off does not enumerate, so the same ceiling is no obstacle
-    fine = tqs._build_rep(rep.model, group, assignment, validated=validated,
+    fine = _build._build_rep(rep.model, group, assignment, validated=validated,
                           max_candidates=1)
     assert fine, str(fine)
     assert fine._search["strategy"] == "readoff" and fine._choice == rep._choice
@@ -1956,10 +1964,10 @@ def test_an_enumeration_larger_than_max_candidates_is_refused_not_run(lin3g_rep)
 
     # nothing to read defers to the enumeration, which builds what the read-off
     # reads and records why it ran
-    lean = tqg._validate_group(rep.model, group, nk=6, keep_intertwiners=False)
+    lean = _measure._validate_group(rep.model, group, nk=6, keep_intertwiners=False)
     assert lean._intertwiners == {} and lean._bases == {}
     assert set(rep.indices) <= set(lean.indices), "the same operations survive"
-    deferred = tqs._build_rep(rep.model, group, assignment, validated=lean)
+    deferred = _build._build_rep(rep.model, group, assignment, validated=lean)
     assert deferred, str(deferred)
     s = deferred._search
     assert s["strategy"] == "enumerate" and s["requested"] == "readoff"
@@ -1974,7 +1982,7 @@ def test_an_enumeration_larger_than_max_candidates_is_refused_not_run(lin3g_rep)
                for i in rep.indices) == 0.0, "the representation the read-off reads"
 
     # ... and when the read-off defers, the ceiling is what it defers into
-    stuck = tqs._build_rep(rep.model, group, assignment, validated=lean,
+    stuck = _build._build_rep(rep.model, group, assignment, validated=lean,
                            max_candidates=1)
     assert not stuck and stuck.gate == "rep_search_too_large", str(stuck)
     assert stuck.value == 32 and stuck.threshold == 1
@@ -2042,11 +2050,11 @@ def sc108_bundle():
     # operations -- is not measured here: it costs 20.3 s, and what this fixture
     # is for is the read-off at n = 108, which needs the typed group.  The same
     # reading on the 2x2x2 and 3x1x1 cells is `tests/test_lattice_descent.py`'s.
-    group = tqg._group_of(model, typat=typat)
+    group = _spacegroup._group_of(model, typat=typat)
     assert group and group.number_str == "2.5", str(group)
-    assignment = tqg._assign_orbitals(model, group, typat=typat)
+    assignment = _tables._assign_orbitals(model, group, typat=typat)
     assert assignment, str(assignment)
-    validated = tqg._validate_group(model, group, nk=3)
+    validated = _measure._validate_group(model, group, nk=3)
     assert len(validated.indices) == 4, str(validated)
     return model, group, assignment, validated
 
@@ -2071,13 +2079,13 @@ def test_the_readoff_builds_what_the_enumeration_must_refuse(sc108_bundle):
     assert model.nstate == 108 and model.norb == 54
 
     common = dict(validated=validated, orientation_branch=+1)
-    refused = tqs._build_rep(model, group, assignment, strategy="enumerate", **common)
+    refused = _build._build_rep(model, group, assignment, strategy="enumerate", **common)
     assert not refused and refused.gate == "rep_search_too_large", str(refused)
     assert refused.value == 2 ** 26 == 67_108_864 and refused.threshold == 2 ** 20
     assert (refused.context["n_generators"], refused.context["n_classes"]) == (1, 27)
 
     started = time.perf_counter()
-    rep = tqs._build_rep(model, group, assignment, strategy="readoff", **common)
+    rep = _build._build_rep(model, group, assignment, strategy="readoff", **common)
     seconds = time.perf_counter() - started
     assert rep, str(rep)
     assert rep._search["strategy"] == "readoff"

@@ -45,20 +45,28 @@ matrix (:class:`SectorSearch`).
 
 from __future__ import annotations
 
-import itertools
 from dataclasses import dataclass
+import itertools
 
 import numpy as np
 
-from . import symmetry as _symmetry
-from ._tolerance import (_FACTOR_TOL, _IN_BLOCKS, _LATTICE_TOL, ASSEMBLED, CHARACTER,
-                         CLUSTER, ZERO, noise_floor)
+from . import _detector
+from . import _matrices
+from . import _naming
+from ._tolerance import (
+    ASSEMBLED, CHARACTER, CLUSTER, ZERO, _FACTOR_TOL, _IN_BLOCKS, _LATTICE_TOL,
+    noise_floor)
+
+__all__ = ["Sector", "SectorReading", "SectorAction", "read_sectors",
+           "carried_reading", "joined", "sector_action", "SectorSearch",
+           "atom_sites", "chan_rows", "spin_places", "in_states", "held_shares",
+           "aligned", "InducedOrbit", "SharedOrbits", "held_sectors", "held_on",
+           "crossed", "sector_orbits", "induced_orbits", "tables_gauge"]
 
 #: The draws the sectors are read from, in turn, until one reads them as the
 #: sum of matrix algebras the conserved matrices are: a generic draw does at
 #: the first, and each later one is a fresh look at the same space.
 _SEEDS = (7, 8, 9, 10)
-
 
 @dataclass(frozen=True, eq=False)
 class Sector:
@@ -84,7 +92,6 @@ class Sector:
     copies: int
     dim: int
     atoms: tuple
-
 
 @dataclass(frozen=True, eq=False)
 class SectorReading:
@@ -119,7 +126,6 @@ class SectorReading:
     defect: float
     tol: float | None = None
 
-
 @dataclass(frozen=True, eq=False)
 class SectorAction:
     """What the operations of one group do to the sectors.
@@ -142,7 +148,6 @@ class SectorAction:
     factors: dict
     defect: float
 
-
 def _atoms_of(model, spin):
     """``(atoms, order, su2)`` -- the indices of the orbital factor and the states' spin order.
 
@@ -158,7 +163,6 @@ def _atoms_of(model, spin):
                 np.asarray(spin.interleaved_index, dtype=int), True)
     return tuple((int(o),) for o in range(int(model.norb))), None, False
 
-
 def _orthonormal(members, tol):
     """An orthonormal basis of the span of ``members``, under the trace inner product."""
     A = np.asarray(members, dtype=complex)
@@ -171,12 +175,11 @@ def _orthonormal(members, tol):
     keep = s > noise_floor(ZERO, tol) * max(float(s[0]), 1.0)
     return vh[keep].reshape(int(keep.sum()), n, n)
 
-
 def _orbital_factor(members, sym, order, su2, tol):
     """The orbital factors ``O`` of members ``O ⊗ S(g)``, orthonormal.
 
     ``S(g)`` is the operation's own spin lift.  Every solution space read here
-    was read in its operation's own form (:func:`.._symmetry._own_form_spaces`),
+    was read in its operation's own form (:func:`.._multiplets._own_form_spaces`),
     so each member is ``O ⊗ S(g)`` and ``O`` is its trace against the lift on
     the spin.  On states with no spin the members are their own orbital
     factors.
@@ -186,10 +189,9 @@ def _orbital_factor(members, sym, order, su2, tol):
         return _orthonormal(M, tol)
     npair = int(M.shape[1]) // 2
     paired = M[:, order][:, :, order].reshape(len(M), npair, 2, npair, 2)
-    lift = _symmetry._lift_of(sym, True)
+    lift = _matrices._lift_of(sym, True)
     O = 0.5 * np.einsum("jasbu,su->jab", paired, lift.conj())
     return _orthonormal(O, tol)
-
 
 def _site_blocks(model, assignment, spin, image=None):
     """``[(rows, cols)]`` per site: where a matrix carrying each site onto its image may be nonzero.
@@ -203,19 +205,16 @@ def _site_blocks(model, assignment, spin, image=None):
     return [(states[s if image is None else int(image[s])], states[s])
             for s in range(len(states))]
 
-
 def _within_sites(basis, blocks, tol):
     """The members of a solution space carrying each site onto its image alone."""
-    members, _reach = _symmetry._block_members(basis, blocks,
+    members, _reach = _matrices._block_members(basis, blocks,
                                                tol=noise_floor(_IN_BLOCKS, tol))
     return members
-
 
 def _draw(B, rng):
     """One member of the span of ``B``, its coefficients drawn from ``rng``."""
     c = rng.normal(size=len(B)) + 1j * rng.normal(size=len(B))
     return np.einsum("j,jab->ab", c, B)
-
 
 def _tensor_defect(Z, m, d):
     """How far one block ``Z`` on a sector misses ``c ⊗ 1``, relative to its scale."""
@@ -227,7 +226,6 @@ def _tensor_defect(Z, m, d):
     w = vh[0].reshape(d, d)
     trace = complex(np.trace(w)) / d
     return max(worst, float(np.abs(w - trace * np.eye(d)).max()))
-
 
 def _sectors_once(B, rng, tol):
     """``(sectors, defect)`` -- one reading of the sectors of ``B``, or ``None`` where it misses.
@@ -314,7 +312,6 @@ def _sectors_once(B, rng, tol):
                     defect = max(defect, _tensor_defect(blk, sj.copies, sj.dim))
     return tuple(sectors), defect
 
-
 def read_sectors(model, group, assignment, spin, validated, *, tol=None):
     """The sectors of one Hamiltonian, read off the identity's solution space; ``None`` where unread.
 
@@ -328,7 +325,7 @@ def read_sectors(model, group, assignment, spin, validated, *, tol=None):
     own ceiling.
     """
     syms = group.symmetries
-    ident = _symmetry._identity_position(group)
+    ident = _matrices._identity_position(group)
     basis = (getattr(validated, "_bases", None) or {}).get(int(syms[ident].ind))
     if basis is None:
         return None
@@ -336,7 +333,7 @@ def read_sectors(model, group, assignment, spin, validated, *, tol=None):
     if basis.ndim != 3 or not len(basis):
         return None
     nstate = int(basis.shape[1])
-    if basis.shape[0] * nstate * nstate * 16 > _symmetry._READOFF_MAX_BYTES:
+    if basis.shape[0] * nstate * nstate * 16 > _detector._READOFF_MAX_BYTES:
         return None
     atoms, order, su2 = _atoms_of(model, spin)
     members = _within_sites(basis, _site_blocks(model, assignment, spin), tol)
@@ -346,7 +343,6 @@ def read_sectors(model, group, assignment, spin, validated, *, tol=None):
     sectors, defect = _sectors_of(B, tol)
     return SectorReading(algebra=B, sectors=sectors, atoms=atoms, su2=su2,
                          defect=float(defect), tol=tol)
-
 
 def _sectors_of(B, tol):
     """``(sectors, defect)`` of the algebra ``B``, the best of the draws (:func:`_sectors_once`)."""
@@ -364,7 +360,6 @@ def _sectors_of(B, tol):
         best = ((Sector(basis=Q, copies=1, dim=int(B.shape[1]),
                         atoms=tuple(range(int(B.shape[1])))),), float("inf"))
     return best
-
 
 def carried_reading(reading, layout, *, tol=None):
     r"""The sectors as the multiplets carry them: the conserved matrices block-diagonal on them.
@@ -401,7 +396,6 @@ def carried_reading(reading, layout, *, tol=None):
     return SectorReading(algebra=carried, sectors=sectors, atoms=reading.atoms,
                          su2=reading.su2, defect=float(defect), tol=reading.tol)
 
-
 def joined(reading, site_atoms):
     r"""``W[i, j]`` -- how far the conserved matrices join atom ``i`` of one site to atom ``j``.
 
@@ -435,12 +429,11 @@ def joined(reading, site_atoms):
     np.fill_diagonal(W, 0.0)
     return W
 
-
 def sector_action(reading, model, group, assignment, spin, validated, *, tol=None):
     """What the operations of ``group`` do to the sectors of ``reading``: a :class:`SectorAction`.
 
     Each operation's solution space is read within the sites it carries onto
-    one another (:func:`..symmetry._site_spaces`) and in the orbital factor, and
+    one another (:func:`.._matrices._site_spaces`) and in the orbital factor, and
     one member drawn from it says which sector it carries each sector onto,
     the sector its weight lies on; two members drawn from it say the factor
     ``w`` they share on each copy's states between a sector and its image, read
@@ -453,7 +446,7 @@ def sector_action(reading, model, group, assignment, spin, validated, *, tol=Non
     syms = group.symmetries
     pos_of = {int(s.ind): p for p, s in enumerate(syms)}
     _atoms, order, su2 = _atoms_of(model, spin)
-    spaces, _layout, _mixing = _symmetry._site_spaces(model, group, assignment, spin,
+    spaces, _layout, _mixing = _matrices._site_spaces(model, group, assignment, spin,
                                                       validated, tol=tol)
     zero = noise_floor(ZERO, tol)
     sectors = reading.sectors
@@ -502,14 +495,12 @@ def sector_action(reading, model, group, assignment, spin, validated, *, tol=Non
             factors[(int(ind), j)] = w
     return SectorAction(images=images, factors=factors, defect=float(defect))
 
-
 # --------------------------------------------------------------------------
 # the representations a subgroup leaves open, and what each puts at a site
 # --------------------------------------------------------------------------
 
 class _Unread(Exception):
     """The sectors do not read this group: the factors its operations carry do not compose."""
-
 
 def _composed(wa, wb, wab, *, after_antiunitary=False, tol=None):
     r"""``ρ`` with ``w(a) w(b) = ρ w(ab)``, ``w(b)*`` after an antiunitary ``a``: a root of unity.
@@ -522,7 +513,7 @@ def _composed(wa, wb, wab, *, after_antiunitary=False, tol=None):
     middle between two roots than a quarter of their spacing, raises
     :class:`_Unread`.
     """
-    rho, res = _symmetry._proportionality(wa @ (wb.conj() if after_antiunitary else wb), wab)
+    rho, res = _matrices._proportionality(wa @ (wb.conj() if after_antiunitary else wb), wab)
     if res > noise_floor(_FACTOR_TOL, tol) or abs(rho) <= 0.0:
         raise _Unread
     d = int(np.asarray(wa).shape[0])
@@ -531,7 +522,6 @@ def _composed(wa, wb, wab, *, after_antiunitary=False, tol=None):
     if abs(complex(rho) - root) > 0.25 * spacing:
         raise _Unread
     return complex(root)
-
 
 class _TooMany(Exception):
     """More representations to weigh than ``max_candidates``: how many, and on which orbitals.
@@ -545,7 +535,6 @@ class _TooMany(Exception):
         super().__init__(int(count))
         self.count, self.orbitals, self.copies = int(count), tuple(orbitals), int(copies)
         self.sets = None if sets is None else int(sets)
-
 
 def _extends(rep, positions, a_pos, prod, factor, *, tol=None, seed=17):
     r"""Whether a representation of a sector's stabilizer extends to an antiunitary operation.
@@ -602,7 +591,6 @@ def _extends(rep, positions, a_pos, prod, factor, *, tol=None, seed=17):
             return True
     return False
 
-
 class SectorSearch:
     r"""Whether a declared content is carried on a subgroup, read off the sectors.
 
@@ -637,7 +625,7 @@ class SectorSearch:
         self.reading, self.group, self.assignment = reading, group, assignment
         self.syms = group.symmetries
         self.prod, _tdiff, self.spf = group.get_product_table(get_diff=True)
-        self.ident = _symmetry._identity_position(group)
+        self.ident = _matrices._identity_position(group)
         self.pos_of = {int(s.ind): p for p, s in enumerate(self.syms)}
         self.unitary = sorted(int(p) for p in positions)
         self.reversal = None if reversal is None else int(reversal)
@@ -669,7 +657,7 @@ class SectorSearch:
                 "partial": bool(d.get("partial")), "corep": corep,
                 "touch": {j for j, s in enumerate(reading.sectors)
                           if float(np.linalg.norm(s.basis[atoms, :])) > zero},
-                "table_of": _symmetry._SiteTableOf(group, assignment, site, corep=corep)})
+                "table_of": _naming._SiteTableOf(group, assignment, site, corep=corep)})
         # TIME REVERSAL, where these states hold it: on the identity every
         # declaration is carried by the copies as they stand, so a time reversal
         # none of them extends to -- one whose square on the states is not the one
@@ -688,7 +676,7 @@ class SectorSearch:
     # ---- the factors the orbital part of a representation carries --------------
     def _lift(self, p):
         if p not in self._lifts:
-            self._lifts[p] = _symmetry._lift_of(self.syms[p], self.reading.su2)
+            self._lifts[p] = _matrices._lift_of(self.syms[p], self.reading.su2)
         return self._lifts[p]
 
     def _tau(self, x, y):
@@ -701,7 +689,7 @@ class SectorSearch:
         key = (int(x), int(y))
         if key not in self._target:
             Sy = self._lift(y)
-            lam, res = _symmetry._proportionality(
+            lam, res = _matrices._proportionality(
                 self._lift(x) @ (Sy.conj() if self.syms[x].time_reversal else Sy),
                 self._lift(int(self.prod[x, y])))
             if (res > noise_floor(ASSEMBLED, self.reading.tol) or abs(lam) <= 0.0
@@ -788,13 +776,13 @@ class SectorSearch:
         # the factor system is read exactly (:func:`_composed`), so the
         # representations are read at the exact defaults, never merged by a
         # declared precision
-        irreps = _symmetry._projective_irreps(K, prod, nu)
+        irreps = _matrices._projective_irreps(K, prod, nu)
         if irreps is None:
             raise _Unread
         dims = [int(np.asarray(r[K[0]]).shape[0]) for r in irreps]
         orbitals = tuple(sorted(int(o) for t in orbit for a in self.reading.sectors[t].atoms
                                 for o in self.reading.atoms[int(a)]))
-        count = _symmetry._count_dimension_sums(dims, m)
+        count = _matrices._count_dimension_sums(dims, m)
         if count > self.max_candidates:
             raise _TooMany(count, orbitals, m)
         options = []
@@ -802,7 +790,7 @@ class SectorSearch:
         # of the orbit carry none with the tables' factor system, which is their
         # projective class, a verdict of its own and not the declaration's
         obstructed = count == 0
-        for combo in _symmetry._dimension_sums(dims, m):
+        for combo in _matrices._dimension_sums(dims, m):
             b = {}
             for k in K:
                 M = np.zeros((m, m), dtype=complex)
@@ -880,7 +868,7 @@ class SectorSearch:
             held.append(content[h])
             want.append(item["want"][h])
             asked.append(abs(complex(np.trace(self._lift(h)))) > ZERO if item["corep"] else True)
-        return _symmetry._contained(table, held, want, corep=item["corep"], asked=asked)
+        return _naming._contained(table, held, want, corep=item["corep"], asked=asked)
 
     def met(self, sub):
         """Whether the subgroup of unitary operations ``sub`` (by ``.ind``) carries every declaration."""
@@ -973,7 +961,6 @@ class SectorSearch:
                 return False
         return True
 
-
 # --------------------------------------------------------------------------
 # the representations an orbit of sectors carries, built by induction
 # --------------------------------------------------------------------------
@@ -983,7 +970,6 @@ def atom_sites(reading, layout):
     chan_of = np.asarray(layout._chan_of, dtype=int)
     return np.asarray([int(layout._chan_site[int(chan_of[int(orbs[0])])])
                        for orbs in reading.atoms], dtype=int)
-
 
 def chan_rows(reading, layout):
     """Per multiplet of ``layout``, the indices of ``reading``'s orbital factor it holds, in order.
@@ -1004,7 +990,6 @@ def chan_rows(reading, layout):
         out.append(tuple(rows))
     return out
 
-
 def spin_places(reading, states):
     """``[(index, spin)]`` -- where each state lies in ``reading``'s orbital factor, and its spin.
 
@@ -1023,7 +1008,6 @@ def spin_places(reading, states):
             a = index[int(x)]
             out.append((a, list(reading.atoms[a]).index(int(x))))
     return out
-
 
 def in_states(reading, basis, nstate):
     r"""A basis written in ``reading``'s orbital factor, written in the states, each index times the spin.
@@ -1044,7 +1028,6 @@ def in_states(reading, basis, nstate):
             row = 2 * int(orbs[0]) + s if native else int(orbs[s])
             out[row, s::2] = Q[a, :]
     return out
-
 
 def _snapped(per, sites, tol):
     r"""Copies lying along the orbitals within a declared precision, held exactly along them; or ``None``.
@@ -1086,7 +1069,6 @@ def _snapped(per, sites, tol):
         u, _s, vh = np.linalg.svd(np.where(same, T, 0.0))
         out[own[a], a, :] = (u @ vh) @ first
     return out
-
 
 def held_shares(reading, sectors, sites, tol, *, on=None):
     r"""Sectors of one copy read at a declared precision, each held exactly to its own share of every site.
@@ -1142,7 +1124,6 @@ def held_shares(reading, sectors, sites, tol, *, on=None):
         out[t] = B
     return out
 
-
 def aligned(sector, tol=None, sites=None):
     r"""A sector's basis, its copies put along the orbitals as written wherever they lie so.
 
@@ -1187,7 +1168,7 @@ def aligned(sector, tol=None, sites=None):
     per = np.einsum("iaw,ab->ibw", per, chosen)
     first = per[:, 0, :]
     for a in range(1, m):
-        z, _where = _symmetry._principal_entry(per[:, a, :] @ first.conj().T)
+        z, _where = _matrices._principal_entry(per[:, a, :] @ first.conj().T)
         if abs(z) > 0.0:
             per[:, a, :] = per[:, a, :] * (np.conj(z) / abs(z))
     if tol is not None and sites is not None:
@@ -1195,7 +1176,6 @@ def aligned(sector, tol=None, sites=None):
         if held is not None:
             per = held
     return per.reshape(n, m * d)
-
 
 def _first_sector(reading, sectors, bases=None):
     r"""The sector of an orbit the others are carried from: the one its orbitals put first.
@@ -1223,7 +1203,6 @@ def _first_sector(reading, sectors, bases=None):
         live = [t for t in live if float(np.real(proj[t][i, j])) >= top - ZERO]
     return live[0]
 
-
 def _pure_reversal(sym):
     """Whether ``sym`` is time reversal alone: no rotation and no translation."""
     t = np.asarray(sym.translation, dtype=float)
@@ -1231,7 +1210,6 @@ def _pure_reversal(sym):
             and np.array_equal(np.rint(np.asarray(sym.rotation)).astype(int),
                                np.eye(3, dtype=int))
             and float(np.abs(t - np.rint(t)).max()) <= _LATTICE_TOL)
-
 
 class _InducedCandidate:
     """One representation of an orbit of sectors: its stabilizer's part, the rest read lazily.
@@ -1272,7 +1250,6 @@ class _InducedCandidate:
     def release(self):
         """Drop the matrices built, keeping what was read off them."""
         self._W = None
-
 
 class InducedOrbit:
     r"""One orbit of sectors, and every representation the hoppings leave on it.
@@ -1318,7 +1295,7 @@ class InducedOrbit:
         self.reading, self.group, self.layout, self.cperm = reading, group, layout, cperm
         self.syms = group.symmetries
         self.prod, _tdiff, self.spf = group.get_product_table(get_diff=True)
-        self.ident = _symmetry._identity_position(group)
+        self.ident = _matrices._identity_position(group)
         self.tol = tol
         self.kept = sorted(int(p) for p in kept)
         pos_of = {int(s.ind): p for p, s in enumerate(self.syms)}
@@ -1369,7 +1346,7 @@ class InducedOrbit:
             # the exact representation of the stabilizer nearest them, so that
             # what is induced from them is a representation of the group to
             # rounding, as a projection onto the symmetric part needs
-            settled = _symmetry._nearest_representation(self.w, self.K, self.syms, self.prod)
+            settled = _matrices._nearest_representation(self.w, self.K, self.syms, self.prod)
             if settled is not None:
                 self.w = {int(g): settled[int(g)] for g in self.K}
         # the frames: each sector's copies along the orbitals, carried from the first
@@ -1394,7 +1371,7 @@ class InducedOrbit:
                 continue
             carry = self.frames[t] @ (first.T if self.syms[r].time_reversal
                                       else first.conj().T)
-            z, _where = _symmetry._principal_entry(carry)
+            z, _where = _matrices._principal_entry(carry)
             if abs(z) > 0.0:
                 self.frames[t] = self.frames[t] * (np.conj(z) / abs(z))
         # the factor system b carries on K: the orbital part's own over the one
@@ -1408,13 +1385,13 @@ class InducedOrbit:
                 rho = _composed(self.w[x], self.w[y], self.w[xy],
                                 after_antiunitary=bool(self.syms[x].time_reversal), tol=tol)
                 self.nu[(x, y)] = self._orbital_table(x, y) / rho
-        irreps = _symmetry._projective_irreps(self.Ku, prod, self.nu)
+        irreps = _matrices._projective_irreps(self.Ku, prod, self.nu)
         if irreps is None:
             raise _Unread
         # each matrix made unitary: read off eigenvectors of the regular
         # representation, they are unitary only to that reading's rounding, which
         # every matrix induced from them would carry, and products of them more
-        self.irreps = [{k: _symmetry._unitarized(r[k]) for k in r} for r in irreps]
+        self.irreps = [{k: _matrices._unitarized(r[k]) for k in r} for r in irreps]
         dims = [int(np.asarray(r[self.Ku[0]]).shape[0]) for r in self.irreps]
         self.orbitals = tuple(sorted(int(o) for t in self.sectors
                                      for a in reading.sectors[t].atoms
@@ -1422,13 +1399,13 @@ class InducedOrbit:
         # COUNTED BEFORE ANYTHING IS BUILT: every sum of the stabilizer's
         # irreducible representations the copies could carry -- of one copy,
         # its one-dimensional ones, no more than a coupled part has characters
-        self.n_candidates = _symmetry._count_dimension_sums(dims, self.m)
+        self.n_candidates = _matrices._count_dimension_sums(dims, self.m)
         if self.m > 1 and self.n_candidates > int(max_candidates):
             raise _TooMany(self.n_candidates, self.orbitals, self.m)
         self._members(reference, shared)
         self.candidates = []
         chars = [{k: complex(np.trace(r[k])) for k in self.Ku} for r in self.irreps]
-        for combo in _symmetry._dimension_sums(dims, self.m):
+        for combo in _matrices._dimension_sums(dims, self.m):
             X = None
             if self.a_pos is not None:
                 X = self._extension(combo)
@@ -1450,10 +1427,10 @@ class InducedOrbit:
         """
         if not self.reading.su2:
             return complex(self.spf[x, y])
-        Sx, Sy = (_symmetry._lift_of(self.syms[int(p)], True) for p in (x, y))
-        lam, res = _symmetry._proportionality(
+        Sx, Sy = (_matrices._lift_of(self.syms[int(p)], True) for p in (x, y))
+        lam, res = _matrices._proportionality(
             Sx @ (Sy.conj() if self.syms[int(x)].time_reversal else Sy),
-            _symmetry._lift_of(self.syms[int(self.prod[x, y])], True))
+            _matrices._lift_of(self.syms[int(self.prod[x, y])], True))
         if (res > noise_floor(ASSEMBLED, self.tol) or abs(lam) <= 0.0
                 or abs(complex(self.spf[x, y]) / lam - 1.0) > CHARACTER):
             raise _Unread
@@ -1659,7 +1636,7 @@ class InducedOrbit:
             if self.places is not None:
                 at = [a for a, _s in self.places]
                 spin = [s for _a, s in self.places]
-                M = M[np.ix_(at, at)] * _symmetry._lift_of(self.syms[p], True)[np.ix_(spin, spin)]
+                M = M[np.ix_(at, at)] * _matrices._lift_of(self.syms[p], True)[np.ix_(spin, spin)]
             kept = np.zeros_like(M)
             for c in self.members:
                 rows = [self.local[int(a)] for a in layout._chan_states[int(self.cperm[p][c])]]
@@ -1669,7 +1646,7 @@ class InducedOrbit:
         # the antiunitary operations in one phase: the largest entry of the
         # first one's matrix real and positive
         if self.anti:
-            z, _where = _symmetry._principal_entry(W[self.anti[0]])
+            z, _where = _matrices._principal_entry(W[self.anti[0]])
             if abs(z) > 0.0:
                 for p in self.anti:
                     W[p] = W[p] * (np.conj(z) / abs(z))
@@ -1677,14 +1654,14 @@ class InducedOrbit:
 
     def check(self, W, bases):
         """How far ``W`` misses the group's table and every operation's solution space."""
-        worst = _symmetry._product_table_residual(W, self.kept, self.syms, self.prod, self.spf)
+        worst = _matrices._product_table_residual(W, self.kept, self.syms, self.prod, self.spf)
         rows = np.asarray(self.states, dtype=int)
         zero = noise_floor(ZERO, self.tol)
         for p in self.kept:
             basis = bases.get(int(self.syms[p].ind))
             if basis is None or not len(np.asarray(basis)):
                 return float("inf")
-            space, _scale = _symmetry._block_space(np.asarray(basis, dtype=complex),
+            space, _scale = _matrices._block_space(np.asarray(basis, dtype=complex),
                                                    rows, rows, tol=zero)
             if not space:
                 return float("inf")
@@ -1722,7 +1699,6 @@ class InducedOrbit:
                 "site": self.site, "dim": int(self.m), "n_candidates": int(self.n_candidates),
                 "n_admitted": len(self.candidates), "states": self.states,
                 "candidates": tuple(self.candidates), "induced": self}
-
 
 class _SharedCandidate:
     """One representation of orbits read together: one of each orbit's, their matrices summed."""
@@ -1770,7 +1746,6 @@ class _SharedCandidate:
         self._W = None
         for pick in self.picks:
             pick.release()
-
 
 class SharedOrbits:
     r"""Orbits of sectors one multiplet holds sectors of together, read together.
@@ -1825,7 +1800,6 @@ class SharedOrbits:
                 "n_admitted": len(self.candidates), "states": self.states,
                 "candidates": tuple(self.candidates), "induced": self}
 
-
 def held_sectors(reading, layout, *, tol=None):
     """``[sectors]`` -- per multiplet of ``layout``, the sectors of ``reading`` its states lie on."""
     loose = noise_floor(_IN_BLOCKS, tol) * 10.0
@@ -1833,7 +1807,6 @@ def held_sectors(reading, layout, *, tol=None):
     return [frozenset(j for j, w in enumerate(weights)
                       if float(w[np.asarray(rows, dtype=int)].max()) > loose)
             for rows in chan_rows(reading, layout)]
-
 
 def held_on(reading, layout, held, sectors):
     """The indices of ``reading``'s orbital factor the multiplets holding any of ``sectors`` lie on.
@@ -1844,7 +1817,6 @@ def held_on(reading, layout, held, sectors):
     mine = set(int(t) for t in sectors)
     return frozenset(index[int(o)] for c, h in enumerate(held) if set(h) & mine
                      for o in layout._chan_orbs[c])
-
 
 def crossed(reading, layout, group, kept, cperm, *, tol=None):
     r"""The sectors an orbit of multiplets lies on differently at different multiplets.
@@ -1860,14 +1832,13 @@ def crossed(reading, layout, group, kept, cperm, *, tol=None):
     """
     syms = group.symmetries
     u_pos = [int(p) for p in kept if not syms[int(p)].time_reversal]
-    classes, _n = _symmetry._channel_classes(cperm, u_pos, layout._nchan)
+    classes, _n = _matrices._channel_classes(cperm, u_pos, layout._nchan)
     by_class = {}
     for c, held in enumerate(held_sectors(reading, layout, tol=tol)):
         if held:
             by_class.setdefault(int(classes[c]), set()).add(held)
     return frozenset(j for sets in by_class.values() if len(sets) > 1
                      for held in sets for j in held)
-
 
 def _commutators(members, prod, inv, ident):
     """The positions the commutators ``x y x⁻¹ y⁻¹`` of ``members`` generate."""
@@ -1884,7 +1855,6 @@ def _commutators(members, prod, inv, ident):
                 frontier.append(b)
     return got
 
-
 def _beyond_the_group(K, G, prod, ident):
     r"""Whether ``K`` has a one-dimensional character that no character of ``G`` restricts to.
 
@@ -1898,7 +1868,6 @@ def _beyond_the_group(K, G, prod, ident):
            for p in G}
     return bool((set(int(k) for k in K) & _commutators(G, prod, inv, ident))
                 - _commutators(K, prod, inv, ident))
-
 
 def sector_orbits(reading, action, group, layout, kept, *, tol=None):
     r"""The orbits of sectors under the operations ``kept``, and which are read together.
@@ -1957,7 +1926,6 @@ def sector_orbits(reading, action, group, layout, kept, *, tol=None):
                                  if {_find(int(j)) for j in h} & set(roots)]))
     return orbits, together
 
-
 def induced_orbits(reading, action, group, layout, kept, cperm, *, reference=None, tol=None,
                    max_candidates=2 ** 20):
     r"""Every orbit of sectors whose representations are built by induction: ``[InducedOrbit or None]``.
@@ -2003,7 +1971,7 @@ def induced_orbits(reading, action, group, layout, kept, cperm, *, reference=Non
     images = {pos_of[int(i)]: tuple(int(j) for j in got)
               for i, got in action.images.items() if int(i) in pos_of}
     prod = group.get_product_table(get_diff=True)[0]
-    ident = _symmetry._identity_position(group)
+    ident = _matrices._identity_position(group)
     u_pos = [int(p) for p in kept if not group.symmetries[int(p)].time_reversal]
     out = []
     alone = set()
@@ -2014,7 +1982,7 @@ def induced_orbits(reading, action, group, layout, kept, cperm, *, reference=Non
         bases = None
         if tol is not None:
             # held to their shares, as the projection onto the symmetric part
-            # holds them (:func:`..symmetry._held_sets`)
+            # holds them (:func:`.._labelling._held_sets`)
             members = [t for r in roots for t in orbits[r]]
             if all(int(reading.sectors[t].copies) == 1 for t in members):
                 bases = held_shares(reading, members, atom_sites(reading, layout), tol,
@@ -2038,7 +2006,7 @@ def induced_orbits(reading, action, group, layout, kept, cperm, *, reference=Non
                 continue
             if any(len(set(h) & set(sectors)) > 1 for h in held):
                 # several sectors of the orbit one multiplet holds, held to their
-                # shares as the projection holds them (:func:`..symmetry._held_sets`)
+                # shares as the projection holds them (:func:`.._labelling._held_sets`)
                 if tol is not None:
                     bases = held_shares(reading, sectors, sites, tol,
                                         on=held_on(reading, layout, held, sectors))
@@ -2056,7 +2024,6 @@ def induced_orbits(reading, action, group, layout, kept, cperm, *, reference=Non
         except _Unread:
             out.append(None)
     return out
-
 
 def _reaching(lead, frames, on, want, gate):
     r"""``[c_t]`` -- the conserved unitary writing the multiplet's matrices ``on`` as ``want``; or ``None``.
@@ -2102,7 +2069,6 @@ def _reaching(lead, frames, on, want, gate):
     if any(float(np.abs(C @ on[p] @ C.conj().T - want[p]).max()) > gate for p in ops):
         return None
     return cs
-
 
 def tables_gauge(frames, W, target, rows, syms, *, tol=None):
     r"""``W`` turned by the conserved unitary that writes it as ``target`` on one multiplet, where one does.
@@ -2163,7 +2129,7 @@ def tables_gauge(frames, W, target, rows, syms, *, tol=None):
                else full @ np.asarray(M) @ full.conj().T) for p, M in W.items()}
     anti = sorted(int(p) for p in out if syms[int(p)].time_reversal)
     if anti:
-        z, _where = _symmetry._principal_entry(out[anti[0]])
+        z, _where = _matrices._principal_entry(out[anti[0]])
         if abs(z) > 0.0:
             for p in anti:
                 out[p] = out[p] * (np.conj(z) / abs(z))

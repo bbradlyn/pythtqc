@@ -66,9 +66,12 @@ from pythtqc import sewing as tqw
 from pythtqc import srsi as tqr
 from pythtqc.refusal import Refusal
 from pythtqc import InternalError
+from pythtqc import _smith
+from pythtqc import _spacegroup
+from pythtqc import _srsitables
 
 import tqc_models as tqm                                            # noqa: F401
-from conftest import FKM_BOND, OMITTED, fkm_regime
+from conftest import FKM_BOND, OMITTED, fkm_regime, patch_everywhere
 
 
 def _converter():
@@ -128,7 +131,7 @@ def sweep(every_table):
     for table, data in every_table:
         key = (table.sg, table.spinor)
         out["systems"] += 1
-        u, v, d, matrix = tqe._smith_system(data, table.number_str)
+        u, v, d, matrix = _smith._smith_system(data, table.number_str)
         n_row, n_col = len(matrix), len(matrix[0])
         slots = [i for i, x in enumerate(d) if x > 1]
         divisors = [int(d[i]) for i in slots]
@@ -154,7 +157,7 @@ def sweep(every_table):
         out["shipped_rows"] += len(forms)
         paired = set()
         for form in table.indicators:
-            spelled, relation = tqr._spelling(form.name)
+            spelled, relation = _srsitables._spelling(form.name)
             if spelled not in forms:
                 out["relations"]["paper_only"] += 1
                 out["paper_only"].append((table.sg, table.spinor, form.name, spelled))
@@ -174,21 +177,21 @@ def sweep(every_table):
         out["gate"][key] = (tuple(divisors), 0, 0)
         if not divisors:
             continue
-        u_inv = tqe._unimodular_inverse(u)
+        u_inv = _smith._unimodular_inverse(u)
 
         # (b) the determinism gate, through the rational solve
         generator_values = []
         for slot in slots:
             y = [Fraction(int(u_inv[i][slot])) for i in range(n_row)]
             generator_values.append(
-                table.indicators_of_columns(tqr._rational_p(u, v, d, y)))
+                table.indicators_of_columns(_srsitables._rational_p(u, v, d, y)))
             out["generators"] += 1
         seen, n_here, collided_here = {}, 0, 0
         for combination in itertools.product(*(range(x) for x in divisors)):
             y = [sum(c * int(u_inv[i][s]) for c, s in zip(combination, slots))
                  for i in range(n_row)]
             solved = table.indicators_of_columns(
-                tqr._rational_p(u, v, d, [Fraction(x) for x in y]))
+                _srsitables._rational_p(u, v, d, [Fraction(x) for x in y]))
             # ... and the same class through the homomorphism arithmetic the
             # package's own gate uses.  Two computations, one answer.
             combined = {f.name: sum(c * generator_values[g][f.name]
@@ -212,8 +215,8 @@ def sweep(every_table):
                      for i in range(n_row)], p) for p in probes]
         for slot in slots:
             y = [Fraction(int(u_inv[i][slot])) for i in range(n_row)]
-            vectors.append((y, tqr._rational_p(u, v, d, y)))
-        shim = tqr._TableKey(table.number_str, table.spinor)
+            vectors.append((y, _srsitables._rational_p(u, v, d, y)))
+        shim = _srsitables._TableKey(table.number_str, table.spinor)
         for y, p in vectors:
             named, _touched, note, _coeffs = tqe._named_forms(
                 shim, data, matrix, y, "II")
@@ -222,7 +225,7 @@ def sweep(every_table):
                 break
             paper = table.indicators_of_columns(p)
             for form in table.indicators:
-                spelled, _relation = tqr._spelling(form.name)
+                spelled, _relation = _srsitables._spelling(form.name)
                 if spelled not in named:
                     continue
                 value = paper[form.name]
@@ -279,9 +282,9 @@ def test_the_thirteen_omitted_space_groups_have_no_class_to_speak():
     for sg in OMITTED:
         for spinor in (False, True):
             assert not tqr.srsi_tables(sg, spinor=spinor)
-            data = tqg.ebr_data(tqr._TableKey(grey[sg], spinor))
+            data = tqg.ebr_data(_srsitables._TableKey(grey[sg], spinor))
             assert data, (sg, spinor, data)
-            assert tqe._divisors_of(data, grey[sg]) == (), (sg, spinor)
+            assert _smith._divisors_of(data, grey[sg]) == (), (sg, spinor)
             seen += 1
     assert seen == 26
 
@@ -405,8 +408,8 @@ def test_the_gate_measures_injectivity_rather_than_assuming_it(monkeypatch):
     twin = replace(z4, name="z4_twin", name_tex="z_{4}^{\\rm twin}")
     doubled = replace(real, indicators=(z4, twin))
 
-    monkeypatch.setattr(tqr, "_table_of_number", lambda sg, spinor: doubled)
-    gate = tqr._canonical_gate.__wrapped__(real.number_str, real.spinor)
+    patch_everywhere(monkeypatch, "_table_of_number", lambda sg, spinor: doubled)
+    gate = _srsitables._canonical_gate.__wrapped__(real.number_str, real.spinor)
 
     assert gate["available"] and gate["names"] == ("z4", "z4_twin")
     assert gate["divisors"] == (2, 4) and gate["n_classes"] == 8, \
@@ -584,7 +587,7 @@ def unitary_group():
     """
     from pythtb.models import fu_kane_mele
 
-    group = tqg._group_of(fu_kane_mele(1.0, 0.125, [0.0, 0.0, 0.0, 0.0]),
+    group = _spacegroup._group_of(fu_kane_mele(1.0, 0.125, [0.0, 0.0, 0.0, 0.0]),
                           include_TR=False)
     assert group and group.number_str == "227", str(group)
     assert tqe._magnetic_type(group) == "I"
@@ -693,7 +696,7 @@ def test_a_class_the_paper_s_names_cannot_separate_is_an_internal_error(
     error naming the collision, never a printed number and never a ``Refusal``.
     """
     table, group, rep = fkm_canonical["strong"]
-    real = tqr._canonical_gate
+    real = _srsitables._canonical_gate
 
     def broken(number_str, spinor):
         record = dict(real(number_str, spinor))
@@ -701,7 +704,7 @@ def test_a_class_the_paper_s_names_cannot_separate_is_an_internal_error(
         record["collisions"] = (((0, 0), (1, 2), {"z4": 0}),)
         return record
 
-    monkeypatch.setattr(tqr, "_canonical_gate", broken)
+    patch_everywhere(monkeypatch, "_canonical_gate", broken)
     with pytest.raises(InternalError, match="do not determine the class"):
         tqe.symmetry_indicator(table, group, rep=rep, bands=2)
 
@@ -710,7 +713,7 @@ def test_a_form_that_is_not_an_indicator_is_an_internal_error(
         fkm_canonical, monkeypatch):
     """The vanishing gate at serve time, forced -- the same law, the other check."""
     table, group, rep = fkm_canonical["strong"]
-    real = tqr._canonical_gate
+    real = _srsitables._canonical_gate
 
     def broken(number_str, spinor):
         record = dict(real(number_str, spinor))
@@ -718,7 +721,7 @@ def test_a_form_that_is_not_an_indicator_is_an_internal_error(
         record["ebr_failures"] = (("z4", 3, "2"),)
         return record
 
-    monkeypatch.setattr(tqr, "_canonical_gate", broken)
+    patch_everywhere(monkeypatch, "_canonical_gate", broken)
     with pytest.raises(InternalError, match="do not vanish on every EBR column"):
         tqe.symmetry_indicator(table, group, rep=rep, bands=2)
 
@@ -737,14 +740,14 @@ def test_a_class_with_no_canonical_name_at_all_is_an_internal_error(
     def stripped(g):
         return replace(real(g), indicators=())
 
-    monkeypatch.setattr(tqr, "srsi_tables", stripped)
+    patch_everywhere(monkeypatch, "srsi_tables", stripped)
     with pytest.raises(InternalError, match="carries no indicator row"):
         tqe.symmetry_indicator(table, group, rep=rep, bands=2)
 
     def absent(g):
         return Refusal("srsi_table_absent", "forced, for the guard")
 
-    monkeypatch.setattr(tqr, "srsi_tables", absent)
+    patch_everywhere(monkeypatch, "srsi_tables", absent)
     with pytest.raises(InternalError, match="carry no row for this space group"):
         tqe.symmetry_indicator(table, group, rep=rep, bands=2)
 
@@ -759,9 +762,9 @@ def test_the_serve_path_survives_the_tables_not_being_installed(
     there with the reason, and the backend record is untouched.
     """
     table, group, rep = fkm_canonical["strong"]
-    monkeypatch.setattr(tqr, "srsi_status", lambda: {
+    patch_everywhere(monkeypatch, "srsi_status", lambda: {
         "data": False, "single": None, "double": None, "dir": "<forced>",
-        "doi": tqr._DOI, "reason": "forced, for the guard"})
+        "doi": _srsitables._DOI, "reason": "forced, for the guard"})
     si = tqe.symmetry_indicator(table, group, rep=rep, bands=2)
     assert si and si.values == (0, 1) and si.canonical is None
     assert "not installed" in si.canonical_note
@@ -808,7 +811,7 @@ def test_a_table_that_cannot_be_matched_to_the_cell_is_an_internal_error(
     identified is its own use of the tables failing, so it *raises* and is never
     a ``Refusal`` about the model.
     """
-    group = tqg._group_of(km_odd, include_TR=False)
+    group = _spacegroup._group_of(km_odd, include_TR=False)
     assert group, str(group)
     assert group._tables_ready, "the repair's tabulated branch needs a matched cell"
 
@@ -827,10 +830,10 @@ def test_a_table_that_cannot_be_matched_to_the_cell_is_an_internal_error(
         return table
 
     monkeypatch.setattr(IT, "IrrepTable", one_short)
-    monkeypatch.setattr(tqg, "_translation_closure", lambda symmetries: 1e-8)
+    patch_everywhere(monkeypatch, "_translation_closure", lambda symmetries: 1e-8)
 
     with pytest.raises(InternalError) as exc:
-        tqg._exact_operations(group._sg, 1e-5, True, group.lattice)
+        _spacegroup._exact_operations(group._sg, 1e-5, True, group.lattice)
     text = str(exc.value)
     assert "no operation-by-operation matching" in text, text
     assert "not about the model" in text, text

@@ -62,12 +62,23 @@ import re
 import numpy as np
 import pytest
 
+from conftest import patch_everywhere
+
 from pythtqc import _sitechars as tqc_sitechars
 from pythtqc import ebr as tqe
 from pythtqc import groups as tqg
+from pythtqc.refusal import Refusal
 from pythtqc import sewing as tqw
 from pythtqc import spin as tqsp
 from pythtqc import symmetry as tqs
+from pythtqc import _build
+from pythtqc import _layers
+from pythtqc import _matrices
+from pythtqc import _measure
+from pythtqc import _realized
+from pythtqc import _spacegroup
+from pythtqc import _tables
+from pythtqc import _text
 
 import tqc_models as tqm
 
@@ -182,7 +193,7 @@ def test_the_b1_twist_moves_every_label_and_no_wyckoff_position(
     # the twist in function words, and the site content of a build whose every
     # row is declared
     model, group, assignment, validated, declared = lin3g_declared_cross_checked
-    alt = tqs._build_rep(model, group, assignment, validated=validated,
+    alt = _build._build_rep(model, group, assignment, validated=validated,
                          characters=["dx2-y2", "s", "dx2-y2", "dx2-y2"])
     assert alt, str(alt)
     assert alt.characters.irreps == twisted.characters.irreps, "the same twist"
@@ -274,7 +285,7 @@ def test_pxpy_one_channel_per_orbital_refuses_because_C3_mixes_px_into_py(pxpy_b
     model, group, assignment, validated, _ = pxpy_bare
     singletons = [[(int(o),) for o in orbs] for orbs in assignment.site_orbitals]
     record = {}
-    out = tqs._build_rep(model, group, assignment, validated=validated,
+    out = _build._build_rep(model, group, assignment, validated=validated,
                          multiplets=singletons, include_vacuum_ops=True, n_battery=4,
                          _search_record=record)
     assert not out and out.gate == "rep_not_covariant"
@@ -295,7 +306,7 @@ def test_pxpy_one_channel_per_orbital_refuses_because_C3_mixes_px_into_py(pxpy_b
     assert f"The enumeration ran because {search['fallback_reason']}." in out.reason
     assert search["n_candidates"] == search["n_enumeration"]
     enumerated_record = {}
-    enumerated = tqs._build_rep(model, group, assignment, validated=validated,
+    enumerated = _build._build_rep(model, group, assignment, validated=validated,
                                 multiplets=singletons, include_vacuum_ops=True,
                                 n_battery=4, strategy="enumerate",
                                 _search_record=enumerated_record)
@@ -383,7 +394,7 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
     assert [o.determined_by for o in rep.characters.orbitals] == \
         ["declaration"] * 2 + ["hamiltonian"] * 2
 
-    other = tqs._build_rep(model, group, assignment, validated=validated,
+    other = _build._build_rep(model, group, assignment, validated=validated,
                            include_vacuum_ops=True, n_battery=4,
                            characters={(0, 1): "E''"})
     assert other, str(other)
@@ -508,7 +519,7 @@ def test_pxpy_declares_its_two_dimensional_multiplet_jointly(pxpy_bare):
     model, group, assignment, validated, rep = pxpy_bare
 
     def rebuild(spec):
-        return tqs._build_rep(model, group, assignment, validated=validated,
+        return _build._build_rep(model, group, assignment, validated=validated,
                               include_vacuum_ops=True, n_battery=4,
                               characters=spec)
 
@@ -772,12 +783,12 @@ def test_pxpy_declared_content_is_the_hand_derived_induced_character(pxpy_bare):
 def i213_bundle():
     """``(model, group, assignment, validated, rep)`` for the primitive bcc build."""
     model = tqm.i213_flicker2018()
-    group = tqg._group_of(model)
+    group = _spacegroup._group_of(model)
     assert group and group.sg_number == 199, str(group)
-    assignment = tqg._assign_orbitals(model, group)
+    assignment = _tables._assign_orbitals(model, group)
     assert assignment, str(assignment)
-    validated = tqg._validate_group(model, group, nk=4)
-    rep = tqs._build_rep(model, group, assignment, validated=validated, n_battery=5)
+    validated = _measure._validate_group(model, group, nk=4)
+    rep = _build._build_rep(model, group, assignment, validated=validated, n_battery=5)
     assert rep, str(rep)
     return model, group, assignment, validated, rep
 
@@ -941,7 +952,7 @@ def test_i213_declares_the_trivial_site_irrep_the_appendix_uses(i213_bundle):
     model, group, assignment, validated, rep = i213_bundle
 
     def rebuild(spec):
-        return tqs._build_rep(model, group, assignment, validated=validated,
+        return _build._build_rep(model, group, assignment, validated=validated,
                               n_battery=5, characters=spec)
 
     table = rep.characters.site_tables[0]
@@ -1051,11 +1062,11 @@ def test_i213_P_and_PA_identify_and_keep_their_chirality(i213_bundle):
                           periodic_dirs=[0, 1, 2]), spinful=False)
     for i, j, R in tqm.I213_BONDS:
         alt.set_hop(1.0, i, j, list(R), mode="add")
-    g2 = tqg._group_of(alt)
+    g2 = _spacegroup._group_of(alt)
     assert g2 and g2.number_str == "199.13"
-    a2 = tqg._assign_orbitals(alt, g2)
-    v2 = tqg._validate_group(alt, g2, nk=4)
-    r2 = tqs._build_rep(alt, g2, a2, validated=v2, n_battery=5)
+    a2 = _tables._assign_orbitals(alt, g2)
+    v2 = _measure._validate_group(alt, g2, nk=4)
+    r2 = _build._build_rep(alt, g2, a2, validated=v2, n_battery=5)
     assert r2, str(r2)
     p2 = tqg.high_symmetry_points(g2)
     assert tqw.corep_content(r2, p2["GM"], states=_solve_at(alt, p2["GM"]), bands=4).counts \
@@ -1105,12 +1116,12 @@ def p3121_unitary_bundle():
 
 
 def _screw_bundle(model, sg_number, include_TR=True):
-    group = tqg._group_of(model, include_TR=include_TR)
+    group = _spacegroup._group_of(model, include_TR=include_TR)
     assert group and group.sg_number == sg_number, str(group)
-    assignment = tqg._assign_orbitals(model, group)
+    assignment = _tables._assign_orbitals(model, group)
     assert assignment, str(assignment)
-    validated = tqg._validate_group(model, group, nk=4)
-    rep = tqs._build_rep(model, group, assignment, validated=validated, n_battery=5)
+    validated = _measure._validate_group(model, group, nk=4)
+    rep = _build._build_rep(model, group, assignment, validated=validated, n_battery=5)
     assert rep, str(rep)
     return model, group, assignment, validated, rep
 
@@ -1295,7 +1306,7 @@ def test_screw_points_refuse_without_the_whole_character_conjugation(
     before = {name: tqw.corep_content(rep, hsp[name], states=_solve_at(model, hsp[name]),
                                       bands=bands).counts for name in hsp}
 
-    monkeypatch.setattr(tqg, "_conjugated_kpoints", lambda *a, **k: frozenset())
+    patch_everywhere(monkeypatch, "_conjugated_kpoints", lambda *a, **k: frozenset())
     for name in hsp:
         out = tqw.corep_content(rep, hsp[name], states=_solve_at(model, hsp[name]),
                                 bands=bands)
@@ -1493,14 +1504,14 @@ def test_the_reglued_labels_and_the_EBR_transport_need_the_lift(
                 (tag, name, sorted(counts))
 
     def clear():
-        tqg._unitary_conjugation.cache_clear()
-        tqg._transport_naming.cache_clear()
-        tqg._ebr_transport.cache_clear()
+        _tables._unitary_conjugation.cache_clear()
+        _tables._transport_naming.cache_clear()
+        _tables._ebr_transport.cache_clear()
 
     p62_before = dict(tqg.corep_table(p62_bundle[1],
                                       tqg.high_symmetry_points(p62_bundle[1])["H"]))
 
-    monkeypatch.setattr(tqg, "_lifted_conjugation", lambda table: {})
+    patch_everywhere(monkeypatch, "_lifted_conjugation", lambda table: {})
     clear()
     try:
         model, group, _, _, rep = i41_bundle
@@ -1887,7 +1898,7 @@ def _induced_matrices(model, group, assignment, rep):
     out = {}
     for ind in rep.indices:
         p = pos[int(ind)]
-        cperm = tqs._orbital_permutation(assignment, p, model)
+        cperm = _matrices._orbital_permutation(assignment, p, model)
         S = (np.asarray(syms[p].spinor_rotation, dtype=complex) if nspin == 2
              else np.eye(1, dtype=complex))
         D = np.zeros((norb * nspin,) * 2, dtype=complex)
@@ -1903,7 +1914,7 @@ def _induced_matrices(model, group, assignment, rep):
 def p3121_declared_rep(p3121_unitary_bundle):
     """The ``#152`` unitary-only build with its ``3a`` reference orbital declared ``B``."""
     model, group, assignment, validated, _default = p3121_unitary_bundle
-    declared = tqs._build_rep(model, group, assignment, validated=validated,
+    declared = _build._build_rep(model, group, assignment, validated=validated,
                               n_battery=5, characters={0: "B"})
     assert declared, str(declared)
     return declared
@@ -2002,7 +2013,7 @@ def test_a_declared_B_site_irrep_on_the_unitary_tables_is_its_own_induced_rep(
         assert got_b.counts == b_counts, (point, got_b.counts)
 
     # and the declared build is the grey declared build, bit for bit
-    grey_declared = tqs._build_rep(_m, grey_group, g_a, validated=g_v, n_battery=5,
+    grey_declared = _build._build_rep(_m, grey_group, g_a, validated=g_v, n_battery=5,
                                    characters={0: "B"})
     assert grey_declared, str(grey_declared)
 
@@ -2066,11 +2077,11 @@ def test_the_operation_no_site_group_contains_is_pinned_by_induction(request, fi
     """
     bundle = request.getfixturevalue(fixture)
     model = bundle[0]
-    u_group = tqg._group_of(model, include_TR=False)
+    u_group = _spacegroup._group_of(model, include_TR=False)
     assert u_group and u_group.number_str == "80", str(u_group)
-    u_assign = tqg._assign_orbitals(model, u_group)
-    urep = tqs._build_rep(model, u_group, u_assign, n_battery=5,
-                          validated=tqg._validate_group(model, u_group, nk=4))
+    u_assign = _tables._assign_orbitals(model, u_group)
+    urep = _build._build_rep(model, u_group, u_assign, n_battery=5,
+                          validated=_measure._validate_group(model, u_group, nk=4))
     assert urep and urep.antiunitary_operator[0] is None, str(urep)
 
     # no occupied site group contains the four-fold
@@ -2145,10 +2156,10 @@ def test_the_twist_no_site_group_separates_is_a_genuine_equivalence(i41_soc_bund
     ``2_z = (4+)^2``, where ``B`` is ``+1`` and ``lam`` is ``-1``.
     """
     model = i41_soc_bundle[0]
-    u_group = tqg._group_of(model, include_TR=False)
-    u_assign = tqg._assign_orbitals(model, u_group)
-    u_valid = tqg._validate_group(model, u_group, nk=4)
-    default = tqs._build_rep(model, u_group, u_assign, validated=u_valid, n_battery=5)
+    u_group = _spacegroup._group_of(model, include_TR=False)
+    u_assign = _tables._assign_orbitals(model, u_group)
+    u_valid = _measure._validate_group(model, u_group, nk=4)
+    default = _build._build_rep(model, u_group, u_assign, validated=u_valid, n_battery=5)
     assert default, str(default)
     assert all(o.determined_by == "hamiltonian" for o in default.characters.orbitals), \
         "B is trivial on every occupied site group, so both labellings give each row " \
@@ -2167,7 +2178,7 @@ def test_the_twist_no_site_group_separates_is_a_genuine_equivalence(i41_soc_bund
                            for i in default.indices})
     pos = {int(s.ind): p for p, s in enumerate(u_group.symmetries)}
     prod, _tdiff, spf = u_group.get_product_table(get_diff=True)
-    assert float(tqs._product_table_residual(
+    assert float(_matrices._product_table_residual(
         {pos[int(i)]: twisted.matrices[i] for i in twisted.indices},
         [pos[int(i)] for i in twisted.indices], u_group.symmetries, prod, spf)) < 1e-13
 
@@ -2194,14 +2205,14 @@ def lin3g_realized_unitary(lin3g):
     Eight unitary operations, none undetermined -- so unlike the ``#123`` slab
     group the little groups are complete and the content is readable.
     """
-    m3 = tqg._slab_presentation(lin3g)
-    assert m3 is not None and not isinstance(m3, tqg.Refusal), str(m3)
-    cell, cell_typat = tqg._decorated_cell(m3, [0, 0, 1, 1])
-    group = tqg._group_of(cell, typat=cell_typat, spinor=True, include_TR=False)
+    m3 = _layers._slab_presentation(lin3g)
+    assert m3 is not None and not isinstance(m3, Refusal), str(m3)
+    cell, cell_typat = _layers._decorated_cell(m3, [0, 0, 1, 1])
+    group = _spacegroup._group_of(cell, typat=cell_typat, spinor=True, include_TR=False)
     assert group and group.number_str == "99", str(group)
-    assignment = tqg._assign_orbitals(m3, group, typat=[0, 0, 1, 1])
+    assignment = _tables._assign_orbitals(m3, group, typat=[0, 0, 1, 1])
     assert assignment, str(assignment)
-    return m3, group, assignment, tqg._validate_group(m3, group, nk=6)
+    return m3, group, assignment, _measure._validate_group(m3, group, nk=6)
 
 
 @pytest.mark.slow
@@ -2247,8 +2258,8 @@ def test_the_declared_twist_and_the_table_anchor_compose_exactly_once(
     to pin would raise.
     """
     model, u_group, u_assign, u_valid = lin3g_realized_unitary
-    base = tqs._build_rep(model, u_group, u_assign, validated=u_valid, n_battery=5)
-    twisted = tqs._build_rep(model, u_group, u_assign, validated=u_valid, n_battery=5,
+    base = _build._build_rep(model, u_group, u_assign, validated=u_valid, n_battery=5)
+    twisted = _build._build_rep(model, u_group, u_assign, validated=u_valid, n_battery=5,
                              characters={0: "B1"})
     assert base and twisted, (str(base), str(twisted))
     assert len(base.indices) == 8 and base.antiunitary_operator[0] is None
@@ -2289,7 +2300,7 @@ def test_the_declared_twist_and_the_table_anchor_compose_exactly_once(
     for rep, want in ((base, 1.0), (twisted, -1.0)):
         D = np.asarray(rep.matrices[four])
         img = int(np.abs(D[:, 0]).argmax()) // 2
-        rho, res = tqs._proportionality(D[np.ix_(np.arange(img * 2, img * 2 + 2),
+        rho, res = _matrices._proportionality(D[np.ix_(np.arange(img * 2, img * 2 + 2),
                                                  np.arange(2))], S)
         assert res <= 4 * _ULP and abs(complex(rho).imag) <= 4 * _ULP, (res, rho)
         assert rho.real == pytest.approx(want, abs=1e-12)
@@ -2305,10 +2316,10 @@ def test_the_declared_twist_and_the_table_anchor_compose_exactly_once(
             "reality is the tables'; the sign is the reference orbital's, and a "
             "declaration is exactly a statement about the reference orbital")
 
-    clash = tqs._build_rep(model, u_group, u_assign, validated=u_valid, n_battery=5,
+    clash = _build._build_rep(model, u_group, u_assign, validated=u_valid, n_battery=5,
                            characters={0: "s", 1: "s"})
     assert not clash and clash.gate == "declaration_breaks_group", str(clash)
-    assert isinstance(clash, tqg.Refusal), \
+    assert isinstance(clash, Refusal), \
         "a measurement about the model is a result, not an exception"
     assert clash.context["orbitals"] == (1,)
     assert clash.context["relative_character"] == "B1"
@@ -2502,7 +2513,7 @@ def _held(out):
     per_row = int(out.rep.model.nspin)
     held = {}
     for o in out.rep.characters.orbitals:
-        for term, k in tqs._label_terms(o.irrep):
+        for term, k in _text._label_terms(o.irrep):
             here = held.setdefault(o.site, {})
             here[term] = here.get(term, 0.0) + k * per_row / o.dim
     return {s: {term: round(n, 9) for term, n in terms.items()} for s, terms in held.items()}
@@ -2689,7 +2700,7 @@ def test_a_site_s_operations_bind_its_orbitals_and_copies_of_one_irrep_are_one(c
     build, kwargs, number, by_site, content, labels, aligned = _BOUND_AT_A_SITE[case]
     # a case that names the orbital the rule reads first runs the private entry,
     # which takes it; every other case is the public call
-    realize = tqg._realize if "reference_orbital" in kwargs else tqg.realized_group
+    realize = _realized._realize if "reference_orbital" in kwargs else tqg.realized_group
     out = realize(build(), **kwargs)
     assert out, str(out)
     assert out.group.number_str == number and out.descent is None
@@ -2912,11 +2923,11 @@ def test_a_stated_layout_that_is_not_a_partition_is_a_grammar_error(monkeypatch)
     what carries one layout to another presentation of a model.
     """
     model = _square_pxpy(sublattices=2)
-    group = tqg._group_of(model, typat=[0, 0, 1, 1])
+    group = _spacegroup._group_of(model, typat=[0, 0, 1, 1])
     assert group, str(group)
-    assignment = tqg._assign_orbitals(model, group, typat=[0, 0, 1, 1])
+    assignment = _tables._assign_orbitals(model, group, typat=[0, 0, 1, 1])
     assert assignment.site_orbitals == ((0, 1), (2, 3))
-    validated = tqg._validate_group(model, group)
+    validated = _measure._validate_group(model, group)
 
     malformed = (([[(0, 1)]], "partitions every orbital"),
                  ([[(0,)], [(1, 2, 3)]], "spreads over sites"),
@@ -2929,12 +2940,12 @@ def test_a_stated_layout_that_is_not_a_partition_is_a_grammar_error(monkeypatch)
                  ([[(0, 1)], [3]], "holds the int 3 where a multiplet goes"))
     for bad, says in malformed:
         with pytest.raises(ValueError, match=re.escape(says)):
-            tqs._build_rep(model, group, assignment, validated=validated, multiplets=bad)
+            _build._build_rep(model, group, assignment, validated=validated, multiplets=bad)
 
     def measured(*args, **kwargs):
         raise AssertionError("the stated layout's grammar is read before any group")
 
-    monkeypatch.setattr(tqg, "_group_of", measured)
+    patch_everywhere(monkeypatch, "_group_of", measured)
     for bad, says in malformed:
         with pytest.raises(ValueError, match=re.escape(says)):
             tqg.realized_group(model, typat=[0, 0, 1, 1], multiplets=bad)

@@ -56,6 +56,8 @@ import numpy as np
 
 import pythtqc
 from pythtqc import groups as tqg
+from pythtqc import _measure
+from pythtqc import _spacegroup
 
 #: The cell: monoclinic, ``beta`` off ninety, so the point group is ``2/m`` at
 #: best and the grey group has eight operations -- the shape of such a wannier90
@@ -163,7 +165,7 @@ def build_model(seed: int = 20260917):
                         if key not in amps:
                             amps[key] = float(rng.normal(scale=0.12))
                         model.set_hop(amps[key], i, j, list(shell), mode="add")
-    group = tqg._group_of(model)
+    group = _spacegroup._group_of(model)
     if not group:
         raise SystemExit(f"the synthetic cell did not identify: {group}")
     return model, group
@@ -199,7 +201,7 @@ def main() -> int:
 
     # the detector alone, on the cell's own group: the budget everything else is
     # measured against
-    _v, det_s, det_mb = _time(lambda: tqg._validate_group(model, cell_group))
+    _v, det_s, det_mb = _time(lambda: _measure._validate_group(model, cell_group))
     record["detector_seconds"] = det_s
     record["detector_peak_mb"] = det_mb
 
