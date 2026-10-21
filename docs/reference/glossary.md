@@ -374,7 +374,6 @@ Cartesian length.
 | `ktol` | matching a `k` to a tabulated high-symmetry point (`corep_content`, `hsp_table`, `corep_table`); deciding that a mesh point is one (`k_grid`) | reduced reciprocal coordinates | `1e-5`; `1e-8` in `k_grid` |
 | `atol` | whether an operation leaves `k` invariant up to a reciprocal lattice vector (`characters`, `corep_content`, `hsp_table`, `sewing_matrix`) | reduced reciprocal coordinates | `1e-8` |
 | `mesh_tol` | finding a requested `k` among a solved mesh's points (`characters`, `corep_content`, `hsp_table`, `sewing_matrix`) | reduced reciprocal coordinates | `1e-9` |
-| `modulus_tol` | the window on `\|λ\|` that collects a frontier set of states, and whether it sits on zero (`frontier_subspace`) | the spectrum's own units | `1e-9` |
 | `exact_gate` | the boundary between an exact operation and a near one (`classify_operations`); `realized_group` and `symmetrize` pass the model's own, the covariance check's tolerance below | energy | `5e-14`, the least that tolerance is |
 
 The covariance check's tolerance a representation is built at is an energy, as
@@ -403,8 +402,7 @@ for call, names in [(tqc.realized_group, "tol cut window position_tol precision 
                     (tqc.sewing_matrix, "degeneracy_tol atol mesh_tol"),
                     (tqc.multiplets, "degeneracy_tol"),
                     (tqc.corep_table, "ktol"),
-                    (tqc.k_grid, "ktol"),
-                    (tqc.frontier_subspace, "modulus_tol")]:
+                    (tqc.k_grid, "ktol")]:
     parameters = inspect.signature(call).parameters
     print(f"{call.__name__:<22}", ", ".join(
         f"{n}={'required' if parameters[n].default is required else parameters[n].default}"
@@ -421,7 +419,6 @@ for call, names in [(tqc.realized_group, "tol cut window position_tol precision 
 #  multiplets             degeneracy_tol=1e-08
 #  corep_table            ktol=1e-05
 #  k_grid                 ktol=1e-08
-#  frontier_subspace      modulus_tol=1e-09
 ```
 
 ## Budgets, meshes and lengths

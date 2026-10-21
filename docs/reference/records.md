@@ -1459,7 +1459,6 @@ line ending with the attribute that holds that part, as the records above do.
 | record | returned by | what it is |
 |---|---|---|
 | `SewingMatrix` | `sewing_matrix` | the matrix of one operation in the basis of a set of bands at an invariant `k`, `B(g,k) = V† U(g;k) V`: its `matrix`, `trace`, `eigenvalues` and `angles`, and its checks |
-| `Frontier` | `frontier_subspace` | every eigenvalue within `modulus_tol` of the smallest modulus of a spectrum, collected as one set of states, and whether it sits on zero (`at_zero`) |
 | `KGrid` | `k_grid` | a mesh, as pythtb's own `Mesh` (`mesh`), with which high-symmetry points it samples (`contains`, `missing`) and the coordinates of every tabulated point (`hsp`) |
 | `LittleGroup` | `little_group` | the operations that leave a `k` invariant up to a reciprocal lattice vector, unitary and antiunitary, and for each unitary one that vector, `G` |
 | `HighSymmetryPoints` | `high_symmetry_points` | each tabulated point's coordinates in the model's own reduced cell, a mapping by name, with `missing`, the points out of a layer's plane |

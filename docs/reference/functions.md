@@ -581,7 +581,6 @@ Whether irrep's character tables are in place, and `ortools` installed.
 - [`hsp_table`](#hsp_table) — The coreps a set of bands carries at every high-symmetry point of the group: its symmetry vector.
 - [`format_counts`](#format_counts) — A content on one line: `{'-GM6': 2, '-GM7': 1}` as `2×-GM6 + -GM7`.
 - [`multiplets`](#multiplets) — Which bands of a spectrum are one degenerate level, at a stated energy tolerance.
-- [`frontier_subspace`](#frontier_subspace) — The eigenvalues of smallest modulus of a spectrum, as one set of states: every state within `modulus_tol` of the smallest modulus.
 
 ### `solve_at`
 
@@ -869,33 +868,6 @@ Which bands of a spectrum are one degenerate level, at a stated energy tolerance
 **Returns**
 
 - `tuple of tuple of int`: The bands of each level, lowest first.
-
-### `frontier_subspace`
-
-```text
-frontier_subspace(spectrum, modulus_tol=1e-09)
-```
-
-The eigenvalues of smallest modulus of a spectrum, as one set of states: every state within `modulus_tol` of the smallest modulus.
-
-**Parameters**
-
-- **`spectrum`** (`array_like, shape (n,)`): Real eigenvalues, measured from the level they are read against:
-  energies less the chemical potential, the eigenvalues of a projected
-  operator `P O P`, or a sewing matrix's `-iS` eigenvalues.
-
-- **`modulus_tol`** (`float, optional`): The window on `|λ|`, in the spectrum's own units: an eigenvalue
-  within it of the smallest modulus joins the set, and a smallest
-  modulus within it of zero puts the set on zero.  Default `1e-9`.
-
-**Returns**
-
-- `Frontier`: `f.summary()` prints it.  `f.indices` are the set's positions,
-  `f.value` its modulus, and `f.paired` whether it holds both signs, a
-  necessary condition for an antiunitary symmetry pairing them.
-  `f.at_zero` says the set sits on zero: its signs are not resolved,
-  and a quantity read there on the states of one sign is a source of
-  spurious quantized values.
 
 ## Atomic limits
 

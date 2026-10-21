@@ -361,15 +361,6 @@ representation carries: quote the partition with them always, prefer it
 wherever a row reads `lowest-l`, and declare what the orbitals are where the
 labels matter ([saying what the orbitals are](orbitals.md)).
 
-**Near a reference level.** `frontier_subspace` takes a spectrum measured from
-a reference level and returns as one set every state whose distance from the
-level is within `modulus_tol` of the nearest state's, so a quantity read near a
-degeneracy is read on the whole set. Its
-`at_zero` says the set sits on the level itself: the signs of its states are
-then not resolved, and a quantity read sector by sector, on the states of each
-sign, is a source of spurious quantized values there
-([its entry](../reference/functions.md#frontier_subspace)).
-
 ## When it refuses
 
 A refusal is a returned record, falsy, naming the check that stopped the call

@@ -54,9 +54,9 @@ from .groups import (GroupData, HighSymmetryPoints, IrrepContent, KGrid, LittleG
                      seitz, stack_presentation, tables_status,
                      wyckoff_sites_tables)
 from .refusal import InternalError, MagneticScopeWarning, Refusal, RefusalError
-from .sewing import (CharacterTable, CorepContent, Frontier, HSPTable, SewingMatrix,
-                     characters, corep_content, format_counts, frontier_subspace,
-                     hsp_table, multiplets, sewing_matrix, solve_at)
+from .sewing import (CharacterTable, CorepContent, HSPTable, SewingMatrix, characters,
+                     corep_content, format_counts, hsp_table, multiplets, sewing_matrix,
+                     solve_at)
 from .spin import SpinBasis, spin_basis, spin_operator, spinless_presentation
 from .srsi import (BandSRSIs, ModelSRSIs, Realizations, SRSITables, Splitting,
                    StablePair, atomic_realizations, nsit_criterion, splitting, srsi_of,
@@ -91,7 +91,6 @@ __all__ = [
     "splitting", "nsit_criterion", "atomic_realizations", "stably_equivalent_pairs",
     "symmetrize", "Symmetrization", "classify_operations",
     "symmetrize_positions",
-    "Frontier", "frontier_subspace",
     "multiplets",
     "solve_at", "format_counts",
     "SewingMatrix", "CharacterTable", "CorepContent", "HSPTable",

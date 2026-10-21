@@ -17,8 +17,6 @@ What each test closes, and the number that closes it:
 * **one diagonalization**: ``sewing_matrix`` has one ``states`` slot, so bras
   and kets from two different solves cannot enter one call, and states from
   somewhere else are measured against ``H(k)`` and refused.
-* **``frontier_subspace``** against the reference's printed PsP frontier
-  (1.000000 at Γ, 0.982512 at X, 0.977650 at M, ± paired at all three).
 * **the two-tier threshold contract** against the same reference block
   thresholds (1.0e-14 at Γ — which is the flat rule, the conditioned floor there
   being 7.3e-15 — 1.8e-14 at X, 8.3e-14 at M) and a measured list of readouts on
@@ -672,83 +670,7 @@ def test_multiplet_helpers_are_the_analysis_over_pythtb_s_arrays():
 
 
 # ---------------------------------------------------------------------------
-# 6.  frontier_subspace
-# ---------------------------------------------------------------------------
-
-def test_frontier_subspace_reproduces_the_reference_PsP_frontier(lin3g_undeclared):
-    """The reference's frontier: 1.000000 at Gamma, 0.982512 at X, 0.977650 at M, all paired.
-
-    The spectrum handed in is the s_z feature spectrum ``P_6† s_z P_6`` -- built
-    here from numpy alone, since :func:`frontier_subspace` is deliberately
-    agnostic about what its input is (energies, feature eigenvalues, sewing
-    ``-iS`` eigenvalues) and phase B is where the feature machinery lands.
-    """
-    model, group, _, _, rep = lin3g_undeclared
-    hsp = tqg.high_symmetry_points(group)
-    sz = np.kron(np.eye(model.norb), np.diag([1.0, -1.0]))
-    want = {"GM": (1.000000, 6), "X": (0.982512, 2), "M": (0.977650, 2)}
-    for name, (value, dim) in want.items():
-        occ = columns(solve_at(model, hsp[name])[1])[:, :6]
-        spec = np.linalg.eigvalsh(occ.conj().T @ sz @ occ)
-        fr = tqw.frontier_subspace(spec)
-        assert fr.value == pytest.approx(value, abs=1e-6), name
-        assert len(fr) == dim, name
-        assert fr.paired and not fr.at_zero, name
-        assert len(fr.positive) == len(fr.negative) == dim // 2
-
-
-def test_frontier_subspace_takes_a_block_not_a_split_pair():
-    """A planted near-degeneracy is resolved as a block; the pairing flag is measured.
-
-    ``modulus_tol`` is a window on ``|lambda|``, and it gates both memberships.
-    The helper is agnostic about what the spectrum is -- energies shifted to the
-    reference level, feature ``P O P`` eigenvalues, sewing ``-iS`` eigenvalues --
-    so its tolerance is not an energy and is named for the quantity it is
-    compared against.  One number decides two things about the same spectrum:
-    an eigenvalue joins the block when its modulus is within it of the smallest
-    present, and the frontier reads ``at_zero`` when that smallest modulus is
-    itself within it of zero -- measured on a dimensionless ``s_z``-like
-    spectrum, where an energy tolerance would be a category error.
-    """
-    spec = np.array([-1.0, -0.30000000005, 0.3, 0.9])
-    fr = tqw.frontier_subspace(spec, modulus_tol=1e-9)
-    assert fr.indices == (1, 2), "both near-degenerate states, never one of them"
-    assert fr.value == pytest.approx(0.3)
-    assert fr.paired and fr.positive == (2,) and fr.negative == (1,)
-
-    tighter = tqw.frontier_subspace(spec, modulus_tol=1e-12)
-    assert tighter.indices == (2,) and not tighter.paired, \
-        "below the planted splitting the block collapses -- the tolerance is the statement"
-
-    kramers = tqw.frontier_subspace(np.array([-1.0, -0.5, 0.5, 1.0]))
-    assert kramers.paired and kramers.indices == (1, 2)
-
-    at_zero = tqw.frontier_subspace(np.array([-1.0, 0.0, 0.0, 1.0]))
-    assert at_zero.at_zero and not at_zero.paired, \
-        "a frontier on zero has no resolved sign structure"
-
-    single = tqw.frontier_subspace(np.array([0.7, 0.9]))
-    assert single.indices == (0,) and not single.paired and not single.at_zero
-
-    # the window is a modulus in the spectrum's own units, deciding the block ...
-    feature = np.array([-1.0, -0.5, 0.5 + 1e-10, 1.0])
-    wide = tqw.frontier_subspace(feature, modulus_tol=1e-9)
-    assert wide.indices == (1, 2) and wide.paired and not wide.at_zero
-    assert tqw.frontier_subspace(feature, modulus_tol=1e-12).indices == (1,), \
-        "below the planted splitting the pair is no longer one block"
-    # ... and the zero
-    near_zero = np.array([-2.0, 1e-10, 2.0])
-    assert tqw.frontier_subspace(near_zero, modulus_tol=1e-9).at_zero
-    assert not tqw.frontier_subspace(near_zero, modulus_tol=1e-12).at_zero, \
-        "the same number decides the block and the zero"
-    assert wide.modulus_tol == 1e-9, "the record carries the window it was read at"
-
-    with pytest.raises(ValueError):
-        tqw.frontier_subspace([])
-
-
-# ---------------------------------------------------------------------------
-# 7.  the table phase A4 consumes
+# 6.  the table phase A4 consumes
 # ---------------------------------------------------------------------------
 
 def test_hsp_table_shape(lin3g_undeclared):
@@ -920,7 +842,7 @@ def test_the_label_tolerance_is_the_gate_the_labels_are_read_at(lin3g_undeclared
 
 
 # ---------------------------------------------------------------------------
-# 8.  the A3r seam: pythtb's eigenvector currency
+# 7.  the A3r seam: pythtb's eigenvector currency
 # ---------------------------------------------------------------------------
 
 def test_the_two_state_sources_agree(lin3g_undeclared, lin3g_wfarray):
@@ -1045,15 +967,14 @@ def test_module_surface():
     from pythtqc import symmetrization as tqsym
 
     for name in ("sewing_matrix", "characters", "corep_content", "hsp_table",
-                 "frontier_subspace", "two_tier_thresholds", "disagreements",
+                 "two_tier_thresholds", "disagreements",
                  "multiplets", "multiplet_separation", "multiplet_spread",
                  "FLAT_ZERO", "DEGENERACY_TOL"):
         assert name in tqw.__all__, name
     # `tqc.sewing` is the module (exactly as `tqc.groups` is), and `sewing_matrix`
     # is re-exported at package level
     assert tqc.sewing is tqw
-    for name in ("sewing_matrix", "characters", "corep_content", "hsp_table",
-                 "frontier_subspace", "multiplets", "Frontier",
+    for name in ("sewing_matrix", "characters", "corep_content", "hsp_table", "multiplets",
                  "SewingMatrix", "CharacterTable", "CorepContent", "HSPTable"):
         assert getattr(tqc, name) is getattr(tqw, name), name
         assert name in tqc.__all__, name

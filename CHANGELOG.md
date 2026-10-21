@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- `frontier_subspace` and its record `Frontier` leave `pythtqc.sewing` and the
+  top level: nothing in the package called them.
+
 ## 0.1.0a2 — the first public version
 
 pythtqc reads the crystalline symmetry of a PythTB tight-binding model:

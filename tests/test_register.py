@@ -188,7 +188,7 @@ BUDGETS = {
     # the tables' printed decimals, integer rotations, a pure translation -- the
     # rounding of the package's own arithmetic and its guards, and the
     # identification's own numbers, each to be named in `_tolerance.py`.
-    ("small-literals", "src code"): 205,
+    ("small-literals", "src code"): 204,
 }
 
 CLASSES = (

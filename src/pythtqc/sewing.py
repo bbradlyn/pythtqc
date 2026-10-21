@@ -16,8 +16,6 @@ character, and the characters name the corep.
   and :func:`multiplet_separation` and :func:`multiplet_spread` say how well
   they are resolved;
 * :func:`format_counts`: a content on one line, ``2×-GM6 + -GM7``;
-* :func:`frontier_subspace`: the eigenvalues of smallest modulus of a
-  spectrum, as one set of states;
 * :class:`Thresholds`: the zero thresholds at a point, one for numbers built
   from ``H(k)`` and one, widening where multiplets crowd, for numbers read off
   eigenvectors.
@@ -45,7 +43,6 @@ from .refusal import InternalError, Refusal
 __all__ = [
     "FLAT_ZERO", "DEGENERACY_TOL",
     "Thresholds", "two_tier_thresholds", "disagreements",
-    "Frontier", "frontier_subspace",
     "multiplets", "multiplet_separation", "multiplet_spread",
     "solve_at", "format_counts",
     "SewingMatrix", "sewing_matrix",
@@ -262,128 +259,6 @@ def disagreements(thresholds: Thresholds, readouts: Mapping[str, Any]) -> tuple:
                         "zero_conditioned": thresholds.zero(v),
                         "zero_flat": thresholds.zero_flat(v)})
     return tuple(out)
-
-
-# ==========================================================================
-# the gauge-invariant frontier eigenspace
-# ==========================================================================
-
-@dataclass(frozen=True)
-class Frontier:
-    """The eigenvalues of smallest modulus of a spectrum, collected as one set of states.
-
-    Every eigenvalue within ``modulus_tol`` of the smallest modulus is in it, so
-    a quantity read near a degeneracy is read on the whole set, whatever basis
-    the diagonalization chose inside it.  ``summary()`` prints it.
-
-    Attributes
-    ----------
-    indices : tuple of int
-        The set's positions in the spectrum handed in.
-    value : float
-        The smallest modulus, ``min |λ|``.
-    paired : bool
-        Whether the set holds eigenvalues of both signs, a pair ``±λ``.  Then
-        the matrix elements within the set carry the first-order physics, and
-        at a high-symmetry point a Kramers-type selection rule makes them zero;
-        otherwise those between the set and the rest carry it.
-    positive, negative : tuple of int
-        The set's positions above zero and below it.
-    at_zero : bool
-        Whether the set sits on zero, ``value <= modulus_tol``: its signs are
-        then not resolved, and a quantity read on the states of one sign is not
-        to be trusted there.
-    modulus_tol : float
-        The window on ``|λ|`` the set was collected at, in the spectrum's own
-        units.
-    spectrum : ndarray
-        The spectrum handed in.
-    """
-
-    indices: tuple
-    value: float
-    paired: bool
-    positive: tuple
-    negative: tuple
-    at_zero: bool
-    modulus_tol: float
-    spectrum: np.ndarray
-
-    def __len__(self) -> int:
-        return len(self.indices)
-
-    def summary(self) -> str:
-        """The set of states, a line for each part, with the attribute that holds it."""
-        lines = [f"the eigenvalues λ of smallest modulus, |λ| = {self.value:.6g} to within "
-                 f"{self.modulus_tol:.2g}: positions {_runs(self.indices)} of the spectrum   "
-                 "(.value, .indices)"]
-        if self.at_zero:
-            lines.append("  on zero, so their signs are not resolved, and a quantity read on the "
-                         "states of one sign is not to be trusted here   (.at_zero)")
-        elif self.paired:
-            lines.append(f"  of both signs, a pair ±λ: positions {_runs(self.negative)} below "
-                         f"zero and {_runs(self.positive)} above   "
-                         "(.paired, .negative, .positive)")
-        else:
-            lines.append(f"  all {'negative' if self.negative else 'positive'}, so no pair "
-                         "±λ   (.paired)")
-        return "\n".join(lines)
-
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
-        return (f"Frontier(|lambda|={self.value:.6g}, dim={len(self.indices)}, "
-                f"paired={self.paired}{', at zero' if self.at_zero else ''})")
-
-
-def frontier_subspace(spectrum, modulus_tol=1e-9) -> Frontier:
-    r"""The eigenvalues of smallest modulus of a spectrum, as one set of states: every state within ``modulus_tol`` of the smallest modulus.
-
-    Parameters
-    ----------
-    spectrum : array_like, shape (n,)
-        Real eigenvalues, measured from the level they are read against:
-        energies less the chemical potential, the eigenvalues of a projected
-        operator ``P O P``, or a sewing matrix's ``-iS`` eigenvalues.
-    modulus_tol : float, optional
-        The window on ``|λ|``, in the spectrum's own units: an eigenvalue
-        within it of the smallest modulus joins the set, and a smallest
-        modulus within it of zero puts the set on zero.  Default ``1e-9``.
-
-    Returns
-    -------
-    Frontier
-        ``f.summary()`` prints it.  ``f.indices`` are the set's positions,
-        ``f.value`` its modulus, and ``f.paired`` whether it holds both signs, a
-        necessary condition for an antiunitary symmetry pairing them.
-        ``f.at_zero`` says the set sits on zero: its signs are not resolved,
-        and a quantity read there on the states of one sign is a source of
-        spurious quantized values.
-
-    Raises
-    ------
-    ValueError
-        An empty spectrum.
-
-    Examples
-    --------
-    A spectrum of pairs ``±λ`` reads its eigenvalues of smallest modulus as
-    one pair::
-
-        frontier_subspace([-1.0, -0.9825, 0.9825, 1.0]).paired      # True
-        frontier_subspace([-1.0, -0.9825, 0.9825, 1.0]).value       # 0.9825
-    """
-    spec = np.asarray(spectrum, dtype=float).ravel()
-    if spec.size == 0:
-        raise ValueError("frontier_subspace needs a non-empty spectrum")
-    mag = np.abs(spec)
-    amin = float(mag.min())
-    idx = tuple(int(i) for i in np.flatnonzero(mag - amin <= float(modulus_tol)))
-    pos = tuple(i for i in idx if spec[i] > 0.0)
-    neg = tuple(i for i in idx if spec[i] < 0.0)
-    at_zero = amin <= float(modulus_tol)
-    return Frontier(indices=idx, value=amin,
-                    paired=bool(pos and neg and not at_zero),
-                    positive=pos, negative=neg, at_zero=bool(at_zero),
-                    modulus_tol=float(modulus_tol), spectrum=spec)
 
 
 # ==========================================================================
