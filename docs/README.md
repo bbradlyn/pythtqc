@@ -72,6 +72,8 @@ that cannot complete returns a refusal, which says why:
   key, the spin convention, and how the Bilbao Crystallographic Server's
   spellings read across.
 - [What the package cannot do yet](background/limits.md).
+- [How the modules fit together](background/modules.md) — the path a model
+  takes through the package, one module at each step.
 - Reference: [functions](reference/functions.md), every one, generated from
   the docstrings; [returned records](reference/records.md), every one and how
   to read its printout; [refusals](reference/refusals.md), every one and what

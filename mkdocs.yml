@@ -50,6 +50,7 @@ nav:
       - background/tqc-primer.md
       - background/conventions.md
       - background/limits.md
+      - background/modules.md
   - Reference:
       - reference/functions.md
       - reference/records.md
@@ -90,7 +91,12 @@ markdown_extensions:
           case: lower
   - pymdownx.highlight
   - pymdownx.inlinehilite
-  - pymdownx.superfences
+  # a ```mermaid block is a diagram, drawn in the browser, as GitHub draws it
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
 
 plugins:
   - search
