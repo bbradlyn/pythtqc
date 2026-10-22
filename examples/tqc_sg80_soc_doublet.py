@@ -14,7 +14,7 @@
 # The calculations in this python file include
 # 1. the spinful atomic limit: the group, and the fourfold level at P
 # 2. the little group at P, and the same table read at the other star member -P
-# 3. the spin-orbit model: the [4] -> [1, 2, 1] split at P
+# 3. the spin-orbit model: the fourfold level at P split 1 + 2 + 1
 # 4. each of the three levels labelled from one diagonalization
 # 5. the four valence bands as an elementary band representation
 # 6. the control: P6_2 (#171) at H, where the gluing pairs two different irreps
@@ -62,6 +62,51 @@ os.makedirs(OUTDIR, exist_ok=True)
 print("I4_1 (SG 80) at P = (1/4, 1/4, 1/4), which is not a time-reversal-invariant")
 print("momentum: time reversal glues one of the two conjugate coreps to itself, and")
 print("the trace of the twofold says which.")
+print("Bands are counted from 0, as pythtb counts them.")
+
+
+def row(label, first, *rest):
+    """One line of the ledger, a label of at most 16 characters, then its continuation lines."""
+    print(f"   {label:<16} : {first}")
+    for line in rest:
+        print(f"{'':22}{line}")
+
+
+# each character is printed the way a paper tabulates it -- 4, −i, 2i -- from its
+# real part r and imaginary part m; the characters themselves stay complex
+def character(z):
+    """One character, 4, −i or 2i, its minus sign written −."""
+    r, m = round(z.real, 6) + 0.0, round(z.imag, 6) + 0.0
+    if not m:
+        text = f"{r:g}"
+    else:
+        text = ((f"{r:g}{'+' if m > 0 else ''}" if r else "")
+                + ("-" if m == -1 else "" if m == 1 else f"{m:g}") + "i")
+    return text.replace("-", "−")
+
+
+def characters(chi):
+    """The characters on a list of operations, (1, −i)."""
+    return "(" + ", ".join(character(complex(z)) for z in chi) + ")"
+
+
+def band_names(indices):
+    """Bands named by index: band 0, bands 1 and 2."""
+    if len(indices) == 1:
+        return f"band {indices[0]}"
+    return "bands " + ", ".join(str(i) for i in indices[:-1]) + f" and {indices[-1]}"
+
+
+def atomic_limits(d):
+    """The atomic limits of a band set, as a label and a value: the one sum of elementary
+    band representations with this content, how many sums there are, or none."""
+    if d.verdict == "none":
+        return "atomic limits", "none"
+    sums = d.solution_strings()
+    if len(sums) == 1:
+        return "atomic limit", sums[0]
+    return "atomic limits", f"{len(sums)} sums of elementary band representations"
+
 
 ########### 1. the spinful atomic limit ###########
 
@@ -71,9 +116,9 @@ atomic = tqm.i41_atomic()
 out = tqc.realized_group(atomic, characters=DECLARE)
 model, group, assignment, validated, rep = out
 sites = tqc.wyckoff_sites_tables(group, assignment.site_positions)   # letter and multiplicity
-print(f"   realized group   : #{group.number_str} {group.name}, s orbitals at Wyckoff "
-      f"{' and '.join(dict.fromkeys(f'{s.multiplicity}{s.letter}' for s in sites))}, "
-      f"{model.nstate} bands")
+row("realized group", f"#{group.number_str} {group.name}, s orbitals at Wyckoff "
+    f"{' and '.join(dict.fromkeys(f'{s.multiplicity}{s.letter}' for s in sites))}, "
+    f"{model.nstate} bands")
 
 # the operation each character below belongs to, by index, with its name in the
 # model's own frame
@@ -81,8 +126,8 @@ operations = out.operations
 
 hsp = tqc.high_symmetry_points(group)
 P = hsp["P"]
-print(f"   P = {np.round(P, 4).tolist()} in the primitive cell: 2P is no "
-      "reciprocal-lattice vector")
+row("P", f"({', '.join(str(x) for x in np.round(P, 4).tolist())}) in the primitive cell,",
+    "and 2P is no reciprocal-lattice vector")
 
 # solve_at(model, k) diagonalizes H(k) at one k and returns the energies and the
 # eigenvectors; every label below is read off that one diagonalization.
@@ -90,16 +135,8 @@ states = solve_at(atomic, P)
 w = np.asarray(states[0], dtype=float).reshape(-1)
 content = tqc.corep_content(rep, P, states=states, bands=[0, 1, 2, 3])
 chi = np.asarray(content.table.characters).ravel()
-print(f"   P valence levels : {np.round(w[:4], 6).tolist()}")
-# each character is printed the way a paper tabulates it -- 4, −i, 2i -- from its
-# real part r and imaginary part m; the characters themselves stay complex
-print(f"   χ({', '.join(operations[i].name for i in content.table.columns)}) = ("
-      + ", ".join(f"{r:g}" if not m else
-                  (f"{r:g}{'+' if m > 0 else ''}" if r else "")
-                  + ("-" if m == -1 else "" if m == 1 else f"{m:g}") + "i"
-                  for c in chi
-                  for r, m in [(round(c.real, 6) + 0.0, round(c.imag, 6) + 0.0)])
-      .replace("-", "−") + ")")
+row("P valence levels", ", ".join(str(x) for x in np.round(w[:4], 6).tolist()))
+row(f"χ({', '.join(operations[i].name for i in content.table.columns)})", characters(chi))
 print("   one fourfold level: spin-independent hoppings commute with every spin")
 print("   operator, so this degeneracy is SU(2)'s and decides nothing here")
 
@@ -110,19 +147,13 @@ page = tqc.corep_table(group, P)
 ops = sorted(next(iter(page.values())))
 print(f"   the little group at P, χ({', '.join(operations[i].name for i in ops)}):")
 for label in sorted(page):
-    row = page[label]
-    body = ", ".join(f"{r:g}" if not m else
-                     (f"{r:g}{'+' if m > 0 else ''}" if r else "")
-                     + ("-" if m == -1 else "" if m == 1 else f"{m:g}") + "i"
-                     for i in ops
-                     for r, m in [(round(complex(row[i]).real, 6) + 0.0,
-                                   round(complex(row[i]).imag, 6) + 0.0)]
-                     ).replace("-", "−")
-    print(f"      {label:<8} dim {int(round(abs(complex(row[ops[0]])))):d}   ({body})")
+    entry = page[label]
+    print(f"      {label:<8} dim {int(round(abs(complex(entry[ops[0]])))):d}   "
+          f"{characters(entry[i] for i in ops)}")
 
 # The tables' own rows at P, read from irreptables directly.  The tables are
 # written in the e^{+ik·t} translation convention, and since
-# e^{+ik·t} = e^{-i(-k)·t}, the page printed for P is the page at -P.
+# e^{+ik·t} = e^{-i(-k)·t}, the table printed for P is the table at -P.
 from irreptables.irreps import IrrepTable
 
 table = IrrepTable(group.number_str, group.spinor, magnetic=group.magnetic)
@@ -131,18 +162,12 @@ shipped = {ir.name: {int(i): complex(c) for i, c in ir.characters.items()}
 print(f"   the same table read at -P, the point it is printed for, "
       f"χ({', '.join(operations[i].name for i in ops)}):")
 for label in sorted(shipped):
-    row = shipped[label]
-    body = ", ".join(f"{r:g}" if not m else
-                     (f"{r:g}{'+' if m > 0 else ''}" if r else "")
-                     + ("-" if m == -1 else "" if m == 1 else f"{m:g}") + "i"
-                     for i in ops
-                     for r, m in [(round(complex(row[i]).real, 6) + 0.0,
-                                   round(complex(row[i]).imag, 6) + 0.0)]
-                     ).replace("-", "−")
-    print(f"      {label:<8} dim {int(round(abs(complex(row[ops[0]])))):d}   ({body})")
-print("   four units of dimension either way, and the two pages are entrywise")
-print("   conjugates: BCS's labels attach to -k, an operation taking P to -P")
-print("   interchanges conjugate labels, and the trace is the observable")
+    entry = shipped[label]
+    print(f"      {label:<8} dim {int(round(abs(complex(entry[ops[0]])))):d}   "
+          f"{characters(entry[i] for i in ops)}")
+print("   the two tables are entrywise conjugates: BCS's labels attach to -k, an")
+print("   operation taking P to -P interchanges conjugate labels, and the trace is the")
+print("   observable")
 
 ########### 3. the spin-orbit model: the split at P ###########
 
@@ -151,60 +176,49 @@ soc = tqm.i41_soc("generic", lam=LAM)
 
 out_soc = tqc.realized_group(soc, characters=DECLARE)
 _m, g_soc, asg_soc, val_soc, rep_soc = out_soc
-print(f"   realized group   : #{g_soc.number_str} {g_soc.name}")
+row("realized group", f"#{g_soc.number_str} {g_soc.name}")
 
 P_soc = tqc.high_symmetry_points(g_soc)["P"]
 states = solve_at(soc, P_soc)
 w = np.asarray(states[0], dtype=float).reshape(-1)
 mult = tqc.multiplets(w[:4])                  # the degenerate levels, by energy
-print(f"   P valence levels : {np.round(w[:4], 6).tolist()}")
-print(f"   degeneracies     : {[len(b) for b in mult]}, level gaps "
-      f"{w[1] - w[0]:.6f} / {w[3] - w[2]:.6f}")
+row("P valence levels", ", ".join(str(x) for x in np.round(w[:4], 6).tolist()))
+row("degeneracies", f"{' + '.join(str(len(b)) for b in mult)}, level gaps "
+    f"{w[1] - w[0]:.6f} and {w[3] - w[2]:.6f}")
 
 ########### 4. each level labelled from one diagonalization ###########
 
-print("\n4. the three levels, each labelled from that same solve")
+print("\n4. the three levels, each labelled from that one diagonalization")
 labels, chis = [], []
 for multiplet in mult:
     out_b = tqc.corep_content(rep_soc, P_soc, states=states, bands=list(multiplet))
     chi_b = np.asarray(out_b.table.characters).ravel()
     labels.append(next(iter(out_b.counts)))
     chis.append(chi_b)
-    body = ", ".join(f"{r:g}" if not m else
-                     (f"{r:g}{'+' if m > 0 else ''}" if r else "")
-                     + ("-" if m == -1 else "" if m == 1 else f"{m:g}") + "i"
-                     for c in chi_b
-                     for r, m in [(round(c.real, 6) + 0.0, round(c.imag, 6) + 0.0)]
-                     ).replace("-", "−")
-    print(f"   states {str(list(multiplet)):<9} E = {w[multiplet[0]]:+.6f}   "
-          f"χ({', '.join(operations[i].name for i in out_b.table.columns)}) = ({body})"
-          f"   {labels[-1]}")
+    row(band_names(list(multiplet)), f"E = {w[multiplet[0]]:+.6f}   "
+        f"χ({', '.join(operations[i].name for i in out_b.table.columns)}) = "
+        f"{characters(chi_b)}   {labels[-1]}")
 
 label_lo, label_mid, label_hi = labels
 pair = complex(chis[1][-1])            # the twofold's trace on the doubled level
 lg = tqc.little_group(g_soc, P_soc)
 singlet = min(shipped, key=lambda lab: abs(complex(shipped[lab][ops[0]])))
-trace_text, half_text = [
-    (f"{r:g}" if not m else
-     (f"{r:g}{'+' if m > 0 else ''}" if r else "")
-     + ("-" if m == -1 else "" if m == 1 else f"{m:g}") + "i").replace("-", "−")
-    for z in (pair, pair / 2)
-    for r, m in [(round(z.real, 6) + 0.0, round(z.imag, 6) + 0.0)]]
-print(f"   the doubled corep is {label_mid}: its trace on {operations[ops[-1]].name} is "
-      f"{trace_text}, two copies of {half_text},")
-print("   so that is the irrep the antiunitary glues to itself")
-print(f"   the unitary little group at P has {len(lg.unitary)} elements and so no "
-      "two-dimensional irrep,")
-print("   so the pair is symmetry-enforced; the -P page read at P would make it")
-print(f"   two copies of {singlet}, an accidental degeneracy")
+twofold = operations[ops[-1]].name
+row("doubled corep", f"{label_mid}, trace {character(pair)} on {twofold}, two copies of "
+    f"{character(pair / 2)}")
+row("little group", f"{len(lg.unitary)} unitary elements at P, so no two-dimensional irrep")
+print(f"   the antiunitary glues the irrep with χ({twofold}) = {character(pair / 2)} to "
+      "itself, so the pair is")
+print(f"   symmetry-enforced; the -P table read at P makes it two copies of {singlet}, an")
+print("   accidental degeneracy")
 
 ########### 5. the four valence bands as an elementary band representation ###########
 
 print("\n5. the four valence bands as an elementary band representation")
 table_soc = tqc.hsp_table(rep_soc, bands=[0, 1, 2, 3])   # the content at every point
 d = tqc.decompose(table_soc, g_soc, rep=rep_soc)
-print(f"   content          : {fmt(table_soc.counts)}")
-print(f"                      = {d.solution_strings()[0]}")
+row("valence content", fmt(table_soc.counts))
+row(*atomic_limits(d))
 print(f"   {label_mid} belongs to a labelling of the whole set, not a choice made at P")
 
 ########### 6. the control: P6_2 at H ###########
@@ -216,27 +230,21 @@ out62 = tqc.realized_group(p62, characters=DECLARE)
 _m, g62, asg62, val62, rep62 = out62
 sites62 = tqc.wyckoff_sites_tables(g62, asg62.site_positions)
 operations62 = out62.operations
-print(f"   realized group   : #{g62.number_str} {g62.name}, s orbitals at Wyckoff "
-      f"{' and '.join(dict.fromkeys(f'{s.multiplicity}{s.letter}' for s in sites62))}, "
-      f"{p62.nstate} bands")
+row("realized group", f"#{g62.number_str} {g62.name}, s orbitals at Wyckoff "
+    f"{' and '.join(dict.fromkeys(f'{s.multiplicity}{s.letter}' for s in sites62))}, "
+    f"{p62.nstate} bands")
 
 H = tqc.high_symmetry_points(g62)["H"]
 page62 = tqc.corep_table(g62, H)
 ops62 = sorted(next(iter(page62.values())))
 print(f"   the little group at H, χ({', '.join(operations62[i].name for i in ops62)}):")
 for label in sorted(page62):
-    row = page62[label]
-    body = ", ".join(f"{r:g}" if not m else
-                     (f"{r:g}{'+' if m > 0 else ''}" if r else "")
-                     + ("-" if m == -1 else "" if m == 1 else f"{m:g}") + "i"
-                     for i in ops62
-                     for r, m in [(round(complex(row[i]).real, 6) + 0.0,
-                                   round(complex(row[i]).imag, 6) + 0.0)]
-                     ).replace("-", "−")
-    print(f"      {label:<8} dim {int(round(abs(complex(row[ops62[0]])))):d}   ({body})")
+    entry = page62[label]
+    print(f"      {label:<8} dim {int(round(abs(complex(entry[ops62[0]])))):d}   "
+          f"{characters(entry[i] for i in ops62)}")
 
 cH = tqc.corep_content(rep62, H, states=solve_at(p62, H), bands=list(range(6)))
-print(f"   valence content at H: {fmt(cH.counts)}")
+row("lowest 6 bands", f"{fmt(cH.counts)} at H")
 doubled62 = max(page62, key=lambda lab: abs(complex(page62[lab][ops62[0]])))
 print(f"   {doubled62} glues two different irreps; at P {label_mid} glues one to itself")
 

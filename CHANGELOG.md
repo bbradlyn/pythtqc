@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- The ten examples print as a ledger: each measured quantity on a labelled line, a
+  record's summary whole and once, every verdict in words, bands counted from 0 and
+  said so once per script, the valence and the conduction bands named in words. The
+  summaries of `ModelSRSIs`, `Splitting`, `Realizations`, `BandSRSIs` and
+  `SRSITables` define nothing and name the two sides of a gap in words, each
+  atomic realization and each consistent pair written as the orbitals it is; the
+  criterion's `reason` says the same in the same words. No verdict word and no field
+  changes.
 - An `HSPTable` carries the representation it was read with, `t.rep`, and
   `decompose`, `symmetry_indicator`, `completeness_check`, `regular_completion`
   and `srsi_of_bands` raise `ValueError` when handed the table with another group

@@ -1203,14 +1203,14 @@ number with `spinor=`.
 tables = tqc.srsi_tables(group)
 print(tables.summary())
 #  P6mm1' #183.186, double-valued: stable real-space invariants Z x Z x Z x Z x Z2   (.structure)
-#    each invariant theta_i, Z- or Z_n-valued, and how many terms its formula has, each term counting the copies of one site irrep at one Wyckoff position   (.rows)
+#    each invariant, Z- or Z_n-valued, and the number of terms in its formula   (.rows)
 #      theta_1    Z  6 terms
 #      theta_2    Z  6 terms
 #      theta_3    Z  6 terms
 #      theta_4    Z  2 terms
 #      theta_5   Z2  1 term
 #    9 site irreps at Wyckoff positions, 6 of them inducing an elementary band representation   (.site_keys, .ebrs)
-#    9 terms on site irreps that induce none: at a non-maximal Wyckoff position, or at a maximal one whose band representation is a sum of others   (.terms_without_ebr_column)
+#    9 terms on site irreps that induce no elementary band representation   (.terms_without_ebr_column)
 #    no symmetry indicator, the group's indicator group being trivial   (.indicators)
 #    1 splitting of an elementary band representation into others that the symmetry indicators allow   (.split_ebrs)
 print(tables.theta({("-E1", "a"): 1}))
@@ -1246,11 +1246,10 @@ The invariants read off the orbitals: `srsi_of_model`.
 
 ```python
 print(tqc.srsi_of_model(r).summary())
-#  P6mm1' #183.186, double-valued: stable real-space invariants Z x Z x Z x Z x Z2   (.structure)
-#    the model's: Z-valued (1, 1, 1, -1), Z_n-valued mod 2 (0)   (.theta_Z, .theta_Zn)
-#    each site orbit: its orbitals, its Wyckoff position, and its content, written m (irrep)_w, m copies of a site irrep at Wyckoff position w; then its invariants   (.orbits)
-#      orbitals 0-1 at 2b: 1 (-E1)_b
-#        (1, 1, 1, -1), mod 2 (0)
+#  P6mm1' #183.186, double-valued: stable real-space invariants, Z x Z x Z x Z x Z2   (.structure)
+#    the whole model: Z-valued (1, 1, 1, -1), mod 2 (0)   (.theta_Z, .theta_Zn)
+#    each site orbit, its content written m (irrep)_w, and its SRSIs   (.orbits)
+#      orbitals 0-1 at 2b, 1 (-E1)_b: Z-valued (1, 1, 1, -1), mod 2 (0)
 ```
 
 An orbit at a position the tables list no elementary band representation at is
@@ -1280,7 +1279,7 @@ The `ℤ`-valued invariants of a band subset, read off its symmetry vector:
 
 ```python
 print(tqc.srsi_of_bands(tf, fs.group, rep=fs.rep).summary())
-#  P6/mmm1' #191.234, double-valued: theta_Z, the Z-valued stable real-space invariants of 2 bands   (.theta_Z)
+#  P6/mmm1' #191.234, double-valued: the Z-valued stable real-space invariants of 2 bands   (.theta_Z)
 #      theta_1 =     -1/6
 #      theta_2 =      1/6
 #      theta_3 =      1/2
@@ -1318,21 +1317,22 @@ occupied pair against the pair above it, on the substrate:
 split = tqc.splitting(r, bands=2)
 print(split.summary())
 #  P6mm1' #183.186, double-valued, diagnosed topological: the two sides of the gap cannot both be atomic insulators   (.verdict)
-#    V, the 2 bands asked for; C, the model's other 2; H, all 4   (.n_bands_v, .n_bands_c)
-#    theta_Z, the Z-valued stable real-space invariants: H (1, 1, 1, -1) = V (0, 0, 1, 0) + C (1, 1, 0, -1)   (.theta_Z_total, .theta_Z_v, .theta_Z_c)
-#    theta_Zn, the Z_n-valued ones of H: mod 2 (0)   (.theta_Zn_total)
-#    V's symmetry-indicator group is trivial   (.indicator)
-#    V's atomic realizations, every set of orbitals at maximal Wyckoff positions with V's symmetry data, written m (irrep)_w, m copies of a site irrep at Wyckoff position w, with its own theta_Zn   (.realizations_v)
-#      [0] 1 (-E1)_a   mod 2 (0)
-#    C has no atomic realization: theta_Z is integral, so no symmetry indicator sees these bands, and no set of orbitals at maximal Wyckoff positions has their symmetry data: a fragile band set   (.realizations_c, .c_atomic_possible)
+#    the bands=2 valence bands, the remaining 2 conduction bands, and all 4 bands   (.n_bands_v, .n_bands_c)
+#    Z-valued stable real-space invariants: all 4 (1, 1, 1, -1) = valence (0, 0, 1, 0) + conduction (1, 1, 0, -1)   (.theta_Z_total, .theta_Z_v, .theta_Z_c)
+#    Z_n-valued invariants of all 4: mod 2 (0)   (.theta_Zn_total)
+#    the valence bands' symmetry-indicator group is trivial   (.indicator)
+#    possible atomic realizations of the valence bands, and their Z_n-valued SRSIs   (.realizations_v)
+#      1 (-E1)_a   mod 2 (0)
+#    the conduction bands have no atomic realization: theta_Z is integral, so no symmetry indicator sees these bands, and no set of orbitals at maximal Wyckoff positions has their symmetry data: a fragile band set   (.realizations_c, .c_atomic_possible)
 ```
 
-The verdict comes first and its reason last: the pair above the gap, `C`, has
-integral `ℤ`-valued invariants and no atomic realization at all, a fragile side.
-The invariants of the whole Hilbert space `H` are read off the orbitals, those
-of the valence side `V` off its bands, and `C`'s are their difference; where
-both sides have atomic realizations, a line names the pairs whose `ℤ_n`-valued
-invariants add up to the total's, or says that no pair does.
+The verdict comes first and its reason last: the pair above the gap, the
+conduction bands, has integral `ℤ`-valued invariants and no atomic realization
+at all, a fragile side. The invariants of all the bands are read off the
+orbitals, those of the valence bands off their bands, and the conduction bands'
+are their difference; where both sides have atomic realizations, a line names
+the pairs whose `ℤ_n`-valued invariants add up to those of all the bands, or
+says that no pair does.
 
 `verdict` takes four values:
 
@@ -1358,9 +1358,8 @@ by its `summary()`, here the valence side's:
 
 ```python
 print(split.realizations_v.summary())
-#  P6mm1' #183.186, double-valued: every atomic realization, 1 of them   (.realizations)
-#    of 2 bands with theta_Z = (0, 0, 1, 0), their Z-valued stable real-space invariants   (.n_bands, .theta_Z)
-#    each a set of orbitals at maximal Wyckoff positions with that symmetry data, written m (irrep)_w, m copies of a site irrep at Wyckoff position w, with its own Z_n-valued invariants   (.label, .theta_Zn of each)
+#  P6mm1' #183.186, double-valued: 1 atomic realization of 2 bands with Z-valued stable real-space invariants (0, 0, 1, 0)   (.realizations, .n_bands, .theta_Z)
+#    possible atomic realizations, and their Z_n-valued SRSIs   (.label, .theta_Zn of each)
 #      1 (-E1)_a   mod 2 (0)
 ```
 

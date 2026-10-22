@@ -11,9 +11,9 @@
 # Run with python3, PythTB version 2.0 and pythtqc.
 
 # The calculations in this python file include
-# 1. the group, the two site orbits with their contents and their SRSIs, and
-#    the ways the eight bands decompose
-# 2. bands 4 and 5: where the Z_n invariants of a band set can be read from
+# 1. the group, the two site orbits with their contents, the atomic limits of
+#    all eight bands, and the stable real-space invariants of the model
+# 2. bands 4 and 5: where the Z2-valued invariants of a band set can be read from
 # 3. splitting(r, bands=6): the six occupied bands against the two above them
 # 4. splitting(r, bands=4): the same model, the gap two bands lower
 # 5. the two gaps, the eight bands along GM-X-M-GM, and the figure
@@ -22,6 +22,7 @@
 
 import os
 import sys
+import textwrap
 
 import matplotlib
 
@@ -62,12 +63,40 @@ PATH_LABELS = (r"$\Gamma$", "X", "M", r"$\Gamma$")
 
 os.makedirs(OUTDIR, exist_ok=True)
 
-print("Lin et al., Nat. Commun. 15, 550 (2024), SM Sec. 3G: eight bands from")
-print("four spinful orbitals, and the no-go criterion on two different gaps of them.")
+print("Lin et al., Nat. Commun. 15, 550 (2024), SM Sec. 3G: eight bands from four")
+print("spinful orbitals, and the no-go criterion on two gaps of the one Hamiltonian.")
+print("Bands are counted from 0, as pythtb counts them.")
 
-########### 1. the model, its two orbits and its total ###########
 
-print("\n1. the model, its two site orbits and its total band representation")
+def row(label, first, *rest):
+    """One line of the ledger, a label of at most 16 characters, then its continuation lines."""
+    print(f"   {label:<16} : {first}")
+    for line in rest:
+        print(f"{'':22}{line}")
+
+
+def values(theta):
+    return "(" + ", ".join(str(v) for v in theta) + ")"
+
+
+def moduli(theta_zn):
+    return ", ".join(f"mod {n} {values(theta)}" for n, theta in sorted(theta_zn.items()))
+
+
+def atomic_limits(d):
+    """The atomic limits of a band set, as a label and a value: the one sum of elementary
+    band representations with this content, how many sums there are, or none."""
+    if d.verdict == "none":
+        return "atomic limits", "none"
+    sums = d.solution_strings()
+    if len(sums) == 1:
+        return "atomic limit", sums[0]
+    return "atomic limits", f"{len(sums)} sums of elementary band representations"
+
+
+########### 1. the model, its two orbits and all eight bands ###########
+
+print("\n1. the model, its two site orbits and all eight bands")
 r = tqc.realized_group(lin3g(), typat=TYPAT, characters=DECLARE)
 model, group, assignment, validated, rep = r
 sites = tqc.wyckoff_sites_tables(group, assignment.site_positions)   # letter and multiplicity
@@ -76,87 +105,86 @@ for site in sites:
     label = f"{site.multiplicity}{site.letter}"
     if label not in letters:
         letters.append(label)
-print(f"   realized group    : #{group.number_str} {group.name}, orbitals at Wyckoff "
-      f"{' and '.join(letters)}, {model.nstate} bands")
+row("realized group", f"#{group.number_str} {group.name}, orbitals at Wyckoff "
+    f"{' and '.join(letters)}, {model.nstate} bands")
 
 tables = tqc.srsi_tables(group)
 m_srsi = tqc.srsi_of_model(r)
-print(m_srsi.summary())
-
-# the two orbits' momentum-space contents, side by side: the SRSIs above
-# separate them and the contents below do not
 first, second = m_srsi.orbits[0], m_srsi.orbits[1]
-head_first = f"the {first.multiplicity}{first.letter} orbit"
-head_second = f"the {second.multiplicity}{second.letter} orbit"
-print(f"   {head_first:<18}: {fmt(first.content)}")
-print(f"   {head_second:<18}: {fmt(second.content)}")
-print("                       — one content, told apart only by the mod 2 invariants above")
+row(f"the {first.multiplicity}{first.letter} orbit", fmt(first.content))
+row(f"the {second.multiplicity}{second.letter} orbit", fmt(second.content))
 
 t8 = tqc.hsp_table(rep, bands=8)
 d8 = tqc.decompose(t8, group, rep=rep)
-own = (" + ".join(f"{n} x {name}@{where}" for n, name, where in first.chosen["terms"])
-       + " + "
-       + " + ".join(f"{n} x {name}@{where}" for n, name, where in second.chosen["terms"]))
-index = list(d8.solution_strings()).index(own)   # the orbitals' own, among the solutions
-print(f"   all eight bands   : {fmt(t8.counts)}")
-print(f"   decompose         : {d8.verdict}, {len(d8.solutions)} solutions:")
-print("                       "
-      + ", ".join("+".join(where) for where in sorted(d8.positions)))
-print(f"   -> the orbitals' own localization, {'+'.join(d8.positions[index])}, "
-      "is one of the six: the eight")
-print("      bands are three elementary band representations at two Wyckoff")
-print("      positions, not one of the single-EBR splittings the supplement")
-print("      tabulates.  The invariants of all eight, H in the splittings below,")
-print("      are the model's own above: the whole Hilbert space is an atomic")
-print("      insulator.")
+own_terms = [" + ".join(f"{n} x {name}@{where}" for n, name, where in orbit.chosen["terms"])
+             for orbit in (first, second)]
+index = list(d8.solution_strings()).index(" + ".join(own_terms))   # the orbitals' own sum
+row("all 8 bands", fmt(t8.counts))
+row("atomic limits", f"{atomic_limits(d8)[1]}, at",
+    ", ".join("+".join(where) for where in sorted(d8.positions)))
+row("the model's own", f"{'+'.join(d8.positions[index])}, {own_terms[0]}",
+    f"+ {own_terms[1]}")
+row("srsi_of_model(r)", "the invariants of the model and of each site orbit")
+print(textwrap.indent(m_srsi.summary(), "   "))
+print("   the two orbits have one content and different Z2-valued invariants; the eight")
+print("   bands are three elementary band representations at two Wyckoff positions, an")
+print("   atomic insulator, not the one whose splittings the supplement tabulates")
 
-########### 2. bands 4 and 5: where the Z_n invariants come from ###########
+########### 2. bands 4 and 5: where the Z2-valued invariants come from ###########
 
-print("\n2. bands 4 and 5: the Z_n invariants come from the orbitals, not the bands")
+print("\n2. bands 4 and 5: the Z2-valued invariants come from the orbitals, not the bands")
 p2 = tqc.hsp_table(rep, bands=[4, 5])
 d2 = tqc.decompose(p2, group, rep=rep)
-print(f"   bands 4 and 5     : {fmt(p2.counts)}")
-print(f"   decompose         : {d2.verdict}, {d2.solution_strings()[0]}")
-print("                       (that verdict is about symmetry indicators, nothing finer)")
+row("bands 4 and 5", fmt(p2.counts))
+row(*atomic_limits(d2))
 
 b2 = tqc.srsi_of_bands(p2, group, rep=rep)
-# the band route solves BR.p = y over the rationals; the solution is one of
-# many, and the Z_n values differ across them where the Z-SRSIs do not
-solved = tables.theta_columns(list(b2.p))
-column = tables.theta_columns(list(d2.solutions[0]))
-print(f"   srsi_of_bands     : theta_Z = ({', '.join(str(v) for v in b2.theta_Z)}), "
-      "and no Z_n values at all")
-print(f"   the solved-back p : ({', '.join(str(v) for v in b2.p)}) over the EBR columns, "
-      "one rational")
-print(f"                       solution of BR.p = y: theta_Z = "
-      f"({', '.join(str(v) for v in solved[0])}), theta_Zn = {solved[1]}")
-print("   the 1b EBR column : the configuration decompose names above:")
-print(f"                       theta_Z = ({', '.join(str(v) for v in column[0])}), "
-      f"theta_Zn = {column[1]}")
-print("   -> the same Z-SRSIs, different Z2-SRSIs.  The Z_n invariants are not")
-print("      functions of the symmetry-data vector, so read them only for a")
-print("      configuration that is known: the model's own, an EBR column, or a")
-print("      decompose solution.")
+row("srsi_of_bands", f"Z-valued {values(b2.theta_Z)}, and no Z_n-valued invariants")
 
-########### 3. the six-band gap ###########
+
+def signed_sum(p):
+    """A vector over the group's elementary band representations, in the invariants' notation."""
+    parts = []
+    for m, (irrep, letter) in zip(p, tables.ebrs):
+        if m:
+            sign = "- " if m < 0 else ("+ " if parts else "")
+            parts.append(f"{sign}{abs(m)} ({irrep})_{letter}")
+    return " ".join(parts)
+
+
+# two vectors over the elementary band representations with this content: the
+# one atomic limit, and the rational vector the band route evaluates, one of
+# many with the same content
+column = tables.theta_columns(list(d2.solutions[0]))
+solved = tables.theta_columns(list(b2.p))
+row("the atomic limit", f"{signed_sum(d2.solutions[0])}, Z-valued {values(column[0])}, "
+    f"{moduli(column[1])}")
+row("a signed sum", f"{signed_sum(b2.p)}, Z-valued {values(solved[0])}, "
+    f"{moduli(solved[1])}")
+print("   the Z-valued invariants agree and the Z2-valued ones differ: the Z_n-valued")
+print("   invariants are not functions of the content, so a band set has them only through")
+print("   a set of orbitals known to carry it, the model's own or an atomic limit")
+
+########### 3. the gap between bands 5 and 6 ###########
 
 print("\n3. splitting(r, bands=6): the six occupied bands against the two above them")
 six = tqc.splitting(r, bands=6)
-print(six.summary())
-print("   -> bands 4 and 5 are among the six, and the obstruction their")
-print("      decomposition verdict could not see is this arithmetic.")
+print(textwrap.indent(six.summary(), "   "))
+print("   bands 4 and 5 are among the six: what their atomic limit in section 2 could not")
+print("   show, the Z2-valued invariants of the two sides of this gap do")
 
-########### 4. the four-band gap ###########
+########### 4. the gap between bands 3 and 4 ###########
 
 print("\n4. splitting(r, bands=4): the same model, the gap two bands lower")
 four = tqc.splitting(r, bands=4)
-print(four.summary())
-print("   -> the same Hamiltonian, the same total, one gap lower: the criterion")
-print("      diagnoses the gap that contains bands 4 and 5 and not the other.")
+print(textwrap.indent(four.summary(), "   "))
+print("   the same Hamiltonian and the same eight bands, one gap lower: the criterion")
+print("   diagnoses the gap between bands 5 and 6, whose valence side holds bands 4 and 5,")
+print("   and not the gap between bands 3 and 4")
 
 ########### 5. the two gaps and the eight bands along GM-X-M-GM ###########
 
-print("\n5. the eight bands along GM-X-M-GM, with the two splittings marked")
+print("\n5. the eight bands along GM-X-M-GM, with the two gaps marked")
 
 # The two gaps are measured on a fixed mesh, the same in quick mode, which thins
 # only the figure's path.
@@ -166,9 +194,9 @@ mesh = np.stack(np.meshgrid(np.linspace(0, 1, NK_MESH, endpoint=False),
 energies = np.asarray(model.solve_ham(mesh))
 gap4 = float(energies[:, 4].min() - energies[:, 3].max())
 gap6 = float(energies[:, 6].min() - energies[:, 5].max())
-print(f"   the two gaps      : over a {NK_MESH}x{NK_MESH} mesh, "
-      f"min E4 - max E3 = {gap4:.6f} and")
-print(f"                       min E6 - max E5 = {gap6:.6f} — both splittings are gapped")
+row("bands 3 and 4", f"gap {gap4:.6f} over a {NK_MESH}x{NK_MESH} mesh")
+row("bands 5 and 6", f"gap {gap6:.6f}")
+print("   both gaps are open")
 
 hsp = tqc.high_symmetry_points(group)
 path = [hsp["GM"], hsp["X"], hsp["M"], hsp["GM"]]

@@ -7,14 +7,17 @@
 # Run with python3, PythTB version 2.0 and pythtqc.
 
 # The calculations in this python file include
-# 1. delta = 1.0 with rashba on: the group, the content at GM, K and M, and the
-#    two decompositions
-# 2. delta = 2.5 with rashba on: the same four measurements
-# 3. delta = 0, rashba = 0: the same four measurements
-# 4. delta = 0, rashba = 0.25: the same four, and K level by level
-# 5. the conserved operator, read off H(k)
-# 6. what the lost operator does to the degeneracies at GM, M and K
-# 7. the deep atomic limit: delta = 50, the weight and the letter
+# 1. delta = 1.0 with rashba on: the group, the content at GM, K and M of the
+#    two occupied bands and of the two above them, the atomic limits of each,
+#    and the symmetry-indicator group
+# 2. delta = 2.5 with rashba on: the group, the two contents and their atomic
+#    limits
+# 3. delta = 0, rashba = 0: the same
+# 4. delta = 0, rashba = 0.25: the same, and the coreps at K level by level
+# 5. the conserved operators, read off H(k)
+# 6. what the lost operator does to the degeneracies at GM, K and M
+# 7. the deep atomic limit: delta = 50, the weight on each orbital and the
+#    Wyckoff position of the atomic limit
 # 8. the bands along GM-K-M-GM, one panel per regime, and the figure written out
 
 # The layer group this script sets aside -- the horizontal mirror, the inversion
@@ -40,8 +43,7 @@ from pythtqc import solve_at
 from pythtqc.utils import save_figure
 
 # Elementary band representations print as ρ↑G, the site irrep ρ induced to the
-# group, and a difference of them with a minus sign −; a Windows console cannot
-# print either by default, so the output is UTF-8.
+# group; a Windows console cannot print ↑ by default, so the output is UTF-8.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -78,6 +80,62 @@ os.makedirs(OUTDIR, exist_ok=True)
 
 print("Kane-Mele on the honeycomb, PRL 95, 226801 (2005): four bands, two occupied,")
 print("a staggered sublattice potential, spin-orbit coupling and a Rashba term.")
+print("Bands are counted from 0, as pythtb counts them.")
+
+
+def row(label, first, *rest):
+    """One line of the ledger, a label of at most 16 characters, then its continuation lines."""
+    print(f"   {label:<16} : {first}")
+    for line in rest:
+        print(f"{'':22}{line}")
+
+
+def listed(words):
+    """Words as a sentence lists them: a, b and c."""
+    words = [str(word) for word in words]
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
+
+
+def by_point(table):
+    """A band set's content at GM, K and M, each as format_counts writes it."""
+    return "   ".join(f"{p}: {fmt(table.content[p])}" for p in POINTS)
+
+
+
+
+def signed_sum(d):
+    """The shortest sum with negative multiplicities that carries the content, in lines."""
+    shortest = sorted({tuple(sorted(t)) for t in d.signed_combinations["terms"]},
+                      key=len)[0]
+    lines = []
+    for m, name, where in shortest:
+        term = f"{m} x {name}@{where}"
+        if not lines:
+            lines.append(term)
+        elif len(lines[-1]) + len(term) + 3 > 64:
+            lines.append(f"+ {term}")
+        else:
+            lines[-1] += f" + {term}"
+    return lines
+
+
+def limits(d, where=""):
+    """The atomic limits of a band set, or a signed sum where there are none."""
+    if d.verdict == "none":
+        row("atomic limits", "none")
+        row("a signed sum", *signed_sum(d))
+        return
+    sums = list(d.solution_strings())
+    sums[0] += f", {where}" if where else ""
+    row("atomic limit" if len(sums) == 1 else "atomic limits", *sums)
+
+
+def indicator(si):
+    """The symmetry-indicator class, as a label and a value, or that the group has none."""
+    if si.verdict == "trivial indicator group":
+        return "indicator group", "trivial"
+    return "indicator class", f"({', '.join(str(v) for v in si.values)}) in {si.structure}, order {si.order}"
+
 
 ########### 1. delta = 1.0, rashba = 0.25 ###########
 
@@ -88,10 +146,8 @@ out1 = tqc.realized_group(m1, typat=TYPAT, characters=DECLARE)
 model1, g1, asg1, val1, rep1 = out1
 sites1 = tqc.wyckoff_sites_tables(g1, asg1.site_positions)   # letter and multiplicity
 seats1 = list(dict.fromkeys(f"{s.multiplicity}{s.letter}" for s in sites1))
-print(f"   realized group   : #{g1.number_str} {g1.name}, orbitals at Wyckoff "
-      f"{' and '.join(seats1)}, {model1.nstate} bands")
-print("                      (measured from the Hamiltonian: the staggered potential")
-print("                      puts the two honeycomb sites on inequivalent positions)")
+row("realized group", f"#{g1.number_str} {g1.name}, orbitals at Wyckoff "
+    f"{' and '.join(seats1)}, {model1.nstate} bands")
 
 t_val1 = tqc.hsp_table(rep1, bands=(0, 1))
 t_con1 = tqc.hsp_table(rep1, bands=(2, 3))
@@ -102,24 +158,19 @@ d_con1 = tqc.decompose(t_con1, g1, rep=rep1)
 seat1 = d_val1.positions[0][0]
 where1 = ("a site an orbital sits on" if seat1 in seats1
           else "a position no orbital sits on")
-print("   valence content  : "
-      + "   ".join(f"{p}: {fmt(t_val1.content[p])}" for p in POINTS))
-print(f"      -> {d_val1.solution_strings()[0]}, {where1}")
+row("bands 0 and 1", by_point(t_val1))
+limits(d_val1, where1)
 
-# no EBR sum exists for the conduction pair; the signed combinations allow
-# negative multiplicities
-short1 = sorted({tuple(sorted(t)) for t in d_con1.signed_combinations["terms"]},
-                key=len)[0]
-terms1 = " ".join(f"{'+' if w > 0 else '−'}[{n}@{p.split('(')[0]}]"
-                  for w, n, p in short1)
-print("   conduction       : "
-      + "   ".join(f"{p}: {fmt(t_con1.content[p])}" for p in POINTS))
-print(f"      -> {d_con1.verdict}; as a difference {terms1}")
+# no sum of elementary band representations carries the content of bands 2 and
+# 3; the signed combinations allow negative multiplicities, and the shortest of
+# them is printed
+row("bands 2 and 3", by_point(t_con1))
+limits(d_con1)
 
 si_val1 = tqc.symmetry_indicator(t_val1, g1, rep=rep1)
-print(f"   indicator group  : X_BS(#{si_val1.number_str}) = {si_val1.structure}, "
-      "so these indicators do not distinguish")
-print(f"                      the valence pair from an atomic limit at {seat1}")
+row(*indicator(si_val1))
+print("   the staggered potential makes the two honeycomb sites inequivalent, and no")
+print(f"   symmetry indicator tells bands 0 and 1 from an atomic limit at {seat1}")
 
 ########### 2. delta = 2.5, rashba = 0.25 ###########
 
@@ -130,8 +181,8 @@ out2 = tqc.realized_group(m2, typat=TYPAT, characters=DECLARE)
 _m, g2, asg2, val2, rep2 = out2
 sites2 = tqc.wyckoff_sites_tables(g2, asg2.site_positions)
 seats2 = list(dict.fromkeys(f"{s.multiplicity}{s.letter}" for s in sites2))
-print(f"   realized group   : #{g2.number_str} {g2.name}, orbitals at Wyckoff "
-      f"{' and '.join(seats2)}")
+row("realized group", f"#{g2.number_str} {g2.name}, orbitals at Wyckoff "
+    f"{' and '.join(seats2)}")
 
 t_val2 = tqc.hsp_table(rep2, bands=(0, 1))
 t_con2 = tqc.hsp_table(rep2, bands=(2, 3))
@@ -141,15 +192,13 @@ d_con2 = tqc.decompose(t_con2, g2, rep=rep2)
 seat2 = d_val2.positions[0][0]
 where2 = ("a site an orbital sits on" if seat2 in seats2
           else "a position no orbital sits on")
-print("   valence content  : "
-      + "   ".join(f"{p}: {fmt(t_val2.content[p])}" for p in POINTS))
-print(f"      -> {d_val2.solution_strings()[0]}, {where2}")
-print("   conduction       : "
-      + "   ".join(f"{p}: {fmt(t_con2.content[p])}" for p in POINTS))
-print(f"      -> {d_con2.solution_strings()[0]}")
-print(f"   the group is #{g2.number_str} in both regimes and the valence pair's "
-      "position")
-print(f"   moves from {seat1} to {seat2} with the regime")
+row("bands 0 and 1", by_point(t_val2))
+limits(d_val2, where2)
+row("bands 2 and 3", by_point(t_con2))
+limits(d_con2)
+print(f"   the group is #{g2.number_str} in both regimes, and the Wyckoff position of "
+      "bands 0 and 1")
+print(f"   moves from {seat1} to {seat2}")
 
 ########### 3. delta = 0, rashba = 0 ###########
 
@@ -160,11 +209,8 @@ out3 = tqc.realized_group(m3, characters=DECLARE)     # one species: delta = 0
 _m, g3, asg3, val3, rep3 = out3
 sites3 = tqc.wyckoff_sites_tables(g3, asg3.site_positions)
 seats3 = list(dict.fromkeys(f"{s.multiplicity}{s.letter}" for s in sites3))
-print(f"   realized group   : #{g3.number_str} {g3.name}, orbitals at Wyckoff "
-      f"{' and '.join(seats3)}")
-print("                      (delta = 0 puts the two honeycomb sites on one orbit, and")
-print(f"                      the group is the one the staggered potential lowered to "
-      f"#{g1.number_str})")
+row("realized group", f"#{g3.number_str} {g3.name}, orbitals at Wyckoff "
+    f"{' and '.join(seats3)}")
 
 t_val3 = tqc.hsp_table(rep3, bands=(0, 1))
 t_con3 = tqc.hsp_table(rep3, bands=(2, 3))
@@ -174,16 +220,12 @@ d_con3 = tqc.decompose(t_con3, g3, rep=rep3)
 seat3 = d_val3.positions[0][0]
 where3 = ("a site an orbital sits on" if seat3 in seats3
           else "a position no orbital sits on")
-short3 = sorted({tuple(sorted(t)) for t in d_con3.signed_combinations["terms"]},
-                key=len)[0]
-terms3 = " ".join(f"{'+' if w > 0 else '−'}[{n}@{p.split('(')[0]}]"
-                  for w, n, p in short3)
-print("   valence content  : "
-      + "   ".join(f"{p}: {fmt(t_val3.content[p])}" for p in POINTS))
-print(f"      -> {d_val3.solution_strings()[0]}, {where3}")
-print("   conduction       : "
-      + "   ".join(f"{p}: {fmt(t_con3.content[p])}" for p in POINTS))
-print(f"      -> {d_con3.verdict}; as a difference {terms3}")
+row("bands 0 and 1", by_point(t_val3))
+limits(d_val3, where3)
+row("bands 2 and 3", by_point(t_con3))
+limits(d_con3)
+print("   at delta = 0 the two honeycomb sites are one orbit, and the staggered potential")
+print(f"   lowers this group to #{g1.number_str}")
 
 ########### 4. delta = 0, rashba = 0.25 ###########
 
@@ -194,26 +236,20 @@ out4 = tqc.realized_group(m4, characters=DECLARE)
 _m, g4, asg4, val4, rep4 = out4
 sites4 = tqc.wyckoff_sites_tables(g4, asg4.site_positions)
 seats4 = list(dict.fromkeys(f"{s.multiplicity}{s.letter}" for s in sites4))
-print(f"   realized group   : #{g4.number_str} {g4.name}, orbitals at Wyckoff "
-      f"{' and '.join(seats4)}")
+row("realized group", f"#{g4.number_str} {g4.name}, orbitals at Wyckoff "
+    f"{' and '.join(seats4)}")
 
 t_val4 = tqc.hsp_table(rep4, bands=(0, 1))
 t_con4 = tqc.hsp_table(rep4, bands=(2, 3))
 d_val4 = tqc.decompose(t_val4, g4, rep=rep4)
 d_con4 = tqc.decompose(t_con4, g4, rep=rep4)
 
-short4 = sorted({tuple(sorted(t)) for t in d_con4.signed_combinations["terms"]},
-                key=len)[0]
-terms4 = " ".join(f"{'+' if w > 0 else '−'}[{n}@{p.split('(')[0]}]"
-                  for w, n, p in short4)
-print("   valence content  : "
-      + "   ".join(f"{p}: {fmt(t_val4.content[p])}" for p in POINTS))
-print(f"      -> {d_val4.solution_strings()[0]}")
-print("   conduction       : "
-      + "   ".join(f"{p}: {fmt(t_con4.content[p])}" for p in POINTS))
-print(f"      -> {d_con4.verdict}; as a difference {terms4}")
+row("bands 0 and 1", by_point(t_val4))
+limits(d_val4)
+row("bands 2 and 3", by_point(t_con4))
+limits(d_con4)
 
-# ... and at K level by level: multiplets groups the energies into degenerate
+# the coreps at K level by level: multiplets groups the energies into degenerate
 # levels, and corep_content names the corep of each whole level.
 hsp4 = tqc.high_symmetry_points(g4)
 states_k4 = solve_at(m4, hsp4["K"])
@@ -224,93 +260,84 @@ for multiplet in multiplets_k4:
     content = tqc.corep_content(rep4, hsp4["K"], states=states_k4, bands=list(multiplet))
     levels_k4.append((content, float(np.mean(energies_k4[list(multiplet)])),
                       len(multiplet)))
-print("   K level by level : "
-      + "   ".join(f"{fmt(c.counts)} @ {e:+.6f} (dim {n})"
-                   for c, e, n in levels_k4[:2]))
-print("                      "
-      + "   ".join(f"{fmt(c.counts)} @ {e:+.6f} (dim {n})"
-                   for c, e, n in levels_k4[2:]))
+row("coreps at K", *(f"{fmt(c.counts)} at E = {e:+.6f}, dimension {n}"
+                     for c, e, n in levels_k4))
 
-########### 5. the conserved operator, read off H(k) ###########
+########### 5. the conserved operators, read off H(k) ###########
 
-print(f"\n5. the conserved operator, read off H(k) on a {NK_MESH}x{NK_MESH} mesh "
+print(f"\n5. the conserved operators, read off H(k) on a {NK_MESH}x{NK_MESH} mesh "
       "of in-plane k")
 
 # realized_group tests each operation g on H(k) over its 6 x 6 mesh, solving
 # X H(k) = H(gk) X at every k at once.  For the identity that is X H(k) = H(k) X,
-# whose solutions are the commutant of the Hamiltonian, and conserved["dim"]
-# counts them beyond the identity; the call is told nothing about spin.  The
-# lines below say which operator it is: s_z commutes with H(k) at every k.
+# whose solutions are the operators the Hamiltonian conserves, and
+# conserved["dim"] counts them beyond the identity; the call is told nothing
+# about spin.  The commutator with s_z says which operator it is.
 kx = np.arange(NK_MESH) / NK_MESH
 ks = np.stack(np.meshgrid(kx, kx, indexing="ij"), -1).reshape(-1, 2)
 sz = np.kron(np.eye(2), np.diag([1.0, -1.0]))       # s_z on the four basis states
 
-print(f"   delta 0, rashba 0     : the commutant of H(k) is the identity and "
-      f"{out3.conserved['dim']} more")
 h3 = np.asarray(m3.hamiltonian(k_pts=ks, flatten_spin_axis=True))
 comm3 = float(np.abs(sz @ h3 - h3 @ sz).max())
-print("                           operator, and s_z commutes with H(k) at every k,")
-print(f"                           max |[s_z, H(k)]| = {comm3:.6f}: that operator is s_z")
-
 h4 = np.asarray(m4.hamiltonian(k_pts=ks, flatten_spin_axis=True))
 comm4 = float(np.abs(sz @ h4 - h4 @ sz).max())
-print("   delta 0, rashba 0.25  : the commutant is the identity and "
-      f"{out4.conserved['dim']} more,")
-print(f"                           the Rashba term mixing the spins: "
-      f"max |[s_z, H(k)]| = {comm4:.6f}")
-
-print("   delta 1.0, rashba 0.25: the commutant is the identity and "
-      f"{out1.conserved['dim']} more")
+row("delta, rashba", f"{'beyond the identity':<22}max |[s_z, H(k)]|")
+row("0, 0", f"{out3.conserved['dim']:<22}{comm3:.6f}")
+row("0, 0.25", f"{out4.conserved['dim']:<22}{comm4:.6f}")
+row("1.0, 0.25", f"{out1.conserved['dim']:<22}not measured")
+print("   at rashba = 0 the one conserved operator beyond the identity is s_z, whose")
+print("   conservation the Rashba term breaks")
 
 ########### 6. what the lost operator does to the degeneracies ###########
 
 print("\n6. what the lost operator does to the degeneracies")
-print(f"   the group is #{g3.number_str} at both rashba values and the content "
-      "above is the same")
-print("   entry for entry; what differs is the commutant")
 
+# the dimensions of the levels at each point, from the bottom, without and with
+# the Rashba term
 shapes = []
 for point in POINTS:
     e_off = np.asarray(solve_at(m3, hsp4[point])[0], dtype=float).reshape(-1)
     e_on = np.asarray(solve_at(m4, hsp4[point])[0], dtype=float).reshape(-1)
     off = tuple(len(b) for b in tqc.multiplets(e_off, degeneracy_tol=1e-6))
     on = tuple(len(b) for b in tqc.multiplets(e_on, degeneracy_tol=1e-6))
-    shapes.append(f"{point} {off} -> {on}")
-print("   multiplets       : " + "   ".join(shapes))
-print("                      at rashba = 0 and at rashba = 0.25")
+    shapes.append((point, " + ".join(str(n) for n in off),
+                   " + ".join(str(n) for n in on)))
+width = max(len(off) for _point, off, _on in shapes) + 3
+row("rashba", f"{'0':<{width}}0.25")
+for point, off, on in shapes:
+    row(f"levels at {point}", f"{off:<{width}}{on}")
 
-# the two levels the conduction pair splits into, character row by character row;
-# every character of either level here is real or purely imaginary.
+# the two levels bands 2 and 3 split into at K, character row by character row;
+# every character of either level here is real or purely imaginary.  The tables
+# attach these labels to -k, so an operation taking k to -k interchanges the two
+# names; the characters are what is measured.
 (c_lo, e_lo, n_lo), (c_mid, e_mid, _n2), (c_hi, e_hi, _n3) = levels_k4
 chi_mid = np.asarray(c_mid.table.characters).ravel()
 chi_hi = np.asarray(c_hi.table.characters).ravel()
-row_mid = ", ".join(f"{z.real:+.0f}" if abs(z.imag) < 1e-9 else
-                    (f"{z.imag:+.0f}i" if abs(z.real) < 1e-9 else f"{z:+.3f}")
-                    for z in chi_mid)
-row_hi = ", ".join(f"{z.real:+.0f}" if abs(z.imag) < 1e-9 else
-                   (f"{z.imag:+.0f}i" if abs(z.real) < 1e-9 else f"{z:+.3f}")
-                   for z in chi_hi)
-print("   the two levels K splits into, over the operations "
-      f"({', '.join(out4.operations[i].name for i in c_mid.table.columns)}):")
-print(f"      {fmt(c_mid.counts)} @ {e_mid:+.6f} : ({row_mid})")
-print(f"      {fmt(c_hi.counts)} @ {e_hi:+.6f} : ({row_hi})")
-print("      one row is the conjugate of the other: two distinct one-dimensional")
-print("      coreps, so the little group holds neither of them to the other, and what")
-print("      held them together at rashba = 0 was s_z")
-print("      (BCS's labels attach to -k, so an operation taking k to -k interchanges")
-print("      the two names; the characters are the observable)")
-print(f"   {fmt(c_lo.counts)} is a corep of dimension {n_lo} and stays one level "
-      "whatever the commutant does")
+row_mid = [f"{z.real:+.0f}" if abs(z.imag) < 1e-9 else
+           (f"{z.imag:+.0f}i" if abs(z.real) < 1e-9 else f"{z:+.3f}")
+           for z in chi_mid]
+row_hi = [f"{z.real:+.0f}" if abs(z.imag) < 1e-9 else
+          (f"{z.imag:+.0f}i" if abs(z.real) < 1e-9 else f"{z:+.3f}")
+          for z in chi_hi]
+names = [out4.operations[i].name for i in c_mid.table.columns]
+widths = [max(len(a), len(b), len(c)) for a, b, c in zip(names, row_mid, row_hi)]
+for label, cells in (("operations at K", names), (fmt(c_mid.counts), row_mid),
+                     (fmt(c_hi.counts), row_hi)):
+    row(label, "   ".join(f"{cell:<{w}}" for cell, w in zip(cells, widths)).rstrip())
 
 splits = []
 for rashba in RASHBA_SWEEP:
     e = np.asarray(solve_at(kane_mele(0.0, T, SOC, rashba), hsp4["K"])[0],
                    dtype=float).reshape(-1)
     splits.append((rashba, float(e[3] - e[2])))
-print("   the splitting    : rashba "
-      + ", ".join(f"{r} -> {s:.6f}" for r, s in splits))
-print("                      split / rashba = "
-      + " / ".join(f"{s / r:.6f}" for r, s in splits))
+row("bands 2 and 3", f"split at K by {listed(f'{s:.6f}' for _r, s in splits)}",
+    f"at rashba = {listed(rashba for rashba, _s in splits)}")
+row("split / rashba", listed(f"{s / r:.6f}" for r, s in splits))
+print(f"   the {fmt(c_mid.counts)} and {fmt(c_hi.counts)} rows are complex conjugates, "
+      "two distinct one-dimensional coreps")
+print(f"   that s_z holds together at rashba = 0, while {fmt(c_lo.counts)}, of dimension "
+      f"{n_lo}, stays one level")
 
 ########### 7. the deep atomic limit ###########
 
@@ -319,7 +346,7 @@ deep = kane_mele(50.0, T, SOC, 0.25)       # the even regime, delta driven to 50
 _e, vectors = deep.solve_ham(k_pts=deep.k_uniform_mesh([12, 12]), return_eigvecs=True,
                              flatten_spin_axis=False)
 weight = (np.abs(vectors[:, :2]) ** 2).sum(axis=(0, 1, -1))
-weight = weight / weight.sum()             # the valence pair's weight per orbital
+weight = weight / weight.sum()             # the weight of bands 0 and 1 per orbital
 
 out_deep = tqc.realized_group(deep, typat=TYPAT, characters=DECLARE)
 _m, g_deep, asg_deep, _v, rep_deep = out_deep
@@ -329,12 +356,12 @@ d_deep = tqc.decompose(t_deep, g_deep, rep=rep_deep)
 # the assignment's site_of_orbital names the site each orbital sits on
 heavy = sites_deep[int(asg_deep.site_of_orbital[int(np.argmax(weight))])]
 light = sites_deep[int(asg_deep.site_of_orbital[int(np.argmin(weight))])]
-print(f"   the valence pair carries {100 * weight.max():.2f} % of its weight on the "
-      f"orbital at Wyckoff {heavy.multiplicity}{heavy.letter},")
-print(f"   {100 * weight.min():.2f} % on the one at "
-      f"{light.multiplicity}{light.letter}")
-print(f"   decompose        : {d_deep.solution_strings()[0]} — the site the "
-      "electrons are on")
+row("bands 0 and 1", by_point(t_deep))
+limits(d_deep)
+row("orbital weight", f"{100 * weight.max():.2f} % on the orbital at Wyckoff "
+    f"{heavy.multiplicity}{heavy.letter}, {100 * weight.min():.2f} % on the one at "
+    f"{light.multiplicity}{light.letter}")
+print("   the atomic limit of bands 0 and 1 sits on the orbital that carries their weight")
 
 ########### 8. the bands along GM-K-M-GM ###########
 

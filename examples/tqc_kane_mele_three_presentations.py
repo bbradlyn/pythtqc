@@ -13,15 +13,16 @@
 # Run with python3, PythTB version 2.0 and pythtqc.
 
 # The calculations in this python file include
-# A. the layer in the plane, declared free-standing: the group, the valence
-#    content, the EBR rows a plane has no coordinate for, and the class
+# A. the layer in the plane, declared free-standing: the group, the site irrep,
+#    the content of the two occupied bands, the coreps at k_z = 1/2 a plane has
+#    no coordinate for, and the symmetry-indicator class
 # B. the same layer with the physical p_z declared: the content and the class
 #    again, the inversion the layer group carries, and the Rashba control that
 #    breaks the mirror
 # C. the layer as a periodic decoupled stack: a 3D crystal with no k_z, its six
 #    k-points measured directly, and the class asked of it straight
-# D. the three classes side by side, what is invariant and what is
-#    convention-relative, and the four-band atomic-limit control
+# D. the three classes side by side, what is invariant and what moves with the
+#    declared site irrep, and all four bands as the atomic-limit control
 # E. the bands: the layer, and the stack at k_z = 0 and k_z = 1/2
 
 # Author: the pythtqc examples
@@ -41,8 +42,8 @@ import pythtqc as tqc
 from pythtqc import format_counts as fmt
 from pythtqc.utils import save_figure
 
-# The tables name some forms of the indicator with π (z3m,π); a Windows console
-# cannot print π by default, so the output is UTF-8.
+# The tables name some indicators with π (z3m,π); a Windows console cannot print
+# π by default, so the output is UTF-8.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -77,7 +78,39 @@ os.makedirs(OUTDIR, exist_ok=True)
 layer = kane_mele(DELTA, T, SOC, RASHBA)
 
 print("Kane-Mele on the honeycomb at delta = 0 and rashba = 0, PRL 95, 226801 (2005):")
-print("one monolayer, whose horizontal mirror is unbroken, asked three ways.")
+print("one monolayer with four bands, two occupied, and an unbroken horizontal mirror,")
+print("asked three ways.")
+print("Bands are counted from 0, as pythtb counts them.")
+
+
+def row(label, first, *rest):
+    """One line of the ledger, a label of at most 16 characters, then its continuation lines."""
+    print(f"   {label:<16} : {first}")
+    for line in rest:
+        print(f"{'':22}{line}")
+
+
+def listed(words):
+    """Words as a sentence lists them: a, b and c."""
+    words = [str(word) for word in words]
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
+
+
+def values(theta):
+    return "(" + ", ".join(str(v) for v in theta) + ")"
+
+
+def by_point(table, points):
+    """A band set's content at each point, as format_counts writes it."""
+    return "   ".join(f"{p}: {fmt(table.content[p])}" for p in points)
+
+
+def indicator(si):
+    """The symmetry-indicator class, as a label and a value, or that the group has none."""
+    if si.verdict == "trivial indicator group":
+        return "indicator group", "trivial"
+    return "indicator class", f"{values(si.values)} in {si.structure}, order {si.order}"
+
 
 ########### A. the layer in the plane ###########
 
@@ -86,31 +119,26 @@ print("\nA. the layer in the plane, declared free-standing")
 out_a = tqc.realized_group(layer, characters={0: "s"}, environment="free-standing")
 model_a, g_a, asg_a, val_a, rep_a = out_a
 sites_a = tqc.wyckoff_sites_tables(g_a, asg_a.site_positions)   # letter, multiplicity
-print(f"   realized group   : #{g_a.number_str} {g_a.name}, {model_a.nstate} bands, "
-      f"orbitals at Wyckoff {sites_a[0].multiplicity}{sites_a[0].letter}")
-print(f"                      carrying the site irrep {rep_a.characters.irreps[0]}")
-print("                      (free-standing is a declaration: a flat model has no "
-      "third")
-print("                      coordinate, and a layer on a substrate has no mirror "
-      "in z)")
+row("realized group", f"#{g_a.number_str} {g_a.name}, {model_a.nstate} bands, "
+    f"orbitals at Wyckoff {sites_a[0].multiplicity}{sites_a[0].letter}")
+row("site irrep", f"{rep_a.characters.irreps[0]}, of the declared s orbital")
 
-table_a = tqc.hsp_table(rep_a, bands=2)          # the valence pair's content
-print("   valence content  : "
-      + "   ".join(f"{p}: {fmt(table_a.content[p])}" for p in POINTS))
+table_a = tqc.hsp_table(rep_a, bands=2)          # the content of bands 0 and 1
+row("bands 0 and 1", by_point(table_a, POINTS))
 
-# #191.234's EBR basis carries rows at k_z = 1/2, which a plane has no coordinate
-# for; given the representation, symmetry_indicator measures them on the layer's
-# own decoupled stack.  in_plane_restriction names those rows, in .dropped,
-# whether or not each repeats a row in the plane.
+# The elementary band representations of #191.234 have coreps at k_z = 1/2,
+# which a plane has no coordinate for; given the representation,
+# symmetry_indicator measures them on the layer's own decoupled stack.
+# in_plane_restriction lists those coreps in .dropped, whether or not each
+# repeats one in the plane.
 rest = tqc.in_plane_restriction(g_a, require_exact=False)
-print(f"   the EBR rows     : the class of a layer needs the {len(rest.dropped)} "
-      f"k_z = 1/2 rows the plane")
-print("                      has no coordinate for; they are measured on the layer's "
-      "own stack")
+row("out of the plane", f"{len(rest.dropped)} coreps at k_z = 1/2, measured on the "
+    "layer's own stack")
 
 si_a = tqc.symmetry_indicator(table_a, g_a, rep=rep_a)
-print(f"   class            : {si_a.values}, order {si_a.order} in "
-      f"X_BS(#{si_a.number_str}) = {si_a.structure}")
+row(*indicator(si_a))
+print("   free-standing is a declaration: a flat model has no third coordinate, and a")
+print("   layer on a substrate has no mirror in z")
 
 ########### B. the same layer, with the physical p_z declared ###########
 
@@ -123,21 +151,16 @@ full = tqc.realized_group(layer, environment="free-standing", characters={0: "pz
 _mf, g191, asg191, val191, rep191 = full
 sites_b = tqc.wyckoff_sites_tables(g191, asg191.site_positions)
 mz = rep191.characters.orbitals[0].generator_character["m(z)"].real
-print(f"   realized group   : #{g191.number_str} {g191.name}, orbitals at Wyckoff "
-      f"{sites_b[0].multiplicity}{sites_b[0].letter}")
-print(f"                      carrying the site irrep {rep191.characters.irreps[0]}")
-print("                      (the declared p_z is odd under the mirror, "
-      f"m(z) = {mz:+.0f}, and")
-print(f"                      an even s orbital lifts to "
-      f"{rep_a.characters.irreps[0]} instead)")
+row("realized group", f"#{g191.number_str} {g191.name}, orbitals at Wyckoff "
+    f"{sites_b[0].multiplicity}{sites_b[0].letter}")
+row("site irrep", f"{rep191.characters.irreps[0]}, of the declared p_z, odd under the "
+    f"mirror: m(z) = {mz:+.0f}")
 
 table_b = tqc.hsp_table(rep191, bands=2)
-print("   valence content  : "
-      + "   ".join(f"{p}: {fmt(table_b.content[p])}" for p in POINTS))
+row("bands 0 and 1", by_point(table_b, POINTS))
 
 si_b = tqc.symmetry_indicator(table_b, g191, rep=rep191)
-print(f"   class            : {si_b.values}, order {si_b.order} in "
-      f"X_BS(#{si_b.number_str}) = {si_b.structure}")
+row(*indicator(si_b))
 
 # The three operations compared below, each named by its Seitz symbol in the
 # tables' setting: the inversion, the twofold rotation about z and the mirror
@@ -157,21 +180,13 @@ squares = h_sq if h_sq == c_sq else f"{h_sq} and {c_sq}"
 # assignment's permutations[k] the site each site is carried to by the k-th of them
 position = [int(s.ind) for s in g191.symmetries].index(p_ind)
 perm_p = np.asarray(asg191.permutations[position]).tolist()
-print(f"   inversion        : #{g191.number_str} has r -> -r, the product of the mirror "
-      f"m(z) and the")
-print(f"                      twofold rotation C2z; its spinor lift squares to {p_sq}, "
-      f"so its")
-print("                      eigenvalues are +-1 and a parity count exists, while the "
-      "lifts of")
-print(f"                      m(z) and C2z square to {squares} with eigenvalues +-i.")
-print("                      C2z acts on in-plane k as inversion does but is a "
-      "rotation: this")
-print("                      inversion is the layer group's and needs the third "
-      "direction.")
-print("                      It exchanges the two honeycomb sites: "
-      + ", ".join(f"site {i} -> {j}" for i, j in enumerate(perm_p)) + ".")
+row("inversion", "r to -r, the product of the mirror m(z) and the rotation C2z,",
+    "taking " + listed(f"site {i} to {j}" for i, j in enumerate(perm_p)))
+row("spinor squares", f"{p_sq} for the inversion, so eigenvalues +-1; {squares} for m(z) "
+    "and C2z,", "so eigenvalues +-i")
 
-# The control: a Rashba term breaks sigma_h, and the same call measures what is left.
+# The control: a Rashba term breaks sigma_h, and the same call measures what is
+# left.  R_zz is the zz entry of an operation's rotation.
 broken = kane_mele(DELTA, T, SOC, RASHBA_BROKEN)
 down = tqc.realized_group(broken, environment="free-standing", characters={0: "pz"})
 _mb, g_down, _ab, _vb, rep_down = down
@@ -180,15 +195,13 @@ r22_down = sorted({int(np.rint(np.asarray(s.rotation)[2, 2]))
                    for s in g_down.symmetries})
 table_down = tqc.hsp_table(rep_down, bands=2)
 si_down = tqc.symmetry_indicator(table_down, g_down, rep=rep_down)
-print(f"   rashba = {RASHBA_BROKEN}    : the same call measures #{g_down.number_str} "
-      f"{g_down.name}, a subgroup of index {g191.size // g_down.size}.")
-print(f"                      #{g191.number_str} has operations with R[2,2] = "
-      + " and ".join(f"{v:+d}" for v in r22_full) + "; what the Rashba")
-print("                      term leaves has only R[2,2] = "
-      + " and ".join(f"{v:+d}" for v in r22_down)
-      + " -- the mirror and everything")
-print("                      composed with it is gone, and "
-      f"X_BS(#{si_down.number_str}) = {si_down.structure}")
+row(f"rashba = {RASHBA_BROKEN}", f"#{g_down.number_str} {g_down.name}, a subgroup of "
+    f"index {g191.size // g_down.size};", f"{indicator(si_down)[0]}: {indicator(si_down)[1]}")
+row("operations' R_zz", f"{listed(f'{v:+d}' for v in r22_full)} at rashba = {RASHBA:g}, "
+    f"only {listed(f'{v:+d}' for v in r22_down)} at rashba = {RASHBA_BROKEN}:",
+    "the mirror and every operation composed with it are gone")
+print("   C2z acts on in-plane k as inversion does but is a rotation: the inversion, with")
+print("   its parity eigenvalues, is the layer group's and needs the third direction")
 
 ########### C. the layer as a periodic decoupled stack ###########
 
@@ -196,11 +209,11 @@ print("\nC. the layer as a periodic decoupled stack")
 
 # stack_presentation repeats the layer along its normal with no hopping across the
 # gap: three periodic directions, no vacuum, and an H(k, k_z) that does not depend
-# on k_z at all.  That last property is what makes a 3D EBR basis' k_z = 1/2 rows
-# measurable on a monolayer.
+# on k_z at all.  That last property makes the coreps at k_z = 1/2 of a 3D group's
+# elementary band representations measurable on a monolayer.
 stack = tqc.stack_presentation(layer)
-print(f"   the stack        : {len(stack.periodic_dirs)} periodic directions and no "
-      f"vacuum, period c = {np.asarray(stack.lat_vecs)[2, 2]:g}")
+row("the stack", f"{len(stack.periodic_dirs)} periodic directions and no vacuum, "
+    f"period c = {np.asarray(stack.lat_vecs)[2, 2]:g}")
 
 # the stack's H(k, k_z) against the layer's H(k), at six random in-plane k and
 # three values of k_z
@@ -212,76 +225,61 @@ for kz in KZ:
     k3 = np.concatenate([kk, np.full((len(kk), 1), kz)], axis=1)
     h3d = np.asarray(stack.hamiltonian(k_pts=k3, flatten_spin_axis=True))
     worst = max(worst, float(np.abs(h2d - h3d).max()))
-print("   no k_z           : the stack's H(k, k_z) equals the layer's H(k) at k_z = "
-      + ", ".join(f"{kz:g}" for kz in KZ) + ",")
-print(f"                      max |H(k, k_z) - H(k)| = {worst:.6f} over {len(kk)} "
-      "random in-plane k")
+row("H(k, k_z) - H(k)", f"{worst:.6f} in its largest entry, over {len(kk)} random "
+    "in-plane k", f"and k_z = {listed(f'{kz:g}' for kz in KZ)}")
 
 piled = tqc.realized_group(stack, characters={0: "pz"})
 _ms, g_stack, asg_stack, val_stack, rep_stack = piled
 sites_c = tqc.wyckoff_sites_tables(g_stack, asg_stack.site_positions)
 hsp_stack = tqc.high_symmetry_points(g_stack)
-print(f"   realized group   : #{g_stack.number_str} {g_stack.name}, orbitals at "
-      f"Wyckoff {sites_c[0].multiplicity}{sites_c[0].letter}, k-points "
-      + " ".join(sorted(hsp_stack)))
+row("realized group", f"#{g_stack.number_str} {g_stack.name}, orbitals at Wyckoff "
+    f"{sites_c[0].multiplicity}{sites_c[0].letter}, k-points "
+    + " ".join(sorted(hsp_stack)))
 
 six = tqc.hsp_table(rep_stack, bands=2)      # all six points, measured directly
-print("   six-point content: "
-      + "   ".join(f"{p}: {fmt(six.content[p])}" for p in STACK_POINTS))
+row("bands 0 and 1", by_point(six, STACK_POINTS))
 
 si_c = tqc.symmetry_indicator(six, g_stack, rep=rep_stack)
-print(f"   class            : {si_c.values}, order {si_c.order} in "
-      f"X_BS(#{si_c.number_str}) = {si_c.structure}")
+row(*indicator(si_c))
 
 ########### D. the three classes side by side ###########
 
 print("\nD. the three classes side by side")
-print(f"   A. the plane, s          : "
-      f"#{si_a.number_str}, {si_a.structure}, class {si_a.values}, "
-      f"order {si_a.order}")
-print(f"   B. the plane, p_z        : "
-      f"#{si_b.number_str}, {si_b.structure}, class {si_b.values}, "
-      f"order {si_b.order}")
-print(f"   C. the stack, p_z        : "
-      f"#{si_c.number_str}, {si_c.structure}, class {si_c.values}, "
-      f"order {si_c.order}")
-print(f"   the invariant part: order {si_a.order}/{si_b.order}/{si_c.order}, "
-      f"z2w,3 = {si_a.irreptables_named['z2w,3']}/{si_b.irreptables_named['z2w,3']}"
-      f"/{si_c.irreptables_named['z2w,3']}, "
-      f"z4 = {si_a.irreptables_named['z4']}/{si_b.irreptables_named['z4']}"
-      f"/{si_c.irreptables_named['z4']}")
-print("   B and C are one crystal presented two ways and their classes agree entry "
-      "for")
-print("   entry; A and B differ in the declared site character alone, and that moves")
-print("   the component values and not the invariant part")
+
+# one row per presentation, each column as wide as its widest entry
+lines = [("presentation", ("group", "indicator group", "class", "order", "z2w,3", "z4"))]
+for name, si in (("the plane, s", si_a), ("the plane, p_z", si_b),
+                 ("the stack, p_z", si_c)):
+    named = si.irreptables_named
+    lines.append((name, (f"#{si.number_str}", si.structure, values(si.values),
+                         str(si.order), str(named["z2w,3"]), str(named["z4"]))))
+widths = [max(len(cells[j]) for _name, cells in lines) for j in range(len(lines[0][1]))]
+for name, cells in lines:
+    row(name, "   ".join(f"{cell:<{w}}" for cell, w in zip(cells, widths)).rstrip())
 
 forms = list(si_b.irreptables_named.items())
-print("   irreptables forms : "
-      + ", ".join(f"{k} = {v}" for k, v in forms[:4]) + ",")
-print("                       "
-      + ", ".join(f"{k} = {v}" for k, v in forms[4:]))
+row("named indicators", "of the p_z class, "
+    + ", ".join(f"{k} = {v}" for k, v in forms[:4]) + ",",
+    ", ".join(f"{k} = {v}" for k, v in forms[4:]))
 
 support = si_b.two_dimensional["irreptables_support"]
 only = [n for n, s in support.items() if s == "out-of-plane only"]
 part = [n for n, s in support.items() if s == "mixed"]
-print(f"   out of the plane  : {', '.join(only)} read only the k_z = 1/2 rows, and")
-print(f"                       {', '.join(part)} both planes.  Those rows repeat the "
-      "in-plane ones,")
-print("                       so the class is the class of the layer's decoupled stack,")
-print("                       and every form is an invariant of that stack, fixed by")
-print("                       the layer's own content")
+row("out of the plane", f"{listed(only)} read only the coreps at k_z = 1/2,",
+    f"{listed(part)} those of both planes")
 
-# the four bands together: the orbitals' own band representation, an atomic limit
+# all four bands together: the orbitals' own band representation, an atomic limit
 # by construction, and the control that says the class above is half-filling physics
 table_all = tqc.hsp_table(rep_stack, bands=4)
 whole = tqc.symmetry_indicator(table_all, g_stack, rep=rep_stack)
-print("   the control       : the four bands together are the band representation "
-      "of the")
-print(f"                       orbitals at "
-      f"{sites_c[0].multiplicity}{sites_c[0].letter}, an atomic limit by "
-      "construction, and their")
-print(f"                       class is {whole.values}, every irreptables form "
-      + ", ".join(str(v) for v in sorted(set(whole.irreptables_named.values()))))
+row("all 4 bands", "the band representation of the orbitals at "
+    f"{sites_c[0].multiplicity}{sites_c[0].letter}, an atomic limit")
+row(indicator(whole)[0], f"{indicator(whole)[1]}, every named indicator "
+    + ", ".join(str(v) for v in sorted(set(whole.irreptables_named.values()))))
+print(f"   the stack and the plane with p_z have one class, {values(si_c.values)}; "
+      "declaring s instead")
+print(f"   moves it to {values(si_a.values)} and leaves its order, z2w,3 and z4 as "
+      "they are")
 
 ########### E. the bands ###########
 

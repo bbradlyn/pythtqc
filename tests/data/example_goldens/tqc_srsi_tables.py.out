@@ -1,69 +1,86 @@
-The SRSI tables of https://doi.org/10.1038/s41467-026-74844-w.
+The tables of stable real-space invariants (SRSIs) of
+https://doi.org/10.1038/s41467-026-74844-w, read with no model.
 
 1. srsi_tables(211, spinor=False): one group's tables, end to end
-   the tables       : #211.57, 10 SRSI rows over 29 site keys and 17 EBR columns, 0 tabulated indicators, 6 symmetry-indicated split EBRs
+   the tables       : #211.57, 10 SRSIs on 29 site irreps and 17 elementary band
+                      representations, 0 symmetry indicators, and 6 splittings of an
+                      elementary band representation that the indicators allow
    the SRSI group   : Z x Z x Z x Z x Z x Z x Z x Z2 x Z2 x Z2
-   the basis        : 29 site keys, 17 of them at maximal positions, 17 with an EBR column
-   with a column    : (A1)_a, (A1)_b, (A1)_c, (A1)_d, (A2)_a, (A2)_b, (A2)_c, (B1)_b, (B1)_d, (B2)_b, (B2)_d, (B3)_d, (E)_a, (E)_b, (E)_c, (T1)_a, (T2)_a
-   without one      : (1E2E)_e, (1E2E)_f, (A)_e, (A)_g, (A)_h, (A)_i, (A)_j, (A1)_f, (B)_e, (B)_g, (B)_h, (B)_i
-   the band count   : nu = 1*theta_1 + 1*theta_2 + 2*theta_3 + 3*theta_4 + 3*theta_5 + 3*theta_6 + 4*theta_7
-                      (a stable invariant itself, and what bounds the
-                      enumeration of atomic realizations)
+   the basis        : 29 site irreps at Wyckoff positions, 17 of them at maximal ones,
+                      17 inducing an elementary band representation
+   inducing one     : (A1)_a, (A1)_b, (A1)_c, (A1)_d, (A2)_a, (A2)_b, (A2)_c, (B1)_b,
+                      (B1)_d, (B2)_b, (B2)_d, (B3)_d, (E)_a, (E)_b, (E)_c, (T1)_a,
+                      (T2)_a
+   inducing none    : (1E2E)_e, (1E2E)_f, (A)_e, (A)_g, (A)_h, (A)_i, (A)_j, (A1)_f,
+                      (B)_e, (B)_g, (B)_h, (B)_i
+   the band count   : nu = 1 theta_1 + 1 theta_2 + 2 theta_3 + 3 theta_4 + 3 theta_5
+                      + 3 theta_6 + 4 theta_7
+   the band count is itself an SRSI, and bounds the enumeration of atomic realizations
 
 2. two site irreps at one position the invariants do not distinguish
-   (B2) at d        : theta_Z = (1, 0, 1, 1, 1, -1, 0)   theta_Zn = {2: (0, 0, 1)}
-   (B3) at d        : theta_Z = (1, 0, 1, 1, 1, -1, 0)   theta_Zn = {2: (0, 0, 1)}
-   the pair         : B2 / B3 at Wyckoff d, the EBRs B2↑G(6) and B3↑G(6)
-   both members induce the same symmetry-data vector and carry identical
-   SRSIs, so neither a momentum-space nor a real-space measurement
-   separates them.
+   1 (B2)_d         : Z-valued (1, 0, 1, 1, 1, -1, 0), mod 2 (0, 0, 1)
+   1 (B3)_d         : Z-valued (1, 0, 1, 1, 1, -1, 0), mod 2 (0, 0, 1)
+   the pair         : B2 and B3 at Wyckoff position d, their elementary band
+                      representations B2↑G(6) and B3↑G(6)
+   both induce the same content at every high-symmetry point and carry the same
+   SRSIs, so no measurement in momentum space or in real space tells them apart
 
-3. SG 147 without SOC: printed indicator rows that are not indicators
+3. #147.14, single-valued: printed indicator forms that are not indicators
    the tables       : #147.14, tabulated indicators z2,3 (mod 2), z4 (mod 4)
-   the test case    : (Au) at a, EBR column 3 of #147.14 -- an atomic limit, so
-                      every indicator must read 0 on it
-   theta            : (0, 1, 0, 0, 0, 0, 0, 0, 0)
-   the printed rows : z2,3 = 1 mod 2, z4 = 2 mod 4
-   what is returned : {'z2,3': 0, 'z4': 0}, the derived rows
-   over all systems : 390 tabulated indicator rows -- 374 equal, 9 with no derived row, 4 different, 3 equivalent
-   the different    : #147.14 z2,3, #147.14 z4, #162.74 z2', #163.80 z2' -- and nothing else
-   the rows returned are the derived ones, which vanish on every elementary
-   band representation; the printed rows are kept beside them.
+   1 (Au)_a         : an elementary band representation of #147.14, an atomic limit,
+                      so every indicator must read 0 on it
+   its SRSIs        : Z-valued (0, 1, 0, 0, 0, 0, 0, 0, 0)
+   printed forms    : z2,3 = 1 mod 2, z4 = 2 mod 4
+   derived forms    : z2,3 = 0, z4 = 0
+   over all systems : 390 tabulated indicator forms against the derived ones:
+                      374 equal, 9 with no derived form, 4 different, 3 equivalent
+   the different    : #147.14 z2,3, #147.14 z4, #162.74 z2', #163.80 z2'
+   where they differ, the indicators returned are the derived forms, which
+   vanish on every elementary band representation; the printed forms are kept
+   beside them
 
-4. the symmetry-indicated split EBRs, re-asked with a full enumeration
-   the list         : 211 splittings, 9 without SOC and 202 with, 203 of them marked SRSI-mismatching
-   the supplement's mismatch column, recomputed here from the theta rows beside it, agrees on 211 of 211.
-   the criterion, with H the parent EBR, V the first child and C the rest:
-      the mark    valuedness  verdict                     count
+4. the splittings the symmetry indicators allow, re-asked with a full enumeration
+   the list         : 211 splittings of an elementary band representation into
+                      others, 9 single-valued and 202 double-valued
+   the paper's flag : 203 of them, where the Z_n-valued invariants of the parts do not
+                      add up to the whole's; recomputed from the invariants printed
+                      beside it, the flag agrees on 211 of 211
+   the criterion    : the parent as all the bands, its first child as the valence bands,
+                      the rest as the conduction bands
+      flag        valuedness  verdict                     count
       flagged     double      diagnosed topological       193
       flagged     double      invisible to the SRSIs      1
       flagged     single      diagnosed topological       9
       unflagged   double      invisible to the SRSIs      5
       unflagged   double      no Z_n SRSIs                3
    the headline     : 202 of the 203 flagged splittings stay diagnosed topological
-   the exception    : #209.49  (-1F2F)_c -> -F@a + -F@b   'invisible to the SRSIs', 2 consistent pairs
-   a consistent pair is two atomic realizations, one per side, whose Z_n-SRSIs
-   add up to the total's; where one exists, the splitting's topology is
-   invisible to the invariants.
-   the 8 unflagged splittings, one by one:
-      #202.23   (-1F2F)_c    -> -1Fg2Fg@a + -1Fu2Fu@a  'invisible to the SRSIs' (1 consistent pair)
-      #202.23   (-1F2F)_c    -> -1Fg2Fg@b + -1Fu2Fu@b  'invisible to the SRSIs' (1 consistent pair)
-      #209.49   (-1F2F)_c    -> -F@a + -F@a            'invisible to the SRSIs' (2 consistent pairs)
-      #209.49   (-1F2F)_c    -> -F@b + -F@b            'invisible to the SRSIs' (2 consistent pairs)
-      #211.57   (-1E2E)_c    -> -F@a + -F@a            'invisible to the SRSIs' (1 consistent pair)
-      #223.105  (-1E2E)_e    -> -1Fg2Fg@a + -1Fu2Fu@a  'no Z_n SRSIs' (1 consistent pair)
-      #225.117  (-F)_c       -> -Fg@a + -Fu@a          'no Z_n SRSIs' (1 consistent pair)
-      #225.117  (-F)_c       -> -Fg@b + -Fu@b          'no Z_n SRSIs' (1 consistent pair)
-   the 3 'no Z_n SRSIs' entries are groups whose SRSI group has no Z_n row, so there is no additivity to test.
+   the exception    : #209.49, parent (-1F2F)_c, first child (-F)_a, rest (-F)_b,
+                      2 consistent pairs
+   the unflagged    : 8 splittings, 3 of them in groups with no Z_n-valued invariant
+      group     parent     first child  rest         verdict                 consistent pairs
+      #202.23   (-1F2F)_c  (-1Fg2Fg)_a  (-1Fu2Fu)_a  invisible to the SRSIs  1
+      #202.23   (-1F2F)_c  (-1Fg2Fg)_b  (-1Fu2Fu)_b  invisible to the SRSIs  1
+      #209.49   (-1F2F)_c  (-F)_a       (-F)_a       invisible to the SRSIs  2
+      #209.49   (-1F2F)_c  (-F)_b       (-F)_b       invisible to the SRSIs  2
+      #211.57   (-1E2E)_c  (-F)_a       (-F)_a       invisible to the SRSIs  1
+      #223.105  (-1E2E)_e  (-1Fg2Fg)_a  (-1Fu2Fu)_a  no Z_n SRSIs            1
+      #225.117  (-F)_c     (-Fg)_a      (-Fu)_a      no Z_n SRSIs            1
+      #225.117  (-F)_c     (-Fg)_b      (-Fu)_b      no Z_n SRSIs            1
+   where a consistent pair exists, any topology of the splitting is invisible
+   to the SRSIs
 
 5. the pairs the SRSIs do not distinguish, over every tabulated system
-   the sweep        : 36 pairs over 26 space groups, 0 of them with SOC
-   by the site irreps the tables carry at that letter: 16 at (A1, B1, B2, B3);  12 at (A1, A2, B1, B2);  8 at (Ag, Au, B1g, B1u, B2g, B2u, B3g, B3u)
-   by the two members: B2/B3 (14), B1/B2 (14), B2u/B3u (3), B2g/B3g (3), B1u/B2u (1), B1g/B2g (1)
-   the space groups : [90, 97, 100, 101, 102, 105, 107, 108, 109, 113, 117, 120, 127, 128, 130, 133, 135, 137, 138, 140, 142, 197, 201, 204, 211, 230]
-   the tables give both members of each pair identical SRSIs, Z and Z_n,
-   so whichever member a decomposition picks, no number moves.
+   the sweep        : 36 pairs in 26 space groups, 0 of them double-valued
+   by site symmetry : 16 where the site irreps are A1, B1, B2, B3
+                      12 where the site irreps are A1, A2, B1, B2
+                      8 where the site irreps are Ag, Au, B1g, B1u, B2g, B2u, B3g, B3u
+   by the members   : 14 of B2 and B3, 14 of B1 and B2, 3 of B2u and B3u,
+                      3 of B2g and B3g, 1 of B1u and B2u, 1 of B1g and B2g
+   space groups     : 90, 97, 100, 101, 102, 105, 107, 108, 109, 113, 117, 120, 127,
+                      128, 130, 133, 135, 137, 138, 140, 142, 197, 201, 204, 211, 230
+   both members of each pair carry the same SRSIs, Z-valued and Z_n-valued, so
+   whichever one a decomposition picks, no invariant changes
 
-6. the figure: the split-EBR verdicts and the same-content tally
+6. the figure: the verdicts on the splittings, and the pairs by site symmetry
 
 Done — figure written to <FIGDIR>

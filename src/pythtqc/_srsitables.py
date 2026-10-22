@@ -140,7 +140,6 @@ def _site_irreps(irreps, letter) -> str:
 
 
 #: How a summary reads a configuration of orbitals, ``1 (B2)_d + 2 (A1)_a``.
-_CONFIGURATION = "written m (irrep)_w, m copies of a site irrep at Wyckoff position w"
 
 
 def _signed(terms) -> str:
@@ -718,9 +717,8 @@ class SRSITables:
         """The invariants, row by row, and what else the table holds, a line each."""
         lines = [f"{_group(self.number_str, self.spinor)}: stable real-space invariants "
                  f"{self.structure}   (.structure)",
-                 "  each invariant theta_i, Z- or Z_n-valued, and how many terms its "
-                 "formula has, each term counting the copies of one site irrep at one "
-                 "Wyckoff position   (.rows)"]
+                 "  each invariant, Z- or Z_n-valued, and the number of terms in its "
+                 "formula   (.rows)"]
         lines += [f"  {row.name:>9s}  {'Z' if row.mod is None else 'Z%d' % row.mod:>3s}"
                   f"  {_count(len(row.terms), 'term')}" for row in self.rows]
         lines.append(f"  {_count(len(self.site_keys), 'site irrep')} at Wyckoff positions, "
@@ -728,8 +726,7 @@ class SRSITables:
                      "   (.site_keys, .ebrs)")
         if self.terms_without_ebr_column:
             lines.append(f"  {_count(len(self.terms_without_ebr_column), 'term')} on site "
-                         "irreps that induce none: at a non-maximal Wyckoff position, or at "
-                         "a maximal one whose band representation is a sum of others"
+                         "irreps that induce no elementary band representation"
                          "   (.terms_without_ebr_column)")
         lines.append("  " + (f"{_count(len(self.indicators), 'symmetry indicator')}, each "
                              "a form in the theta_i: "

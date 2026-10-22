@@ -23,6 +23,7 @@
 
 import os
 import sys
+import textwrap
 
 import matplotlib
 
@@ -62,6 +63,41 @@ print("Six p orbitals at the three 3c sites of a simple cubic cell, a pair at ea
 print("site perpendicular to the site's own axis: the orbitals at the three sites")
 print("are one another's images.")
 
+
+def row(label, first, *rest):
+    """One line of the ledger, a label of at most 16 characters, then its continuation lines."""
+    print(f"   {label:<16} : {first}")
+    for line in rest:
+        print(f"{'':22}{line}")
+
+
+def coords(site):
+    """A site's position in the cell, its three coordinates written out."""
+    return "(" + ", ".join(f"{x:g}" for x in site) + ")"
+
+
+def atomic_limits(d):
+    """The atomic limits of a band set, as a label and a value: the one sum of elementary
+    band representations with this content, how many sums there are, or none."""
+    if d.verdict == "none":
+        return "atomic limits", "none"
+    sums = d.solution_strings()
+    if len(sums) == 1:
+        return "atomic limit", sums[0]
+    return "atomic limits", f"{len(sums)} sums of elementary band representations"
+
+
+def differing(table, other):
+    """Where another atomic-limit table differs: its rows, by orbital, and the lines under them."""
+    first, second = table.summary().splitlines(), other.summary().splitlines()
+    rows = [str(i) for i in range(len(table))
+            if i + 1 >= len(second) or first[i + 1] != second[i + 1]]
+    named = "the row of orbital " if len(rows) == 1 else "the rows of orbitals "
+    parts = ([named + ", ".join(rows)] if rows else []) + (
+        ["the lines under the rows"] if first[len(table) + 1:] != second[len(table) + 1:] else [])
+    return " and ".join(parts) or "the line naming its columns"
+
+
 ########### 1. the model ###########
 
 print("\n1. the model: a p pair at each 3c site, perpendicular to the site's own axis")
@@ -75,12 +111,11 @@ sites = list(dict.fromkeys(tuple(float(x) for x in p) for p in positions))
 axes = ["xyz"[int(np.argmin(site))] for site in sites]
 print("   site              axis   orbitals")
 for site, axis in zip(sites, axes):
-    where = "(" + ", ".join(f"{x:g}" for x in site) + ")"
     pair = ", ".join(f"p{c}" for c in "xyz" if c != axis)
-    print(f"   {where:<17} {axis:<6} {pair}")
-print(f"   {model.norb} orbitals, {model.nstate} bands; {len(model.hoppings)} hoppings, "
-      "random, to every orbital within")
-print("   one lattice constant, averaged over the operations of T_d")
+    print(f"   {coords(site):<17} {axis:<6} {pair}")
+row("bands", f"{model.nstate}, from {model.norb} orbitals")
+row("hoppings", f"{len(model.hoppings)}, random, to every orbital within one lattice constant,",
+    "averaged over the operations of T_d")
 
 ########### 2. the group the hoppings obey ###########
 
@@ -89,9 +124,9 @@ r = tqc.realized_group(model)
 group = r.group
 wyckoff = tqc.wyckoff_sites_tables(group, r.assignment.site_positions)   # letter and multiplicity
 allowed = r.descent["from"]
-print(f"   the point set allows : #{allowed['number_str']} {allowed['name']}")
-print(f"   the hoppings obey    : #{group.number_str} {group.name}, orbitals at Wyckoff "
-      f"{' and '.join(dict.fromkeys(f'{s.multiplicity}{s.letter}' for s in wyckoff))}")
+row("point set allows", f"#{allowed['number_str']} {allowed['name']}")
+row("realized group", f"#{group.number_str} {group.name}, orbitals at Wyckoff "
+    f"{' and '.join(dict.fromkeys(f'{s.multiplicity}{s.letter}' for s in wyckoff))}")
 
 # The descent names every operation the hoppings break.  The unitary ones are
 # counted here by kind, each kind shown by its first member: C4^-1(z) counts as
@@ -104,60 +139,38 @@ for name in lost:
 census = [names[0] if len(names) == 1 else f"{len(names)} like {names[0]}"
           for names in sorted(kinds.values(), key=len)]
 kept = [op.name for op in r.operations.values() if not op.time_reversal]
-print("   broken               : " + ", ".join(census) + ",")
-print(f"                          each also with time reversal: {len(r.descent['dropped'])} "
-      f"of the {allowed['size']} coset")
-print("                          representatives of the lattice translations")
+row("broken", ", ".join(census) + ",",
+    f"each also with time reversal: {len(r.descent['dropped'])} of the {allowed['size']} "
+    "coset representatives",
+    "of the lattice translations")
 
 # about each site's own axis: the fourfold rotation and the -4 rotoinversion
 c4_broken = [f"C4({a})" for a in axes if f"C4({a})" in lost]
 s4_kept = [f"S4({a})" for a in axes if f"S4({a})" in kept]
-print(f"   about the site axes  : {', '.join(c4_broken)} broken; "
-      f"{', '.join(s4_kept)} kept")
+row("each site's axis", f"{', '.join(c4_broken)} broken; {', '.join(s4_kept)} kept")
 
 # The kept operations are a subgroup of index two, so with inversion among the
 # lost ones, the lost ones are inversion times the kept ones.
-print("   -> the hoppings break inversion, and the operations lost are inversion")
-print("      times those kept: each site loses the fourfold rotation about its own")
-print("      axis and keeps the -4 rotoinversion about it")
+print("   the operations broken are inversion times those kept: each site loses the fourfold")
+print("   rotation about its own axis and keeps the -4 rotoinversion about it")
 
 ########### 3. the atomic-limit table ###########
 
-print("\n3. the atomic-limit table: what each orbital carries, read off the hoppings")
+print("\n3. r.rep.characters: the atomic-limit table, what each orbital carries")
 rec = r.rep.characters
-print(rec.summary())
-print(f"   -> nothing is declared: the hoppings fix each row's {rec.irreps[0]} themselves, "
-      "the two-dimensional")
-print(f"      irrep of the site's own {rec.orbitals[0].site_symmetry}, and no row names a "
-      "function: which real functions")
-print("      a pair of Wannier functions is, inside its site, is a choice of basis, and")
-print("      the orbital characters are what the hoppings fix.")
+print(textwrap.indent(rec.summary(), "   "))
 
-# Each site's characters, one operation per class of its own -42m.  The twofold
-# and the -4 about the site's own axis, a twofold about a perpendicular cube
-# axis, and a mirror through the axis along a face diagonal: each named in the
-# frame of the site it fixes, which is a different frame at each site.
-print("   each site's characters, named in its own axes:")
+# Each site's characters, one operation per class of its own -42m, each named in
+# the frame of the site it fixes, which is a different frame at each site: the
+# twofold about the site's own axis is the one the threefold below carries from
+# site to site.
 chars_of = {}
 # r.assignment.site_orbitals lists, site by site, the orbitals that sit there
 for pair in r.assignment.site_orbitals:
     site = tuple(float(x) for x in positions[pair[0]])
     axis = axes[sites.index(site)]
     chi = {name: complex(v).real for name, v in rec.orbitals[pair[0]].generator_character.items()}
-    perp = next(name for name in chi if name.startswith("C2(") and name != f"C2({axis})")
-    mirror = next(name for name in chi if name.startswith("m("))
     chars_of[axis] = chi
-    where = "(" + ", ".join(f"{x:g}" for x in site) + ")"
-    shown = [("E", "E"), (f"C2({axis})", f"C2({axis})"), (perp, perp),
-             (f"S4({axis})", f"S4({axis})"), (mirror, mirror)]
-    print(f"      {where:<15} axis {axis}:  "
-          + ",  ".join(f"{label} {chi[name]:+.0f}" if abs(chi[name]) > 1e-9
-                       else f"{label} 0" for label, name in shown))
-print(f"   -> at every site the character is that of {rec.irreps[0]}: +2 on the identity, "
-      "-2 on the twofold")
-print("      about the site's own axis, and 0 on the -4 about it, on a perpendicular twofold")
-print("      and on a diagonal mirror.  The numbers are the same at the three sites, and the")
-print("      operations they belong to are not: each is named in its own site's axes.")
 
 # The threefold along [111] carries each site onto the next, and each site's
 # own axis onto the next site's: its matrix sends each site's pair into the
@@ -167,72 +180,43 @@ M3 = np.asarray(r.rep.matrices[c3])
 # an operation's rotation_cartesian is its rotation, a 3 x 3 matrix on Cartesian vectors
 R3 = np.asarray(r.operations[c3].rotation_cartesian, dtype=float)
 unit = {"x": np.eye(3)[0], "y": np.eye(3)[1], "z": np.eye(3)[2]}
-print(f"   -> {r.operations[c3].name} carries each site onto the next, and its axis onto "
-      "the next site's:")
+row(r.operations[c3].name, "carries each site onto the next, and its axis onto the next site's")
 for pair in r.assignment.site_orbitals:
     site = tuple(float(x) for x in positions[pair[0]])
     axis = axes[sites.index(site)]
     target = int(np.argmax(np.abs(M3[:, pair[0]])))     # an orbital of the image site
     there = tuple(float(x) for x in positions[target])
     turned = next(b for b, v in unit.items() if np.allclose(np.abs(R3 @ unit[axis]), v))
-    here = "(" + ", ".join(f"{x:g}" for x in site) + ")"
-    far = "(" + ", ".join(f"{x:g}" for x in there) + ")"
-    print(f"         {here:<15} -> {far:<15} :  axis {axis} -> {turned},  "
-          f"C2({axis}) -> C2({turned}), character "
-          f"{chars_of[axis][f'C2({axis})']:+.0f} at both")
-print("      so each site's characters are the image of the first site's, carried by the")
-print(f"      operations of the orbit, and each row is the {rec.irreps[0]} of its own site's "
-      f"{rec.orbitals[0].site_symmetry}.")
-
-# The line under the table is the band representation the orbit induces,
-# written in elementary ones: a sum of several, none of them at the orbit's own
-# position.
-print(f"   -> {rec.irreps[0]} is named by the point group: at {rec.orbitals[0].wyckoff} of "
-      f"{group.name} it induces a composite band")
-print("      representation, one of the known exceptions to an irrep at a maximal Wyckoff")
-print("      position inducing an elementary one, so no elementary band representation")
-print("      of the tables carries its name; the line under the table writes out the")
-print("      elementary ones it is the sum of.")
+    row(coords(site), f"onto {coords(there)}, axis {axis} onto {turned}, C2({axis}) onto "
+        f"C2({turned}), character {chars_of[axis][f'C2({axis})']:+.0f} at both")
+print("   each site's characters are the first site's, carried by the operations of the orbit,")
+print(f"   and each row is the {rec.irreps[0]} of its own site's {rec.orbitals[0].site_symmetry}")
 
 ########### 4. the same model in a rotated basis ###########
 
 print(f"\n4. the same model, every pair rotated inside itself by {THETA} rad")
-print("   a change of orbital basis at every site, the same at each: a choice of")
-print("   Wannier gauge")
 rotated = cubic_3c_perp_doublet(angle=THETA)
 r_rot = tqc.realized_group(rotated)
 rec_rot = r_rot.rep.characters
-print(f"   the hoppings obey    : #{r_rot.group.number_str} {r_rot.group.name}")
+row("realized group", f"#{r_rot.group.number_str} {r_rot.group.name}")
 # the rotated model's atomic-limit table, compared line for line with section 3's
-print(f"   its atomic-limit table is section 3's, line for line: "
-      f"{rec_rot.summary() == rec.summary()}")
-print("   -> the group, the irreps and the characters at every row are those of section 3:")
-print("      a character is a trace, and no change of basis inside a pair moves a trace.")
+if rec_rot.summary() == rec.summary():
+    row("rep.characters", "section 3's atomic-limit table, line for line")
+else:
+    row("rep.characters", "section 3's atomic-limit table but for " + differing(rec, rec_rot))
 
 table = tqc.hsp_table(r.rep, bands=6)          # the six bands, at every point
 table_rot = tqc.hsp_table(r_rot.rep, bands=6)
-print(f"   the six bands        : {fmt(table.counts)}")
-print(f"   {f'rotated by {THETA} rad':<21}: {fmt(table_rot.counts)}")
+row("all 6 bands", fmt(table.counts))
+row("all 6, rotated", fmt(table_rot.counts))
+print("   the rotation is a change of orbital basis inside each pair, a choice of Wannier gauge,")
+print("   and a character is a trace, which no change of basis moves")
 
 ########### 5. the six bands as elementary band representations ###########
 
 print("\n5. the six bands as a sum of elementary band representations")
 d6 = tqc.decompose(table, group, rep=r.rep)
-where = " and ".join(dict.fromkeys(d6.positions[0]))
-print(f"   decompose            : {d6.verdict}, {len(d6.solutions)} solution"
-      f"{'s' * (len(d6.solutions) != 1)}")
-print(f"                          = {d6.solution_strings()[0]}")
-
-# the bands' sum against the one the atomic-limit table wrote off the orbitals.
-# solution_strings() writes each term under the label the group's list of
-# elementary band representations gives it: the site irrep, induced (↑G) in its
-# number of bands from its Wyckoff position, whose site group follows with time
-# reversal and without.
-print(f"   -> the band representation {rec.irreps[0]} at {rec.orbitals[0].wyckoff} "
-      f"induces is this sum of elementary")
-print(f"      ones at {where}: that is what composite means.  The line under the")
-print("      atomic-limit table of section 3 is the same sum, each term written there")
-print("      as its site irrep at its Wyckoff position.")
+row(*atomic_limits(d6))
 
 # the figure: the bands of both bases along one path, the content at each point
 hsp = tqc.high_symmetry_points(group)
@@ -240,10 +224,11 @@ path = [hsp[point] for point in NODES]
 kv, kd, kn = model.k_path(path, NK_PATH, report=False)
 bands = np.asarray(model.solve_ham(kv))
 bands_rot = np.asarray(rotated.solve_ham(kv))
-print(f"   the figure           : the six bands along {'-'.join(NODES)}, one spectrum in "
-      "both bases,")
-print(f"                          max |E - E_rotated| = "
-      f"{np.abs(bands - bands_rot).max():.6f} along the path")
+row("both bases", f"largest energy difference {np.abs(bands - bands_rot).max():.6f} along "
+    f"{'-'.join(NODES)}, the figure's path")
+print(f"   {rec.irreps[0]} at {rec.band_representations[0].wyckoff} of {group.name} is one of the known exceptions to "
+      "an irrep at a maximal")
+print("   Wyckoff position inducing an elementary band representation")
 
 fig, ax = plt.subplots(1, 1, figsize=(9.2, 6.4))
 for i in range(model.nstate):

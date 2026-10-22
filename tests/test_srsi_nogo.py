@@ -297,7 +297,7 @@ def test_atomic_realizations_enumerates_every_realization_of_one_symmetry_vector
     # the two that use the same-content pair say so; the other two do not
     assert [len(realization.pairs) for realization in got.realizations] == [1, 1, 0, 0]
     assert got.realizations[0].pairs[0].irreps == ("B2", "B3")
-    assert "every atomic realization, 4 of them" in got.summary()
+    assert "4 atomic realizations of 6 bands" in got.summary()
     # the band count is redundant, and asserting the right one changes nothing
     assert tqr.atomic_realizations(sg211, theta_z, n_bands=6).realizations == \
         got.realizations
@@ -553,7 +553,7 @@ def test_the_grammar_mistakes_are_value_errors_not_refusals(sg211):
     theta_z = theta_total[0]
     with pytest.raises(ValueError, match="theta_Z implies 6 bands"):
         tqr.atomic_realizations(sg211, theta_z, n_bands=7)
-    with pytest.raises(ValueError, match="does not equal theta_Z"):
+    with pytest.raises(ValueError, match="not those of all the bands"):
         tqr.nsit_criterion(sg211, theta_total, theta_z, theta_z)
     zeros = tuple(0 for _ in theta_z)
     with pytest.raises(ValueError, match=r"moduli \[2\] and theta_Zn carries \[3\]"):
@@ -817,7 +817,7 @@ def test_kane_mele_odd_is_diagnosed_by_its_conduction_pair_and_even_is_not(
     assert odd.realizations_c.realizations == ()
     assert tuple(str(v) for v in odd.theta_Z_c) == ("0", "1", "-1", "-1")
     assert [c.label for c in odd.realizations_v.realizations] == ["1 (-E1)_a"]
-    assert "side C" in odd.reason and "realization half" in odd.reason
+    assert "the conduction bands have" in odd.reason and "realization half" in odd.reason
     assert "fragile side" in odd.reason
 
     even = tqr.splitting(km_realized["even"], bands=2)

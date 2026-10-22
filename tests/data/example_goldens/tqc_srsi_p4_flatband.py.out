@@ -1,94 +1,89 @@
-Hwang et al., Nat. Commun. 17, 8564 (2026), SM section 5A: two Kramers
-pairs at 2c of the square lattice, with the vertical mirrors broken in the hoppings.
+Hwang et al., Nat. Commun. 17, 8564 (2026), SM section 5A: two Kramers pairs
+at 2c of the square lattice, with the vertical mirrors broken in the hoppings.
+Bands are counted from 0, as pythtb counts them.
 
 1. the supplement's two Hamiltonians, typed as hoppings and checked
-   flat-band model   : 2 orbitals, 4 bands, 6 typed hoppings
-   Z2 model          : 2 orbitals, 4 bands, 6 typed hoppings
-   both typed hopping lists reproduce the supplement's Hamiltonian at every
-   one of 500 random k: max |H - H_supplement| = 0.000000 and 0.000000
+   flat-band model  : 2 orbitals, 4 bands, 6 typed hoppings
+   Z2 model         : 2 orbitals, 4 bands, 6 typed hoppings
+   closed forms     : the typed Hamiltonians differ from them by at most 0.000000
+                      and 0.000000 at 500 random k
 
 2. the group the hoppings obey, and the chiral pattern that lowers it
-   as transcribed    : #99.164 P4mm1' — more than the P41' the paper analyses,
-                       because nothing in the transcription distinguishes the two
-                       diagonals of the square lattice
-   mirrors broken    : t_a = 0.03 along (1,1) and t_b = 0.0125 along (1,-1) on the x
-                       site, the two swapped on the y site — realized group #75.2 P41',
-                       orbitals at Wyckoff 2c, the position the paper puts its Kramers
-                       pairs on (measured from the Hamiltonian, nothing declared)
-   a gapped change   : over a 41x41 mesh the smallest direct gap E2(k) - E1(k) is
-                       0.257674 with the pattern and 0.293412 without it, and 0.257674
-                       at its smallest over the 11-point ramp between them — the two
-                       band sets below are the supplement's own, continued
+   as transcribed   : realized group #99.164 P4mm1', more than the P41' the paper
+                      analyses: the typed hoppings treat the two diagonals of the
+                      square lattice alike
+   chiral pattern   : t_a = 0.03 along (1,1) and t_b = 0.0125 along (1,-1) on the
+                      x site, the two swapped on the y site
+   with the pattern : realized group #75.2 P41', orbitals at Wyckoff 2c, where the
+                      paper puts its Kramers pairs, measured from the Hamiltonian with nothing declared
+   bands 1 and 2    : over a 41x41 mesh, smallest direct gap 0.293412 as transcribed,
+                      0.257674 with the pattern, and 0.257674 at its smallest along the
+                      11-point ramp between them
+   the gap stays open along the ramp, so the two pairs of bands below are the
+   supplement's own, continued
 
-3. srsi_of_model — the SRSIs of the Kramers pair, read off the orbitals
-P41' #75.2, double-valued: stable real-space invariants Z x Z x Z x Z2 x Z2   (.structure)
-  the model's: Z-valued (1, 1, 0), Z_n-valued mod 2 (0, 1)   (.theta_Z, .theta_Zn)
-  each site orbit: its orbitals, its Wyckoff position, and its content, written m (irrep)_w, m copies of a site irrep at Wyckoff position w; then its invariants   (.orbits)
-    orbitals 0-1 at 2c: 1 (-1E2E)_c
-      (1, 1, 0), mod 2 (0, 1)
-   -> a model's SRSIs are read off where its orbitals sit and what they
-      carry, so the chiral pattern cannot move them — only the group.
+3. srsi_of_model(realized): the stable real-space invariants, read off the orbitals
+   P41' #75.2, double-valued: stable real-space invariants, Z x Z x Z x Z2 x Z2   (.structure)
+     the whole model: Z-valued (1, 1, 0), mod 2 (0, 1)   (.theta_Z, .theta_Zn)
+     each site orbit, its content written m (irrep)_w, and its SRSIs   (.orbits)
+       orbitals 0-1 at 2c, 1 (-1E2E)_c: Z-valued (1, 1, 0), mod 2 (0, 1)
 
 4. the spectrum, and what momentum space says about the two pairs
-   the flat band     : as transcribed, bands 0 and 1 sit at zero, max |E| = 0.000000
-                       over the 41x41 mesh — the orthogonal complement of the span of
-                       the two non-orthogonal Bloch states, which is what makes it flat
-   bands 0 and 1     : with the pattern they span [-0.084751, 0.085000], on the
-                       pattern's own scale 2(t_a + t_b) = 0.085000 — an exactly
-                       degenerate pair split at first order
-   bands 2 and 3     : [0.292688, 1.707576] against [0.293412, 1.706588] as transcribed —
-                       second order, and the gap min E2 - max E1 = 0.207688
-   the lower pair    : -GM5GM7 + -M5M7 + -X3X4, theta_Z = (1, 0, 0)
-   the upper pair    : -GM6GM8 + -M6M8 + -X3X4, theta_Z = (0, 1, 0)
-   the indicator     : class () of trivial and () of trivial — #75.2 has no
-                       elementary divisor above 1, so there is no indicator to read
-   decompose         : symmetry-indicated decomposable, 1 x -1E22E2↑G(2)@1a(41',4) and
-                       1 x -1E12E1↑G(2)@1a(41',4)
-   -> both halves decompose and there is no indicator to read: nothing in
-      momentum space objects to this splitting.
+   as transcribed   : bands 0 and 1 flat at zero, largest |E| 0.000000 over the
+                      41x41 mesh; bands 2 and 3 from 0.293412 to 1.706588
+   with the pattern : bands 0 and 1 from -0.084751 to 0.085000, split at first order on
+                      the pattern's scale 2(t_a + t_b) = 0.085000; bands 2 and 3 from
+                      0.292688 to 1.707576, moved at second order
+   bands 1 and 2    : gap 0.207688 with the pattern
+   bands 0 and 1    : -GM5GM7 + -M5M7 + -X3X4, Z-valued (1, 0, 0)
+   atomic limit     : 1 x -1E22E2↑G(2)@1a(41',4)
+   bands 2 and 3    : -GM6GM8 + -M6M8 + -X3X4, Z-valued (0, 1, 0)
+   atomic limit     : 1 x -1E12E1↑G(2)@1a(41',4)
+   indicator group  : trivial
+   nothing in momentum space objects to this splitting
 
-5. splitting() — the lower pair against the upper one
-P41' #75.2, double-valued, diagnosed topological: the two sides of the gap cannot both be atomic insulators   (.verdict)
-  V, the 2 bands asked for; C, the model's other 2; H, all 4   (.n_bands_v, .n_bands_c)
-  theta_Z, the Z-valued stable real-space invariants: H (1, 1, 0) = V (1, 0, 0) + C (0, 1, 0)   (.theta_Z_total, .theta_Z_v, .theta_Z_c)
-  theta_Zn, the Z_n-valued ones of H: mod 2 (0, 1)   (.theta_Zn_total)
-  V's symmetry-indicator group is trivial   (.indicator)
-  V's atomic realizations, every set of orbitals at maximal Wyckoff positions with V's symmetry data, written m (irrep)_w, m copies of a site irrep at Wyckoff position w, with its own theta_Zn   (.realizations_v)
-    [0] 1 (-1E22E2)_a   mod 2 (0, 0)
-  C's atomic realizations   (.realizations_c)
-    [0] 1 (-1E12E1)_a   mod 2 (0, 0)
-  no realization of V with one of C has theta_Zn adding up to H's, modulo each n   (.consistent_pairs)
-   the arithmetic    : theta_Zn mod 2, V[0] (0, 0) + C[0] (0, 0) = (0, 0), against
-                       H (0, 1)
-   -> the only atomic configurations carrying the two halves' symmetry data
-      are the EBRs at 1a above, one for each half, and their theta_Zn cannot
-      add up to the theta_Zn of H: the splitting momentum space passed is
-      diagnosed topological.
+5. splitting(realized, bands=2): bands 0 and 1 against bands 2 and 3
+   P41' #75.2, double-valued, diagnosed topological: the two sides of the gap cannot both be atomic insulators   (.verdict)
+     the bands=2 valence bands, the remaining 2 conduction bands, and all 4 bands   (.n_bands_v, .n_bands_c)
+     Z-valued stable real-space invariants: all 4 (1, 1, 0) = valence (1, 0, 0) + conduction (0, 1, 0)   (.theta_Z_total, .theta_Z_v, .theta_Z_c)
+     Z_n-valued invariants of all 4: mod 2 (0, 1)   (.theta_Zn_total)
+     the valence bands' symmetry-indicator group is trivial   (.indicator)
+     possible atomic realizations of the valence bands, and their Z_n-valued SRSIs   (.realizations_v)
+       1 (-1E22E2)_a   mod 2 (0, 0)
+     possible atomic realizations of the conduction bands, and their Z_n-valued SRSIs   (.realizations_c)
+       1 (-1E12E1)_a   mod 2 (0, 0)
+     no pair of a valence and a conduction realization has Z_n-valued invariants adding up to those of all 4   (.consistent_pairs)
+   the realizations of the two pairs are their atomic limits in section 4
 
-6. the k_x-directed Wilson loop of each pair, as a function of k_y
-   the mesh          : 81 x 121, k_y from 0 to 1 inclusive
-   the lower pair    : the two centres meet (|tr W / 2| = 1) at
-                       k_y = [0.0, 0.25, 0.5, 0.75, 1.0], where tr W / 2 =
-                       [-1.0, 1.0, -1.0, 1.0, -1.0], and each branch winds by ±2
-   the upper pair    : both centres sit at zero at every k_y, max |phi / 2pi| = 0.000000,
-                       and the loop does not wind
-   -> section 5 says V and C cannot both be atomic insulators; the loop says
-      which of them carries the obstruction.
+6. the k_x-directed Wilson loop W of each pair, as a function of k_y
+   mesh             : 81 x 121, k_y from 0 to 1 inclusive
+   bands 0 and 1    : the two centres meet at k_y = 0.0, 0.25, 0.5, 0.75, 1.0,
+                      where tr W / 2 = -1.0, 1.0, -1.0, 1.0, -1.0,
+                      and each branch winds by ±2
+   bands 2 and 3    : both centres at zero at every k_y, largest |phi / 2pi| 0.000000,
+                      and the loop does not wind
+   only bands 0 and 1 wind: they carry the obstruction section 5 diagnoses
 
-7. the Z2 model — the same group, the same verdict, and both loops winding
-   as transcribed    : #99.164 P4mm1' again, and the same pattern lowers it to #75.2 P41'
-   the spectrum      : bands 0 and 1 and bands 2 and 3 are each degenerate
-                       over the 41x41 mesh, max |E0 - E1| = 0.000000 and
-                       max |E2 - E3| = 0.000000; the gap min E2 - max E1 = 4.040874
-   the same verdict  : theta_Z, V (1, 0, 0) against H (1, 1, 0), and the theta_Zn
-                       of H, mod 2 (0, 1) — 'diagnosed topological', 0 consistent pairs
-   the lower loop    : the centres meet at k_y = [0.0, 0.5, 1.0] with tr W / 2 =
-                       [1.0, -1.0, 1.0], and each branch winds by ±1
-   the upper loop    : the centres meet at k_y = [0.0, 0.5, 1.0] with tr W / 2 =
-                       [-1.0, 1.0, -1.0], and each branch winds by ±1
-   -> both sides wind here, and in the flat-band model one side's loop is
-      flat and the other winds twice.  The criterion returns the same
-      verdict for both: it diagnoses the splitting, not the side.
+7. the Z2 model: the same group, the same verdict, and both loops winding
+   as transcribed   : realized group #99.164 P4mm1'
+   with the pattern : realized group #75.2 P41'
+   degenerate pairs : bands 0 and 1, and bands 2 and 3, over the 41x41 mesh: largest
+                      |E0 - E1| 0.000000 and |E2 - E3| 0.000000
+   bands 1 and 2    : gap 4.040874
+   Z-valued         : all 4 bands (1, 1, 0), the valence bands (1, 0, 0)
+   mod 2            : all 4 bands (0, 1)
+   splitting        : bands 0 and 1 against bands 2 and 3:
+                      diagnosed topological: the two sides of the gap cannot both be atomic insulators
+   consistent pairs : none: no valence and conduction realization have Z_n-valued
+                      invariants adding up to those of all 4 bands
+   bands 0 and 1    : the two centres meet at k_y = 0.0, 0.5, 1.0,
+                      where tr W / 2 = 1.0, -1.0, 1.0,
+                      and each branch winds by ±1
+   bands 2 and 3    : the two centres meet at k_y = 0.0, 0.5, 1.0,
+                      where tr W / 2 = -1.0, 1.0, -1.0,
+                      and each branch winds by ±1
+   both pairs wind here, and in the flat-band model only bands 0 and 1 do: the
+   criterion diagnoses the splitting, not the side
 
 8. the two spectra and the two Wilson loops, one panel each
 

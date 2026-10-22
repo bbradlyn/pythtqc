@@ -1,46 +1,60 @@
-Fu-Kane-Mele on the diamond lattice, PRL 98, 106803 (2007): the valence
-pair's stable real-space invariants, from the bands and from the orbitals.
+Fu-Kane-Mele on the diamond lattice, PRL 98, 106803 (2007): the valence bands'
+stable real-space invariants, read from the bands and from the orbitals.
 
 1. delta_t = +0.4 on the [111] bond, read from the bands
    realized group   : #166.98 R-3m1', s orbitals at Wyckoff 6c
-                      (measured from the Hamiltonian: the detuned bond lowers
-                      Fd-3m to R-3m, although no atom moved)
    valence content  : -F5F6 + -GM9 + -L5L6 + -T8
-   theta_Z          : (-1/4, 0, 1/2, 1, 1/4, -1/2, -1/4, 1/4)
-   the denominator  : 4; the indicator class is (0, 1) of Z2 x Z4, order 4
-                      (fractional: no integer site-symmetry vector reproduces
-                      the valence pair, so it is no atomic limit)
+   srsi_of_bands    : Z-valued (-1/4, 0, 1/2, 1, 1/4, -1/2, -1/4, 1/4)
+   denominator      : 4
+   indicator class  : (0, 1) in Z2 x Z4, of order 4
+   the Z-valued invariants are fractional: no integer site-symmetry vector
+   induces the valence content, so the valence bands are no atomic limit
 
 2. the same phase, read from the orbitals
-   the orbit        : orbitals [0, 1] at Wyckoff 6c, not a maximal position
+   the orbit        : orbitals 0 and 1 at Wyckoff 6c, not a maximal position
    its content      : -F3F4 + -F5F6 + -GM8 + -GM9 + -L3L4 + -L5L6 + -T8 + -T9
-   localized at 3a  : 1 x -E1g↑G(2) + 1 x -E1u↑G(2)   theta_Z = (0, 0, 1, 1, 0, 0, 0, 0)
-   localized at 3b  : 1 x -E1g↑G(2) + 1 x -E1u↑G(2)   theta_Z = (0, 0, 1, 1, 0, 0, 0, 0)
-   all four bands   : theta_Z = (0, 0, 1, 1, 0, 0, 0, 0)   from the bands
-   the model's total: theta_Z = (0, 0, 1, 1, 0, 0, 0, 0)   from the orbitals
-                      (the four bands together are the model's own orbitals,
-                      so the band route returns the integers read off them)
+   localized at 3a  : 1 x -E1g↑G(2)@3a(-3m1',-3m) + 1 x -E1u↑G(2)@3a(-3m1',-3m),
+                      Z-valued (0, 0, 1, 1, 0, 0, 0, 0)
+   localized at 3b  : 1 x -E1g↑G(2)@3b(-3m1',-3m) + 1 x -E1u↑G(2)@3b(-3m1',-3m),
+                      Z-valued (0, 0, 1, 1, 0, 0, 0, 0)
+   all 4 bands      : Z-valued (0, 0, 1, 1, 0, 0, 0, 0), read from the bands
+   the whole model  : Z-valued (0, 0, 1, 1, 0, 0, 0, 0), read from the orbitals
+   all four bands together are the model's own orbitals, so the bands carry the
+   orbitals' integers
 
 3. delta_t = -0.4, and three bonds cut: decoupled dimers along [111]
    weak,   realized : #166.98 R-3m1', orbitals at Wyckoff 6c
    weak,   valence  : -F3F4 + -GM9 + -L5L6 + -T8
    dimers, realized : #166.98 R-3m1', orbitals at Wyckoff 6c
    dimers, valence  : -F5F6 + -GM9 + -L5L6 + -T9
-   phase    class    order   theta_Z of the valence pair              denom
-   strong   (0, 1)   4       (-1/4, 0, 1/2, 1, 1/4, -1/2, -1/4, 1/4)  4
-   weak     (1, 0)   2       (0, 0, 1, 1, 1/2, 0, -1/2, 0)            2
-   dimers   (0, 0)   1       (0, 0, 0, 1, 0, 0, 0, 0)                 1
-   measured here: the denominator equals the order of the class in all
-   three phases.  The paper's theorem is the equivalence behind it — a
-   nonzero indicator class if and only if a fractional Z-valued SRSI.
+   phase    class    order   Z-valued invariants of the valence bands   denominator
+   strong   (0, 1)   4       (-1/4, 0, 1/2, 1, 1/4, -1/2, -1/4, 1/4)    4
+   weak     (1, 0)   2       (0, 0, 1, 1, 1/2, 0, -1/2, 0)              2
+   dimers   (0, 0)   1       (0, 0, 0, 1, 0, 0, 0, 0)                   1
+   the denominator equals the order of the class in all three phases; the theorem
+   of Hwang et al. is the equivalence behind it, a nonzero class if and only if a
+   fractional Z-valued invariant
 
-4. the no-go criterion on the valence/conduction gap
-   strong / weak    : 'stable topological' and 'stable topological' — theta_Z[V] is fractional, so no
-                      atomic insulator has the valence pair's symmetry data
-                      and the criterion is not needed
-   dimers           : 'no Z_n SRSIs' — the SRSI group of #166.98 is
-                      Z x Z x Z x Z x Z x Z x Z x Z, with no Z_n row, so there
-                      is no additivity for the criterion to test
+4. splitting(r, bands=2): the no-go criterion on the gap above the valence bands
+   strong           : delta_t = +0.4
+   R-3m1' #166.98, double-valued, stable topological: the bands asked for carry a nonzero symmetry indicator, so no atomic insulator has their symmetry data   (.verdict)
+     the bands=2 valence bands, the remaining 2 conduction bands, and all 4 bands   (.n_bands_v, .n_bands_c)
+     Z-valued stable real-space invariants: all 4 (0, 0, 1, 1, 0, 0, 0, 0) = valence (-1/4, 0, 1/2, 1, 1/4, -1/2, -1/4, 1/4) + conduction (1/4, 0, 1/2, 0, -1/4, 1/2, 1/4, -1/4)   (.theta_Z_total, .theta_Z_v, .theta_Z_c)
+     the valence bands' symmetry-indicator class: (0, 1) in Z2 x Z4, of order 4   (.indicator)
+   weak             : delta_t = -0.4
+   R-3m1' #166.98, double-valued, stable topological: the bands asked for carry a nonzero symmetry indicator, so no atomic insulator has their symmetry data   (.verdict)
+     the bands=2 valence bands, the remaining 2 conduction bands, and all 4 bands   (.n_bands_v, .n_bands_c)
+     Z-valued stable real-space invariants: all 4 (0, 0, 1, 1, 0, 0, 0, 0) = valence (0, 0, 1, 1, 1/2, 0, -1/2, 0) + conduction (0, 0, 0, 0, -1/2, 0, 1/2, 0)   (.theta_Z_total, .theta_Z_v, .theta_Z_c)
+     the valence bands' symmetry-indicator class: (1, 0) in Z2 x Z4, of order 2   (.indicator)
+   dimers           : three bonds cut
+   R-3m1' #166.98, double-valued, no Z_n SRSIs: the group has no Z_n-valued stable real-space invariant (SRSI) to test whether both sides of the gap are atomic insulators   (.verdict)
+     the bands=2 valence bands, the remaining 2 conduction bands, and all 4 bands   (.n_bands_v, .n_bands_c)
+     Z-valued stable real-space invariants: all 4 (0, 0, 1, 1, 0, 0, 0, 0) = valence (0, 0, 0, 1, 0, 0, 0, 0) + conduction (0, 0, 1, 0, 0, 0, 0, 0)   (.theta_Z_total, .theta_Z_v, .theta_Z_c)
+     the valence bands' symmetry-indicator class is zero, in Z2 x Z4   (.indicator)
+     possible atomic realizations of the valence bands   (.realizations_v)
+       1 (-E1u)_a
+     possible atomic realizations of the conduction bands   (.realizations_c)
+       1 (-E1g)_a
 
 5. the bands along GM-T-F-L-GM, one panel per phase
 

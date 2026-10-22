@@ -8,9 +8,9 @@
 
 # The calculations in this python file include
 # 1. the undistorted crystal: the group, the bands at the high-symmetry points,
-#    and the content of all four bands
+#    and the content of all four bands with its atomic limits
 # 2. delta_t = +0.4 on the [111] bond: the group, the bands, the valence content
-#    and its EBR decomposition
+#    and its atomic limits
 # 3. delta_t = -0.4 on the same bond: the same four measurements
 # 4. three bonds cut -- decoupled dimers along [111]: the same four measurements
 # 5. the content at the eight time-reversal-invariant momenta
@@ -66,6 +66,29 @@ os.makedirs(OUTDIR, exist_ok=True)
 print("Fu-Kane-Mele on the diamond lattice, PRL 98, 106803 (2007): four bands, two")
 print("occupied, one of the four nearest-neighbour bonds detuned along [111].")
 
+
+def row(label, first, *rest):
+    """One line of the ledger, a label of at most 16 characters, then its continuation lines."""
+    print(f"   {label:<16} : {first}")
+    for line in rest:
+        print(f"{'':22}{line}")
+
+
+def values(entries):
+    return "(" + ", ".join(str(v) for v in entries) + ")"
+
+
+def atomic_limits(d):
+    """The atomic limits of a band set, as a label and a value: the one sum of elementary
+    band representations with this content, how many sums there are, or none."""
+    if d.verdict == "none":
+        return "atomic limits", "none"
+    sums = d.solution_strings()
+    if len(sums) == 1:
+        return "atomic limit", sums[0]
+    return "atomic limits", f"{len(sums)} sums of elementary band representations"
+
+
 ########### 1. the undistorted crystal ###########
 
 print("\n1. the undistorted crystal")
@@ -74,8 +97,8 @@ undistorted = fu_kane_mele(T, SOC, [0.0, 0.0, 0.0, 0.0])     # every bond equal
 out = tqc.realized_group(undistorted, characters=DECLARE)
 model, group, assignment, validated, rep = out
 sites = tqc.wyckoff_sites_tables(group, assignment.site_positions)   # letter and multiplicity
-print(f"   realized group   : #{group.number_str} {group.name}, s orbitals at "
-      f"Wyckoff {sites[0].multiplicity}{sites[0].letter}, {model.nstate} bands")
+row("realized group", f"#{group.number_str} {group.name}, s orbitals at Wyckoff "
+    f"{sites[0].multiplicity}{sites[0].letter}, {model.nstate} bands")
 
 # the four energies at each high-symmetry point, and the gap at half filling
 hsp = tqc.high_symmetry_points(group)
@@ -83,21 +106,20 @@ for point in sorted(hsp):
     w = np.asarray(solve_at(undistorted, hsp[point])[0], dtype=float).reshape(-1)
     gap = w[2] - w[1]
     if w.max() - w.min() < 1e-9:
-        print(f"   {point:<3} gap {gap:.6f}: the four bands meet")
+        row(f"E at {point}", f"{'the four bands meet':<42}   gap {gap:.6f}")
     else:
-        body = ", ".join(f"{x:+.6f}" for x in w)
-        print(f"   {point:<3} E = [{body}]   gap {gap:.6f}")
+        row(f"E at {point}", ", ".join(f"{x:+.6f}" for x in w) + f"   gap {gap:.6f}")
 
 table4 = tqc.hsp_table(rep, bands=4)          # the content of all four bands
 d4 = tqc.decompose(table4, group, rep=rep)
-print(f"   all four bands   : {fmt(table4.counts)}")
-print(f"                      = {d4.solution_strings()[0]}")
+row("all 4 bands", fmt(table4.counts))
+row(*atomic_limits(d4))
 
-# ... and the same table asked for the valence pair alone
+# ... and the same table asked for the valence bands alone
 table2 = tqc.hsp_table(rep, bands=2)
-print(f"   the valence pair : no label at {', '.join(sorted(table2.refusals))}, "
-      "where all four bands meet; the")
-print("                      undistorted crystal is a semimetal")
+row("valence content", f"not defined at {', '.join(sorted(table2.refusals))}, where all "
+    "four bands meet")
+print("   the undistorted crystal is a semimetal")
 
 ########### 2. delta_t = +0.4 on the [111] bond ###########
 
@@ -107,25 +129,20 @@ m_strong = fu_kane_mele(T, SOC, [0.4, 0.0, 0.0, 0.0])        # one bond strength
 r_strong = tqc.realized_group(m_strong, characters=DECLARE)
 _m, g_strong, asg_strong, val_strong, rep_strong = r_strong
 sites_strong = tqc.wyckoff_sites_tables(g_strong, asg_strong.site_positions)
-print(f"   realized group   : #{g_strong.number_str} {g_strong.name}, orbitals at "
-      f"Wyckoff {sites_strong[0].multiplicity}{sites_strong[0].letter}")
-print("                      (measured from the Hamiltonian: the detuned bond lowers")
-print("                      Fd-3m to R-3m, although no atom moved)")
+row("realized group", f"#{g_strong.number_str} {g_strong.name}, orbitals at Wyckoff "
+    f"{sites_strong[0].multiplicity}{sites_strong[0].letter}: the detuned bond lowers",
+    f"{group.name} to {g_strong.name}, with no atom moved")
 
 hsp_strong = tqc.high_symmetry_points(g_strong)
 for point in POINTS:
     w = np.asarray(solve_at(m_strong, hsp_strong[point])[0], dtype=float).reshape(-1)
-    body = ", ".join(f"{x:+.6f}" for x in w)
-    print(f"   {point:<3} E = [{body}]   gap {w[2] - w[1]:.6f}")
+    row(f"E at {point}", ", ".join(f"{x:+.6f}" for x in w) + f"   gap {w[2] - w[1]:.6f}")
 
 t2_strong = tqc.hsp_table(rep_strong, bands=2)
-print("   valence content  : "
-      + "   ".join(f"{p}: {fmt(t2_strong.content[p])}" for p in POINTS))
+row("valence content", fmt(t2_strong.counts))
 
 dec_strong = tqc.decompose(t2_strong, g_strong, rep=rep_strong)
-print(f"   decompose        : {dec_strong.verdict} (no sum of elementary band "
-      "representations has")
-print("                      this content: not an atomic limit)")
+row(*atomic_limits(dec_strong))
 
 ########### 3. delta_t = -0.4 on the same bond ###########
 
@@ -135,22 +152,21 @@ m_weak = fu_kane_mele(T, SOC, [-0.4, 0.0, 0.0, 0.0])         # the same bond wea
 r_weak = tqc.realized_group(m_weak, characters=DECLARE)
 _m, g_weak, asg_weak, val_weak, rep_weak = r_weak
 sites_weak = tqc.wyckoff_sites_tables(g_weak, asg_weak.site_positions)
-print(f"   realized group   : #{g_weak.number_str} {g_weak.name}, orbitals at "
-      f"Wyckoff {sites_weak[0].multiplicity}{sites_weak[0].letter}")
+row("realized group", f"#{g_weak.number_str} {g_weak.name}, orbitals at Wyckoff "
+    f"{sites_weak[0].multiplicity}{sites_weak[0].letter}")
 
 hsp_weak = tqc.high_symmetry_points(g_weak)
 gaps_weak = []
 for point in POINTS:
     w = np.asarray(solve_at(m_weak, hsp_weak[point])[0], dtype=float).reshape(-1)
     gaps_weak.append(w[2] - w[1])
-print("   gaps GM/T/F/L    : " + " / ".join(f"{g:.6f}" for g in gaps_weak))
+row("gaps GM/T/F/L", " / ".join(f"{g:.6f}" for g in gaps_weak))
 
 t2_weak = tqc.hsp_table(rep_weak, bands=2)
-print("   valence content  : "
-      + "   ".join(f"{p}: {fmt(t2_weak.content[p])}" for p in POINTS))
+row("valence content", fmt(t2_weak.counts))
 
 dec_weak = tqc.decompose(t2_weak, g_weak, rep=rep_weak)
-print(f"   decompose        : {dec_weak.verdict}")
+row(*atomic_limits(dec_weak))
 
 ########### 4. three bonds cut: decoupled dimers along [111] ###########
 
@@ -160,29 +176,27 @@ m_dimers = fu_kane_mele(T, SOC, [0.0, -1.0, -1.0, -1.0])     # three bonds cut
 r_dimers = tqc.realized_group(m_dimers, characters=DECLARE)
 _m, g_dimers, asg_dimers, val_dimers, rep_dimers = r_dimers
 sites_dimers = tqc.wyckoff_sites_tables(g_dimers, asg_dimers.site_positions)
-print(f"   realized group   : #{g_dimers.number_str} {g_dimers.name}, orbitals at "
-      f"Wyckoff {sites_dimers[0].multiplicity}{sites_dimers[0].letter}")
+row("realized group", f"#{g_dimers.number_str} {g_dimers.name}, orbitals at Wyckoff "
+    f"{sites_dimers[0].multiplicity}{sites_dimers[0].letter}")
 
 hsp_dimers = tqc.high_symmetry_points(g_dimers)
 gaps_dimers = []
 for point in POINTS:
     w = np.asarray(solve_at(m_dimers, hsp_dimers[point])[0], dtype=float).reshape(-1)
     gaps_dimers.append(w[2] - w[1])
-print("   gaps GM/T/F/L    : " + " / ".join(f"{g:.6f}" for g in gaps_dimers))
+row("gaps GM/T/F/L", " / ".join(f"{g:.6f}" for g in gaps_dimers))
 
 t2_dimers = tqc.hsp_table(rep_dimers, bands=2)
-print("   valence content  : "
-      + "   ".join(f"{p}: {fmt(t2_dimers.content[p])}" for p in POINTS))
+row("valence content", fmt(t2_dimers.counts))
 
 dec_dimers = tqc.decompose(t2_dimers, g_dimers, rep=rep_dimers)
-print(f"   decompose        : {dec_dimers.solution_strings()[0]}: an atomic limit, the")
-print("                      antibonding pair of each dimer's two s orbitals at "
-      f"{dec_dimers.positions[0][0]}")
-print("                      on the [111] axis")
+row(*atomic_limits(dec_dimers))
+print("   the valence bands are the antibonding pair of each dimer's two s orbitals,")
+print(f"   centred at {dec_dimers.positions[0][0]} on the [111] axis")
 
 ########### 5. the content at the eight TRIM ###########
 
-print("\n5. the content at the eight TRIM")
+print("\n5. the content at the eight time-reversal-invariant momenta (TRIM)")
 
 # The star of a point is the set of its distinct images under the group:
 # group.symmetries are the group's operations, and group.k_action_of(op) is the
@@ -201,22 +215,21 @@ for point in POINTS:
         orbit.add(tuple(np.round(np.where(np.abs(q - 1.0) < 1e-9, 0.0, q), 6)))
     stars[point] = len(orbit)
 n_trim = sum(stars.values())
-print(f"   the four k-orbits of #{g_strong.number_str} cover the cell's eight "
-      "time-reversal-invariant")
-print("   momenta: " + ", ".join(f"{p} ({stars[p]})" for p in POINTS))
+row("k-orbits", ", ".join(f"{p} ({stars[p]})" for p in POINTS)
+    + f", covering the cell's {n_trim} TRIM")
 
 # the strong phase against the dimers, point by point, and then the weak one
 changed_strong = sorted(p for p in POINTS
                         if t2_strong.content.get(p) != t2_dimers.content.get(p))
 n_strong = sum(stars[p] for p in changed_strong)
-print(f"   strong vs dimers : the content changes at "
-      f"{' and '.join(changed_strong):<11}({n_strong} of {n_trim} TRIM)")
+row("strong vs dimers", f"the content changes at {' and '.join(changed_strong)}, "
+    f"{n_strong} of the {n_trim} TRIM")
 
 changed_weak = sorted(p for p in POINTS
                       if t2_weak.content.get(p) != t2_dimers.content.get(p))
 n_weak = sum(stars[p] for p in changed_weak)
-print(f"   weak   vs dimers : the content changes at "
-      f"{' and '.join(changed_weak):<11}({n_weak} of {n_trim} TRIM)")
+row("weak vs dimers", f"the content changes at {' and '.join(changed_weak)}, "
+    f"{n_weak} of the {n_trim} TRIM")
 
 print(f"   #{g_strong.number_str} has inversion, so nu_0 is the parity product over "
       "these eight points")
@@ -224,7 +237,8 @@ print(f"   #{g_strong.number_str} has inversion, so nu_0 is the parity product o
 ########### 6. the symmetry-indicator class in {BS}/{AI} ###########
 
 # The quotient {BS}/{AI} is fixed by the group alone, so a class is a property of
-# the content: one question further on than "is this content a sum of EBRs?"
+# the content, one step beyond whether a sum of elementary band representations
+# carries it.
 print("\n6. the symmetry-indicator class in {BS}/{AI}")
 si_strong = tqc.symmetry_indicator(t2_strong, g_strong, rep=rep_strong)
 si_weak = tqc.symmetry_indicator(t2_weak, g_weak, rep=rep_weak)
@@ -237,19 +251,20 @@ z2w_weak = tuple(si_weak.irreptables_named[f"z2w,{i}"] for i in (1, 2, 3))
 z4_dimers = si_dimers.irreptables_named["z4"]
 z2w_dimers = tuple(si_dimers.irreptables_named[f"z2w,{i}"] for i in (1, 2, 3))
 
-print(f"   X_BS(#{si_strong.number_str}) = {si_strong.structure}")
-print("   phase             class    order    z4   z2w,1/2/3   nu_0 = z4 mod 2")
-print(f"   {'strong':<17} {str(si_strong.values):<8} {si_strong.order:<8} "
+row("indicator group", si_strong.structure)
+print(f"   {'phase':<18} {'class':<8} {'order':<8} {'z4':<4} {'z2w,1/2/3':<11} "
+      "nu_0 = z4 mod 2")
+print(f"   {'strong':<18} {values(si_strong.values):<8} {si_strong.order:<8} "
       f"{z4_strong:<4} {' '.join(str(v) for v in z2w_strong):<11} {z4_strong % 2}")
-print(f"   {'weak':<17} {str(si_weak.values):<8} {si_weak.order:<8} "
+print(f"   {'weak':<18} {values(si_weak.values):<8} {si_weak.order:<8} "
       f"{z4_weak:<4} {' '.join(str(v) for v in z2w_weak):<11} {z4_weak % 2}")
-print(f"   {'dimers':<17} {str(si_dimers.values):<8} {si_dimers.order:<8} "
+print(f"   {'dimers':<18} {values(si_dimers.values):<8} {si_dimers.order:<8} "
       f"{z4_dimers:<4} {' '.join(str(v) for v in z2w_dimers):<11} {z4_dimers % 2}")
 
 paper_strong = f"({z4_strong % 2};{z2w_strong[0]}{z2w_strong[1]}{z2w_strong[2]})"
 paper_weak = f"({z4_weak % 2};{z2w_weak[0]}{z2w_weak[1]}{z2w_weak[2]})"
 paper_dimers = f"({z4_dimers % 2};{z2w_dimers[0]}{z2w_dimers[1]}{z2w_dimers[2]})"
-print(f"   in the paper's indices: {paper_strong}, {paper_weak}, {paper_dimers}")
+row("Z2 indices", f"strong {paper_strong}, weak {paper_weak}, dimers {paper_dimers}")
 
 ########### 7. the bands along GM-T-F-L-GM ###########
 

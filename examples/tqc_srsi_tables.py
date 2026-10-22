@@ -13,15 +13,18 @@
 # Run with python3, PythTB version 2.0 and pythtqc.
 
 # The calculations in this python file include
-# 1. srsi_tables(211, spinor=False): one group's rows, its whole site-key basis,
-#    which keys are maximal and which have an EBR, and its band-count form
+# 1. srsi_tables(211, spinor=False): one group's invariants, its whole basis of
+#    site irreps, which are at maximal positions and which induce an elementary
+#    band representation, and its band-count form
 # 2. two site irreps at one position that the invariants do not distinguish
-# 3. two printed indicator rows of SG 147 that are not indicators on the group's
-#    own EBR, and how many rows in all the tables behave that way
-# 4. the supplement's symmetry-indicated split EBRs, re-asked with the full
-#    enumeration of atomic realizations, and the unflagged cases one by one
+# 3. #147.14, single-valued: two printed indicator forms that are not
+#    indicators on the group's own elementary band representation, and how
+#    many forms in all the tables behave that way
+# 4. the splittings of an elementary band representation that the symmetry
+#    indicators allow, re-asked with the full enumeration of atomic
+#    realizations, and the unflagged ones one by one
 # 5. the pairs the SRSIs do not distinguish, over every tabulated system
-# 6. the figure: the split-EBR verdicts and the same-content tally
+# 6. the figure: the verdicts on the splittings, and the pairs by site symmetry
 
 # Author: the pythtqc examples
 
@@ -57,34 +60,69 @@ os.makedirs(OUTDIR, exist_ok=True)
 # srsi_tables takes a realized group with time reversal, or a space-group number
 # with spinor=; no model is needed.
 t211 = tqc.srsi_tables(211, spinor=False)
-print(f"The SRSI tables of {t211.provenance['doi']}.")
+print("The tables of stable real-space invariants (SRSIs) of")
+print(f"{t211.provenance['doi']}, read with no model.")
+
+
+def row(label, first, *rest):
+    """One line of the ledger, a label of at most 16 characters, then its continuation lines."""
+    print(f"   {label:<16} : {first}")
+    for line in rest:
+        print(f"{'':22}{line}")
+
+
+def written(theta):
+    """Invariants written out, ``(1, 0, -1)``."""
+    return "(" + ", ".join(str(v) for v in theta) + ")"
+
+
+def moduli(theta_zn):
+    """The Z_n-valued invariants by modulus, ``mod 2 (0, 1)``."""
+    return ", ".join(f"mod {n} {written(theta)}" for n, theta in sorted(theta_zn.items()))
+
+
+def wrapped(items, sep=", ", width=64):
+    """Items joined by sep, broken between items into lines of at most width characters.
+
+    A list keeps its comma at the end of a line; a sum carries its plus sign to
+    the start of the next.
+    """
+    lines = []
+    for item in items:
+        if lines and len(lines[-1]) + len(sep) + len(item) <= width:
+            lines[-1] += sep + item
+        elif lines and sep == " + ":
+            lines.append("+ " + item)
+        elif lines:
+            lines[-1] += sep.rstrip()
+            lines.append(item)
+        else:
+            lines.append(item)
+    return lines
+
 
 ########### 1. one group's tables, read end to end ###########
 
 print("\n1. srsi_tables(211, spinor=False): one group's tables, end to end")
-print(f"   the tables       : #{t211.number_str}, {len(t211.rows)} SRSI rows over "
-      f"{len(t211.site_keys)} site keys and {len(t211.ebrs)} EBR columns, "
-      f"{len(t211.indicators)} tabulated indicators, "
-      f"{len(t211.split_ebrs)} symmetry-indicated split EBRs")
-print(f"   the SRSI group   : {t211.structure}")
+row("the tables", f"#{t211.number_str}, {len(t211.rows)} SRSIs on {len(t211.site_keys)} site "
+    f"irreps and {len(t211.ebrs)} elementary band", f"representations, {len(t211.indicators)} "
+    f"symmetry indicators, and {len(t211.split_ebrs)} splittings of an",
+    "elementary band representation that the indicators allow")
+row("the SRSI group", t211.structure)
 
 # The basis is the whole site-symmetry vector: p runs over the site-symmetry
 # irreps of every Wyckoff position, maximal or not, because the adiabatic moves
-# that define the SRSIs are the moves between them.  Only some keys have an EBR
-# column, and the basis holds the others too.
+# that define the SRSIs are the moves between them.  Only some keys induce an
+# elementary band representation, and the basis holds the others too.
 keys = t211.site_keys
-print(f"   the basis        : {len(keys)} site keys, "
-      f"{len([k for k in keys if k.maximal])} of them at maximal positions, "
-      f"{len([k for k in keys if k.ebr])} with an EBR column")
-print("   with a column    : "
-      + ", ".join(f"({k.irrep})_{k.letter}" for k in keys if k.ebr))
-print("   without one      : "
-      + ", ".join(f"({k.irrep})_{k.letter}" for k in keys if not k.ebr))
-print("   the band count   : nu = "
-      + " + ".join(f"{v}*theta_{i + 1}"
-                   for i, v in enumerate(t211.band_count_form) if v))
-print("                      (a stable invariant itself, and what bounds the")
-print("                      enumeration of atomic realizations)")
+row("the basis", f"{len(keys)} site irreps at Wyckoff positions, "
+    f"{len([k for k in keys if k.maximal])} of them at maximal ones,",
+    f"{len([k for k in keys if k.ebr])} inducing an elementary band representation")
+row("inducing one", *wrapped([f"({k.irrep})_{k.letter}" for k in keys if k.ebr]))
+row("inducing none", *wrapped([f"({k.irrep})_{k.letter}" for k in keys if not k.ebr]))
+band_terms = [f"{v} theta_{i + 1}" for i, v in enumerate(t211.band_count_form) if v]
+row("the band count", *wrapped(["nu = " + band_terms[0]] + band_terms[1:], " + "))
+print("   the band count is itself an SRSI, and bounds the enumeration of atomic realizations")
 
 ########### 2. two site irreps the invariants do not distinguish ###########
 
@@ -94,29 +132,27 @@ print("\n2. two site irreps at one position the invariants do not distinguish")
 # returns the Z-valued half and the Z_n-valued half.
 b2 = tqc.srsi_of(t211, {("B2", "d"): 1})
 b3 = tqc.srsi_of(t211, {("B3", "d"): 1})
-print(f"   (B2) at d        : theta_Z = ({', '.join(str(v) for v in b2[0])})   "
-      f"theta_Zn = {b2[1]}")
-print(f"   (B3) at d        : theta_Z = ({', '.join(str(v) for v in b3[0])})   "
-      f"theta_Zn = {b3[1]}")
+row("1 (B2)_d", f"Z-valued {written(b2[0])}, {moduli(b2[1])}")
+row("1 (B3)_d", f"Z-valued {written(b3[0])}, {moduli(b3[1])}")
 
 pairs211 = tqc.stably_equivalent_pairs(t211)
 for pair in pairs211:
-    print(f"   the pair         : {' / '.join(pair.irreps)} at Wyckoff "
-          f"{pair.letter}, the EBRs {' and '.join(pair.names)}")
+    row("the pair", f"{' and '.join(pair.irreps)} at Wyckoff position {pair.letter}, their "
+        "elementary band", f"representations {' and '.join(pair.names)}")
 if pairs211:
-    print("   both members induce the same symmetry-data vector and carry identical")
-    print("   SRSIs, so neither a momentum-space nor a real-space measurement")
-    print("   separates them.")
+    print("   both induce the same content at every high-symmetry point and carry the same")
+    print("   SRSIs, so no measurement in momentum space or in real space tells them apart")
 
-########### 3. printed indicator rows that are not indicators ###########
+########### 3. printed indicator forms that are not indicators ###########
 
-print("\n3. SG 147 without SOC: printed indicator rows that are not indicators")
+print("\n3. #147.14, single-valued: printed indicator forms that are not indicators")
 t147 = tqc.srsi_tables(147, spinor=False)
-print(f"   the tables       : #{t147.number_str}, tabulated indicators "
-      + ", ".join(f"{f.name} (mod {f.mod})" for f in t147.indicators))
+row("the tables", f"#{t147.number_str}, tabulated indicators "
+    + ", ".join(f"{f.name} (mod {f.mod})" for f in t147.indicators))
 
-# (Au)_a is an EBR column of this very group -- an atomic limit -- so every
-# indicator must read zero on it.  Here is what each printed row gives.
+# (Au)_a induces an elementary band representation of this very group -- an
+# atomic limit -- so every indicator must read zero on it.  Here is what each
+# printed form gives.
 au = {("Au", "a"): 1}
 au_key = [k for k in t147.site_keys if (k.irrep, k.letter) == ("Au", "a")][0]
 raw = t147.theta_unreduced(au)
@@ -124,14 +160,14 @@ printed = []
 for form in t147.indicators:
     value = sum((c * raw[i - 1] for i, c in form.theta.items()), Fraction(0))
     printed.append(f"{form.name} = {int(value) % form.mod} mod {form.mod}")
-print(f"   the test case    : (Au) at {au_key.letter}, EBR column {au_key.column} of "
-      f"#{t147.number_str} -- an atomic limit, so")
-print("                      every indicator must read 0 on it")
-print(f"   theta            : ({', '.join(str(v) for v in t147.theta(au)[0])})")
-print(f"   the printed rows : {', '.join(printed)}")
-print(f"   what is returned : {t147.indicators_of(au)}, the derived rows")
+row(f"1 ({au_key.irrep})_{au_key.letter}", "an elementary band representation of "
+    f"#{t147.number_str}, an atomic limit,", "so every indicator must read 0 on it")
+row("its SRSIs", f"Z-valued {written(t147.theta(au)[0])}")
+row("printed forms", ", ".join(printed))
+row("derived forms", ", ".join(f"{name} = {value}"
+                               for name, value in t147.indicators_of(au).items()))
 
-# ... and how many rows in all the tables behave this way, swept here.
+# ... and how many forms in all the tables behave this way, swept here.
 # Thirteen space groups have a single site irrep in the cell, whose one invariant
 # is the band count; the tables omit them, and srsi_tables refuses them.
 relations = {}
@@ -142,29 +178,30 @@ for sg in range(1, 231):
         if isinstance(table, tqc.Refusal):
             continue
         for form in table.indicators:
-            # a row whose name has no counterpart to derive it from has no
-            # derived row to compare with
-            relation = form.relation or "with no derived row"
+            # a form whose name has no counterpart to derive it from has no
+            # derived form to compare with
+            relation = form.relation or "with no derived form"
             relations[relation] = relations.get(relation, 0) + 1
             if form.relation == "different":
                 different.append(f"#{table.number_str} {form.name}")
-print(f"   over all systems : {sum(relations.values())} tabulated indicator rows -- "
-      + ", ".join(f"{n} {name}" for name, n
-                  in sorted(relations.items(), key=lambda kv: -kv[1])))
+row("over all systems", f"{sum(relations.values())} tabulated indicator forms against the "
+    "derived ones:", ", ".join(f"{n} {name}" for name, n
+                              in sorted(relations.items(), key=lambda kv: -kv[1])))
 if different:
-    print("   the different    : " + ", ".join(different) + " -- and nothing else")
-    print("   the rows returned are the derived ones, which vanish on every elementary")
-    print("   band representation; the printed rows are kept beside them.")
+    row("the different", ", ".join(different))
+    print("   where they differ, the indicators returned are the derived forms, which")
+    print("   vanish on every elementary band representation; the printed forms are kept")
+    print("   beside them")
 
-########### 4. the supplement's split EBRs, re-asked ###########
+########### 4. the supplement's splittings, re-asked ###########
 
-print("\n4. the symmetry-indicated split EBRs, re-asked with a full enumeration")
+print("\n4. the splittings the symmetry indicators allow, re-asked with a full enumeration")
 
-# The supplement lists every way an EBR can split into EBRs that the symmetry
-# indicators allow, with a mark saying whether the SRSIs of the two sides
-# mismatch.  Both halves are measured below: that mark, recomputed from the theta
-# rows it is printed beside; then the criterion, which asks the question the mark
-# only sampled.
+# The supplement lists every way an elementary band representation can split
+# into others that the symmetry indicators allow, with a flag saying whether
+# the SRSIs of the parts mismatch.  Both halves are measured below: that flag,
+# recomputed from the invariants it is printed beside; then the criterion,
+# which asks the question the flag only sampled.
 counts = {"single": 0, "double": 0}
 flagged = 0
 reproduced = 0
@@ -193,8 +230,9 @@ for sg in range(1, 231):
                            for n, rows in table.zn_rows.items() for i in rows)
             if mismatch == bool(split.srsi_mismatch):
                 reproduced += 1
-            # ... and the criterion, with H = the parent EBR (every row of it
-            # known exactly), V = the first child and C = the rest
+            # ... and the criterion: the parent as all the bands (every invariant
+            # of it known exactly), its first child as the valence bands and the
+            # rest as the conduction bands
             first = [0] * len(table.ebrs)
             first[int(split.children[0]["column"])] = 1
             theta_total = table.theta_columns(parent)
@@ -204,7 +242,7 @@ for sg in range(1, 231):
             key = (bool(split.srsi_mismatch), kind, got.verdict)
             tally[key] = tally.get(key, 0) + 1
             entry = (table.number_str, split.parent["irrep"], split.parent["letter"],
-                     tuple(c["irrep"] + "@" + c["letter"] for c in split.children),
+                     tuple(f"({c['irrep']})_{c['letter']}" for c in split.children),
                      got.verdict, len(got.consistent_pairs))
             if not split.srsi_mismatch:
                 unflagged.append(entry)
@@ -212,37 +250,38 @@ for sg in range(1, 231):
                 exceptions.append(entry)
 
 total = counts["single"] + counts["double"]
-print(f"   the list         : {total} splittings, {counts['single']} without SOC and "
-      f"{counts['double']} with, {flagged} of them marked SRSI-mismatching")
-print(f"   the supplement's mismatch column, recomputed here from the theta rows "
-      f"beside it, agrees on {reproduced} of {total}.")
-print("   the criterion, with H the parent EBR, V the first child and C the rest:")
-print("      the mark    valuedness  verdict                     count")
+row("the list", f"{total} splittings of an elementary band representation into",
+    f"others, {counts['single']} single-valued and {counts['double']} double-valued")
+row("the paper's flag", f"{flagged} of them, where the Z_n-valued invariants of the parts do not",
+    "add up to the whole's; recomputed from the invariants printed",
+    f"beside it, the flag agrees on {reproduced} of {total}")
+row("the criterion", "the parent as all the bands, its first child as the valence bands,",
+    "the rest as the conduction bands")
+print("      flag        valuedness  verdict                     count")
 for key in sorted(tally, key=lambda k: (not k[0], k[1], k[2])):
     print(f"      {'flagged' if key[0] else 'unflagged':<11} {key[1]:<11} "
           f"{key[2]:<27} {tally[key]}")
 diagnosed = sum(v for k, v in tally.items()
                 if k[0] and k[2] == "diagnosed topological")
-print(f"   the headline     : {diagnosed} of the {flagged} flagged splittings stay "
-      "diagnosed topological")
+row("the headline", f"{diagnosed} of the {flagged} flagged splittings stay diagnosed "
+    "topological")
 for number, irrep, wyckoff, children, verdict, npairs in exceptions:
-    print(f"   the exception    : #{number}  ({irrep})_{wyckoff} -> "
-          f"{' + '.join(children)}   '{verdict}', {npairs} consistent pairs")
-if exceptions:
-    print("   a consistent pair is two atomic realizations, one per side, whose Z_n-SRSIs")
-    print("   add up to the total's; where one exists, the splitting's topology is")
-    print("   invisible to the invariants.")
+    row("the exception", f"#{number}, parent ({irrep})_{wyckoff}, first child {children[0]}, "
+        f"rest {' + '.join(children[1:])},",
+        f"{npairs} consistent pair{'' if npairs == 1 else 's'}")
+n_no_zn = sum(1 for entry in unflagged if entry[4] == "no Z_n SRSIs")
 if unflagged:
-    print(f"   the {len(unflagged)} unflagged splittings, one by one:")
+    row("the unflagged", f"{len(unflagged)} splittings, {n_no_zn} of them in groups with no "
+        "Z_n-valued invariant")
+    print(f"      {'group':<10}{'parent':<11}{'first child':<13}{'rest':<13}"
+          f"{'verdict':<24}consistent pairs")
     for number, irrep, wyckoff, children, verdict, npairs in unflagged:
         parent_label = f"({irrep})_{wyckoff}"
-        print(f"      #{number:<8} {parent_label:<12} -> "
-              f"{' + '.join(children):<22} '{verdict}' ({npairs} consistent "
-              f"pair{'' if npairs == 1 else 's'})")
-n_no_zn = sum(1 for entry in unflagged if entry[4] == "no Z_n SRSIs")
-if n_no_zn:
-    print(f"   the {n_no_zn} 'no Z_n SRSIs' entries are groups whose SRSI group has no "
-          "Z_n row, so there is no additivity to test.")
+        print(f"      #{number:<9}{parent_label:<11}{children[0]:<13}"
+              f"{' + '.join(children[1:]):<13}{verdict:<24}{npairs}")
+if exceptions or unflagged:
+    print("   where a consistent pair exists, any topology of the splitting is invisible")
+    print("   to the SRSIs")
 
 ########### 5. the pairs the SRSIs do not distinguish, everywhere ###########
 
@@ -260,30 +299,28 @@ for sg in range(1, 231):
                                      if k.letter == pair.letter))
             found.append((sg, spinor, pair.letter, pair.irreps, signature))
 groups = sorted({sg for sg, *_ in found})
-print(f"   the sweep        : {len(found)} pairs over {len(groups)} space groups, "
-      f"{sum(1 for p in found if p[1])} of them with SOC")
+row("the sweep", f"{len(found)} pairs in {len(groups)} space groups, "
+    f"{sum(1 for p in found if p[1])} of them double-valued")
 
 by_signature = {}
 for _sg, _sp, _w, _irreps, signature in found:
     by_signature[signature] = by_signature.get(signature, 0) + 1
-print("   by the site irreps the tables carry at that letter: " + ";  ".join(
-    f"{by_signature[s]} at ({', '.join(s)})"
-    for s in sorted(by_signature, key=lambda s: -by_signature[s])))
+row("by site symmetry", *(f"{by_signature[s]} where the site irreps are {', '.join(s)}"
+                          for s in sorted(by_signature, key=lambda s: -by_signature[s])))
 
 by_members = {}
 for _sg, _sp, _w, irreps, _s in found:
     by_members[irreps] = by_members.get(irreps, 0) + 1
-print("   by the two members: " + ", ".join(
-    "/".join(k) + f" ({v})" for k, v
-    in sorted(by_members.items(), key=lambda kv: -kv[1])))
-print(f"   the space groups : {groups}")
+row("by the members", *wrapped([f"{v} of {' and '.join(k)}" for k, v
+                                in sorted(by_members.items(), key=lambda kv: -kv[1])]))
+row("space groups", *wrapped([str(sg) for sg in groups]))
 if found:
-    print("   the tables give both members of each pair identical SRSIs, Z and Z_n,")
-    print("   so whichever member a decomposition picks, no number moves.")
+    print("   both members of each pair carry the same SRSIs, Z-valued and Z_n-valued, so")
+    print("   whichever one a decomposition picks, no invariant changes")
 
 ########### 6. the figure ###########
 
-print("\n6. the figure: the split-EBR verdicts and the same-content tally")
+print("\n6. the figure: the verdicts on the splittings, and the pairs by site symmetry")
 fig, axes = plt.subplots(1, 2, figsize=(13.0, 4.6))
 
 labels = []

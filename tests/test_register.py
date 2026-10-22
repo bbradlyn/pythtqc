@@ -2,7 +2,7 @@
 
 Four classes of text carry the package's words to the physicist using it: the
 docstrings and the comments of ``src/pythtqc``, the ten worked examples with
-their comments and the lines they print, and the user pages -- ``README.md``
+their comments and every string they could print, and the user pages -- ``README.md``
 and the pages of ``docs/``, the map ``docs/README.md`` among them.  The pages
 are a listing, not one path: the one ``scripts/check_page.py`` runs them
 by is the one read here, so a page is
@@ -371,7 +371,7 @@ def _comment_lines(path, source):
 
 
 def _printed_literals(node):
-    """The string literals of one ``print`` argument; a replacement field is code."""
+    """The string literals of one expression; a replacement field is code."""
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         yield node
     elif isinstance(node, ast.JoinedStr):
@@ -386,31 +386,36 @@ def _printed_literals(node):
         yield from _printed_literals(node.orelse)
 
 
-def _print_lines(path, tree):
+def _literal_lines(path, tree):
+    """Every string an example could print: a ``print`` argument, a ledger line's
+    label or value, the text a printing function returns.  A literal without a
+    space is a key, a mode or a symbol, not prose; a bare string statement is a
+    docstring, which ``_docstring_lines`` reads."""
     rel = _relative(path)
+    docstrings = {id(node.value) for node in ast.walk(tree)
+                  if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant)}
+    parts = {id(part) for node in ast.walk(tree) if isinstance(node, ast.JoinedStr)
+             for part in node.values}
     records = []
     for node in ast.walk(tree):
-        if not (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "print"
-        ):
+        if not isinstance(node, (ast.Constant, ast.JoinedStr)):
             continue
-        for argument in node.args:
-            for literal in _printed_literals(argument):
-                for piece in literal.value.splitlines() or [""]:
-                    if not piece.strip():
-                        continue
-                    records.append(
-                        Line(
-                            path=rel,
-                            lineno=literal.lineno,
-                            raw=piece,
-                            prose=_strip_code_font(piece),
-                            section="",
-                            first=False,
-                        )
+        if id(node) in docstrings or id(node) in parts:
+            continue
+        for literal in _printed_literals(node):
+            for piece in literal.value.splitlines() or [""]:
+                if " " not in piece.strip():
+                    continue
+                records.append(
+                    Line(
+                        path=rel,
+                        lineno=literal.lineno,
+                        raw=piece,
+                        prose=_strip_code_font(piece),
+                        section="",
+                        first=False,
                     )
+                )
     return records
 
 
@@ -486,7 +491,7 @@ def _build(text_class):
             tree = ast.parse(source)
             records += _docstring_lines(path, source, tree)
             records += _comment_lines(path, source)
-            records += _print_lines(path, tree)
+            records += _literal_lines(path, tree)
         return records
     if text_class == "pages":
         records = []

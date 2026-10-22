@@ -1,61 +1,54 @@
 Kane-Mele on the honeycomb at delta = 0 and rashba = 0, PRL 95, 226801 (2005):
-one monolayer, whose horizontal mirror is unbroken, asked three ways.
+one monolayer with four bands, two occupied, and an unbroken horizontal mirror,
+asked three ways.
+Bands are counted from 0, as pythtb counts them.
 
 A. the layer in the plane, declared free-standing
    realized group   : #191.234 P6/mmm1', 4 bands, orbitals at Wyckoff 2c
-                      carrying the site irrep -E1
-                      (free-standing is a declaration: a flat model has no third
-                      coordinate, and a layer on a substrate has no mirror in z)
-   valence content  : GM: -GM9   K: -K8   M: -M6
-   the EBR rows     : the class of a layer needs the 11 k_z = 1/2 rows the plane
-                      has no coordinate for; they are measured on the layer's own stack
-   class            : (1, 0), order 6 in X_BS(#191.234) = Z6 x Z12
+   site irrep       : -E1, of the declared s orbital
+   bands 0 and 1    : GM: -GM9   K: -K8   M: -M6
+   out of the plane : 11 coreps at k_z = 1/2, measured on the layer's own stack
+   indicator class  : (1, 0) in Z6 x Z12, order 6
+   free-standing is a declaration: a flat model has no third coordinate, and a
+   layer on a substrate has no mirror in z
 
 B. the same layer, with the physical p_z declared
    realized group   : #191.234 P6/mmm1', orbitals at Wyckoff 2c
-                      carrying the site irrep -E2
-                      (the declared p_z is odd under the mirror, m(z) = -1, and
-                      an even s orbital lifts to -E1 instead)
-   valence content  : GM: -GM12   K: -K9   M: -M5
-   class            : (5, 0), order 6 in X_BS(#191.234) = Z6 x Z12
-   inversion        : #191.234 has r -> -r, the product of the mirror m(z) and the
-                      twofold rotation C2z; its spinor lift squares to +E, so its
-                      eigenvalues are +-1 and a parity count exists, while the lifts of
-                      m(z) and C2z square to Ebar with eigenvalues +-i.
-                      C2z acts on in-plane k as inversion does but is a rotation: this
-                      inversion is the layer group's and needs the third direction.
-                      It exchanges the two honeycomb sites: site 0 -> 1, site 1 -> 0.
-   rashba = 0.25    : the same call measures #183.186 P6mm1', a subgroup of index 2.
-                      #191.234 has operations with R[2,2] = -1 and +1; what the Rashba
-                      term leaves has only R[2,2] = +1 -- the mirror and everything
-                      composed with it is gone, and X_BS(#183.186) = trivial
+   site irrep       : -E2, of the declared p_z, odd under the mirror: m(z) = -1
+   bands 0 and 1    : GM: -GM12   K: -K9   M: -M5
+   indicator class  : (5, 0) in Z6 x Z12, order 6
+   inversion        : r to -r, the product of the mirror m(z) and the rotation C2z,
+                      taking site 0 to 1 and site 1 to 0
+   spinor squares   : +E for the inversion, so eigenvalues +-1; Ebar for m(z) and C2z,
+                      so eigenvalues +-i
+   rashba = 0.25    : #183.186 P6mm1', a subgroup of index 2;
+                      indicator group: trivial
+   operations' R_zz : -1 and +1 at rashba = 0, only +1 at rashba = 0.25:
+                      the mirror and every operation composed with it are gone
+   C2z acts on in-plane k as inversion does but is a rotation: the inversion, with
+   its parity eigenvalues, is the layer group's and needs the third direction
 
 C. the layer as a periodic decoupled stack
    the stack        : 3 periodic directions and no vacuum, period c = 8
-   no k_z           : the stack's H(k, k_z) equals the layer's H(k) at k_z = 0, 0.25, 0.5,
-                      max |H(k, k_z) - H(k)| = 0.000000 over 6 random in-plane k
+   H(k, k_z) - H(k) : 0.000000 in its largest entry, over 6 random in-plane k
+                      and k_z = 0, 0.25 and 0.5
    realized group   : #191.234 P6/mmm1', orbitals at Wyckoff 2c, k-points A GM H K L M
-   six-point content: GM: -GM12   A: -A12   K: -K9   H: -H9   M: -M5   L: -L5
-   class            : (5, 0), order 6 in X_BS(#191.234) = Z6 x Z12
+   bands 0 and 1    : GM: -GM12   A: -A12   K: -K9   H: -H9   M: -M5   L: -L5
+   indicator class  : (5, 0) in Z6 x Z12, order 6
 
 D. the three classes side by side
-   A. the plane, s          : #191.234, Z6 x Z12, class (1, 0), order 6
-   B. the plane, p_z        : #191.234, Z6 x Z12, class (5, 0), order 6
-   C. the stack, p_z        : #191.234, Z6 x Z12, class (5, 0), order 6
-   the invariant part: order 6/6/6, z2w,3 = 1/1/1, z4 = 2/2/2
-   B and C are one crystal presented two ways and their classes agree entry for
-   entry; A and B differ in the declared site character alone, and that moves
-   the component values and not the invariant part
-   irreptables forms : z2w,3 = 1, z4 = 2, z3m,π = 2, z3m,0 = 2,
-                       z6m,0 = 1, z6m,π = 1, z12 = 2
-   out of the plane  : z2w,3, z3m,π, z6m,π read only the k_z = 1/2 rows, and
-                       z4, z12 both planes.  Those rows repeat the in-plane ones,
-                       so the class is the class of the layer's decoupled stack,
-                       and every form is an invariant of that stack, fixed by
-                       the layer's own content
-   the control       : the four bands together are the band representation of the
-                       orbitals at 2c, an atomic limit by construction, and their
-                       class is (0, 0), every irreptables form 0
+   presentation     : group      indicator group   class    order   z2w,3   z4
+   the plane, s     : #191.234   Z6 x Z12          (1, 0)   6       1       2
+   the plane, p_z   : #191.234   Z6 x Z12          (5, 0)   6       1       2
+   the stack, p_z   : #191.234   Z6 x Z12          (5, 0)   6       1       2
+   named indicators : of the p_z class, z2w,3 = 1, z4 = 2, z3m,π = 2, z3m,0 = 2,
+                      z6m,0 = 1, z6m,π = 1, z12 = 2
+   out of the plane : z2w,3, z3m,π and z6m,π read only the coreps at k_z = 1/2,
+                      z4 and z12 those of both planes
+   all 4 bands      : the band representation of the orbitals at 2c, an atomic limit
+   indicator class  : (0, 0) in Z6 x Z12, order 1, every named indicator 0
+   the stack and the plane with p_z have one class, (5, 0); declaring s instead
+   moves it to (1, 0) and leaves its order, z2w,3 and z4 as they are
 
 E. the layer's bands, and the stack's at k_z = 0 and k_z = 1/2
 

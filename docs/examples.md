@@ -57,7 +57,9 @@ leaves the files unchanged.
 Each script is a flat sequence of sections, each a few calls and the lines
 that print what they measured, so a script reads top to bottom like a worked
 problem; its header comment names the model and where it comes from, and lists
-the sections. What each script prints is kept, line for line, in
+the sections. A script prints a ledger, each measured quantity on a labelled
+line, and counts bands from 0 as pythtb does, saying so once where it names one.
+What each script prints is kept, line for line, in
 `tests/data/example_goldens/`, and the test suite runs every script and
 compares what it prints with that copy.
 
@@ -89,7 +91,7 @@ regimes and a deep atomic limit. It prints the group of each regime,
 content of the valence and conduction pairs at `GM`, `K` and `M` with their
 decompositions, where the valence pair's Wyckoff position moves from `1a` to
 `1b` as the staggered potential grows and a conduction pair that does not
-decompose is written as a difference of elementary band representations; the
+decompose is written as a signed sum of elementary band representations; the
 operator `s_z` the Hamiltonian conserves without its Rashba term, read off
 `H(k)`; the level at `K` that the Rashba term splits into two one-dimensional
 coreps, linearly in its strength, because the little group does not hold them
@@ -146,7 +148,7 @@ levels there is a fourfold screw combined with time reversal. On
 `pythtqc.models`' `i41_atomic()` and `i41_soc("generic", lam=0.4)` it prints
 the fourfold level of the spinful atomic model; the little group's table at `P`
 and at `-P`, entrywise conjugates of one another; a spin–orbit bond set
-splitting the level as `[1, 2, 1]`; each level labelled from one
+splitting the level as `1 + 2 + 1`; each level labelled from one
 diagonalization, the doublet `-P4P4`, whose trace `2i` on the twofold rotation
 names the irrep that screw combined with time reversal glues to itself; the
 four valence bands as one elementary band representation;

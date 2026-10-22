@@ -388,7 +388,7 @@ def test_srsi_of_model_localizes_every_orbit_and_pins_the_total(request, name):
     # the record prints what it did
     text = got.summary()
     assert realized.group.number_str in text
-    assert f"the model's: Z-valued ({', '.join(want_total)})" in text
+    assert f"the whole model: Z-valued ({', '.join(want_total)})" in text
     for orbit, (letter, _terms) in zip(got.orbits, want_orbits):
         assert f"{orbit.multiplicity}{letter}" in text
     if any(orbit.composite is None and orbit.letter not in orbit.closure

@@ -7,71 +7,48 @@ are one another's images.
    (0, 0.5, 0.5)     x      py, pz
    (0.5, 0, 0.5)     y      px, pz
    (0.5, 0.5, 0)     z      px, py
-   6 orbitals, 6 bands; 66 hoppings, random, to every orbital within
-   one lattice constant, averaged over the operations of T_d
+   bands            : 6, from 6 orbitals
+   hoppings         : 66, random, to every orbital within one lattice constant,
+                      averaged over the operations of T_d
 
 2. the group: what the point set allows, and what the hoppings obey
-   the point set allows : #221.93 Pm-3m1'
-   the hoppings obey    : #215.71 P-43m1', orbitals at Wyckoff 3c
-   broken               : i, 3 like m(z), 6 like C2([110]), 6 like C4(z), 8 like S3([111]),
-                          each also with time reversal: 48 of the 96 coset
-                          representatives of the lattice translations
-   about the site axes  : C4(x), C4(y), C4(z) broken; S4(x), S4(y), S4(z) kept
-   -> the hoppings break inversion, and the operations lost are inversion
-      times those kept: each site loses the fourfold rotation about its own
-      axis and keeps the -4 rotoinversion about it
+   point set allows : #221.93 Pm-3m1'
+   realized group   : #215.71 P-43m1', orbitals at Wyckoff 3c
+   broken           : i, 3 like m(z), 6 like C2([110]), 6 like C4(z), 8 like S3([111]),
+                      each also with time reversal: 48 of the 96 coset representatives
+                      of the lattice translations
+   each site's axis : C4(x), C4(y), C4(z) broken; S4(x), S4(y), S4(z) kept
+   the operations broken are inversion times those kept: each site loses the fourfold
+   rotation about its own axis and keeps the -4 rotoinversion about it
 
-3. the atomic-limit table: what each orbital carries, read off the hoppings
-orbital  Wyckoff  site symmetry  function  irrep     named by  determined by  orbital characters
-      0       3c           -42m                E  point group    hamiltonian  E=+2, C2(y)=0, C2(x)=-2, m([011])=0, S4(x)=0
-      1       3c           -42m                E  point group    hamiltonian  E=+2, C2(y)=0, C2(x)=-2, m([011])=0, S4(x)=0
-      2       3c           -42m                E  point group    hamiltonian  E=+2, C2(x)=0, C2(y)=-2, m([101])=0, S4(y)=0
-      3       3c           -42m                E  point group    hamiltonian  E=+2, C2(x)=0, C2(y)=-2, m([101])=0, S4(y)=0
-      4       3c           -42m                E  point group    hamiltonian  E=+2, C2(z)=-2, C2(x)=0, m([110])=0, S4(z)=0
-      5       3c           -42m                E  point group    hamiltonian  E=+2, C2(z)=-2, C2(x)=0, m([110])=0, S4(z)=0
-  orbitals 0-5 at 3c induce the elementary band representations of T1 at 1b (-43m) + T2 at 1b (-43m)   (.band_representations)
-   -> nothing is declared: the hoppings fix each row's E themselves, the two-dimensional
-      irrep of the site's own -42m, and no row names a function: which real functions
-      a pair of Wannier functions is, inside its site, is a choice of basis, and
-      the orbital characters are what the hoppings fix.
-   each site's characters, named in its own axes:
-      (0, 0.5, 0.5)   axis x:  E +2,  C2(x) -2,  C2(y) 0,  S4(x) 0,  m([011]) 0
-      (0.5, 0, 0.5)   axis y:  E +2,  C2(y) -2,  C2(x) 0,  S4(y) 0,  m([101]) 0
-      (0.5, 0.5, 0)   axis z:  E +2,  C2(z) -2,  C2(x) 0,  S4(z) 0,  m([110]) 0
-   -> at every site the character is that of E: +2 on the identity, -2 on the twofold
-      about the site's own axis, and 0 on the -4 about it, on a perpendicular twofold
-      and on a diagonal mirror.  The numbers are the same at the three sites, and the
-      operations they belong to are not: each is named in its own site's axes.
-   -> C3([111]) carries each site onto the next, and its axis onto the next site's:
-         (0, 0.5, 0.5)   -> (0.5, 0, 0.5)   :  axis x -> y,  C2(x) -> C2(y), character -2 at both
-         (0.5, 0, 0.5)   -> (0.5, 0.5, 0)   :  axis y -> z,  C2(y) -> C2(z), character -2 at both
-         (0.5, 0.5, 0)   -> (0, 0.5, 0.5)   :  axis z -> x,  C2(z) -> C2(x), character -2 at both
-      so each site's characters are the image of the first site's, carried by the
-      operations of the orbit, and each row is the E of its own site's -42m.
-   -> E is named by the point group: at 3c of P-43m1' it induces a composite band
-      representation, one of the known exceptions to an irrep at a maximal Wyckoff
-      position inducing an elementary one, so no elementary band representation
-      of the tables carries its name; the line under the table writes out the
-      elementary ones it is the sum of.
+3. r.rep.characters: the atomic-limit table, what each orbital carries
+   orbital  Wyckoff  site symmetry  function  irrep     named by  determined by  orbital characters
+         0       3c           -42m                E  point group    hamiltonian  E=+2, C2(y)=0, C2(x)=-2, m([011])=0, S4(x)=0
+         1       3c           -42m                E  point group    hamiltonian  E=+2, C2(y)=0, C2(x)=-2, m([011])=0, S4(x)=0
+         2       3c           -42m                E  point group    hamiltonian  E=+2, C2(x)=0, C2(y)=-2, m([101])=0, S4(y)=0
+         3       3c           -42m                E  point group    hamiltonian  E=+2, C2(x)=0, C2(y)=-2, m([101])=0, S4(y)=0
+         4       3c           -42m                E  point group    hamiltonian  E=+2, C2(z)=-2, C2(x)=0, m([110])=0, S4(z)=0
+         5       3c           -42m                E  point group    hamiltonian  E=+2, C2(z)=-2, C2(x)=0, m([110])=0, S4(z)=0
+     orbitals 0-5 at 3c induce the elementary band representations of T1 at 1b (-43m) + T2 at 1b (-43m)   (.band_representations)
+   C3([111])        : carries each site onto the next, and its axis onto the next site's
+   (0, 0.5, 0.5)    : onto (0.5, 0, 0.5), axis x onto y, C2(x) onto C2(y), character -2 at both
+   (0.5, 0, 0.5)    : onto (0.5, 0.5, 0), axis y onto z, C2(y) onto C2(z), character -2 at both
+   (0.5, 0.5, 0)    : onto (0, 0.5, 0.5), axis z onto x, C2(z) onto C2(x), character -2 at both
+   each site's characters are the first site's, carried by the operations of the orbit,
+   and each row is the E of its own site's -42m
 
 4. the same model, every pair rotated inside itself by 0.37 rad
-   a change of orbital basis at every site, the same at each: a choice of
-   Wannier gauge
-   the hoppings obey    : #215.71 P-43m1'
-   its atomic-limit table is section 3's, line for line: True
-   -> the group, the irreps and the characters at every row are those of section 3:
-      a character is a trace, and no change of basis inside a pair moves a trace.
-   the six bands        : GM4 + GM5 + M1 + M2 + 2×M5 + R4 + R5 + X1 + X2 + 2×X5
-   rotated by 0.37 rad  : GM4 + GM5 + M1 + M2 + 2×M5 + R4 + R5 + X1 + X2 + 2×X5
+   realized group   : #215.71 P-43m1'
+   rep.characters   : section 3's atomic-limit table, line for line
+   all 6 bands      : GM4 + GM5 + M1 + M2 + 2×M5 + R4 + R5 + X1 + X2 + 2×X5
+   all 6, rotated   : GM4 + GM5 + M1 + M2 + 2×M5 + R4 + R5 + X1 + X2 + 2×X5
+   the rotation is a change of orbital basis inside each pair, a choice of Wannier gauge,
+   and a character is a trace, which no change of basis moves
 
 5. the six bands as a sum of elementary band representations
-   decompose            : symmetry-indicated decomposable, 1 solution
-                          = 1 x T1↑G(3)@1b(-43m1',-43m) + 1 x T2↑G(3)@1b(-43m1',-43m)
-   -> the band representation E at 3c induces is this sum of elementary
-      ones at 1b: that is what composite means.  The line under the
-      atomic-limit table of section 3 is the same sum, each term written there
-      as its site irrep at its Wyckoff position.
-   the figure           : the six bands along GM-X-M-GM-R-X, one spectrum in both bases,
-                          max |E - E_rotated| = 0.000000 along the path
+   atomic limit     : 1 x T1↑G(3)@1b(-43m1',-43m) + 1 x T2↑G(3)@1b(-43m1',-43m)
+   both bases       : largest energy difference 0.000000 along GM-X-M-GM-R-X, the figure's path
+   E at 3c of P-43m1' is one of the known exceptions to an irrep at a maximal
+   Wyckoff position inducing an elementary band representation
 
 Done — figure written to <FIGDIR>

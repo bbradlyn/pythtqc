@@ -19,7 +19,7 @@
 # 3. SG 208: the group, with the crystal field the paper draws, and the levels
 #    of the four bands at every high-symmetry point
 # 4. SG 208: one elementary band representation, and the same gap census
-# 5. SG 208: each half of the split asked on its own
+# 5. SG 208: each half of the split on its own
 # 6. the two band structures, and the figure written out
 
 # Author: the pythtqc examples
@@ -76,6 +76,33 @@ os.makedirs(OUTDIR, exist_ok=True)
 print("Two four-band elementary band representations, and whether their bands can")
 print("be separated: SG 199 (Flicker et al., PRB 98, 155145) and SG 208 (Cano et")
 print("al., PRL 120, 266401).")
+print("Bands are counted from 0, as pythtb counts them.")
+
+
+def row(label, first, *rest):
+    """One line of the ledger, a label of at most 16 characters, then its continuation lines."""
+    print(f"   {label:<16} : {first}")
+    for line in rest:
+        print(f"{'':22}{line}")
+
+
+def atomic_limits(d):
+    """The atomic limits of a band set, as a label and a value: the one sum of elementary
+    band representations with this content, how many sums there are, or none."""
+    if d.verdict == "none":
+        return "atomic limits", "none"
+    sums = d.solution_strings()
+    if len(sums) == 1:
+        return "atomic limit", sums[0]
+    return "atomic limits", f"{len(sums)} sums of elementary band representations"
+
+
+def direct_gaps(gaps):
+    """The smallest direct gap between each two neighbouring bands over the mesh, a line each."""
+    for i, gap in enumerate(gaps):
+        row(f"bands {i} and {i + 1}", f"smallest direct gap {gap:.6f}"
+            + (f" over a {NK_MESH}x{NK_MESH}x{NK_MESH} mesh" if i == 0 else ""))
+
 
 ########### 1. SG 199: the group and the levels ###########
 
@@ -85,12 +112,13 @@ m199 = tqm.i213_flicker2018()
 out199 = tqc.realized_group(m199, characters=DECLARE)
 _m, g199, asg199, val199, rep199 = out199
 sites199 = tqc.wyckoff_sites_tables(g199, asg199.site_positions)   # letter and multiplicity
-print(f"   realized group   : #{g199.number_str} {g199.name}, s orbitals at Wyckoff "
-      f"{' and '.join(dict.fromkeys(f'{s.multiplicity}{s.letter}' for s in sites199))}, "
-      f"{m199.nstate} bands")
+row("realized group", f"#{g199.number_str} {g199.name}, s orbitals at Wyckoff "
+    f"{' and '.join(dict.fromkeys(f'{s.multiplicity}{s.letter}' for s in sites199))}, "
+    f"{m199.nstate} bands")
 
 # one diagonalization per high-symmetry point: corep_content reads the
-# characters of each level off its eigenvectors and names the corep it carries.
+# characters of each level off its eigenvectors and names the corep it carries;
+# each level is printed as its corep, its dimension in parentheses, and its energy.
 hsp199 = tqc.high_symmetry_points(g199)
 levels199 = []                     # (k-point, energy, corep label, degeneracy)
 for point in sorted(hsp199):
@@ -100,26 +128,25 @@ for point in sorted(hsp199):
     for multiplet, dim, counts in zip(out.table.multiplets, out.table.dims, out.labels):
         energy = float(out.table.spectrum[multiplet[0]])
         levels199.append((point, energy, fmt(counts), int(dim)))
-        rows.append(f"{fmt(counts)}({int(dim)}) @ {energy:+.6f}")
-    print(f"   {point:<3}: {', '.join(rows)}")
+        rows.append(f"{fmt(counts)}({int(dim)}) at {energy:+.6f}")
+    row(point, ", ".join(rows))
 threefold = sorted({lab for _p, _e, lab, dim in levels199 if dim == 3})
 print(f"   {' and '.join(threefold)} are threefold: the spin-1 fermions")
 
-########### 2. SG 199: one EBR, and the gap census ###########
+########### 2. SG 199: one elementary band representation, and the gaps ###########
 
 print("\n2. SG 199: the four bands together, and the three inter-band gaps")
 t199 = tqc.hsp_table(rep199, bands=4)          # the content at every point, in one table
 d199 = tqc.decompose(t199, g199, rep=rep199)
-print(f"   all four bands   : {fmt(t199.counts)}")
-print(f"                      = {d199.solution_strings()[0]}")
+row("all 4 bands", fmt(t199.counts))
+row(*atomic_limits(d199))
 
 mesh199 = m199.k_uniform_mesh([NK_MESH] * 3)
 ev199 = np.asarray(m199.solve_ham(mesh199))
 gaps199 = [float((ev199[:, i + 1] - ev199[:, i]).min()) for i in range(3)]
-print(f"   min over a {NK_MESH}^3 mesh of E1-E0 / E2-E1 / E3-E2:")
-print("                      " + " / ".join(f"{g:.6f}" for g in gaps199))
-print("   every inter-band gap closes somewhere, so no subset of the four bands is")
-print("   isolated at any filling: this elementary band representation is connected")
+direct_gaps(gaps199)
+print("   every gap closes somewhere, so no subset of the four bands is isolated at any")
+print("   filling: this elementary band representation is connected")
 
 ########### 3. SG 208: the group, the crystal field, and the levels ###########
 
@@ -142,12 +169,10 @@ field = [(p.tolist(), int(t)) for p, t in zip(cell["positions"], cell["typat"])
 out208 = tqc.realized_group(m208, decorations=field)
 _m, g208, asg208, val208, rep208 = out208
 sites208 = tqc.wyckoff_sites_tables(g208, asg208.site_positions)
-print(f"   realized group   : #{g208.number_str} {g208.name}, orbitals at Wyckoff "
-      f"{' and '.join(dict.fromkeys(f'{s.multiplicity}{s.letter}' for s in sites208))}, "
-      f"{m208.nstate} bands")
-print(f"                      (the {len(field)} atoms of the crystal field are the "
-      "paper's own")
-print("                      device, and carry no orbital)")
+row("realized group", f"#{g208.number_str} {g208.name}, orbitals at Wyckoff "
+    f"{' and '.join(dict.fromkeys(f'{s.multiplicity}{s.letter}' for s in sites208))}, "
+    f"{m208.nstate} bands")
+row("crystal field", f"{len(field)} atoms that carry no orbital, the paper's own device")
 
 hsp208 = tqc.high_symmetry_points(g208)
 levels208 = []
@@ -158,42 +183,42 @@ for point in sorted(hsp208):
     for multiplet, dim, counts in zip(out.table.multiplets, out.table.dims, out.labels):
         energy = float(out.table.spectrum[multiplet[0]])
         levels208.append((point, energy, fmt(counts), int(dim)))
-        rows.append(f"{fmt(counts)}({int(dim)}) @ {energy:+.6f}")
-    print(f"   {point:<3}: {', '.join(rows)}")
+        rows.append(f"{fmt(counts)}({int(dim)}) at {energy:+.6f}")
+    row(point, ", ".join(rows))
 
-########### 4. SG 208: one EBR, and the same gap census ###########
+########### 4. SG 208: one elementary band representation, and the gaps ###########
 
 print("\n4. SG 208: the four bands together, and the three inter-band gaps")
 t208 = tqc.hsp_table(rep208, bands=4)
 d208 = tqc.decompose(t208, g208, rep=rep208)
-print(f"   all four bands   : {fmt(t208.counts)}")
-print(f"                      = {d208.solution_strings()[0]}")
+row("all 4 bands", fmt(t208.counts))
+row(*atomic_limits(d208))
 
 mesh208 = m208.k_uniform_mesh([NK_MESH] * 3)
 ev208 = np.asarray(m208.solve_ham(mesh208))
 gaps208 = [float((ev208[:, i + 1] - ev208[:, i]).min()) for i in range(3)]
 indirect208 = float(ev208[:, 2].min() - ev208[:, 1].max())
-print(f"   min over a {NK_MESH}^3 mesh of E1-E0 / E2-E1 / E3-E2:")
-print("                      " + " / ".join(f"{g:.6f}" for g in gaps208))
-print(f"   indirect gap at half filling: {indirect208:.6f}")
-print("   the middle gap never closes, so this elementary band representation is")
-print("   split at half filling: two isolated halves of two bands each")
+direct_gaps(gaps208)
+row("half filling", f"indirect gap {indirect208:.6f}")
+print("   the gap between bands 1 and 2 stays open, so this elementary band representation")
+print("   splits at half filling into two isolated halves of two bands each")
 
 ########### 5. SG 208: each half on its own ###########
 
-print("\n5. SG 208: each half of the split, asked on its own")
+print("\n5. SG 208: each half of the split on its own")
 
 # hsp_table takes the indices of the bands to read, so each half is asked
 # exactly as the whole set was in section 4.
 table_lo = tqc.hsp_table(rep208, bands=(0, 1))
 d_lo = tqc.decompose(table_lo, g208, rep=rep208)
-print(f"   bands 0, 1       : {fmt(table_lo.counts)}   decompose: {d_lo.verdict}")
+row("bands 0 and 1", fmt(table_lo.counts))
+row(*atomic_limits(d_lo))
 
 table_hi = tqc.hsp_table(rep208, bands=(2, 3))
 d_hi = tqc.decompose(table_hi, g208, rep=rep208)
-print(f"   bands 2, 3       : {fmt(table_hi.counts)}   decompose: {d_hi.verdict}")
-print("   no sum of elementary band representations has either content, so each")
-print("   isolated half is topological")
+row("bands 2 and 3", fmt(table_hi.counts))
+row(*atomic_limits(d_hi))
+print("   each isolated half is topological")
 
 ########### 6. the two band structures ###########
 

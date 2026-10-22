@@ -98,13 +98,13 @@ import pythtqc as tqc
 t25 = tqc.srsi_tables(25, spinor=True)            # Pmm2 with spin-orbit coupling
 print(t25.summary())
 #  Pmm21' #25.58, double-valued: stable real-space invariants Z x Z2 x Z2 x Z2   (.structure)
-#    each invariant theta_i, Z- or Z_n-valued, and how many terms its formula has, each term counting the copies of one site irrep at one Wyckoff position   (.rows)
+#    each invariant, Z- or Z_n-valued, and the number of terms in its formula   (.rows)
 #      theta_1    Z  9 terms
 #      theta_2   Z2  1 term
 #      theta_3   Z2  1 term
 #      theta_4   Z2  1 term
 #    9 site irreps at Wyckoff positions, 4 of them inducing an elementary band representation   (.site_keys, .ebrs)
-#    5 terms on site irreps that induce none: at a non-maximal Wyckoff position, or at a maximal one whose band representation is a sum of others   (.terms_without_ebr_column)
+#    5 terms on site irreps that induce no elementary band representation   (.terms_without_ebr_column)
 #    no symmetry indicator, the group's indicator group being trivial   (.indicators)
 for row in t25.rows:                               # each invariant, term by term
     kind = "Z" if row.mod is None else f"Z{row.mod}"
@@ -264,13 +264,11 @@ it over the EBRs of the orbit's position:
 ```python
 mo = tqc.srsi_of_model(r)
 print(mo.summary())
-#  P4mm1' #99.164, double-valued: stable real-space invariants Z x Z x Z x Z2 x Z2   (.structure)
-#    the model's: Z-valued (2, 2, 0), Z_n-valued mod 2 (0, 1)   (.theta_Z, .theta_Zn)
-#    each site orbit: its orbitals, its Wyckoff position, and its content, written m (irrep)_w, m copies of a site irrep at Wyckoff position w; then its invariants   (.orbits)
-#      orbitals 0-1 at 1a: 1 (-E1)_a + 1 (-E2)_a
-#        (1, 1, 0), mod 2 (0, 0)
-#      orbitals 2-3 at 2c: 1 (-E)_c
-#        (1, 1, 0), mod 2 (0, 1)
+#  P4mm1' #99.164, double-valued: stable real-space invariants, Z x Z x Z x Z2 x Z2   (.structure)
+#    the whole model: Z-valued (2, 2, 0), mod 2 (0, 1)   (.theta_Z, .theta_Zn)
+#    each site orbit, its content written m (irrep)_w, and its SRSIs   (.orbits)
+#      orbitals 0-1 at 1a, 1 (-E1)_a + 1 (-E2)_a: Z-valued (1, 1, 0), mod 2 (0, 0)
+#      orbitals 2-3 at 2c, 1 (-E)_c: Z-valued (1, 1, 0), mod 2 (0, 1)
 for orbit in mo.orbits:
     print(f"{orbit.multiplicity}{orbit.letter}:", tqc.format_counts(orbit.content))
 #  1a: -GM6 + -GM7 + -M6 + -M7 + 2×-X5
@@ -314,11 +312,10 @@ slid onto:
 ```python
 strong = tqc.srsi_of_model(diamond["strong"])
 print(strong.summary())
-#  R-3m1' #166.98, double-valued: stable real-space invariants Z x Z x Z x Z x Z x Z x Z x Z   (.structure)
-#    the model's: Z-valued (0, 0, 1, 1, 0, 0, 0, 0)   (.theta_Z)
-#    each site orbit: its orbitals, its Wyckoff position, and its content, written m (irrep)_w, m copies of a site irrep at Wyckoff position w, at a position it slides onto where the tables list no elementary band representation at its own; then its invariants   (.orbits)
-#      orbitals 0-1 at 6c, slid onto 3a: 1 (-E1g)_a + 1 (-E1u)_a
-#        (0, 0, 1, 1, 0, 0, 0, 0)
+#  R-3m1' #166.98, double-valued: stable real-space invariants, Z x Z x Z x Z x Z x Z x Z x Z   (.structure)
+#    the whole model: Z-valued (0, 0, 1, 1, 0, 0, 0, 0)   (.theta_Z)
+#    each site orbit, its content written m (irrep)_w, and its SRSIs   (.orbits)
+#      orbitals 0-1 at 6c, slid onto 3a, 1 (-E1g)_a + 1 (-E1u)_a: Z-valued (0, 0, 1, 1, 0, 0, 0, 0)
 print([(loc["letter"], tuple(str(x) for x in loc["theta_Z"]))
        for loc in strong.orbits[0].localizations])
 #  [('a', ('0', '0', '1', '1', '0', '0', '0', '0')), ('b', ('0', '0', '1', '1', '0', '0', '0', '0'))]
@@ -413,50 +410,53 @@ whichever member a decomposition picks, no number this package returns moves.
 ## The no-go criterion
 
 The one verdict the SRSIs issue is the paper's no-go criterion for a gapped
-splitting of a model's bands into a valence set `V` and a conduction set `C`.
-All the bands together, `H`, are an atomic insulator, the model's orbitals
-being its Wannier functions, so the symmetry vectors add, `y[H] = y[V] + y[C]`,
-and so do the ℤ-valued SRSIs. If `V` and `C` are both atomic insulators, the
-ℤₙ-valued SRSIs add up too, modulo `n`, for some **atomic realizations** of `V`
-and `C`, configurations of orbitals that carry their symmetry vectors; if no
-pair of realizations adds up, `V` or `C` or both is not an atomic insulator,
-and the gap carries topology. One realization that fails to add up proves
-nothing, so `splitting` enumerates them all. It takes the gap as given, reading
-content at the high-symmetry points only; lin3g's gaps above its fourth and its
-sixth band are measured in
+splitting of a model's bands into a valence set and a conduction set. All the
+bands together are an atomic insulator, the model's orbitals being its Wannier
+functions, so the symmetry vectors add, the valence set's plus the conduction
+set's, and so do the ℤ-valued SRSIs. If the valence and the conduction set are
+both atomic insulators, the ℤₙ-valued SRSIs add up too, modulo `n`, for some
+**atomic realizations** of each, configurations of orbitals that carry their
+symmetry vectors; if no pair of realizations adds up, one set or both is not an
+atomic insulator, and the gap carries topology. One realization that fails to
+add up proves nothing, so `splitting` enumerates them all. It takes the gap as
+given, reading content at the high-symmetry points only; lin3g's gaps above its
+fourth and its sixth band are measured in
 [`examples/tqc_srsi_lin3g_composite_splitting.py`](../../examples/tqc_srsi_lin3g_composite_splitting.py).
 
 ```python
 gap6 = tqc.splitting(r, bands=6)                   # six bands against two
 print(gap6.summary())
 #  P4mm1' #99.164, double-valued, diagnosed topological: the two sides of the gap cannot both be atomic insulators   (.verdict)
-#    V, the 6 bands asked for; C, the model's other 2; H, all 8   (.n_bands_v, .n_bands_c)
-#    theta_Z, the Z-valued stable real-space invariants: H (2, 2, 0) = V (1, 1, 1) + C (1, 1, -1)   (.theta_Z_total, .theta_Z_v, .theta_Z_c)
-#    theta_Zn, the Z_n-valued ones of H: mod 2 (0, 1)   (.theta_Zn_total)
-#    V's symmetry-indicator group is trivial   (.indicator)
-#    V's atomic realizations, every set of orbitals at maximal Wyckoff positions with V's symmetry data, written m (irrep)_w, m copies of a site irrep at Wyckoff position w, with its own theta_Zn   (.realizations_v)
-#      [0] 1 (-E2)_b + 1 (-E)_c   mod 2 (1, 1)
-#      [1] 1 (-E1)_b + 2 (-E2)_b   mod 2 (0, 0)
-#      [2] 1 (-E1)_a + 1 (-E2)_a + 1 (-E2)_b   mod 2 (1, 0)
-#    C's atomic realizations   (.realizations_c)
-#      [0] 1 (-E1)_b   mod 2 (0, 0)
-#    no realization of V with one of C has theta_Zn adding up to H's, modulo each n   (.consistent_pairs)
+#    the bands=6 valence bands, the remaining 2 conduction bands, and all 8 bands   (.n_bands_v, .n_bands_c)
+#    Z-valued stable real-space invariants: all 8 (2, 2, 0) = valence (1, 1, 1) + conduction (1, 1, -1)   (.theta_Z_total, .theta_Z_v, .theta_Z_c)
+#    Z_n-valued invariants of all 8: mod 2 (0, 1)   (.theta_Zn_total)
+#    the valence bands' symmetry-indicator group is trivial   (.indicator)
+#    possible atomic realizations of the valence bands, and their Z_n-valued SRSIs   (.realizations_v)
+#      1 (-E2)_b + 1 (-E)_c   mod 2 (1, 1)
+#      1 (-E1)_b + 2 (-E2)_b   mod 2 (0, 0)
+#      1 (-E1)_a + 1 (-E2)_a + 1 (-E2)_b   mod 2 (1, 0)
+#    possible atomic realizations of the conduction bands, and their Z_n-valued SRSIs   (.realizations_c)
+#      1 (-E1)_b   mod 2 (0, 0)
+#    no pair of a valence and a conduction realization has Z_n-valued invariants adding up to those of all 8   (.consistent_pairs)
 ```
 
 - `diagnosed topological`: the criterion finds the splitting topological, and
-  no symmetry indicator says so, `V`'s indicator group being trivial: the paper
-  calls it non-symmetry-indicated topological (NSIT). The last line is the
-  reason.
-- `theta_Z` and `theta_Zn` of `H` are the model's, read off the orbitals above;
-  `V`'s `theta_Z` is read off the six bands, and `C`'s is the difference.
-- `V`'s atomic realizations are every arrangement of orbitals on maximal
-  Wyckoff positions with `V`'s ℤ-valued SRSIs and six bands, with nonnegative
-  integer multiplicities, enumerated completely, each with its own ℤ₂ values;
-  they differ, which is why every one is needed. `C` has one.
-- The last line: no realization of `V` plus one of `C` reaches `H`'s `(0, 1)`,
-  so the two band sets cannot both be atomic, and `consistent_pairs` is empty.
-  The criterion has caught, by arithmetic in real space and without a Wilson
-  loop, an obstruction no decomposition sees.
+  no symmetry indicator says so, the valence bands' indicator group being
+  trivial: the paper calls it non-symmetry-indicated topological (NSIT). The
+  last line is the reason.
+- The invariants of all 8 bands are the model's, read off the orbitals above;
+  the valence bands' ℤ-valued SRSIs are read off the six bands, and the
+  conduction bands' are the difference.
+- The valence bands' atomic realizations are every arrangement of orbitals on
+  maximal Wyckoff positions with their ℤ-valued SRSIs and six bands, with
+  nonnegative integer multiplicities, enumerated completely, each with its own
+  ℤ₂ values; they differ, which is why every one is needed. The conduction
+  bands have one.
+- The last line: no realization of the valence bands plus one of the conduction
+  bands reaches the `(0, 1)` of all 8, so the two band sets cannot both be
+  atomic, and `consistent_pairs` is empty. The criterion has caught, by
+  arithmetic in real space and without a Wilson loop, an obstruction no
+  decomposition sees.
 
 Each line ends with the fields it is read from; `number_str` is the group,
 `nsit` whether the verdict is `diagnosed topological`, and `realizations_v` and
@@ -471,8 +471,8 @@ print([v.theta_Zn[2] for v in gap6.realizations_v.realizations],
 #  [(1, 1), (0, 0), (1, 0)] [(0, 0)]
 ```
 
-Each of `V`'s three with `C`'s one adds up to `(1, 1)`, `(0, 0)` or `(1, 0)`,
-and none to `H`'s `(0, 1)`.
+Each of the valence bands' three realizations with the conduction bands' one
+adds up to `(1, 1)`, `(0, 0)` or `(1, 0)`, and none to the `(0, 1)` of all 8.
 
 The same Hamiltonian with the gap two bands lower, and the detuned diamond,
 read the other three verdicts:
@@ -509,15 +509,16 @@ allow, each with `srsi_mismatch`, the paper's mark that the ℤₙ-valued
 invariants of the parts' EBRs do not add up to the whole's. In lin3g's group
 the `2c` EBR splits into the pair at `1a` or the pair at `1b`, and the
 criterion on numbers in hand asks the first over every realization of each
-part, the whole EBR as `H`, one part below the gap and the other above it:
+part, the whole EBR as all the bands, one part below the gap and the other
+above it:
 
 ```python
 split = tables.split_ebrs[0]
 print(split.srsi_mismatch, (split.parent["irrep"], split.parent["letter"]),
       [(child["irrep"], child["letter"]) for child in split.children])
 #  True ('-E', 'c') [('-E2', 'a'), ('-E1', 'a')]
-H, V, C = (tables.theta({(part["irrep"], part["letter"]): 1}) for part in (split.parent, *split.children))
-print(tqc.nsit_criterion(tables, H, V[0], C[0]).nsit)
+whole, below, above = (tables.theta({(part["irrep"], part["letter"]): 1}) for part in (split.parent, *split.children))
+print(tqc.nsit_criterion(tables, whole, below[0], above[0]).nsit)
 #  True
 ```
 

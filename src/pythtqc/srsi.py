@@ -58,7 +58,7 @@ from ._centres import _position_defect
 from .symmetry import BandRepresentation
 from ._srsitables import (
     GATES, MaximalKey, NAME_RELATIONS, NamePair, SRSIIndicator, SRSIRow, SRSITables,
-    SiteKey, SplitEBR, _CONFIGURATION, _POSITION, _TableKey, _by_modulus, _count,
+    SiteKey, SplitEBR, _POSITION, _TableKey, _by_modulus, _count,
     _ebr_key, _gcd, _group, _indicator_line, _maximal_basis, _no_bare_number,
     _rational_p, _site_irreps, _table_of_number, _values, canonical_determinism,
     from_irreptables_name, indicator_vocabularies, name_correspondence, srsi_status,
@@ -124,8 +124,8 @@ class BandSRSIs:
     def summary(self) -> str:
         """The invariants, one per line, then what they say, a line each."""
         bands = "the bands" if self.n_bands is None else _count(self.n_bands, "band")
-        lines = [f"{_group(self.number_str, self.spinor)}: theta_Z, the Z-valued "
-                 f"stable real-space invariants of {bands}   (.theta_Z)"]
+        lines = [f"{_group(self.number_str, self.spinor)}: the Z-valued stable "
+                 f"real-space invariants of {bands}   (.theta_Z)"]
         lines += [f"  {name:>9s} = {str(value):>8s}"
                   for name, value in zip(self.names, self.theta_Z)]
         lines.append(f"  fractional, with common denominator {self.denominator}: the bands "
@@ -434,22 +434,18 @@ class ModelSRSIs:
     def summary(self) -> str:
         """The invariants, then each site orbit's, a line each."""
         def both(theta_z, theta_zn):
-            return _values(theta_z) + (f", {_by_modulus(theta_zn)}" if theta_zn else "")
+            return (f"Z-valued {_values(theta_z)}"
+                    + (f", {_by_modulus(theta_zn)}" if theta_zn else ""))
 
-        lines = [f"{_group(self.number_str, self.spinor)}: stable real-space invariants "
+        lines = [f"{_group(self.number_str, self.spinor)}: stable real-space invariants, "
                  f"{self.structure}   (.structure)",
-                 f"  the model's: Z-valued {_values(self.theta_Z)}"
-                 + (f", Z_n-valued {_by_modulus(self.theta_Zn)}   (.theta_Z, .theta_Zn)"
-                    if self.theta_Zn else "   (.theta_Z)")]
+                 f"  the whole model: {both(self.theta_Z, self.theta_Zn)}"
+                 + ("   (.theta_Z, .theta_Zn)" if self.theta_Zn else "   (.theta_Z)")]
+
         def slid(orbit):
             return orbit.composite is None and orbit.letter not in orbit.closure
 
-        moved = any(slid(orbit) for orbit in self.orbits)
-        lines.append("  each site orbit: its orbitals, its Wyckoff position, and its content, "
-                     "written m (irrep)_w, m copies of a site irrep at Wyckoff position w"
-                     + (", at a position it slides onto where the tables list no elementary "
-                        "band representation at its own" if moved else "")
-                     + "; then its invariants   (.orbits)")
+        lines.append("  each site orbit, its content written m (irrep)_w, and its SRSIs   (.orbits)")
         # each site irrep as the invariants' formulas spell it; the list of
         # elementary band representations spells a few otherwise, A for A1 at 222
         spelling = self.tables._site_lookup() if self.tables is not None else {}
@@ -472,9 +468,8 @@ class ModelSRSIs:
                              for match in [_POSITION.match(str(position))] if match),
                             orbit.chosen.get("letter", ""))
                 where += f", slid onto {onto}"
-            lines.append(f"    orbitals {_index_ranges(orbit.orbitals)} at {where}: "
-                         f"{terms}")
-            lines.append(f"      {both(orbit.theta_Z, orbit.theta_Zn)}")
+            lines.append(f"    orbitals {_index_ranges(orbit.orbitals)} at {where}, {terms}: "
+                         f"{both(orbit.theta_Z, orbit.theta_Zn)}")
         return "\n".join(lines)
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
@@ -1226,18 +1221,16 @@ class Realizations:
     def summary(self) -> str:
         """The band set, then every realization of it, a line each."""
         lines = [f"{_group(self.number_str, self.spinor)}: "
-                 + (f"every atomic realization, {len(self.realizations)} of them"
+                 + (f"{_count(len(self.realizations), 'atomic realization')}"
                     if self.realizations else "no atomic realization")
-                 + "   (.realizations)",
-                 "  of " + (f"{_count(self.n_bands, 'band')} with " if self.n_bands else "")
-                 + f"theta_Z = {_values(self.theta_Z)}, their Z-valued stable real-space "
-                 "invariants   (.n_bands, .theta_Z)"]
+                 + " of " + (f"{_count(self.n_bands, 'band')} with " if self.n_bands else "")
+                 + f"Z-valued stable real-space invariants {_values(self.theta_Z)}"
+                 "   (.realizations, .n_bands, .theta_Z)"]
         if not self.realizations:
             return "\n".join(lines + [f"  {self.note}   (.note)"])
         with_zn = any(c.theta_Zn for c in self.realizations)
-        lines.append("  each a set of orbitals at maximal Wyckoff positions with that "
-                     f"symmetry data, {_CONFIGURATION}"
-                     + (", with its own Z_n-valued invariants   (.label, .theta_Zn of each)"
+        lines.append("  possible atomic realizations"
+                     + (", and their Z_n-valued SRSIs   (.label, .theta_Zn of each)"
                         if with_zn else "   (.label of each)"))
         lines += [f"    {c.label}" + (f"   {_by_modulus(c.theta_Zn)}" if c.theta_Zn else "")
                   for c in self.realizations]
@@ -1358,55 +1351,55 @@ class Splitting:
                  f"{self.HEADLINES.get(self.verdict, self.verdict)}   (.verdict)"]
         n_v, n_c = self.n_bands_v, self.n_bands_c
         counted = n_v is not None and n_c is not None
+        whole = f"all {n_v + n_c}" if counted else "all the bands"
         if self.indicator is not None:
             # what `splitting` returns: the bands asked for, and the rest of the model's
-            lines.append("  V, the " + (f"{n_v} " if counted else "")
-                         + "bands asked for; C, the model's other "
-                         + (f"{n_c}; H, all {n_v + n_c}" if counted else "bands; H, all")
-                         + "   (.n_bands_v, .n_bands_c)")
+            lines.append((f"  the bands={n_v} valence bands, the remaining {n_c} conduction "
+                          f"bands, and {whole} bands" if counted else
+                          "  the valence bands asked for, the remaining conduction bands, and "
+                          "all the bands") + "   (.n_bands_v, .n_bands_c)")
         else:
-            lines.append("  V and C, the two sides handed in"
-                         + (f", of {n_v} and {n_c} bands" if counted else "")
-                         + "; H, the two together   (.n_bands_v, .n_bands_c)")
-        lines.append(f"  theta_Z, the Z-valued stable real-space invariants: "
-                     f"H {_values(self.theta_Z_total)} = V {_values(self.theta_Z_v)} + "
-                     f"C {_values(self.theta_Z_c)}   "
+            lines.append((f"  the {n_v} valence bands and the {n_c} conduction bands handed in, "
+                          f"and {whole} bands" if counted else
+                          "  the valence and the conduction bands handed in, and all the bands")
+                         + "   (.n_bands_v, .n_bands_c)")
+        lines.append(f"  Z-valued stable real-space invariants: {whole} "
+                     f"{_values(self.theta_Z_total)} = valence {_values(self.theta_Z_v)} + "
+                     f"conduction {_values(self.theta_Z_c)}   "
                      "(.theta_Z_total, .theta_Z_v, .theta_Z_c)")
         if self.theta_Zn_total:
-            lines.append(f"  theta_Zn, the Z_n-valued ones of H: "
+            lines.append(f"  Z_n-valued invariants of {whole}: "
                          f"{_by_modulus(self.theta_Zn_total)}   (.theta_Zn_total)")
         if self.indicator is not None:
-            lines.append(_indicator_line(self.indicator, "V's"))
-        explained = False
-        for tag, got, attr in (("V", self.realizations_v, "realizations_v"),
-                               ("C", self.realizations_c, "realizations_c")):
+            lines.append(_indicator_line(self.indicator, "the valence bands'"))
+        sides = (("valence", self.realizations_v, "realizations_v", "v_atomic_possible"),
+                 ("conduction", self.realizations_c, "realizations_c", "c_atomic_possible"))
+        for side, got, attr, flag in sides:
             if got is None:
                 continue
             if not got.realizations:
-                lines.append(f"  {tag} has no atomic realization: {got.note}   "
-                             f"(.{attr}, .{tag.lower()}_atomic_possible)")
+                lines.append(f"  the {side} bands have no atomic realization: {got.note}   "
+                             f"(.{attr}, .{flag})")
                 continue
-            lines.append(f"  {tag}'s atomic realizations"
-                         + ("" if explained else
-                            f", every set of orbitals at maximal Wyckoff positions with "
-                            f"{tag}'s symmetry data, {_CONFIGURATION}"
-                            + (", with its own theta_Zn" if self.moduli else ""))
+            lines.append(f"  possible atomic realizations of the {side} bands"
+                         + (", and their Z_n-valued SRSIs" if self.moduli else "")
                          + f"   (.{attr})")
-            explained = True
-            lines += [f"    [{index}] {realization.label}"
+            lines += [f"    {realization.label}"
                       + (f"   {_by_modulus(realization.theta_Zn)}"
                          if realization.theta_Zn else "")
-                      for index, realization in enumerate(got.realizations)]
+                      for realization in got.realizations]
         if (self.moduli and self.realizations_v is not None
                 and self.realizations_c is not None
                 and self.realizations_v.realizations and self.realizations_c.realizations):
             if self.consistent_pairs:
-                lines.append("  the pairs of a realization of V and one of C whose theta_Zn "
-                             "add up to H's, modulo each n   (.consistent_pairs)")
-                lines += [f"    V[{iv}] with C[{ic}]" for iv, ic in self.consistent_pairs]
+                lines.append("  pairs of a valence and a conduction realization whose Z_n-valued "
+                             f"invariants add up to those of {whole}   (.consistent_pairs)")
+                lines += [f"    {self.realizations_v.realizations[iv].label} with "
+                          f"{self.realizations_c.realizations[ic].label}"
+                          for iv, ic in self.consistent_pairs]
             else:
-                lines.append("  no realization of V with one of C has theta_Zn adding up "
-                             "to H's, modulo each n   (.consistent_pairs)")
+                lines.append("  no pair of a valence and a conduction realization has Z_n-valued "
+                             f"invariants adding up to those of {whole}   (.consistent_pairs)")
         if self.same_content:
             lines.append("  site irreps the realizations use that no stable real-space "
                          "invariant distinguishes   (.same_content)")
@@ -1694,11 +1687,11 @@ def nsit_criterion(tables, theta_total, theta_Z_v, theta_Z_c, *,
             "the two sides. All three are indexed by SRSITables.z_rows")
     if tuple(a + b for a, b in zip(values_v, values_c)) != theta_z_h:
         raise ValueError(
-            f"#{tables.number_str}: theta_Z[V] + theta_Z[C] = "
-            f"({', '.join(str(a + b) for a, b in zip(values_v, values_c))}) does not "
-            f"equal theta_Z[H] = ({', '.join(str(v) for v in theta_z_h)}). The "
-            "Z-SRSIs are linear in p and the symmetry vectors add, so this holds for "
-            "any genuine splitting -- a violation is an arithmetic mistake in what "
+            f"#{tables.number_str}: the valence bands' Z-valued SRSIs plus the conduction "
+            f"bands' are ({', '.join(str(a + b) for a, b in zip(values_v, values_c))}), "
+            f"not those of all the bands, ({', '.join(str(v) for v in theta_z_h)}). The "
+            "Z-valued SRSIs are linear in p and the symmetry vectors add, so this holds "
+            "for any genuine splitting -- a violation is an arithmetic mistake in what "
             "was handed in, not a measurement about the bands")
     moduli = tuple(sorted(tables.zn_rows))
     if sorted(theta_zn_h) != list(moduli):
@@ -1723,13 +1716,14 @@ def nsit_criterion(tables, theta_total, theta_Z_v, theta_Z_c, *,
                 consistent.append((iv, ic))
 
     if not got_v.atomic_possible or not got_c.atomic_possible:
-        side = " and ".join([tag for tag, got in (("V", got_v), ("C", got_c))
+        side = " and ".join([tag for tag, got in (("the valence bands", got_v),
+                                                  ("the conduction bands", got_c))
                              if not got.atomic_possible])
         verdict, nsit = "diagnosed topological", True
         reason = (
-            f"side {side} has integral theta_Z and no atomic realization of it over "
-            "the maximal positions, so that side is not an atomic insulator at all. "
-            "The splitting is diagnosed topological by the realization half of the "
+            f"{side} have integral Z-valued SRSIs and no atomic realization over the "
+            "maximal positions, so that side is not an atomic insulator at all. The "
+            "splitting is diagnosed topological by the realization half of the "
             "criterion -- a fragile side -- and not by the Z_n additivity")
     elif not moduli:
         verdict, nsit = "no Z_n SRSIs", False
@@ -1741,17 +1735,17 @@ def nsit_criterion(tables, theta_total, theta_Z_v, theta_Z_c, *,
         verdict, nsit = "invisible to the SRSIs", False
         reason = (
             f"{len(consistent)} of the {len(got_v.realizations)} x "
-            f"{len(got_c.realizations)} realization pairs reproduce theta_Zn[H] modulo "
-            "each row's own n, so the SRSIs are consistent with V and C both being "
-            "atomic insulators. Any topology of this splitting is invisible to the "
-            "stable real-space invariants")
+            f"{len(got_c.realizations)} pairs of a valence and a conduction realization "
+            "reproduce the Z_n-valued SRSIs of all the bands modulo each row's own n, so "
+            "the SRSIs are consistent with both sides being atomic insulators. Any "
+            "topology of this splitting is invisible to the stable real-space invariants")
     else:
         verdict, nsit = "diagnosed topological", True
         reason = (
             f"none of the {len(got_v.realizations)} x {len(got_c.realizations)} "
-            "realization pairs reproduces theta_Zn[H], so V and C cannot both be "
-            "atomic insulators: the splitting is non-symmetry-indicated topological "
-            "(NSIT)")
+            "pairs of a valence and a conduction realization reproduces the Z_n-valued "
+            "SRSIs of all the bands, so the two sides cannot both be atomic insulators: "
+            "the splitting is non-symmetry-indicated topological (NSIT)")
 
     same = []
     for got in (got_v, got_c):
@@ -1862,8 +1856,8 @@ def splitting(realized, *, bands=None, rep=None,
             number_str=str(tables.number_str), spinor=bool(tables.spinor),
             verdict="stable topological", nsit=False,
             reason=(
-                f"theta_Z[V] = ({', '.join(str(v) for v in theta_z_v)}) is fractional, "
-                "so by the paper's theorem the valence set carries a nonzero symmetry "
+                f"the valence bands' Z-valued SRSIs ({', '.join(str(v) for v in theta_z_v)}) "
+                "are fractional, so by the paper's theorem the valence set carries a nonzero symmetry "
                 f"indicator ({valence_side.indicator.values} of "
                 f"{valence_side.indicator.structure}, order "
                 f"{valence_side.indicator.order}) and no atomic insulator has its "

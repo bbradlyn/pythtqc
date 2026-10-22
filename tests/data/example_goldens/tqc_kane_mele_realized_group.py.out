@@ -1,73 +1,76 @@
 Kane-Mele on the honeycomb, PRL 95, 226801 (2005): four bands, two occupied,
 a staggered sublattice potential, spin-orbit coupling and a Rashba term.
+Bands are counted from 0, as pythtb counts them.
 
 1. delta = 1.0, rashba = 0.25
    realized group   : #156.50 P3m11', orbitals at Wyckoff 1c and 1b, 4 bands
-                      (measured from the Hamiltonian: the staggered potential
-                      puts the two honeycomb sites on inequivalent positions)
-   valence content  : GM: -GM6   K: -K5 + -K6   M: -M3M4
-      -> 1 x -E1↑G(2)@1a(3m1',3m), a position no orbital sits on
-   conduction       : GM: -GM6   K: 2×-K4   M: -M3M4
-      -> none; as a difference −[-E1↑G(2)@1a] +[-E1↑G(2)@1b] +[-E1↑G(2)@1c]
-   indicator group  : X_BS(#156.50) = trivial, so these indicators do not distinguish
-                      the valence pair from an atomic limit at 1a
+   bands 0 and 1    : GM: -GM6   K: -K5 + -K6   M: -M3M4
+   atomic limit     : 1 x -E1↑G(2)@1a(3m1',3m), a position no orbital sits on
+   bands 2 and 3    : GM: -GM6   K: 2×-K4   M: -M3M4
+   atomic limits    : none
+   a signed sum     : -1 x -E1↑G(2)@1a(3m1',3m) + 1 x -E1↑G(2)@1b(3m1',3m)
+                      + 1 x -E1↑G(2)@1c(3m1',3m)
+   indicator group  : trivial
+   the staggered potential makes the two honeycomb sites inequivalent, and no
+   symmetry indicator tells bands 0 and 1 from an atomic limit at 1a
 
 2. delta = 2.5, rashba = 0.25
    realized group   : #156.50 P3m11', orbitals at Wyckoff 1c and 1b
-   valence content  : GM: -GM6   K: -K4 + -K5   M: -M3M4
-      -> 1 x -E1↑G(2)@1b(3m1',3m), a site an orbital sits on
-   conduction       : GM: -GM6   K: -K4 + -K6   M: -M3M4
-      -> 1 x -E1↑G(2)@1c(3m1',3m)
-   the group is #156.50 in both regimes and the valence pair's position
-   moves from 1a to 1b with the regime
+   bands 0 and 1    : GM: -GM6   K: -K4 + -K5   M: -M3M4
+   atomic limit     : 1 x -E1↑G(2)@1b(3m1',3m), a site an orbital sits on
+   bands 2 and 3    : GM: -GM6   K: -K4 + -K6   M: -M3M4
+   atomic limit     : 1 x -E1↑G(2)@1c(3m1',3m)
+   the group is #156.50 in both regimes, and the Wyckoff position of bands 0 and 1
+   moves from 1a to 1b
 
 3. delta = 0, rashba = 0
    realized group   : #183.186 P6mm1', orbitals at Wyckoff 2b
-                      (delta = 0 puts the two honeycomb sites on one orbit, and
-                      the group is the one the staggered potential lowered to #156.50)
-   valence content  : GM: -GM9   K: -K6   M: -M5
-      -> 1 x -E1↑G(2)@1a(6mm1',6mm), a position no orbital sits on
-   conduction       : GM: -GM8   K: -K4 + -K5   M: -M5
-      -> none; as a difference −[-E1↑G(2)@1a] +[-E1↑G(4)@2b]
+   bands 0 and 1    : GM: -GM9   K: -K6   M: -M5
+   atomic limit     : 1 x -E1↑G(2)@1a(6mm1',6mm), a position no orbital sits on
+   bands 2 and 3    : GM: -GM8   K: -K4 + -K5   M: -M5
+   atomic limits    : none
+   a signed sum     : -1 x -E1↑G(2)@1a(6mm1',6mm) + 1 x -E1↑G(4)@2b(3m1',3m)
+   at delta = 0 the two honeycomb sites are one orbit, and the staggered potential
+   lowers this group to #156.50
 
 4. delta = 0, rashba = 0.25
    realized group   : #183.186 P6mm1', orbitals at Wyckoff 2b
-   valence content  : GM: -GM9   K: -K6   M: -M5
-      -> 1 x -E1↑G(2)@1a(6mm1',6mm)
-   conduction       : GM: -GM8   K: -K4 + -K5   M: -M5
-      -> none; as a difference −[-E1↑G(2)@1a] +[-E1↑G(4)@2b]
-   K level by level : -K6 @ -1.558846 (dim 2)   -K4 @ +0.808846 (dim 1)
-                      -K5 @ +2.308846 (dim 1)
+   bands 0 and 1    : GM: -GM9   K: -K6   M: -M5
+   atomic limit     : 1 x -E1↑G(2)@1a(6mm1',6mm)
+   bands 2 and 3    : GM: -GM8   K: -K4 + -K5   M: -M5
+   atomic limits    : none
+   a signed sum     : -1 x -E1↑G(2)@1a(6mm1',6mm) + 1 x -E1↑G(4)@2b(3m1',3m)
+   coreps at K      : -K6 at E = -1.558846, dimension 2
+                      -K4 at E = +0.808846, dimension 1
+                      -K5 at E = +2.308846, dimension 1
 
-5. the conserved operator, read off H(k) on a 6x6 mesh of in-plane k
-   delta 0, rashba 0     : the commutant of H(k) is the identity and 1 more
-                           operator, and s_z commutes with H(k) at every k,
-                           max |[s_z, H(k)]| = 0.000000: that operator is s_z
-   delta 0, rashba 0.25  : the commutant is the identity and 0 more,
-                           the Rashba term mixing the spins: max |[s_z, H(k)]| = 1.500000
-   delta 1.0, rashba 0.25: the commutant is the identity and 0 more
+5. the conserved operators, read off H(k) on a 6x6 mesh of in-plane k
+   delta, rashba    : beyond the identity   max |[s_z, H(k)]|
+   0, 0             : 1                     0.000000
+   0, 0.25          : 0                     1.500000
+   1.0, 0.25        : 0                     not measured
+   at rashba = 0 the one conserved operator beyond the identity is s_z, whose
+   conservation the Rashba term breaks
 
 6. what the lost operator does to the degeneracies
-   the group is #183.186 at both rashba values and the content above is the same
-   entry for entry; what differs is the commutant
-   multiplets       : GM (2, 2) -> (2, 2)   K (2, 2) -> (2, 1, 1)   M (2, 2) -> (2, 2)
-                      at rashba = 0 and at rashba = 0.25
-   the two levels K splits into, over the operations (E, C3(z), C3^-1(z), m([2-10]), m(y), m([110])):
-      -K4 @ +0.808846 : (+1, -1, -1, -1i, -1i, -1i)
-      -K5 @ +2.308846 : (+1, -1, -1, +1i, +1i, +1i)
-      one row is the conjugate of the other: two distinct one-dimensional
-      coreps, so the little group holds neither of them to the other, and what
-      held them together at rashba = 0 was s_z
-      (BCS's labels attach to -k, so an operation taking k to -k interchanges
-      the two names; the characters are the observable)
-   -K6 is a corep of dimension 2 and stays one level whatever the commutant does
-   the splitting    : rashba 0.05 -> 0.300000, 0.125 -> 0.750000, 0.25 -> 1.500000
-                      split / rashba = 6.000000 / 6.000000 / 6.000000
+   rashba           : 0       0.25
+   levels at GM     : 2 + 2   2 + 2
+   levels at K      : 2 + 2   2 + 1 + 1
+   levels at M      : 2 + 2   2 + 2
+   operations at K  : E    C3(z)   C3^-1(z)   m([2-10])   m(y)   m([110])
+   -K4              : +1   -1      -1         -1i         -1i    -1i
+   -K5              : +1   -1      -1         +1i         +1i    +1i
+   bands 2 and 3    : split at K by 0.300000, 0.750000 and 1.500000
+                      at rashba = 0.05, 0.125 and 0.25
+   split / rashba   : 6.000000, 6.000000 and 6.000000
+   the -K4 and -K5 rows are complex conjugates, two distinct one-dimensional coreps
+   that s_z holds together at rashba = 0, while -K6, of dimension 2, stays one level
 
 7. the deep atomic limit: delta = 50
-   the valence pair carries 99.96 % of its weight on the orbital at Wyckoff 1b,
-   0.04 % on the one at 1c
-   decompose        : 1 x -E1↑G(2)@1b(3m1',3m) — the site the electrons are on
+   bands 0 and 1    : GM: -GM6   K: -K4 + -K5   M: -M3M4
+   atomic limit     : 1 x -E1↑G(2)@1b(3m1',3m)
+   orbital weight   : 99.96 % on the orbital at Wyckoff 1b, 0.04 % on the one at 1c
+   the atomic limit of bands 0 and 1 sits on the orbital that carries their weight
 
 8. the bands along GM-K-M-GM, one panel per regime
 
