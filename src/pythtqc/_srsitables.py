@@ -179,7 +179,7 @@ class SRSIRow:
         Every term of the formula, ``{"coef", "irrep", "irrep_tex", "letter",
         "column", "maximal", "ebr"}``: the coefficient, the site irrep and its
         TeX, the Wyckoff letter, and the column of the elementary band
-        representation the key induces, ``None`` where it induces none (``ebr``),
+        representation the key induces, ``None`` where it induces a composite one (``ebr``),
         at a non-maximal position or at a maximal one whose band representation is
         a sum of others (``maximal`` says which).
     """
@@ -303,7 +303,7 @@ class SiteKey:
     A key at a maximal position induces an elementary band representation, unless
     that band representation is a sum of others (:math:`{}^1E{}^2E` at site
     symmetry :math:`\bar4`, ``E`` at :math:`\bar4m2` and :math:`\bar42m`); a key at
-    a non-maximal position induces none.  A group's keys are
+    a non-maximal position induces a composite one.  A group's keys are
     :attr:`SRSITables.site_keys`.
 
     Attributes
@@ -412,7 +412,7 @@ class SRSITables:
     split_ebrs : tuple of SplitEBR
         The paper's splittings of an elementary band representation into others.
     terms_without_ebr_column : tuple of dict
-        Every term on a site key that induces no elementary band representation,
+        Every term on a site key that induces a composite band representation,
         with the index of its invariant, ``srsi``.
     provenance : dict
         Where the tables come from: the paper's DOI, its source files and their
@@ -726,7 +726,7 @@ class SRSITables:
                      "   (.site_keys, .ebrs)")
         if self.terms_without_ebr_column:
             lines.append(f"  {_count(len(self.terms_without_ebr_column), 'term')} on site "
-                         "irreps that induce no elementary band representation"
+                         "irreps that induce a composite band representation"
                          "   (.terms_without_ebr_column)")
         lines.append("  " + (f"{_count(len(self.indicators), 'symmetry indicator')}, each "
                              "a form in the theta_i: "

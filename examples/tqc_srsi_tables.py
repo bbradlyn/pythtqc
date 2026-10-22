@@ -117,9 +117,10 @@ row("the SRSI group", t211.structure)
 keys = t211.site_keys
 row("the basis", f"{len(keys)} site irreps at Wyckoff positions, "
     f"{len([k for k in keys if k.maximal])} of them at maximal ones,",
-    f"{len([k for k in keys if k.ebr])} inducing an elementary band representation")
-row("inducing one", *wrapped([f"({k.irrep})_{k.letter}" for k in keys if k.ebr]))
-row("inducing none", *wrapped([f"({k.irrep})_{k.letter}" for k in keys if not k.ebr]))
+    f"{len([k for k in keys if k.ebr])} inducing an elementary band representation "
+    f"and {len([k for k in keys if not k.ebr])} a composite one")
+row("elementary", *wrapped([f"({k.irrep})_{k.letter}" for k in keys if k.ebr]))
+row("composite", *wrapped([f"({k.irrep})_{k.letter}" for k in keys if not k.ebr]))
 band_terms = [f"{v} theta_{i + 1}" for i, v in enumerate(t211.band_count_form) if v]
 row("the band count", *wrapped(["nu = " + band_terms[0]] + band_terms[1:], " + "))
 print("   the band count is itself an SRSI, and bounds the enumeration of atomic realizations")

@@ -7,11 +7,11 @@ https://doi.org/10.1038/s41467-026-74844-w, read with no model.
                       elementary band representation that the indicators allow
    the SRSI group   : Z x Z x Z x Z x Z x Z x Z x Z2 x Z2 x Z2
    the basis        : 29 site irreps at Wyckoff positions, 17 of them at maximal ones,
-                      17 inducing an elementary band representation
-   inducing one     : (A1)_a, (A1)_b, (A1)_c, (A1)_d, (A2)_a, (A2)_b, (A2)_c, (B1)_b,
+                      17 inducing an elementary band representation and 12 a composite one
+   elementary       : (A1)_a, (A1)_b, (A1)_c, (A1)_d, (A2)_a, (A2)_b, (A2)_c, (B1)_b,
                       (B1)_d, (B2)_b, (B2)_d, (B3)_d, (E)_a, (E)_b, (E)_c, (T1)_a,
                       (T2)_a
-   inducing none    : (1E2E)_e, (1E2E)_f, (A)_e, (A)_g, (A)_h, (A)_i, (A)_j, (A1)_f,
+   composite        : (1E2E)_e, (1E2E)_f, (A)_e, (A)_g, (A)_h, (A)_i, (A)_j, (A1)_f,
                       (B)_e, (B)_g, (B)_h, (B)_i
    the band count   : nu = 1 theta_1 + 1 theta_2 + 2 theta_3 + 3 theta_4 + 3 theta_5
                       + 3 theta_6 + 4 theta_7

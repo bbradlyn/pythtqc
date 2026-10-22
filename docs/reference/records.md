@@ -1210,7 +1210,7 @@ print(tables.summary())
 #      theta_4    Z  2 terms
 #      theta_5   Z2  1 term
 #    9 site irreps at Wyckoff positions, 6 of them inducing an elementary band representation   (.site_keys, .ebrs)
-#    9 terms on site irreps that induce no elementary band representation   (.terms_without_ebr_column)
+#    9 terms on site irreps that induce a composite band representation   (.terms_without_ebr_column)
 #    no symmetry indicator, the group's indicator group being trivial   (.indicators)
 #    1 splitting of an elementary band representation into others that the symmetry indicators allow   (.split_ebrs)
 print(tables.theta({("-E1", "a"): 1}))

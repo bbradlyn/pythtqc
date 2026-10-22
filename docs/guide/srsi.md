@@ -104,7 +104,7 @@ print(t25.summary())
 #      theta_3   Z2  1 term
 #      theta_4   Z2  1 term
 #    9 site irreps at Wyckoff positions, 4 of them inducing an elementary band representation   (.site_keys, .ebrs)
-#    5 terms on site irreps that induce no elementary band representation   (.terms_without_ebr_column)
+#    5 terms on site irreps that induce a composite band representation   (.terms_without_ebr_column)
 #    no symmetry indicator, the group's indicator group being trivial   (.indicators)
 for row in t25.rows:                               # each invariant, term by term
     kind = "Z" if row.mod is None else f"Z{row.mod}"
