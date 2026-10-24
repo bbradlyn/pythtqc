@@ -2780,14 +2780,16 @@ def test_a_site_s_operations_bind_its_orbitals_and_copies_of_one_irrep_are_one(c
     # the floor for the 4mm pair, the P2/m cases and the shells of R3m, R-3m and
     # P-43m, and far above it on the 96 operations of the 8c models, whose
     # measured blocks are carried through the group's words -- and every case
-    # closes it
+    # closes it; the matrices multiply as the group does to the same rounding,
+    # on entries the size of a unitary matrix's
     rep = out.rep
     scale = float(np.abs(np.asarray(rep.model.hamiltonian(
         k_pts=rep._battery, flatten_spin_axis=True))).max())
     gate = tqs.covariance_gate(len(rep.indices), int(rep.model.nstate), scale)
     assert rep._search["gate"] == gate and (gate > GATE) == (len(rep.indices) == 96)
     assert max(rep.residuals.values()) <= gate
-    assert rep.product_residual < 1e-13
+    assert rep.product_residual <= tqs.covariance_gate(len(rep.indices),
+                                                       int(rep.model.nstate), 1.0)
 
 
 def _spin_lift_defect(rep):

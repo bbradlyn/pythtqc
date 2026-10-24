@@ -121,7 +121,7 @@ def test_the_pages_build_as_a_site_with_every_link_resolved(tmp_path):
     anchor warnings, and a strict build fails on a warning, so this is the test
     that the site and the tree agree.
     """
-    if importlib.util.find_spec("mkdocs") is None:
+    if any(importlib.util.find_spec(name) is None for name in ("mkdocs", "material")):
         pytest.fail("the site needs MkDocs and its Material theme: pip install '.[test]'")
     env = dict(os.environ, PYTHONUTF8="1", NO_MKDOCS_2_WARNING="1")
     run = subprocess.run(
