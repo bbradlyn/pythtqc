@@ -128,7 +128,7 @@ t = tqc.hsp_table(rep, bands=2)                 # the same content everywhere, o
 print(tqc.format_counts(t.counts))
 #  -GM6 + -K5 + -K6 + -M3M4
 
-d = tqc.decompose(t, group, rep=rep)
+d = tqc.decompose(t)
 print(d.verdict, "|", d.solution_strings()[0])
 #  symmetry-indicated decomposable | 1 x -E1↑G(2)@1a(3m1',3m)
 ```

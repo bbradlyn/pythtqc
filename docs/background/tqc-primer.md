@@ -141,7 +141,7 @@ print(tqc.format_counts(t.counts))
 y = np.array([t.counts.get(label, 0) for label in data["labels_physics_convention"]])
 print(y, U @ y)
 #  [0 0 0 1 0 1 0 1 0 0 1 0] [0 0 1 1 0 0 0 1 0 0 0 0]
-print(tqc.symmetry_indicator(t, strong.group, rep=strong.rep).values)
+print(tqc.symmetry_indicator(t).values)
 #  (0, 1)
 ```
 

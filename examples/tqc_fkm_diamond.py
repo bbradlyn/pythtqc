@@ -111,7 +111,7 @@ for point in sorted(hsp):
         row(f"E at {point}", ", ".join(f"{x:+.6f}" for x in w) + f"   gap {gap:.6f}")
 
 table4 = tqc.hsp_table(rep, bands=4)          # the content of all four bands
-d4 = tqc.decompose(table4, group, rep=rep)
+d4 = tqc.decompose(table4)
 row("all 4 bands", fmt(table4.counts))
 row(*atomic_limits(d4))
 
@@ -141,7 +141,7 @@ for point in POINTS:
 t2_strong = tqc.hsp_table(rep_strong, bands=2)
 row("valence content", fmt(t2_strong.counts))
 
-dec_strong = tqc.decompose(t2_strong, g_strong, rep=rep_strong)
+dec_strong = tqc.decompose(t2_strong)
 row(*atomic_limits(dec_strong))
 
 ########### 3. delta_t = -0.4 on the same bond ###########
@@ -165,7 +165,7 @@ row("gaps GM/T/F/L", " / ".join(f"{g:.6f}" for g in gaps_weak))
 t2_weak = tqc.hsp_table(rep_weak, bands=2)
 row("valence content", fmt(t2_weak.counts))
 
-dec_weak = tqc.decompose(t2_weak, g_weak, rep=rep_weak)
+dec_weak = tqc.decompose(t2_weak)
 row(*atomic_limits(dec_weak))
 
 ########### 4. three bonds cut: decoupled dimers along [111] ###########
@@ -189,7 +189,7 @@ row("gaps GM/T/F/L", " / ".join(f"{g:.6f}" for g in gaps_dimers))
 t2_dimers = tqc.hsp_table(rep_dimers, bands=2)
 row("valence content", fmt(t2_dimers.counts))
 
-dec_dimers = tqc.decompose(t2_dimers, g_dimers, rep=rep_dimers)
+dec_dimers = tqc.decompose(t2_dimers)
 row(*atomic_limits(dec_dimers))
 print("   the valence bands are the antibonding pair of each dimer's two s orbitals,")
 print(f"   centred at {dec_dimers.positions[0][0]} on the [111] axis")
@@ -240,9 +240,9 @@ print(f"   #{g_strong.number_str} has inversion, so nu_0 is the parity product o
 # the content, one step beyond whether a sum of elementary band representations
 # carries it.
 print("\n6. the symmetry-indicator class in {BS}/{AI}")
-si_strong = tqc.symmetry_indicator(t2_strong, g_strong, rep=rep_strong)
-si_weak = tqc.symmetry_indicator(t2_weak, g_weak, rep=rep_weak)
-si_dimers = tqc.symmetry_indicator(t2_dimers, g_dimers, rep=rep_dimers)
+si_strong = tqc.symmetry_indicator(t2_strong)
+si_weak = tqc.symmetry_indicator(t2_weak)
+si_dimers = tqc.symmetry_indicator(t2_dimers)
 
 z4_strong = si_strong.irreptables_named["z4"]
 z2w_strong = tuple(si_strong.irreptables_named[f"z2w,{i}"] for i in (1, 2, 3))

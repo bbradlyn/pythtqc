@@ -270,10 +270,10 @@ print(valence.summary())
 #      L: 2×L1+ + L2+ + L2-
 #      T: T1+ + T2- + T3-
 #    the labels of these 4 of the 8 bands rest on a one-dimensional character the hoppings leave open on the coupled part holding every orbital: another choice of it keeps every orbital's site irrep and the labels of all 8 bands, and labels these 4 differently; the lowest-angular-momentum rule chose the one whose orbitals read as the lowest-angular-momentum functions carrying their site content   (.note)
-dec = tqc.decompose(valence, r.group, rep=r.rep)
+dec = tqc.decompose(valence)
 print(dec.verdict, "|", len(dec.solutions), "solution:", *dec.solution_strings())
 #  symmetry-indicated decomposable | 1 solution: 1 x A1g↑G(1)@3a(-3m1',-3m) + 1 x Ag↑G(3)@9d(2/m1',2/m)
-indicator = tqc.symmetry_indicator(valence, r.group, rep=r.rep)
+indicator = tqc.symmetry_indicator(valence)
 print(indicator.structure, indicator.canonical)
 #  Z2 {"z2'": 0}
 ```

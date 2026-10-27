@@ -23,9 +23,9 @@ print(r.group.name, r.group.number_str)
 t = tqc.hsp_table(r.rep, bands=2)
 print(tqc.format_counts(t.counts))
 #  -GM9 + -K8 + -M6
-print(tqc.symmetry_indicator(t, r.group, rep=r.rep))
+print(tqc.symmetry_indicator(t))
 #  SymmetryIndicator(indicated nontrivial, #191.234, Z6 x Z12, [1|6, 0|12], completed on the stack)
-print(tqc.srsi_of_bands(t, r.group, rep=r.rep))
+print(tqc.srsi_of_bands(t))
 #  BandSRSIs(#191.234, (-1/6, 1/6, 1/2, 1/3, 0, 2/3, 0, 0, 0, -1/3, -2/3, 0, 1/2, 0), stable)
 ```
 

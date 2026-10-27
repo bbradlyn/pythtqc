@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- `decompose`, `symmetry_indicator`, `completeness_check`, `regular_completion` and
+  `srsi_of_bands` read a table in the group it carries: `decompose(t)` takes the table
+  `hsp_table` returned and nothing else, the group and `rep=` being optional and held to
+  the table's own where they are handed in; a content written out by hand still takes its
+  group beside it. A layer's indicator asked of its table measures its rows out of the
+  plane on the decoupled stack with no `rep=` passed.
+- `SRSITables.formulas()` writes every stable real-space invariant's formula out, a line
+  each, `theta_2 (Z2) = 1 (-E)_b`; `SRSIRow.summary()` says multiplicity where it said
+  copies.
 - The ten examples print as a ledger: each measured quantity on a labelled line, a
   record's summary whole and once, every verdict in words, bands counted from 0 and
   said so once per script, the valence and the conduction bands named in words. The

@@ -115,7 +115,7 @@ row(f"the {first.multiplicity}{first.letter} orbit", fmt(first.content))
 row(f"the {second.multiplicity}{second.letter} orbit", fmt(second.content))
 
 t8 = tqc.hsp_table(rep, bands=8)
-d8 = tqc.decompose(t8, group, rep=rep)
+d8 = tqc.decompose(t8)
 own_terms = [" + ".join(f"{n} x {name}@{where}" for n, name, where in orbit.chosen["terms"])
              for orbit in (first, second)]
 index = list(d8.solution_strings()).index(" + ".join(own_terms))   # the orbitals' own sum
@@ -134,11 +134,11 @@ print("   atomic insulator, not the one whose splittings the supplement tabulate
 
 print("\n2. bands 4 and 5: the Z2-valued invariants come from the orbitals, not the bands")
 p2 = tqc.hsp_table(rep, bands=[4, 5])
-d2 = tqc.decompose(p2, group, rep=rep)
+d2 = tqc.decompose(p2)
 row("bands 4 and 5", fmt(p2.counts))
 row(*atomic_limits(d2))
 
-b2 = tqc.srsi_of_bands(p2, group, rep=rep)
+b2 = tqc.srsi_of_bands(p2)
 row("srsi_of_bands", f"Z-valued {values(b2.theta_Z)}, and no Z_n-valued invariants")
 
 

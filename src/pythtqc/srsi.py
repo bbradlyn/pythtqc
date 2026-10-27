@@ -141,7 +141,7 @@ class BandSRSIs:
                 f"({', '.join(str(v) for v in self.theta_Z)}), "
                 f"{'stable' if self.stable else 'integral'})")
 
-def srsi_of_bands(content, group, *, rep=None, points=None,
+def srsi_of_bands(content, group=None, *, rep=None, points=None,
                   bands=None) -> BandSRSIs | Refusal:
     r"""The :math:`\mathbb{Z}`-valued stable real-space invariants of a band set, from its symmetry vector.
 
@@ -156,11 +156,14 @@ def srsi_of_bands(content, group, *, rep=None, points=None,
     content : ..sewing.HSPTable or mapping
         The band set's content at the high-symmetry points, as
         :func:`..ebr.symmetry_indicator` takes it.
-    group : ..groups.GroupData
-        A grey group with tables.
+    group : ..groups.GroupData, optional
+        The grey group the content was read in, ``r.group``, with tables.  A
+        table carries its own, ``t.rep.group``, and is read in it; a content
+        written out by hand takes the group beside it.
     rep : ..symmetry.SpaceGroupRep, optional
-        The model's representation, for :func:`..ebr.symmetry_indicator`; a layer
-        needs it for the rows out of its plane.
+        The model's representation, ``r.rep``, for :func:`..ebr.symmetry_indicator`,
+        which measures a layer's rows out of its plane on its decoupled stack; a
+        table carries its own.
     points : sequence of str, optional
         The high-symmetry points to read, for :func:`..ebr.symmetry_indicator`.
     bands : int or sequence of int, optional
@@ -180,10 +183,12 @@ def srsi_of_bands(content, group, *, rep=None, points=None,
     ..refusal.InternalError
         The rational solve does not reproduce the symmetry vector it was built
         from: a defect to report.
+    TypeError
+        A content written out by hand with no group beside it.
     ValueError
         ``bands=`` names other bands than the content was measured on, or the
-        group or ``rep=`` is not the one the table was read in, which it
-        carries as ``t.rep``.
+        group or ``rep=`` handed in beside a table is not the one it was read
+        in, which it carries as ``t.rep``.
 
     Refusals
     --------
@@ -193,8 +198,8 @@ def srsi_of_bands(content, group, *, rep=None, points=None,
         from :func:`..ebr.symmetry_indicator`, with the refusals of the content it
         reads.
     """
+    group, rep = _ebr._read_in(content, group, rep, where="srsi_of_bands")
     block = _ebr._bands_of(content, bands, where="srsi_of_bands")
-    _ebr._table_binding(content, group, rep, where="srsi_of_bands")
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
@@ -1145,7 +1150,7 @@ class AtomicRealization:
     Attributes
     ----------
     p : tuple of int
-        How many copies of each key of :attr:`Realizations.keys` it holds.
+        The multiplicity of each key of :attr:`Realizations.keys` in it.
     terms : tuple
         ``((multiplicity, irrep, letter), ...)``: the keys it holds.
     theta_Zn : dict
@@ -1194,8 +1199,8 @@ class Realizations:
     keys : tuple of MaximalKey
         The maximal site keys :attr:`AtomicRealization.p` counts.
     bound, cap : int
-        The most copies of one key the band count allows, which makes the list
-        complete, and the most realizations it may hold.
+        The largest multiplicity of one key the band count allows, which makes
+        the list complete, and the most realizations it may hold.
     note : str
         What the list says, in a sentence.
     number_str, spinor : str, bool

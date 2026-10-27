@@ -353,11 +353,12 @@ Returned by `symmetry_indicator` and `srsi_of_bands`.
   band representations, rows at k-points out of the plane that repeat no row in it, and the
   decoupled stack of the layer, on which such rows are measured, did not supply them. The
   indicator has no value.
-- **Usual cause.** A layer's indicator asked of counts alone, without the representation
-  the stack is built from, or with `points=` given; or a check of the stack that did not
-  complete, which `context["stack"]` names.
-- **What to do.** Hand `symmetry_indicator` the `hsp_table` record and `rep=`, and leave
-  `points=` alone ([a layer's class](../guide/indicators.md#a-layers-class-is-a-three-dimensional-class)).
+- **Usual cause.** A layer's indicator asked of counts written out by hand, which carry no
+  representation to build the stack from, or with `points=` given; or a check of the stack
+  that did not complete, which `context["stack"]` names.
+- **What to do.** Hand `symmetry_indicator` the table `hsp_table` returned, which carries
+  the representation, and leave `points=` alone
+  ([a layer's class](../guide/indicators.md#a-layers-class-is-a-three-dimensional-class)).
 
 #### `restriction_not_exact`
 

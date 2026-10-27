@@ -297,7 +297,7 @@ on one line, a decomposition's `solution_strings()` and a band
 representation's `spelled()`:
 
 ```python
-d = tqc.decompose(tqc.hsp_table(r.rep, bands=2), r.group, rep=r.rep)
+d = tqc.decompose(tqc.hsp_table(r.rep, bands=2))
 print(d.solution_strings())
 #  ("1 x -E1↑G(2)@1a(3m1',3m)",)
 print(gr.rep.characters.band_representations[0].spelled())
@@ -365,7 +365,7 @@ energy is `−50`:
 ```python
 deep = tqc.realized_group(kane_mele(50.0, -1.0, 0.3, 0.25), typat=[0, 1], characters={0: "A1"})
 low = tqc.hsp_table(deep.rep, bands=2)
-print(low.counts, tqc.decompose(low, deep.group, rep=deep.rep).solution_strings())
+print(low.counts, tqc.decompose(low).solution_strings())
 #  {'-GM6': 1, '-K5': 1, '-K4': 1, '-M3M4': 1} ("1 x -E1↑G(2)@1b(3m1',3m)",)
 convention = tqc.ebr_data(deep.group)["convention"]
 print(convention["name"], convention["changed_points"], convention["conjugation"]["-K5"])

@@ -87,7 +87,7 @@ is a semimetal: its two lower bands are not separated from the upper two, so at
 all4 = tqc.hsp_table(r.rep, bands=4)
 print(tqc.format_counts(all4.counts))
 #  -GM6 + -GM9 + -L8 + -L9 + -W5W6 + -W7 + -X5
-print(tqc.decompose(all4, r.group, rep=r.rep).solution_strings())
+print(tqc.decompose(all4).solution_strings())
 #  ("1 x -E1↑G(4)@8a(-43m1',-43m)",)
 
 pair = tqc.hsp_table(r.rep, bands=2)                     # the two lowest bands alone
@@ -95,7 +95,7 @@ print(pair)
 #  HSPTable(bands=(0, 1), 3 points resolved, 1 refused, 0 skipped, group=realized)
 print(pair.refusals["X"].gate, pair.refusals["X"].context["multiplet"])
 #  multiplet_split (0, 1, 2, 3)
-refused = tqc.symmetry_indicator(pair, r.group, rep=r.rep)
+refused = tqc.symmetry_indicator(pair)
 print(bool(refused), refused.gate)
 #  False incomplete_content
 ```
@@ -214,7 +214,7 @@ phases = {
                                  characters={0: "s"}),
 }
 tables = {name: tqc.hsp_table(rr.rep, bands=2) for name, rr in phases.items()}
-indicators = {name: tqc.symmetry_indicator(tables[name], rr.group, rep=rr.rep)
+indicators = {name: tqc.symmetry_indicator(tables[name])
               for name, rr in phases.items()}
 print(f"X_BS of #{rs.group.number_str} {rs.group.name}: {indicators['strong'].structure}")
 #  X_BS of #166.98 R-3m1': Z2 x Z4
@@ -305,7 +305,7 @@ sum of EBRs with nonnegative integer multiplicities reproduces this one vector.
 
 ```python
 for name, rr in phases.items():
-    dec = tqc.decompose(tables[name], rr.group, rep=rr.rep)
+    dec = tqc.decompose(tables[name])
     signed = (f"{dec.signed_combinations['n_solutions']} signed" if dec.signed_combinations
               else "-")
     found = f"{len(dec.solutions)} solution{'' if len(dec.solutions) == 1 else 's'}"

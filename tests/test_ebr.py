@@ -1747,7 +1747,10 @@ def test_points_or_bands_that_contradict_the_table_raise_rather_than_being_overr
     Another record of the same group written in the same cell is the same
     group, and the same labelling reached by declaration and by the
     lowest-angular-momentum rule is one representation; graphene declared
-    ``A2`` keeps its group and is another labelling, so it raises.
+    ``A2`` keeps its group and is another labelling, so it raises.  Handed
+    neither, the table is read in the group it carries, ``decompose(t)``; a
+    content written out by hand carries none and cannot do without one:
+    ``TypeError``, as for any missing argument.
 
     The same law holds for ``bands=``, which states which bands the content
     counts — an int is the lowest *n*, a sequence is exactly those indices —
@@ -1786,6 +1789,20 @@ def test_points_or_bands_that_contradict_the_table_raise_rather_than_being_overr
         "the block is a set of bands, not an order"
 
     assert table.rep is rep, "the table carries the representation it was read with"
+    alone = tqe.decompose(table)                      # read in the group the table carries
+    assert alone.terms == agreed.terms and alone.n_bands == 2, \
+        "handed nothing else, a table is read in its own group"
+    assert tqe.symmetry_indicator(table).values == \
+        tqe.symmetry_indicator(table, group, rep=rep).values
+    assert tqe.completeness_check(table).band_counts == \
+        tqe.completeness_check(table, group, rep=rep).band_counts
+    assert tqr.srsi_of_bands(table).theta_Z == tqr.srsi_of_bands(table, group, rep=rep).theta_Z
+    assert tqe.regular_completion(table, bands=8).padding == \
+        tqe.regular_completion(table, group, rep=rep, bands=8).padding
+    with pytest.raises(TypeError) as exc:
+        tqe.decompose(dict(table.counts))             # written out by hand: no group to read in
+    assert "'group'" in str(exc.value) and "t.rep" in str(exc.value), \
+        "the message names the missing argument and where a table carries it"
     even = realized(_graphene_even)                            # A1 at 2b, by the rule
     other = realized(_graphene_even, characters={0: "A2"})     # the same group, relabelled
     assert even and other and other.group.number_str == even.group.number_str

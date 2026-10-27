@@ -137,7 +137,7 @@ print(f"   {' and '.join(threefold)} are threefold: the spin-1 fermions")
 
 print("\n2. SG 199: the four bands together, and the three inter-band gaps")
 t199 = tqc.hsp_table(rep199, bands=4)          # the content at every point, in one table
-d199 = tqc.decompose(t199, g199, rep=rep199)
+d199 = tqc.decompose(t199)
 row("all 4 bands", fmt(t199.counts))
 row(*atomic_limits(d199))
 
@@ -190,7 +190,7 @@ for point in sorted(hsp208):
 
 print("\n4. SG 208: the four bands together, and the three inter-band gaps")
 t208 = tqc.hsp_table(rep208, bands=4)
-d208 = tqc.decompose(t208, g208, rep=rep208)
+d208 = tqc.decompose(t208)
 row("all 4 bands", fmt(t208.counts))
 row(*atomic_limits(d208))
 
@@ -210,12 +210,12 @@ print("\n5. SG 208: each half of the split on its own")
 # hsp_table takes the indices of the bands to read, so each half is asked
 # exactly as the whole set was in section 4.
 table_lo = tqc.hsp_table(rep208, bands=(0, 1))
-d_lo = tqc.decompose(table_lo, g208, rep=rep208)
+d_lo = tqc.decompose(table_lo)
 row("bands 0 and 1", fmt(table_lo.counts))
 row(*atomic_limits(d_lo))
 
 table_hi = tqc.hsp_table(rep208, bands=(2, 3))
-d_hi = tqc.decompose(table_hi, g208, rep=rep208)
+d_hi = tqc.decompose(table_hi)
 row("bands 2 and 3", fmt(table_hi.counts))
 row(*atomic_limits(d_hi))
 print("   each isolated half is topological")

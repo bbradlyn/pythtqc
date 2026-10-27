@@ -151,8 +151,8 @@ row("realized group", f"#{g1.number_str} {g1.name}, orbitals at Wyckoff "
 
 t_val1 = tqc.hsp_table(rep1, bands=(0, 1))
 t_con1 = tqc.hsp_table(rep1, bands=(2, 3))
-d_val1 = tqc.decompose(t_val1, g1, rep=rep1)
-d_con1 = tqc.decompose(t_con1, g1, rep=rep1)
+d_val1 = tqc.decompose(t_val1)
+d_con1 = tqc.decompose(t_con1)
 
 # whether an orbital sits at that position, read off the measured Wyckoff letters
 seat1 = d_val1.positions[0][0]
@@ -167,7 +167,7 @@ limits(d_val1, where1)
 row("bands 2 and 3", by_point(t_con1))
 limits(d_con1)
 
-si_val1 = tqc.symmetry_indicator(t_val1, g1, rep=rep1)
+si_val1 = tqc.symmetry_indicator(t_val1)
 row(*indicator(si_val1))
 print("   the staggered potential makes the two honeycomb sites inequivalent, and no")
 print(f"   symmetry indicator tells bands 0 and 1 from an atomic limit at {seat1}")
@@ -186,8 +186,8 @@ row("realized group", f"#{g2.number_str} {g2.name}, orbitals at Wyckoff "
 
 t_val2 = tqc.hsp_table(rep2, bands=(0, 1))
 t_con2 = tqc.hsp_table(rep2, bands=(2, 3))
-d_val2 = tqc.decompose(t_val2, g2, rep=rep2)
-d_con2 = tqc.decompose(t_con2, g2, rep=rep2)
+d_val2 = tqc.decompose(t_val2)
+d_con2 = tqc.decompose(t_con2)
 
 seat2 = d_val2.positions[0][0]
 where2 = ("a site an orbital sits on" if seat2 in seats2
@@ -214,8 +214,8 @@ row("realized group", f"#{g3.number_str} {g3.name}, orbitals at Wyckoff "
 
 t_val3 = tqc.hsp_table(rep3, bands=(0, 1))
 t_con3 = tqc.hsp_table(rep3, bands=(2, 3))
-d_val3 = tqc.decompose(t_val3, g3, rep=rep3)
-d_con3 = tqc.decompose(t_con3, g3, rep=rep3)
+d_val3 = tqc.decompose(t_val3)
+d_con3 = tqc.decompose(t_con3)
 
 seat3 = d_val3.positions[0][0]
 where3 = ("a site an orbital sits on" if seat3 in seats3
@@ -241,8 +241,8 @@ row("realized group", f"#{g4.number_str} {g4.name}, orbitals at Wyckoff "
 
 t_val4 = tqc.hsp_table(rep4, bands=(0, 1))
 t_con4 = tqc.hsp_table(rep4, bands=(2, 3))
-d_val4 = tqc.decompose(t_val4, g4, rep=rep4)
-d_con4 = tqc.decompose(t_con4, g4, rep=rep4)
+d_val4 = tqc.decompose(t_val4)
+d_con4 = tqc.decompose(t_con4)
 
 row("bands 0 and 1", by_point(t_val4))
 limits(d_val4)
@@ -352,7 +352,7 @@ out_deep = tqc.realized_group(deep, typat=TYPAT, characters=DECLARE)
 _m, g_deep, asg_deep, _v, rep_deep = out_deep
 sites_deep = tqc.wyckoff_sites_tables(g_deep, asg_deep.site_positions)
 t_deep = tqc.hsp_table(rep_deep, bands=2)
-d_deep = tqc.decompose(t_deep, g_deep, rep=rep_deep)
+d_deep = tqc.decompose(t_deep)
 # the assignment's site_of_orbital names the site each orbital sits on
 heavy = sites_deep[int(asg_deep.site_of_orbital[int(np.argmax(weight))])]
 light = sites_deep[int(asg_deep.site_of_orbital[int(np.argmin(weight))])]

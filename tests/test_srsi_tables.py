@@ -979,7 +979,8 @@ def test_every_served_record_is_uniform():
     ``theta_Z_total`` / ``theta_Zn_total`` so that a record carrying three
     vectors names all three.  ``summary()`` is not asserted over the six here —
     ``callable`` is true of any attribute that exists, so the line said only
-    that — but exercised below on the two the freeze gave one to.
+    that — but exercised below on the two the freeze gave one to, and
+    ``SRSITables.formulas()`` beside it, one line per invariant.
     """
     for record in (tqr.SRSITables, tqr.BandSRSIs, tqr.ModelSRSIs, tqr.Splitting,
                    tqr.Realizations, tqr.StablePair):
@@ -997,6 +998,12 @@ def test_every_served_record_is_uniform():
     text = table.summary()
     assert "I4321' #211.57, single-valued" in text and table.structure in text
     assert "theta_10" in text and "17 of them inducing an elementary band" in text
+    lines = table.formulas().splitlines()
+    assert [line.split(" (")[0] for line in lines] == [row.name for row in table.rows], \
+        "formulas() writes every invariant, in the paper's order"
+    assert all(" = " in line for line in lines)
+    assert lines[0].split(" = ", 1)[1].count(")_") == len(table.rows[0].terms), \
+        "each term is one site irrep at its Wyckoff letter"
     pair, = tqr.stably_equivalent_pairs(table)
     assert "B2 and B3 at Wyckoff position d, which no stable real-space invariant " \
         "distinguishes" in pair.summary()

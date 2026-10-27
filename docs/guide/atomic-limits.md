@@ -28,7 +28,7 @@ from pythtqc import models
 r = tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1])
 model, group, assignment, validated, rep = r
 t = tqc.hsp_table(rep, bands=6)                    # the six lowest bands
-d = tqc.decompose(t, group, rep=rep)
+d = tqc.decompose(t)
 print(d.summary())
 #  symmetry-indicated decomposable: 3 sums of elementary band representations carry this content   (.verdict)
 #    the coreps at the high-symmetry points: 2×-GM6 + -GM7 + -M6 + 2×-M7 + 3×-X5   (.content)
@@ -106,7 +106,7 @@ at `1a` exchanged:
 print(d.site_content["determined_by"])
 #  ('lowest-l', 'lowest-l', 'hamiltonian', 'hamiltonian')
 other = tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1], characters={0: "dx2-y2"})
-d_other = tqc.decompose(tqc.hsp_table(other.rep, bands=6), other.group, rep=other.rep)
+d_other = tqc.decompose(tqc.hsp_table(other.rep, bands=6))
 print(d_other.solution_strings()[0])
 #  1 x -E1↑G(2)@1b(4mm1',4mm) + 1 x -E↑G(4)@2c(mm21',mm2)
 print(d_other.positions == d.positions)
@@ -136,16 +136,16 @@ of the lattice translations and, for this spinful model, the single-valued
 group's: the eight of `4mm` here (`rc.bands_per_copy`):
 
 ```python
-print(tqc.completeness_check(t, group, rep=rep))
+print(tqc.completeness_check(t))
 #  CompletenessReport(complete=True, n_bands=6, band_counts=(6, 6, 6))
-rc = tqc.regular_completion(t, group, bands=8, rep=rep)
+rc = tqc.regular_completion(t, bands=8)
 print(rc.bands_per_copy, rc.regular)
 #  8 {'-GM6': 2, '-GM7': 2, '-M6': 2, '-M7': 2, '-X5': 4}
 print(tqc.format_counts(rc.padding), rc.decomposition.solution_strings())
 #  -GM7 + -M6 + -X5 ("1 x -E1↑G(2)@1b(4mm1',4mm)",)
 print(rc.padding == tqc.hsp_table(rep, bands=[6, 7]).counts)
 #  True
-print(tqc.regular_completion(t, group, bands=6, rep=rep).gate)
+print(tqc.regular_completion(t, bands=6).gate)
 #  not_a_regular_multiple
 ```
 
@@ -171,7 +171,7 @@ them:
 pair = tqc.hsp_table(rep, bands=[4, 5])            # the two bands below the gap
 print(tqc.subtract(t, tqc.hsp_table(rep, bands=[0, 1, 2, 3])) == pair.counts)
 #  True
-d_pair = tqc.decompose(pair, group, rep=rep)
+d_pair = tqc.decompose(pair)
 print(d_pair.verdict, d_pair.solution_strings(), d_pair.caveat)
 #  symmetry-indicated decomposable ("1 x -E2↑G(2)@1b(4mm1',4mm)",) WannierCaveat(necessary for an atomic limit, not sufficient)
 print(tqc.splitting(r, bands=6).verdict)
@@ -203,7 +203,7 @@ as `-E1` at the empty hexagon centre `1a`; the two above them do not:
 km = tqc.realized_group(kane_mele(1.0, -1.0, 0.3, 0.25), typat=[0, 1],
                         characters={0: "A1"})
 upper = tqc.hsp_table(km.rep, bands=[2, 3])        # the two bands above the gap
-none = tqc.decompose(upper, km.group, rep=km.rep)
+none = tqc.decompose(upper)
 print(none, none.certificate, none.bound_is_rigorous)
 #  EBRDecomposition(none, 0 solutions, exact) proof True
 signed = none.signed_combinations
@@ -211,7 +211,7 @@ print(signed["n_solutions"])
 #  3
 print(" + ".join(f"{n} x {ebr}@{site}" for n, ebr, site in signed["terms"][0]))
 #  -1 x -E1↑G(2)@1a(3m1',3m) + 1 x -E1↑G(2)@1b(3m1',3m) + 1 x -E1↑G(2)@1c(3m1',3m)
-print(km.group.name, tqc.symmetry_indicator(upper, km.group, rep=km.rep).verdict)
+print(km.group.name, tqc.symmetry_indicator(upper).verdict)
 #  P3m11' trivial indicator group
 ```
 

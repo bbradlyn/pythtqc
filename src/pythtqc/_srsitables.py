@@ -153,6 +153,11 @@ def _signed(terms) -> str:
     return "".join(out) or "0"
 
 
+def _formula(row) -> str:
+    """``2 (-1E2E)_e + 1 (-E)_a``: an invariant's terms, each a site irrep at its Wyckoff letter times its multiplicity."""
+    return _signed((term["coef"], f"({term['irrep']})_{term['letter']}") for term in row.terms)
+
+
 # ---------------------------------------------------------------------------
 # records
 # ---------------------------------------------------------------------------
@@ -193,11 +198,9 @@ class SRSIRow:
     def summary(self) -> str:
         """The invariant, then its formula, a line each."""
         return (f"{self.name}, {'Z' if self.mod is None else f'Z{self.mod}'}-valued: a sum "
-                "of terms c (irrep)_w, c times the copies of a site irrep at Wyckoff "
+                "of terms c (irrep)_w, c times the multiplicity of a site irrep at Wyckoff "
                 "position w   (.name, .mod)\n"
-                "  " + _signed((term["coef"], f"({term['irrep']})_{term['letter']}")
-                               for term in self.terms)
-                + "   (.terms)")
+                "  " + _formula(self) + "   (.terms)")
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
         kind = "Z" if self.mod is None else f"Z{self.mod}"
@@ -383,7 +386,8 @@ class SRSITables:
     r"""The stable real-space invariants of one grey space group, as the paper tabulates them.
 
     What :func:`srsi_tables` returns; :meth:`summary` prints the invariants, a line
-    each.  :meth:`theta` evaluates them on a site-symmetry vector ``p`` over the
+    each, and :meth:`formulas` each one's formula over the site irreps.
+    :meth:`theta` evaluates them on a site-symmetry vector ``p`` over the
     site keys, :meth:`theta_columns` on one over the group's elementary band
     representations, and :meth:`indicators_of` and :meth:`indicators_of_columns`
     evaluate the paper's symmetry indicators.
@@ -741,6 +745,19 @@ class SRSITables:
                          "representation into others that the symmetry indicators allow"
                          "   (.split_ebrs)")
         return "\n".join(lines)
+
+    def formulas(self) -> str:
+        r"""Every invariant's formula, a line each, as the paper tabulates them.
+
+        ``theta_2 (Z2) = 1 (-E)_b``: the invariant and whether it is
+        :math:`\mathbb{Z}`- or :math:`\mathbb{Z}_n`-valued, then its terms, each
+        a site irrep at its Wyckoff letter times its multiplicity.
+        """
+        heads = [f"{row.name} ({'Z' if row.mod is None else f'Z{row.mod}'})"
+                 for row in self.rows]
+        width = max((len(head) for head in heads), default=0)
+        return "\n".join(f"{head:<{width}} = {_formula(row)}"
+                         for head, row in zip(heads, self.rows))
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
         return (f"SRSITables(#{self.number_str}, "

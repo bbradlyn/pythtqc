@@ -135,7 +135,7 @@ rest = tqc.in_plane_restriction(g_a, require_exact=False)
 row("out of the plane", f"{len(rest.dropped)} coreps at k_z = 1/2, measured on the "
     "layer's own stack")
 
-si_a = tqc.symmetry_indicator(table_a, g_a, rep=rep_a)
+si_a = tqc.symmetry_indicator(table_a)
 row(*indicator(si_a))
 print("   free-standing is a declaration: a flat model has no third coordinate, and a")
 print("   layer on a substrate has no mirror in z")
@@ -159,7 +159,7 @@ row("site irrep", f"{rep191.characters.irreps[0]}, of the declared p_z, odd unde
 table_b = tqc.hsp_table(rep191, bands=2)
 row("bands 0 and 1", by_point(table_b, POINTS))
 
-si_b = tqc.symmetry_indicator(table_b, g191, rep=rep191)
+si_b = tqc.symmetry_indicator(table_b)
 row(*indicator(si_b))
 
 # The three operations compared below, each named by its Seitz symbol in the
@@ -194,7 +194,7 @@ r22_full = sorted({int(np.rint(np.asarray(s.rotation)[2, 2])) for s in g191.symm
 r22_down = sorted({int(np.rint(np.asarray(s.rotation)[2, 2]))
                    for s in g_down.symmetries})
 table_down = tqc.hsp_table(rep_down, bands=2)
-si_down = tqc.symmetry_indicator(table_down, g_down, rep=rep_down)
+si_down = tqc.symmetry_indicator(table_down)
 row(f"rashba = {RASHBA_BROKEN}", f"#{g_down.number_str} {g_down.name}, a subgroup of "
     f"index {g191.size // g_down.size};", f"{indicator(si_down)[0]}: {indicator(si_down)[1]}")
 row("operations' R_zz", f"{listed(f'{v:+d}' for v in r22_full)} at rashba = {RASHBA:g}, "
@@ -239,7 +239,7 @@ row("realized group", f"#{g_stack.number_str} {g_stack.name}, orbitals at Wyckof
 six = tqc.hsp_table(rep_stack, bands=2)      # all six points, measured directly
 row("bands 0 and 1", by_point(six, STACK_POINTS))
 
-si_c = tqc.symmetry_indicator(six, g_stack, rep=rep_stack)
+si_c = tqc.symmetry_indicator(six)
 row(*indicator(si_c))
 
 ########### D. the three classes side by side ###########
@@ -271,7 +271,7 @@ row("out of the plane", f"{listed(only)} read only the coreps at k_z = 1/2,",
 # all four bands together: the orbitals' own band representation, an atomic limit
 # by construction, and the control that says the class above is half-filling physics
 table_all = tqc.hsp_table(rep_stack, bands=4)
-whole = tqc.symmetry_indicator(table_all, g_stack, rep=rep_stack)
+whole = tqc.symmetry_indicator(table_all)
 row("all 4 bands", "the band representation of the orbitals at "
     f"{sites_c[0].multiplicity}{sites_c[0].letter}, an atomic limit")
 row(indicator(whole)[0], f"{indicator(whole)[1]}, every named indicator "

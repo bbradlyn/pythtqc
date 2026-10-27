@@ -1251,9 +1251,10 @@ class HSPTable:
         carry, that content itself.
     rep : ..symmetry.SpaceGroupRep
         The representation the table was read with, ``r.rep``: its group,
-        ``rep.group``, is the group whose coreps the labels name.  Every call
-        that reads the table with a group or a representation checks that
-        they are this one, and raises ``ValueError`` where they are not.
+        ``rep.group``, is the group whose coreps the labels name, and the
+        calls that read the table, ``decompose(t)`` among them, read it in
+        that group.  A group or a representation handed to them beside the
+        table that is not this one raises ``ValueError``.
     """
 
     bands: tuple
@@ -1467,10 +1468,12 @@ def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
     Returns
     -------
     HSPTable or Refusal
-        ``t.summary()`` prints the coreps at each point.  ``t.counts`` is the
-        symmetry vector, which :func:`..ebr.decompose`,
-        :func:`..ebr.symmetry_indicator` and :func:`..srsi.srsi_of_bands` take;
-        ``t.content`` the coreps point by point; ``t.complete`` whether every
+        ``t.summary()`` prints the coreps at each point.  The table is what
+        :func:`..ebr.decompose`, :func:`..ebr.symmetry_indicator` and
+        :func:`..srsi.srsi_of_bands` take, ``decompose(t)``, in the group it
+        was read in, which it carries as ``t.rep.group``; ``t.counts`` is its
+        symmetry vector, ``t.content`` the coreps point by point;
+        ``t.complete`` whether every
         point resolved, and ``t.refusals`` each point that did not, with its own
         ``Refusal``; ``t.note`` where the labels rest on a choice the hoppings
         leave open.  A ``Refusal`` in its place is falsy and names what stopped

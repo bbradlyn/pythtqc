@@ -816,10 +816,12 @@ The coreps a set of bands carries at every high-symmetry point of the group: its
 
 **Returns**
 
-- `HSPTable or Refusal`: `t.summary()` prints the coreps at each point.  `t.counts` is the
-  symmetry vector, which [`decompose`](#decompose),
-  [`symmetry_indicator`](#symmetry_indicator) and [`srsi_of_bands`](#srsi_of_bands) take;
-  `t.content` the coreps point by point; `t.complete` whether every
+- `HSPTable or Refusal`: `t.summary()` prints the coreps at each point.  The table is what
+  [`decompose`](#decompose), [`symmetry_indicator`](#symmetry_indicator) and
+  [`srsi_of_bands`](#srsi_of_bands) take, `decompose(t)`, in the group it
+  was read in, which it carries as `t.rep.group`; `t.counts` is its
+  symmetry vector, `t.content` the coreps point by point;
+  `t.complete` whether every
   point resolved, and `t.refusals` each point that did not, with its own
   `Refusal`; `t.note` where the labels rest on a choice the hoppings
   leave open.  A `Refusal` in its place is falsy and names what stopped
@@ -882,7 +884,7 @@ Which bands of a spectrum are one degenerate level, at a stated energy tolerance
 
 ```text
 decompose(
-    content, group, *, rep=None, points=None, allow_incomplete=False, cap=200,
+    content, group=None, *, rep=None, points=None, allow_incomplete=False, cap=200,
     signed_combinations=True, bands=None
 )
 ```
@@ -894,11 +896,14 @@ Every sum of elementary band representations, with nonnegative integer multiplic
 - **`content`** (`HSPTable or mapping`): The band set's content: a table [`hsp_table`](#hsp_table) returned,
   which must be complete, or `{corep: multiplicity}` written out.
 
-- **`group`** (`GroupData`): The group the content was read in, `r.group`.
+- **`group`** (`GroupData, optional`): The group the content was read in, `r.group`.  A table carries its
+  own, `t.rep.group`, and is read in it; a content written out by hand
+  takes the group beside it.
 
 - **`rep`** (`SpaceGroupRep, optional`): The representation the content was read with, `r.rep`: it says how
   each site irrep is known, and on a layer which Wyckoff positions lie
-  within it.  Pass it whenever it is at hand.
+  within it.  A table carries its own, `t.rep`; beside a content
+  written out by hand, pass it whenever it is at hand.
 
 - **`bands`** (`int or sequence of int, optional`): Which bands the content counts: `n` the lowest `n`, or the band
   indices.  Default: a table's own.
@@ -972,7 +977,7 @@ The content of the bands in one set and not in another: `a − b` as a symmetry 
 ### `completeness_check`
 
 ```text
-completeness_check(content, group, *, bands=None, **kwargs)
+completeness_check(content, group=None, *, bands=None, **kwargs)
 ```
 
 Whether a band set's content is a sum of elementary band representations, and how many bands each sum holds.
@@ -981,7 +986,8 @@ Whether a band set's content is a sum of elementary band representations, and ho
 
 - **`content`** (`HSPTable or mapping`): The band set's content, as [`decompose`](#decompose) takes it.
 
-- **`group`** (`GroupData`): The group the content was read in, `r.group`.
+- **`group`** (`GroupData, optional`): The group the content was read in, `r.group`, as [`decompose`](#decompose)
+  takes it: a table carries its own.
 
 - **`bands`** (`int or sequence of int, optional`): The set of bands, as [`decompose`](#decompose) takes it: the bands each sum is
   held against.
@@ -1003,7 +1009,7 @@ Whether a band set's content is a sum of elementary band representations, and ho
 ### `regular_completion`
 
 ```text
-regular_completion(content, group, *, bands=None, rep=None, points=None, **kwargs)
+regular_completion(content, group=None, *, bands=None, rep=None, points=None, **kwargs)
 ```
 
 The bands that would carry a band set up to whole copies of the regular band representation, and the orbitals they would be.
@@ -1012,12 +1018,14 @@ The bands that would carry a band set up to whole copies of the regular band rep
 
 - **`content`** (`HSPTable or mapping`): The band set's content.
 
-- **`group`** (`GroupData`): The group the content was read in, `r.group`.
+- **`group`** (`GroupData, optional`): The group the content was read in, `r.group`, as [`decompose`](#decompose)
+  takes it: a table carries its own.
 
 - **`bands`** (`int or sequence of int`): The bands of the completed system: a number of them, or their indices,
   a multiple of `|U|` in all.  Required.
 
-- **`rep`** (`SpaceGroupRep, optional`): The representation, `r.rep`, which [`decompose`](#decompose) reads.
+- **`rep`** (`SpaceGroupRep, optional`): The representation, `r.rep`, which [`decompose`](#decompose) reads; a table
+  carries its own.
 
 - **`points`** (`sequence of str, optional`): The high-symmetry points the model samples.
 
@@ -1112,7 +1120,8 @@ Which coreps of the group's elementary band representations a layer measures, an
 
 ```text
 symmetry_indicator(
-    content, group, *, rep=None, points=None, bands=None, verify=True, stack_period=8.0
+    content, group=None, *, rep=None, points=None, bands=None, verify=True,
+    stack_period=8.0
 )
 ```
 
@@ -1123,12 +1132,15 @@ The symmetry-indicator class of a band set's content: the class of its symmetry 
 - **`content`** (`HSPTable or mapping`): The band set's content, as [`decompose`](#decompose) takes it; a table must be
   complete.
 
-- **`group`** (`GroupData`): The group the content was read in, `r.group`.
+- **`group`** (`GroupData, optional`): The group the content was read in, `r.group`.  A table carries its
+  own, `t.rep.group`, and is read in it; a content written out by hand
+  takes the group beside it.
 
-- **`rep`** (`SpaceGroupRep, optional`): The representation the content was read with, `r.rep`.  A layer needs
-  it, with a table, for its coreps at `k_z = ½` that repeat none in its
-  plane: they are measured on its decoupled stack, the layer repeated
-  along its normal with no hopping between copies, built from it.
+- **`rep`** (`SpaceGroupRep, optional`): The representation the content was read with, `r.rep`; a table
+  carries its own, `t.rep`.  A layer's coreps at `k_z = ½` that
+  repeat none in its plane are measured on its decoupled stack, the
+  layer repeated along its normal with no hopping between copies, built
+  from the representation and the table.
 
 - **`bands`** (`int or sequence of int, optional`): Which bands the content counts, as [`decompose`](#decompose) takes it.
 
@@ -1158,8 +1170,8 @@ The symmetry-indicator class of a band set's content: the class of its symmetry 
 - **`incomplete_content`**: the table refused at some point; there is no override.
 
 - **`indicator_not_evaluable`**: a layer's coreps at `k_z = ½` repeat none in its plane and were not
-  measured on its stack: no `rep=` or no table, `points=` given, or a
-  check of the stack that did not complete (`context["stack"]`).
+  measured on its stack: no table, `points=` given, or a check of the
+  stack that did not complete (`context["stack"]`).
 
 - **`not_a_band_structure`**: the content fails the group's compatibility relations.
 
@@ -1292,7 +1304,7 @@ srsi_of_columns(group_or_tables, p)
 ### `srsi_of_bands`
 
 ```text
-srsi_of_bands(content, group, *, rep=None, points=None, bands=None)
+srsi_of_bands(content, group=None, *, rep=None, points=None, bands=None)
 ```
 
 The $`\mathbb{Z}`$-valued stable real-space invariants of a band set, from its symmetry vector.
@@ -1302,10 +1314,13 @@ The $`\mathbb{Z}`$-valued stable real-space invariants of a band set, from its s
 - **`content`** (`HSPTable or mapping`): The band set's content at the high-symmetry points, as
   [`symmetry_indicator`](#symmetry_indicator) takes it.
 
-- **`group`** (`GroupData`): A grey group with tables.
+- **`group`** (`GroupData, optional`): The grey group the content was read in, `r.group`, with tables.  A
+  table carries its own, `t.rep.group`, and is read in it; a content
+  written out by hand takes the group beside it.
 
-- **`rep`** (`SpaceGroupRep, optional`): The model's representation, for [`symmetry_indicator`](#symmetry_indicator); a layer
-  needs it for the rows out of its plane.
+- **`rep`** (`SpaceGroupRep, optional`): The model's representation, `r.rep`, for [`symmetry_indicator`](#symmetry_indicator),
+  which measures a layer's rows out of its plane on its decoupled stack; a
+  table carries its own.
 
 - **`points`** (`sequence of str, optional`): The high-symmetry points to read, for [`symmetry_indicator`](#symmetry_indicator).
 

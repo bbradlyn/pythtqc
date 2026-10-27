@@ -138,7 +138,7 @@ incomplete, and the call after it does not fill the gap:
 table = tqc.hsp_table(r.rep, bands=1)
 print(bool(table), table.complete, {point: why.gate for point, why in table.refusals.items()})
 #  True False {'GM': 'multiplet_split', 'M': 'multiplet_split'}
-missing = tqc.decompose(table, r.group)
+missing = tqc.decompose(table)
 print(missing.gate, missing.context["refusals"])
 #  incomplete_content {'GM': 'multiplet_split', 'M': 'multiplet_split'}
 ```

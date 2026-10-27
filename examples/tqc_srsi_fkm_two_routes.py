@@ -103,8 +103,8 @@ row("valence content", fmt(t2_strong.counts))
 # srsi_of_bands takes what decompose and symmetry_indicator take, the measured
 # symmetry vector, and evaluates the invariants on a rational site-symmetry vector
 # that induces it.
-b_strong = tqc.srsi_of_bands(t2_strong, g_strong, rep=rep_strong)
-si_strong = tqc.symmetry_indicator(t2_strong, g_strong, rep=rep_strong)
+b_strong = tqc.srsi_of_bands(t2_strong)
+si_strong = tqc.symmetry_indicator(t2_strong)
 row("srsi_of_bands", f"Z-valued {values(b_strong.theta_Z)}")
 row("denominator", b_strong.denominator)
 row("indicator class", f"{values(si_strong.values)} in {si_strong.structure}, of order "
@@ -135,7 +135,7 @@ for loc in orbit.localizations:
     row(f"localized at {where}", f"{terms},", f"Z-valued {values(loc['theta_Z'])}")
 
 t4_strong = tqc.hsp_table(rep_strong, bands=4)
-b4_strong = tqc.srsi_of_bands(t4_strong, g_strong, rep=rep_strong)
+b4_strong = tqc.srsi_of_bands(t4_strong)
 row("all 4 bands", f"Z-valued {values(b4_strong.theta_Z)}, read from the bands")
 row("the whole model", f"Z-valued {values(m_srsi.theta_Z)}, read from the orbitals")
 print("   all four bands together are the model's own orbitals, so the bands carry the")
@@ -150,8 +150,8 @@ r_weak = tqc.realized_group(m_weak, characters=DECLARE)
 _m, g_weak, asg_weak, val_weak, rep_weak = r_weak
 sites_weak = tqc.wyckoff_sites_tables(g_weak, asg_weak.site_positions)
 t2_weak = tqc.hsp_table(rep_weak, bands=2)
-b_weak = tqc.srsi_of_bands(t2_weak, g_weak, rep=rep_weak)
-si_weak = tqc.symmetry_indicator(t2_weak, g_weak, rep=rep_weak)
+b_weak = tqc.srsi_of_bands(t2_weak)
+si_weak = tqc.symmetry_indicator(t2_weak)
 row("weak,   realized", f"#{g_weak.number_str} {g_weak.name}, orbitals at Wyckoff "
     f"{sites_weak[0].multiplicity}{sites_weak[0].letter}")
 row("weak,   valence", fmt(t2_weak.counts))
@@ -162,8 +162,8 @@ r_dimers = tqc.realized_group(m_dimers, characters=DECLARE)
 _m, g_dimers, asg_dimers, val_dimers, rep_dimers = r_dimers
 sites_dimers = tqc.wyckoff_sites_tables(g_dimers, asg_dimers.site_positions)
 t2_dimers = tqc.hsp_table(rep_dimers, bands=2)
-b_dimers = tqc.srsi_of_bands(t2_dimers, g_dimers, rep=rep_dimers)
-si_dimers = tqc.symmetry_indicator(t2_dimers, g_dimers, rep=rep_dimers)
+b_dimers = tqc.srsi_of_bands(t2_dimers)
+si_dimers = tqc.symmetry_indicator(t2_dimers)
 row("dimers, realized", f"#{g_dimers.number_str} {g_dimers.name}, orbitals at Wyckoff "
     f"{sites_dimers[0].multiplicity}{sites_dimers[0].letter}")
 row("dimers, valence", fmt(t2_dimers.counts))

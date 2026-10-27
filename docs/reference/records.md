@@ -991,7 +991,7 @@ one-dimensional character returned; its partition does not. The points `A`,
 | `thresholds` | per point, the zero thresholds in force |
 | `note` | where the labels of these bands rest on the labelling returned, a one-dimensional character the hoppings leave open on a coupled part of the crystal: the orbitals that part holds, and what chose it; empty otherwise |
 | `group_provenance` | the provenance of the group the labels are read in, as [`GroupData`](#groupdata) gives it: `"realized"` for a group measured on `H`, `"descended"` for one measured after the cell was lowered |
-| `rep` | the representation the table was read with, `r.rep`; `rep.group` is the group whose coreps the labels name, and a group or a `rep=` handed to `decompose`, `symmetry_indicator`, `completeness_check`, `regular_completion` or `srsi_of_bands` beside the table that is not this one raises `ValueError` |
+| `rep` | the representation the table was read with, `r.rep`; `rep.group` is the group whose coreps the labels name, the one `decompose`, `symmetry_indicator`, `completeness_check`, `regular_completion` and `srsi_of_bands` read the table in, and a group or a `rep=` handed to them beside the table that is not this one raises `ValueError` |
 
 ## `EBRDecomposition`
 
@@ -1003,7 +1003,7 @@ a layer's content as incomplete. The occupied pair, then the two bands above
 it:
 
 ```python
-dec = tqc.decompose(t, group, rep=rep)
+dec = tqc.decompose(t)
 print(dec.summary())
 #  symmetry-indicated decomposable: 1 sum of elementary band representations carries this content   (.verdict)
 #    the coreps at the high-symmetry points: -GM9 + -K6 + -M5   (.content)
@@ -1011,7 +1011,7 @@ print(dec.summary())
 #      -E1 at 1a (6mm)
 #    A, H and L lie out of the layer's plane: every corep there occurs in every elementary band representation as often as a measured one, so the verdict is exact   (.restriction, .completeness)
 #    necessary for an atomic limit, never sufficient: an obstruction beyond symmetry indicators can survive it   (.caveat)
-conduction = tqc.decompose(tqc.hsp_table(rep, bands=[2, 3]), group, rep=rep)
+conduction = tqc.decompose(tqc.hsp_table(rep, bands=[2, 3]))
 print(conduction.summary())
 #  no sum of elementary band representations carries this content, so no atomic limit has it   (.verdict)
 #    the coreps at the high-symmetry points: -GM8 + -K4 + -K5 + -M5   (.content)
@@ -1077,14 +1077,14 @@ translations and, for a spinful model, the single-valued group's. The
 `summary()` of each reads it part by part:
 
 ```python
-cr = tqc.completeness_check(t, group, rep=rep)
+cr = tqc.completeness_check(t)
 print(cr)
 #  CompletenessReport(complete=True, n_bands=2, band_counts=(2,))
 print(cr.summary())
 #  complete: 1 sum of elementary band representations carries this content   (.complete)
 #    each sum is 2 bands, as many as were asked for   (.band_counts, .n_bands)
 #    the sums, and what a sum does not certify   (.decomposition)
-rc = tqc.regular_completion(t, group, bands=12, rep=rep)
+rc = tqc.regular_completion(t, bands=12)
 print(rc.summary())
 #  one copy of the regular band representation, the one the regular representation of a site group induces: 12 bands at every k   (.copies, .bands_per_copy)
 #    the coreps the missing bands carry: 2×-GM7 + 2×-GM8 + -GM9 + 2×-K4 + 2×-K5 + 3×-K6 + 5×-M5   (.padding)
@@ -1117,12 +1117,12 @@ elementary divisors and the tables' named forms, and no class. On the
 substrate, and free-standing:
 
 ```python
-si = tqc.symmetry_indicator(t, group, rep=rep)
+si = tqc.symmetry_indicator(t)
 print(si)
 #  SymmetryIndicator(trivial indicator group, #183.186, trivial)
 print(si.completion, si.free_standing_group)
 #  None {'number_str': '191.234', 'name': "P6/mmm1'", 'size': 48}
-sf = tqc.symmetry_indicator(tf, fs.group, rep=fs.rep)
+sf = tqc.symmetry_indicator(tf)
 print(sf)
 #  SymmetryIndicator(indicated nontrivial, #191.234, Z6 x Z12, [1|6, 0|12], completed on the stack)
 print(sf.summary())
@@ -1213,12 +1213,19 @@ print(tables.summary())
 #    9 terms on site irreps that induce a composite band representation   (.terms_without_ebr_column)
 #    no symmetry indicator, the group's indicator group being trivial   (.indicators)
 #    1 splitting of an elementary band representation into others that the symmetry indicators allow   (.split_ebrs)
+print(tables.formulas())
+#  theta_1 (Z)  = 2 (-1E2E)_d + 2 (-1E2E)_e + 4 (-AA)_f + 1 (-E1)_b + 1 (-E3)_a + 1 (-E)_c
+#  theta_2 (Z)  = 2 (-1E2E)_d + 2 (-1E2E)_e + 4 (-AA)_f + 1 (-E1)_b + 1 (-E2)_a + 1 (-E)_c
+#  theta_3 (Z)  = 2 (-1E2E)_d + 2 (-1E2E)_e + 4 (-AA)_f + 1 (-E1)_a + 1 (-E1)_b + 1 (-E)_c
+#  theta_4 (Z)  = 2 (-1E2E)_b - 1 (-E1)_b
+#  theta_5 (Z2) = 1 (-E)_c
 print(tables.theta({("-E1", "a"): 1}))
 #  ((Fraction(0, 1), Fraction(0, 1), Fraction(1, 1), Fraction(0, 1)), {2: (0,)})
 ```
 
-A term counts the copies at one site key, a site irrep at a Wyckoff letter,
-written `(irrep, letter)`. `theta(p)` evaluates the invariants on a
+A term is one site key, a site irrep at a Wyckoff letter, written
+`(irrep, letter)`, times its multiplicity, and `formulas()` writes every
+invariant out, term by term. `theta(p)` evaluates the invariants on a
 configuration, here one `-E1` at `1a`, an `s` orbital with its spin at the
 hexagon centre: the `ℤ`-valued ones as exact fractions, and the `ℤ_n`-valued
 ones by modulus.
@@ -1234,7 +1241,8 @@ ones by modulus.
 | `indicators`, `split_ebrs`, `terms_without_ebr_column` | the paper's indicators as forms in the invariants, its splittings of elementary band representations, and the terms on keys no column carries |
 | `provenance` | where the converted tables came from, with the paper's DOI |
 
-Its methods evaluate the invariants: `theta(p)` on a mapping over site keys,
+`formulas()` writes the invariants out, a line each; the other methods
+evaluate them: `theta(p)` on a mapping over site keys,
 `theta_columns(p)` on a sequence over the columns, `theta_unreduced` and
 `theta_unreduced_columns` with the `ℤ_n` rows not reduced, `indicators_of` and
 `indicators_of_columns` for the tabulated indicators, and `row(name)`.
@@ -1278,7 +1286,7 @@ The `ℤ`-valued invariants of a band subset, read off its symmetry vector:
 `srsi_of_bands`. The occupied pair of the free-standing layer:
 
 ```python
-print(tqc.srsi_of_bands(tf, fs.group, rep=fs.rep).summary())
+print(tqc.srsi_of_bands(tf).summary())
 #  P6/mmm1' #191.234, double-valued: the Z-valued stable real-space invariants of 2 bands   (.theta_Z)
 #      theta_1 =     -1/6
 #      theta_2 =      1/6
@@ -1396,13 +1404,13 @@ as being one thing.
 
 What a call returns in place of its record when it cannot complete: a falsy
 record carrying the check that stopped it and what was measured there. The
-indicator of the free-standing layer's pair, asked without its representation,
-is one:
+indicator of the free-standing layer's pair, asked of its counts written out by
+hand, which carry no representation to build the stack from, is one:
 
 ```python
-refused = tqc.symmetry_indicator(tf, fs.group)
+refused = tqc.symmetry_indicator(dict(tf.counts), fs.group)
 print(refused)
-#  Refusal[indicator_not_evaluable]: the EBR rows ['-A10', '-A11', '-A12', '-A7', '-A8', '-A9', '-H8', '-H9', '-L5', '-L6'] of #191.234 sit at k-points this content does not cover, out of a 2D model's periodic plane or carrying no information, and they duplicate no row it does cover, so the symmetry vector cannot be completed and the indicator has no value here. The rows can be measured on the decoupled stack of the layer, which needs the representation, with its model and declared characters, and the bands the content counts: pass an HSPTable and rep=, and do not override points=. Completing missing content from the stable real-space invariants is future work.  (measured 10, threshold 0)
+#  Refusal[indicator_not_evaluable]: the EBR rows ['-A10', '-A11', '-A12', '-A7', '-A8', '-A9', '-H8', '-H9', '-L5', '-L6'] of #191.234 sit at k-points this content does not cover, out of a 2D model's periodic plane or carrying no information, and they duplicate no row it does cover, so the symmetry vector cannot be completed and the indicator has no value here. The rows can be measured on the decoupled stack of the layer, which is built from the representation the bands were read with, its model and declared characters, and the bands the content counts: pass the table hsp_table(rep, bands=...) returned, which carries them, and do not override points=. Completing missing content from the stable real-space invariants is future work.  (measured 10, threshold 0)
 #      context: completion, number_str, orphans, points, retained, stack
 print(bool(refused), refused.gate, refused.value, refused.threshold, refused.context["number_str"])
 #  False indicator_not_evaluable 10.0 0.0 191.234
@@ -1416,9 +1424,9 @@ except tqc.RefusalError as error:
 The printout is `Refusal[gate]:`, the diagnosis in words, the number measured
 against the one the check demanded, and the names of the keys its `context`
 carries. Here ten rows of `P6/mmm1'`'s basis lie out of the layer's plane and
-duplicate none in it, and without the representation there is no decoupled
-stack to measure them on; the indicator above, handed `rep=`, measures them
-there.
+duplicate none in it, and counts written out by hand carry no representation
+to build the decoupled stack from and measure them on; the indicator above,
+asked of the table, measures them there.
 
 A refusal is one of four things: an honest verdict about the physics, as this
 one is; a practical limit, a search or a memory budget that the same call runs

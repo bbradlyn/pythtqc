@@ -40,7 +40,7 @@ flowchart TD
 Each box is a module, with the calls it holds. Every call after `realized_group`
 takes what it returned, `r`: `hsp_table(r.rep, bands=n)` returns the table `t` of
 the bands' coreps, which `decompose`, `symmetry_indicator` and `srsi_of_bands`
-each read with the group, as `decompose(t, r.group, rep=r.rep)`, and
+each read in the group it carries, as `decompose(t)`, and
 `srsi_of_model(r)` and `splitting(r, bands=n)` take the record whole. The group's
 own tables are read from `r.group`: `high_symmetry_points(r.group)`,
 `little_group`, `k_grid`, `corep_table` and `ebr_data`.
@@ -228,19 +228,17 @@ Whether a set of bands could be an atomic limit, and its symmetry-indicator clas
 
 ```mermaid
 flowchart TD
-    e_t(["t, the HSPTable hsp_table returned"])
-    e_r(["r.group and r.rep: the group and the representation t was read in"])
+    e_t(["t, the HSPTable hsp_table returned, carrying the representation it was read with and its group"])
 
     e_t --> e_calls
-    e_r --> e_calls
     e_calls ~~~ e_other
 
-    subgraph e_calls ["calls on t, r.group and r.rep"]
+    subgraph e_calls ["calls on t"]
         direction LR
-        e_dec["decompose(t, r.group, rep=r.rep)"] --> e_D[["EBRDecomposition: every sum of elementary band representations that carries t's coreps, or none"]]
-        e_si["symmetry_indicator(t, r.group, rep=r.rep)"] --> e_SI[["SymmetryIndicator: the class of t's symmetry vector among the band structures modulo the atomic limits"]]
-        e_cc["completeness_check(t, r.group)"] --> e_CR[["CompletenessReport: whether t's coreps are a sum of elementary band representations, and how many bands each sum holds"]]
-        e_rc["regular_completion(t, r.group, rep=r.rep)"] --> e_RC[["RegularCompletion: the bands that would complete t to whole copies of the regular band representation, and the orbitals they would be"]]
+        e_dec["decompose(t)"] --> e_D[["EBRDecomposition: every sum of elementary band representations that carries t's coreps, or none"]]
+        e_si["symmetry_indicator(t)"] --> e_SI[["SymmetryIndicator: the class of t's symmetry vector among the band structures modulo the atomic limits"]]
+        e_cc["completeness_check(t)"] --> e_CR[["CompletenessReport: whether t's coreps are a sum of elementary band representations, and how many bands each sum holds"]]
+        e_rc["regular_completion(t, bands=n)"] --> e_RC[["RegularCompletion: the bands that would complete t to whole copies of the regular band representation, and the orbitals they would be"]]
     end
 
     subgraph e_other ["calls on r.group alone, or on two tables"]
@@ -251,10 +249,10 @@ flowchart TD
     end
 ```
 
-`t` and `r.group` come from one `realized_group`: a table's labels name the
-coreps of the group it was read in, and the table carries that representation as
-`t.rep`, so a group or a `rep=` handed in beside it that is not the table's own
-raises `ValueError`. `rep=r.rep` says how each site irrep is known
+A table's labels name the coreps of the group it was read in, and the table
+carries that representation as `t.rep`, so each call reads it there with nothing
+else handed in; a group or a `rep=` handed in beside it that is not the table's
+own raises `ValueError`. The representation says how each site irrep is known
 and, on a layer, which Wyckoff positions lie within it. An `EBRDecomposition` and
 a `SymmetryIndicator` hold the `Restriction` they were read with on
 `.restriction`, and a decomposition holds what it does not certify on `.caveat`,
@@ -282,7 +280,7 @@ flowchart TD
 
     subgraph i_band_calls ["calls on a set of bands, or on a model"]
         direction LR
-        i_bands["srsi_of_bands(t, r.group, rep=r.rep)"] --> i_B[["BandSRSIs: the ℤ-valued stable real-space invariants of the bands t counts"]]
+        i_bands["srsi_of_bands(t)"] --> i_B[["BandSRSIs: the ℤ-valued stable real-space invariants of the bands t counts"]]
         i_model["srsi_of_model(r)"] --> i_M[["ModelSRSIs: the model's stable real-space invariants, read off its orbitals"]]
         i_split["splitting(r, bands=n)"] --> i_S[["Splitting: whether the bands asked for and the model's other bands can both be atomic insulators"]]
     end

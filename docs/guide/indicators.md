@@ -26,7 +26,7 @@ from pythtqc import models
 r = tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1])
 model, group, assignment, validated, rep = r
 t = tqc.hsp_table(rep, bands=6)                    # the six lowest bands
-si = tqc.symmetry_indicator(t, group, rep=rep)
+si = tqc.symmetry_indicator(t)
 print(si)
 #  SymmetryIndicator(trivial indicator group, #99.164, trivial)
 print(si.number_str, si.divisors, si.structure, si.values, si.order)
@@ -81,7 +81,7 @@ declared `s`:
 km = kane_mele(0.0, -1.0, 0.3, 0.0)                # delta, t, soc, rashba
 free = tqc.realized_group(km, environment="free-standing", characters={0: "s"})
 t_free = tqc.hsp_table(free.rep, bands=2)          # the two lowest bands
-si_free = tqc.symmetry_indicator(t_free, free.group, rep=free.rep)
+si_free = tqc.symmetry_indicator(t_free)
 print(si_free.summary())
 #  indicated nontrivial, in P6/mmm1' #191.234: no atomic limit has this content, nor any with atomic bands added   (.verdict)
 #    the indicator group, the band structures modulo the atomic limits: Z6 x Z12, a class being an integer mod 6 and one mod 12   (.structure)
@@ -147,7 +147,7 @@ is the one `realized_group` measured beside the substrate's:
 
 ```python
 sub = tqc.realized_group(km, characters={0: "s"})  # on a substrate, the default
-si_sub = tqc.symmetry_indicator(tqc.hsp_table(sub.rep, bands=2), sub.group, rep=sub.rep)
+si_sub = tqc.symmetry_indicator(tqc.hsp_table(sub.rep, bands=2))
 print(sub.group.name, si_sub)
 #  P6mm1' SymmetryIndicator(trivial indicator group, #183.186, trivial)
 print(si_sub.completion, sub.rep.free_standing_group == sub.cross_check["free_standing"])
@@ -158,7 +158,7 @@ print(si_sub.summary())
 #    the coreps at A, H and L are not measured: each occurs in every elementary band representation as often as a measured one, and takes its multiplicity   (.reconstructed)
 #      -A7 as -GM7, -A8 as -GM8, -A9 as -GM9, -H4 as -K4, -H5 as -K4, -H6 as -K6, -L5 as -M5
 #    the free-standing layer's group, as realized_group measured it, is P6/mmm1' #191.234, larger than this one: the same layer with vacuum on both sides, whose class is asked with environment='free-standing'   (.free_standing_group)
-d_free = tqc.decompose(t_free, free.group, rep=free.rep)
+d_free = tqc.decompose(t_free)
 print(d_free.verdict, d_free.certificate, sorted(d_free.restriction.outside_layer))
 #  none proof ['1b', '2d', '3g']
 ```
@@ -240,12 +240,13 @@ ones. The Smith class is returned in both.
 A refusal is a returned record, falsy, naming the check that stopped the call
 and what it measured ([when a call refuses](refusals.md)). A vector written by
 hand with two bands at Γ and `M` and four at `X` is no band structure, and a
-layer handed in without `rep=` gives the stack nothing to be built from:
+layer's counts written out by hand carry no representation to build the stack
+from, so its rows out of the plane go unmeasured:
 
 ```python
 print(tqc.symmetry_indicator({"-GM6": 1, "-M6": 1, "-X5": 2}, group).gate)
 #  not_a_band_structure
-print(tqc.symmetry_indicator(t_free, free.group).gate)
+print(tqc.symmetry_indicator(dict(t_free.counts), free.group).gate)
 #  indicator_not_evaluable
 ```
 
@@ -257,9 +258,9 @@ print(tqc.symmetry_indicator(t_free, free.group).gate)
   is the class of a different vector, and there is no override.
 - [`indicator_not_evaluable`](../reference/refusals.md#indicator_not_evaluable):
   rows out of the plane that neither repeat an in-plane row nor were measured
-  on the stack: for want of `rep=` or of a measured table, because `points=`
-  was given, or because a check of the stack did not complete, which
-  `context["stack"]` names.
+  on the stack: for want of a measured table, whose representation the stack
+  is built from, because `points=` was given, or because a check of the stack
+  did not complete, which `context["stack"]` names.
 - [`unknown_label`](../reference/refusals.md#unknown_label): a measured label
   the EBR basis does not carry.
 - `magnetic_type_out_of_scope`: a magnetic group of type III or IV, which

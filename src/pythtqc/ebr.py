@@ -1050,13 +1050,14 @@ def _table_binding(content, group, rep, *, where):
     An :class:`~.sewing.HSPTable` carries the representation it was read with
     on ``rep``; a group handed in beside it that is not that representation's,
     or a ``rep=`` that is not it, is a contradiction only the call can resolve,
-    as ``bands=`` naming other bands is, and is raised.  A content written out
-    by hand carries nothing and takes its group as given.
+    as ``bands=`` naming other bands is, and is raised.  Nothing handed in is
+    nothing to contradict: :func:`_read_in` then reads the table's own.  A
+    content written out by hand carries nothing and takes its group as given.
     """
     own = getattr(content, "rep", None) if hasattr(content, "counts") else None
     if own is None:
         return
-    if not _same_group(group, own.group):
+    if group is not None and not _same_group(group, own.group):
         raise ValueError(
             f"{where}(): the table was read in {own.group.name} #{own.group.number_str}, "
             f"and group is {group.name} #{group.number_str}. A table's labels are the "
@@ -1069,6 +1070,28 @@ def _table_binding(content, group, rep, *, where):
             "the table carries as t.rep: its group, its operations or its matrices differ. "
             "The labels were read off t.rep, so another representation says nothing about "
             "them; pass t.rep, or read the bands again with hsp_table(rep, bands=...).")
+
+def _read_in(content, group, rep, *, where):
+    """The group and the representation a content is read in, ``(group, rep)``.
+
+    An :class:`~.sewing.HSPTable` carries the representation it was read with,
+    ``t.rep``, whose group is the one its labels name: a table is read in its
+    own, and needs neither handed in; one handed in is held to the table's by
+    :func:`_table_binding`.  A content written out by hand carries nothing, so
+    its group is passed beside it, and ``TypeError`` is raised where it is not,
+    as for any argument a call cannot do without.
+    """
+    own = getattr(content, "rep", None) if hasattr(content, "counts") else None
+    if own is None:
+        if group is None:
+            raise TypeError(
+                f"{where}() missing required argument 'group': the content carries no "
+                "representation, so the group whose coreps its labels name is passed "
+                "beside it. A table hsp_table(rep, bands=...) returned carries its own "
+                "as t.rep, and is read in that group with none passed.")
+        return group, rep
+    _table_binding(content, group, rep, where=where)
+    return (own.group if group is None else group), (own if rep is None else rep)
 
 def _table_bands(table):
     """The band block an :class:`~.sewing.HSPTable` was handed, as it was handed in."""
@@ -1284,7 +1307,7 @@ def _site_content_record(rep):
 # the public solvers
 # --------------------------------------------------------------------------
 
-def decompose(content, group, *, rep=None, points=None, allow_incomplete=False,
+def decompose(content, group=None, *, rep=None, points=None, allow_incomplete=False,
               cap=DEFAULT_ENUMERATION_CAP, signed_combinations=True,
               bands=None) -> EBRDecomposition | Refusal:
     r"""Every sum of elementary band representations, with nonnegative integer multiplicities, that carries a band set's content.
@@ -1299,12 +1322,15 @@ def decompose(content, group, *, rep=None, points=None, allow_incomplete=False,
     content : .sewing.HSPTable or mapping
         The band set's content: a table :func:`.sewing.hsp_table` returned,
         which must be complete, or ``{corep: multiplicity}`` written out.
-    group : .groups.GroupData
-        The group the content was read in, ``r.group``.
+    group : .groups.GroupData, optional
+        The group the content was read in, ``r.group``.  A table carries its
+        own, ``t.rep.group``, and is read in it; a content written out by hand
+        takes the group beside it.
     rep : .symmetry.SpaceGroupRep, optional
         The representation the content was read with, ``r.rep``: it says how
         each site irrep is known, and on a layer which Wyckoff positions lie
-        within it.  Pass it whenever it is at hand.
+        within it.  A table carries its own, ``t.rep``; beside a content
+        written out by hand, pass it whenever it is at hand.
     bands : int or sequence of int, optional
         Which bands the content counts: ``n`` the lowest ``n``, or the band
         indices.  Default: a table's own.
@@ -1337,10 +1363,12 @@ def decompose(content, group, *, rep=None, points=None, allow_incomplete=False,
 
     Raises
     ------
+    TypeError
+        A content written out by hand with no group beside it.
     ValueError
         ``bands=`` or ``points=`` naming other bands or points than the table
-        measured; or a group, or ``rep=``, that is not the one the table was
-        read in, which it carries as ``t.rep``.
+        measured; or a group, or ``rep=``, handed in beside a table that is not
+        the one it was read in, which it carries as ``t.rep``.
     ..refusal.InternalError
         On a layer's own band representations a corep out of its plane repeats
         none in it: the package disagreeing with itself.
@@ -1365,10 +1393,11 @@ def decompose(content, group, *, rep=None, points=None, allow_incomplete=False,
     --------
     lin3g's six lowest bands (:func:`.models.lin3g`):
 
-    >>> d = decompose(hsp_table(r.rep, bands=6), r.group, rep=r.rep)  # doctest: +SKIP
+    >>> d = decompose(hsp_table(r.rep, bands=6))                      # doctest: +SKIP
     >>> d.verdict, d.positions                                        # doctest: +SKIP
     ('symmetry-indicated decomposable', (('1b', '2c'), ('1a', '1a', '1b'), ('1b', '1b', '1b')))
     """
+    group, rep = _read_in(content, group, rep, where="decompose")
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
@@ -1377,7 +1406,6 @@ def decompose(content, group, *, rep=None, points=None, allow_incomplete=False,
         return counts
 
     table = content if hasattr(content, "counts") else None
-    _table_binding(content, group, rep, where="decompose")
     block = _bands_of(content, bands, where="decompose")
     skipped = dict(getattr(table, "skipped", {}) or {}) if table is not None else {}
     refused = ({name: r.gate for name, r in (table.refusals or {}).items()}
@@ -2042,7 +2070,7 @@ def _stack_in_group(table, group, rep, restriction, *, c, bands, verify, charact
     return replace(indicator3, completion=record,
                    two_dimensional=_stack_reading(group, g3, indicator3, data3)), record
 
-def symmetry_indicator(content, group, *, rep=None, points=None, bands=None,
+def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None,
                        verify=True,
                        stack_period=_layers.STACK_C) -> SymmetryIndicator | Refusal:
     r"""The symmetry-indicator class of a band set's content: the class of its symmetry vector among the band structures modulo the atomic limits.
@@ -2057,13 +2085,16 @@ def symmetry_indicator(content, group, *, rep=None, points=None, bands=None,
     content : .sewing.HSPTable or mapping
         The band set's content, as :func:`decompose` takes it; a table must be
         complete.
-    group : .groups.GroupData
-        The group the content was read in, ``r.group``.
+    group : .groups.GroupData, optional
+        The group the content was read in, ``r.group``.  A table carries its
+        own, ``t.rep.group``, and is read in it; a content written out by hand
+        takes the group beside it.
     rep : .symmetry.SpaceGroupRep, optional
-        The representation the content was read with, ``r.rep``.  A layer needs
-        it, with a table, for its coreps at ``k_z = ½`` that repeat none in its
-        plane: they are measured on its decoupled stack, the layer repeated
-        along its normal with no hopping between copies, built from it.
+        The representation the content was read with, ``r.rep``; a table
+        carries its own, ``t.rep``.  A layer's coreps at ``k_z = ½`` that
+        repeat none in its plane are measured on its decoupled stack, the
+        layer repeated along its normal with no hopping between copies, built
+        from the representation and the table.
     bands : int or sequence of int, optional
         Which bands the content counts, as :func:`decompose` takes it.
     points : sequence of str, optional
@@ -2092,10 +2123,12 @@ def symmetry_indicator(content, group, *, rep=None, points=None, bands=None,
 
     Raises
     ------
+    TypeError
+        A content written out by hand with no group beside it.
     ValueError
         ``bands=`` or ``points=`` naming other bands or points than the table
-        measured; or a group, or ``rep=``, that is not the one the table was
-        read in, which it carries as ``t.rep``.
+        measured; or a group, or ``rep=``, handed in beside a table that is not
+        the one it was read in, which it carries as ``t.rep``.
     ..refusal.InternalError
         The tables' Smith form and the one computed again disagree, a check
         that ties the decoupled stack to the layer fails, or two classes share
@@ -2107,8 +2140,8 @@ def symmetry_indicator(content, group, *, rep=None, points=None, bands=None,
         the table refused at some point; there is no override.
     ``indicator_not_evaluable``
         a layer's coreps at ``k_z = ½`` repeat none in its plane and were not
-        measured on its stack: no ``rep=`` or no table, ``points=`` given, or a
-        check of the stack that did not complete (``context["stack"]``).
+        measured on its stack: no table, ``points=`` given, or a check of the
+        stack that did not complete (``context["stack"]``).
     ``not_a_band_structure``
         the content fails the group's compatibility relations.
     ``unknown_label``
@@ -2126,10 +2159,11 @@ def symmetry_indicator(content, group, *, rep=None, points=None, bands=None,
     --------
     Fu, Kane and Mele's diamond with one bond detuned, its two lowest bands:
 
-    >>> si = symmetry_indicator(hsp_table(r.rep, bands=2), r.group, rep=r.rep)  # doctest: +SKIP
+    >>> si = symmetry_indicator(hsp_table(r.rep, bands=2))          # doctest: +SKIP
     >>> si.structure, si.values, si.canonical                       # doctest: +SKIP
     ('Z2 x Z4', (0, 1), {'z2w,1': 1, 'z2w,2': 1, 'z2w,3': 1, 'z4': 3})
     """
+    group, rep = _read_in(content, group, rep, where="symmetry_indicator")
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
@@ -2143,7 +2177,6 @@ def symmetry_indicator(content, group, *, rep=None, points=None, bands=None,
         return out_of_scope
 
     table = content if hasattr(content, "counts") else None
-    _table_binding(content, group, rep, where="symmetry_indicator")
     block = _bands_of(content, bands, where="symmetry_indicator")
     if table is not None and not table.complete:
         refused = {name: r.gate for name, r in (table.refusals or {}).items()}
@@ -2182,10 +2215,10 @@ def symmetry_indicator(content, group, *, rep=None, points=None, bands=None,
 
     # ---- the rows out of the layer's own plane, measured on the stack -----
     # Available only when the point set was not overridden (that is an
-    # instruction about what the model may sample, and it is obeyed), when a
-    # representation is in hand (the stack is built from its model and carries
-    # its matrices), and when the content came from an HSPTable (which names
-    # the band block the stack has to measure again).  The stack obeys exactly
+    # instruction about what the model may sample, and it is obeyed) and when
+    # the content is a table, which carries the representation the stack is
+    # built from, with its model and its matrices, and names the band block
+    # the stack has to measure again.  The stack obeys exactly
     # what the layer obeys, so the class is completed in the layer's own group,
     # and only where rows at k_z = ½ repeat no in-plane row.
     completion = None
@@ -2211,9 +2244,10 @@ def symmetry_indicator(content, group, *, rep=None, points=None, bands=None,
                f"where it stopped, is in context['stack'])."
                if completion is not None else
                "The rows can be measured on the decoupled stack of the layer, which "
-               "needs the representation, with its model and declared characters, and "
-               "the bands the content counts: pass an HSPTable and rep=, and do not "
-               "override points=.")
+               "is built from the representation the bands were read with, its model "
+               "and declared characters, and the bands the content counts: pass the "
+               "table hsp_table(rep, bands=...) returned, which carries them, and do "
+               "not override points=.")
             + " Completing missing content from the stable real-space invariants is "
             "future work.",
             value=float(len(restriction.orphans)), threshold=0.0,
@@ -2341,7 +2375,7 @@ def subtract(content_a, content_b) -> dict | Refusal:
             context={"negative": bad, "a": a, "b": b})
     return out
 
-def completeness_check(content, group, *, bands=None,
+def completeness_check(content, group=None, *, bands=None,
                        **kwargs) -> CompletenessReport | Refusal:
     """Whether a band set's content is a sum of elementary band representations, and how many bands each sum holds.
 
@@ -2349,8 +2383,9 @@ def completeness_check(content, group, *, bands=None,
     ----------
     content : .sewing.HSPTable or mapping
         The band set's content, as :func:`decompose` takes it.
-    group : .groups.GroupData
-        The group the content was read in, ``r.group``.
+    group : .groups.GroupData, optional
+        The group the content was read in, ``r.group``, as :func:`decompose`
+        takes it: a table carries its own.
     bands : int or sequence of int, optional
         The set of bands, as :func:`decompose` takes it: the bands each sum is
         held against.
@@ -2368,15 +2403,19 @@ def completeness_check(content, group, *, bands=None,
 
     Raises
     ------
+    TypeError
+        A content written out by hand with no group beside it.
     ValueError
         As :func:`decompose` raises: ``bands=`` naming other bands than the
-        table measured, or a group or ``rep=`` that is not the table's own.
+        table measured, or a group or ``rep=`` handed in that is not the
+        table's own.
 
     Refusals
     --------
     ``incomplete_content``, ``not_a_band_structure``, ``unknown_label``, ``restriction_not_exact``, ...
         those of :func:`decompose`.
     """
+    group, _rep = _read_in(content, group, kwargs.get("rep"), where="completeness_check")
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
@@ -2481,7 +2520,7 @@ def regular_content(group, *, points=None) -> dict | Refusal:
             context={"bands": bands, "n_unitary": n_u})
     return out
 
-def regular_completion(content, group, *, bands=None, rep=None, points=None,
+def regular_completion(content, group=None, *, bands=None, rep=None, points=None,
                        **kwargs) -> RegularCompletion | Refusal:
     """The bands that would carry a band set up to whole copies of the regular band representation, and the orbitals they would be.
 
@@ -2494,13 +2533,15 @@ def regular_completion(content, group, *, bands=None, rep=None, points=None,
     ----------
     content : .sewing.HSPTable or mapping
         The band set's content.
-    group : .groups.GroupData
-        The group the content was read in, ``r.group``.
+    group : .groups.GroupData, optional
+        The group the content was read in, ``r.group``, as :func:`decompose`
+        takes it: a table carries its own.
     bands : int or sequence of int
         The bands of the completed system: a number of them, or their indices,
         a multiple of ``|U|`` in all.  Required.
     rep : .symmetry.SpaceGroupRep, optional
-        The representation, ``r.rep``, which :func:`decompose` reads.
+        The representation, ``r.rep``, which :func:`decompose` reads; a table
+        carries its own.
     points : sequence of str, optional
         The high-symmetry points the model samples.
     **kwargs
@@ -2516,9 +2557,11 @@ def regular_completion(content, group, *, bands=None, rep=None, points=None,
 
     Raises
     ------
+    TypeError
+        No ``bands``, or a content written out by hand with no group beside it.
     ValueError
-        A group, or ``rep=``, that is not the one the table was read in, which
-        it carries as ``t.rep``.
+        A group, or ``rep=``, handed in beside a table that is not the one it
+        was read in, which it carries as ``t.rep``.
 
     Refusals
     --------
@@ -2536,16 +2579,16 @@ def regular_completion(content, group, *, bands=None, rep=None, points=None,
     padding ``-GM7 + -M6 + -X5`` is ``-E1`` at ``1b``, the content of the two
     bands above the gap.
 
-    >>> rc = regular_completion(hsp_table(r.rep, bands=6), r.group, bands=8, rep=r.rep)  # doctest: +SKIP
+    >>> rc = regular_completion(hsp_table(r.rep, bands=6), bands=8) # doctest: +SKIP
     >>> rc.decomposition.solution_strings()                         # doctest: +SKIP
     ("1 x -E1↑G(2)@1b(4mm1',4mm)",)
     """
     if bands is None:
         raise TypeError("regular_completion() missing required argument 'bands'")
+    group, rep = _read_in(content, group, rep, where="regular_completion")
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
-    _table_binding(content, group, rep, where="regular_completion")
     target_one = regular_content(group, points=points)
     if isinstance(target_one, Refusal):
         return target_one

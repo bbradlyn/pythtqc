@@ -106,12 +106,8 @@ print(t25.summary())
 #    9 site irreps at Wyckoff positions, 4 of them inducing an elementary band representation   (.site_keys, .ebrs)
 #    5 terms on site irreps that induce a composite band representation   (.terms_without_ebr_column)
 #    no symmetry indicator, the group's indicator group being trivial   (.indicators)
-for row in t25.rows:                               # each invariant, term by term
-    kind = "Z" if row.mod is None else f"Z{row.mod}"
-    terms = " + ".join(f"{term['coef']} ({term['irrep']})_{term['letter']}"
-                       for term in row.terms)
-    print(f"{row.name} ({kind}) = {terms}")
-#  theta_1 (Z) = 2 (-1E2E)_e + 2 (-1E2E)_f + 2 (-1E2E)_g + 2 (-1E2E)_h + 4 (-AA)_i + 1 (-E)_a + 1 (-E)_b + 1 (-E)_c + 1 (-E)_d
+print(t25.formulas())                              # each invariant, term by term
+#  theta_1 (Z)  = 2 (-1E2E)_e + 2 (-1E2E)_f + 2 (-1E2E)_g + 2 (-1E2E)_h + 4 (-AA)_i + 1 (-E)_a + 1 (-E)_b + 1 (-E)_c + 1 (-E)_d
 #  theta_2 (Z2) = 1 (-E)_b
 #  theta_3 (Z2) = 1 (-E)_c
 #  theta_4 (Z2) = 1 (-E)_d
@@ -196,7 +192,7 @@ from pythtb.models import fu_kane_mele
 
 r = tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1])
 model, group, assignment, validated, rep = r
-six = tqc.srsi_of_bands(tqc.hsp_table(rep, bands=6), group, rep=rep)
+six = tqc.srsi_of_bands(tqc.hsp_table(rep, bands=6))
 print(group.name, [str(x) for x in six.theta_Z], six.indicator.structure)
 #  P4mm1' ['1', '1', '1'] trivial
 phases = {"strong": [0.4, 0.0, 0.0, 0.0], "weak": [-0.4, 0.0, 0.0, 0.0],
@@ -205,7 +201,7 @@ diamond = {name: tqc.realized_group(fu_kane_mele(1.0, 0.125, dt), characters={0:
            for name, dt in phases.items()}
 valence = {}                                       # each phase's valence pair
 for name, rd in diamond.items():
-    b = valence[name] = tqc.srsi_of_bands(tqc.hsp_table(rd.rep, bands=2), rd.group, rep=rd.rep)
+    b = valence[name] = tqc.srsi_of_bands(tqc.hsp_table(rd.rep, bands=2))
     print(f"{name:6s} {rd.group.name}  theta_Z = ({', '.join(str(x) for x in b.theta_Z)})"
           f"  denominator {b.denominator}; class {b.indicator.values}"
           f" of {b.indicator.structure}, order {b.indicator.order}")
@@ -273,7 +269,7 @@ for orbit in mo.orbits:
     print(f"{orbit.multiplicity}{orbit.letter}:", tqc.format_counts(orbit.content))
 #  1a: -GM6 + -GM7 + -M6 + -M7 + 2×-X5
 #  2c: -GM6 + -GM7 + -M6 + -M7 + 2×-X5
-eight = tqc.srsi_of_bands(tqc.hsp_table(rep, bands=8), group, rep=rep)
+eight = tqc.srsi_of_bands(tqc.hsp_table(rep, bands=8))
 print(eight.theta_Z == mo.theta_Z)
 #  True
 ```
@@ -338,13 +334,13 @@ show it:
 
 ```python
 t45 = tqc.hsp_table(rep, bands=[4, 5])
-b45 = tqc.srsi_of_bands(t45, group, rep=rep)
+b45 = tqc.srsi_of_bands(t45)
 tables = tqc.srsi_tables(group)
 print(tables.ebrs)
 #  (('-E1', 'a'), ('-E2', 'a'), ('-E1', 'b'), ('-E2', 'b'), ('-E', 'c'))
 print([str(x) for x in b45.p], tables.theta_columns(list(b45.p)))
 #  ['1', '1', '-1', '0', '0'] ((Fraction(0, 1), Fraction(0, 1), Fraction(1, 1)), {2: (0, 0)})
-d45 = tqc.decompose(t45, group, rep=rep)           # the EBR the pair's content matches
+d45 = tqc.decompose(t45)           # the EBR the pair's content matches
 print(d45.solutions[0], tables.theta_columns(list(d45.solutions[0])))
 #  (0, 0, 0, 1, 0) ((Fraction(0, 1), Fraction(0, 1), Fraction(1, 1)), {2: (1, 0)})
 ```
@@ -537,7 +533,7 @@ absent = tqc.srsi_tables(1, spinor=True)
 print(absent.gate, len(absent.context["omitted_groups"]))
 #  srsi_table_absent 13
 rs = diamond["strong"]
-fractional = tqc.srsi_of_bands(tqc.hsp_table(rs.rep, bands=2), rs.group, rep=rs.rep)
+fractional = tqc.srsi_of_bands(tqc.hsp_table(rs.rep, bands=2))
 print(tqc.atomic_realizations(tqc.srsi_tables(rs.group), fractional.theta_Z).gate)
 #  srsi_not_atomic
 ```

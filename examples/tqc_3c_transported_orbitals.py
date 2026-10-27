@@ -215,7 +215,7 @@ print("   and a character is a trace, which no change of basis moves")
 ########### 5. the six bands as elementary band representations ###########
 
 print("\n5. the six bands as a sum of elementary band representations")
-d6 = tqc.decompose(table, group, rep=r.rep)
+d6 = tqc.decompose(table)
 row(*atomic_limits(d6))
 
 # the figure: the bands of both bases along one path, the content at each point

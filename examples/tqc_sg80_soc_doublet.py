@@ -216,7 +216,7 @@ print("   accidental degeneracy")
 
 print("\n5. the four valence bands as an elementary band representation")
 table_soc = tqc.hsp_table(rep_soc, bands=[0, 1, 2, 3])   # the content at every point
-d = tqc.decompose(table_soc, g_soc, rep=rep_soc)
+d = tqc.decompose(table_soc)
 row("valence content", fmt(table_soc.counts))
 row(*atomic_limits(d))
 print(f"   {label_mid} belongs to a labelling of the whole set, not a choice made at P")
