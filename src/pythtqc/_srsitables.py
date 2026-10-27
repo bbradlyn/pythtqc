@@ -747,7 +747,7 @@ class SRSITables:
         return "\n".join(lines)
 
     def formulas(self) -> str:
-        r"""Every invariant's formula, a line each, as the paper tabulates them.
+        r"""Every invariant's formula, a line each, as the paper tabulates them, under a line saying what a term is.
 
         ``theta_2 (Z2) = 1 (-E)_b``: the invariant and whether it is
         :math:`\mathbb{Z}`- or :math:`\mathbb{Z}_n`-valued, then its terms, each
@@ -756,8 +756,10 @@ class SRSITables:
         heads = [f"{row.name} ({'Z' if row.mod is None else f'Z{row.mod}'})"
                  for row in self.rows]
         width = max((len(head) for head in heads), default=0)
-        return "\n".join(f"{head:<{width}} = {_formula(row)}"
-                         for head, row in zip(heads, self.rows))
+        return "\n".join(
+            ["each invariant, Z- or Z_n-valued, as a sum of terms c (irrep)_w, c times the "
+             "multiplicity of a site irrep at Wyckoff position w   (.rows)"]
+            + [f"  {head:<{width}} = {_formula(row)}" for head, row in zip(heads, self.rows)])
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
         return (f"SRSITables(#{self.number_str}, "

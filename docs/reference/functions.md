@@ -1331,8 +1331,9 @@ The $`\mathbb{Z}`$-valued stable real-space invariants of a band set, from its s
 **Returns**
 
 - `BandSRSIs or Refusal`: `out.summary()` prints the invariants, whether they are fractional, and
-  the symmetry-indicator class; `out.theta_Z`, `out.stable` and
-  `out.indicator` hold them.  A `Refusal` in its place is falsy.
+  the symmetry-indicator class, and `out.line()` the same on one line;
+  `out.theta_Z`, `out.stable` and `out.indicator` hold them.  A
+  `Refusal` in its place is falsy.
 
 **Refusals**
 

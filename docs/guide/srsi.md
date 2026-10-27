@@ -107,10 +107,11 @@ print(t25.summary())
 #    5 terms on site irreps that induce a composite band representation   (.terms_without_ebr_column)
 #    no symmetry indicator, the group's indicator group being trivial   (.indicators)
 print(t25.formulas())                              # each invariant, term by term
-#  theta_1 (Z)  = 2 (-1E2E)_e + 2 (-1E2E)_f + 2 (-1E2E)_g + 2 (-1E2E)_h + 4 (-AA)_i + 1 (-E)_a + 1 (-E)_b + 1 (-E)_c + 1 (-E)_d
-#  theta_2 (Z2) = 1 (-E)_b
-#  theta_3 (Z2) = 1 (-E)_c
-#  theta_4 (Z2) = 1 (-E)_d
+#  each invariant, Z- or Z_n-valued, as a sum of terms c (irrep)_w, c times the multiplicity of a site irrep at Wyckoff position w   (.rows)
+#    theta_1 (Z)  = 2 (-1E2E)_e + 2 (-1E2E)_f + 2 (-1E2E)_g + 2 (-1E2E)_h + 4 (-AA)_i + 1 (-E)_a + 1 (-E)_b + 1 (-E)_c + 1 (-E)_d
+#    theta_2 (Z2) = 1 (-E)_b
+#    theta_3 (Z2) = 1 (-E)_c
+#    theta_4 (Z2) = 1 (-E)_d
 print(t25.theta({("-E", "a"): 1}))                 # one Kramers pair at 1a
 #  ((Fraction(1, 1),), {2: (0, 0, 0)})
 print(t25.theta({("-E", "b"): 1}))                 # ... or at 1b
@@ -193,8 +194,13 @@ from pythtb.models import fu_kane_mele
 r = tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1])
 model, group, assignment, validated, rep = r
 six = tqc.srsi_of_bands(tqc.hsp_table(rep, bands=6))
-print(group.name, [str(x) for x in six.theta_Z], six.indicator.structure)
-#  P4mm1' ['1', '1', '1'] trivial
+print(six.summary())
+#  P4mm1' #99.164, double-valued: the Z-valued stable real-space invariants of 6 bands   (.theta_Z)
+#      theta_1 =        1
+#      theta_2 =        1
+#      theta_3 =        1
+#    integral: the bands are not stable topological   (.stable)
+#    their symmetry-indicator group is trivial   (.indicator)
 phases = {"strong": [0.4, 0.0, 0.0, 0.0], "weak": [-0.4, 0.0, 0.0, 0.0],
           "dimers": [0.0, -1.0, -1.0, -1.0]}
 diamond = {name: tqc.realized_group(fu_kane_mele(1.0, 0.125, dt), characters={0: "s"})
@@ -202,12 +208,10 @@ diamond = {name: tqc.realized_group(fu_kane_mele(1.0, 0.125, dt), characters={0:
 valence = {}                                       # each phase's valence pair
 for name, rd in diamond.items():
     b = valence[name] = tqc.srsi_of_bands(tqc.hsp_table(rd.rep, bands=2))
-    print(f"{name:6s} {rd.group.name}  theta_Z = ({', '.join(str(x) for x in b.theta_Z)})"
-          f"  denominator {b.denominator}; class {b.indicator.values}"
-          f" of {b.indicator.structure}, order {b.indicator.order}")
-#  strong R-3m1'  theta_Z = (-1/4, 0, 1/2, 1, 1/4, -1/2, -1/4, 1/4)  denominator 4; class (0, 1) of Z2 x Z4, order 4
-#  weak   R-3m1'  theta_Z = (0, 0, 1, 1, 1/2, 0, -1/2, 0)  denominator 2; class (1, 0) of Z2 x Z4, order 2
-#  dimers R-3m1'  theta_Z = (0, 0, 0, 1, 0, 0, 0, 0)  denominator 1; class (0, 0) of Z2 x Z4, order 1
+    print(name, b.line())                          # the record on one line
+#  strong theta_Z = (-1/4, 0, 1/2, 1, 1/4, -1/2, -1/4, 1/4), fractional with common denominator 4; class (0, 1) in Z2 x Z4, of order 4
+#  weak theta_Z = (0, 0, 1, 1, 1/2, 0, -1/2, 0), fractional with common denominator 2; class (1, 0) in Z2 x Z4, of order 2
+#  dimers theta_Z = (0, 0, 0, 1, 0, 0, 0, 0), integral; class zero in Z2 x Z4
 ```
 
 lin3g's group has a trivial indicator group, and its three ℤ-valued SRSIs are

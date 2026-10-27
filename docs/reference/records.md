@@ -1214,11 +1214,12 @@ print(tables.summary())
 #    no symmetry indicator, the group's indicator group being trivial   (.indicators)
 #    1 splitting of an elementary band representation into others that the symmetry indicators allow   (.split_ebrs)
 print(tables.formulas())
-#  theta_1 (Z)  = 2 (-1E2E)_d + 2 (-1E2E)_e + 4 (-AA)_f + 1 (-E1)_b + 1 (-E3)_a + 1 (-E)_c
-#  theta_2 (Z)  = 2 (-1E2E)_d + 2 (-1E2E)_e + 4 (-AA)_f + 1 (-E1)_b + 1 (-E2)_a + 1 (-E)_c
-#  theta_3 (Z)  = 2 (-1E2E)_d + 2 (-1E2E)_e + 4 (-AA)_f + 1 (-E1)_a + 1 (-E1)_b + 1 (-E)_c
-#  theta_4 (Z)  = 2 (-1E2E)_b - 1 (-E1)_b
-#  theta_5 (Z2) = 1 (-E)_c
+#  each invariant, Z- or Z_n-valued, as a sum of terms c (irrep)_w, c times the multiplicity of a site irrep at Wyckoff position w   (.rows)
+#    theta_1 (Z)  = 2 (-1E2E)_d + 2 (-1E2E)_e + 4 (-AA)_f + 1 (-E1)_b + 1 (-E3)_a + 1 (-E)_c
+#    theta_2 (Z)  = 2 (-1E2E)_d + 2 (-1E2E)_e + 4 (-AA)_f + 1 (-E1)_b + 1 (-E2)_a + 1 (-E)_c
+#    theta_3 (Z)  = 2 (-1E2E)_d + 2 (-1E2E)_e + 4 (-AA)_f + 1 (-E1)_a + 1 (-E1)_b + 1 (-E)_c
+#    theta_4 (Z)  = 2 (-1E2E)_b - 1 (-E1)_b
+#    theta_5 (Z2) = 1 (-E)_c
 print(tables.theta({("-E1", "a"): 1}))
 #  ((Fraction(0, 1), Fraction(0, 1), Fraction(1, 1), Fraction(0, 1)), {2: (0,)})
 ```
@@ -1313,7 +1314,13 @@ invariants are not functions of a symmetry vector, so this record carries none.
 `BandSRSIs` holds `theta_Z` and `names`; `stable`, whether any is fractional;
 `denominator`; `indicator`, the `SymmetryIndicator` measured with it; `p`, the
 rational site-symmetry vector that was evaluated, one of many; `n_bands`,
-`number_str` and `spinor`.
+`number_str` and `spinor`. `line()` puts the record on one line, the invariants,
+their denominator and their class, for a table of band sets:
+
+```python
+print(tqc.srsi_of_bands(tf).line())
+#  theta_Z = (-1/6, 1/6, 1/2, 1/3, 0, 2/3, 0, 0, 0, -1/3, -2/3, 0, 1/2, 0), fractional with common denominator 6; class (1, 0) in Z6 x Z12, of order 6
+```
 
 ### `Splitting` and `Realizations`
 

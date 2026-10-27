@@ -85,9 +85,9 @@ __all__ = ["SRSITables", "SRSIRow", "SRSIIndicator", "SiteKey", "SplitEBR",
 class BandSRSIs:
     r"""The :math:`\mathbb{Z}`-valued stable real-space invariants of a band set, read off its symmetry vector.
 
-    What :func:`srsi_of_bands` returns; :meth:`summary` prints it.  It holds no
-    :math:`\mathbb{Z}_n`-valued invariants: those are no function of the symmetry
-    vector.
+    What :func:`srsi_of_bands` returns; :meth:`summary` prints it, and :meth:`line`
+    puts it on one line.  It holds no :math:`\mathbb{Z}_n`-valued invariants: those
+    are no function of the symmetry vector.
 
     Attributes
     ----------
@@ -136,6 +136,25 @@ class BandSRSIs:
             lines.append(_indicator_line(self.indicator, "their"))
         return "\n".join(lines)
 
+    def line(self) -> str:
+        """The record on one line, for a table of band sets: the invariants, their common denominator, and the class.
+
+        ``theta_Z = (-1/4, 0, 1/2, 1), fractional with common denominator 4;
+        class (0, 1) in Z2 x Z4, of order 4``; integral invariants say so, and
+        a trivial indicator group or a zero class is named.
+        """
+        out = f"theta_Z = {_values(self.theta_Z)}, " + (
+            f"fractional with common denominator {self.denominator}" if self.stable
+            else "integral")
+        if self.indicator is None:
+            return out
+        if not self.indicator.divisors:
+            return out + "; trivial indicator group"
+        if not self.indicator.nontrivial:
+            return out + f"; class zero in {self.indicator.structure}"
+        return (out + f"; class {self.indicator.values} in {self.indicator.structure}, "
+                f"of order {self.indicator.order}")
+
     def __repr__(self) -> str:  # pragma: no cover - convenience only
         return (f"BandSRSIs(#{self.number_str}, "
                 f"({', '.join(str(v) for v in self.theta_Z)}), "
@@ -175,8 +194,9 @@ def srsi_of_bands(content, group=None, *, rep=None, points=None,
     -------
     BandSRSIs or Refusal
         ``out.summary()`` prints the invariants, whether they are fractional, and
-        the symmetry-indicator class; ``out.theta_Z``, ``out.stable`` and
-        ``out.indicator`` hold them.  A ``Refusal`` in its place is falsy.
+        the symmetry-indicator class, and ``out.line()`` the same on one line;
+        ``out.theta_Z``, ``out.stable`` and ``out.indicator`` hold them.  A
+        ``Refusal`` in its place is falsy.
 
     Raises
     ------

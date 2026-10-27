@@ -503,6 +503,9 @@ def test_srsi_of_bands_reproduces_the_fu_kane_mele_anchors(fkm_strong):
     assert got.stable
     assert got.denominator == 4
     assert got.n_bands == 2
+    assert got.line() == ("theta_Z = (-1/4, 0, 1/2, 1, 1/4, -1/2, -1/4, 1/4), fractional with "
+                          "common denominator 4; class (0, 1) in Z2 x Z4, of order 4"), \
+        "the record on one line, the denominator and the order side by side"
     assert "Z-valued stable real-space invariants of 2 bands" in got.summary()
     assert "common denominator 4: the bands are stable topological" in got.summary()
     # the record's own one-line rendering: the group, the theta_Z and the

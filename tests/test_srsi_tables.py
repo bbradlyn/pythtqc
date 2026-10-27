@@ -998,8 +998,9 @@ def test_every_served_record_is_uniform():
     text = table.summary()
     assert "I4321' #211.57, single-valued" in text and table.structure in text
     assert "theta_10" in text and "17 of them inducing an elementary band" in text
-    lines = table.formulas().splitlines()
-    assert [line.split(" (")[0] for line in lines] == [row.name for row in table.rows], \
+    head, *lines = table.formulas().splitlines()
+    assert "multiplicity" in head, "the first line says what a term's coefficient counts"
+    assert [line.split(" (")[0].strip() for line in lines] == [row.name for row in table.rows], \
         "formulas() writes every invariant, in the paper's order"
     assert all(" = " in line for line in lines)
     assert lines[0].split(" = ", 1)[1].count(")_") == len(table.rows[0].terms), \
