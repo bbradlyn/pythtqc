@@ -101,7 +101,7 @@ other.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from math import factorial
 from typing import Any
@@ -894,6 +894,16 @@ class DeclaredContent:
         that the tables give a row Mulliken's convention calls by another
         (:func:`mulliken_names`): ``(("A1''", "A2'"),)`` at ``2c`` of
         ``P6/mmm``.  Empty everywhere else.
+    matrices : dict
+        ``{ind: matrix}``, keyed as :attr:`constraints` is, where the
+        declaration was **generator matrices**: each operation's matrix on the
+        orbital factor of :attr:`orbitals`, in their order, for every operation
+        of the site group the declared ones generate (:func:`generator_matrices`).
+        A character is the same in every basis of a site irrep, and a matrix is
+        not: it says which basis the orbitals are, which is what tells apart
+        two labellings that give every orbital the same site irrep, ``E`` and
+        ``E`` times ``A2`` at a ``32`` site.  :attr:`constraints` holds their
+        traces.  Empty for every other declaration.
     """
 
     orbitals: tuple
@@ -910,19 +920,23 @@ class DeclaredContent:
     written: tuple = ()
     corep: bool = False
     mulliken: tuple = ()
+    matrices: dict = field(default_factory=dict)
 
     def rekeyed(self, pairs) -> "DeclaredContent":
         """The same content on a re-identified group, through ``(old, new)`` pairs.
 
         Operations the new group does not carry drop out: a declaration
         is a statement about the orbitals, and a group with fewer operations
-        asks it fewer questions.
+        asks it fewer questions.  Declared matrices are re-keyed with the
+        characters they are the traces of.
         """
-        out = {}
+        out, matrices = {}, {}
         for old, new in pairs:
             if int(old) in self.constraints:
                 out[int(new)] = complex(self.constraints[int(old)])
-        return replace(self, constraints=out)
+            if int(old) in self.matrices:
+                matrices[int(new)] = np.array(self.matrices[int(old)], dtype=complex)
+        return replace(self, constraints=out, matrices=matrices)
 
 
 def generator_frame(table) -> str:
@@ -1922,9 +1936,10 @@ def resolve_spec(group, table, spec, where):
     ``"2x-E1 + -1E2E"``, which states the corep content alone
     (:func:`named_in_coreps`), is named in the coreps (:func:`corep_label`) and
     is represented by the orbital content lifting to it that the
-    lowest-angular-momentum rule puts lowest (:func:`_resolve_sum`); or
-    generator characters.  A shell or a sum is a content of several irreps,
-    and its ``dim`` is theirs together.
+    lowest-angular-momentum rule puts lowest (:func:`_resolve_sum`); generator
+    characters; or generator matrices, whose traces are the constraints
+    (:func:`generator_matrices`).  A shell or a sum is a content of several
+    irreps, and its ``dim`` is theirs together.
 
     A :class:`DeclaredContent` passes through unchanged but **restricted**: its
     constraints were resolved in a larger group and the operations this site
@@ -1945,7 +1960,7 @@ def resolve_spec(group, table, spec, where):
         return ({int(k): complex(v) for k, v in spec.constraints.items() if int(k) in keep},
                 str(spec.label), int(spec.dim), str(spec.note))
     if isinstance(spec, dict):
-        return _resolve_generator_dict(table, spec, where)
+        return _resolve_generator_dict(table, spec, where, group)
 
     # A CONTENT WRITTEN IN THE SITE COREPS, one word or a sum, states the corep
     # content alone and is read as a sum below; any other word names a row
@@ -2030,8 +2045,25 @@ def resolve_spec(group, table, spec, where):
          "frame": dict(table.names)})
 
 
-def _resolve_generator_dict(table, spec, where):
-    """The naming-free path: ``{operation: character}`` straight to constraints."""
+def _resolve_generator_dict(table, spec, where, group=None):
+    """The naming-free path: ``{operation: character}`` straight to constraints.
+
+    Generator matrices are read through their traces on every operation they
+    generate (:func:`generator_matrices`), and their dimension is the matrices'.
+    """
+    matrices = generator_matrices(group, table, spec, where) if group is not None else {}
+    if matrices:
+        constraints = {int(ind): complex(np.trace(M)) for ind, M in matrices.items()}
+        dim = int(next(iter(matrices.values())).shape[0])
+        whole = all(int(i) in constraints for i in table.indices)
+        label = (content_label(table, [constraints[int(cls[0])] for cls in table.classes])
+                 if whole else "")
+        named = ", ".join(str(k) if isinstance(k, str) else table.names[int(k)] for k in spec)
+        note = (f"generator matrices on {named}"
+                + (f" -> {label}" if label else
+                   f", which generate {len(matrices)} of the site group's "
+                   f"{len(table.indices)} operations"))
+        return constraints, label, dim, note
     constraints, seen = {}, []
     for key, value in spec.items():
         inds = _match_operation(table, key, where)
@@ -2057,6 +2089,87 @@ def _resolve_generator_dict(table, spec, where):
             ", ".join(f"{k}={_fmt(v)}" for k, _, v in seen) +
             (f" -> {label}" if label else " (no single irrep matches them exactly)"))
     return constraints, label, dim, note
+
+
+def generator_matrices(group, table, spec, where) -> dict:
+    r"""``{ind: matrix}`` -- the matrices declared generator matrices give every operation they generate, or ``{}``.
+
+    ``spec`` is one ``characters=`` value, and any but a mapping from
+    operations to matrices returns ``{}``.  Each key names one operation of
+    the site group ``table`` is the table of, by its index or its name, and
+    each matrix is that operation's on the orbital factor of the orbitals
+    declared, in the order written: column ``j`` is the image of orbital
+    ``j``, as every matrix the package returns is written
+    (:meth:`..symmetry.SpaceGroupRep.sewing_operator`).  The products of the
+    declared operations reach a subgroup of the site group, and the products
+    of their matrices are the matrices there.  A site group holds no
+    translation, so each of its operations is found by its rotation.
+
+    Raises
+    ------
+    DeclarationError
+        ``gate="unknown_label"`` where a key names no operation of the site
+        group, or several, where a matrix is not unitary, and where two
+        products reaching one operation give it two matrices: matrices that
+        are no representation of the site group.
+    """
+    if not isinstance(spec, dict) or not spec or not all(
+            np.ndim(v) == 2 for v in spec.values()):
+        return {}
+    pos_of = {int(s.ind): i for i, s in enumerate(group.symmetries)}
+    rotation = {int(i): np.asarray(group.symmetries[pos_of[int(i)]].rotation_cart, dtype=float)
+                for i in table.indices}
+    gens = []
+    for key, value in spec.items():
+        inds = _match_operation(table, key, where)
+        if len(inds) != 1:
+            raise DeclarationError(
+                "unknown_label",
+                f"{where}: the key {key!r} names {len(inds)} operations of this site group "
+                f"({', '.join(table.names[int(i)] for i in inds)}), and a matrix is the "
+                f"matrix of one operation. Name one.\n  frame: {generator_frame(table)}",
+                {"key": key, "matched": inds})
+        M = np.asarray(value, dtype=complex)
+        if float(np.abs(M @ M.conj().T - np.eye(len(M))).max()) > CHARACTER:
+            raise DeclarationError(
+                "unknown_label",
+                f"{where}: the matrix given {table.names[int(inds[0])]}, {_fmt_matrix(M)}, "
+                "is not unitary, and an operation carries orthonormal orbitals onto "
+                f"orthonormal orbitals.\n  frame: {generator_frame(table)}",
+                {"key": key, "matrix": M})
+        gens.append((int(inds[0]), M))
+    ident = next(int(i) for i in table.indices if np.allclose(rotation[int(i)], np.eye(3)))
+    got = {ident: np.eye(len(gens[0][1]), dtype=complex)}
+    frontier = [ident]
+    while frontier:
+        reached = []
+        for a in frontier:
+            for g, Mg in gens:
+                R = rotation[g] @ rotation[a]
+                c = next((int(i) for i in table.indices
+                          if np.allclose(rotation[int(i)], R, atol=ASSEMBLED)), None)
+                if c is None:                    # pragma: no cover - a site group closes
+                    continue
+                M = Mg @ got[a]
+                if c not in got:
+                    got[c] = M
+                    reached.append(c)
+                elif float(np.abs(got[c] - M).max()) > CHARACTER:
+                    raise DeclarationError(
+                        "unknown_label",
+                        f"{where}: the matrices declared are no representation of this "
+                        f"site group: two of their products reach {table.names[c]} and "
+                        f"give it {_fmt_matrix(got[c])} and {_fmt_matrix(M)}.\n"
+                        f"  frame: {generator_frame(table)}",
+                        {"declared_as": spec, "operation": c})
+        frontier = reached
+    return got
+
+
+def _fmt_matrix(M) -> str:
+    """A matrix as text, row by row, each entry as :func:`_fmt` writes a character."""
+    return "[" + ", ".join("[" + ", ".join(_fmt(x) for x in row) + "]"
+                           for row in np.asarray(M)) + "]"
 
 
 def _match_operation(table, key, where):

@@ -26,6 +26,11 @@ the site's words add up to, part of what the site holds where some of its
 orbitals are left out.  So ``{0: "s", 1: "dx2-y2"}`` on a square lattice's
 ``p_x, p_y`` pair that nothing couples says the pair is ``A1 + B1``, which the
 hoppings carry as faithfully as the ``p`` doublet, and the fourfold stays.
+What no content says is the basis: ``E`` of ``4mm`` times any one-dimensional
+character of the group is ``E`` again, so the labellings the hoppings leave
+open give the pair one site irrep, and generator matrices are the declaration
+that tells them apart, returned as declared or, in a basis the hoppings do not
+carry, a crystal with less symmetry.
 
 **The verdict is per operation, on the detector's own solution spaces.**  Does
 the space hold a nonsingular member block-diagonal on the declared channels, and
@@ -91,7 +96,7 @@ def _km():
     return kane_mele(*KM_ARGS)
 
 
-def _square_pxpy(angle=0.0):
+def _square_pxpy(angle=0.0, diagonal=0.0):
     """A ``p_x, p_y`` pair at one ``4mm`` site of a square lattice, spinless.
 
     Slater-Koster nearest neighbours, ``t_sigma = 1.0`` along the bond and
@@ -99,13 +104,19 @@ def _square_pxpy(angle=0.0):
     commutant of ``H(k)`` is a torus and the layout measures one
     two-dimensional channel: the same model P1a's tests read ``E`` at ``1a``.
     ``angle`` writes the pair in a basis turned by it inside the site: at
-    ``π/4`` the orbitals are ``(p_x ± p_y)/√2``.
+    ``π/4`` the orbitals are ``(p_x ± p_y)/√2``.  ``diagonal`` adds the
+    second neighbours along the diagonals, ``t_sigma = diagonal`` and no
+    ``t_pi``, which couple ``p_x`` to ``p_y`` and leave nothing else
+    commuting with ``H(k)``.
     """
     c, s = np.cos(angle), np.sin(angle)
     turn = np.array([[c, -s], [s, c]])
     m = TBModel(Lattice([[1.0, 0.0], [0.0, 1.0]], [[0.0, 0.0]] * 2,
                         periodic_dirs=[0, 1]), spinful=False)
-    for bond, along in (([1, 0], np.diag([1.0, 0.3])), ([0, 1], np.diag([0.3, 1.0]))):
+    bonds = [([1, 0], np.diag([1.0, 0.3])), ([0, 1], np.diag([0.3, 1.0]))]
+    if diagonal:
+        bonds += [(d, diagonal * np.outer(d, d) / 2.0) for d in ([1, 1], [1, -1])]
+    for bond, along in bonds:
         hop = turn @ along @ turn.T
         for a in range(2):
             for b in range(2):
@@ -217,6 +228,12 @@ def _lines(dim=2, coupling=0.0, odd=False):
 def _names(record, reason="declaration"):
     """The operations one descent record's ``reason`` refuted, by name."""
     return {b["name"] for b in record["dropped"] if b["refuted_by"] == reason}
+
+
+def _matrix_of(rec, name, k=(0.0, 0.0)):
+    """The returned representation's matrix of the operation called ``name``, at ``k``."""
+    ind = next(i for i, op in tqg.operations(rec).items() if op.name == name)
+    return np.asarray(rec.rep.sewing_operator(int(ind), list(k)))
 
 
 # ---------------------------------------------------------------------------
@@ -544,6 +561,23 @@ def test_the_square_doublet_declared_s_and_d_keeps_the_fourfold():
     that each holds half of each of the two sectors the Hamiltonian conserves,
     ``p_x`` and ``p_y``.
 
+    What the content leaves open is the basis, and generator matrices declare
+    it.  ``E`` of ``4mm`` times any one-dimensional character is ``E`` again,
+    so undeclared the band labels rest on a labelling no content chooses.  The
+    ``p`` pair's own matrices, ``C4(z)`` carrying ``p_x`` onto ``p_y`` and
+    ``m(x)`` turning ``p_x`` over, are the matrices returned, the rows read
+    ``declaration``, and no label rests on a choice; with ``m(x)`` even on
+    ``p_x`` they are the pair times ``A2``, opposite on every mirror, and the
+    band at ``X`` takes the other label; and the pair written turned by
+    ``π/4``, its matrices turned with it, labels every band alike.  The
+    matrices of ``p_x ± i p_y``, declared on the real pair, are a basis the
+    hoppings do not carry.  Where nothing couples ``p_x`` to ``p_y`` the
+    pair's representations are read through their characters, and the rows
+    say the matrices are not carried; where the diagonal neighbours couple
+    it, the fourfold and the mirrors are broken by the declaration and the
+    crystal is ``P21'``, the pair declared one multiplet at a time there, or,
+    asked not to descend, refused ``declaration_breaks_group``.
+
     The same reading at the ``3m`` site of ``R3m``, its ``p`` shell turned
     inside the site by ``1e-8``: the shell is one measured multiplet, and
     ``{0: "A1", (1, 2): "A1 + A2"}`` states it ``2xA1 + A2`` where it holds
@@ -602,6 +636,49 @@ def test_the_square_doublet_declared_s_and_d_keeps_the_fourfold():
             assert got.rep.characters.irreps == (rows, rows), angle
             assert [o.determined_by for o in got.rep.characters.orbitals] == [how] * 2
             assert [s["copies"] for s in got.conserved["sectors"]] == [1, 1], angle
+
+    # the pair declared by its matrices: the basis, which no content states
+    pxpy = {"C4(z)": [[0, -1], [1, 0]], "m(x)": [[-1, 0], [0, 1]]}
+    plain = tqg.realized_group(_square_pxpy(), cross_check=False, characters={(0, 1): pxpy})
+    assert plain, str(plain)
+    for name, M in pxpy.items():
+        assert np.allclose(_matrix_of(plain, name), M), name
+    assert plain.rep.characters.irreps == ("E", "E")
+    assert [o.determined_by for o in plain.rep.characters.orbitals] == ["declaration"] * 2
+    assert tqw.hsp_table(plain.rep, bands=1).note == ""
+    bare = tqg.realized_group(_square_pxpy(), cross_check=False)
+    assert tqw.hsp_table(bare.rep, bands=1).note, "undeclared, the labels rest on a choice"
+    twisted = tqg.realized_group(_square_pxpy(), cross_check=False, characters={
+        (0, 1): {**pxpy, "m(x)": [[1, 0], [0, -1]]}})
+    assert twisted.rep.characters.irreps == ("E", "E")
+    for name in ("m(x)", "m(y)", "m([110])", "m([1-10])"):
+        assert np.allclose(_matrix_of(twisted, name), -_matrix_of(plain, name)), name
+    assert (tqw.hsp_table(twisted.rep, bands=1).content["X"]
+            != tqw.hsp_table(plain.rep, bands=1).content["X"])
+    turn = np.array([[1.0, -1.0], [1.0, 1.0]]) / np.sqrt(2.0)
+    turned = tqg.realized_group(_square_pxpy(np.pi / 4), cross_check=False, characters={
+        (0, 1): {name: (turn @ np.asarray(M, dtype=float) @ turn.T).tolist()
+                 for name, M in pxpy.items()}})
+    for bands in (1, 2):
+        assert (tqw.hsp_table(turned.rep, bands=bands).counts
+                == tqw.hsp_table(plain.rep, bands=bands).counts), bands
+    # ... and the matrices of p_x +- i p_y, a basis the hoppings do not carry
+    rotating = {(0, 1): {"C4(z)": [[1j, 0], [0, -1j]], "m(x)": [[0, 1], [1, 0]]}}
+    apart = tqg.realized_group(_square_pxpy(), cross_check=False, characters=rotating)
+    assert (apart.group.number_str, apart.descent) == ("99.164", None)
+    assert ([o.determined_by for o in apart.rep.characters.orbitals]
+            == ["declaration not carried"] * 2)
+    coupled = tqg.realized_group(_square_pxpy(diagonal=0.2), cross_check=False,
+                                 characters=rotating)
+    assert coupled.group.number_str == "3.2"
+    assert {"C4(z)", "m(x)", "m([110])"} <= _names(coupled.descent)
+    assert "C2(z)" not in _names(coupled.descent)
+    note = next(b["note"] for b in coupled.descent["dropped"] if b["name"] == "C4(z)")
+    assert "no multiple of it" in note, note
+    assert [o.determined_by for o in coupled.rep.characters.orbitals] == ["declaration"] * 2
+    refused = tqg.realized_group(_square_pxpy(diagonal=0.2), cross_check=False,
+                                 characters=rotating, descend=False)
+    assert not refused and refused.gate == "declaration_breaks_group"
 
     # the 3m site of R3m, its p shell turned inside it by 1e-8
     shell, kw = tqm.r3m_p_shell(angle=1e-8), {"decorations": tqm.R3M_SHADOW}
@@ -1392,7 +1469,9 @@ def test_a_joint_shorthand_of_the_wrong_dimension_suggests_a_valid_spelling():
     Wannier functions where a spinor basis is declared, so a doublet written on
     one of them is offered the contents one Wannier function holds rather than
     the other spelling of the same doublet, and only contents that fit the site
-    are listed.
+    are listed.  Generator matrices are read on whole measured multiplets, and
+    are refused where they name part of one, or mix two the hoppings keep
+    apart.
     """
     out = tqg.realized_group(_rect_pair(), characters={(0, 1): "px"})
     assert not out and out.gate == "ambiguous_multiplet", str(out)
@@ -1422,6 +1501,15 @@ def test_a_joint_shorthand_of_the_wrong_dimension_suggests_a_valid_spelling():
     doublet = tqg.realized_group(_km(), typat=[0, 1], characters={0: "-1E2E + -E1"})
     assert not doublet and doublet.gate == "ambiguous_multiplet", str(doublet)
     assert "orbital 0: '-1E2E + -E1' holds 2 orbitals, and the 1 orbital" in doublet.reason
+
+    # generator matrices on part of the square's measured pair, and mixing the
+    # rectangle's two multiplets
+    part = tqg.realized_group(_square_pxpy(), characters={0: {"C2(z)": [[-1]]}})
+    assert not part and part.gate == "ambiguous_multiplet", str(part)
+    assert "read on whole multiplets the hoppings measure" in part.reason
+    mixed = tqg.realized_group(_rect_pair(), characters={(0, 1): {"C2(z)": [[0, 1], [1, 0]]}})
+    assert not mixed and mixed.gate == "ambiguous_multiplet", str(mixed)
+    assert "mix (0,) and (1,), which the hoppings measure as separate multiplets" in mixed.reason
 
     # a declared spinor basis counts Wannier functions: a doublet written on one
     # of them, by one orbital or by the pair, is told what one Wannier function

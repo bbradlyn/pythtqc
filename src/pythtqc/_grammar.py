@@ -16,10 +16,10 @@ from ._matrices import SiteMultiplets
 def _spec_key(spec):
     """A comparable identity for one declaration value.
 
-    Labels compare case-insensitively; a **generator character mapping**
-    compares by its content rather than by object identity, because the two
-    members of a declared spinor pair can be handed the same mapping written
-    twice.  Anything else falls
+    Labels compare case-insensitively; a **generator mapping**, of characters
+    or of matrices, compares by its content rather than by object identity,
+    because the two members of a declared spinor pair can be handed the same
+    mapping written twice.  Anything else falls
     back to identity, which is what the ordered-list grouping does.
     """
     if isinstance(spec, str):
@@ -27,9 +27,19 @@ def _spec_key(spec):
     if isinstance(spec, dict):
         # sorted on the key alone: a complex value is not orderable, and two
         # entries can stringify to the same key (operation #1 and its name "1")
-        return ("chi", tuple((str(k), complex(v)) for k, v in
+        return ("chi", tuple((str(k), _value_key(v)) for k, v in
                              sorted(spec.items(), key=lambda kv: str(kv[0]))))
     return ("id", id(spec))
+
+
+def _value_key(value):
+    """One value of a generator mapping as a comparable: a character, or a matrix's entries."""
+    if _character_value(value):
+        return complex(value)
+    matrix = _matrix_value(value)
+    if matrix is None:
+        return ("id", id(value))
+    return ("matrix", matrix.shape, tuple(complex(x) for x in matrix.ravel()))
 
 
 # ---- the grammar of a declaration ---------------------------------------------
@@ -42,7 +52,8 @@ def _spec_key(spec):
 _CHARACTERS_GRAMMAR = (
     "`characters=` is a list with one entry per orbital, each a word or None, or a "
     "mapping from an orbital, or from several orbitals of one site written together, "
-    "to a word or to a mapping from operations to characters")
+    "to a word or to a mapping from operations to characters, or to matrices on "
+    "those orbitals")
 
 #: ``multiplets=`` in one sentence, which every error about its grammar opens with.
 _MULTIPLETS_GRAMMAR = (
@@ -73,6 +84,25 @@ def _character_value(value) -> bool:
             and bool(np.isfinite(complex(value))))
 
 
+def _matrix_value(value):
+    """``value`` as a complex square matrix of finite numbers, or ``None`` where it is none.
+
+    A nested list or an array of two dimensions whose entries are all numbers;
+    a string, a truth value or a ragged list is no matrix.
+    """
+    if isinstance(value, (str, bytes, dict)) or _character_value(value):
+        return None
+    try:
+        matrix = np.asarray(value)
+    except (TypeError, ValueError):
+        return None
+    if (matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1] or not matrix.size
+            or matrix.dtype.kind not in "iufc"):
+        return None
+    matrix = matrix.astype(complex)
+    return matrix if bool(np.all(np.isfinite(matrix))) else None
+
+
 def _declaration_grammar(norb, *, characters=None, multiplets=None, spin=None,
                          site_of=None):
     r"""Raise ``ValueError`` where ``characters=`` or ``multiplets=`` is malformed.
@@ -84,14 +114,16 @@ def _declaration_grammar(norb, *, characters=None, multiplets=None, spin=None,
     ``None``, or a mapping from an orbital, or from several orbitals of one
     site together, to a word or to such a mapping: each orbital is named once,
     a mapping of characters names at least one operation, by its index or its
-    name, and gives each a finite number, and the two orbitals of a declared
-    spin pair, the up and down states of one Wannier function, are given one
-    word.  ``multiplets=`` is one list per site of the multiplets it holds,
-    each named by its orbitals, or a :class:`SiteMultiplets`: the multiplets
-    hold every orbital once, each the orbitals of one site, and each holds
-    both states of a declared spin pair.  Whether a word names something at
-    its site depends on the site group the measurement reaches, and is read
-    there.
+    name, and gives each a finite number, a mapping of matrices gives each a
+    square matrix of finite numbers, as wide as the Wannier functions its
+    orbitals are, and gives every operation one or the other, and the two
+    orbitals of a declared spin pair, the up and down states of one Wannier
+    function, are given one word.  ``multiplets=`` is one list per site of the
+    multiplets it holds, each named by its orbitals, or a
+    :class:`SiteMultiplets`: the multiplets hold every orbital once, each the
+    orbitals of one site, and each holds both states of a declared spin pair.
+    Whether a word names something at its site depends on the site group the
+    measurement reaches, and is read there.
 
     ``norb`` is the model's orbital count, ``spin`` the declared
     :class:`..spin.SpinBasis` or ``None``, and ``site_of`` each orbital's site,
@@ -170,14 +202,35 @@ def _characters_grammar(characters, norb, pairs, site_of=None) -> None:
             if not value:
                 malformed(f"{where} is given an empty mapping, and a mapping from "
                           "operations to characters names at least one operation")
+            # A MATRIX is the operation's matrix on the orbitals named, one row
+            # and one column per Wannier function: a declared spin pair is one
+            pair_of = {int(o): c for c, pair in enumerate(pairs) for o in pair}
+            width = len({pair_of.get(int(o), ("orbital", int(o))) for o in orbs})
+            kinds = set()
             for op, chi in value.items():
                 if not (_orbital_index(op) or isinstance(op, str)):
                     malformed(f"{where} names an operation by {_shown(op)}, and an "
                               "operation is named by its index or its name, such as 3 "
                               "or 'C4(z)'")
-                if not _character_value(chi):
+                if _character_value(chi):
+                    kinds.add("character")
+                    continue
+                matrix = _matrix_value(chi)
+                if matrix is None:
                     malformed(f"{where} gives the operation {op!r} {_shown(chi)}, and a "
-                              "character is a finite number")
+                              "character is a finite number and a matrix a square array "
+                              "of them")
+                if matrix.shape[0] != width:
+                    noun = "Wannier function" if pairs else "orbital"
+                    malformed(f"{where} gives the operation {op!r} a {matrix.shape[0]}x"
+                              f"{matrix.shape[0]} matrix, and a matrix on {width} "
+                              f"{noun}{'' if width == 1 else 's'} is {width}x{width}, "
+                              f"one row and one column per {noun} in the order written")
+                kinds.add("matrix")
+            if len(kinds) > 1:
+                malformed(f"{where} gives some operations characters and others matrices, "
+                          "and a mapping gives every operation a character or every "
+                          "operation a matrix")
             continue
         if value is None:
             malformed(f"{where} is given None, and a mapping leaves out an orbital it "

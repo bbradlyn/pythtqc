@@ -2577,7 +2577,8 @@ def _declaration_refuted(group, validated, *, refuted, verdict, tolerances=EXACT
                               unitary_only=unitary_only,
                               tol=tolerances.noise(CHARACTER),
                               joint=got.get("joint", ()),
-                              search=got.get("search"))
+                              search=got.get("search"),
+                              matrices=got.get("matrices", ()))
     if isinstance(sub, Refusal):
         return sub
     lattice = np.asarray(group.lattice, dtype=float)

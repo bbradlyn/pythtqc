@@ -34,7 +34,7 @@ from ._multiplets import (
 
 
 def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=CHARACTER,
-                        joint=(), search=None):
+                        joint=(), search=None, matrices=()):
     r"""The largest subgroup the declared orbital content is covariant on.
 
     Read off the sectors of the Hamiltonian's conserved matrices wherever they
@@ -46,6 +46,11 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
     orbit of ``6mm`` and two of ``mm2``, each with a character of its own -- so
     nothing is ruled out on the larger group's orbits before the smaller one is
     asked.  Where the sectors read nothing the requirements below decide.
+    Declared generator matrices are a statement the sectors' reading, of
+    contents, does not hear: ``matrices`` holds what they ask, one mapping per
+    part as ``requirements`` holds it, and where a subgroup the sectors keep
+    has no character meeting it, the requirements decide instead, the
+    matrices' among them.
 
     The hoppings fix every multiplet's block up to one one-dimensional
     character per **coupled part** of the crystal — the multiplets they
@@ -102,9 +107,19 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
     :class:`..refusal.Refusal` of a search past its ceiling.
     """
 
+    def _carries_matrices(sub):
+        """Whether each part's declared matrices are met inside ``sub`` by one character of it."""
+        inside = {int(i) for i in sub}
+        asked = [dict(m) for m in (matrices or ()) if any(int(g) in inside for g in m)]
+        if not asked:
+            return True
+        chars = (_characters_of_subgroup(group, sub, roots=bool(unitary_only))
+                 or [{int(i): 1.0 + 0.0j for i in sub}])
+        return all(any(_meets(chi, m, over=inside, tol=tol) for chi in chars) for m in asked)
+
     if search is not None and search.complete:
         got = _subgroup_read(group, kept_u, search)
-        if got is not None:
+        if got is not None and _carries_matrices(got["subgroup"]):
             return got
     parts = ([requirements] if isinstance(requirements, dict)
              else [dict(part) for part in requirements])
@@ -686,6 +701,8 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
     as sets of multiplet orbits, the anchor's first,
     ``"requirements"`` and ``"scalars"`` one mapping per part, the verdict per
     operation (``None`` where the declaration breaks it) and the raw scalar,
+    ``"matrices"`` the requirements of each part at the operations declared
+    generator matrices were read at,
     ``"joint"`` the contents read together, each with what its multiplets carry
     per operation and the part each is in, ``"by_sectors"`` the contents
     declared on orbits built by induction, which the sectors alone weigh, each
@@ -1022,6 +1039,25 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
             return None                   # free: the hoppings do not measure it
         return theta
 
+    nspin = int(getattr(model, "nspin", 1) or 1)
+
+    def _matrix(d, V, lift, nu, floor):
+        """Declaration ``d``'s orbital matrix against its part's scale ``nu``, or ``None`` where it is free.
+
+        The orbital factor of the block the operation carries its orbitals
+        with, the spinor divided out atom by atom, one row and one column per
+        atom in the order the declaration names them: what declared generator
+        matrices are a statement about.
+        """
+        atoms = _declared_atoms(d, chan_states, su2, nspin)
+        B = np.asarray([[[_proportionality(V[j][np.ix_(a, b)], lift)[0] for b in atoms]
+                         for a in atoms] for j in range(len(V))])
+        M = np.tensordot(np.conj(nu), B, axes=(0, 0)) / np.vdot(nu, nu)
+        gap = float(np.abs(B - nu[:, None, None] * M[None, :, :]).max())
+        if gap > spread_tol * max(float(np.abs(B).max()), floor, 1.0):
+            return None                   # free: the hoppings do not measure it
+        return M
+
     pre, joint_theta = [], {}
     for p in positions:
         if p not in spaces:
@@ -1085,6 +1121,25 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
             if ind not in d["constraints"] or (d.get("corep") and silent):
                 continue                  # a corep content says nothing here
             nu, floor = nus[part_of_decl[id(d)]]
+            if ind in (d.get("matrices") or {}):
+                # GENERATOR MATRICES are read as matrices: the declared one is
+                # the measured one times the value the part's character has to
+                # take here, or it is no multiple of it and nothing makes it so
+                if any(int(image[int(x)]) != int(x) for x in d["channels"]):
+                    continue
+                B = _matrix(d, V, lift, nu, floor)
+                if B is None:
+                    continue
+                M = np.asarray(d["matrices"][ind], dtype=complex)
+                lam, gap = _proportionality(M, B)
+                pre.append({"orbitals": tuple(d["orbitals"]), "ind": ind, "name": name,
+                            "measured": complex(np.trace(B)),
+                            "declared": complex(np.trace(M)),
+                            "part": int(part_of_decl[id(d)]),
+                            "required": (lam if gap <= tol * max(1.0, float(np.abs(M).max()))
+                                         else None),
+                            "matrices": (M, B)})
+                continue
             thetas = []
             for x in d["channels"]:
                 if int(image[int(x)]) != int(x):
@@ -1101,6 +1156,9 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
                         "part": int(part_of_decl[id(d)])})
 
     for r in pre:
+        if "matrices" in r:
+            rows.append(r)                # its scalar was read off the matrices
+            continue
         theta, want = complex(r["measured"]), complex(r["declared"])
         rows.append(dict(r, required=None if abs(theta) <= tol else want / theta))
     # EVERY DECLARATION CONSTRAINS ITS OWN PART'S CHARACTER, wherever it sits:
@@ -1108,13 +1166,17 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
     # the multiplets break is broken in every part, and one two declarations
     # of a part ask different values of is broken there; which characters meet
     # the rest is the subgroup search's question, never an anchor's.
-    requirements, scalars = [], []
+    requirements, scalars, by_matrices = [], [], []
     for i in range(len(parts)):
         req, raw, said = dict(broken), {}, {}
         _needs_per_operation([r for r in rows if r["part"] == i], req, raw, said,
                              tol=tol, roots=roots.get(i, False))
         requirements.append(req)
         scalars.append(raw)
+        # ... and what the part's declared matrices ask, which a reading of
+        # contents alone does not hear (:func:`_covariant_subgroup`)
+        asked = {int(r["ind"]) for r in rows if r["part"] == i and "matrices" in r}
+        by_matrices.append({ind: req[ind] for ind in sorted(asked) if ind in req})
         for ind, sentence in said.items():
             why.setdefault(int(ind), sentence)
     # ... and every content read together over its multiplets, per multiplet,
@@ -1200,6 +1262,7 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
                                      tol=tol, max_candidates=max_candidates)
     return {"rows": tuple(rows), "parts": tuple(parts),
             "requirements": tuple(requirements), "scalars": tuple(scalars),
+            "matrices": tuple(by_matrices),
             "joint": tuple(joint), "by_sectors": tuple(by_sectors),
             "reasons": why,
             "classes": classes, "nclass": int(nclass), "chosen": chosen, "within": within,
@@ -1289,7 +1352,14 @@ def _needs_per_operation(rows, req, raw, why, *, tol=CHARACTER, roots=False):
                 break
             orbs = tuple(r["orbitals"])
             if r["required"] is None:
-                if abs(complex(r["declared"])) > tol:
+                if "matrices" in r:
+                    # a declared matrix no scalar carries the measured one onto
+                    need = "broken"
+                    why[ind] = (f"orbitals {orbs} are declared "
+                                f"{_stated(r, 'declared')} under this operation, and the "
+                                f"hoppings carry them with {_stated(r, 'measured')} up to "
+                                "one scalar, which is no multiple of it")
+                elif abs(complex(r["declared"])) > tol:
                     need = "broken"
                     why[ind] = (f"orbitals {orbs} are declared "
                                 f"{_fmt_char(r['declared'])} under this operation, and "
@@ -1298,6 +1368,12 @@ def _needs_per_operation(rows, req, raw, why, *, tol=CHARACTER, roots=False):
             lam = complex(r["required"])
             if need is None:
                 need, first = lam, r
+            elif abs(need - lam) > tol and ("matrices" in r or "matrices" in first):
+                why[ind] = (f"the declarations of orbitals {tuple(first['orbitals'])} and "
+                            f"{orbs} ask their part's one-dimensional character for "
+                            f"{_fmt_char(need)} and {_fmt_char(lam)} under this operation, "
+                            "and it takes one value")
+                need = "broken"
             elif abs(need - lam) > tol:
                 # both measured characters are nonzero here: a row whose
                 # measured character vanishes carries no requirement
@@ -1322,8 +1398,8 @@ def _needs_per_operation(rows, req, raw, why, *, tol=CHARACTER, roots=False):
             if abs(abs(need) - 1.0) > tol:
                 req[ind] = None
                 why[ind] = (f"orbitals {tuple(first['orbitals'])} are declared "
-                            f"{_fmt_char(first['declared'])} under this operation and "
-                            f"the hoppings carry them with {_fmt_char(first['measured'])}, "
+                            f"{_stated(first, 'declared')} under this operation and "
+                            f"the hoppings carry them with {_stated(first, 'measured')}, "
                             f"a ratio of {_fmt_char(need)} that is not a phase, and so "
                             "the value of no one-dimensional character")
             else:
@@ -1331,14 +1407,46 @@ def _needs_per_operation(rows, req, raw, why, *, tol=CHARACTER, roots=False):
         elif min(abs(need - 1.0), abs(need + 1.0)) > tol:
             req[ind] = None
             why[ind] = (f"orbitals {tuple(first['orbitals'])} are declared "
-                        f"{_fmt_char(first['declared'])} under this operation and the "
-                        f"hoppings carry them with {_fmt_char(first['measured'])}, a "
+                        f"{_stated(first, 'declared')} under this operation and the "
+                        f"hoppings carry them with {_stated(first, 'measured')}, a "
                         f"ratio of {_fmt_char(need)} that is not a sign: an antiunitary "
                         "operation of the group leaves only a sign between two "
                         "labellings of one crystal")
         else:
             req[ind] = complex(round(float(np.real(need))))
     return req, raw, why
+
+
+def _stated(row, which) -> str:
+    """What one row of the measured-versus-declared table says, ``"declared"`` or ``"measured"``.
+
+    A character, or for a declaration of generator matrices the matrix itself,
+    which is what was declared and what the hoppings carry.
+    """
+    if "matrices" in row:
+        return _sitechars._fmt_matrix(row["matrices"][0 if which == "declared" else 1])
+    return _fmt_char(row[which])
+
+
+def _declared_atoms(d, chan_states, su2, nspin):
+    """The states of each atom a declaration names, in the order it names them.
+
+    An atom is one orbital, or the two states of one Wannier function, which
+    carry an operation's spin-1/2 lift together (:func:`.._matrices._atom_blocks`);
+    declared generator matrices have one row and one column per atom, in the
+    order the declaration's orbitals were written.  ``nspin`` is the model's
+    number of spin states per orbital, which a state's index is divided by to
+    read its orbital.
+    """
+    atoms = [a for c in d["channels"] for a in _atom_blocks(chan_states[int(c)], su2)]
+    out, taken = [], set()
+    for o in d["orbitals"]:
+        for k, a in enumerate(atoms):
+            if k not in taken and int(o) in {int(s) // int(nspin) for s in a}:
+                taken.add(k)
+                out.append(np.asarray(a, dtype=int))
+                break
+    return out
 
 
 def _measure_channel_characters(D, syms, kept_u, cperm, layout, chan):
@@ -1917,14 +2025,16 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
             functions=tuple(rec["functions"]), reduced_in=str(rec["reduced_where"]),
             words=tuple((int(o), said[int(o)]) for o in members if int(o) in said),
             written=tuple((int(o), written[int(o)]) for o in members if int(o) in written),
-            corep=bool(rec["corep"]), mulliken=tuple(rec["mulliken"]))
+            corep=bool(rec["corep"]), mulliken=tuple(rec["mulliken"]),
+            matrices=dict(rec["matrices"]))
         decls.append({"orbitals": content.orbitals,
                       "channels": tuple(sorted({int(chan_of[int(o)])
                                                 for o in content.orbitals})),
                       "site": rec["site"], "spec": content.spec, "label": content.label,
                       "dim": content.dim, "note": content.note,
                       "constraints": content.constraints, "content": content,
-                      "joint": bool(rec["joint"]), "corep": content.corep})
+                      "joint": bool(rec["joint"]), "corep": content.corep,
+                      "matrices": content.matrices})
         placed.append(tuple(ks))
 
     for orbs, spec, joint in raw:
@@ -1962,10 +2072,17 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
         # finer, which every comparison with the Hamiltonian's blocks reads
         corep = (base.corep if base is not None
                  else _sitechars.named_in_coreps(table, spec))
+        # GENERATOR MATRICES, on every operation the declared ones generate: a
+        # statement about which basis of the content the orbitals are, which
+        # the traces in `cons` do not make
+        here_inds = {int(i) for i in table.indices}
+        matrices = ({int(k): M for k, M in base.matrices.items() if int(k) in here_inds}
+                    if base is not None
+                    else _sitechars.generator_matrices(group, table, spec, where))
         rec = {"site": site, "spec": spec, "label": label, "dim": dim, "cons": cons,
                "note": note, "base": base, "read_where": read_where,
                "reduced_where": reduced_where, "functions": functions, "joint": joint,
-               "corep": corep, "mulliken": mulliken}
+               "corep": corep, "mulliken": mulliken, "matrices": matrices}
 
         if joint and dim != len(keys):
             n = len(keys)
@@ -1988,6 +2105,46 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
                 "so it is not what they hold jointly" + fix,
                 {"orbitals": orbs, "site": site, "declared_irrep": label, "dim": dim,
                  "multiplet": tuple(atom_orbs[k] for k in keys)})
+        if matrices:
+            # MATRICES ARE READ ON WHOLE MULTIPLETS, the orbitals the hoppings
+            # bind together at the site: a matrix on part of one says how the
+            # hoppings would have to keep apart what they mix, and one mixing
+            # two says how they would have to mix what they keep apart.  Over
+            # several, block-diagonal on them, they are one declaration per
+            # multiplet -- a declaration carried down to a smaller group, whose
+            # multiplets have come apart, reads so
+            members = _members(keys)
+            touched = sorted({int(chan_of[int(o)]) for o in members})
+            bound = " and ".join(str(tuple(int(o) for o in chan_orbs[c])) for c in touched)
+            context = {"orbitals": orbs, "site": site, "multiplets": tuple(
+                tuple(int(o) for o in chan_orbs[c]) for c in touched)}
+            if any(not set(int(o) for o in chan_orbs[c]) <= set(members) for c in touched):
+                raise _sitechars.DeclarationError(
+                    "ambiguous_multiplet",
+                    f"{where}: generator matrices are read on whole multiplets the hoppings "
+                    f"measure, their orbitals named together, and the hoppings bind these "
+                    f"orbitals as {bound}: name every orbital of a multiplet in one key.",
+                    context)
+            place = [[i for i, k in enumerate(keys) if int(chan_of[int(atom_orbs[k][0])]) == c]
+                     for c in touched]
+            if len(place) > 1:
+                if any(float(np.abs(M[np.ix_(a, b)]).max()) > CHARACTER
+                       for M in matrices.values() for a in place for b in place if a is not b):
+                    raise _sitechars.DeclarationError(
+                        "ambiguous_multiplet",
+                        f"{where}: the matrices declared mix {bound}, which the hoppings "
+                        "measure as separate multiplets: give each of those multiplets its "
+                        "own key and its own matrices.", context)
+                for idx in place:
+                    part = {int(i): M[np.ix_(idx, idx)] for i, M in matrices.items()}
+                    chi = {int(i): complex(np.trace(M)) for i, M in part.items()}
+                    whole = all(int(i) in chi for i in table.indices)
+                    _one(dict(rec, cons=chi, dim=len(idx), matrices=part,
+                              label=(_sitechars.content_label(
+                                  table, [chi[int(cls[0])] for cls in table.classes])
+                                  if whole else "")),
+                         _members(tuple(keys[i] for i in idx)), tuple(keys[i] for i in idx))
+                continue
         if dim == 1 and len(keys) > 1:
             for k in keys:                       # k copies of a 1D label = k declarations
                 _one(rec, atom_orbs[k], (k,))
@@ -2040,6 +2197,26 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
             named = _sitechars.corep_label if rec["corep"] else _sitechars.content_label
             label = named(table, chi) or f"{copies}x{label}"
         _one(dict(rec, cons=cons, label=label, dim=len(keys)), _members(keys), keys)
+    # A SITE WITH DECLARED MATRICES is read multiplet by multiplet, which every
+    # declaration at it has to allow: one naming no whole measured multiplet
+    # makes the site one content over all of them (:func:`_site_reading`), and
+    # one multiplet's matrices are no statement about that
+    measured = tuple(tuple(tuple(int(o) for o in m) for m in site) for site in layout.by_site)
+    for site in sorted({int(d["site"]) for d in decls if d["matrices"]}):
+        here = [d for d in decls if int(d["site"]) == site]
+        named = {int(o) for d in here for o in d["orbitals"]}
+        touched = [m for m in measured[site] if set(m) & named]
+        if ({frozenset(d["orbitals"]) for d in here} != {frozenset(m) for m in touched}
+                or (any(d["corep"] for d in here) and len(measured[site]) > 1)):
+            raise _sitechars.DeclarationError(
+                "ambiguous_multiplet",
+                f"site {site}: generator matrices are read on the multiplet they name, and "
+                f"the declarations at this site do not each name a whole multiplet the "
+                f"hoppings measure there ({', '.join(str(m) for m in measured[site])}), "
+                "so the site is read as one content over all of them: give each multiplet "
+                "its own key.",
+                {"site": site, "orbitals": tuple(sorted(named)),
+                 "multiplets": measured[site]})
     return decls
 
 
@@ -2368,13 +2545,21 @@ def _name_the_mismatch(failed, measured, still_free, decls, site_tables, tol=1e-
         lines.append(f"  declared {said}, {tuple(failed['orbitals'])}="
                      f"{_declared(failed)}")
     wanted = _declared(failed)
-    lines.append(
-        f"  measured: orbital(s) {tuple(failed['orbitals'])} carry "
-        f"{measured_irrep or 'a character matching no single irrep of this site group'}"
-        f", not the declared {wanted or 'character'}"
-        + (f"; relative character {rel_label}." if rel_label else
-           "; the ratio measured/declared is not a character of this site group either, so "
-           "no other labelling accommodates it."))
+    if failed.get("matrices") and measured_irrep and measured_irrep == wanted:
+        # declared matrices whose traces the hoppings carry: what they do not
+        # carry is the basis, which no irrep name says
+        lines.append(
+            f"  measured: orbital(s) {tuple(failed['orbitals'])} carry {measured_irrep}, "
+            "as declared, and no one-dimensional character the hoppings leave open gives "
+            "them the declared matrices: the hoppings carry that content in another basis.")
+    else:
+        lines.append(
+            f"  measured: orbital(s) {tuple(failed['orbitals'])} carry "
+            f"{measured_irrep or 'a character matching no single irrep of this site group'}"
+            f", not the declared {wanted or 'character'}"
+            + (f"; relative character {rel_label}." if rel_label else
+               "; the ratio measured/declared is not a character of this site group either, "
+               "so no other labelling accommodates it."))
     return "\n".join(lines), {"measured_irrep": measured_irrep,
                               "relative_character": rel_label,
                               "declared_irreps": tuple(
@@ -2673,10 +2858,11 @@ def _lead_of(chans, first):
 def _returned_rows(rows):
     """The measured-versus-declared rows as a record returns them.
 
-    What each operation would have needed of the one-dimensional character, and
-    which coupled part of the crystal it was read in, are the package's own
-    reading of the row and stay inside it; a returned row says what was
-    measured and what was declared.
+    What each operation would have needed of the one-dimensional character,
+    which coupled part of the crystal it was read in, and the matrices a row
+    of declared generator matrices was read off, are the package's own reading
+    of the row and stay inside it; a returned row says what was measured and
+    what was declared, as characters.
     """
-    return tuple({k: v for k, v in r.items() if k not in ("required", "part")}
+    return tuple({k: v for k, v in r.items() if k not in ("required", "part", "matrices")}
                  for r in rows)

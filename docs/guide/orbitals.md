@@ -214,6 +214,10 @@ print(tqc.operations(lin.rep)[3].name, tqc.operations(lin.rep)[6].name)
   it: `B1` of `4mm` is here the one even under `m(x)`, the mirror whose normal
   is x, where a source that takes the diagonal mirrors as its reference calls
   the same function `B2`.
+- **Generator matrices**, a mapping from operation to the matrix it acts with
+  on the orbitals of the key, in the order written: the one spelling of a
+  basis, which no character states
+  ([which basis a doublet is](#which-basis-a-doublet-is)).
 
 With spin, a mis-oriented declaration need not change any label. `B1` and
 `B2` of `4mm` differ only on the mirrors, where a spinor's character is zero,
@@ -266,6 +270,77 @@ goes. Where nothing couples `p_x` to `p_y`, the hoppings carry the pair as
 `A1 + B1` exactly as they carry it as `E`, and the same declaration keeps the
 fourfold and says which the pair is: its `s` and its `d` are the sum and the
 difference of the two orbitals as written, not either orbital alone.
+
+## Which basis a doublet is
+
+A character is the same in every basis of a site irrep, and a site irrep can
+be the same under every labelling the hoppings leave open: `E` of `4mm` times
+any one-dimensional character of the group is `E` again. A `(p_x, p_y)` pair
+on a square lattice, `t_σ = 1` and `t_π = 0.3` to its nearest neighbours and
+`t_σ = 0.2` along the diagonals, which couple `p_x` to `p_y`:
+
+```python
+import numpy as np
+from pythtb import Lattice, TBModel
+
+pair = TBModel(Lattice([[1.0, 0.0], [0.0, 1.0]], [[0.0, 0.0]] * 2, periodic_dirs=[0, 1]))
+for bond, hop in (([1, 0], [[1.0, 0.0], [0.0, 0.3]]), ([0, 1], [[0.3, 0.0], [0.0, 1.0]]),
+                  ([1, 1], [[0.1, 0.1], [0.1, 0.1]]), ([1, -1], [[0.1, -0.1], [-0.1, 0.1]])):
+    for a in range(2):
+        for b in range(2):
+            if hop[a][b]:
+                pair.set_hop(hop[a][b], a, b, bond, mode="add")
+bare = tqc.realized_group(pair)
+print(bare.rep.characters.irreps, [row.determined_by for row in bare.rep.characters.orbitals])
+#  ('E', 'E') ['hamiltonian', 'hamiltonian']
+print(tqc.hsp_table(bare.rep, bands=1).note)
+#  the labels of these 1 of the 2 bands rest on a one-dimensional character the hoppings leave open on the coupled part holding every orbital: another choice of it keeps every orbital's site irrep and the labels of all 2 bands, and labels these 1 differently; the lowest-angular-momentum rule chose the one whose band labels come first in the tables' order
+```
+
+Every row reads `hamiltonian`, since every labelling gives the pair the same
+site irrep, and the label of the lower band still rests on a choice, which the
+note under its table says ([labelling the bands](labels.md)). No word and no
+generator character makes that choice, each being read through characters.
+Generator matrices do, on the orbitals of the multiplet in one key. Each key
+is an operation of the multiplet's site group, named as `tqc.operations`
+prints it or given by its index there, and a row's `site_group` holds those
+operations by index:
+
+```python
+row = bare.rep.characters.orbitals[0]
+print([tqc.operations(bare)[i].name for i in row.site_group])
+#  ['E', 'C2(z)', 'C4(z)', 'C4^-1(z)', 'm(y)', 'm(x)', 'm([110])', 'm([1-10])']
+```
+
+```python
+pxpy = {"C4(z)": [[0, -1], [1, 0]], "m(x)": [[-1, 0], [0, 1]]}
+for matrices in (pxpy, {**pxpy, "m(x)": [[1, 0], [0, -1]]}):
+    rec = tqc.realized_group(pair, characters={(0, 1): matrices})
+    mirror = next(i for i, op in tqc.operations(rec).items() if op.name == "m(x)")
+    print(rec.rep.characters.irreps, rec.rep.characters.orbitals[0].determined_by,
+          (np.real(rec.rep.sewing_operator(mirror, [0, 0])) + 0).tolist(),
+          tqc.hsp_table(rec.rep, bands=1).counts)
+#  ('E', 'E') declaration [[-1.0, 0.0], [0.0, 1.0]] {'X3': 1}
+#  ('E', 'E') declaration [[1.0, 0.0], [0.0, -1.0]] {'X4': 1}
+```
+
+The `p` pair's own matrices, `C4(z)` carrying `p_x` onto `p_y` and `p_y` onto
+`−p_x` and `m(x)` turning `p_x` over, are returned as declared; so are the same
+with `m(x)` even on `p_x`, the pair times `A2`, one site irrep with the
+opposite matrix on every mirror, and the band at `X` takes the other label.
+Column `j` of a matrix is the image of orbital `j`, in the order the key names
+the orbitals, as every matrix the package returns is written, and with spin a
+matrix is the orbital factor's. The declared operations need only generate
+part of the site group, the matrices of the rest being their products. The
+matrices are read on whole multiplets the hoppings measure, a key naming part
+of one refused [`ambiguous_multiplet`](../reference/refusals.md#ambiguous_multiplet);
+matrices that are no representation of the site group, or not unitary, are
+refused [`unknown_label`](../reference/refusals.md#unknown_label); and matrices
+of a basis the hoppings do not carry lower the group, as any declaration the
+hoppings do not carry does ([below](#a-declaration-that-lowers-the-group)).
+Where nothing couples `p_x` to `p_y`, the pair's representations are read
+through their characters alone, and a row whose matrices no labelling gives
+reads `declaration not carried`.
 
 ## A declaration that lowers the group
 

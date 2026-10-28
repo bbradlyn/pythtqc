@@ -431,11 +431,15 @@ def test_unknown_label_names_the_site_group_and_prints_the_frame(lin3g_undeclare
     """A label from the wrong group refuses with what *this* site group offers.
 
     Which words a site takes depends on the site group the measurement reaches,
-    so a word naming nothing there is a refusal.  A declaration outside the
-    grammar, such as a key that names no orbital or names one twice, a list of
-    the wrong length, or a value that is neither a word nor a mapping of
-    characters, raises ``ValueError`` before anything is measured, in
-    ``realized_group`` as in ``_build_rep``.
+    so a word naming nothing there is a refusal, and so are generator matrices
+    that are no representation of the site group, a matrix that is not
+    unitary, and a key naming several operations where a matrix is one
+    operation's.  A declaration outside the grammar, such as a key that names
+    no orbital or names one twice, a list of the wrong length, a value that is
+    neither a word nor a mapping of characters or of matrices, a matrix of
+    another size than the orbitals named, or characters beside matrices,
+    raises ``ValueError`` before anything is measured, in ``realized_group`` as
+    in ``_build_rep``.
     """
     for bad, says in (("s", "given the str 's'"),
                       (["s", "s"], "the list has 2 entries"),
@@ -450,6 +454,9 @@ def test_unknown_label_names_the_site_group_and_prints_the_frame(lin3g_undeclare
                       ({0: None}, "leaves out an orbital"),
                       ({0: {}}, "empty mapping"),
                       ({0: {"C4(z)": "minus"}}, "a character is a finite number"),
+                      ({(0, 1): {"C4(z)": [[1.0]]}}, "a matrix on 2 orbitals is 2x2"),
+                      ({(0, 1): {"C4(z)": [[1, 0], [0, 1]], "m(x)": 1}},
+                       "gives every operation a character or every operation a matrix"),
                       ({0: {1.5: 1}}, "named by its index or its name"),
                       (["s", "s", "s", 5], "entry 3 is given the int 5")):
         with pytest.raises(ValueError, match=re.escape(says)) as raised:
@@ -481,6 +488,16 @@ def test_unknown_label_names_the_site_group_and_prints_the_frame(lin3g_undeclare
     junk = rebuild(lin3g_undeclared, characters={0: {"C6": 1.0}})
     assert not junk and junk.gate == "unknown_label"
     assert "names no operation" in junk.reason
+
+    # generator matrices the site group cannot read: a fourfold whose fourth
+    # power is not one, a matrix that is not unitary, and a key naming four mirrors
+    for matrices, says in (({"C4(z)": [[np.exp(0.25j * np.pi)]]},
+                            "no representation of this site group"),
+                           ({"C4(z)": [[2.0]]}, "is not unitary"),
+                           ({"m": [[1.0]]}, "names 4 operations of this site group")):
+        refused = rebuild(lin3g_undeclared, characters={0: matrices})
+        assert not refused and refused.gate == "unknown_label", str(refused)
+        assert says in refused.reason
 
 
 def test_a_hoppings_forbidden_declaration_names_what_was_measured(lin3g_undeclared):
@@ -1009,7 +1026,12 @@ def test_the_returned_matrices_are_induced_from_the_returned_content(name, reali
 
     The characters of the doublet's rows vanish on most of its operations and
     print as a table prints them; they are returned as the complex numbers
-    they are.
+    they are.  Its orbitals are ``p`` functions, carried by every operation as
+    the vectors they are, so their own representation is known without the
+    package: declared by those functions' matrices at the ``3c`` site
+    ``(0, ½, ½)``, the matrices returned are that representation on every
+    operation, and declared turned by ``diag(1, -1)`` inside the site, they are
+    it times ``A2`` of ``-43m``, negative on the rotoinversions and the mirrors.
     """
     builders = {"perp_doublet": (cubic_3c_perp_doublet, {}),
                 "pxpy_honeycomb": (tqc_models.pxpy_honeycomb, {}),
@@ -1052,6 +1074,41 @@ def test_the_returned_matrices_are_induced_from_the_returned_content(name, reali
             f"{name}: #{ind} is not the model's own"
         members += 1
     assert members == len(rep.indices) and blocks >= len(rep.indices) // 2
+
+    if name != "perp_doublet":
+        return
+    # the p functions' own representation, and the same declared at one 3c site
+    sites = [np.array(v) for v in ((0.0, 0.5, 0.5), (0.5, 0.0, 0.5), (0.5, 0.5, 0.0))]
+    orbitals = [(s, a) for s in range(3) for a in range(3) if a != s]
+
+    def site_of(sym, s):
+        q = (np.rint(np.asarray(sym.rotation_cart)) @ sites[s]
+             + np.asarray(sym.translation, dtype=float)) % 1.0
+        return next(k for k in range(3) if np.allclose(q, sites[k]))
+
+    def p_functions(sym):
+        """``g p_a = Σ_j R[j, a] p_j`` at the image site, at Γ."""
+        R = np.rint(np.asarray(sym.rotation_cart)).astype(int)
+        U = np.zeros((6, 6))
+        for o, (s, a) in enumerate(orbitals):
+            for o2, (s2, b) in enumerate(orbitals):
+                if s2 == site_of(sym, s):
+                    U[o2, o] = R[b, a]
+        return U
+
+    own = {int(s.ind): np.rint(np.asarray(s.rotation_cart))[np.ix_([1, 2], [1, 2])]
+           for s in bundle.group.symmetries if not s.time_reversal and site_of(s, 0) == 0}
+    flip = np.diag([1.0, -1.0])
+    for matrices, odd in ((own, ()), ({i: flip @ M @ flip for i, M in own.items()},
+                                      ("S4", "m"))):
+        declared = tqg.realized_group(cubic_3c_perp_doublet(), characters={(0, 1): matrices})
+        assert declared and declared.group.number_str == "215.71", str(declared)
+        assert [o.determined_by for o in declared.rep.characters.orbitals][:2] == \
+            ["declaration"] * 2
+        for sym in [s for s in declared.group.symmetries if not s.time_reversal]:
+            kind = tqg.operations(declared)[int(sym.ind)].name.split("(")[0].split("^")[0]
+            D = np.asarray(declared.rep.sewing_operator(int(sym.ind), [0.0, 0.0, 0.0]))
+            assert np.allclose(D, (-1.0 if kind in odd else 1.0) * p_functions(sym)), kind
 
 
 # ---------------------------------------------------------------------------

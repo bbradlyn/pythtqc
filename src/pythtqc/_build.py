@@ -975,7 +975,8 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
                                   unitary_only=not au_pos,
                                   tol=noise_floor(CHARACTER, eps),
                                   joint=verdict.get("joint", ()),
-                                  search=verdict.get("search"))
+                                  search=verdict.get("search"),
+                                  matrices=verdict.get("matrices", ()))
         if isinstance(sub, Refusal):
             return sub
         if sub["broken"]:

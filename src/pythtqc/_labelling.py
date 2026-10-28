@@ -20,8 +20,8 @@ from ._sitechars import _L_MAX, _content_shells
 from ._matrices import _atom_blocks, _lift_of, _proportionality, bloch_operator
 from .symmetry import AtomicLimitRow, AtomicLimitTable, _NOT_CARRIED
 from ._declaration import (
-    _copies_of_one_irrep, _declared_needs, _distance_from_trivial, _holds_part,
-    _lead_of, _meets, _named_content, _one_copy, _returned_rows)
+    _copies_of_one_irrep, _declared_atoms, _declared_needs, _distance_from_trivial,
+    _holds_part, _lead_of, _meets, _named_content, _one_copy, _returned_rows)
 from .sewing import DEGENERACY_TOL, _as_columns, multiplets
 
 
@@ -552,9 +552,13 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
     declaration made on it holds
     (:func:`_meets`, :func:`_holds_part`); where none meets them all, those met
     at the operations the measurement read each declaration at
-    (``measured_at``).  A content declared over several parts is one
-    requirement on all of them, so a part is chosen only where the parts
-    still to be chosen can complete it, each among its own candidates.
+    (``measured_at``).  Declared generator matrices are read as matrices: a
+    candidate holds them where its own matrices on the declared orbitals are
+    the declared ones, which tells apart labellings whose characters agree;
+    where no candidate gives them, the characters alone choose, and the rows
+    say the matrices are not carried.  A content declared over several parts
+    is one requirement on all of them, so a part is chosen only where the
+    parts still to be chosen can complete it, each among its own candidates.
 
     **One key** then chooses among each part's candidates, the same for every
     part, its lead multiplet the reference orbital's where the part holds it and
@@ -580,8 +584,8 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
        decides, no band label rests on it.
 
     Returns ``{"of_chan", "swaps", "raw", "chosen", "candidates", "labelled",
-    "parts", "part_states", "spaces", "lift_trace"}``: the character every
-    multiplet is assembled with; the representation chosen on each orbit built
+    "parts", "part_states", "spaces", "lift_trace", "matrices_carried"}``: the
+    character every multiplet is assembled with; the representation chosen on each orbit built
     by induction, as matrices on the orbit's states; every multiplet's
     character under the labelling's representation before its characters are
     multiplied in; per part the character chosen, and for each candidate its
@@ -592,7 +596,8 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
     of every energy multiplet under the one chosen and under each such, with
     the key that set it aside; the parts' multiplets and states; and each
     pseudospin's content returned and every content its candidates give, in
-    the key's order.
+    the key's order; and, keyed by each declaration of generator matrices,
+    whether the labelling returned gives its orbitals those matrices.
     """
     chan_states, su2 = layout._chan_states, layout._spinful
     nchan = len(chan_states)
@@ -795,8 +800,41 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
     shared = [d for d in decls if id(d) in spanned]
     needs = {}
 
-    def _ok(q, opt, measured_only=False):
-        """Whether every declaration made on part ``q`` alone holds under one of its options."""
+    nspin = int(getattr(model, "nspin", 1) or 1)
+    pos_of_ind = {int(syms[p].ind): int(p) for p in u_pos}
+
+    def _matrix_needs(d, opt):
+        """``{ind: value}`` -- what declared generator matrices ask of their part's character, on one option's matrices.
+
+        Per declared operation, the scalar carrying the orbital factor of the
+        option's block on the declaration's atoms onto the declared matrix, or
+        ``None`` where no scalar does: a character is the same in every basis
+        of a site irrep, and a matrix says which basis the orbitals are.
+        """
+        key = (id(d), "matrices", opt["key"] if opt["W"] is not None else 0)
+        if key not in needs:
+            matrices = opt["D"] if opt["W"] is not None else D
+            atoms = _declared_atoms(d, chan_states, su2, nspin)
+            out = {}
+            for ind, M in d["matrices"].items():
+                p = pos_of_ind.get(int(ind))
+                if p is None or p not in matrices:
+                    continue
+                B = np.asarray([[_proportionality(np.asarray(matrices[p])[np.ix_(a, b)],
+                                                  lift_of[p])[0] for b in atoms]
+                                for a in atoms])
+                lam, gap = _proportionality(np.asarray(M, dtype=complex), B)
+                out[int(ind)] = (lam if gap <= CHARACTER * max(1.0, float(np.abs(M).max()))
+                                 else None)
+            needs[key] = out
+        return needs[key]
+
+    def _ok(q, opt, measured_only=False, matrices=True):
+        """Whether every declaration made on part ``q`` alone holds under one of its options.
+
+        ``matrices`` false reads declared generator matrices through their
+        traces alone, as every other declaration is read.
+        """
         src = _source(opt)
         for d in mine_of[q]:
             if d.get("partial"):
@@ -807,9 +845,12 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
             key = (id(d), id(src))
             if key not in needs:
                 needs[key] = _declared_needs(d, src, lift_trace)
+            asked = needs[key]
+            if matrices and d.get("matrices"):
+                asked = {**asked, **_matrix_needs(d, opt)}
             over = (measured_at.get(tuple(int(o) for o in d["orbitals"]), set())
                     if measured_only else None)
-            if not _meets(opt["chi"], needs[key], over=over):
+            if not _meets(opt["chi"], asked, over=over):
                 return False
         return True
 
@@ -851,6 +892,7 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
         return False
 
     chosen, candidates, open_of, swaps, spaces_out = [], [], [], [], []
+    matrices_carried = {}
     raw_after = {int(c): dict(v) for c, v in raw.items()}
     for i, chans in enumerate(chans_of):
         options, rec = options_of[i], records[i]
@@ -861,6 +903,16 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
             # what the parts share is said on the rows where no labelling carries it
             cands = ([o for o in options if _ok(i, o)]
                      or [o for o in options if _ok(i, o, True)])
+        if not cands:
+            # ... and so are declared matrices no labelling gives the orbitals,
+            # as a declaration the measurement could not read is: their traces
+            # choose, as every other declaration's characters do
+            cands = ([o for o in options
+                      if _ok(i, o, matrices=False) and _completes(i, o)]
+                     or [o for o in options
+                         if _ok(i, o, True, matrices=False) and _completes(i, o, True)]
+                     or [o for o in options if _ok(i, o, matrices=False)]
+                     or [o for o in options if _ok(i, o, True, matrices=False)])
         if not cands:
             if int(ref_chan) in chans:     # pragma: no cover - the verdict rules it out
                 raise InternalError(
@@ -932,6 +984,9 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
         kept, fate = _choose(cands, keys)
         winner = cands[kept]
         held_at.append(winner)
+        for d in mine_of[i]:
+            if d.get("matrices") and not d.get("partial"):
+                matrices_carried[id(d)] = _meets(winner["chi"], _matrix_needs(d, winner))
         # THE LABELLINGS THE SITE IRREPS LEAVE OPEN: every candidate the
         # Hamiltonian and the declarations leave that gives each multiplet of
         # the part the site irrep the one kept gives it, with the key that set
@@ -1001,7 +1056,8 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
             of_chan[int(c)] = chosen[i]
     return {"of_chan": of_chan, "swaps": tuple(swaps), "raw": raw_after, "chosen": chosen,
             "candidates": candidates, "labelled": tuple(labelled), "parts": chans_of,
-            "part_states": part_states, "spaces": tuple(spaces_out), "lift_trace": lift_trace}
+            "part_states": part_states, "spaces": tuple(spaces_out), "lift_trace": lift_trace,
+            "matrices_carried": matrices_carried}
 
 
 def _assembled(D, choice, syms, layout):
@@ -1089,6 +1145,11 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
         else:
             # read on the characters returned, so it asks the trivial character
             carried[id(d)] = _meets({}, _declared_needs(d, final, lift_trace))
+        if d.get("matrices"):
+            # ... and declared matrices on the matrices returned, which the
+            # labelling read as it chose (:func:`_labelling`)
+            carried[id(d)] = (carried[id(d)]
+                              and choice.get("matrices_carried", {}).get(id(d), True))
 
     decl_of = {}
     for d in decls:
@@ -1161,9 +1222,13 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
                                          lift_trace) if needs is None
                              else _meets(chi, needs)) for chi in pool)
                 said = d["label"] or repr(d["spec"])
+                if d.get("matrices"):
+                    said = f"{d['label']} as generator matrices" if d["label"] else "matrices"
                 note_a = ((note_a + "; " if note_a else "")
                           + f"declared {said}, not carried: no one-dimensional character "
-                          "the hoppings leave open carries it"
+                          "the hoppings leave open "
+                          + ("gives these orbitals those matrices" if d.get("matrices")
+                             else "carries it")
                           + (" together with the other declarations" if alone else "")
                           + f", and the Hamiltonian's own blocks carry "
                           f"{returned[id(d)] or 'a character no irrep of this site group names'}"
