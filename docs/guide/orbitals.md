@@ -303,14 +303,28 @@ note under its table says ([labelling the bands](labels.md)). No word and no
 generator character makes that choice, each being read through characters.
 Generator matrices do, on the orbitals of the multiplet in one key. Each key
 is an operation of the multiplet's site group, named as `tqc.operations`
-prints it or given by its index there, and a row's `site_group` holds those
-operations by index:
+prints it or given by its index there. A row's `site_group` holds those
+operations by index, and `tqc.operations` gives each its name and its Seitz
+symbol:
 
 ```python
 row = bare.rep.characters.orbitals[0]
-print([tqc.operations(bare)[i].name for i in row.site_group])
-#  ['E', 'C2(z)', 'C4(z)', 'C4^-1(z)', 'm(y)', 'm(x)', 'm([110])', 'm([1-10])']
+ops = tqc.operations(bare)
+for i in row.site_group:
+    print(i, ops[i].name, ops[i].seitz)
+#  1 E {1|0,0,0}
+#  2 C2(z) {2_001|0,0,0}
+#  3 C4(z) {4+_001|0,0,0}
+#  4 C4^-1(z) {4-_001|0,0,0}
+#  5 m(y) {m_010|0,0,0}
+#  6 m(x) {m_100|0,0,0}
+#  7 m([110]) {m_110|0,0,0}
+#  8 m([1-10]) {m_1-10|0,0,0}
 ```
+
+The matrix the returned representation gives one of them on the multiplet's
+orbitals is `rep.sewing_operator(i, k)` at a `k` it leaves fixed, restricted to
+those orbitals, and a declaration is read against it.
 
 ```python
 pxpy = {"C4(z)": [[0, -1], [1, 0]], "m(x)": [[-1, 0], [0, 1]]}

@@ -96,7 +96,7 @@ def _km():
     return kane_mele(*KM_ARGS)
 
 
-def _square_pxpy(angle=0.0, diagonal=0.0):
+def _square_pxpy(angle=0.0, diagonal=0.0, sigma_y=1.0):
     """A ``p_x, p_y`` pair at one ``4mm`` site of a square lattice, spinless.
 
     Slater-Koster nearest neighbours, ``t_sigma = 1.0`` along the bond and
@@ -107,13 +107,14 @@ def _square_pxpy(angle=0.0, diagonal=0.0):
     ``π/4`` the orbitals are ``(p_x ± p_y)/√2``.  ``diagonal`` adds the
     second neighbours along the diagonals, ``t_sigma = diagonal`` and no
     ``t_pi``, which couple ``p_x`` to ``p_y`` and leave nothing else
-    commuting with ``H(k)``.
+    commuting with ``H(k)``.  ``sigma_y`` is ``t_sigma`` along ``y``: away
+    from ``1.0`` the hoppings break the fourfold of the square cell.
     """
     c, s = np.cos(angle), np.sin(angle)
     turn = np.array([[c, -s], [s, c]])
     m = TBModel(Lattice([[1.0, 0.0], [0.0, 1.0]], [[0.0, 0.0]] * 2,
                         periodic_dirs=[0, 1]), spinful=False)
-    bonds = [([1, 0], np.diag([1.0, 0.3])), ([0, 1], np.diag([0.3, 1.0]))]
+    bonds = [([1, 0], np.diag([1.0, 0.3])), ([0, 1], np.diag([0.3, sigma_y]))]
     if diagonal:
         bonds += [(d, diagonal * np.outer(d, d) / 2.0) for d in ([1, 1], [1, -1])]
     for bond, along in bonds:
@@ -576,7 +577,13 @@ def test_the_square_doublet_declared_s_and_d_keeps_the_fourfold():
     say the matrices are not carried; where the diagonal neighbours couple
     it, the fourfold and the mirrors are broken by the declaration and the
     crystal is ``P21'``, the pair declared one multiplet at a time there, or,
-    asked not to descend, refused ``declaration_breaks_group``.
+    asked not to descend, refused ``declaration_breaks_group``.  Matrices are
+    read in the group the layer's environment and its hoppings leave: one on
+    ``m(z)`` is refused ``unknown_label`` on a substrate and read
+    free-standing, where it says whether the pair is ``Eu`` or ``Eg``; and
+    where the hoppings break the fourfold, ``m(x)``'s matrix is read in the
+    ``mm2`` left, while one on ``C4(z)``, an operation that group lacks, is
+    refused ``unknown_label``.
 
     The same reading at the ``3m`` site of ``R3m``, its ``p`` shell turned
     inside the site by ``1e-8``: the shell is one measured multiplet, and
@@ -679,6 +686,29 @@ def test_the_square_doublet_declared_s_and_d_keeps_the_fourfold():
     refused = tqg.realized_group(_square_pxpy(diagonal=0.2), cross_check=False,
                                  characters=rotating, descend=False)
     assert not refused and refused.gate == "declaration_breaks_group"
+    # ... in the group the layer's environment and its hoppings leave: m(z) is an
+    # operation free-standing alone, and C4(z) none where the hoppings break it
+    flat = {(0, 1): {**pxpy, "m(z)": [[1, 0], [0, 1]]}}
+    on_substrate = tqg.realized_group(_square_pxpy(diagonal=0.2), cross_check=False,
+                                      characters=flat)
+    assert not on_substrate and on_substrate.gate == "unknown_label", str(on_substrate)
+    assert "'m(z)' names no operation of this site group" in on_substrate.reason
+    for parity, irrep in ((1, "Eu"), (-1, "Eg")):
+        free = tqg.realized_group(_square_pxpy(diagonal=0.2), cross_check=False,
+                                  environment="free-standing", characters={
+                                      (0, 1): {**pxpy, "m(z)": [[parity, 0], [0, parity]]}})
+        assert free.group.number_str == "123.340", str(free)
+        assert free.rep.characters.irreps == (irrep,) * 2
+        assert [o.determined_by for o in free.rep.characters.orbitals] == ["declaration"] * 2
+    stretched = _square_pxpy(diagonal=0.2, sigma_y=0.8)
+    lowered = tqg.realized_group(stretched, cross_check=False,
+                                 characters={(0, 1): {"m(x)": pxpy["m(x)"]}})
+    assert lowered.group.number_str == "25.58", str(lowered)
+    assert {"C4(z)", "m([110])"} <= _names(lowered.descent, "no symmetry matrix")
+    assert [o.determined_by for o in lowered.rep.characters.orbitals] == ["declaration"] * 2
+    named = tqg.realized_group(stretched, cross_check=False, characters={(0, 1): pxpy})
+    assert not named and named.gate == "unknown_label", str(named)
+    assert "'C4(z)' names no operation of this site group" in named.reason
 
     # the 3m site of R3m, its p shell turned inside it by 1e-8
     shell, kw = tqm.r3m_p_shell(angle=1e-8), {"decorations": tqm.R3M_SHADOW}
