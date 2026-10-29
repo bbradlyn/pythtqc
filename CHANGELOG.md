@@ -2,17 +2,11 @@
 
 ## Unreleased
 
-- `characters=` takes generator matrices: a mapping from operations of a site group to
-  the matrices they act with on the orbitals of a key, in the order written,
-  `{(0, 1): {"C4(z)": [[0, -1], [1, 0]], "m(x)": [[-1, 0], [0, 1]]}}`. A character is the
-  same in every basis of a site irrep, so where the labellings the hoppings leave open
-  give a site one irrep -- `E` at `4a` of `P4_332`, whose two labellings differ by `A2`
-  and exchange `GM4` and `GM5` -- no word or character chose among them, and the band
-  labels rested on the tables' order. Matrices say which basis the orbitals are: the
-  representation returned carries them, its rows read `declaration`, and matrices of a
-  basis the hoppings do not carry lower the group as any declaration does. They are read
-  on whole measured multiplets; matrices that are no representation of the site group,
-  or not unitary, are refused `unknown_label`.
+- `characters=` takes generator matrices, a mapping from operations of a site group to the
+  matrices they act with on the orbitals of a key,
+  `{(0, 1): {"C4(z)": [[0, -1], [1, 0]], "m(x)": [[-1, 0], [0, 1]]}}`. The representation
+  returned gives those orbitals the declared matrices, which fixes the labelling where every
+  labelling gives the site one irrep, as for `E` at `4a` of `P4_332`.
 - `decompose`, `symmetry_indicator`, `completeness_check`, `regular_completion` and
   `srsi_of_bands` read a table in the group it carries: `decompose(t)` takes the table
   `hsp_table` returned and nothing else, the group and `rep=` being optional and held to

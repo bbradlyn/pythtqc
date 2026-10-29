@@ -554,9 +554,8 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
     at the operations the measurement read each declaration at
     (``measured_at``).  Declared generator matrices are read as matrices: a
     candidate holds them where its own matrices on the declared orbitals are
-    the declared ones, which tells apart labellings whose characters agree;
-    where no candidate gives them, the characters alone choose, and the rows
-    say the matrices are not carried.  A content declared over several parts
+    the declared ones; where none does, the characters alone choose, and the
+    rows say the matrices are not carried.  A content declared over several parts
     is one requirement on all of them, so a part is chosen only where the
     parts still to be chosen can complete it, each among its own candidates.
 
@@ -808,8 +807,7 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
 
         Per declared operation, the scalar carrying the orbital factor of the
         option's block on the declaration's atoms onto the declared matrix, or
-        ``None`` where no scalar does: a character is the same in every basis
-        of a site irrep, and a matrix says which basis the orbitals are.
+        ``None`` where no scalar does.
         """
         key = (id(d), "matrices", opt["key"] if opt["W"] is not None else 0)
         if key not in needs:
@@ -904,9 +902,8 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
             cands = ([o for o in options if _ok(i, o)]
                      or [o for o in options if _ok(i, o, True)])
         if not cands:
-            # ... and so are declared matrices no labelling gives the orbitals,
-            # as a declaration the measurement could not read is: their traces
-            # choose, as every other declaration's characters do
+            # ... and so are declared matrices no labelling gives the orbitals:
+            # their traces choose
             cands = ([o for o in options
                       if _ok(i, o, matrices=False) and _completes(i, o)]
                      or [o for o in options

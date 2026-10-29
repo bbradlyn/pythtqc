@@ -168,10 +168,9 @@ connect directly or through others, by a one-dimensional character of the group
 changes nothing the Hamiltonian shows. One such character is left open on each
 coupled part. A declaration anywhere in the part fixes it, and every orbital of
 the part is read relative to the declared one, so declaring one sublattice of an
-orbit is the same statement as declaring the other. A declared content fixes it
-through the characters it states, and where every labelling gives the declared
-site the same irrep, as every one-dimensional character of `4mm` gives `E`, only
-matrices fix it ([which basis a doublet is](../guide/orbitals.md#which-basis-a-doublet-is)).
+orbit is the same statement as declaring the other. Where every labelling gives
+the declared site one irrep, as for `E` at a `4mm` site, generator matrices fix it
+([which basis a doublet is](../guide/orbitals.md#which-basis-a-doublet-is)).
 A choice of these
 characters, one on each part, is a **labelling** of the representation, and the
 labels of the bands rest on it. Wannier functions are not

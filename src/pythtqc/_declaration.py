@@ -46,11 +46,10 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
     orbit of ``6mm`` and two of ``mm2``, each with a character of its own -- so
     nothing is ruled out on the larger group's orbits before the smaller one is
     asked.  Where the sectors read nothing the requirements below decide.
-    Declared generator matrices are a statement the sectors' reading, of
-    contents, does not hear: ``matrices`` holds what they ask, one mapping per
-    part as ``requirements`` holds it, and where a subgroup the sectors keep
-    has no character meeting it, the requirements decide instead, the
-    matrices' among them.
+    ``matrices`` holds what declared generator matrices ask, one mapping per
+    part as ``requirements`` holds it; the sectors read contents, so where a
+    subgroup they keep has no character meeting it, the requirements decide,
+    the matrices' among them.
 
     The hoppings fix every multiplet's block up to one one-dimensional
     character per **coupled part** of the crystal — the multiplets they
@@ -1124,7 +1123,7 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
             if ind in (d.get("matrices") or {}):
                 # GENERATOR MATRICES are read as matrices: the declared one is
                 # the measured one times the value the part's character has to
-                # take here, or it is no multiple of it and nothing makes it so
+                # take here, or no multiple of it
                 if any(int(image[int(x)]) != int(x) for x in d["channels"]):
                     continue
                 B = _matrix(d, V, lift, nu, floor)
@@ -2072,9 +2071,8 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
         # finer, which every comparison with the Hamiltonian's blocks reads
         corep = (base.corep if base is not None
                  else _sitechars.named_in_coreps(table, spec))
-        # GENERATOR MATRICES, on every operation the declared ones generate: a
-        # statement about which basis of the content the orbitals are, which
-        # the traces in `cons` do not make
+        # GENERATOR MATRICES, on every operation the declared ones generate:
+        # which basis of the content the orbitals are
         here_inds = {int(i) for i in table.indices}
         matrices = ({int(k): M for k, M in base.matrices.items() if int(k) in here_inds}
                     if base is not None
@@ -2107,12 +2105,9 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
                  "multiplet": tuple(atom_orbs[k] for k in keys)})
         if matrices:
             # MATRICES ARE READ ON WHOLE MULTIPLETS, the orbitals the hoppings
-            # bind together at the site: a matrix on part of one says how the
-            # hoppings would have to keep apart what they mix, and one mixing
-            # two says how they would have to mix what they keep apart.  Over
-            # several, block-diagonal on them, they are one declaration per
-            # multiplet -- a declaration carried down to a smaller group, whose
-            # multiplets have come apart, reads so
+            # bind together at the site; block-diagonal on several, they are
+            # one declaration per multiplet, as a declaration carried down to a
+            # smaller group whose multiplets have come apart reads
             members = _members(keys)
             touched = sorted({int(chan_of[int(o)]) for o in members})
             bound = " and ".join(str(tuple(int(o) for o in chan_orbs[c])) for c in touched)
@@ -2197,10 +2192,9 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
             named = _sitechars.corep_label if rec["corep"] else _sitechars.content_label
             label = named(table, chi) or f"{copies}x{label}"
         _one(dict(rec, cons=cons, label=label, dim=len(keys)), _members(keys), keys)
-    # A SITE WITH DECLARED MATRICES is read multiplet by multiplet, which every
-    # declaration at it has to allow: one naming no whole measured multiplet
-    # makes the site one content over all of them (:func:`_site_reading`), and
-    # one multiplet's matrices are no statement about that
+    # A SITE WITH DECLARED MATRICES is read multiplet by multiplet: a declaration
+    # there naming no whole measured multiplet would make it one content
+    # (:func:`_site_reading`)
     measured = tuple(tuple(tuple(int(o) for o in m) for m in site) for site in layout.by_site)
     for site in sorted({int(d["site"]) for d in decls if d["matrices"]}):
         here = [d for d in decls if int(d["site"]) == site]
@@ -2546,8 +2540,7 @@ def _name_the_mismatch(failed, measured, still_free, decls, site_tables, tol=1e-
                      f"{_declared(failed)}")
     wanted = _declared(failed)
     if failed.get("matrices") and measured_irrep and measured_irrep == wanted:
-        # declared matrices whose traces the hoppings carry: what they do not
-        # carry is the basis, which no irrep name says
+        # declared matrices whose traces the hoppings carry, in another basis
         lines.append(
             f"  measured: orbital(s) {tuple(failed['orbitals'])} carry {measured_irrep}, "
             "as declared, and no one-dimensional character the hoppings leave open gives "

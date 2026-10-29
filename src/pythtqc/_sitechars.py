@@ -898,12 +898,10 @@ class DeclaredContent:
         ``{ind: matrix}``, keyed as :attr:`constraints` is, where the
         declaration was **generator matrices**: each operation's matrix on the
         orbital factor of :attr:`orbitals`, in their order, for every operation
-        of the site group the declared ones generate (:func:`generator_matrices`).
-        A character is the same in every basis of a site irrep, and a matrix is
-        not: it says which basis the orbitals are, which is what tells apart
-        two labellings that give every orbital the same site irrep, ``E`` and
-        ``E`` times ``A2`` at a ``32`` site.  :attr:`constraints` holds their
-        traces.  Empty for every other declaration.
+        of the site group the declared ones generate (:func:`generator_matrices`),
+        which says which basis of the site irrep the orbitals are;
+        :attr:`constraints` holds their traces.  Empty for every other
+        declaration.
     """
 
     orbitals: tuple
@@ -2092,7 +2090,7 @@ def _resolve_generator_dict(table, spec, where, group=None):
 
 
 def generator_matrices(group, table, spec, where) -> dict:
-    r"""``{ind: matrix}`` -- the matrices declared generator matrices give every operation they generate, or ``{}``.
+    r"""``{ind: matrix}`` -- the matrix of every operation declared generator matrices generate, or ``{}``.
 
     ``spec`` is one ``characters=`` value, and any but a mapping from
     operations to matrices returns ``{}``.  Each key names one operation of
