@@ -195,7 +195,7 @@ class ValidatedGroup:
 def _detection_grid(dim_k: int, nk: int) -> np.ndarray:
     """The detection mesh, from pythtb's own Monkhorst-Pack hypercube.
 
-    Not a hand-rolled meshgrid: same points, one owner.  Shared by
+    Not a hand-rolled meshgrid: the same points, built in one place.  Shared by
     :func:`_validate_group` and by the lattice measurement of
     :func:`.._descent._translation_residual`, so that a translation is measured on exactly
     the k-set the rest of the group was.

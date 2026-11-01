@@ -45,7 +45,7 @@ from pythtqc import _spacegroup
 from pythtqc import _tables
 
 import tqc_models as tqm
-from conftest import FKM_BOND, fkm_regime, km_z2_regime, patch_everywhere
+from conftest import FKM_BOND, fkm_regime, grey_numbers, km_z2_regime, patch_everywhere
 
 # lin3g band blocks, from LIN3G.band_sets
 P4, P2, P6, Q2 = (0, 1, 2, 3), (4, 5), 6, (6, 7)
@@ -824,21 +824,14 @@ def _in_scope_keys():
     The 230 space groups as unitary groups (bare ``number_str``), and the 230
     grey (type-II) groups.  A grey group is identified by the operation list --
     it contains time reversal itself, up to a lattice vector -- and not by
-    parsing its name: ``scripts/convert_srsi_tables.py``'s ``grey_numbers()``
-    reads that off the operations each correpresentation table lists.
+    parsing its name: ``conftest.grey_numbers()`` reads that off the operations
+    each correpresentation table lists.
     """
-    import importlib.util
     import os
 
     from irreptables import ebrs as _ebrs
 
-    # the conversion script, loaded by path, as tests/test_vocabulary.py loads it
-    path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                         "..", "scripts", "convert_srsi_tables.py"))
-    spec = importlib.util.spec_from_file_location("convert_srsi_tables", path)
-    converter = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(converter)
-    grey = set(converter.grey_numbers().values())
+    grey = set(grey_numbers().values())
 
     root = os.path.join(os.path.dirname(_ebrs.__file__), "data", "ebrs")
     keys = sorted(f[: -len("_ebrs.json")] for f in os.listdir(root))

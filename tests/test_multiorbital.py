@@ -1435,18 +1435,18 @@ def test_the_reglued_labels_and_the_EBR_transport_need_the_lift(
         monkeypatch, i41_bundle, p62_bundle, i41_soc_bundle):
     """Switch the re-gluing off: SG 80 still fails hard, SG 171 no longer needs it.
 
-    * **SG 80** fails hard, and this half is unchanged by the 2026-08-24 naming
-      directive: with the corep naming decided by plain conjugation of whole
+    * **SG 80** fails hard, and this half does not depend on the naming
+      rule: with the corep naming decided by plain conjugation of whole
       character vectors, ``P``'s shipped list is not conjugation-closed (its
       dimensions are ``2+1`` and the physical ones ``1+2``), the table is
       declared corrupt, and ``ebr_data`` -- hence ``decompose`` -- refuses the
       whole group with ``gate="ebr_convention"``.  That refusal is exactly the
       "data defect" the point used to be filed under, and it is why ``P`` is
       one of the 59 ``divergent`` entries: no naming rule can reach it.
-    * **SG 171 no longer needs the lift.**  Before the directive it was the
-      *quiet* failure -- the served rows at ``H`` were the same characters under
-      BCS's names, so nothing refused while the labels contradicted the unitary
-      table's spelling.  Now the character-matched naming reaches BCS's names on
+    * **SG 171 does not need the lift.**  Without the naming rule it is the
+      *quiet* failure -- the served rows at ``H`` are the same characters under
+      BCS's names, so nothing refuses while the labels contradict the unitary
+      table's spelling.  The character-matched naming reaches BCS's names on
       its own, the lift agrees with it, and switching the lift off changes
       nothing at all.  That is asserted rather than dropped, because it is the
       measurement that says which of the two mechanisms is load-bearing where.
@@ -1626,8 +1626,8 @@ def _P_valence(bundle):
 # levels the other way round (singlets ``-P4``, doublet ``2 x -P3``).  Nothing
 # downstream could catch it: a linear-character twist preserves the entire
 # factor system, so covariance, the internal factor, the product table and
-# ``hsp_table``'s completeness are all blind to it.  Owner's ruling
-# (2026-08-25): the tables fix that gauge, so the unitary build is anchored to
+# ``hsp_table``'s completeness are all blind to it.  The tables fix that
+# gauge, so the unitary build is anchored to
 # the group's own ``spinor_rotation`` (``test_symmetry.py`` section 10 measures
 # the anchor itself), and what the two builds must now agree on is *everything*.
 
@@ -2133,7 +2133,7 @@ def test_the_operation_no_site_group_contains_is_pinned_by_induction(request, fi
 def test_the_twist_no_site_group_separates_is_a_genuine_equivalence(i41_soc_bundle):
     r"""The other half of the principle, and the reason ``#80`` reports ``pinned=False``.
 
-    The owner's statement of the protocol has two branches: a character twist
+    The protocol has two branches: a character twist
     trivial on every occupied site group either **contradicts** the induced
     characters where they do not vanish, or is a **genuine equivalence** where
     they do.  This is the equivalence; what a complex twist serves is measured
@@ -2419,7 +2419,7 @@ def _square_pxpy(sublattices=1):
 
 @pytest.mark.slow
 def test_the_square_pxpy_doublet_is_measured_against_a_torus_of_a_commutant():
-    """The owner's example: ``P4mm1' #99.164`` with ``E`` at its ``1a`` site.
+    """The example ``P4mm1' #99.164`` with ``E`` at its ``1a`` site.
 
     ``p_x`` and ``p_y`` never hop into each other here, so the commutant of
     ``H(k)`` contains a phase on each of them and every operation's solution

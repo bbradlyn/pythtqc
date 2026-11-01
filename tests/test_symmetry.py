@@ -456,7 +456,7 @@ def test_kane_mele_at_191_pins_with_default_settings(km191_bundle):
 # is nothing left to measure, and `_build_rep` pins the branch by convention
 # instead of refusing (`branch_tie`).
 #
-# The owner set two consistency criteria for that convention (2026-09-06), and
+# Two consistency criteria hold for that convention, and
 # both are measured below.  **Continuity**: weakly break the `C4` of a `4mm`
 # model and the child's representation must deterministically match the parent's
 # on the `mm2` that survives.  **Convention**: a pure EBR model in `mm2` must
@@ -550,7 +550,7 @@ def _axially_split(delta):
 @pytest.mark.slow
 def test_a_weakly_broken_4mm_model_restricts_to_its_parent_on_the_pinned_branch(
         p41_substrate):
-    """The owner's continuity criterion, measured — and it does not depend on δ.
+    """The continuity criterion, measured — and it does not depend on δ.
 
     Take ``M`` = the paper's flat-band model in ``P4mm1' #99.164`` on a
     substrate (16 of 16; its ``C4`` has ``S(C4)† ≠ ±S(C4)``, so its own branch
@@ -763,7 +763,7 @@ def _ebr_2fold_mm2(u=0.27, tx=0.30, ty=0.17, tp=0.11, soc=0.0):
                                                    ("2-fold", 0.05, "free-standing")])
 def test_a_pure_ebr_is_the_induced_representation_in_the_tables_convention(
         orbit, soc, environment):
-    """The owner's convention criterion, measured against the tables' own induction.
+    """The convention criterion, measured against the tables' own induction.
 
     Two pure EBR models of the axial ``mm2`` ``Pmm21' #25.58``: one spinful ``s``
     orbital at the origin (site symmetry ``mm2``, so the induced representation
@@ -798,8 +798,8 @@ def test_a_pure_ebr_is_the_induced_representation_in_the_tables_convention(
     reference orbital measured ``A2`` against the tables' lift — its spin block
     on ``C2(z)`` and ``m(y)`` was *minus* ``S(g)`` — and the gauge offset that
     undoes it was recorded and not applied, so the record read ``A1`` over
-    matrices that were the induced representation of ``A2``.  The owner's
-    ruling: the served matrices are the induced representation in the tables'
+    matrices that were the induced representation of ``A2``.  The rule: the
+    served matrices are the induced representation in the tables'
     convention (spin up along +z, right-handed frame), so the offset is
     multiplied into the matrices.  The record still names it — ``B2``, ``mm2``'s
     name for that character, on the ``1a`` model, whose reference site group is
@@ -912,7 +912,7 @@ def test_a_spinful_s_orbital_off_the_mirror_planes_is_the_tables_induced_represe
     nonetheless fixed, by how the spin is chosen to transform under inversion:
     it does not (``S(I·R) = S(R)``), which makes a spinful ``s`` orbital the
     *gerade* spinor at an inversion centre and the ``Ē1`` (not ``Ē2``) doublet
-    at a ``4mm`` site.  Owner's point of 2026-09-10, and the reason the
+    at a ``4mm`` site.  That is the reason the
     lowest-``l`` rule reads, between the sites an operation exchanges, the
     functions of the point group the orbitals read as when each is paired with
     its image (the labelling's frame key): only then is the default the
@@ -938,7 +938,7 @@ def test_a_spinful_s_orbital_off_the_mirror_planes_is_the_tables_induced_represe
 
     The build's raw offset is ``A2g``, as on every layer: it is ``−1`` only on
     the twofolds and mirrors, where ``4/mmm``'s spinor characters vanish, so
-    here the ruling moves the matrices (the mirror blocks) and no label -- the
+    here the rule moves the matrices (the mirror blocks) and no label -- the
     mutation "offset left out of the matrices" fails this test at the block
     comparison and nowhere in its content.  The mutation "``spin_bonds`` lifts
     an improper operation by its full matrix" cannot even build the model
@@ -1316,11 +1316,10 @@ def test_repr_smoke(lin3g_rep, lin3g_rep_enum):
 # all four propagate to exact representations of the group (the twist preserves
 # the entire factor system), and the positivity convention picks between them by
 # a tie in Re broken by Im.  The tables close it, because the internal factor the
-# ansatz is built from is an SU(2) lift and SU(2) is pseudo-real.  Owner's ruling
-# (2026-08-25): "The ambiguity is fixed by the convention used to construct the
-# representations, and this is FIXED by the tables / BCS / Herring.  There should
-# be no refusal.  If we get a refusal, it means there is a bug in our application
-# of the convention.  It should ERROR."
+# ansatz is built from is an SU(2) lift and SU(2) is pseudo-real.  The ambiguity
+# is fixed by the convention the representations are constructed in, which the
+# tables fix: a refusal there would be a defect in applying the convention, so it
+# raises rather than refuses.
 
 
 @pytest.fixture(scope="module")
@@ -1444,9 +1443,9 @@ def test_the_positivity_tie_is_what_left_the_unitary_gauge_free(i41_soc_unitary)
 
 
 def test_the_table_anchor_errors_rather_than_refusing(monkeypatch):
-    """The owner's ruling in code: a gauge the tables fix cannot come back as a result.
+    """A gauge the tables fix cannot come back as a refusal: it raises.
 
-    The forcing is the one the ruling names — make the matrices the search
+    The forcing is the one that rule names — make the matrices the search
     builds disagree with the ``spinor_rotation`` the group ships — and it has to
     be a corruption **every gate is blind to**, or the gate catches it first and
     the anchor is never reached.  A global unitary conjugation
@@ -1486,7 +1485,7 @@ def test_the_table_anchor_errors_rather_than_refusing(monkeypatch):
     lifts do not: the gate reads 1.0 against 1e-09 and refuses
     ``rep_internal_factor``.  That is a Refusal and belongs to the model —
     matrices that commute with ``H`` but are not the matrices of *these*
-    operations — which is exactly the distinction the ruling draws.
+    operations — which is exactly the distinction the rule draws.
 
     The same statement at the level of the measurement, on the branch no public
     path reaches: a reference block proportional to ``S`` by a phase the
@@ -1532,7 +1531,7 @@ def test_the_table_anchor_errors_rather_than_refusing(monkeypatch):
         _build._build_rep(model, group, assignment, validated=validated, n_battery=5)
 
     message = str(excinfo.value)
-    assert not isinstance(excinfo.value, Refusal), "the ruling: it must ERROR"
+    assert not isinstance(excinfo.value, Refusal), "a gauge the tables fix raises"
     assert isinstance(excinfo.value, RuntimeError)
     assert f"operation #{gen}" in message
     assert "the tables fix this gauge completely" in message
@@ -1560,8 +1559,8 @@ def test_the_table_anchor_errors_rather_than_refusing(monkeypatch):
 # 10b.  the anchor against the DECLARATION protocol (2026-08-25)
 # ---------------------------------------------------------------------------
 #
-# Section 10 measures the anchor on the DEFAULT declaration.  The owner's
-# principle is larger than that: **the representation is fixed by the
+# Section 10 measures the anchor on the DEFAULT declaration.  The principle
+# is larger than that: **the representation is fixed by the
 # declaration of what the orbitals are**, the ``characters=`` machinery is where
 # that declaration is written, and everything else follows through Frobenius
 # (``lam (x) Ind(rho) = Ind(lam|_site (x) rho)``).  So the anchor is only right
@@ -1649,7 +1648,7 @@ def test_the_skipped_reference_block_is_a_branch_covariance_has_already_killed()
 
 # ---------------------------------------------------------------------------
 # 10c.  where the anchor's premise is FALSE: the model and the tables disagree
-#       about valuedness (two owner rulings, 2026-09-01)
+#       about valuedness
 # ---------------------------------------------------------------------------
 #
 # The anchor of section 10 above used to fire on both mismatches and blame
@@ -1668,9 +1667,9 @@ def test_the_skipped_reference_block_is_a_branch_covariance_has_already_killed()
 #   magnetic case and the only half that waits on the magnetic program.  What is
 #   missing either way is a double-valued *site* declaration.
 # * **spinful model, SINGLE-valued tables** -- not a deferred feature but an
-#   invalid ask.  The owner: "nspin==2 should always invoke spinor=True at this
-#   level (and at any level), theres no case where that can break."  Refused at
-#   `_group_of` and again here.
+#   invalid ask: a spinful model, ``nspin == 2``, always invokes the double
+#   group, at this level and at every other.  Refused at `_group_of` and again
+#   here.
 
 @pytest.fixture(scope="module")
 def spinless_asked_double_valued():
@@ -1693,7 +1692,7 @@ def spinless_asked_double_valued():
 @pytest.mark.slow
 def test_a_spinless_model_asked_with_double_valued_tables_refuses(
         spinless_asked_double_valued):
-    """The reproduction, and the ruling in code: a falsy ``Refusal``, never an error.
+    """The reproduction, in code: a falsy ``Refusal``, never an error.
 
     Before the gate this call reached ``_table_anchored`` and raised
     ``InternalError``.  The six phases that message listed for the six-fold
@@ -1745,10 +1744,10 @@ def test_a_spinless_model_asked_with_double_valued_tables_refuses(
 
 
 def test_a_spinful_model_cannot_be_asked_for_single_valued_tables():
-    """The owner's second ruling: ``nspin == 2`` invokes the double group, always.
+    """``nspin == 2`` invokes the double group, always.
 
-    *"nspin==2 should always invoke spinor=True at this level (and at any
-    level), theres no case where that can break."*  So this is an invalid ask,
+    A spinful model is asked for ``spinor=True`` at every level, and no case
+    breaks that.  So this is an invalid ask,
     not a deferred feature, and the constructor is where it dies -- both
     presentations of it, unitary and grey.
 

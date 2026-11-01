@@ -90,9 +90,9 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 # The converted stable-RSI tables, shipped in the repository and in the wheel
-# (scripts/convert_srsi_tables.py writes them from the paper's TeX supplement,
-# which is NOT shipped).  `pythtqc.srsi` refuses with `srsi_data` where an
-# installation lacks them, rather than failing at import.
+# (converted from the paper's TeX supplement, which is NOT shipped).
+# `pythtqc.srsi` refuses with `srsi_data` where an installation lacks them,
+# rather than failing at import.
 [tool.setuptools.package-data]
 pythtqc = ["data/*.json"]
 

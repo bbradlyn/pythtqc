@@ -330,7 +330,7 @@ def pxpy_centred(t_sp=0.4, e_s=0.5, t_ss=0.0, s_first=False):
 def test_a_flat_model_defaults_to_the_substrate_and_a_slab_to_free_standing():
     """``dim_r = 2`` → ``"substrate"``; ``dim_r = 3`` slab → ``"free-standing"``.
 
-    The owner's ruling made into the API: a ``dim_r = 2`` model has no
+    The default, made into the API: a ``dim_r = 2`` model has no
     out-of-plane coordinate and is silent about its environment, so the reading
     that is *always* well defined is the default — the substrate.  Measured,
     Kane–Mele then reads ``P6mm1' #183.186``, 24 of 24, where wave R4b's default
@@ -461,7 +461,7 @@ def test_a_free_standing_kane_mele_reads_its_whole_layer_group(km_inversion_free
 
 
 # ---------------------------------------------------------------------------
-# 3. the SRSI paper's P41' cell: the owner's case
+# 3. the SRSI paper's P41' cell
 # ---------------------------------------------------------------------------
 
 @pytest.mark.slow
@@ -1367,9 +1367,8 @@ def test_the_opposite_axis_transcription_reads_its_own_layer_group():
 def test_the_opposite_axis_transcription_on_a_substrate_is_the_axial_mm2():
     """``Pmm21' #25.58``, 8 of 8 — the four operations it has with its own lift.
 
-    The wave's second changed reading, and the owner's ruling made into a
-    measurement: *the library shouldn't be flipping spin axes in the first
-    place*.  Written for the opposite spin quantization axis, this Hamiltonian
+    The package does not turn a model's spin axis, made into a measurement.
+    Written for the opposite spin quantization axis, this Hamiltonian
     obeys ``S4``, ``S4⁻¹`` and the two in-plane twofolds where the converted one
     obeys ``C4``, ``C4⁻¹`` and the two diagonal mirrors — its free-standing group
     is ``P-4m21' #115.284``.  Every one of those four flips the layer's side, so

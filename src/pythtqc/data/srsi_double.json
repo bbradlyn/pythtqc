@@ -4,24 +4,6 @@
  "doi": "https://doi.org/10.1038/s41467-026-74844-w",
  "valuedness": "double",
  "converted": "2026-09-03",
- "converter": "scripts/convert_srsi_tables.py",
- "sources": [
-  {
-   "file": "rsi_tables_double.tex",
-   "sha256": "187be9caf63cd048cef46c7e7296981b73bab58d8d2cb8fc329ff44d9d355850",
-   "bytes": 281002
-  },
-  {
-   "file": "stableindex_tables_double.tex",
-   "sha256": "171261e7bbb75db80da835fc11acd2abfde96b53fc6f469a731eda8916b74c71",
-   "bytes": 30748
-  },
-  {
-   "file": "ebr_tables_double.tex",
-   "sha256": "a83b08e8e2357945d42e7d3cf6ae17d067f5a066270934884f4eccd5163123e9",
-   "bytes": 26804
-  }
- ],
  "irrep_version": "3.2.0",
  "irreptables_version": "3.1.0",
  "omitted_groups": [

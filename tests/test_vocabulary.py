@@ -1,9 +1,8 @@
 r"""Wave A5.5: the stable-RSI paper's vocabulary as canonical, ``irreptables``' as backend.
 
-The owner's ruling of 2026-09-03, verbatim: *"lets go with the papers vocabulary
-as canonical, with a backend conversion function to the irreptables conventions
-for when that is needed."*  This file is what says the package does that and
-that the doing is licensed by measurement rather than by preference.  Five
+The paper's vocabulary is canonical, with a conversion to the ``irreptables``
+conventions where that is needed.  This file is what says the package does that
+and that the doing is licensed by measurement rather than by preference.  Five
 statements, in the order the wave's spec puts them:
 
 1. **Coverage.**  The paper's symmetry-indicator rows cover *exactly* the grey
@@ -50,9 +49,7 @@ all twelve.
 """
 
 import collections
-import importlib.util
 import itertools
-import os
 import pathlib
 from dataclasses import replace
 from fractions import Fraction
@@ -71,26 +68,7 @@ from pythtqc import _spacegroup
 from pythtqc import _srsitables
 
 import tqc_models as tqm                                            # noqa: F401
-from conftest import FKM_BOND, OMITTED, fkm_regime, patch_everywhere
-
-
-def _converter():
-    """``scripts/convert_srsi_tables.py``, loaded **by path**.
-
-    Only for its ``grey_numbers()`` -- the grey (type-II) BNS number of every
-    space group, *measured* from ``irreptables``' own correpresentation tables
-    rather than typed, which is what the coverage statement needs for the
-    thirteen groups the SRSI tables omit (they have no shipped record to read a
-    ``number_str`` off).  Loaded by path for the same reason ``conftest.py``
-    loads ``tqc_models`` that way: independence from ``sys.path`` order.
-    """
-    path = os.path.normpath(os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", "scripts",
-        "convert_srsi_tables.py"))
-    spec = importlib.util.spec_from_file_location("convert_srsi_tables", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+from conftest import FKM_BOND, OMITTED, fkm_regime, grey_numbers, patch_everywhere
 
 
 # ---------------------------------------------------------------------------
@@ -277,7 +255,7 @@ def test_the_thirteen_omitted_space_groups_have_no_class_to_speak():
     :func:`pythtqc.srsi._canonical_reading` for a group whose table is absent is
     a guard that the shipped data cannot trip.
     """
-    grey = _converter().grey_numbers()
+    grey = grey_numbers()
     seen = 0
     for sg in OMITTED:
         for spinor in (False, True):
@@ -455,7 +433,7 @@ def test_the_two_vocabularies_agree_in_value_on_every_name_the_map_pairs(sweep):
 def test_the_name_correspondence_is_a_bijection_over_the_whole_table(sweep):
     """317 literal + 62 transliterated + 11 reordered = 390 = 390.
 
-    The tally the ruling rests on, measured per group and per name over the 170
+    The tally the vocabulary rests on, measured per group and per name over the 170
     systems: every one of the paper's 390 indicator rows pairs with exactly one
     of ``irreptables``' 390, and **nothing is left over on either side** -- no
     ``paper_only``, no ``irreptables_only``, and no pair whose moduli disagree.

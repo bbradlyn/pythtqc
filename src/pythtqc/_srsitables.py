@@ -419,8 +419,8 @@ class SRSITables:
         Every term on a site key that induces a composite band representation,
         with the index of its invariant, ``srsi``.
     provenance : dict
-        Where the tables come from: the paper's DOI, its source files and their
-        SHA-256, the map of its labels.
+        Where the tables come from: the paper and its DOI, the ``irrep`` and
+        ``irreptables`` versions they were converted against, the map of its labels.
     """
 
     sg: int
@@ -785,7 +785,7 @@ def srsi_status() -> dict[str, Any]:
     dict
         ``{"data", "single", "double", "dir", "doi", "reason"}``: ``data`` is
         ``True`` when both tables are in place, ``single`` and ``double`` are their
-        paths, and ``reason`` says what is missing and how to rebuild it.
+        paths, and ``reason`` says what is missing.
     """
     info: dict[str, Any] = {"data": False, "single": None, "double": None,
                             "dir": DATA_DIR, "doi": _DOI, "reason": None}
@@ -798,10 +798,9 @@ def srsi_status() -> dict[str, Any]:
             missing.append(os.path.basename(path))
     if missing:
         info["reason"] = (
-            f"the converted SRSI tables {missing} are not installed in {DATA_DIR}. "
-            "They are package data generated from the paper's TeX supplement, which is "
-            "not shipped: run scripts/convert_srsi_tables.py '<supple info folder>' "
-            "--out src/pythtqc/data")
+            f"the SRSI tables {missing} are not installed in {DATA_DIR}. They ship "
+            "with the package as its data, so this installation is missing them: "
+            "reinstall pythtqc")
     else:
         info["data"] = True
     return info
@@ -1004,8 +1003,8 @@ def srsi_tables(group_or_number, *, spinor=None) -> SRSITables | Refusal:
             f"the EBR list installed for #{group.number_str} is not the one the SRSI "
             f"conversion resolved against (#{table.number_str}, {len(table.ebrs)} "
             f"columns against {len(installed)}), so its stored column indices would "
-            "name the wrong EBRs. Re-run scripts/convert_srsi_tables.py against this "
-            "irreptables installation",
+            "name the wrong EBRs. The tables were converted against irreptables "
+            f"{table.provenance.get('irreptables_version')}: install that version",
             value=float(len(installed)), threshold=float(len(table.ebrs)),
             context={"number_str": str(group.number_str),
                      "converted_against": table.number_str,
@@ -1719,8 +1718,9 @@ def _maximal_basis(sg: int, spinor: bool) -> tuple:
             f"conversion resolved against ({len(installed)} columns against "
             f"{len(tables.ebrs)}), so the stored column indices name the wrong EBRs "
             "and the atomic realizations would be written in the wrong coordinates. "
-            "srsi_tables() refuses 'srsi_ebr_basis' for exactly this; re-run "
-            "scripts/convert_srsi_tables.py against this irreptables installation.")
+            "srsi_tables() refuses 'srsi_ebr_basis' for exactly this; the tables were "
+            "converted against irreptables "
+            f"{tables.provenance.get('irreptables_version')}: install that version.")
 
     by_column, composite = {}, []
     for key in tables.site_keys:

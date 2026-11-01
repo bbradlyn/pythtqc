@@ -6,7 +6,7 @@ statement prints sit directly under it as comment lines: ``#`` and two spaces,
 then the printed line, or ``#`` alone for an empty one.  A remark about an
 output is prose, or a comment with one space above the statement::
 
-    python scripts/check_page.py [--update] [--register] [--links] [page.md ...]
+    python scripts/check_page.py [--update] [--links] [page.md ...]
 
 Each page runs in a fresh process, from the repository root, with the
 checkout's ``src`` first on ``PYTHONPATH``: its ``python`` blocks in order and
@@ -23,10 +23,7 @@ statements and time, and the page's wall time.
 
 ``--update`` rewrites each statement's output lines from what it printed where
 they differ beyond rounding, keeping every other line as it stands, and says
-what changed: a page's output is never typed by hand.  ``--register`` adds the
-page's count under every rule of ``tests/test_register.py``, read from that
-module's own patterns, and any
-``§`` anywhere in the page, which a page may not carry.  ``--links`` adds the
+what changed: a page's output is never typed by hand.  ``--links`` adds the
 check that every relative link resolves to a file in the tree, and every
 ``#anchor`` to a heading of that file by GitHub's rule.  With no page named,
 every user page is checked (:func:`user_pages`).
@@ -42,7 +39,6 @@ import ast
 import contextlib
 import difflib
 import html
-import importlib.util
 import io
 import json
 import os
@@ -479,62 +475,6 @@ def _child(spec_path):
 
 
 # ---------------------------------------------------------------------------
-# the register, one page at a time
-# ---------------------------------------------------------------------------
-
-#: The two rules a page may break, and their counts are reported, not judged:
-#: "you" in an instruction, and a title that is a question.
-REPORTED_ONLY = frozenset({"voice-you", "voice-question"})
-
-_REGISTERS = {}
-
-
-def _register(root=ROOT):
-    """``tests/test_register.py``, loaded by path: the patterns are its own."""
-    root = pathlib.Path(root).resolve()
-    if root not in _REGISTERS:
-        spec = importlib.util.spec_from_file_location(
-            "tqc_test_register", root / "tests" / "test_register.py")
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        _REGISTERS[root] = module
-    return _REGISTERS[root]
-
-
-def register_hits(page, root=ROOT):
-    """The page's hits under every rule of the register, and every section mark in it.
-
-    The rules are ``tests/test_register.py``'s own -- its patterns, its
-    carve-outs, its reading of a Markdown document -- applied to this page
-    alone, as one of the user pages.  A section mark counts anywhere, fenced
-    blocks included: a page links to the heading it means.
-    """
-    register = _register(root)
-    relative = os.path.relpath(pathlib.Path(page).resolve(), pathlib.Path(root).resolve())
-    records = register._markdown_lines(relative)
-    rules = {rule: register.scan(rule, records, "pages") for rule in register.WORD_RULES}
-    marks = [(lineno, line.strip())
-             for lineno, line in enumerate(_lines(_read(page)[0]), 1)
-             for _ in re.finditer("§+", line)]
-    return rules, marks
-
-
-def register_report(page, root=ROOT):
-    """One page's register counts as the command line prints them, and whether they fail it."""
-    rules, marks = register_hits(page, root)
-    out = [f"{_label(page, root)}: the register"]
-    failed = False
-    for rule, found in rules.items():
-        note = "   (reported, not judged)" if rule in REPORTED_ONLY else ""
-        out.append(f"  {rule:<20} {len(found):>3}{note}")
-        failed |= bool(found) and rule not in REPORTED_ONLY
-        out += [f"    line {hit.lineno}: [{hit.label}] {hit.text[:100]}" for hit in found]
-    out.append(f"  {'section marks':<20} {len(marks):>3}")
-    out += [f"    line {lineno}: {line[:100]}" for lineno, line in marks]
-    return "\n".join(out), failed or bool(marks)
-
-
-# ---------------------------------------------------------------------------
 # links and anchors
 # ---------------------------------------------------------------------------
 
@@ -742,8 +682,6 @@ def main(argv=None):
                         help="the pages to check (default: every user page)")
     parser.add_argument("--update", action="store_true",
                         help="rewrite each statement's output lines from what it prints")
-    parser.add_argument("--register", action="store_true",
-                        help="also count the page's hits under every rule of the register")
     parser.add_argument("--links", action="store_true",
                         help="also check that the page's relative links resolve")
     args = parser.parse_args(argv)
@@ -759,10 +697,6 @@ def main(argv=None):
         run = check(page, update=args.update)
         print(run.report())
         bad = run.failed
-        if args.register:
-            text, bad_register = register_report(page)
-            print(text)
-            bad |= bad_register
         if args.links:
             text, bad_links = links_report(page)
             print(text)

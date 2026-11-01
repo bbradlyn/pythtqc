@@ -37,7 +37,7 @@ page's printed lines; they are never typed by hand. The function reference,
 
 The text a reader meets, the docstrings and comments, the pages and the
 examples, is written for a physicist: physics words, the present tense, what a
-call does and what it returns. `tests/test_register.py` checks it.
+call does and what it returns.
 
 ## Conventions the code keeps
 

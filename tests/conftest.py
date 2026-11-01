@@ -371,6 +371,51 @@ def lin3g_declared_cross_checked():
 OMITTED = (1, 4, 7, 9, 19, 29, 33, 76, 78, 144, 145, 169, 170)
 
 
+def grey_numbers():
+    """``{sg: "<sg>.<bns>"}``, the grey (type-II) entry of every space group, measured.
+
+    Read off ``irreptables``' own correpresentation tables rather than typed: a
+    group is grey exactly when its antiunitary coset holds time reversal itself,
+    ``{1|0}·T`` up to a lattice vector, the test
+    :func:`pythtqc._spacegroup._magnetic_type` applies to a measured operation
+    list.  Each ``irreps-SG=<n>.<m>-scal.dat`` header lists the operations as
+    ``R(9) t(3) antiunitary(±1)``, which is all the test needs, and every space
+    group has exactly one such entry.
+    """
+    import re
+    from fractions import Fraction
+
+    import irreptables
+
+    root = os.path.join(os.path.dirname(irreptables.__file__), "data", "correptables")
+    identity = [1, 0, 0, 0, 1, 0, 0, 0, 1]
+    entries = {}
+    for name in os.listdir(root):
+        match = re.match(r"^irreps-SG=(\d+)\.(\d+)-scal\.dat$", name)
+        if match:
+            entries.setdefault(int(match.group(1)), []).append(int(match.group(2)))
+    out = {}
+    for sg, bns_numbers in entries.items():
+        hits = []
+        for bns in sorted(bns_numbers):
+            with open(os.path.join(root, f"irreps-SG={sg}.{bns}-scal.dat"),
+                      errors="replace") as handle:
+                lines = handle.read().splitlines()
+            start = next(i for i, line in enumerate(lines)
+                         if line.strip().startswith("symmetries=")) + 1
+            for line in lines[start:]:
+                tokens = line.split()
+                if len(tokens) != 13:
+                    break
+                if (int(tokens[12]) == -1 and [int(t) for t in tokens[:9]] == identity
+                        and all(Fraction(t).denominator == 1 for t in tokens[9:12])):
+                    hits.append(bns)
+                    break
+        assert len(hits) == 1, f"space group {sg}: grey (type-II) entries {hits}"
+        out[sg] = f"{sg}.{hits[0]}"
+    return out
+
+
 @pytest.fixture(scope="session")
 def every_table():
     """``[(SRSITables, ebr_data), ...]`` for every tabulated system, both valuednesses.

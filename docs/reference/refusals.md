@@ -559,8 +559,7 @@ Returned by the same calls as [`srsi_scope`](#srsi_scope).
   the package ships, are not where it reads them.
 - **Usual cause.** An installation whose package data is missing a file.
 - **What to do.** `pythtqc.srsi.srsi_status()` says which file is missing and where it
-  belongs. Reinstall the package, or convert the tables again from the paper's
-  supplementary material with `scripts/convert_srsi_tables.py`, as the reason says.
+  belongs. Reinstall the package, as the reason says.
 
 #### `srsi_ebr_basis`
 
@@ -570,7 +569,8 @@ Returned by the same calls as `srsi_data`.
   representations differently from the list the converted tables were resolved against, so
   their stored columns would name the wrong ones.
 - **Usual cause.** An `irreptables` installed after the tables were converted.
-- **What to do.** Convert the tables again against the installed `irreptables`.
+- **What to do.** Install the `irreptables` the tables were converted against, the
+  version the reason names.
 
 #### `irreptables_indicator_tables`
 

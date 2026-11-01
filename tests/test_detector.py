@@ -654,7 +654,7 @@ def test_one_solve_per_k_action_class_and_the_record_names_it(monkeypatch):
 
     That the sharing is *sound* is a separate claim and cannot be read off the
     bookkeeping, which writes ``solved_on`` from the same class map the
-    partition is rebuilt from.  So each class's non-owner member is solved again
+    partition is rebuilt from.  So each class's other member is solved again
     here, directly and outside ``_validate_group``, and must return the verdict
     the class was given: 24 independent solves, same ``dim`` (1 throughout on
     this model) and residuals agreeing to machine level.
@@ -681,22 +681,23 @@ def test_one_solve_per_k_action_class_and_the_record_names_it(monkeypatch):
     by_ind = {int(s.ind): s for s in group.symmetries}
     n_independent = 0
     for members in validated.k_action_classes:
-        owner = validated._records[members[0]]["solved_on"]
-        assert all(validated._records[i]["solved_on"] == owner for i in members)
+        solved_on = validated._records[members[0]]["solved_on"]
+        assert all(validated._records[i]["solved_on"] == solved_on for i in members)
         for i in members:
-            if i == owner:
+            if i == solved_on:
                 continue
             sym = by_ind[i]
             space = _detector._find_intertwiners(layer, group.k_action_of(sym), k,
                                          antiunitary=bool(sym.time_reversal), tol=1e-8)
             n_independent += 1
-            assert space.dim == validated._records[owner]["dim"], (
+            assert space.dim == validated._records[solved_on]["dim"], (
                 f"operation {i} solved on its own reads dim {space.dim}, but was "
-                f"given class owner {owner}'s dim {validated._records[owner]['dim']}")
+                f"given the dim of operation {solved_on}, its class's solve: "
+                f"{validated._records[solved_on]['dim']}")
             assert abs(float(np.min(space.residuals))
-                       - validated._records[owner]["residual"]) <= floor, \
+                       - validated._records[solved_on]["residual"]) <= floor, \
                 f"operation {i}'s own residual against the one it was handed"
-    assert n_independent == 24, "one non-owner solved independently per class"
+    assert n_independent == 24, "one other member solved independently per class"
 
 
 # ---------------------------------------------------------------------------

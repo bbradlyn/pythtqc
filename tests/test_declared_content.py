@@ -238,7 +238,7 @@ def _matrix_of(rec, name, k=(0.0, 0.0)):
 
 
 # ---------------------------------------------------------------------------
-# 1.  Kane-Mele: the owner's two calls (A2 on both sublattices is in section 8)
+# 1.  Kane-Mele: the two calls (A2 on both sublattices is in section 8)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.slow

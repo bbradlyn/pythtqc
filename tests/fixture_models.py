@@ -1790,7 +1790,7 @@ P62 = FixtureMeta(
         "two-fold rotations times T; the unitary little group is {E, 3+, 3-}, "
         "and A = (0,0,1/2) moves with it.  The physical gluing there is not "
         "BCS's, but the corep it produces is character-identical to one BCS "
-        "ships, so since the 2026-08-24 naming directive the served list is "
+        "ships, so under the naming rule the served list is "
         "BCS's own: {-H4 (dim 1, (1,-1,1)), -H5H6 (dim 2, (2,1,-1))}, served "
         "as whole-character conjugates with the labels exchanged with the "
         "rows.  H and A are therefore in `conjugated_points` and in neither "
@@ -1998,8 +1998,8 @@ P41_FLAT = FixtureMeta(
 # spinful s orbitals OFF the mirror planes of a centrosymmetric 3D group
 # ---------------------------------------------------------------------------
 #
-# The lift-then-subduce question in the place it matters most (owner,
-# 2026-09-10): a space group with inversion and mirrors, and orbitals placed
+# The lift-then-subduce question in the place it matters most: a space group
+# with inversion and mirrors, and orbitals placed
 # where no mirror passes -- so the mirror and the inversion are TRANSPORT
 # operations of the induced representation, not site operations, and the
 # orbital type cannot declare their sign.  Whether a spinful ``s`` orbital is

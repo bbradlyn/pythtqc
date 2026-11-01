@@ -1,7 +1,7 @@
 r"""Wave S1: the stable-RSI tables as verified package data.
 
-The conversion (``scripts/convert_srsi_tables.py``) turns the TeX longtables of
-the owner's stable-RSI paper (https://doi.org/10.1038/s41467-026-74844-w) into
+The TeX longtables of the stable-RSI paper
+(https://doi.org/10.1038/s41467-026-74844-w) are converted into
 ``src/pythtqc/data/srsi_{single,double}.json``; this file is what says the
 result is the paper's tables and not something else.  Six statements, in the
 order the spec puts them:
@@ -66,7 +66,6 @@ indicator reaches them; that is said where it is measured and not glossed over.
 import collections
 import json
 import os
-import re
 from fractions import Fraction
 
 import numpy as np
@@ -249,11 +248,11 @@ def test_the_measured_counts_of_the_shipped_tables(
     assert tuple(provenance["omitted_groups"]) == OMITTED
 
 
-def test_the_provenance_names_the_paper_and_the_bytes_it_was_built_from():
-    """A table you cannot trace to a file and a digest is a table you cannot audit.
+def test_the_provenance_names_the_paper_and_the_versions_it_was_converted_against():
+    """A table names the paper it was converted from and the versions it was read against.
 
-    Nor one whose file is not there: both documents are installed, each carrying
-    its provenance block and the 217 groups.
+    Both documents are installed, each carrying its provenance block and the 217
+    groups; the provenance names no script and no source file.
     """
     status = tqr.srsi_status()
     assert status["data"] and status["reason"] is None
@@ -267,13 +266,9 @@ def test_the_provenance_names_the_paper_and_the_bytes_it_was_built_from():
         table = tqr.srsi_tables(2, spinor=spinor)
         provenance = table.provenance
         assert provenance["doi"] == "https://doi.org/10.1038/s41467-026-74844-w"
-        assert provenance["converter"] == "scripts/convert_srsi_tables.py"
-        assert len(provenance["sources"]) == 3
-        for source in provenance["sources"]:
-            assert source["file"].endswith(".tex")
-            assert re.fullmatch("[0-9a-f]{64}", source["sha256"]), source
-            assert source["bytes"] > 0
-        assert provenance["irreptables_version"]
+        assert not {"converter", "sources"} & set(provenance)
+        assert provenance["irrep_version"]
+        assert provenance["irreptables_version"]       # the one srsi_ebr_basis names
         # the label map is the mechanical TeX -> irreptables spelling, and it is
         # a function: 58 distinct spellings without SOC, 36 with
         assert len(provenance["label_map"]) == (36 if spinor else 58)
@@ -772,7 +767,7 @@ def test_srsi_tables_refuses_a_stale_ebr_basis_and_names_both_lists(
     out = tqr.srsi_tables(group)
     assert not out and out.gate == "srsi_ebr_basis", str(out)
     assert "name the wrong EBRs" in out.reason
-    assert "convert_srsi_tables.py" in out.reason
+    assert f"irreptables {out.context['irreptables_version']}" in out.reason
     installed = _ebr_keys(tqg.ebr_data(group))
     assert tuple(out.context["installed"]) == installed
     assert tuple(out.context["expected"]) == tuple(reversed(installed))
@@ -947,9 +942,7 @@ def test_the_frozen_api_and_the_names_kept_off_the_top_level():
     ``pythtqc.srsi`` object itself, and the module's other public names are
     reached through ``pythtqc.srsi``.  The names the freeze retired --
     ``srsi_table``, folded into ``srsi_tables``, and the four arithmetic methods
-    that are now ``theta`` / ``theta_unreduced`` -- are kept off every surface
-    by the style test's list of names the package does not use
-    (``tests/test_register.py``).
+    that are now ``theta`` / ``theta_unreduced`` -- are not among them.
     """
     import pythtqc as tqc
 

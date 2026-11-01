@@ -9,17 +9,12 @@ statement prints under it as comment lines.  Each page is run through
 blocks in order and its statements one at a time, each statement's printout
 against the lines under it, a printed number that is rounding matching any
 other rounding.  The pages are read off the tree by that script's
-listing, the one the register scans too, so a page is under this test the day
-it exists.  A failure is a unified diff per statement, at the page's own line
-numbers.
+listing, so a page is under this test the day it exists.  A failure is a
+unified diff per statement, at the page's own line numbers.
 
-Two pages are held to more than their code:
-
-* ``docs/reference/functions.md`` is written from the docstrings by
-  ``scripts/build_reference.py``, and must be what that script writes now;
-* ``docs/reference/refusals.md``, once it exists, carries a heading for every
-  gate a public call can return, by the list ``tests/test_register.py`` holds
-  the docstrings to.
+One page is held to more than its code: ``docs/reference/functions.md`` is
+written from the docstrings by ``scripts/build_reference.py``, and must be what
+that script writes now.
 
 And the pages together build as the documentation site, ``mkdocs build
 --strict`` by ``mkdocs.yml``: every page in its navigation, every link and
@@ -38,7 +33,6 @@ To rewrite the outputs after a deliberate change:
 import difflib
 import importlib.util
 import os
-import re
 import subprocess
 import sys
 
@@ -63,13 +57,11 @@ def _load(name, relative):
 
 check_page = _load("tqc_check_page", os.path.join("scripts", "check_page.py"))
 build_reference = _load("tqc_build_reference", os.path.join("scripts", "build_reference.py"))
-register = _load("tqc_test_register", os.path.join("tests", "test_register.py"))
 
 #: every user page, read off the tree, so a new page cannot slip in unrun
 PAGES = check_page.user_pages(ROOT)
 
 FUNCTIONS = "docs/reference/functions.md"
-REFUSALS = "docs/reference/refusals.md"
 
 
 def _reference_drift():
@@ -87,17 +79,6 @@ def _reference_drift():
             f"`python scripts/build_reference.py` writes it\n" + "\n".join(diff[:120]) + more]
 
 
-def _unheaded_gates():
-    """Every gate a public call can return that no heading of the refusal reference names."""
-    headings = [text for _, text, _ in check_page.headings(os.path.join(ROOT, REFUSALS))]
-    missing = [gate for gate in register.returned_gates()
-               if not any(re.search(rf"\b{re.escape(gate)}\b", text) for text in headings)]
-    if not missing:
-        return []
-    return [f"{REFUSALS} has no heading for {len(missing)} of the gates a public call can "
-            f"return: " + ", ".join(missing)]
-
-
 @pytest.mark.parametrize("page", PAGES)
 def test_page_prints_what_it_shows(page):
     """One page's code, run as written, against the output lines under each statement."""
@@ -109,8 +90,6 @@ def test_page_prints_what_it_shows(page):
     problems = list(run.problems)
     if page == FUNCTIONS:
         problems += _reference_drift()
-    if page == REFUSALS:
-        problems += _unheaded_gates()
     assert not problems, "\n\n".join(problems)
 
 

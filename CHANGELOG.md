@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- The script that converts the stable real-space invariants' tables from the paper's TeX
+  supplement, and a benchmark of declared content, leave the repository. The shipped tables
+  are unchanged but for their provenance, which names the paper and the versions they were
+  converted against and no script or source file. `srsi_data` says to reinstall the package,
+  and `srsi_ebr_basis` names the `irreptables` version the tables were converted against.
 - An eleventh example, `tqc_srsi_sg212_photonic.py`: the space group 212 tight-binding model
   of Hwang et al., arXiv:2601.06293, whose eight bands stand for a photonic crystal's four
   lowest bands and four auxiliary bands. It prints the coreps of the eight bands, the

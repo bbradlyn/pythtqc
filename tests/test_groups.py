@@ -3044,9 +3044,9 @@ def test_the_served_table_is_a_physical_representation_for_every_group(shipped_t
     at the k-points where no tabulated pairing exists; that half is asserted in
     :func:`test_whole_character_conjugation_is_load_bearing_where_it_is_applied`.
 
-    The conjugated census went 173 → 176 with the re-gluing (2026-08-21) and
-    then to **685** with the "name follows the character" directive
-    (2026-08-24), which serves the whole-character conjugate wherever that is
+    The conjugated census went 173 → 176 with the re-gluing and then to
+    **685** with the "name follows the character" rule, which serves the
+    whole-character conjugate wherever that is
     what puts the BCS name on the BCS row -- i.e. at every k-point where
     multiplying the tabulated rows by ``φ`` permutes them.  Being in this census
     says nothing about the *rows* checked here -- the served character set is
@@ -3056,7 +3056,7 @@ def test_the_served_table_is_a_physical_representation_for_every_group(shipped_t
     * ``no_pairing`` (**174** entries, 28 space-group families): the tabulated
       ``Γ`` rule cannot produce the physical character set at all, so the
       conjugation is load-bearing for the rows and not only for the names.
-      This is the census the pre-directive ``conjugated`` count was measuring
+      This is the census the ``conjugated`` count measures without that rule
       (176 = these 174 plus the spinful ``L`` of ``178.156``/``179.162``, where
       the grey table's own character matching disagreed with the parent's
       relabelling and the parent had to win);
@@ -3147,14 +3147,14 @@ def test_the_served_table_is_a_physical_representation_for_every_group(shipped_t
     assert _tables._divergent_kpoints("227", True, False) == frozenset({"W"})
     assert _tables._divergent_kpoints("80.29", True, True) == frozenset()
 
-    #  the owner's suspected equivalence, measured (2026-08-24): "exchange ⟺ all
+    #  the suspected equivalence, measured: "exchange ⟺ all
     #  characters real" vs "irreducible ⟺ some character complex".  One
     #  direction is exact -- an all-real character set is closed under
     #  conjugation by inspection, so it is NEVER divergent -- and the converse
     #  is false: 1137 k-points have a complex character and are still a
     #  permutation of BCS's rows (the complex rows pair up with each other).
     #  Restricted to the class the conjecture was formed on -- the 31 k-point
-    #  entries the pre-directive re-gluing census listed -- it *is* exact: the
+    #  entries the re-gluing census alone listed -- it *is* exact: the
     #  28 with all-real corep characters all became exchanges, and the 3 with a
     #  complex one (80.30/109.240/110.246 ``P``) are all still irreducible.  The
     #  live half of that is the pair of assertions "every re-glued point is
@@ -3169,7 +3169,7 @@ def test_the_served_table_is_a_physical_representation_for_every_group(shipped_t
 def test_whole_character_conjugation_is_load_bearing_where_it_is_applied():
     """Where the tabulated ``Γ`` has no pairing, it names something unphysical.
 
-    Since the "name follows the character" directive (2026-08-24) the
+    With the "name follows the character" rule the
     conjugation branch is taken at 685 k-points, but at most of them it is
     load-bearing only for the *labels*: the two rules give the same rows there
     and differ in which name is on which, which is
@@ -3355,7 +3355,7 @@ def test_the_two_transport_rules_agree_as_sets_wherever_the_tabulated_one_stands
     set at that k-point for the row printing ``conj(χ_D)`` at the tables' own
     five-decimal precision, with no library matcher consulted (nearest
     non-partner shipped row measured **1.73** away, so the search is not close
-    to ambiguous).  That is the "name follows the character" directive itself,
+    to ambiguous).  That is the "name follows the character" rule itself,
     and it is what pins the *order* of the two naming branches: swap them and
     the nine k-points of ``199``/``208`` where the two matchings exist and
     disagree stop conjugating, land in this loop, and fail here.  At **23** of
@@ -3672,8 +3672,8 @@ def test_the_transport_record_publishes_where_the_characters_were_conjugated():
     """``ebr_data(...)["convention"]`` is the public census, in two fields.
 
     A reader cross-checking a character against Bilbao needs two different
-    things, and since the "name follows the character" directive (2026-08-24)
-    they are no longer the same set:
+    things, and with the "name follows the character" rule they are not the
+    same set:
 
     * ``conjugated_points`` -- where the served row is the whole-character
       conjugate.  The *name* served with it is the BCS name of the row that
@@ -3690,7 +3690,7 @@ def test_the_transport_record_publishes_where_the_characters_were_conjugated():
       is not BCS's), while ``91``'s ``A``/``Z`` are conjugated without being
       divergent (the rows are BCS's, only exchanged).
 
-    ``143`` stays empty in both -- the anchor that says the directive did not
+    ``143`` stays empty in both -- the anchor that says the rule does not
     disturb the k-points where the tabulated table is already the physical one,
     and where the convention shows up only in the EBR pairing (``K2``/``K3``).
     """
@@ -3723,9 +3723,9 @@ def test_the_transport_record_publishes_where_the_characters_were_conjugated():
 @pytest.mark.data
 def test_the_served_table_is_BCS_printed_table_wherever_a_bijection_exists(shipped_tables,
                                                                            shipped_naming):
-    r"""The directive, swept: same names against the same numbers as the book.
+    r"""The naming rule, swept: same names against the same numbers as the book.
 
-    Owner's directive of 2026-08-24: the served names follow the served
+    The served names follow the served
     *characters*, so that wherever the transport exchanged rows the labels are
     exchanged with them.  The consequence asserted here, over all 460 unitary
     and all 460 grey instances: at every tabulated k-point whose shipped
@@ -3734,11 +3734,11 @@ def test_the_served_table_is_BCS_printed_table_wherever_a_bijection_exists(shipp
     5403 of the 5462 entries, 16 361 rows; the other 59 are the ``divergent``
     ones, where no such bijection exists at all (:func:`test_at_a_divergent_point_the_served_table_conjugates_onto_the_shipped_one`).
 
-    ``171.122``'s spinful ``H`` is the anchor, and it is the case the directive
-    was written for.  Before it the served coreps there were named by the
-    re-gluing lift, ``{-H6 (1,−1,+1), -H4H5 (2,+1,−1)}`` -- character-identical
+    ``171.122``'s spinful ``H`` is the anchor, and it is the case the naming
+    rule is for.  Named by the re-gluing lift alone, the served coreps there are
+    ``{-H6 (1,−1,+1), -H4H5 (2,+1,−1)}`` -- character-identical
     to BCS's ``{-H4, -H5H6}`` but with the names exchanged, so the served page
-    said "``-H6`` stands alone, ``-H4H5`` is glued" where BCS's book says the
+    would say "``-H6`` stands alone, ``-H4H5`` is glued" where BCS's book says the
     opposite.  With the names following the characters the served page *is*
     BCS's page, and the whole convention divergence at that k-point is which of
     those two rows a physical band matches.  The rename is forced up into the
@@ -3828,8 +3828,8 @@ def test_at_a_divergent_point_the_served_table_conjugates_onto_the_shipped_one(
     conventions are not disagreeing about a doubling; two *star members* are
     being described.
 
-    ``80.30``'s spinful ``P`` is the anchor and nothing about it moved with the
-    2026-08-24 naming directive, which is the point of asserting it here:
+    ``80.30``'s spinful ``P`` is the anchor and nothing about it depends on the
+    naming rule, which is the point of asserting it here:
 
     * the unitary rows are BCS's under BCS's names in both conventions,
       ``-P3 = (1, −i)`` and ``-P4 = (1, +i)``;
@@ -3963,7 +3963,7 @@ def test_at_a_divergent_point_the_served_table_conjugates_onto_the_shipped_one(
         ("88.82", False, "P"), ("88.82", True, "P"),
         ("98.158", True, "P"),
     ], sorted(reglued)
-    #  ... and its anchors, spelled out: they did not move with the directive
+    #  ... and its anchors, spelled out: the naming rule does not move them
     for (number_str, kp), want in {
             ("80.30", "P"): (("-P3P3", "-P4"), ("-P4P4", "-P3")),
             ("210.53", "W"): (("-W2W4", "-W3", "-W5"), ("-W3W5", "-W4", "-W2"))}.items():
@@ -4375,7 +4375,8 @@ def test_the_spinor_branch_is_the_same_in_every_fresh_process(capsys):
     ``-K5`` the other way round on roughly a third of runs (measured 7/10 vs
     3/10 over fresh fits of ``#183.186``); the rows were bit-stable throughout,
     which is why names and rows are compared together.  The rows themselves are
-    the owner's datum, which the served-page test below pins in process.
+    the datum read off the Bilbao Crystallographic Server, which the served-page
+    test below pins in process.
 
     What is **not** pinned is the sign vector's own entries.  A sign
     is the relation between the tables' lift and ``irrep``'s, and ``irrep`` builds
@@ -4417,10 +4418,10 @@ def test_the_spinor_branch_is_the_same_in_every_fresh_process(capsys):
 
 
 def test_the_served_page_at_K_of_183_is_bcs_element_by_element():
-    r"""The owner's Bilbao cross-check, as a standing regression (2026-08-25).
+    r"""The cross-check against the Bilbao Crystallographic Server, as a standing regression.
 
-    **The datum** (owner, verified against BCS's *Double space group
-    representations* for ``P6mm1'`` on 2026-08-25): at ``K`` the double-valued
+    **The datum** (verified against BCS's *Double space group
+    representations* for ``P6mm1'``): at ``K`` the double-valued
     ``−K4`` carries ``−i`` on **all three** mirrors and ``−K5`` carries ``+i`` on
     all three; ``−K6`` is two-dimensional with ``0`` on all three.
 
@@ -4429,7 +4430,7 @@ def test_the_served_page_at_K_of_183_is_bcs_element_by_element():
     therefore a page BCS never printed.  Nothing was wrong with the naming (the
     character-anchored naming sweep compares BCS characters evaluated on our
     representatives, so the bars sit on both sides and cancel) and nothing was
-    wrong with the frame constant either: the owner's datum is what *confirms*
+    wrong with the frame constant either: the datum is what *confirms*
     ``_TABLE_SPIN_FRAMES``' hexagonal offset, since the other frame would have
     exchanged the two names.  What was wrong was that ``irrep``'s per-operation
     lift for the third mirror stored the ``Ē·m`` partner of the ``C3``-consistent
@@ -4437,7 +4438,7 @@ def test_the_served_page_at_K_of_183_is_bcs_element_by_element():
     ``S(C3⁺)S(m₁₂)S(C3⁺)⁻¹ = −S(m₁₀)`` -- and the old convention put that bar on
     the *character*.
 
-    So this asserts the numbers twice over: against the owner's datum spelled
+    So this asserts the numbers twice over: against the datum spelled
     out, and against ``irreptables``' shipped row entry by entry.
     """
     # `tables_status()` first, always: `irreptables.irreps` imports `irrep.utility`,
@@ -4469,7 +4470,7 @@ def test_the_served_page_at_K_of_183_is_bcs_element_by_element():
         assert row[1] == pytest.approx(2.0 if label == "-K6" else 1.0, abs=1e-6)
         for i in rot:
             assert row[i] == pytest.approx(three, abs=1e-6), (label, i, row[i])
-        for i in mirrors:                       # the owner's headline: UNIFORM
+        for i in mirrors:                       # the datum's headline: UNIFORM
             assert row[i] == pytest.approx(mirror, abs=1e-6), (label, i, row[i])
 
     # ... and the same numbers read straight out of the shipped file.  The
@@ -4501,7 +4502,7 @@ def test_the_served_page_at_K_of_183_is_bcs_element_by_element():
     # asserted: on this machine the barred one inside this little group is
     # operation 10, with 216 of the 576 composable pairs then carrying a twisted
     # factor system.  The frame those signs were read in is not arbitrary, and it
-    # is the thing the owner's datum confirms.
+    # is the thing the datum confirms.
     assert g._spin_frame["frame"] == "hexagonal"      # confirmed, not merely assumed
 
 
@@ -4573,7 +4574,7 @@ def _star_transport(group, k3):
 ])
 def test_transporting_a_little_group_table_to_the_other_star_member_needs_the_bars(
         build, point, kind):
-    r"""The star-member trap, as a standing guard (owner, 2026-08-25).
+    r"""The star-member trap, as a standing guard.
 
     ``k`` and ``−k`` are related by a two-fold ``c`` about the principal axis,
     and *as rotations* every element of the little group is fixed by conjugation
