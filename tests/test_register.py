@@ -1,7 +1,7 @@
 """The register of the text this package puts in front of a reader, as a static scan.
 
 Four classes of text carry the package's words to the physicist using it: the
-docstrings and the comments of ``src/pythtqc``, the ten worked examples with
+docstrings and the comments of ``src/pythtqc``, the eleven worked examples with
 their comments and every string they could print, and the user pages -- ``README.md``
 and the pages of ``docs/``, the map ``docs/README.md`` among them.  The pages
 are a listing, not one path: the one ``scripts/check_page.py`` runs them

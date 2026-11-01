@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- An eleventh example, `tqc_srsi_sg212_photonic.py`: the space group 212 tight-binding model
+  of Hwang et al., arXiv:2601.06293, whose eight bands stand for a photonic crystal's four
+  lowest bands and four auxiliary bands. It prints the coreps of the eight bands, the
+  auxiliary bands' symmetry data vector, and the stable real-space invariants of the
+  physical bands.
 - `characters=` takes generator matrices, a mapping from operations of a site group to the
   matrices they act with on the orbitals of a key,
   `{(0, 1): {"C4(z)": [[0, -1], [1, 0]], "m(x)": [[-1, 0], [0, 1]]}}`. The representation

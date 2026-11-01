@@ -1,0 +1,57 @@
+Hwang et al., arXiv:2601.06293: the space group 212 model of a photonic crystal's bands.
+Bands are counted from 0, as pythtb counts them.
+
+1. the symmetry group of the Hamiltonian
+P4_3321' #212.60   (.group)
+  its operations, by index and Seitz symbol   (.operations)
+  the orbitals, by Wyckoff position   (.rep.characters)
+    4a (32): orbitals 0-7, E
+  H symmetrized by 3e-14   (.positions, .symmetrization)
+
+2. the coreps of all 8 bands at the high-symmetry points
+bands 0-7 at GM (Γ): GM3 + GM4 + GM5   (.table.bands, .kpname, .counts)
+  by degenerate multiplet, from the lowest   (.labels)
+    bands 0-2 at -6.4: GM5, class 0
+    bands 3-5 at -1.388e-15: GM4, class 1
+    bands 6-7 at 4.8: GM3, class 2
+  multiplets of one class carry the same characters, under any labelling of the orbitals   (.partition)
+bands 0-7 at M: M1M4 + M2M3 + 2×M5   (.table.bands, .kpname, .counts)
+  by degenerate multiplet, from the lowest   (.labels)
+    bands 0-1 at -7.654: M5, class 0
+    bands 2-3 at -0.8: M1M4, class 1
+    bands 4-5 at 1.254: M5, class 0
+    bands 6-7 at 2.4: M2M3, class 2
+  multiplets of one class carry the same characters, under any labelling of the orbitals   (.partition)
+bands 0-7 at R: R1R2 + R3   (.table.bands, .kpname, .counts)
+  by degenerate multiplet, from the lowest   (.labels)
+    bands 0-3 at -4.8: R3, class 0
+    bands 4-7 at 2.4: R1R2, class 1
+  multiplets of one class carry the same characters, under any labelling of the orbitals   (.partition)
+bands 0-7 at X: 2×X1 + 2×X2   (.table.bands, .kpname, .counts)
+  by degenerate multiplet, from the lowest   (.labels)
+    bands 0-1 at -7.261: X1, class 0
+    bands 2-3 at -2.9: X2, class 1
+    bands 4-5 at 2.599: X1, class 0
+    bands 6-7 at 2.762: X2, class 1
+  multiplets of one class carry the same characters, under any labelling of the orbitals   (.partition)
+
+3. the symmetry data vector of all 8 bands, and of the elementary band representation of E at 4a
+all 8 bands:        GM3 + GM4 + GM5 + M1M4 + M2M3 + 2×M5 + R1R2 + R3 + 2×X1 + 2×X2
+E↑G(8)@4a(321',32): GM3 + GM4 + GM5 + M1M4 + M2M3 + 2×M5 + R1R2 + R3 + 2×X1 + 2×X2
+
+4. the auxiliary bands: the elementary band representation induced from A1 at either 4a or 4b
+A1↑G(4)@4a(321',32): GM1 + GM5 + M1M4 + M5 + R3 + X1 + X2
+A1↑G(4)@4b(321',32): GM1 + GM5 + M1M4 + M5 + R3 + X1 + X2
+
+5. the stable real-space invariants
+P4_3321' #212.60, single-valued: stable real-space invariants, Z x Z x Z x Z2   (.structure)
+  the whole model: Z-valued (0, 0, 1), mod 2 (1)   (.theta_Z, .theta_Zn)
+  each site orbit, its content written m (irrep)_w, and its SRSIs   (.orbits)
+    orbitals 0-7 at 4a, 1 (E)_a: Z-valued (0, 0, 1), mod 2 (1)
+1 (E)_a:  ((Fraction(0, 1), Fraction(0, 1), Fraction(1, 1)), {2: (1,)})
+1 (A1)_a: ((Fraction(1, 1), Fraction(0, 1), Fraction(0, 1)), {2: (1,)})
+1 (A1)_b: ((Fraction(1, 1), Fraction(0, 1), Fraction(0, 1)), {2: (0,)})
+1 (E)_a - 1 (A1)_a: ((Fraction(-1, 1), Fraction(0, 1), Fraction(1, 1)), {2: (0,)})
+1 (E)_a - 1 (A1)_b: ((Fraction(-1, 1), Fraction(0, 1), Fraction(1, 1)), {2: (1,)})
+
+Done — figure written to <FIGDIR>

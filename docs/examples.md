@@ -1,6 +1,6 @@
 # The examples
 
-The ten scripts in [`examples/`](../examples) each take one piece of physics
+The eleven scripts in [`examples/`](../examples) each take one piece of physics
 end to end: they measure it, print what they measured, and draw one figure.
 This page lists them by the physics each shows, with the chapter it
 illustrates, what it prints, and how long it takes. Every quantity a script
@@ -18,8 +18,9 @@ reports is measured in the run; only a model's parameters are typed into it.
 | [`tqc_srsi_fkm_two_routes.py`](../examples/tqc_srsi_fkm_two_routes.py) | a band set's invariants from its bands and from its orbitals | [SRSIs](guide/srsi.md), [indicators](guide/indicators.md) | 35 s |
 | [`tqc_srsi_p4_flatband.py`](../examples/tqc_srsi_p4_flatband.py) | a splitting momentum space allows and the no-go criterion diagnoses | [SRSIs](guide/srsi.md), [spin](guide/spin.md) | 25 s |
 | [`tqc_srsi_lin3g_composite_splitting.py`](../examples/tqc_srsi_lin3g_composite_splitting.py) | the no-go criterion on two gaps of one model | [SRSIs](guide/srsi.md), [atomic limits](guide/atomic-limits.md) | 10 s |
+| [`tqc_srsi_sg212_photonic.py`](../examples/tqc_srsi_sg212_photonic.py) | the invariants of photonic bands, all the bands less auxiliary ones | [SRSIs](guide/srsi.md), [orbitals](guide/orbitals.md) | 10 s |
 
-The times are wall-clock times of a default run on an ordinary laptop; the ten
+The times are wall-clock times of a default run on an ordinary laptop; the eleven
 together take about five minutes.
 
 ## Running one
@@ -236,6 +237,24 @@ Hamiltonian: `diagnosed topological` at the gap above the sixth band, and
 bands with both gaps marked. It illustrates
 [stable real-space invariants](guide/srsi.md) and
 [fragility](guide/atomic-limits.md#what-a-decomposition-cannot-certify).
+
+### [`tqc_srsi_sg212_photonic.py`](../examples/tqc_srsi_sg212_photonic.py)
+
+The space group 212 (`P4_332`) tight-binding model of
+[Hwang et al., arXiv:2601.06293](https://arxiv.org/abs/2601.06293): two orbitals
+carrying `E` at each `4a` site, whose eight bands stand for a photonic crystal's
+four lowest bands together with four auxiliary bands, the energies for `ω²`. It
+prints the symmetry group of the Hamiltonian, `P4_3321'` #212.60, with the basis
+of `E` at one site declared by a generator matrix; the coreps of all eight bands
+at the high-symmetry points, whose symmetry data vector is that of the elementary
+band representation of `E` at `4a`; the auxiliary bands' symmetry data vector, the
+same for `A1` at `4a` and at `4b`; and the stable real-space invariants of all
+eight bands, of each choice of auxiliary bands, and of the physical bands as their
+difference: `(-1, 0, 1)` for both choices, with a `ℤ2`-valued invariant that tells
+the two apart. The figure is the band structure, each multiplet at a high-symmetry
+point labelled with its corep. It illustrates
+[stable real-space invariants](guide/srsi.md) and
+[which basis a doublet is](guide/orbitals.md#which-basis-a-doublet-is).
 
 ## What the examples do not show
 

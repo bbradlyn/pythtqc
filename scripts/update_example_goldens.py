@@ -1,9 +1,9 @@
 """Rewrite the example goldens outside pytest.
 
-``python scripts/update_example_goldens.py`` runs all ten examples and rewrites
+``python scripts/update_example_goldens.py`` runs all eleven examples and rewrites
 ``tests/data/example_goldens/<script>.out``; naming one or more scripts rewrites
 only those, which is the author's path while rewriting a single example (eight
-seconds for ``tqc_sg80_soc_doublet.py`` rather than four minutes for the ten).
+seconds for ``tqc_sg80_soc_doublet.py`` rather than four minutes for the eleven).
 Each script prints what changed, as a line count, and ``git diff
 tests/data/example_goldens`` is the review surface.
 

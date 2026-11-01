@@ -1,4 +1,4 @@
-"""The ten worked examples in ``examples/``, each against its golden stdout.
+"""The eleven worked examples in ``examples/``, each against its golden stdout.
 
 This module tests one thing: that the examples print what we expect them to
 print.  Each script is run once, in a subprocess, in quick mode, with its figure
@@ -21,7 +21,7 @@ To regenerate after a deliberate change:
   green run; re-run without the variable to see it pass, and read the change as
   ``git diff tests/data/example_goldens``.
 * ``python scripts/update_example_goldens.py [script ...]`` rewrites one golden
-  (or all ten) outside pytest.
+  (or all eleven) outside pytest.
 """
 
 import difflib
@@ -31,7 +31,7 @@ import sys
 
 import pytest
 
-#: Every test here runs an example as a subprocess; the ten together cost a few
+#: Every test here runs an example as a subprocess; the eleven together cost a few
 #: minutes.  A gate: an example whose printed numbers have moved is a result
 #: changed, so the module runs whole, with ``-m gates``, before a commit, and a
 #: bare ``pytest`` leaves it out.
@@ -48,7 +48,7 @@ SRC = os.path.normpath(os.path.join(_HERE, "..", "src"))
 #: generous -- the scripts measure 8-60 s each on the reference machine.
 TIMEOUT = 600
 
-#: every example, read off the directory, so an eleventh script cannot slip in
+#: every example, read off the directory, so a twelfth script cannot slip in
 #: unread: it parametrizes the test and fails on its missing golden.
 SCRIPTS = sorted(f for f in os.listdir(EXAMPLES)
                  if f.startswith("tqc_") and f.endswith(".py"))
