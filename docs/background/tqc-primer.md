@@ -98,7 +98,7 @@ hold it under the label the group's list of EBRs gives it,
 
 ## How a symmetry indicator is computed
 
-A band set's content at the high-symmetry points is its **symmetry vector**
+A band set's content at the high-symmetry points is its **symmetry data vector**
 `y`, one integer per corep at each point. The integer vectors that satisfy the
 compatibility relations form a lattice, `{BS}`, the band structures; the
 integer combinations of EBR columns, signs allowed, form a sublattice, `{AI}`,
@@ -203,8 +203,8 @@ exactly when they deform into each other once the same atomic orbitals are
 added to both, and are tabulated for the grey
 space groups with spin–orbit coupling and without, all but the thirteen whose
 one invariant is the band count; the package ships those tables. Their
-ℤ-valued part is a function of the symmetry vector, fractional exactly when the
-indicator is nonzero; their ℤₙ-valued part sees what no symmetry vector does,
+ℤ-valued part is a function of the symmetry data vector, fractional exactly when the
+indicator is nonzero; their ℤₙ-valued part sees what no symmetry data vector does,
 and gives a no-go criterion for a splitting of bands that diagnoses topology no
 indicator detects
 ([stable real-space invariants](../guide/srsi.md)).

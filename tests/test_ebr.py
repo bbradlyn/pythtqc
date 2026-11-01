@@ -480,7 +480,7 @@ def test_a_deliberately_dropped_point_is_refused_and_the_override_downgrades_the
     decompose with the claim **exact**.
 
     Without the override ``decompose`` refuses (``incomplete_content``) — a
-    symmetry vector missing a constraint decomposes too easily.  With it, the
+    symmetry data vector missing a constraint decomposes too easily.  With it, the
     ``W`` **rows** are dropped along with the measurement (keeping the equation
     while dropping the measurement would force those multiplicities to zero,
     which over-constrains rather than relaxes), and because ``-W3W4``/``-W5W6``
@@ -1476,7 +1476,7 @@ def test_a_layer_whose_own_group_can_answer_never_builds_the_stack():
     record.
 
     ``#75``'s ``A``/``R``/``Z`` rows are duplicates of ``M``/``X``/``GM`` ones,
-    so the symmetry vector completes by arithmetic; and ``X_BS(#75) = Z4`` is
+    so the symmetry data vector completes by arithmetic; and ``X_BS(#75) = Z4`` is
     not trivial, so there is a class to read.  Neither reason to re-present is
     present, and **the stack is never built** -- ``completion is None``, the
     class is served in the group that was handed in, and it is nonzero.
@@ -1677,7 +1677,7 @@ def test_named_indicator_forms_are_transported_before_they_are_read():
 
     The coefficients live on the BCS convention's labels, so a form has to be
     re-keyed by the transport's row permutation before it can be read on a
-    served symmetry vector.  In scope that changes exactly one form: the ``z2``
+    served symmetry data vector.  In scope that changes exactly one form: the ``z2``
     of grey ``220.90`` (``I-43d1'``), whose coefficients sit on the ``P``/``PA``
     labels the transport swaps.
 

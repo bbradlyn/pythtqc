@@ -1,14 +1,14 @@
 # Could these bands be an atomic limit?
 
 A band set is an atomic limit when its states can be written as symmetric,
-exponentially localized Wannier functions. Its symmetry vector — how many times
+exponentially localized Wannier functions. Its symmetry data vector — how many times
 each corep appears at each high-symmetry point
 ([labelling the bands](labels.md#every-high-symmetry-point-at-once)) — is then
 a sum of **elementary band representations** (EBRs), each the band set one
 site-symmetry irrep induces from its Wyckoff position, where that band set is
 no sum of others
 ([the primer](../background/tqc-primer.md#band-representations-and-atomic-limits)).
-This chapter asks `decompose` whether a measured symmetry vector is such a sum,
+This chapter asks `decompose` whether a measured symmetry data vector is such a sum,
 with nonnegative integer multiplicities; reads its verdict and its solutions;
 counts bands; and says what a decomposition cannot certify. The model is lin3g, from
 `pythtqc.models`, as in [labelling the bands](labels.md): four spinful orbitals
@@ -52,18 +52,18 @@ the field that holds it:
   a nonnegative-integer sum of EBRs has this content, and any obstruction to an
   atomic limit must lie beyond what symmetry indicators see. Three sums were
   found.
-- The coreps at the high-symmetry points are the symmetry vector decomposed,
+- The coreps at the high-symmetry points are the symmetry data vector decomposed,
   `t.counts` of the six bands.
 - Each line under `every sum` is one solution: the orbitals an atomic limit with
   this content would be built from. `-E2 at 1b (4mm)` is the two-band EBR of the
   site corep `-E2` at Wyckoff `1b`, whose site group is `4mm`. The three
   solutions are one content written three ways: the first two differ by `-E` at
   `2c` against `-E1` and `-E2` at `1a`, the last two by that pair at `1a`
-  against the same pair at `1b`, sums the symmetry vector cannot tell apart.
+  against the same pair at `1b`, sums the symmetry data vector cannot tell apart.
   The fewest elementary band representations in all come first, and among sums
   with as many, the one with more of those the tables list first.
 - `A, R and Z lie out of the layer's plane`: the **EBR matrix** has one column
-  per EBR, its symmetry vector, and one row per corep at each high-symmetry
+  per EBR, its symmetry data vector, and one row per corep at each high-symmetry
   point. A layer has no `k_z`, so the rows at the group's points `A`, `R` and
   `Z`, at `k_z = ½`, are left out, and each is verified to repeat a measured
   row in every EBR. Leaving them out then changes nothing: the matrix has rank
@@ -162,7 +162,7 @@ refused, `not_a_regular_multiple`.
 
 Corep multiplicities at isolated k-points are blind to everything between
 them, and lin3g's bands 4 and 5 are the standing example. `tqc.subtract(a, b)`
-is `a − b` as a symmetry vector, refused (`negative_multiplicity`) where `b` is
+is `a − b` as a symmetry data vector, refused (`negative_multiplicity`) where `b` is
 not contained in `a`, since the difference of two band sets is a band set only
 when one contains the other; the pair is the six bands less the four below
 them:
@@ -285,7 +285,7 @@ are in the records reference, and each call's arguments in its entry: [`decompos
 [`completeness_check`](../reference/functions.md#completeness_check),
 [`regular_completion`](../reference/functions.md#regular_completion),
 [`ebr_rows`](../reference/functions.md#ebr_rows), which writes each EBR of a
-group as a symmetry vector, and
+group as a symmetry data vector, and
 [`in_plane_restriction`](../reference/functions.md#in_plane_restriction). What
 an EBR, an atomic limit and fragile topology are is in
 [the primer](../background/tqc-primer.md).

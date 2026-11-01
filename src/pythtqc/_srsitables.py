@@ -510,7 +510,7 @@ class SRSITables:
             exact fractions, integral exactly when the symmetry indicator is zero; and
             ``theta_Zn``, ``{n: values}``, each modulo ``n``, or an unreduced fraction
             where it is not an integer.  ``theta_Zn`` belongs to this ``p``, not to its
-            symmetry vector: it is the band set's only for a configuration that is
+            symmetry data vector: it is the band set's only for a configuration that is
             known, never for one solved back out of a band set's content.
 
         Raises
@@ -581,7 +581,7 @@ class SRSITables:
     def indicators_of_columns(self, p) -> dict:
         """:meth:`indicators_of` on a ``p`` over the group's elementary band representations, :attr:`ebrs`.
 
-        The shape a ``p`` solved out of a symmetry vector comes in.  A mapping is
+        The shape a ``p`` solved out of a symmetry data vector comes in.  A mapping is
         :meth:`indicators_of`'s and raises :class:`TypeError` here.
         """
         if isinstance(p, Mapping):
@@ -1475,7 +1475,7 @@ def _canonical_reading(group, magnetic_type, u, v, d, y, divisors) -> tuple:
     r"""``(canonical, note, tex)`` -- the class in the paper's names.
 
     What :func:`..ebr.symmetry_indicator` calls to fill
-    :attr:`..ebr.SymmetryIndicator.canonical`.  ``y`` is the returned symmetry
+    :attr:`..ebr.SymmetryIndicator.canonical`.  ``y`` is the returned symmetry data
     vector over the full EBR basis and ``u``, ``v``, ``d`` are the Smith factors
     it was read with, so the rational ``p`` here is the same one
     :func:`..srsi.srsi_of_bands` solves for -- one arithmetic, two records.
@@ -1569,7 +1569,7 @@ def _canonical_reading(group, magnetic_type, u, v, d, y, divisors) -> tuple:
     note = (
         f"the class in the canonical vocabulary of the SRSI paper ({_DOI}), evaluated "
         f"as the tabulated forms in the Z-SRSIs on the exact rational p of this "
-        f"symmetry vector. The paper's names determine the class here: all "
+        f"symmetry data vector. The paper's names determine the class here: all "
         f"{gate['n_classes']} elements of {'x'.join('Z%d' % x for x in divisors)} have "
         f"different canonical values, and every one of the {len(tables.indicators)} "
         "forms vanishes on every EBR column of this group. irreptables' own names for "

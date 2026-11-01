@@ -6,7 +6,7 @@ selected; its trace over a degenerate multiplet is that multiplet's
 character, and the characters name the corep.
 
 * :func:`hsp_table`: the coreps of a set of bands at every high-symmetry point,
-  its symmetry vector, which :func:`.ebr.decompose`,
+  its symmetry data vector, which :func:`.ebr.decompose`,
   :func:`.ebr.symmetry_indicator` and :func:`.srsi.srsi_of_bands` take;
 * :func:`corep_content`: the coreps at one point, multiplet by multiplet;
 * :func:`characters`: the table of characters they are read from;
@@ -991,7 +991,7 @@ def format_counts(counts) -> str:
 
     Every content the package returns reads this way: the coreps of a set of
     bands at one point (:attr:`CorepContent.counts`) or per multiplet
-    (:attr:`CorepContent.labels`), a symmetry vector (:attr:`HSPTable.counts`),
+    (:attr:`CorepContent.labels`), a symmetry data vector (:attr:`HSPTable.counts`),
     an elementary band representation's coreps (:func:`..ebr.ebr_rows`).  The
     labels are sorted, so one content always prints one line.
 
@@ -1022,7 +1022,7 @@ class CorepContent:
     k : ndarray
         Its coordinates, in the model's reduced cell.
     counts : dict
-        ``{corep: multiplicity}`` over the set of bands: its symmetry vector at
+        ``{corep: multiplicity}`` over the set of bands: its symmetry data vector at
         this point.
     labels : tuple of dict
         The same for each degenerate multiplet, lowest first.
@@ -1206,7 +1206,7 @@ def corep_content(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_
 
 @dataclass(frozen=True)
 class HSPTable:
-    """The coreps a set of bands carries at every high-symmetry point: its symmetry vector, point by point.
+    """The coreps a set of bands carries at every high-symmetry point: its symmetry data vector, point by point.
 
     ``summary()`` prints it.
 
@@ -1223,7 +1223,7 @@ class HSPTable:
         ``{point: partition}``: which multiplets at each point carry the same
         characters (:attr:`CorepContent.partition`).
     counts : dict
-        ``{corep: multiplicity}`` over every point resolved: the symmetry vector
+        ``{corep: multiplicity}`` over every point resolved: the symmetry data vector
         :func:`..ebr.decompose` and :func:`..ebr.symmetry_indicator` take.
     complete : bool
         Whether every point resolved; a decomposition and an indicator refuse a
@@ -1444,7 +1444,7 @@ def _multiplicity_note(rep, block, fibers) -> str:
 def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
               label_tol=LABEL_TOL, ktol=1e-5, atol=1e-8, mesh_tol=MESH_TOL,
               params=None) -> HSPTable | Refusal:
-    """The coreps a set of bands carries at every high-symmetry point of the group: its symmetry vector.
+    """The coreps a set of bands carries at every high-symmetry point of the group: its symmetry data vector.
 
     Parameters
     ----------
@@ -1472,7 +1472,7 @@ def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
         :func:`..ebr.decompose`, :func:`..ebr.symmetry_indicator` and
         :func:`..srsi.srsi_of_bands` take, ``decompose(t)``, in the group it
         was read in, which it carries as ``t.rep.group``; ``t.counts`` is its
-        symmetry vector, ``t.content`` the coreps point by point;
+        symmetry data vector, ``t.content`` the coreps point by point;
         ``t.complete`` whether every
         point resolved, and ``t.refusals`` each point that did not, with its own
         ``Refusal``; ``t.note`` where the labels rest on a choice the hoppings

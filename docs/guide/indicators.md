@@ -1,7 +1,7 @@
 # Which symmetry-indicator class do these bands occupy?
 
 A symmetry indicator asks of a band set's
-[symmetry vector](labels.md#every-high-symmetry-point-at-once) a stronger
+[symmetry data vector](labels.md#every-high-symmetry-point-at-once) a stronger
 question than [a decomposition](atomic-limits.md) does: which class it
 occupies in the group's band structures modulo its atomic limits. This chapter
 reads that class, what it rules out and what it does not, how a layer's class
@@ -40,9 +40,9 @@ print(si.reconstructed)
 The band structures the compatibility relations allow, modulo the atomic
 limits, form a finite abelian group fixed by the space group alone,
 `X_BS = {BS}/{AI} ≅ ⊕ᵢ ℤ_{dᵢ}`, with the `dᵢ` the elementary divisors above 1
-of the group's EBR matrix, whose columns are its EBRs' symmetry vectors,
+of the group's EBR matrix, whose columns are its EBRs' symmetry data vectors,
 brought to its Smith normal form; a band set's indicator is the class of its
-symmetry vector there
+symmetry data vector there
 ([how a symmetry indicator is computed](../background/tqc-primer.md#how-a-symmetry-indicator-is-computed)
 sets out the construction). `number_str` is the group the class lives in,
 `P4mm1'` (`99.164`), the one handed in. It has no divisor above 1: `divisors`
@@ -104,7 +104,7 @@ The summary, line by line:
 - `indicator: 1 mod 6, 0 mod 12, of order 6`: the class in Smith coordinates,
   `values = (1, 0)`, and its order. The Smith components and the named forms
   are two coordinate systems on one class.
-- The coreps at the high-symmetry points: the symmetry vector, now with rows
+- The coreps at the high-symmetry points: the symmetry data vector, now with rows
   at `A`, `H` and `L`, where the layer has no `k`: measured
   ([below](#the-group-the-class-belongs-to)).
 - `A, H and L, at k_z = ½`: how those rows were obtained, on the layer repeated
@@ -206,7 +206,7 @@ copies make: Kane–Mele's two bands read `(1, 0)` there, with `z2w,3 = 1` and
 ## The names a class is spoken in
 
 Two literatures name the indicators, and differently: `irreptables` ships
-linear forms in the momentum-space symmetry vector, and the stable-RSI paper,
+linear forms in the momentum-space symmetry data vector, and the stable-RSI paper,
 Hwang *et al.*,
 [*Stable real-space invariants and topology beyond symmetry indicators*, Nat. Commun. **17**, 8564 (2026)](https://doi.org/10.1038/s41467-026-74844-w),
 gives named forms in the real-space invariants

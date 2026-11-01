@@ -34,7 +34,8 @@ The rules, by name:
     environment, *re-presentation* for a presentation, *readout* / *answer* /
     *result* for a verdict, *group element* for an operation, *HSP* for a
     high-symmetry point, *BR* in prose for an elementary band representation,
-    bare *Bilbao* or *BCS index* for the tables, *the suite* for the test suite.
+    bare *Bilbao* or *BCS index* for the tables, *the suite* for the test suite,
+    *symmetry vector* for the symmetry data vector.
 ``impl-hard`` / ``impl-soft``
     The implementation register in prose.  A docstring says what a thing *is*
     (a mapping from label to multiplicity; the operations a Hamiltonian obeys),
@@ -924,6 +925,10 @@ TERMS = (
     # the served -> returned sweep's own word; a plain-English "serves" may
     # still stand, so this is a budget, not a zero
     ("served", re.compile(r"\bserv(e|es|ed|ing)\b", re.I)),
+    # a band set's coreps at the high-symmetry points are its symmetry data
+    # vector, as the papers name it; the site-symmetry vector p, over site
+    # irreps, is another thing and keeps its name
+    ("symmetry vector", re.compile(r"(?<!site-)\bsymmetry\s+vectors?\b", re.I)),
 )
 
 # ---------------------------------------------------------------------------

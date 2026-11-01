@@ -926,7 +926,7 @@ def _equivalent(theta, u, v, d, printed, derived, modulus) -> bool:
 
     Two indicator expressions can be different vectors and the same *function*
     on band structures, because they only ever have to agree on ``{BS}`` — the
-    lattice of symmetry vectors satisfying the compatibility relations — and
+    lattice of symmetry data vectors satisfying the compatibility relations — and
     modulo ``n``.  Its :math:`\mathbb{Z}`-basis is :math:`B_i = u^{-1}e_i` over
     the rows where ``R``'s diagonal is nonzero (the empty rows are the
     compatibility relations, and are zero on every band structure); each
@@ -954,7 +954,7 @@ def derive_indicators(number_str, spinor, srsis, indicators, theta, data, where,
     r"""Derive each printed indicator from the momentum-space side, and compare.
 
     **The derivation.**  An indicator is a linear form :math:`\kappa = c\cdot B`
-    in the *momentum-space* symmetry vector — ``irreptables`` ships one per name,
+    in the *momentum-space* symmetry data vector — ``irreptables`` ships one per name,
     and :func:`pythtqc.ebr._named_forms` transports it into this package's
     convention and checks that it vanishes on every EBR of the group, which is
     what makes it an indicator at all.  With :math:`B = \mathrm{BR}\cdot p` and

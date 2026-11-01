@@ -8,7 +8,7 @@ The criterion (SN "SRSI mismatch as a sufficient criterion for band topology"):
 the full Hilbert space of an insulator is an atomic insulator, so ``B[H] = B[V] +
 B[C]`` and ``theta_Z[H] = theta_Z[V] + theta_Z[C]`` always hold; and if ``V`` and
 ``C`` are *both* atomic insulators then ``theta_Zn`` must add up modulo ``n`` as
-well, for **some** atomic realizations of the two with the right symmetry
+well, for **some** atomic realizations of the two with the right symmetry data
 vectors.  When no pair adds up, one of the two sides is not an atomic insulator.
 
 1. **The basis of the realizations** (``SRSITables.maximal_keys``,
@@ -276,7 +276,7 @@ def test_atomic_realizations_enumerates_every_realization_of_one_symmetry_vector
     ``(B2)_d`` (the pair no measurement separates), ``(T2)_a + (A2)_b`` and
     ``(T1)_a + (B2)_b`` -- of which the first two carry ``theta_Z2 = (0, 0, 1)``
     and the others ``(0, 0, 0)`` and ``(1, 1, 0)``.  That spread over one
-    symmetry vector is the whole reason the criterion needs a quantifier: the
+    symmetry data vector is the whole reason the criterion needs a quantifier: the
     Z_n-SRSIs are *not* functions of the symmetry data.
     """
     vector = [0] * len(sg211.ebrs)
@@ -344,7 +344,7 @@ def test_the_theta_enumeration_is_the_band_representation_enumeration(sg211):
     ``atomic_realizations``' own assert it; here it is **measured**, by asking
     ``BR`` the same questions by brute force with ``Theta`` never touched:
 
-    * ``(B3)_12d``'s symmetry vector at 6 bands -- the same **four** ``p``;
+    * ``(B3)_12d``'s symmetry data vector at 6 bands -- the same **four** ``p``;
     * the fragile ``2 x (B3)_12d - (A1)_2a`` at 11 bands -- **none**, so the
       ``INFEASIBLE`` below is a proof of none over ``BR`` as well.
 
@@ -566,7 +566,7 @@ def test_the_grammar_mistakes_are_value_errors_not_refusals(sg211):
 
 @pytest.mark.data
 def test_the_same_content_sweep_over_every_tabulated_system():
-    """**36 pairs**: same-site site irreps with one symmetry vector and one set of SRSIs.
+    """**36 pairs**: same-site site irreps with one symmetry data vector and one set of SRSIs.
 
     Two distinct site irreps at the same maximal Wyckoff position whose
     ``ebr_data`` columns are identical carry the same symmetry data; where the
@@ -626,7 +626,7 @@ def test_every_split_ebr_flag_is_reproduced_from_the_theta_arithmetic():
     statements, both exact:
 
     * ``theta_Z(parent) = sum theta_Z(children)`` on **all 211** -- the Z-SRSIs
-      are linear in ``p`` and the symmetry vectors add, so this is what a
+      are linear in ``p`` and the symmetry data vectors add, so this is what a
       splitting *is*;
     * ``srsi_mismatch`` iff some Z_n row of the parent differs from the
       children's sum modulo that row's own ``n`` -- **all 211 flags

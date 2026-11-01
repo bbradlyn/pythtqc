@@ -934,7 +934,7 @@ A `CorepContent` holds:
 |---|---|
 | `kpname`, `k` | the tabulated point, and its coordinates in the model's reduced cell |
 | `labels` | one reading per degenerate multiplet of the set of bands: each corep and its multiplicity |
-| `counts` | the same summed over the set of bands: its symmetry vector at this point |
+| `counts` | the same summed over the set of bands: its symmetry data vector at this point |
 | `partition` | which multiplets carry the same characters, as numbers: two rows share a number exactly when their characters agree. It survives every labelling of the orbitals and every phase convention, which the labels do not |
 | `isolation` | the gap from the set of bands to the nearest band outside it, in the units of `H` |
 | `table` | the `CharacterTable` the labels were read from |
@@ -957,7 +957,7 @@ and a `CharacterTable`:
 
 ## `HSPTable`
 
-The symmetry vector of a set of bands, its coreps at every high-symmetry point,
+The symmetry data vector of a set of bands, its coreps at every high-symmetry point,
 each point read off one diagonalization: `hsp_table`.
 
 ```python
@@ -985,7 +985,7 @@ one-dimensional character returned; its partition does not. The points `A`,
 | `bands` | the band indices of the set, ascending |
 | `points` | every tabulated point in the model's periodic plane, with its coordinates |
 | `content`, `partitions` | per point, the coreps and their multiplicities, and the partition |
-| `counts` | the coreps summed over every point resolved: the symmetry vector, which `decompose` and `symmetry_indicator` take |
+| `counts` | the coreps summed over every point resolved: the symmetry data vector, which `decompose` and `symmetry_indicator` take |
 | `complete` | whether every point that constrains anything resolved; a table that is not complete is refused by the calls that need all of it |
 | `records`, `refusals`, `skipped` | per point, the `CorepContent` read there, the `Refusal` returned there, and the points skipped for carrying no constraint, a little group of the identity alone |
 | `thresholds` | per point, the zero thresholds in force |
@@ -995,7 +995,7 @@ one-dimensional character returned; its partition does not. The points `A`,
 
 ## `EBRDecomposition`
 
-Whether a band set's symmetry vector is a sum, with nonnegative integer
+Whether a band set's symmetry data vector is a sum, with nonnegative integer
 coefficients, of elementary band representations, and every such sum:
 `decompose`. It is the call to use: `pythtqc.groups.decompose_ebrs` beneath it
 returns a plain mapping and restricts nothing to a layer's plane, so it refuses
@@ -1042,7 +1042,7 @@ beyond them can survive it.
 | `terms`, `solution_strings()` | the same in the labels of the group's list: each solution's terms as (multiplicity, elementary band representation, position), and each solution on one line |
 | `positions` | each solution's Wyckoff positions, the part a different labelling of the orbitals never moves |
 | `ebrs`, `labels`, `y` | the elementary band representations a solution is written over, and the rows kept with the measured vector on them |
-| `content`, `n_bands` | the symmetry vector decomposed, and the number of bands |
+| `content`, `n_bands` | the symmetry data vector decomposed, and the number of bands |
 | `certificate` | what a `"none"` rests on: `"proof"`, or `"none within the bound"`; `None` for a decomposition, which an exhibited solution needs no certificate for |
 | `bound`, `bound_is_rigorous` | the bound on every coefficient, and whether it provably excludes no solution |
 | `enumeration` | `cap`, the most solutions listed, `n_solutions`, and `truncated`, whether the list was cut |
@@ -1155,7 +1155,7 @@ named, not used. Free-standing, the summary reads, line by line:
   form, `1` modulo 6 and `0` modulo 12, and its order, which no change of basis
   moves;
 - the same class in `irreptables`' names;
-- the symmetry vector;
+- the symmetry data vector;
 - the stack's measurement: the rows out of the plane, `A`, `H` and `L` at
   `k_z = ½`, measured on the layer's decoupled stack in the layer's own group,
   the characters the stack shares with the layer agreeing;
@@ -1174,7 +1174,7 @@ class to measure, which is itself a verdict.
 | `canonical`, `canonical_tex`, `canonical_note` | the class in the stable-RSI paper's names, the same names typeset for a plot, and where they came from or why they are `None`: a unitary group, a trivial indicator group, or tables not installed |
 | `irreptables_named`, `irreptables_note`, `irreptables_convention_touched`, `as_irreptables()` | the class in `irreptables`' names, re-keyed into this package's convention; where it came from; the forms the change of convention moved; and `canonical` respelled in those names |
 | `number_str`, `group_name`, `magnetic_type` | the group the class lives in, the one handed in, and its magnetic type, `"I"` or `"II"` |
-| `content`, `n_bands`, `site_content` | the symmetry vector, the bands, and the site irreps the labels rest on, with how each is known |
+| `content`, `n_bands`, `site_content` | the symmetry data vector, the bands, and the site irreps the labels rest on, with how each is known |
 | `labels`, `y`, `y_prime`, `slots` | the indicator's arithmetic: every row of the group's EBR basis, the vector on it, the vector in the Smith basis, and where the divisors sit in it |
 | `reconstructed` | rows a layer cannot measure, filled from a row they duplicate |
 | `restriction` | the rows the model measures, a `Restriction` |
@@ -1283,7 +1283,7 @@ irreps of an orbit whose band representation no column carries; and its own
 
 ### `BandSRSIs`
 
-The `ℤ`-valued invariants of a band subset, read off its symmetry vector:
+The `ℤ`-valued invariants of a band subset, read off its symmetry data vector:
 `srsi_of_bands`. The occupied pair of the free-standing layer:
 
 ```python
@@ -1309,7 +1309,7 @@ print(tqc.srsi_of_bands(tf).summary())
 
 Fractional, so no configuration of orbitals has this pair's symmetry data; the
 common denominator, 6, is the order of its indicator class. The `ℤ_n`-valued
-invariants are not functions of a symmetry vector, so this record carries none.
+invariants are not functions of a symmetry data vector, so this record carries none.
 
 `BandSRSIs` holds `theta_Z` and `names`; `stable`, whether any is fractional;
 `denominator`; `indicator`, the `SymmetryIndicator` measured with it; `p`, the
@@ -1417,7 +1417,7 @@ hand, which carry no representation to build the stack from, is one:
 ```python
 refused = tqc.symmetry_indicator(dict(tf.counts), fs.group)
 print(refused)
-#  Refusal[indicator_not_evaluable]: the EBR rows ['-A10', '-A11', '-A12', '-A7', '-A8', '-A9', '-H8', '-H9', '-L5', '-L6'] of #191.234 sit at k-points this content does not cover, out of a 2D model's periodic plane or carrying no information, and they duplicate no row it does cover, so the symmetry vector cannot be completed and the indicator has no value here. The rows can be measured on the decoupled stack of the layer, which is built from the representation the bands were read with, its model and declared characters, and the bands the content counts: pass the table hsp_table(rep, bands=...) returned, which carries them, and do not override points=. Completing missing content from the stable real-space invariants is future work.  (measured 10, threshold 0)
+#  Refusal[indicator_not_evaluable]: the EBR rows ['-A10', '-A11', '-A12', '-A7', '-A8', '-A9', '-H8', '-H9', '-L5', '-L6'] of #191.234 sit at k-points this content does not cover, out of a 2D model's periodic plane or carrying no information, and they duplicate no row it does cover, so the symmetry data vector cannot be completed and the indicator has no value here. The rows can be measured on the decoupled stack of the layer, which is built from the representation the bands were read with, its model and declared characters, and the bands the content counts: pass the table hsp_table(rep, bands=...) returned, which carries them, and do not override points=. Completing missing content from the stable real-space invariants is future work.  (measured 10, threshold 0)
 #      context: completion, number_str, orphans, points, retained, stack
 print(bool(refused), refused.gate, refused.value, refused.threshold, refused.context["number_str"])
 #  False indicator_not_evaluable 10.0 0.0 191.234

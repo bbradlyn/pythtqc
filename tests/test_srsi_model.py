@@ -525,7 +525,7 @@ def test_srsi_of_bands_reproduces_the_lin3g_and_kane_mele_anchors(
 
     The three Z-SRSI triples are pinned, so their sum is arithmetic on the page;
     the **premise** that makes it a statement about linearity is that the three
-    blocks' measured symmetry vectors add, and that is what is asserted.
+    blocks' measured symmetry data vectors add, and that is what is asserted.
     """
     _model, group, _assignment, _validated, rep = lin3g_declared_cross_checked
     blocks = {}
@@ -540,7 +540,7 @@ def test_srsi_of_bands_reproduces_the_lin3g_and_kane_mele_anchors(
     assert tuple(str(v) for v in blocks["P4"].theta_Z) == ("1", "1", "0")
     assert tuple(str(v) for v in blocks["P2"].theta_Z) == ("0", "0", "1")
     assert tuple(str(v) for v in blocks["P6"].theta_Z) == ("1", "1", "1")
-    # the premise: the measured symmetry vectors of the three blocks add
+    # the premise: the measured symmetry data vectors of the three blocks add
     assert blocks["P6"].indicator.y == tuple(
         a + b for a, b in zip(blocks["P4"].indicator.y, blocks["P2"].indicator.y))
 

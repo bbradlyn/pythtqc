@@ -603,7 +603,7 @@ def test_the_corep_content_and_the_ebr_verdict_are_the_native_ones(reencoded):
     Nothing below ``_build_rep`` was taught anything about a spinor basis, and
     this is the measurement that says nothing had to be: the same corep labels,
     the same phase-invariant partitions at every point, the same aggregated
-    symmetry vector and the same ``decompose`` verdict and terms.
+    symmetry data vector and the same ``decompose`` verdict and terms.
 
     **The comparison is only a comparison if there is content on both sides**,
     so the native table's completeness and its non-empty containers are

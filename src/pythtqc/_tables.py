@@ -58,7 +58,7 @@ def kpoint_of_label(label: str) -> str:
 
 
 def ebr_rows(group) -> dict | Refusal:
-    r"""Each elementary band representation of the group as a symmetry vector: the coreps it carries at the high-symmetry points.
+    r"""Each elementary band representation of the group as a symmetry data vector: the coreps it carries at the high-symmetry points.
 
     The coreps are in the convention every returned label is, a lattice
     translation acting as ``e^{-ik·t}``, where the Bilbao Crystallographic
@@ -638,7 +638,7 @@ class HighSymmetryPoints(dict):
     ----------
     missing : tuple of str
         The tabulated points out of a layer's plane, ``A``, ``H`` and ``L`` of
-        a hexagonal group, which its zone does not have at any mesh: a symmetry
+        a hexagonal group, which its zone does not have at any mesh: a symmetry data
         vector read on this mapping alone is partial there.
     """
 
@@ -662,7 +662,7 @@ class HighSymmetryPoints(dict):
 def high_symmetry_points(group: GroupData) -> HighSymmetryPoints | Refusal:
     """The tabulated high-symmetry points, in the model's own reduced coordinates.
 
-    The points a symmetry vector is read at.  The tables write them in their
+    The points a symmetry data vector is read at.  The tables write them in their
     conventional cell, generally as other numbers: graphene's ``K`` is
     ``(1/3, 1/3, 0)`` there and ``(1/3, 2/3)`` in pythtb's honeycomb cell.
     Without time reversal a point and its partner ``−k`` are two points
@@ -2063,7 +2063,7 @@ def _barred(position: str, improper) -> str:
 def ebr_data(group: GroupData) -> dict | Refusal:
     """Every elementary band representation of the group: the bands each site irrep at each Wyckoff position induces.
 
-    The atomic limits the group has, and the columns a symmetry vector is
+    The atomic limits the group has, and the columns a symmetry data vector is
     decomposed over; :func:`..ebr.decompose` and
     :func:`..ebr.symmetry_indicator` read them, a layer's restricted to the
     points of its plane.  The rows are in the package's convention for a
@@ -2182,7 +2182,7 @@ _SI_NOTES = {
         "irreptables' named forms for this grey group, as shipped: their "
         "coefficients are keyed by BCS labels and must be re-keyed by "
         "ebr_data(group)['convention']['row_permutation'] before they are evaluated "
-        "on a returned symmetry vector (in scope that bites once, the z2 of 220.90). "
+        "on a returned symmetry data vector (in scope that bites once, the z2 of 220.90). "
         "ebr.symmetry_indicator does that re-keying, and checks the form on the "
         "group's own EBRs, before it reports a value"),
     "grey_none": (
@@ -2223,7 +2223,7 @@ def indicator_group(group: GroupData) -> dict | Refusal:
         ``note``: the caveat to read either way, that a formula's coefficients
         are keyed by the tables' labels and are re-keyed by
         ``ebr_data(group)["convention"]["row_permutation"]`` before they are
-        read on a returned symmetry vector.  A ``Refusal`` in its place is
+        read on a returned symmetry data vector.  A ``Refusal`` in its place is
         falsy.
 
     Refusals
@@ -2298,7 +2298,7 @@ def _ebr_solve_shim(ebr_matrix, y, original_exc):
 
 
 def decompose_ebrs(group: GroupData, irrep_counts: dict) -> dict | Refusal:
-    """A symmetry vector written in the group's elementary band representations.
+    """A symmetry data vector written in the group's elementary band representations.
 
     For a model's band set, :func:`..ebr.decompose` is the call: it reads a
     layer's vector in its plane and lists the decompositions.  This one takes a
@@ -2367,9 +2367,9 @@ def decompose_ebrs(group: GroupData, irrep_counts: dict) -> dict | Refusal:
     if missing_points:
         return Refusal(
             "incomplete_content",
-            f"the symmetry vector carries no label at {missing_points}, and the EBR "
+            f"the symmetry data vector carries no label at {missing_points}, and the EBR "
             f"basis of #{group.number_str} is written over {points}. A decomposition "
-            "of a partial symmetry vector is a confident wrong answer: an unmentioned "
+            "of a partial symmetry data vector is a confident wrong answer: an unmentioned "
             "point is read as zero content there, which is a constraint on a "
             "different band set. Supply counts covering "
             "every point, or -- for a 2D model, whose zone does not contain the "

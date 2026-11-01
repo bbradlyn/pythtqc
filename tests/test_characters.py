@@ -1213,7 +1213,7 @@ def test_group_provenance_rides_into_the_character_tables(lin3g_undeclared):
 
     ``realized_group`` stamps its record before the representation is built, so
     ``rep.group`` carries it and every table built from that representation
-    echoes it — which is the point of the field, since a symmetry vector's
+    echoes it — which is the point of the field, since a symmetry data vector's
     labels mean one thing when the group was measured on ``H`` and another when
     a cell merely allowed it.
 

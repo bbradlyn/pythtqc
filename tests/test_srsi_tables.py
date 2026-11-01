@@ -24,7 +24,7 @@ order the spec puts them:
    supplement derives in full, reproduced term by term (SG 25 with SOC, the
    other group it derives in full, is the table ``docs/guide/srsi.md`` prints
    row by row); ``Pmm2``'s own distinguishing example, two EBRs with one
-   symmetry vector and different Z_2-SRSIs; and the tables of SG 211 without
+   symmetry data vector and different Z_2-SRSIs; and the tables of SG 211 without
    SOC and SG 219 with SOC held to the adiabatic relation their Wyckoff
    positions impose.
 6. **The residue**: a Z_n-valued SRSI of an atomic limit is an integer reduced
@@ -337,7 +337,7 @@ def test_every_ebr_is_symmetry_indicator_trivial_through_the_srsis(every_table):
 
 
 # ---------------------------------------------------------------------------
-# 4.  a configuration for a symmetry vector, over the rationals
+# 4.  a configuration for a symmetry data vector, over the rationals
 # ---------------------------------------------------------------------------
 
 def _rational_p(u, v, d, y):
@@ -405,7 +405,7 @@ def test_pmm2_reproduces_the_paper_s_own_distinguishing_example():
     symmetry-data vector, so no momentum-space diagnostic can tell them apart;
     their :math:`\\mathbb{Z}_2`-SRSIs are ``(0, 0, 0)`` and ``(1, 0, 0)``.  And
     ``(E)_1a + (E)_1b`` shares its SRSIs with ``(E)_1b`` alone while having a
-    different symmetry vector — the converse failure, also the paper's.
+    different symmetry data vector — the converse failure, also the paper's.
     """
     table = tqr.srsi_tables(25, spinor=True)
     columns = {letter: j for j, (_label, letter) in enumerate(table.ebrs)}

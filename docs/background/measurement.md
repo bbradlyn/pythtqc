@@ -358,7 +358,7 @@ same, and adding the bands of an atomic limit cannot change it; and where a set
 of bands is split into valence and conduction bands, the verdict
 `diagnosed topological` from the stable real-space invariants means the two
 cannot both be atomic limits. The converses certify nothing. A
-[symmetry vector](tqc-primer.md#how-a-symmetry-indicator-is-computed) that
+[symmetry data vector](tqc-primer.md#how-a-symmetry-indicator-is-computed) that
 decomposes into elementary band representations, and a zero indicator, leave
 [fragile topology](tqc-primer.md#fragile-topology) and every obstruction the
 symmetry content cannot see; a consistent pair of valence and conduction

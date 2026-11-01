@@ -19,7 +19,7 @@ calls read the group it returns:
   site's Wyckoff position in the tables' setting, which every table is read
   with, and the group's Wyckoff positions in spglib's;
 * :func:`ebr_data`, :func:`indicator_group` and :func:`decompose_ebrs`: the
-  group's elementary band representations, its indicator group, and a symmetry
+  group's elementary band representations, its indicator group, and a symmetry data
   vector written in its elementary band representations;
 * :func:`stack_presentation`: a layer repeated along its normal with no hopping
   between the copies, the three-dimensional crystal its rows at ``k_z = ½`` are

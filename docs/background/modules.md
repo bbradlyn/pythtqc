@@ -203,7 +203,7 @@ flowchart TD
 
     subgraph w_calls ["calls on r.rep"]
         direction LR
-        w_ht["hsp_table(r.rep, bands=n)"] --> w_HT[["t, an HSPTable: the coreps the bands carry at every high-symmetry point, their symmetry vector"]]
+        w_ht["hsp_table(r.rep, bands=n)"] --> w_HT[["t, an HSPTable: the coreps the bands carry at every high-symmetry point, their symmetry data vector"]]
         w_cc["corep_content(r.rep, k, bands=n)"] --> w_CC[["CorepContent: the coreps the bands carry at one high-symmetry point, multiplet by multiplet"]]
         w_ch["characters(r.rep, k, bands=n)"] --> w_CT[["CharacterTable: the trace of each operation of the little group over each degenerate multiplet of the bands at k"]]
         w_sm["sewing_matrix(r.rep, op, k, bands=n)"] --> w_SM[["SewingMatrix: the matrix of one operation on the bands at a k it leaves invariant, B(g,k)"]]
@@ -236,7 +236,7 @@ flowchart TD
     subgraph e_calls ["calls on t"]
         direction LR
         e_dec["decompose(t)"] --> e_D[["EBRDecomposition: every sum of elementary band representations that carries t's coreps, or none"]]
-        e_si["symmetry_indicator(t)"] --> e_SI[["SymmetryIndicator: the class of t's symmetry vector among the band structures modulo the atomic limits"]]
+        e_si["symmetry_indicator(t)"] --> e_SI[["SymmetryIndicator: the class of t's symmetry data vector among the band structures modulo the atomic limits"]]
         e_cc["completeness_check(t)"] --> e_CR[["CompletenessReport: whether t's coreps are a sum of elementary band representations, and how many bands each sum holds"]]
         e_rc["regular_completion(t, bands=n)"] --> e_RC[["RegularCompletion: the bands that would complete t to whole copies of the regular band representation, and the orbitals they would be"]]
     end
@@ -244,7 +244,7 @@ flowchart TD
     subgraph e_other ["calls on r.group alone, or on two tables"]
         direction LR
         e_ipr["in_plane_restriction(r.group)"] --> e_R[["Restriction: which coreps of the elementary band representations a layer measures"]]
-        e_rows["ebr_rows(r.group)"] --> e_rows_out(["each elementary band representation of the group as a symmetry vector"])
+        e_rows["ebr_rows(r.group)"] --> e_rows_out(["each elementary band representation of the group as a symmetry data vector"])
         e_sub["subtract(t_a, t_b)"] --> e_sub_out(["the coreps of the bands in t_a and not in t_b"])
     end
 ```

@@ -89,7 +89,7 @@ Every refusal is one of four kinds, and the kind says where the fix lies;
 
 1. **A verdict about the physics.** What was asked does not exist for these bands or this
    model as written: a set of bands cutting a multiplet, as above; a
-   [symmetry vector](../reference/glossary.md#words-the-pages-use), the count of each
+   [symmetry data vector](../reference/glossary.md#words-the-pages-use), the count of each
    corep at each high-symmetry point, that fails the group's compatibility relations and
    so has no [indicator class](../background/tqc-primer.md#how-a-symmetry-indicator-is-computed);
    a representation the tables' conventions cannot carry; a model written on a supercell
@@ -144,7 +144,7 @@ print(missing.gate, missing.context["refusals"])
 ```
 
 `decompose` refuses `incomplete_content`, naming the points and what refused at each: a
-decomposition of a symmetry vector with a point missing would be a confident verdict on a
+decomposition of a symmetry data vector with a point missing would be a confident verdict on a
 different vector, and `symmetry_indicator` refuses it the same way. A refusal is carried
 forward.
 

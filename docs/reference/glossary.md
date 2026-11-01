@@ -55,7 +55,7 @@ What each thing is called where a call returns it.
 | a degenerate multiplet of bands at one `k` | a row of a character table: `multiplets`, `dims`, `energies` | `characters`; `CorepContent.table` |
 | the coreps of a set of bands at one point | `labels`, one reading per multiplet; `counts`, summed over the set | `corep_content` |
 | which rows of a set of bands carry the same characters | `partition`; per point, `partitions` | `corep_content`; `hsp_table` |
-| the symmetry vector of a band set | `counts`; per point, `content` | `hsp_table` |
+| the symmetry data vector of a band set | `counts`; per point, `content` | `hsp_table` |
 | the gap from a set of bands to the nearest band outside it | `isolation`, in the units of `H` | `corep_content` |
 | a high-symmetry point | its name in the tables (`"GM"`, `"K"`) and its coordinates in the model's own reduced cell | `high_symmetry_points`; `points` on an `HSPTable` |
 | tabulated points a layer's zone does not have | `missing` | `high_symmetry_points(group).missing` |
@@ -331,7 +331,7 @@ a fractional `ℤ`-valued invariant are the same statement.
 content at the high-symmetry points is a nonnegative-integer sum of elementary
 band representations. Necessary for an atomic limit, never sufficient.
 
-**Symmetry vector.** How many times each corep occurs at each high-symmetry
+**Symmetry data vector.** How many times each corep occurs at each high-symmetry
 point in a band set.
 
 **Tie rule.** The one rule that picks among subgroups of the largest order the

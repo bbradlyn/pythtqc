@@ -127,7 +127,7 @@ print(t.counts, t.complete)
 `t.content` holds the coreps point by point: at each point a mapping from
 corep to multiplicity, the line `summary()` prints for it, which
 `tqc.format_counts` writes in the same form. How many times each corep appears
-at each high-symmetry point is the band set's **symmetry vector**, `t.counts`:
+at each high-symmetry point is the band set's **symmetry data vector**, `t.counts`:
 what a [decomposition](atomic-limits.md),
 a [symmetry indicator](indicators.md) and the
 [stable real-space invariants](srsi.md) read. Each point holds three doublets;

@@ -320,7 +320,7 @@ Returned by `corep_content`, through its identification of the coreps.
 Returned by `decompose`, `symmetry_indicator`, `completeness_check`, `splitting` and
 `srsi_of_bands`.
 
-- **What it means.** The symmetry vector has no label at some high-symmetry point, because
+- **What it means.** The symmetry data vector has no label at some high-symmetry point, because
   the table refused there, and a decomposition or a class of the rest would be a verdict on
   a different vector.
 - **Usual cause.** A set of bands that cuts a multiplet at some point, or another refusal
@@ -716,7 +716,7 @@ Returned by `k_grid`.
 Returned by `decompose`, `subtract` and `regular_completion`.
 
 - **What it means.** A content entry is negative, or the difference `subtract` takes has a
-  negative entry: a symmetry vector counts coreps and cannot be negative. A signed
+  negative entry: a symmetry data vector counts coreps and cannot be negative. A signed
   combination of band representations is meaningful, and is what fragility means, but it
   is not a band set.
 - **What to do.** Hand in a count of coreps; for `subtract`, the second content must be

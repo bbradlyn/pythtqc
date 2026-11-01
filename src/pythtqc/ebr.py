@@ -15,7 +15,7 @@ multiplicities.
   regular band representation;
 * :func:`subtract`: one band set's content less another's;
 * :func:`ebr_rows`, :func:`in_plane_restriction`, :func:`content_of`,
-  :func:`regular_content` and :func:`kpoint_of_label`: the EBRs as symmetry
+  :func:`regular_content` and :func:`kpoint_of_label`: the EBRs as symmetry data
   vectors, the coreps a layer measures, a content as counts, one regular copy's
   content, and the point a corep belongs to.
 
@@ -520,12 +520,12 @@ INDICATOR_CONVENTION = (
     "positions never move. What is not convention-invariant is a linear form written "
     "in the BCS convention's labels: irreptables' named indicator formulas have to be "
     "re-keyed by the row permutation of the change of convention before they can be "
-    "read on a returned symmetry vector."
+    "read on a returned symmetry data vector."
 )
 
 @dataclass(frozen=True)
 class SymmetryIndicator:
-    r"""The symmetry-indicator class of a band set: the class of its symmetry vector among the group's band structures modulo its atomic limits, ``X_BS = {BS}/{AI}``.
+    r"""The symmetry-indicator class of a band set: the class of its symmetry data vector among the group's band structures modulo its atomic limits, ``X_BS = {BS}/{AI}``.
 
     A nonzero class says no band set with this content is an atomic limit, nor
     any with atomic bands added; a zero class certifies nothing, fragile band
@@ -577,7 +577,7 @@ class SymmetryIndicator:
     irreptables_convention_touched : tuple of str
         The named indicators whose formula the change of convention moved.
     content : dict
-        The symmetry vector, ``{corep: multiplicity}``.
+        The symmetry data vector, ``{corep: multiplicity}``.
     reconstructed : dict
         ``{corep: corep}``: coreps the model does not measure, each given the
         multiplicity of a measured one it repeats in every elementary band
@@ -608,7 +608,7 @@ class SymmetryIndicator:
         lowest-angular-momentum rule makes, and a declaration states another.
     labels, y, y_prime, slots : tuple
         The arithmetic: every corep of the group's elementary band
-        representations, the symmetry vector on them, the same in the Smith
+        representations, the symmetry data vector on them, the same in the Smith
         coordinates, ``u·y``, and where the divisors sit among those.
     restriction : Restriction
         The coreps the model measures.
@@ -817,7 +817,7 @@ def content_of(content) -> dict | Refusal:
                            value=float(v), context={"label": str(lab)})
         if iv < 0:
             return Refusal("negative_multiplicity",
-                           f"content['{lab}'] = {iv} is negative; a symmetry vector "
+                           f"content['{lab}'] = {iv} is negative; a symmetry data vector "
                            "counts coreps and cannot be negative. If this is a "
                            "difference of two band sets, that difference is not a "
                            "band set.", value=float(iv), threshold=0.0,
@@ -1415,7 +1415,7 @@ def decompose(content, group=None, *, rep=None, points=None, allow_incomplete=Fa
             "incomplete_content",
             "the measured content is missing "
             f"{sorted(refused)}: {refused}. A missing constraint can only make a "
-            "decomposition easier to find, so a partial symmetry vector is not "
+            "decomposition easier to find, so a partial symmetry data vector is not "
             "decomposed. Read the table's refusals; pass allow_incomplete=True only for "
             "a point whose tables cannot be read rather than one where the physics "
             "failed, and then read the verdict as a necessary condition.",
@@ -1434,7 +1434,7 @@ def decompose(content, group=None, *, rep=None, points=None, allow_incomplete=Fa
         return Refusal(
             "unknown_label",
             f"the measured labels {unknown} are not in the EBR basis of group "
-            f"#{group.number_str}; the symmetry vector and the basis are not written in "
+            f"#{group.number_str}; the symmetry data vector and the basis are not written in "
             "the same alphabet.",
             value=float(len(unknown)), threshold=0.0,
             context={"unknown": tuple(unknown), "basis": tuple(labels_all)})
@@ -2073,7 +2073,7 @@ def _stack_in_group(table, group, rep, restriction, *, c, bands, verify, charact
 def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None,
                        verify=True,
                        stack_period=_layers.STACK_C) -> SymmetryIndicator | Refusal:
-    r"""The symmetry-indicator class of a band set's content: the class of its symmetry vector among the band structures modulo the atomic limits.
+    r"""The symmetry-indicator class of a band set's content: the class of its symmetry data vector among the band structures modulo the atomic limits.
 
     A nonzero class says no band set with this content is an atomic limit, nor
     any with atomic bands added; a zero class certifies nothing.  A layer's
@@ -2183,7 +2183,7 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
         return Refusal(
             "incomplete_content",
             f"the measured content is missing {sorted(refused)}: {refused}. An indicator "
-            "reads the whole symmetry vector, and the class of a vector with a point "
+            "reads the whole symmetry data vector, and the class of a vector with a point "
             "missing is the class of a different vector, so this content has no class "
             "here. Read the table's refusals. Completing the missing content from the "
             "stable real-space invariants is future work, and there is no "
@@ -2202,7 +2202,7 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
         return Refusal(
             "unknown_label",
             f"the measured labels {unknown} are not in the EBR basis of group "
-            f"#{group.number_str}; the symmetry vector and the indicator basis are not "
+            f"#{group.number_str}; the symmetry data vector and the indicator basis are not "
             "written in the same alphabet.",
             value=float(len(unknown)), threshold=0.0,
             context={"unknown": tuple(unknown), "basis": labels})
@@ -2236,7 +2236,7 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
             f"the EBR rows {list(restriction.orphans)} of #{group.number_str} sit at "
             "k-points this content does not cover, out of a 2D model's periodic plane "
             "or carrying no information, and they duplicate no row it does cover, so "
-            "the symmetry vector cannot be completed and the indicator has no value "
+            "the symmetry data vector cannot be completed and the indicator has no value "
             "here. "
             + (f"The decoupled stack of the layer, the crystal on which those rows are "
                f"measured, did not supply them: "
@@ -2315,7 +2315,7 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
         canonical_tex=canonical_tex, free_standing_group=free)
 
 def subtract(content_a, content_b) -> dict | Refusal:
-    """The content of the bands in one set and not in another: ``a − b`` as a symmetry vector.
+    """The content of the bands in one set and not in another: ``a − b`` as a symmetry data vector.
 
     Parameters
     ----------
@@ -2370,7 +2370,7 @@ def subtract(content_a, content_b) -> dict | Refusal:
             f"the difference has negative multiplicities {bad}; the second content is "
             "not contained in the first, so their difference is not a band set. A "
             "signed EBR combination is still meaningful (it is what fragility means) "
-            "but it is not a symmetry vector and cannot be decomposed as one.",
+            "but it is not a symmetry data vector and cannot be decomposed as one.",
             value=float(min(bad.values())), threshold=0.0,
             context={"negative": bad, "a": a, "b": b})
     return out

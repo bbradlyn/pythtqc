@@ -17,7 +17,7 @@ statements, in the order the wave's spec puts them:
    every one of the 170 systems is enumerated -- through the rational solve,
    which is a *different* computation from the homomorphism arithmetic the
    package caches -- and the map class -> canonical values is checked to be
-   injective.  The converse, that adding an EBR column to a symmetry vector
+   injective.  The converse, that adding an EBR column to a symmetry data vector
    moves no canonical value, is the statement that every served form vanishes
    on every EBR, which the coverage sweep checks.
 3. **The value gate.**  Every name the conversion pairs agrees in value with its
@@ -432,7 +432,7 @@ def test_the_gate_measures_injectivity_rather_than_assuming_it(monkeypatch):
 def test_the_two_vocabularies_agree_in_value_on_every_name_the_map_pairs(sweep):
     """The gate under the spelling map: same name, same number, everywhere.
 
-    ``irreptables`` ships named linear forms in the **momentum-space** symmetry
+    ``irreptables`` ships named linear forms in the **momentum-space** symmetry data
     vector; the paper gives named forms in the **real-space** SRSIs.  Where the
     map pairs two names they must give the same number -- on an atomic limit,
     and on a band structure that is not one.  The vectors are every EBR column

@@ -8,7 +8,7 @@
 # many orbitals of each site-symmetry irrep sit at each Wyckoff position -- that
 # annihilates every adiabatic, symmetry-preserving rearrangement of the
 # orbitals.  Some rows are Z-valued and some are Z_n-valued; the Z_n rows carry
-# information no symmetry vector does, and they are why these tables say more
+# information no symmetry data vector does, and they are why these tables say more
 # than a symmetry indicator.
 # Run with python3, PythTB version 2.0 and pythtqc.
 

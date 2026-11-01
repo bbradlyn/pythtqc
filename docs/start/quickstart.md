@@ -116,7 +116,7 @@ traces.
 
 ## Atomic limits
 
-The content at every high-symmetry point at once is the band set's symmetry
+The content at every high-symmetry point at once is the band set's symmetry data
 vector, and that vector is what a decomposition is asked of. `decompose`
 writes it as a sum, with nonnegative integer multiplicities, of **elementary
 band representations** (EBRs) — each the band set one site-symmetry irrep

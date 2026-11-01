@@ -1145,7 +1145,7 @@ def test_ebr_roundtrip_for_the_cubic_s_orbital_band():
     assert dec and dec["classification"] == "atomic limit"
     assert dec["stable_nontrivial"] is False and dec["is_positive"] is True
     assert any("A1g" in s and "1a" in s for s in dec["decomposition_strings"])
-    # the measured symmetry vector is literally one EBR column
+    # the measured symmetry data vector is literally one EBR column
     col = np.asarray(dec["solutions"][0])
     assert col.sum() == 1 and np.array_equal(data["matrix"] @ col, dec["y"])
 
@@ -1422,7 +1422,7 @@ def test_high_symmetry_points_names_the_tabulated_points_out_of_the_plane():
 
     A slab's zone has no ``k_z``, so the ``A``, ``R`` and ``Z`` of the square
     layer's ``P4/mmm1'`` table are not points of it at all -- and a caller
-    summing a symmetry vector over this mapping is reading a *partial* one
+    summing a symmetry data vector over this mapping is reading a *partial* one
     whether or not anything tells it.  ``missing`` is the telling: the
     tabulated names out of the periodic plane, disjoint from the keys by
     construction, and empty for a fully periodic model, whose zone carries the

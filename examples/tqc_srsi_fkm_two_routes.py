@@ -101,7 +101,7 @@ t2_strong = tqc.hsp_table(rep_strong, bands=2)               # the valence bands
 row("valence content", fmt(t2_strong.counts))
 
 # srsi_of_bands takes what decompose and symmetry_indicator take, the measured
-# symmetry vector, and evaluates the invariants on a rational site-symmetry vector
+# symmetry data vector, and evaluates the invariants on a rational site-symmetry vector
 # that induces it.
 b_strong = tqc.srsi_of_bands(t2_strong)
 si_strong = tqc.symmetry_indicator(t2_strong)

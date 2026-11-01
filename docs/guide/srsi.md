@@ -55,7 +55,7 @@ at `1b`, every little group there being `mm2` with its one double-valued
 [corep](../background/tqc-primer.md#little-groups-irreps-and-coreps), while the
 two differ in those parities: no symmetric deformation takes one into the
 other. The ℤₙ-valued invariants are why real-space invariants see more than a
-[symmetry vector](labels.md#every-high-symmetry-point-at-once).
+[symmetry data vector](labels.md#every-high-symmetry-point-at-once).
 
 ## The stable ones
 
@@ -75,12 +75,12 @@ deform into each other once the same atomic orbitals are added to both: the
 invariants classify atomic configurations up to stable equivalence.
 
 Two facts carry the rest of the chapter. The ℤ-valued SRSIs are a function of
-the symmetry vector alone: two configurations share them exactly when they
+the symmetry data vector alone: two configurations share them exactly when they
 share their content at every high-symmetry point. So every band set has
 ℤ-valued SRSIs, an atomic limit or not: those of any rational `p` whose content
 is the band set's. And, the paper's theorem, a band set has a nonzero symmetry
 indicator exactly when its ℤ-valued SRSIs are fractional. The ℤₙ-valued ones
-are no function of the symmetry vector, which makes the SRSIs finer than an
+are no function of the symmetry data vector, which makes the SRSIs finer than an
 indicator. The tables cover the
 [grey groups](../background/tqc-primer.md#little-groups-irreps-and-coreps),
 the space groups with time reversal, with spin–orbit coupling and without; a
@@ -180,7 +180,7 @@ number of bands as a form in the ℤ-valued invariants, `2·theta_1`, and
 
 ## From the bands
 
-`srsi_of_bands` reads the ℤ-valued SRSIs off a band set's symmetry vector `y`
+`srsi_of_bands` reads the ℤ-valued SRSIs off a band set's symmetry data vector `y`
 ([labelling the bands](labels.md#every-high-symmetry-point-at-once)): it solves
 `BR·p = y` over the rationals, `BR` being
 [the EBR matrix](../background/tqc-primer.md#how-a-symmetry-indicator-is-computed),
@@ -330,7 +330,7 @@ own.
 ## Why the ℤₙ half needs the orbitals
 
 `srsi_of_bands` returns no ℤₙ-valued SRSIs: they are no function
-of the symmetry vector, so a `p` solved back out of a band set's content
+of the symmetry data vector, so a `p` solved back out of a band set's content
 carries its own ℤₙ values and not the band set's. lin3g's bands 4 and 5, a
 fragile pair with the content of the EBR `-E2↑G(2)@1b`
 ([what a decomposition cannot certify](atomic-limits.md#what-a-decomposition-cannot-certify)),
@@ -387,7 +387,7 @@ are `2f`. Only the first is a table key; `wyckoff_sites_tables(group)` returns
 its full record.
 
 Two site irreps at one maximal position can be indistinguishable to everything
-this package measures: their EBRs have identical symmetry vectors, and their
+this package measures: their EBRs have identical symmetry data vectors, and their
 SRSIs are identical too. `stably_equivalent_pairs` reports such pairs; the
 paper's own example is `B2` and `B3` at `12d` of `I432`:
 
@@ -412,11 +412,11 @@ whichever member a decomposition picks, no number this package returns moves.
 The one verdict the SRSIs issue is the paper's no-go criterion for a gapped
 splitting of a model's bands into a valence set and a conduction set. All the
 bands together are an atomic insulator, the model's orbitals being its Wannier
-functions, so the symmetry vectors add, the valence set's plus the conduction
+functions, so the symmetry data vectors add, the valence set's plus the conduction
 set's, and so do the ℤ-valued SRSIs. If the valence and the conduction set are
 both atomic insulators, the ℤₙ-valued SRSIs add up too, modulo `n`, for some
 **atomic realizations** of each, configurations of orbitals that carry their
-symmetry vectors; if no pair of realizations adds up, one set or both is not an
+symmetry data vectors; if no pair of realizations adds up, one set or both is not an
 atomic insulator, and the gap carries topology. One realization that fails to
 add up proves nothing, so `splitting` enumerates them all. It takes the gap as
 given, reading content at the high-symmetry points only; lin3g's gaps above its

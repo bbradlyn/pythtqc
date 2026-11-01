@@ -5,7 +5,7 @@ vector ``p``, how many times each site irrep occurs at each Wyckoff position,
 that no symmetric deformation of the Wannier functions changes: two atomic
 configurations share every SRSI exactly when they deform into each other once
 the same atomic orbitals are added to both.  The :math:`\mathbb{Z}`-valued
-ones, ``theta_Z``, are a function of the symmetry vector, fractional exactly
+ones, ``theta_Z``, are a function of the symmetry data vector, fractional exactly
 when the symmetry indicator is nonzero.  The :math:`\mathbb{Z}_n`-valued ones,
 ``theta_Zn``, are not, and tell apart atomic limits with the same content at
 every high-symmetry point.
@@ -19,7 +19,7 @@ whose one invariant is the band count have none.
 - :func:`srsi_tables`, the tables of one group, and :func:`srsi_of` and
   :func:`srsi_of_columns`, their values on a configuration in hand;
 - :func:`srsi_of_bands`, the :math:`\mathbb{Z}`-valued invariants of a band
-  set, from its symmetry vector, and :func:`srsi_of_model`, both kinds, from a
+  set, from its symmetry data vector, and :func:`srsi_of_model`, both kinds, from a
   model's orbitals;
 - :func:`splitting`, the paper's no-go criterion on a gapped splitting of a
   model's bands, with :func:`nsit_criterion`, the criterion on invariants in
@@ -83,11 +83,11 @@ __all__ = ["SRSITables", "SRSIRow", "SRSIIndicator", "SiteKey", "SplitEBR",
 
 @dataclass(frozen=True)
 class BandSRSIs:
-    r"""The :math:`\mathbb{Z}`-valued stable real-space invariants of a band set, read off its symmetry vector.
+    r"""The :math:`\mathbb{Z}`-valued stable real-space invariants of a band set, read off its symmetry data vector.
 
     What :func:`srsi_of_bands` returns; :meth:`summary` prints it, and :meth:`line`
     puts it on one line.  It holds no :math:`\mathbb{Z}_n`-valued invariants: those
-    are no function of the symmetry vector.
+    are no function of the symmetry data vector.
 
     Attributes
     ----------
@@ -104,7 +104,7 @@ class BandSRSIs:
         The symmetry-indicator class measured with them.
     p : tuple of Fraction
         The rational site-symmetry vector over the columns that was evaluated, one
-        of many with this symmetry vector.
+        of many with this symmetry data vector.
     n_bands : int or None
         The number of bands.
     number_str, spinor : str, bool
@@ -162,12 +162,12 @@ class BandSRSIs:
 
 def srsi_of_bands(content, group=None, *, rep=None, points=None,
                   bands=None) -> BandSRSIs | Refusal:
-    r"""The :math:`\mathbb{Z}`-valued stable real-space invariants of a band set, from its symmetry vector.
+    r"""The :math:`\mathbb{Z}`-valued stable real-space invariants of a band set, from its symmetry data vector.
 
     They are the invariants of a rational site-symmetry vector ``p`` with the band
-    set's symmetry vector, every such ``p`` giving the same ones, and they are
+    set's symmetry data vector, every such ``p`` giving the same ones, and they are
     fractional exactly when the symmetry indicator is nonzero.  The
-    :math:`\mathbb{Z}_n`-valued invariants are no function of the symmetry vector,
+    :math:`\mathbb{Z}_n`-valued invariants are no function of the symmetry data vector,
     so none are returned; :func:`srsi_of_model` reads them off a model's orbitals.
 
     Parameters
@@ -201,7 +201,7 @@ def srsi_of_bands(content, group=None, *, rep=None, points=None,
     Raises
     ------
     ..refusal.InternalError
-        The rational solve does not reproduce the symmetry vector it was built
+        The rational solve does not reproduce the symmetry data vector it was built
         from: a defect to report.
     TypeError
         A content written out by hand with no group beside it.
@@ -241,7 +241,7 @@ def srsi_of_bands(content, group=None, *, rep=None, points=None,
     if check != [Fraction(int(x)) for x in si.y]:
         raise InternalError(
             f"#{group.number_str}: the rational solve of BR.p = y does not reproduce "
-            "the symmetry vector it was built from, though the compatibility relations "
+            "the symmetry data vector it was built from, though the compatibility relations "
             "hold (symmetry_indicator checked them). The Smith factors and the EBR "
             "matrix this package returns are not a decomposition of each other, which "
             "is arithmetic here failing rather than a measurement about the model.")
@@ -1175,7 +1175,7 @@ class AtomicRealization:
         ``((multiplicity, irrep, letter), ...)``: the keys it holds.
     theta_Zn : dict
         ``{n: values}``: its own :math:`\mathbb{Z}_n`-valued invariants, modulo
-        ``n``, which two realizations of one symmetry vector need not share.
+        ``n``, which two realizations of one symmetry data vector need not share.
     n_bands : int
         The number of bands.
     pairs : tuple of StablePair
@@ -1715,7 +1715,7 @@ def nsit_criterion(tables, theta_total, theta_Z_v, theta_Z_c, *,
             f"#{tables.number_str}: the valence bands' Z-valued SRSIs plus the conduction "
             f"bands' are ({', '.join(str(a + b) for a, b in zip(values_v, values_c))}), "
             f"not those of all the bands, ({', '.join(str(v) for v in theta_z_h)}). The "
-            "Z-valued SRSIs are linear in p and the symmetry vectors add, so this holds "
+            "Z-valued SRSIs are linear in p and the symmetry data vectors add, so this holds "
             "for any genuine splitting -- a violation is an arithmetic mistake in what "
             "was handed in, not a measurement about the bands")
     moduli = tuple(sorted(tables.zn_rows))

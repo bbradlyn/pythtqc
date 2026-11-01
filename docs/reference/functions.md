@@ -17,7 +17,7 @@ The functions fall into seven groups:
 - [Declaring what the hoppings cannot supply](#declaring-what-the-hoppings-cannot-supply) — the spin a spinless model carries in its orbital index.
 - [Group data in this cell's coordinates](#group-data-in-this-cells-coordinates) — the tables' k-points, little groups, character tables, Wyckoff positions and elementary band representations, in the model's own cell.
 - [Labelling the bands](#labelling-the-bands) — the states at one k-point, and the sewing matrices, characters and corep content of a set of bands, at one high-symmetry point or at all of them.
-- [Atomic limits](#atomic-limits) — whether a symmetry vector is a sum of elementary band representations, and the counting beside it.
+- [Atomic limits](#atomic-limits) — whether a symmetry data vector is a sum of elementary band representations, and the counting beside it.
 - [Stable invariants](#stable-invariants) — the symmetry-indicator class of a band set, and its stable real-space invariants, from the bands or from the orbitals.
 - [Numerical and `wannier90` models](#numerical-and-wannier90-models) — a model symmetric only to its own precision: its orbital centres moved onto the nearest positions the group carries, its hoppings onto the group's own average, and each operation classified.
 
@@ -581,7 +581,7 @@ Whether irrep's character tables are in place, and `ortools` installed.
 - [`sewing_matrix`](#sewing_matrix) — The matrix of one operation on a set of bands, at a k-point the operation leaves invariant: the sewing matrix `B(g,k)_mn = <u_m(k)|U(g;k)|u_n(k)>`.
 - [`characters`](#characters) — The characters of a set of bands at one k: the trace of each unitary operation of the little group over each degenerate multiplet of the set.
 - [`corep_content`](#corep_content) — The coreps a set of bands carries at one high-symmetry point, and which of its degenerate multiplets carry the same characters.
-- [`hsp_table`](#hsp_table) — The coreps a set of bands carries at every high-symmetry point of the group: its symmetry vector.
+- [`hsp_table`](#hsp_table) — The coreps a set of bands carries at every high-symmetry point of the group: its symmetry data vector.
 - [`format_counts`](#format_counts) — A content on one line: `{'-GM6': 2, '-GM7': 1}` as `2×-GM6 + -GM7`.
 - [`multiplets`](#multiplets) — Which bands of a spectrum are one degenerate level, at a stated energy tolerance.
 
@@ -797,7 +797,7 @@ hsp_table(
 )
 ```
 
-The coreps a set of bands carries at every high-symmetry point of the group: its symmetry vector.
+The coreps a set of bands carries at every high-symmetry point of the group: its symmetry data vector.
 
 **Parameters**
 
@@ -823,7 +823,7 @@ The coreps a set of bands carries at every high-symmetry point of the group: its
   [`decompose`](#decompose), [`symmetry_indicator`](#symmetry_indicator) and
   [`srsi_of_bands`](#srsi_of_bands) take, `decompose(t)`, in the group it
   was read in, which it carries as `t.rep.group`; `t.counts` is its
-  symmetry vector, `t.content` the coreps point by point;
+  symmetry data vector, `t.content` the coreps point by point;
   `t.complete` whether every
   point resolved, and `t.refusals` each point that did not, with its own
   `Refusal`; `t.note` where the labels rest on a choice the hoppings
@@ -877,10 +877,10 @@ Which bands of a spectrum are one degenerate level, at a stated energy tolerance
 ## Atomic limits
 
 - [`decompose`](#decompose) — Every sum of elementary band representations, with nonnegative integer multiplicities, that carries a band set's content.
-- [`subtract`](#subtract) — The content of the bands in one set and not in another: `a − b` as a symmetry vector.
+- [`subtract`](#subtract) — The content of the bands in one set and not in another: `a − b` as a symmetry data vector.
 - [`completeness_check`](#completeness_check) — Whether a band set's content is a sum of elementary band representations, and how many bands each sum holds.
 - [`regular_completion`](#regular_completion) — The bands that would carry a band set up to whole copies of the regular band representation, and the orbitals they would be.
-- [`ebr_rows`](#ebr_rows) — Each elementary band representation of the group as a symmetry vector: the coreps it carries at the high-symmetry points.
+- [`ebr_rows`](#ebr_rows) — Each elementary band representation of the group as a symmetry data vector: the coreps it carries at the high-symmetry points.
 - [`in_plane_restriction`](#in_plane_restriction) — Which coreps of the group's elementary band representations a layer measures, and whether each of the others repeats a measured one.
 
 ### `decompose`
@@ -957,7 +957,7 @@ Every sum of elementary band representations, with nonnegative integer multiplic
 subtract(content_a, content_b)
 ```
 
-The content of the bands in one set and not in another: `a − b` as a symmetry vector.
+The content of the bands in one set and not in another: `a − b` as a symmetry data vector.
 
 **Parameters**
 
@@ -1056,7 +1056,7 @@ The bands that would carry a band set up to whole copies of the regular band rep
 ebr_rows(group)
 ```
 
-Each elementary band representation of the group as a symmetry vector: the coreps it carries at the high-symmetry points.
+Each elementary band representation of the group as a symmetry data vector: the coreps it carries at the high-symmetry points.
 
 **Parameters**
 
@@ -1107,12 +1107,12 @@ Which coreps of the group's elementary band representations a layer measures, an
 
 ## Stable invariants
 
-- [`symmetry_indicator`](#symmetry_indicator) — The symmetry-indicator class of a band set's content: the class of its symmetry vector among the band structures modulo the atomic limits.
+- [`symmetry_indicator`](#symmetry_indicator) — The symmetry-indicator class of a band set's content: the class of its symmetry data vector among the band structures modulo the atomic limits.
 - [`stack_presentation`](#stack_presentation) — The layer repeated along its normal with no hopping between the copies: a crystal with the layer's bands at every `k_z`.
 - [`srsi_tables`](#srsi_tables) — The stable real-space invariants of a grey space group, as the paper tabulates them.
 - [`srsi_of`](#srsi_of) — `(theta_Z, theta_Zn)`: the stable real-space invariants of a configuration `p` over the site keys.
 - [`srsi_of_columns`](#srsi_of_columns) — `(theta_Z, theta_Zn)` of a configuration `p` over the group's elementary band representations.
-- [`srsi_of_bands`](#srsi_of_bands) — The $`\mathbb{Z}`$-valued stable real-space invariants of a band set, from its symmetry vector.
+- [`srsi_of_bands`](#srsi_of_bands) — The $`\mathbb{Z}`$-valued stable real-space invariants of a band set, from its symmetry data vector.
 - [`srsi_of_model`](#srsi_of_model) — A model's stable real-space invariants, read off its orbitals.
 - [`splitting`](#splitting) — Whether the bands asked for and the rest of a model's bands can both be atomic insulators.
 - [`nsit_criterion`](#nsit_criterion) — The paper's no-go criterion on a gapped splitting whose invariants are in hand.
@@ -1128,7 +1128,7 @@ symmetry_indicator(
 )
 ```
 
-The symmetry-indicator class of a band set's content: the class of its symmetry vector among the band structures modulo the atomic limits.
+The symmetry-indicator class of a band set's content: the class of its symmetry data vector among the band structures modulo the atomic limits.
 
 **Parameters**
 
@@ -1310,7 +1310,7 @@ srsi_of_columns(group_or_tables, p)
 srsi_of_bands(content, group=None, *, rep=None, points=None, bands=None)
 ```
 
-The $`\mathbb{Z}`$-valued stable real-space invariants of a band set, from its symmetry vector.
+The $`\mathbb{Z}`$-valued stable real-space invariants of a band set, from its symmetry data vector.
 
 **Parameters**
 

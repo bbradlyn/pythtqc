@@ -61,7 +61,7 @@ GROUPS = (
      ("solve_at", "sewing_matrix", "characters", "corep_content", "hsp_table",
       "format_counts", "multiplets")),
     ("Atomic limits",
-     "whether a symmetry vector is a sum of elementary band representations, "
+     "whether a symmetry data vector is a sum of elementary band representations, "
      "and the counting beside it",
      ("decompose", "subtract", "completeness_check", "regular_completion",
       "ebr_rows", "in_plane_restriction")),

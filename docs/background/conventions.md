@@ -460,7 +460,7 @@ glues the irreps differently, and `changed_labels` the names that moved.
 `row_permutation` re-keys a linear form written in the server's labels, an
 indicator formula copied off its pages, so that it can be evaluated on a
 returned
-[symmetry vector](tqc-primer.md#how-a-symmetry-indicator-is-computed).
+[symmetry data vector](tqc-primer.md#how-a-symmetry-indicator-is-computed).
 
 ## Spin
 
