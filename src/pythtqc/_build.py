@@ -1959,7 +1959,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
             f"pinned. Either the "
             f"k-point grid the covariance is measured on is too small (it has "
             f"{k_pts.shape[0]} k-points) or the model carries more symmetry than the group does."
-            f"{orient_hint}{read_hint} Open an issue on pythtqc's GitHub with the model "
+            f"{orient_hint}{read_hint} Open an issue on pythTQC's GitHub with the model "
             "and the call: the measurement should have fixed this choice.",
             value=float(len(survivors)), threshold=1.0,
             context={"n_candidates": int(search["n_candidates"])})

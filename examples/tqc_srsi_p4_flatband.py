@@ -1,6 +1,6 @@
 # Example of a band splitting that momentum space has no objection to and the
 # SRSI no-go criterion diagnoses all the same, and of the Wilson loop that then
-# says which obstruction each side carries, using pythtqc.
+# says which obstruction each side carries, using pythTQC.
 # The models are the two P41' models of Hwang et al., "Stable real-space
 # invariants and topology beyond symmetry indicators", Nat. Commun. 17, 8564
 # (2026), 10.1038/s41467-026-74844-w, supplementary section 5A: two Kramers
@@ -25,7 +25,7 @@
 # analysis in is the group the hoppings themselves obey.  The pattern is a
 # gapped deformation -- measured on a mesh and along the whole ramp -- so the
 # band sets it is asked about are the supplement's own, continued.
-# Run with python3, PythTB version 2.0 and pythtqc.
+# Run with python3, PythTB version 2.0 and pythTQC.
 
 # The calculations in this python file include
 # 1. the two Hamiltonians typed as hoppings, each checked against its own
@@ -41,7 +41,7 @@
 # 7. the Z2 model: the same group, the same verdict, and both loops winding
 # 8. the two spectra, the two Wilson loops, and the figure written out
 
-# Author: the pythtqc examples
+# Author: the pythTQC examples
 
 import os
 import sys

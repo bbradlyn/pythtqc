@@ -99,7 +99,7 @@ The summary, line by line:
   lives in, and the stable statement a nonzero class makes; the next line is
   its indicator group, `ℤ₆ × ℤ₁₂`.
 - `canonical` and `irreptables`: the class named twice, in the paper's names
-  and in those of `irreptables`, the package that ships the tables pythtqc
+  and in those of `irreptables`, the package that ships the tables pythTQC
   reads ([below](#the-names-a-class-is-spoken-in)).
 - `indicator: 1 mod 6, 0 mod 12, of order 6`: the class in Smith coordinates,
   `values = (1, 0)`, and its order. The Smith components and the named forms
@@ -212,7 +212,7 @@ Hwang *et al.*,
 gives named forms in the real-space invariants
 ([stable real-space invariants](srsi.md)). `canonical` is the class in the
 paper's names, the ones to read; `irreptables_named` is the same class in
-`irreptables`' own, its formulas carried into the labels pythtqc returns
+`irreptables`' own, its formulas carried into the labels pythTQC returns
 ([reading across to BCS](../background/conventions.md#reading-across-to-bcs));
 `as_irreptables()` converts the first into the second:
 

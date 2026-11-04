@@ -5,9 +5,10 @@ rests on that work. This page lists the papers behind each method, grouped by
 what the package does with them; [the primer](background/tqc-primer.md) says,
 a section each, what every method is.
 
-Work that uses pythtqc cites the paper its stable real-space invariants come from,
-Y. Hwang *et al.*, Nat. Commun. **17**, 8564 (2026), listed under
-[stable real-space invariants](#stable-real-space-invariants) below, and the
+Work that uses pythTQC cites the paper its stable real-space invariants come from,
+Y. Hwang *et al.*, Nat. Commun. **17**, 8564 (2026); the paper that carries them to
+photonic crystals, Y. Hwang *et al.*, arXiv:2601.06293 (2026), both listed under
+[stable real-space invariants](#stable-real-space-invariants) below; and the
 package itself, whose entry is in [`CITATION.cff`](../CITATION.cff).
 
 ## Space groups, their representations and their tables
@@ -103,6 +104,15 @@ package itself, whose entry is in [`CITATION.cff`](../CITATION.cff).
   the no-go criterion for a band splitting; the pairs of site irreps the
   invariants do not distinguish; and the names an indicator class is spoken
   in.
+- Y. Hwang, V. Gupta, A. Morales-Pérez, C. Devescovi, M. García-Díez,
+  J. L. Mañes, M. G. Vergniory, A. García-Etxarri and B. Bradlyn, *Building
+  blocks of topological band theory for photonic crystals*,
+  [arXiv:2601.06293](https://arxiv.org/abs/2601.06293) (2026): the stable
+  real-space invariants of a photonic crystal's bands, as the difference
+  between those of all the bands and those of the auxiliary bands added so
+  that the two transverse modes at Γ and `ω = 0` have a symmetry data vector;
+  and the space group 212 model of
+  [`tqc_srsi_sg212_photonic.py`](examples.md#tqc_srsi_sg212_photonicpy).
 
 ## The models
 

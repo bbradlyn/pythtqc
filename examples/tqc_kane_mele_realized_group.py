@@ -1,10 +1,10 @@
 # Example of a Wyckoff position that moves with the regime, and of a degeneracy
-# held by a conserved operator rather than by the little group, using pythtqc.
+# held by a conserved operator rather than by the little group, using pythTQC.
 # The model is Kane and Mele's honeycomb model, PRL 95, 226801 (2005): four
 # bands, two occupied, a staggered sublattice potential delta, an intrinsic
 # spin-orbit coupling and a Rashba term.  It is pythtb's own
 # pythtb.models.kane_mele(delta, t, soc, rashba).
-# Run with python3, PythTB version 2.0 and pythtqc.
+# Run with python3, PythTB version 2.0 and pythTQC.
 
 # The calculations in this python file include
 # 1. delta = 1.0 with rashba on: the group, the content at GM, K and M of the
@@ -24,7 +24,7 @@
 # that comes with it, and the symmetry-indicator class of one monolayer -- is the
 # subject of examples/tqc_kane_mele_three_presentations.py.
 
-# Author: the pythtqc examples
+# Author: the pythTQC examples
 
 import os
 import sys

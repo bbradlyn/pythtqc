@@ -1,4 +1,4 @@
-# Example of presentation independence using pythtqc: one monolayer, asked more
+# Example of presentation independence using pythTQC: one monolayer, asked more
 # than one way, and the inversion a layer carries.
 # The model is Kane and Mele's honeycomb at delta = 0 and rashba = 0, PRL 95,
 # 226801 (2005) -- pythtb's own pythtb.models.kane_mele(0.0, -1.0, 0.3, 0.0) --
@@ -10,7 +10,7 @@
 # P = sigma_h * C2z is in the group and carries the parity eigenvalues +-1 that C2z
 # does not have.  The class the layer occupies in {BS}/{AI} must not depend on how
 # the crystal was presented, and section D is where that is read off.
-# Run with python3, PythTB version 2.0 and pythtqc.
+# Run with python3, PythTB version 2.0 and pythTQC.
 
 # The calculations in this python file include
 # A. the layer in the plane, declared free-standing: the group, the site irrep,
@@ -25,7 +25,7 @@
 #    declared site irrep, and all four bands as the atomic-limit control
 # E. the bands: the layer, and the stack at k_z = 0 and k_z = 1/2
 
-# Author: the pythtqc examples
+# Author: the pythTQC examples
 
 import os
 import sys

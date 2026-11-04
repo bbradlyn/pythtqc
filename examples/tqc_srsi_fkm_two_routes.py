@@ -1,5 +1,5 @@
 # Example of the stable real-space invariants (SRSIs) of a band set, read from
-# the bands and read from the orbitals, using pythtqc.
+# the bands and read from the orbitals, using pythTQC.
 # The model is Fu, Kane and Mele's spin-orbit model on the diamond lattice,
 # PRL 98, 106803 (2007): four bands, two occupied, with one of the four
 # nearest-neighbour bonds detuned along [111].  It is pythtb's own
@@ -10,10 +10,10 @@
 # symmetry-preserving rearrangement of the orbitals can change.
 # The tables are those of Hwang et al., "Stable real-space invariants and
 # topology beyond symmetry indicators", Nat. Commun. 17, 8564 (2026),
-# 10.1038/s41467-026-74844-w, shipped as pythtqc package data.  The paper's
+# 10.1038/s41467-026-74844-w, shipped as pythTQC package data.  The paper's
 # theorem: a band set's Z-valued invariants are fractional if and only if its
 # symmetry-indicator class is nonzero.
-# Run with python3, PythTB version 2.0 and pythtqc.
+# Run with python3, PythTB version 2.0 and pythTQC.
 
 # The calculations in this python file include
 # 1. delta_t = +0.4 on the [111] bond, from the bands: the group, the valence
@@ -27,7 +27,7 @@
 #    bands, in each phase
 # 5. the bands along GM-T-F-L-GM, and the figure written out
 
-# Author: the pythtqc examples
+# Author: the pythTQC examples
 
 import os
 import sys

@@ -500,7 +500,7 @@ print(wrong.gate, [tqc.operations(wrong.context["group"])[i].name
 
 ## Where next
 
-- [How pythtqc reads a Hamiltonian](../background/measurement.md): why the
+- [How pythTQC reads a Hamiltonian](../background/measurement.md): why the
   hoppings cannot say what an orbital is, and the lowest-ℓ rule with its keys.
 - [Records](../reference/records.md#the-atomic-limit-table): every field of
   the atomic-limit table.

@@ -1,4 +1,4 @@
-# Contributing to pythtqc
+# Contributing to pythTQC
 
 Bug reports, questions and pull requests are welcome on
 [GitHub](https://github.com/bbradlyn/pythtqc/issues). A report is most useful

@@ -139,7 +139,7 @@ flowchart TD
 ### `spin`
 
 The spin a spinless model carries in its orbital index, as a wannier90 spinor
-import does ([how does pythtqc read the spin of my model?](../guide/spin.md)).
+import does ([how does pythTQC read the spin of my model?](../guide/spin.md)).
 
 ```mermaid
 flowchart TD

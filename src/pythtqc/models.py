@@ -1,7 +1,7 @@
 """Tight-binding crystals to measure on, each chosen to make one question sharp.
 
 Every builder returns a freshly built PythTB v2.0 model; its docstring says what
-the model is, where it comes from, and what pythtqc measures on it.
+the model is, where it comes from, and what pythTQC measures on it.
 
 ==============================  ===========================================================
 builder                         what it is

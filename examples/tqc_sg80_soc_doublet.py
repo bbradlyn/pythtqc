@@ -1,4 +1,4 @@
-# Example of labelling a degenerate level at a non-TRIM point using pythtqc.
+# Example of labelling a degenerate level at a non-TRIM point using pythTQC.
 # I4_1 (SG 80) is body-centred, and P = (1/4, 1/4, 1/4) in primitive
 # coordinates is not a time-reversal-invariant momentum -- 2P is no reciprocal-
 # lattice vector -- so the antiunitary acting at P is the coset element
@@ -9,7 +9,7 @@
 # observable that answers is the trace of the twofold rotation on the level.
 # The models are pythtqc.models' i41_atomic(), i41_soc("generic") and
 # p62_atomic().
-# Run with python3, PythTB version 2.0 and pythtqc.
+# Run with python3, PythTB version 2.0 and pythTQC.
 
 # The calculations in this python file include
 # 1. the spinful atomic limit: the group, and the fourfold level at P
@@ -20,7 +20,7 @@
 # 6. the control: P6_2 (#171) at H, where the gluing pairs two different irreps
 # 7. the P-point levels against the spin-orbit strength, and the figure
 
-# Author: the pythtqc examples
+# Author: the pythTQC examples
 
 import os
 import sys

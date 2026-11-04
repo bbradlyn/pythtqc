@@ -7,7 +7,7 @@ default) or free-standing, and returns the group of that crystal; it measures
 the other as well and checks that the two agree. This
 chapter shows both on Kane–Mele, without and with its Rashba term, and what the
 environment changes downstream. Why a layer is silent about its environment is
-in [how pythtqc reads a Hamiltonian](../background/measurement.md#a-layer-is-silent-about-what-lies-under-it).
+in [how pythTQC reads a Hamiltonian](../background/measurement.md#a-layer-is-silent-about-what-lies-under-it).
 
 ## The call
 
@@ -218,4 +218,4 @@ The arguments `environment=`, `cross_check=` and `decorations=`:
 `environment`, `environment_declared` and `cross_check`:
 [the records reference](../reference/records.md). Why a layer is silent, and how
 its out-of-plane rows are measured:
-[how pythtqc reads a Hamiltonian](../background/measurement.md#a-layer-is-silent-about-what-lies-under-it).
+[how pythTQC reads a Hamiltonian](../background/measurement.md#a-layer-is-silent-about-what-lies-under-it).

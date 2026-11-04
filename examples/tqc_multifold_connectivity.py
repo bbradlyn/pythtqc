@@ -1,5 +1,5 @@
 # Example of the connectivity of an elementary band representation, using
-# pythtqc.  Michel and Zak conjectured that an elementary band representation
+# pythTQC.  Michel and Zak conjectured that an elementary band representation
 # is always connected -- that its bands can never be separated into isolated
 # subsets anywhere in the zone.  Two four-band elementary band representations
 # are measured here, and they answer in opposite directions.
@@ -9,7 +9,7 @@
 # (2018), at the Fig. 3a parameters: spinless (d_z2, d_x2-y2) at Wyckoff 2a of
 # SG 208 (P4_2 3 2).  They are pythtqc.models' i213_flicker2018() and
 # p4232_cano2018().
-# Run with python3, PythTB version 2.0 and pythtqc.
+# Run with python3, PythTB version 2.0 and pythTQC.
 
 # The calculations in this python file include
 # 1. SG 199: the group, and the levels of the four bands at every high-symmetry
@@ -22,7 +22,7 @@
 # 5. SG 208: each half of the split on its own
 # 6. the two band structures, and the figure written out
 
-# Author: the pythtqc examples
+# Author: the pythTQC examples
 
 import os
 import sys

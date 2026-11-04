@@ -1,8 +1,9 @@
 cff-version: 1.2.0
 message: >-
-  If you use pythtqc, please cite the paper its stable real-space invariants
-  come from, given below as the preferred citation, and the package itself.
-title: pythtqc
+  If you use pythTQC, please cite the paper its stable real-space invariants
+  come from, given below as the preferred citation; the paper that carries them
+  to photonic crystals, given below under references; and the package itself.
+title: pythTQC
 abstract: >-
   Crystalline-symmetry diagnostics for PythTB tight-binding models: the space
   group a Hamiltonian obeys, the corep content of its bands, whether that
@@ -49,3 +50,32 @@ preferred-citation:
   identifiers:
     - type: other
       value: "arXiv:2505.09697"
+references:
+  - type: article
+    title: Building blocks of topological band theory for photonic crystals
+    authors:
+      - family-names: Hwang
+        given-names: Y.
+      - family-names: Gupta
+        given-names: V.
+      - family-names: Morales-Pérez
+        given-names: A.
+      - family-names: Devescovi
+        given-names: C.
+      - family-names: García-Díez
+        given-names: M.
+      - family-names: Mañes
+        given-names: J. L.
+      - family-names: Vergniory
+        given-names: M. G.
+      - family-names: García-Etxarri
+        given-names: A.
+      - family-names: Bradlyn
+        given-names: B.
+    status: preprint
+    year: 2026
+    doi: 10.48550/arXiv.2601.06293
+    url: "https://arxiv.org/abs/2601.06293"
+    identifiers:
+      - type: other
+        value: "arXiv:2601.06293"

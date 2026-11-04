@@ -194,4 +194,4 @@ Every refusal, with its meaning, its usual cause and what to do:
 [the refusals reference](../reference/refusals.md). The refusals each call can return: its
 entry in [the functions reference](../reference/functions.md). The record's fields:
 [`Refusal`](../reference/records.md#refusal). The two cases in which the group question is
-refused: [how pythtqc reads a Hamiltonian](../background/measurement.md#when-the-group-question-is-refused).
+refused: [how pythTQC reads a Hamiltonian](../background/measurement.md#when-the-group-question-is-refused).

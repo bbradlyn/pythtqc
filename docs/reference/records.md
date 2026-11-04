@@ -62,7 +62,7 @@ What `realized_group` returns: the space group the Hamiltonian obeys, the
 Wyckoff orbit of each orbital, the verdict on each operation and the model's
 representation of the group, measured together and kept with the model they
 were measured on. Why the group is measured rather than read off the positions
-is in [how pythtqc reads a Hamiltonian](../background/measurement.md).
+is in [how pythTQC reads a Hamiltonian](../background/measurement.md).
 
 ```python
 print(r)

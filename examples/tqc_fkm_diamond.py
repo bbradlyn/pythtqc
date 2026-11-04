@@ -1,10 +1,10 @@
 # Example of a bond distortion measured as a symmetry lowering, and of the
-# symmetry-indicator class of each phase, using pythtqc.
+# symmetry-indicator class of each phase, using pythTQC.
 # The model is Fu, Kane and Mele's spin-orbit model on the diamond lattice,
 # PRL 98, 106803 (2007): four bands, two occupied, with one of the four
 # nearest-neighbour bonds detuned along [111].  It is pythtb's own
 # pythtb.models.fu_kane_mele(t, soc, dt).
-# Run with python3, PythTB version 2.0 and pythtqc.
+# Run with python3, PythTB version 2.0 and pythTQC.
 
 # The calculations in this python file include
 # 1. the undistorted crystal: the group, the bands at the high-symmetry points,
@@ -17,7 +17,7 @@
 # 6. the symmetry-indicator class of the three phases in {BS}/{AI}
 # 7. the bands along GM-T-F-L-GM, and the figure written out
 
-# Author: the pythtqc examples
+# Author: the pythTQC examples
 
 import os
 import sys

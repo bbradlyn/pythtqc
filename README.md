@@ -1,4 +1,4 @@
-# pythtqc
+# pythTQC
 
 Crystalline-symmetry diagnostics for [PythTB](https://pythtb.readthedocs.io/)
 tight-binding models. Hand it a model and it measures the space group its
@@ -96,10 +96,12 @@ mkdocs serve                  # the site, at http://127.0.0.1:8000
 
 ## Citing
 
-Work that uses pythtqc cites the paper its stable real-space invariants come
-from, Y. Hwang *et al.*, Nat. Commun. **17**, 8564 (2026), and the package itself:
-[`CITATION.cff`](CITATION.cff) holds both, and GitHub's "Cite this repository"
-reads it. The papers behind each method are listed in [citing](docs/citing.md).
+Work that uses pythTQC cites the paper its stable real-space invariants come
+from, Y. Hwang *et al.*, Nat. Commun. **17**, 8564 (2026); the paper that carries
+them to photonic crystals, Y. Hwang *et al.*, arXiv:2601.06293 (2026); and the
+package itself: [`CITATION.cff`](CITATION.cff) holds all three, and GitHub's
+"Cite this repository" reads it. The papers behind each method are listed in
+[citing](docs/citing.md).
 
 ## Acknowledgements
 

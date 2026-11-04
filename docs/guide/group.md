@@ -7,7 +7,7 @@ descent when the Hamiltonian has less symmetry than its cell, time reversal, a
 conserved operator, and a cell that is a supercell. The models are pythtb's own:
 graphene and Haldane's model, Kane–Mele, Fu–Kane–Mele's diamond and the
 checkerboard. Why the group is measured rather than read off the positions is in
-[how pythtqc reads a Hamiltonian](../background/measurement.md).
+[how pythTQC reads a Hamiltonian](../background/measurement.md).
 
 ## The call
 
@@ -316,7 +316,7 @@ a malformed argument raises `ValueError` before anything is measured.
 Every argument: [`realized_group`](../reference/functions.md#realized_group).
 Every field of the record: [the records reference](../reference/records.md). The
 measurement, the tie rule and what a declaration does to the group:
-[how pythtqc reads a Hamiltonian](../background/measurement.md). The diamond's
+[how pythTQC reads a Hamiltonian](../background/measurement.md). The diamond's
 three phases, read off the hoppings alone:
 [the three-dimensional tutorial](../start/tutorial-3d.md) and
 [`examples/tqc_fkm_diamond.py`](../../examples/tqc_fkm_diamond.py).

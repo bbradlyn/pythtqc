@@ -1,5 +1,5 @@
 # Example of the orbitals at the sites of one Wyckoff orbit as one another's
-# images, using pythtqc.
+# images, using pythTQC.
 # The model is a p pair at each of the three 3c sites of a simple cubic cell,
 # each pair perpendicular to its own site's fourfold axis: (p_y, p_z) at
 # (0, 1/2, 1/2), (p_x, p_z) at (1/2, 0, 1/2) and (p_x, p_y) at (1/2, 1/2, 0),
@@ -8,7 +8,7 @@
 # another carries its pair onto a pair of different functions, and the
 # question is what the atomic-limit table of such an orbit says, and what band
 # representation it induces.
-# Run with python3, PythTB version 2.0 and pythtqc.
+# Run with python3, PythTB version 2.0 and pythTQC.
 
 # The calculations in this python file include
 # 1. the model: the three 3c sites, each with its own axis and its p pair
@@ -19,7 +19,7 @@
 # 4. the same model with every pair rotated inside itself by one angle
 # 5. the six bands as a sum of elementary band representations, and the figure
 
-# Author: the pythtqc examples
+# Author: the pythTQC examples
 
 import os
 import sys

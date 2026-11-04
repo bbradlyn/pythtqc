@@ -800,7 +800,7 @@ def srsi_status() -> dict[str, Any]:
         info["reason"] = (
             f"the SRSI tables {missing} are not installed in {DATA_DIR}. They ship "
             "with the package as its data, so this installation is missing them: "
-            "reinstall pythtqc")
+            "reinstall pythTQC")
     else:
         info["data"] = True
     return info

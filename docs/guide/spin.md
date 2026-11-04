@@ -1,4 +1,4 @@
-# How does pythtqc read the spin of my model?
+# How does pythTQC read the spin of my model?
 
 The labels of a spinful model are double-valued: each is an orbital factor
 times the operations' own action on the spin, and that action is a convention

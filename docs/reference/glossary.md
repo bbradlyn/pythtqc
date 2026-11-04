@@ -5,7 +5,7 @@ pages, the records and the docstrings call each thing by one name; this page
 lists those names, says in a line what each one is, and points to where it is
 explained. The ideas themselves are in
 [the TQC primer](../background/tqc-primer.md) and
-[how pythtqc reads a Hamiltonian](../background/measurement.md), and every field
+[how pythTQC reads a Hamiltonian](../background/measurement.md), and every field
 of every record is in [the records reference](records.md).
 
 ## The names on the records

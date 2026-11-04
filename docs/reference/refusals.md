@@ -803,7 +803,7 @@ Returned by `realized_group` and `symmetrize`.
 - **What it means.** More than one distinct representation passes every check, so the
   choice the measurement should fix is not fixed: the k-points the candidates are tested at
   are too few, or the model carries more symmetry than the group.
-- **What to do.** Open an issue on pythtqc's GitHub with the model and the call: the
+- **What to do.** Open an issue on pythTQC's GitHub with the model and the call: the
   measurement should have fixed this choice.
 
 #### `canonical_norm`

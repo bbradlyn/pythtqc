@@ -1,6 +1,6 @@
 # Conventions: operations, labels and band representations
 
-The labels pythtqc prints come from one set of tables: the irreducible
+The labels pythTQC prints come from one set of tables: the irreducible
 representations, site-symmetry groups and
 [elementary band representations](tqc-primer.md#band-representations-and-atomic-limits)
 of the Bilbao Crystallographic Server (BCS), as the `irreptables` package
@@ -330,9 +330,9 @@ formulas do, `1 (-E1)_a`, one copy of `-E1` at the Wyckoff position of letter `a
 
 The EBR files the tables ship write every improper site group without its
 bar: `6m2` for the `-6m2` at `2c` of `P6/mmm`, `3m` for the `-3m` at `3a` of
-`R-3m`. pythtqc names each site group from the operations that fix the
+`R-3m`. pythTQC names each site group from the operations that fix the
 position and writes the bar back, so graphene's position reads `2c (-6m2)` in
-every summary and `2c(-6m21',-6m2)` in every key pythtqc returns: a
+every summary and `2c(-6m21',-6m2)` in every key pythTQC returns: a
 decomposition's, an orbit's localization, the atomic-limit table's band
 representations', `ebr_rows`' and `ebr_data`'s.
 
@@ -341,13 +341,13 @@ representations', `ebr_rows`' and `ebr_data`'s.
 A Seitz symbol is the server's general position, its axis at most written the
 other way round (`3+_111` where a table may print `3-_-1-1-1`, the same
 operation, which `operation_index` reads either way), and the site irrep and
-corep names are the server's, so most of what pythtqc prints reads straight
+corep names are the server's, so most of what pythTQC prints reads straight
 across. One convention differs. The server's tables represent a lattice
 translation `t` by `e^{+ik·t}`; Bloch functions transformed as
 `(g f)(r) = f(g⁻¹r)` carry `e^{−ik·t}`, which is what pythtb's Bloch
 Hamiltonian realizes and a
 [sewing matrix](tqc-primer.md#little-groups-irreps-and-coreps) measures.
-pythtqc carries the tables
+pythTQC carries the tables
 into that physical convention once, where they are read, and every label and
 EBR row it returns is in it. Since `e^{+ik·t} = e^{−i(−k)·t}`, the difference
 is one sentence: **the labels the server ships at `k` are the labels of the

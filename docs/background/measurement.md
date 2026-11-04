@@ -1,4 +1,4 @@
-# How pythtqc reads a Hamiltonian
+# How pythTQC reads a Hamiltonian
 
 This page states once the ideas every chapter of the guide leans on: what
 `pythtqc` measures on a Hamiltonian, what a declaration states, and what is

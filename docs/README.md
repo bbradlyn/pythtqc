@@ -1,4 +1,4 @@
-# The pythtqc documentation
+# The pythTQC documentation
 
 `pythtqc` measures crystalline symmetry from a PythTB tight-binding model: the
 space group its Hamiltonian obeys, its bands' content at every high-symmetry
@@ -19,7 +19,7 @@ code prints.
    orbital, the site irrep each one carries and how it is known: declared,
    fixed by the Hamiltonian, or assigned by the lowest-angular-momentum rule.
    → [How do I say what my orbitals are?](guide/orbitals.md), and for a
-   spinful model [How does pythtqc read the spin of my model?](guide/spin.md)
+   spinful model [How does pythTQC read the spin of my model?](guide/spin.md)
 3. **The bands.** `hsp_table` reads the corep content of a band set at every
    high-symmetry point. → [Which coreps do these bands carry?](guide/labels.md)
 4. **What the content says.** `decompose` asks whether it could be an atomic limit,
@@ -52,7 +52,7 @@ that cannot complete returns a refusal, which says why:
 - [What group does my Hamiltonian have?](guide/group.md)
 - [Is my 2D model on a substrate or free-standing?](guide/layers.md)
 - [How do I say what my orbitals are?](guide/orbitals.md)
-- [How does pythtqc read the spin of my model?](guide/spin.md)
+- [How does pythTQC read the spin of my model?](guide/spin.md)
 - [Which coreps do these bands carry?](guide/labels.md)
 - [Could these bands be an atomic limit?](guide/atomic-limits.md)
 - [Which symmetry-indicator class do these bands occupy?](guide/indicators.md)
@@ -62,7 +62,7 @@ that cannot complete returns a refusal, which says why:
 
 **The full account.**
 
-- [How pythtqc reads a Hamiltonian](background/measurement.md) — the ideas
+- [How pythTQC reads a Hamiltonian](background/measurement.md) — the ideas
   every chapter leans on, stated once.
 - [The topological quantum chemistry this package uses](background/tqc-primer.md)
   — site symmetry, band representations, how an indicator is computed, and the

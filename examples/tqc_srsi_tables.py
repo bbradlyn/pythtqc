@@ -1,16 +1,16 @@
-# Example of the stable-real-space-invariant tables themselves, using pythtqc:
+# Example of the stable-real-space-invariant tables themselves, using pythTQC:
 # no model anywhere in this script.
 # The tables are those of Hwang et al., "Stable real-space invariants and
 # topology beyond symmetry indicators", Nat. Commun. 17, 8564 (2026),
 # 10.1038/s41467-026-74844-w, converted from the paper's supplement and shipped
-# as pythtqc package data.
+# as pythTQC package data.
 # An SRSI is a linear form theta = Theta.p on the site-symmetry vector p -- how
 # many orbitals of each site-symmetry irrep sit at each Wyckoff position -- that
 # annihilates every adiabatic, symmetry-preserving rearrangement of the
 # orbitals.  Some rows are Z-valued and some are Z_n-valued; the Z_n rows carry
 # information no symmetry data vector does, and they are why these tables say more
 # than a symmetry indicator.
-# Run with python3, PythTB version 2.0 and pythtqc.
+# Run with python3, PythTB version 2.0 and pythTQC.
 
 # The calculations in this python file include
 # 1. srsi_tables(211, spinor=False): one group's invariants, its whole basis of
@@ -26,7 +26,7 @@
 # 5. the pairs the SRSIs do not distinguish, over every tabulated system
 # 6. the figure: the verdicts on the splittings, and the pairs by site symmetry
 
-# Author: the pythtqc examples
+# Author: the pythTQC examples
 
 import os
 import sys

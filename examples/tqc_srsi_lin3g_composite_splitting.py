@@ -1,5 +1,5 @@
 # Example of the SRSI no-go criterion applied to a composite band
-# representation, using pythtqc.
+# representation, using pythTQC.
 # The model is the spinful fragile-plus-EBR model of Lin et al., Nat. Commun.
 # 15, 550 (2024), 10.1038/s41467-024-44762-w, SM Sec. 3G --
 # pythtqc.models.lin3g.  Four orbitals, eight bands, wallpaper group p4mm: two
@@ -8,7 +8,7 @@
 # elementary band representations at two Wyckoff positions rather than the
 # single one whose splittings the paper's supplement tabulates.  The question
 # is what the criterion says about two different gaps of that one Hamiltonian.
-# Run with python3, PythTB version 2.0 and pythtqc.
+# Run with python3, PythTB version 2.0 and pythTQC.
 
 # The calculations in this python file include
 # 1. the group, the two site orbits with their contents, the atomic limits of
@@ -18,7 +18,7 @@
 # 4. splitting(r, bands=4): the same model, the gap two bands lower
 # 5. the two gaps, the eight bands along GM-X-M-GM, and the figure
 
-# Author: the pythtqc examples
+# Author: the pythTQC examples
 
 import os
 import sys

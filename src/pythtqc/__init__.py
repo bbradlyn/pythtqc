@@ -1,6 +1,6 @@
 """Crystalline symmetry measured from a PythTB tight-binding model.
 
-From a model's own Hamiltonian, pythtqc measures:
+From a model's own Hamiltonian, pythTQC measures:
 
 1. the space group it obeys, each orbital's Wyckoff position and site irrep,
    and the model's representation of the group: ``realized_group(model)``;
