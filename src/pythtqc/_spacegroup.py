@@ -335,11 +335,6 @@ class GroupData:
     #: own rather than inheriting one made for other operations.
     _wyckoff_audit: dict = field(default_factory=dict, init=False, repr=False,
                                  compare=False)
-    #: Memo of :func:`.._subgroups._subgroups_inside` for this group, keyed by the operations
-    #: kept and the pairs avoided: the subgroups inside a set are a property of
-    #: the group, asked of it by every reading that searches them.  ``init=False``
-    #: for the same reason as above.
-    _subgroups: dict = field(default_factory=dict, init=False, repr=False, compare=False)
 
     # -- delegated to ``irrep`` --------------------------------------------
     @property

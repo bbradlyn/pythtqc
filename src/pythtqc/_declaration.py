@@ -17,8 +17,8 @@ from ._tolerance import CHARACTER, IN_SPACE, SPREAD, ZERO, _IN_BLOCKS, noise_flo
 from ._text import _counted_as, _fmt_char, _label_terms
 from ._seitz import _record_name
 from ._subgroups import (
-    _descent_closure, _resolve_closure, _subgroups_inside, _tie_ranked, _tie_reason,
-    _tie_rule_words)
+    _closes, _descent_closure, _resolve_closure, _subgroups_inside, _tie_ranked,
+    _tie_reason, _tie_rule_words)
 from ._detector import _READOFF_MAX_BYTES
 from ._matrices import (
     RepAnchor, _ansatz_blocks, _atom_blocks, _atoms_of_site, _bfs_words,
@@ -134,9 +134,14 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
     # is what removes those -- so the question is asked inside the group they
     # DO form, and such a fiber partner is neither kept by the declaration nor
     # blamed on it: it leaves by the closure resolution, which is its own verdict.
-    plain = _subgroups_inside(group, keep)
-    widest = sorted((s for s in plain if len(s) == max(len(t) for t in plain)),
-                    key=sorted) if plain else []
+    closes = _closes(group, keep)
+    if closes:
+        # the survivors are a group, the one largest inside them
+        widest = [frozenset(keep)]
+    else:
+        plain = _subgroups_inside(group, keep)
+        widest = sorted((s for s in plain if len(s) == max(len(t) for t in plain)),
+                        key=sorted) if plain else []
     if len(widest) != 1:
         # THE SURVIVORS ARE NOT A GROUP AND NO LARGEST SUBGROUP OF THEM IS
         # UNIQUE.  A declaration is read on a *group*, and there is not one here
@@ -179,6 +184,11 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
                 return True
         return False
 
+    if closes and _closes(group, allowed) and _met(frozenset(allowed)):
+        # the operations the declaration allows are a group carrying it, the one
+        # largest consistent subgroup, with no tie
+        return {"subgroup": frozenset(allowed), "candidates": (),
+                "broken": tuple(sorted(i for i in baseline if i not in allowed))}
     consistent = {frozenset(int(i) for i in sub)
                   for sub in _subgroups_inside(group, allowed) if _met(sub)}
     if not consistent:                   # pragma: no cover - {E} always is
@@ -230,14 +240,21 @@ def _subgroup_read(group, kept_u, search):
 
     keep = frozenset(int(i) for i in kept_u)
     try:
-        plain = _subgroups_inside(group, keep)
-        top = max(len(s) for s in plain) if plain else 0
-        widest = sorted((s for s in plain if len(s) == top), key=sorted)
-        if len(widest) != 1:
-            bad = {i for i in keep if not search.met(_cyclic(group, i))}
-            return {"subgroup": frozenset(keep - bad), "candidates": (),
-                    "broken": tuple(sorted(bad))}
-        baseline = frozenset(widest[0])
+        if _closes(group, keep):
+            # the survivors are a group, the one largest inside them, and where
+            # it carries the declaration it is the subgroup kept, with no tie
+            baseline = keep
+            if search.met(baseline):
+                return {"subgroup": baseline, "candidates": (), "broken": ()}
+        else:
+            plain = _subgroups_inside(group, keep)
+            top = max(len(s) for s in plain) if plain else 0
+            widest = sorted((s for s in plain if len(s) == top), key=sorted)
+            if len(widest) != 1:
+                bad = {i for i in keep if not search.met(_cyclic(group, i))}
+                return {"subgroup": frozenset(keep - bad), "candidates": (),
+                        "broken": tuple(sorted(bad))}
+            baseline = frozenset(widest[0])
         carried, size = [], None
         for sub in sorted(_subgroups_inside(group, baseline), key=lambda s: (-len(s), sorted(s))):
             if size is not None and len(sub) < size:
