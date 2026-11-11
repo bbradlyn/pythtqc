@@ -722,66 +722,81 @@ def test_product_table_with_spinor_factors():
     for i in range(16):
         assert int(table[i, inv[i]]) == e == int(flat[inv[i], i])
 
+    # irrep's own table, all three arrays entry for entry, on two lists it is
+    # slow to build: the diamond's 96 operations, and a centred list, where
+    # several operations share each rotation and are told apart by translation
+    diamond_group = _spacegroup._group_of(diamond(), spinor=True)
+    centred = _spacegroup._group_of(square_two_orbitals(), spinor=True)
+    assert diamond_group.size == 96 and centred._lattice_index > 1
+    for h in (diamond_group, centred):
+        built, irreps_own = h.get_product_table(get_diff=True), h._sg.get_product_table(get_diff=True)
+        assert len(built) == len(irreps_own) == 3
+        for ours, theirs in zip(built, irreps_own):
+            assert ours.dtype == theirs.dtype and np.array_equal(ours, theirs), h.name
+
 
 def test_the_product_table_is_memoized_and_still_handed_out_fresh(monkeypatch):
-    """``irrep`` rebuilds the table at O(N^3) per call; we build it once.
+    """The table is built once for each ``irrep`` object and handed out fresh.
 
-    Three calls live inside one ``_build_rep`` -- its own product-table gate,
-    plus twice through ``_sitechars.site_group_table`` -- and on the 96
-    operations of the FKM diamond group each cost 6.4 s, which is why that
-    ``_build_rep`` measured 37.8 s cold and 16.8 s once the table is kept.
-    The table is immutable group data, so it is computed once per
-    ``GroupData``, with its projective data, and the table alone is read off
-    that record.  What callers
-    get back is still a *fresh* array every time, so the memo cannot be reached
-    through anything they do with it, and ``dataclasses.replace`` starts an
-    empty memo rather than inheriting one built for a different ``_sg``.
+    Every record that holds one ``irrep`` object -- a copy made by
+    ``dataclasses.replace`` that keeps it among them -- reads one table, built
+    the first time it is asked for; a record given another object builds its
+    own.  What is handed out is a fresh array every time, so nothing done with
+    it reaches the table kept.  ``irrep``'s own ``SpaceGroup.get_product_table``
+    forms each product as an operation of its own and searches the list for it,
+    which takes seconds a table on the 96 operations of the double-valued
+    diamond group.  The table built here is that one, entry for entry.
 
-    The saving is counted, not inferred: ``irrep``'s own
-    ``SpaceGroup.get_product_table`` is replaced by a counting wrapper, so the
-    number of *builds* is visible.  Equal values across two calls, freshness of
-    the returned arrays and an empty ``_product_tables`` on a ``replace()``d
-    copy are all equally true of a passthrough that rebuilds every time; the
+    The builds are counted, not inferred: ``_spacegroup._product_table`` is
+    replaced by a counting stand-in that calls it.  Equal values across two
+    calls and fresh arrays are equally true of a table rebuilt every time; the
     counter is what separates the two.
     """
-    # `_group_of` hands the same GroupData back for the same model, so its memo
-    # may already be warm from an earlier test in this session; `replace` is
-    # the documented route to a copy that starts empty, and it is the very
-    # thing asserted at the end.
-    g = dataclasses.replace(_spacegroup._group_of(square(spinful=True), include_TR=False))
+    # `_group_of` hands back the same record, and the same `irrep` object, for
+    # the same model, whose table an earlier test may have built: a copy of the
+    # object is one nothing has seen
+    g = _spacegroup._group_of(square(spinful=True), include_TR=False)
+    g = dataclasses.replace(g, _sg=copy.copy(g._sg))
     builds = []
-    real_build = g._sg.get_product_table
+    real_build = _spacegroup._product_table
 
-    def counting(get_diff=True, _real=real_build):
-        builds.append(bool(get_diff))
-        return _real(get_diff=get_diff)
+    def counting(sg, _real=real_build):
+        builds.append(sg)
+        return _real(sg)
 
-    monkeypatch.setattr(g._sg, "get_product_table", counting)
-    assert g._product_tables == {}, "nothing memoized before the first call"
+    monkeypatch.setattr(_spacegroup, "_product_table", counting)
 
     first = g.get_product_table(get_diff=True)
     again = g.get_product_table(get_diff=True)
-    assert builds == [True], "two calls, one build"
-    assert set(g._product_tables) == {True}, "the get_diff=True table is kept"
+    assert len(builds) == 1, "two calls, one build"
     assert all(np.array_equal(a, b) for a, b in zip(first, again))
     assert all(a is not b for a, b in zip(first, again)), "a fresh copy per call"
 
     flat, flat2 = g.get_product_table(get_diff=False), g.get_product_table(get_diff=False)
-    assert builds == [True], "the table alone is read off the record: no second build"
-    assert set(g._product_tables) == {True}, "one record kept"
+    assert len(builds) == 1, "the table alone is read off the one kept: no second build"
     assert np.array_equal(flat, flat2) and flat is not flat2
-    assert np.array_equal(flat, first[0]), "the table alone is the record's first array"
+    assert np.array_equal(flat, first[0]), "the table alone is the first array"
 
-    # mutating what a caller was handed cannot reach the memo
+    # writing into what was handed out does not reach the table kept
     first[0][0, 0] = -99
     assert int(g.get_product_table(get_diff=True)[0][0, 0]) == int(again[0][0, 0])
     assert len(g.get_product_table(get_diff=True)) == 3
-    assert builds == [True], "and none of that rebuilt anything"
+    assert len(builds) == 1, "and none of that built anything"
 
-    fresh = dataclasses.replace(g, provenance="realized")
-    assert fresh._product_tables == {}, "replace() does not inherit a memo"
-    assert np.array_equal(fresh.get_product_table(get_diff=False), flat)
-    assert builds == [True, True], "the fresh copy pays for its own table, built whole"
+    same = dataclasses.replace(g, provenance="realized")
+    assert np.array_equal(same.get_product_table(get_diff=False), flat)
+    assert len(builds) == 1, "a copy holding the same irrep object reads the same table"
+
+    other = dataclasses.replace(g, _sg=copy.copy(g._sg))
+    assert np.array_equal(other.get_product_table(get_diff=False), flat)
+    other.get_product_table(get_diff=True)
+    assert len(builds) == 2 and builds[1] is other._sg, "another irrep object, its own build"
+
+    irreps_own = g._sg.get_product_table(get_diff=True)
+    assert len(again) == len(irreps_own) == 3
+    for ours, theirs in zip(again, irreps_own):
+        assert ours.dtype == theirs.dtype and np.array_equal(ours, theirs), \
+            "the table is irrep's own, entry for entry"
 
 
 # ---------------------------------------------------------------------------

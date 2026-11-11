@@ -879,13 +879,7 @@ def _single_valued_view(group):
     """
     if not group.spinor:
         return group
-    view = replace(group, spinor=False)
-    # `replace` starts a fresh product-table memo, deliberately, because a table
-    # computed for another `_sg` would be the wrong one.  Here `_sg` is the same
-    # object, so the memo is the right one and copying it is what keeps the
-    # second reading free.
-    view._product_tables.update(group._product_tables)
-    return view
+    return replace(group, spinor=False)
 
 
 def _site_orbital_labels(group, assignment, site, table) -> tuple:

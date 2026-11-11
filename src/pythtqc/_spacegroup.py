@@ -20,13 +20,15 @@ import math
 import os
 import string
 from typing import Any
+import weakref
 
 import irrep.spacegroup_irreps  # noqa: F401
 import numpy as np
 
 from .refusal import InternalError, Refusal
 from ._tolerance import (
-    DEFAULT_FINDER, WYCKOFF_REFERENCE_TOL, _EXACT_CLOSURE, _LATTICE_TOL)
+    DEFAULT_FINDER, WYCKOFF_REFERENCE_TOL, _EXACT_CLOSURE, _LATTICE_TOL,
+    _SAME_TRANSLATION)
 from ._text import _affine_text, _index_ranges, _lattice_vectors, _point_text
 
 __all__ = ["tables_status", "GroupData", "LittleGroup", "WyckoffPosition",
@@ -120,6 +122,113 @@ def _refuse_no_tables(status: dict[str, Any]) -> Refusal:
         reason=status["reason"] or "irrep did not load real character tables",
         context={k: v for k, v in status.items() if k != "reason"},
     )
+
+
+# --------------------------------------------------------------------------
+# the multiplication table
+# --------------------------------------------------------------------------
+
+def _product_table(sg, *, block_bytes: float = 6.4e7):
+    r"""The multiplication table of the operations ``irrep`` lists in ``sg``.
+
+    Each product ``g_i g_j`` is found in the list by its rotation and whether
+    it is primed and, among the operations that share both -- one for a
+    primitive cell, one per centring translation otherwise, taken in list
+    order -- the first whose translation agrees modulo the lattice
+    (:data:`.._tolerance._SAME_TRANSLATION`).  Its spin matrix is ``S_i S_j``,
+    negated where both operations are primed, since time reversal squares to
+    ``-1`` on a spin one-half, and is compared with the listed operation's at
+    either sign.  The rotations of several rows of the table are multiplied at
+    once, as many as ``block_bytes`` of memory holds.
+
+    Returns
+    -------
+    tuple of ndarray of int
+        ``(table, translations, signs)``, as
+        :meth:`GroupData.get_product_table` describes them: the same three
+        arrays ``irrep``'s ``SpaceGroup.get_product_table(get_diff=True)``
+        returns.
+
+    Raises
+    ------
+    InternalError
+        Where a product is not in the list, which then does not close under
+        multiplication, or its spin matrix is neither sign of the listed
+        operation's, the spin matrices then not multiplying as the operations
+        do.
+    """
+    syms = sg.symmetries
+    N = len(syms)
+    R = np.array([np.asarray(s.rotation) for s in syms], dtype=int)
+    t = np.array([np.asarray(s.translation, dtype=float) for s in syms])
+    tr = np.array([bool(s.time_reversal) for s in syms])
+    spinor = bool(sg.spinor)
+    S = (np.array([np.asarray(s.spinor_rotation, dtype=complex) for s in syms])
+         if spinor else None)
+    # an operation's rotation and whether it is primed, as one row of ten integers
+    own = np.concatenate([R.reshape(N, 9), tr.astype(int)[:, None]], axis=1)
+    prod = np.zeros((N, N), dtype=int)
+    diff = np.zeros((N, N, 3), dtype=int)
+    spf = np.ones((N, N), dtype=int)
+    # several rows of the table at a time, so that a long list stays in memory
+    rows = max(1, int(block_bytes // (8 * N * (10 + 3 + (16 if spinor else 0)))))
+    for lo in range(0, N, rows):
+        hi = min(lo + rows, N)
+        B = hi - lo
+        Rij = np.einsum("iab,jbc->ijac", R[lo:hi], R)
+        tij = t[lo:hi, None, :] + np.einsum("iab,jb->ija", R[lo:hi], t)
+        trij = tr[lo:hi, None] != tr[None, :]
+        theirs = np.concatenate([Rij.reshape(B * N, 9),
+                                 trij.astype(int).reshape(B * N, 1)], axis=1)
+        # the operations sharing a product's rotation and primedness, in list order
+        _uniq, inverse = np.unique(np.concatenate([own, theirs]), axis=0,
+                                   return_inverse=True)
+        inverse = np.asarray(inverse).reshape(-1)
+        op_cls, cls = inverse[:N], inverse[N:].reshape(B, N)
+        counts = np.bincount(op_cls, minlength=int(inverse.max()) + 1)
+        order = np.argsort(op_cls, kind="stable")
+        first = np.concatenate([[0], np.cumsum(counts)[:-1]])
+        cand = -np.ones((len(counts), max(1, int(counts.max()))), dtype=int)
+        cand[op_cls[order], np.arange(N) - first[op_cls[order]]] = order
+        block = -np.ones((B, N), dtype=int)
+        dblock = np.zeros((B, N, 3), dtype=int)
+        for m in range(cand.shape[1]):
+            k = cand[cls, m]
+            still = (block < 0) & (k >= 0)
+            if not still.any():
+                break
+            dt = tij - t[np.where(k >= 0, k, 0)]
+            near = np.round(dt)
+            match = still & np.all(np.abs(dt - near) < _SAME_TRANSLATION, axis=-1)
+            block[match] = k[match]
+            dblock[match] = near[match].astype(int)
+        if (block < 0).any():
+            i, j = (int(x[0]) for x in np.nonzero(block < 0))
+            raise InternalError(
+                f"the product of operations {syms[lo + i].ind} and {syms[j].ind} is not "
+                "in the group's list: the list does not close under multiplication")
+        prod[lo:hi], diff[lo:hi] = block, dblock
+        if spinor:
+            Sij = np.einsum("iab,jbc->ijac", S[lo:hi], S)
+            Sij = np.where((tr[lo:hi, None] & tr[None, :])[:, :, None, None], -Sij, Sij)
+            Sk = S[block]
+            plus = np.isclose(Sij, Sk).all(axis=(2, 3))
+            minus = np.isclose(Sij, -Sk).all(axis=(2, 3))
+            if not np.all(plus | minus):
+                i, j = (int(x[0]) for x in np.nonzero(~(plus | minus)))
+                raise InternalError(
+                    f"the spin matrix of the product of operations {syms[lo + i].ind} and "
+                    f"{syms[j].ind} is neither sign of the listed operation's: the spin "
+                    "matrices do not multiply as the operations do")
+            spf[lo:hi] = np.where(plus, 1, -1)
+    return prod, diff, spf
+
+
+#: Each group's multiplication table, kept for the ``irrep`` object that lists
+#: its operations, so that every record holding that object -- a copy made by
+#: ``dataclasses.replace`` among them -- reads one table, and a record given
+#: another object builds its own.
+_PRODUCT_TABLES: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 
 
 # --------------------------------------------------------------------------
@@ -219,15 +328,11 @@ class GroupData:
     # defects measured; None for a spinless group
     _spin_frame: dict | None = field(default=None, repr=False, compare=False)
     _sg: Any = field(default=None, repr=False, compare=False)
-    #: Memo of :meth:`get_product_table`, keyed by ``get_diff``.  ``init=False``
-    #: so ``dataclasses.replace`` starts a fresh one rather than inheriting a
-    #: table computed for some other ``_sg``.
-    _product_tables: dict = field(default_factory=dict, init=False, repr=False,
-                                  compare=False)
     #: Memo of :func:`_wyckoff_setting_audit` for this group — the check that
     #: ``pyxtal``'s Wyckoff list is written in the same setting as the tables.
     #: It is a property of the group and not of a site, so it runs once.
-    #: ``init=False`` for the same reason as above.
+    #: ``init=False``, so that a copy made by ``dataclasses.replace`` starts its
+    #: own rather than inheriting one made for other operations.
     _wyckoff_audit: dict = field(default_factory=dict, init=False, repr=False,
                                  compare=False)
     #: Memo of :func:`.._subgroups._subgroups_inside` for this group, keyed by the operations
@@ -252,6 +357,7 @@ class GroupData:
         """How many operations :attr:`symmetries` lists, one per coset of the lattice translations."""
         return len(self.symmetries)
 
+    # -- computed here, once for each ``irrep`` object ----------------------
     def get_product_table(self, get_diff: bool = True):
         """The group's multiplication table, with the lattice translation and spin sign of each product.
 
@@ -274,14 +380,15 @@ class GroupData:
         ndarray
             The table alone, where ``get_diff`` is False.
         """
-        got = self._product_tables.get(True)
+        got = _PRODUCT_TABLES.get(self._sg)
         if got is None:
-            got = self._sg.get_product_table(get_diff=True)
-            self._product_tables[True] = got
+            got = _product_table(self._sg)
+            _PRODUCT_TABLES[self._sg] = got
         if get_diff:
             return tuple(np.array(a) for a in got)
         return np.array(got[0])
 
+    # -- delegated to ``irrep`` --------------------------------------------
     def get_inverse_table(self):
         """The position in :attr:`symmetries` of each operation's inverse.
 

@@ -363,6 +363,13 @@ EXACT_TOL = 5e-14
 #: translations of one operation are the same translation.
 _EXACT_CLOSURE = 1e-12
 
+#: How far the translations of two operations may differ, modulo the lattice,
+#: and still be one operation where a product is found in the group's list:
+#: ``irrep``'s own number for that comparison, so that the multiplication table
+#: is the one ``irrep`` computes.  The operations of a closed list compose to
+#: rounding, far below it.
+_SAME_TRANSLATION = 1e-6
+
 #: How far a candidate's matrices may miss composing by the group's table, a
 #: phase per product allowed, and still be read as they stand: the canonical
 #: norm's own gate (:func:`..symmetry.normalize_rep`'s ``tol``).  Matrices built
