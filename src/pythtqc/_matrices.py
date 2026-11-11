@@ -962,6 +962,35 @@ def _orb_positions_3d(model, group):
     return np.asarray(pos3, dtype=float)
 
 
+def _translation_phase(group, op, k):
+    r"""The translation's phase :math:`e^{-2\pi i\,k'\cdot t}` of ``g = {A|t}`` at each ``k``.
+
+    Here :math:`k' = (A^{-1})^{T}k` is the image of ``k``, not folded back
+    into the zone.  The Bloch operator read there (:func:`bloch_operator` at
+    ``k_out = k'``) is this phase times the operation's matrix ``D(g)``: every
+    orbital's phase is 1.
+
+    Parameters
+    ----------
+    group : GroupData
+        The model's group.
+    op : irrep SymmetryOperation
+        The operation.
+    k : array, shape (dim_k,) or (Nk, dim_k)
+        Reduced ``k`` in the model's periodic directions.
+
+    Returns
+    -------
+    numpy.ndarray
+        The phase, shape ``(Nk,)``, and ``(1,)`` for a single ``k``.
+    """
+    k_arr = np.atleast_2d(np.asarray(k, dtype=float))
+    k3 = group.k_to_3d(k_arr)
+    kp3 = np.asarray(op.transform_k(k3), dtype=float)
+    trans = np.asarray(op.translation, dtype=float)
+    return np.exp(-2j * np.pi * (kp3 @ trans))
+
+
 def bloch_operator(model, group, assignment, op, D, k, *, k_out=None, tol=1e-9,
                    check=True):
     r"""The Bloch operator ``U(g;k)`` of one operation, with ``U(g;k) H(k) U(g;k)† = H(k_out)``.

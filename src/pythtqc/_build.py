@@ -27,7 +27,7 @@ from ._matrices import (
     _covariance_battery, _identity_position, _lift_of, _minimal_generators,
     _moves_padded, _order_and_zeta, _power, _product_table_residual, _propagated,
     _proportionality, _real_characters, _resolve_spin, _settle_unit,
-    _spin_pair_split, bloch_operator, covariance_gate)
+    _spin_pair_split, _translation_phase, bloch_operator, covariance_gate)
 from ._grammar import _declaration_grammar
 from ._naming import _site_tables
 from .symmetry import MultiplicitySpace, SpaceGroupRep, _fold
@@ -2050,15 +2050,22 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
         if _returned:
             factor_residual = 0.0
             per = list(group.periodic_dirs)
+            U_k = {p: bloch_operator(model, group, assignment, syms[p], D[p], k_pts)
+                   for p in kept}
+            k_img = {p: kact[p](k_pts) for p in kept}
             for a in kept:
+                D_a = np.asarray(D[a], dtype=complex)
                 for b in kept:
                     c = int(prod[a, b])
                     if c not in D:
                         continue
-                    kb = kact[b](k_pts)
-                    Ua = bloch_operator(model, group, assignment, syms[a], D[a], kb)
-                    Ub = bloch_operator(model, group, assignment, syms[b], D[b], k_pts)
-                    Uc = bloch_operator(model, group, assignment, syms[c], D[c], k_pts)
+                    kb = k_img[b]
+                    # the operator of `a` at `kb`, read at its image not folded
+                    # back: every orbital's phase is 1 there, and what is left
+                    # is the translation's phase times the matrix
+                    Ua = _translation_phase(group, syms[a], kb)[:, None, None] * D_a[None, :, :]
+                    Ub = U_k[b]
+                    Uc = U_k[c]
                     lhs = Ua @ (np.conj(Ub) if syms[a].time_reversal else Ub)
                     delta = (np.asarray(syms[a].translation)
                              + np.asarray(syms[a].rotation, dtype=float)
