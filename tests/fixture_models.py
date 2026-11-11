@@ -2205,15 +2205,21 @@ def _carried_model(lattice, sites, ops, orbitals, seed, cutoff, rotation=None, s
         raise AssertionError("the orbit is not closed under this operation")
 
     shells = {}
+    # an orbital's image under an operation is the same in every hopping the
+    # orbital enters: each is found once and kept
+    images = {}
 
     def orbital_image(g, R, o):
+        if (g, o) in images:
+            return images[(g, o)]
         s, degree, v = orbitals[o]
         s2, L = site_image(R, s)
         if (g, degree) not in shells:
             shells[(g, degree)] = _shell_matrix(R, degree)
         w = shells[(g, degree)] @ v
-        return [(k, float(vk @ w), L) for k, (sk, dk, vk) in enumerate(orbitals)
-                if sk == s2 and dk == degree and abs(float(vk @ w)) > 1e-12]
+        images[(g, o)] = [(k, float(vk @ w), L) for k, (sk, dk, vk) in enumerate(orbitals)
+                          if sk == s2 and dk == degree and abs(float(vk @ w)) > 1e-12]
+        return images[(g, o)]
 
     rng = np.random.default_rng(int(seed))
     pos = np.array([sites[s] for s, _d, _v in orbitals])
@@ -2465,15 +2471,21 @@ def _carried_spinful_model(lattice, sites, ops, orbitals, seed, cutoff, rotation
         raise AssertionError("the orbit is not closed under this operation")
 
     shells = {}
+    # an orbital's image under an operation is the same in every hopping the
+    # orbital enters: each is found once and kept
+    images = {}
 
     def orbital_image(g, R, o):
+        if (g, o) in images:
+            return images[(g, o)]
         s, degree, v = orbitals[o]
         s2, L = site_image(R, s)
         if (g, degree) not in shells:
             shells[(g, degree)] = _shell_matrix(R, degree)
         w = shells[(g, degree)] @ v
-        return [(k, float(vk @ w), L) for k, (sk, dk, vk) in enumerate(orbitals)
-                if sk == s2 and dk == degree and abs(float(vk @ w)) > 1e-12]
+        images[(g, o)] = [(k, float(vk @ w), L) for k, (sk, dk, vk) in enumerate(orbitals)
+                          if sk == s2 and dk == degree and abs(float(vk @ w)) > 1e-12]
+        return images[(g, o)]
 
     rng = np.random.default_rng(int(seed))
     pos = np.array([sites[s] for s, _d, _v in orbitals])
