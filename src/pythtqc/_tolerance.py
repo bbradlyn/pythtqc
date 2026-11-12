@@ -363,11 +363,11 @@ EXACT_TOL = 5e-14
 #: translations of one operation are the same translation.
 _EXACT_CLOSURE = 1e-12
 
-#: How far the translations of two operations may differ, modulo the lattice,
-#: and still be one operation where a product is found in the group's list:
-#: ``irrep``'s own number for that comparison, so that the multiplication table
-#: is the one ``irrep`` computes.  The operations of a closed list compose to
-#: rounding, far below it.
+#: How far a product's translation may sit from a listed operation's, modulo
+#: the lattice and in reduced coordinates, and the product still be that
+#: operation: ``irrep``'s own number for the comparison, so that the
+#: multiplication table is the one ``irrep`` computes.  The operations of a
+#: closed list compose to rounding, far below it.
 _SAME_TRANSLATION = 1e-6
 
 #: How far a candidate's matrices may miss composing by the group's table, a

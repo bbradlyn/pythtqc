@@ -965,10 +965,11 @@ def _orb_positions_3d(model, group):
 def _translation_phase(group, op, k):
     r"""The translation's phase :math:`e^{-2\pi i\,k'\cdot t}` of ``g = {A|t}`` at each ``k``.
 
-    Here :math:`k' = (A^{-1})^{T}k` is the image of ``k``, not folded back
-    into the zone.  The Bloch operator read there (:func:`bloch_operator` at
-    ``k_out = k'``) is this phase times the operation's matrix ``D(g)``: every
-    orbital's phase is 1.
+    ``k'`` is the image of ``k`` under the operation, :math:`(A^{-1})^{T}k`
+    and its negative for an operation combined with time reversal, not folded
+    back into the zone.  The Bloch operator there (:func:`bloch_operator` at
+    ``k_out = k'``) is this phase times the operation's matrix ``D(g)``, every
+    orbital's phase being 1.
 
     Parameters
     ----------

@@ -2060,10 +2060,9 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
                     if c not in D:
                         continue
                     kb = k_img[b]
-                    # the operator of `a` at `kb`, read at its image not folded
-                    # back: every orbital's phase is 1 there, and what is left
-                    # is the translation's phase times the matrix
-                    Ua = _translation_phase(group, syms[a], kb)[:, None, None] * D_a[None, :, :]
+                    # the operator of `a` at `kb`, its image not folded back:
+                    # the translation's phase times the matrix
+                    Ua =_translation_phase(group, syms[a], kb)[:, None, None] * D_a[None, :, :]
                     Ub = U_k[b]
                     Uc = U_k[c]
                     lhs = Ua @ (np.conj(Ub) if syms[a].time_reversal else Ub)

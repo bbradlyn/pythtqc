@@ -2,11 +2,8 @@
 
 ## Unreleased
 
-- `realized_group` returns sooner, by the most on a group of many operations or a centred
-  cell. The group's multiplication table is computed by the package; the subgroups inside
-  the operations a Hamiltonian keeps are searched for only where those operations are not
-  themselves a group that carries the declared content; and the last check of the
-  representation forms each operation's Bloch operator once. No result changes.
+- `realized_group` returns sooner, most on a group of many operations, a cubic crystal's
+  among them. What it returns is unchanged.
 - The package's name is written pythTQC; it is installed and imported as `pythtqc`, as
   before.
 - `CITATION.cff` asks work that uses the package to cite Hwang et al., arXiv:2601.06293,

@@ -131,31 +131,37 @@ def _refuse_no_tables(status: dict[str, Any]) -> Refusal:
 def _product_table(sg, *, block_bytes: float = 6.4e7):
     r"""The multiplication table of the operations ``irrep`` lists in ``sg``.
 
-    Each product ``g_i g_j`` is found in the list by its rotation and whether
-    it is primed and, among the operations that share both -- one for a
-    primitive cell, one per centring translation otherwise, taken in list
-    order -- the first whose translation agrees modulo the lattice
-    (:data:`.._tolerance._SAME_TRANSLATION`).  Its spin matrix is ``S_i S_j``,
-    negated where both operations are primed, since time reversal squares to
-    ``-1`` on a spin one-half, and is compared with the listed operation's at
-    either sign.  The rotations of several rows of the table are multiplied at
-    once, as many as ``block_bytes`` of memory holds.
+    The product of two operations is the listed operation with the product's
+    rotation, primed where exactly one of the two is, whose translation
+    differs from the product's by a lattice vector, to within
+    :data:`.._tolerance._SAME_TRANSLATION`.  Where the cell's point set allows
+    a pure translation, several listed operations share a rotation, and their
+    translations tell them apart.  In the double group the product's spin
+    matrix is the product of the two operations', negated where both are
+    primed, since time reversal commutes with a spin rotation and squares to
+    ``-1`` on spin one-half; its sign against the listed operation's spin
+    matrix is the product's spin sign.
+
+    Parameters
+    ----------
+    sg : irrep SpaceGroup
+        The group, its operations listed one per coset of the lattice
+        translations.
+    block_bytes : float, optional
+        The memory, in bytes, that sets how many rows of the table are built
+        at once.  Default ``6.4e7``.
 
     Returns
     -------
     tuple of ndarray of int
         ``(table, translations, signs)``, as
-        :meth:`GroupData.get_product_table` describes them: the same three
-        arrays ``irrep``'s ``SpaceGroup.get_product_table(get_diff=True)``
-        returns.
+        :meth:`GroupData.get_product_table` describes them.
 
     Raises
     ------
     InternalError
-        Where a product is not in the list, which then does not close under
-        multiplication, or its spin matrix is neither sign of the listed
-        operation's, the spin matrices then not multiplying as the operations
-        do.
+        The list does not close under multiplication, or the spin matrices do
+        not multiply as the operations do up to a sign.
     """
     syms = sg.symmetries
     N = len(syms)
@@ -170,7 +176,7 @@ def _product_table(sg, *, block_bytes: float = 6.4e7):
     prod = np.zeros((N, N), dtype=int)
     diff = np.zeros((N, N, 3), dtype=int)
     spf = np.ones((N, N), dtype=int)
-    # several rows of the table at a time, so that a long list stays in memory
+    # a block of rows of the table at a time
     rows = max(1, int(block_bytes // (8 * N * (10 + 3 + (16 if spinor else 0)))))
     for lo in range(0, N, rows):
         hi = min(lo + rows, N)
@@ -180,7 +186,7 @@ def _product_table(sg, *, block_bytes: float = 6.4e7):
         trij = tr[lo:hi, None] != tr[None, :]
         theirs = np.concatenate([Rij.reshape(B * N, 9),
                                  trij.astype(int).reshape(B * N, 1)], axis=1)
-        # the operations sharing a product's rotation and primedness, in list order
+        # the listed operations with each product's rotation, primed as it is
         _uniq, inverse = np.unique(np.concatenate([own, theirs]), axis=0,
                                    return_inverse=True)
         inverse = np.asarray(inverse).reshape(-1)
@@ -224,10 +230,8 @@ def _product_table(sg, *, block_bytes: float = 6.4e7):
     return prod, diff, spf
 
 
-#: Each group's multiplication table, kept for the ``irrep`` object that lists
-#: its operations, so that every record holding that object -- a copy made by
-#: ``dataclasses.replace`` among them -- reads one table, and a record given
-#: another object builds its own.
+#: Each group's multiplication table, computed once for the ``irrep`` object
+#: that lists its operations.
 _PRODUCT_TABLES: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 
 
@@ -331,8 +335,8 @@ class GroupData:
     #: Memo of :func:`_wyckoff_setting_audit` for this group — the check that
     #: ``pyxtal``'s Wyckoff list is written in the same setting as the tables.
     #: It is a property of the group and not of a site, so it runs once.
-    #: ``init=False``, so that a copy made by ``dataclasses.replace`` starts its
-    #: own rather than inheriting one made for other operations.
+    #: ``init=False``, so that a copy made by ``dataclasses.replace``, which may
+    #: carry other operations, starts its own.
     _wyckoff_audit: dict = field(default_factory=dict, init=False, repr=False,
                                  compare=False)
 

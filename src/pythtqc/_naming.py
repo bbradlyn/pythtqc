@@ -865,7 +865,7 @@ def _single_valued_view(group):
     asked for.  So the view is this record with that flag turned over. Every
     other field is the same object — the same operations in the same order, the
     same lattice, the same ``refUC``/``shiftUC`` — and the multiplication table
-    is therefore literally the same table, carried across rather than recomputed.
+    is the same table.
 
     **What may be asked of it.** A character and a Wyckoff letter: the view is
     consumed by :func:`_site_orbital_labels` alone, which induces the orbital
