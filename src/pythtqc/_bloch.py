@@ -258,11 +258,13 @@ def evaluator(model, params=None):
     return bloch
 
 
-def hamiltonian(model, k_pts, params=None) -> np.ndarray:
+def hamiltonian(model, k_pts, params=None, bloch=None) -> np.ndarray:
     """``model.hamiltonian(k_pts=k_pts, flatten_spin_axis=True, **params)``, bit for bit.
 
     The checks run in pythtb's order -- the parameter names, then the
     k-points -- so a request pythtb stops stops here with the same error.
+    ``bloch``, where it is given, is what :func:`evaluator` returns for the
+    model at these parameter values, and ``H(k)`` is summed by it.
     """
     params = dict(params or {})
     model._check_missing_parameters(params)
@@ -271,7 +273,9 @@ def hamiltonian(model, k_pts, params=None) -> np.ndarray:
     if k_pts is None:
         raise ValueError("k_pts must be specified for periodic systems (dim_k > 0).")
     k_vecs = model._normalize_kpoints(k_pts)
-    return evaluator(model, params)(k_vecs)
+    if bloch is None:
+        bloch = evaluator(model, params)
+    return bloch(k_vecs)
 
 
 def onsite(model, params=None) -> np.ndarray:
@@ -309,14 +313,14 @@ def magnitude(H, shift=0.0) -> float:
     return float(out.max())
 
 
-def solve(model, k_pts, params=None):
+def solve(model, k_pts, params=None, bloch=None):
     """``model.solve_ham(k_pts, return_eigvecs=True, flatten_spin_axis=True, **params)``, bit for bit.
 
     pythtb's diagonalization of the same ``H(k)``: the same Hermiticity check,
     ``numpy.linalg.eigh`` on the same matrices, eigenvectors as rows, and a
-    single k-point's axis dropped.
+    single k-point's axis dropped.  ``bloch`` is as in :func:`hamiltonian`.
     """
-    ham = hamiltonian(model, k_pts, params)
+    ham = hamiltonian(model, k_pts, params, bloch)
     if not np.allclose(ham, ham.swapaxes(-1, -2).conj()):
         raise ValueError("Hamiltonian matrix is not Hermitian.")
     evals, evecs = np.linalg.eigh(ham.astype(np.complex128))

@@ -425,10 +425,14 @@ def _resolve_states(source, rep, k, *, mesh_tol=MESH_TOL, params=None):
 
     return None, _as_columns(source)
 
-def _hamiltonian_at(rep, k, params=None) -> np.ndarray:
-    """``H(k)`` from ``rep.model``, Hermitized — recomputed on demand, never stored."""
+def _hamiltonian_at(rep, k, params=None, bloch=None) -> np.ndarray:
+    """``H(k)`` from ``rep.model``, Hermitized — recomputed on demand, never stored.
+
+    ``bloch``, where it is given, is the model's Bloch sum at these parameter
+    values, as :func:`.._bloch.evaluator` returns it.
+    """
     k = np.asarray(k, dtype=float).reshape(-1)
-    H = np.asarray(_bloch.hamiltonian(rep.model, np.atleast_2d(k), params))[0]
+    H = np.asarray(_bloch.hamiltonian(rep.model, np.atleast_2d(k), params, bloch))[0]
     return 0.5 * (H + H.conj().T)
 
 def _states_at_k(H, w, V):
@@ -891,6 +895,15 @@ def characters(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL
     ``k_not_on_mesh``
         the mesh handed in does not hold ``k``.
     """
+    return _characters(rep, k, states=states, bands=bands, degeneracy_tol=degeneracy_tol,
+                       atol=atol, mesh_tol=mesh_tol, params=params, bloch=None)
+
+def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol, params,
+                bloch) -> CharacterTable | Refusal:
+    """The table :func:`characters` returns.
+
+    ``bloch`` is the model's Bloch sum or ``None``, as in :func:`_hamiltonian_at`.
+    """
     if bands is None:
         raise TypeError("characters() missing required argument 'bands'")
     if isinstance(rep, Refusal):
@@ -911,7 +924,7 @@ def characters(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL
             "in the model / the (evals, evecs) pair.")
     idx = _band_block(V.shape[1], bands)
 
-    H = _hamiltonian_at(rep, k, params)
+    H = _hamiltonian_at(rep, k, params, bloch)
     resid = _states_at_k(H, w, V)
     foreign = _foreign_states(H, k, resid)
     if foreign is not None:
@@ -1173,6 +1186,16 @@ def corep_content(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_
       multiplets of one class carry the same characters, under any labelling of the orbitals   (.partition)
       13.02 from these bands to the nearest other band, in the units of H   (.isolation)
     """
+    return _corep_content(rep, k, states=states, bands=bands, degeneracy_tol=degeneracy_tol,
+                          label_tol=label_tol, ktol=ktol, kpname=kpname, atol=atol,
+                          mesh_tol=mesh_tol, params=params, bloch=None)
+
+def _corep_content(rep, k, *, states, bands, degeneracy_tol, label_tol, ktol, kpname, atol,
+                   mesh_tol, params, bloch) -> CorepContent | Refusal:
+    """The coreps :func:`corep_content` returns.
+
+    ``bloch`` is the model's Bloch sum or ``None``, as in :func:`_hamiltonian_at`.
+    """
     if bands is None:
         raise TypeError("corep_content() missing required argument 'bands'")
     if isinstance(rep, Refusal):
@@ -1180,8 +1203,8 @@ def corep_content(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_
     gate = _spacegroup._lattice_not_descended(rep.group)
     if gate is not None:
         return gate
-    tab = characters(rep, k, states=states, bands=bands, degeneracy_tol=degeneracy_tol,
-                     atol=atol, mesh_tol=mesh_tol, params=params)
+    tab = _characters(rep, k, states=states, bands=bands, degeneracy_tol=degeneracy_tol,
+                      atol=atol, mesh_tol=mesh_tol, params=params, bloch=bloch)
     if isinstance(tab, Refusal):
         return tab
 
@@ -1536,9 +1559,11 @@ def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
         wanted.append((name, np.asarray(k, dtype=float).reshape(-1)))
 
     per_point = {}
+    bloch = None                    # the model's Bloch sum, where the model is solved here
     if wanted and (states is None or states is rep.model):
         karr = np.array([k for _, k in wanted], dtype=float)
-        evals, evecs = _bloch.solve(rep.model, karr, params)
+        bloch = _bloch.evaluator(rep.model, params)
+        evals, evecs = _bloch.solve(rep.model, karr, params, bloch)
         evals, evecs = np.asarray(evals), np.asarray(evecs)
         if evals.ndim == 1:                     # solve_ham drops a length-1 k axis
             evals, evecs = evals[None], evecs[None]
@@ -1547,9 +1572,10 @@ def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
         per_point = {name: states for name, _ in wanted}
 
     for name, k in wanted:
-        got = corep_content(rep, k, states=per_point[name], bands=block,
-                            degeneracy_tol=degeneracy_tol, label_tol=label_tol, ktol=ktol,
-                            atol=atol, mesh_tol=mesh_tol, params=params)
+        got = _corep_content(rep, k, states=per_point[name], bands=block,
+                             degeneracy_tol=degeneracy_tol, label_tol=label_tol, ktol=ktol,
+                             kpname=None, atol=atol, mesh_tol=mesh_tol, params=params,
+                             bloch=bloch)
         if isinstance(got, Refusal):
             refusals[name] = got
             continue
