@@ -6,6 +6,7 @@ group, and a mesh that respects the group.
 
 from __future__ import annotations
 
+import copy
 from functools import lru_cache
 import itertools
 import re
@@ -522,8 +523,7 @@ def _table_kpoints(group: GroupData) -> dict:
     partners ``−k`` its elementary band representations list on their own
     (:func:`_partner_points`).
     """
-    from irreptables.irreps import IrrepTable
-    table = IrrepTable(group.number_str, group.spinor, magnetic=group.magnetic)
+    table = _spacegroup._irrep_table(group.number_str, group.spinor, group.magnetic)
     inv = np.linalg.inv(group._refUC.T)
     partner = ({} if group.magnetic else
                {base: arm for arm, base, _naming
@@ -580,14 +580,15 @@ def _partner_points(number_str: str, spinor: bool) -> tuple:
         naming is not among them: the shipped rows and their conjugation
         disagree, which is a defect, never a label to guess.
     """
-    from irreptables.ebrs import load_ebr_data
-    from irreptables.irreps import IrrepTable
     try:
-        raw = load_ebr_data(number_str, spinor)
+        raw = _spacegroup._ebr_file(number_str, spinor)
+    except ImportError:                           # irreptables itself is missing
+        raise
     except Exception:                             # no EBR rows: nothing lists a partner
         return ()
     labels = [str(label) for label in raw["basis"]["irrep_labels"]]
-    listed = {irr.kpname for irr in IrrepTable(number_str, spinor, magnetic=False).irreps}
+    listed = {irr.kpname
+              for irr in _spacegroup._irrep_table(number_str, spinor, False).irreps}
     arms = sorted({_label_kpoint(label) for label in labels} - listed)
     if not arms:
         return ()
@@ -891,11 +892,9 @@ def _decompose_into(chars, H, vector):
                  for x in [name] * int(m))
 
 
-@lru_cache(maxsize=None)
 def _parent_table(number_str: str, spinor: bool):
     """The unitary (``magnetic=False``) table of a grey table's parent group."""
-    from irreptables.irreps import IrrepTable
-    return IrrepTable(str(number_str).split(".")[0], spinor, magnetic=False)
+    return _spacegroup._irrep_table(str(number_str).split(".")[0], spinor, False)
 
 
 @lru_cache(maxsize=None)
@@ -1170,11 +1169,10 @@ def _transport_naming(number_str: str, spinor: bool, magnetic: bool) -> tuple:
     Cached per ``(number_str, spinor, magnetic)``: it is a property of
     ``irreptables``' tables, not of any model or cell.  The pair is returned
     together because both halves come out of the same
-    :func:`_table_conjugation` pass, which loads the parent unitary table.
+    :func:`_table_conjugation` pass, which reads the parent unitary table too.
     """
-    from irreptables.irreps import IrrepTable
     conj, conjugated, _broken = _table_conjugation(
-        IrrepTable(number_str, spinor, magnetic=magnetic))
+        _spacegroup._irrep_table(number_str, spinor, magnetic))
     return conjugated, tuple(sorted(conj.items()))
 
 
@@ -1203,8 +1201,7 @@ def _divergent_kpoints(number_str: str, spinor: bool, magnetic: bool) -> frozens
     (SG 24/73/80/88/98/109/110/122/141/142/199/203/206/210/214/220/227/228/230
     and their grey partners).
     """
-    from irreptables.irreps import IrrepTable
-    table = IrrepTable(number_str, spinor, magnetic=magnetic)
+    table = _spacegroup._irrep_table(number_str, spinor, magnetic)
     by_kp: dict[str, list] = {}
     for irr in table.irreps:
         by_kp.setdefault(irr.kpname, []).append(irr)
@@ -1342,7 +1339,6 @@ def _transported_table(group: GroupData, kpname: str, k3) -> dict | Refusal:
         The label and the coordinates disagree, or the label is not tabulated:
         both are verdicts on what the shipped tables carry.
     """
-    from irreptables.irreps import IrrepTable
     # A POINT -k THE IRREP TABLE DOES NOT LIST: its little group is the listed
     # point's, and its characters are the listed point's conjugated, each under
     # the partner label the EBR rows give the conjugate (`_partner_points`)
@@ -1356,7 +1352,7 @@ def _transported_table(group: GroupData, kpname: str, k3) -> dict | Refusal:
             naming = dict(naming)
             return {naming[label]: {ind: complex(np.conj(c)) for ind, c in row.items()}
                     for label, row in rows.items()}
-    table = IrrepTable(group.number_str, group.spinor, magnetic=group.magnetic)
+    table = _spacegroup._irrep_table(group.number_str, group.spinor, group.magnetic)
     sg = group._sg
     conjugated = kpname in _conjugated_kpoints(group.number_str, group.spinor,
                                                group.magnetic)
@@ -1819,10 +1815,7 @@ def _ebr_transport(number_str: str, spinor: bool, magnetic: bool) -> tuple:
 
     Raises :class:`_EBRTransportError` (never returns partly transported rows).
     """
-    from irreptables.ebrs import load_ebr_data
-    from irreptables.irreps import IrrepTable
-
-    raw = load_ebr_data(number_str, spinor)
+    raw = _spacegroup._ebr_file(number_str, spinor)
     labels = tuple(str(l) for l in raw["basis"]["irrep_labels"])
     try:
         names = [str(e["ebr_name"]) for e in raw["ebrs"]]
@@ -1834,7 +1827,7 @@ def _ebr_transport(number_str: str, spinor: bool, magnetic: bool) -> tuple:
             "`get_ebr_names_and_positions`).") from exc
     matrix = np.array([e["vector"] for e in raw["ebrs"]], dtype=int).T
 
-    table = IrrepTable(number_str, spinor, magnetic=magnetic)
+    table = _spacegroup._irrep_table(number_str, spinor, magnetic)
     conj = _conjugation_involution(table, labels)
 
     degen = {l: int(d) for l, d in zip(labels, raw["basis"]["degeneracies"])}
@@ -1920,8 +1913,8 @@ def _to_physical_convention(raw: dict, number_str: str, spinor: bool,
                             magnetic: bool) -> dict:
     """``raw`` with every EBR row rewritten in the physical convention.
 
-    A new ``dict`` (``irreptables`` re-reads its JSON on every call, so nothing
-    shared is mutated): the ``vector``/``irrep_list`` of each EBR, the basis
+    A new ``dict`` (``raw`` is only read, and what is not rewritten is
+    ``raw``'s own): the ``vector``/``irrep_list`` of each EBR, the basis
     ``irrep_labels`` where a k-point was re-glued, and the Smith form, which is
     transported exactly rather than recomputed — with ``M' = P M Q`` for the
     label permutation ``P`` and the column permutation ``Q`` (both involutions),
@@ -2121,10 +2114,9 @@ def ebr_data(group: GroupData) -> dict | Refusal:
     if not status["tables"]:
         return _refuse_no_tables(status)
     from irrep.ebrs import get_ebr_matrix, get_ebr_names_and_positions, get_smith_form
-    from irreptables.ebrs import load_ebr_data
 
     try:
-        raw = load_ebr_data(group.number_str, group.spinor)
+        raw = _spacegroup._ebr_file(group.number_str, group.spinor)
     except (FileNotFoundError, OSError) as exc:
         return Refusal("ebr_tables",
                        f"irreptables has no EBR data for group #{group.number_str} "
@@ -2147,7 +2139,7 @@ def ebr_data(group: GroupData) -> dict | Refusal:
                        f"so its EBR rows cannot be transported: {exc}",
                        context={"number_str": group.number_str, "spinor": group.spinor})
     improper = _improper_letters(int(str(group.number_str).split(".")[0]))
-    return {"raw": raw, "matrix": get_ebr_matrix(raw),
+    return {"raw": copy.deepcopy(raw), "matrix": get_ebr_matrix(raw),
             "labels_physics_convention": list(raw["basis"]["irrep_labels"]),
             "ebrs": [(str(name), _barred(str(position), improper))
                      for name, position in get_ebr_names_and_positions(raw)],
@@ -2239,8 +2231,6 @@ def indicator_group(group: GroupData) -> dict | Refusal:
     status = tables_status()
     if not status["tables"]:
         return _refuse_no_tables(status)
-    from irreptables.symmetry_indicators import load_si_table
-
     data = ebr_data(group)
     divisors = None
     if not isinstance(data, Refusal):
@@ -2255,8 +2245,8 @@ def indicator_group(group: GroupData) -> dict | Refusal:
         return {"indicators": {}, "orders": {}, "elementary_divisors": divisors,
                 "withheld": True, "reason": note, "note": note}
 
-    si = load_si_table(spinor=group.spinor, magnetic=group.magnetic)
-    entry = si.get(group.number_str, {}).get("indicators", {})
+    si = _spacegroup._indicator_table(group.spinor, group.magnetic)
+    entry = copy.deepcopy(si.get(group.number_str, {}).get("indicators", {}))
     return {"indicators": entry,
             "orders": {k: v["mod"] for k, v in entry.items()},
             "elementary_divisors": divisors,

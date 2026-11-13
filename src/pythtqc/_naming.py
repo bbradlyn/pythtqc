@@ -965,9 +965,7 @@ def _tabulated_operations(number_str: str, magnetic: bool) -> tuple:
     after them, in the table's own order: the order :attr:`..groups.GroupData.symmetries`
     is indexed in, so operation ``ind`` is entry ``ind - 1``.
     """
-    from irreptables.irreps import IrrepTable
-
-    return _operations_of(IrrepTable(str(number_str), True, magnetic=bool(magnetic)))
+    return _operations_of(_spacegroup._irrep_table(number_str, True, magnetic))
 
 
 def _operations_of(table) -> tuple:
@@ -1060,13 +1058,10 @@ def _origin_irreps(grey: bool) -> dict:
 
 def _origin_references(grey: bool, double: bool) -> dict:
     """The body of :func:`_origin_coreps` (``double``) and :func:`_origin_irreps`."""
-    from irreptables.ebrs import load_ebr_data
-    from irreptables.irreps import IrrepTable
-
     named = _magnetic_numbers() if grey else {}
     out: dict = {}
     for sg in range(1, 231):
-        plain = IrrepTable(str(sg), True, magnetic=False)
+        plain = _spacegroup._irrep_table(str(sg), True, False)
         centering = _spacegroup._centering(plain)
         if not all(_spacegroup._is_translation(np.asarray(sym.t, dtype=float), centering)
                    for sym in plain.symmetries):
@@ -1077,7 +1072,7 @@ def _origin_references(grey: bool, double: bool) -> dict:
                 f"irrep's own list of magnetic groups names no grey group of space group "
                 f"{sg} ({plain.name}), so its point-group names cannot be read with time "
                 "reversal.")
-        table = IrrepTable(number, True, magnetic=grey) if grey else plain
+        table = _spacegroup._irrep_table(number, True, grey) if grey else plain
         unitary = [(i + 1, sym) for i, sym in enumerate(table.symmetries)
                    if not sym.time_reversal]
         if grey and (len(table.au_symmetries) != len(unitary)
@@ -1089,7 +1084,7 @@ def _origin_references(grey: bool, double: bool) -> dict:
         ops = tuple(_operations_of(table)[:len(unitary)])
         # the characters: the double-valued table's own, or the single-valued
         # table of the same group, which has to list the same operations
-        source = table if double else IrrepTable(number, False, magnetic=grey)
+        source = table if double else _spacegroup._irrep_table(number, False, grey)
         if not double and (len(source.symmetries) != len(table.symmetries) or any(
                 np.abs(np.asarray(a.R, dtype=float)
                        - np.asarray(b.R, dtype=float)).max() > _TABLE_MATRIX_TOL
@@ -1101,7 +1096,7 @@ def _origin_references(grey: bool, double: bool) -> dict:
                 "operations the double-valued table orients.")
         gamma = {str(irr.name): {int(k): complex(v) for k, v in irr.characters.items()}
                  for irr in source.irreps if str(irr.kpname) == "GM"}
-        raw = load_ebr_data(number, double)
+        raw = _spacegroup._ebr_file(number, double)
         letter = _origin_letter(raw, centering)
         labels = [str(label) for label in raw["basis"]["irrep_labels"]]
         degeneracy = dict(zip(labels, (int(d) for d in raw["basis"]["degeneracies"])))

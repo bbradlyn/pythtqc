@@ -1120,7 +1120,7 @@ def test_irreps_own_transport_is_not_a_character_of_ours_at_diamonds_W():
 # EBR / indicator passthroughs
 # ---------------------------------------------------------------------------
 
-def test_ebr_roundtrip_for_the_cubic_s_orbital_band():
+def test_ebr_roundtrip_for_the_cubic_s_orbital_band(monkeypatch):
     """The simple-cubic ``s`` band is exactly one ``A1g@1a`` column: an atomic limit.
 
     ``Pm-3m``, with no padding and the orbital at ``1a`` (``m-3m``); the band
@@ -1163,6 +1163,51 @@ def test_ebr_roundtrip_for_the_cubic_s_orbital_band():
     # the measured symmetry data vector is literally one EBR column
     col = np.asarray(dec["solutions"][0])
     assert col.sum() == 1 and np.array_equal(data["matrix"] @ col, dec["y"])
+
+    # each table is read once: the irrep table and the EBR file are counted as
+    # they are read, and a second pass over the same calls reads neither again
+    import irreptables.ebrs as IE
+    import irreptables.irreps as IT
+
+    reads = []
+    real_init, real_load = IT.IrrepTable.__init__, IE.load_ebr_data
+
+    def counting_init(self, *args, **kwargs):
+        reads.append(("irreps",) + args + tuple(sorted(kwargs.items())))
+        real_init(self, *args, **kwargs)
+
+    def counting_load(*args):
+        reads.append(("ebrs",) + args)
+        return real_load(*args)
+
+    monkeypatch.setattr(IT.IrrepTable, "__init__", counting_init)
+    monkeypatch.setattr(IE, "load_ebr_data", counting_load)
+    _spacegroup._read_irrep_table.cache_clear()
+    _spacegroup._read_ebr_file.cache_clear()
+
+    def one_pass():
+        for k in G.high_symmetry_points(g).values():
+            assert G.corep_table(g, k)
+        return G.ebr_data(g)
+
+    first = one_pass()
+    assert ("irreps", "221", False, ("magnetic", False)) in reads
+    assert ("ebrs", "221", False) in reads
+    assert len(reads) == len(set(reads)), reads
+    read_once = len(reads)
+    # ... and the record returned is the caller's own: writing into it changes
+    # nothing a later call returns, held against the record read before
+    first["raw"]["basis"]["irrep_labels"].clear()
+    first["raw"]["ebrs"][0]["ebr_name"] = "spoiled"
+    again = one_pass()
+    assert len(reads) == read_once, reads[read_once:]
+    assert again["labels_physics_convention"] == data["labels_physics_convention"] != []
+    assert again["raw"]["basis"]["irrep_labels"] == data["raw"]["basis"]["irrep_labels"]
+    assert [e["ebr_name"] for e in again["raw"]["ebrs"]] \
+        == [e["ebr_name"] for e in data["raw"]["ebrs"]]
+    # what was kept for the counting readers goes with them
+    _spacegroup._read_irrep_table.cache_clear()
+    _spacegroup._read_ebr_file.cache_clear()
 
 
 def test_decompose_ebrs_refuses_a_vector_that_misses_one_of_the_groups_points():
@@ -1305,6 +1350,14 @@ def test_indicator_group_serves_the_smith_structure_and_the_grey_forms():
     assert "grey table keyed by the bare space-group number" \
         in G.indicator_group(spinful)["note"]
     assert G.indicator_group(spinless)["indicators"] == {}
+
+    # the forms returned are the caller's own: writing into them changes no later call
+    mine = G.indicator_group(grey)["indicators"]
+    kept = copy.deepcopy(mine)
+    mine["z4"]["mod"] = -1
+    mine["z4"]["factors"].clear()
+    del mine["z8"]
+    assert G.indicator_group(grey)["indicators"] == kept
 
 
 def test_indicator_group_serves_a_group_whose_shipped_smith_r_is_flat():

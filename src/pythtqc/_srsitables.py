@@ -101,8 +101,7 @@ def _grey_symbol(number_str: str, spinor: bool) -> str:
     its number alone.
     """
     try:
-        from irreptables.irreps import IrrepTable
-        return str(IrrepTable(str(number_str), bool(spinor), magnetic=True).name)
+        return str(_spacegroup._irrep_table(number_str, spinor, True).name)
     except (ImportError, OSError):              # pragma: no cover - tables not installed
         return ""
 
@@ -1168,7 +1167,7 @@ def indicator_vocabularies() -> tuple:
     for valuedness in ("single", "double"):
         document = _document(valuedness)
         table = ({} if load_si_table is None
-                 else load_si_table(spinor=valuedness == "double", magnetic=True))
+                 else _spacegroup._indicator_table(valuedness == "double", True))
         for record in document["groups"].values():
             paper |= {str(e["name"]) for e in record["indicators"]}
             entry = table.get(str(record["number_str"]), {})
@@ -1292,8 +1291,7 @@ def name_correspondence(group_or_tables):
     if not tables:
         return tables
     try:
-        from irreptables.symmetry_indicators import load_si_table
-        entry = load_si_table(spinor=tables.spinor, magnetic=True).get(
+        entry = _spacegroup._indicator_table(tables.spinor, True).get(
             tables.number_str, {})
         forms = dict(entry.get("indicators", {}))
     except Exception as exc:                   # pragma: no cover - table defect

@@ -125,6 +125,81 @@ def _refuse_no_tables(status: dict[str, Any]) -> Refusal:
 
 
 # --------------------------------------------------------------------------
+# the tables as irreptables ships them
+# --------------------------------------------------------------------------
+
+def _irrep_table(number_str, spinor, magnetic):
+    """One group's table of little-group irreps, as ``irreptables`` ships it.
+
+    A table read is kept among the most recent, and the same one is returned
+    to every site that asks: nothing writes into it.
+
+    Parameters
+    ----------
+    number_str : str
+        The label the tables file the group under, ``"191"`` or ``"191.234"``.
+    spinor : bool
+        The double-valued table, of states with spin one-half.
+    magnetic : bool
+        The table of coreps of a magnetic group, a grey group among them.
+    """
+    from irreptables.irreps import IrrepTable
+    return _read_irrep_table(IrrepTable, str(number_str), bool(spinor), bool(magnetic))
+
+
+@lru_cache(maxsize=32)
+def _read_irrep_table(reader, number_str, spinor, magnetic):
+    """The table ``reader`` reads for one group, kept for that reader."""
+    return reader(number_str, spinor, magnetic=magnetic)
+
+
+def _ebr_file(number_str, spinor):
+    """One group's elementary band representations, as ``irreptables`` ships them.
+
+    A file read is kept among the most recent, and the same one is returned to
+    every site that asks: nothing writes into it.
+
+    Parameters
+    ----------
+    number_str : str
+        The label the tables file the group under, ``"191"`` or ``"191.234"``.
+    spinor : bool
+        The double-valued representations, of states with spin one-half.
+    """
+    from irreptables.ebrs import load_ebr_data
+    return _read_ebr_file(load_ebr_data, str(number_str), bool(spinor))
+
+
+@lru_cache(maxsize=32)
+def _read_ebr_file(reader, number_str, spinor):
+    """The file ``reader`` reads for one group, kept for that reader."""
+    return reader(number_str, spinor)
+
+
+def _indicator_table(spinor, magnetic):
+    """``irreptables``' named symmetry-indicator formulas for every group of one table.
+
+    Each table is read once, and the same one is returned to every site that
+    asks: nothing writes into it.
+
+    Parameters
+    ----------
+    spinor : bool
+        The double-valued table, of states with spin one-half.
+    magnetic : bool
+        The table keyed by a magnetic group's number, ``"166.98"``.
+    """
+    from irreptables.symmetry_indicators import load_si_table
+    return _read_indicator_table(load_si_table, bool(spinor), bool(magnetic))
+
+
+@lru_cache(maxsize=None)
+def _read_indicator_table(reader, spinor, magnetic):
+    """The table ``reader`` reads, kept for that reader."""
+    return reader(spinor=spinor, magnetic=magnetic)
+
+
+# --------------------------------------------------------------------------
 # the multiplication table
 # --------------------------------------------------------------------------
 
@@ -1276,10 +1351,7 @@ def _canonical_spinor_signs(sg, *, tol=1e-3):
         outright — not measurements about a model — so they are raised and never
         returned as a :class:`..refusal.Refusal`.
     """
-    from irreptables.irreps import IrrepTable
-
-
-    table = IrrepTable(str(sg.number_str), True, magnetic=bool(sg.magnetic))
+    table = _irrep_table(sg.number_str, True, sg.magnetic)
     tsyms = table.u_symmetries + table.au_symmetries
     where = (f"group #{sg.number_str}: the tables fix the spin frame completely "
              f"(the shipped SU(2) matrices are written in the conventional cell's "
@@ -1817,9 +1889,7 @@ def _exact_operations(sg, symprec, tables_ready, lattice) -> tuple | Refusal:
             value=float(before), threshold=0.0,
             context={"number_str": str(sg.number_str), "closure": float(before)})
 
-    from irreptables.irreps import IrrepTable
-
-    table = IrrepTable(str(sg.number_str), bool(sg.spinor), magnetic=bool(sg.magnetic))
+    table = _irrep_table(sg.number_str, sg.spinor, sg.magnetic)
     tsyms = list(table.symmetries)
     refUC = np.asarray(sg.refUC, dtype=float)
     shiftUC = np.asarray(sg.shiftUC, dtype=float)

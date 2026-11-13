@@ -28,7 +28,6 @@ in which a lattice translation acts as ``e^{-ik·t}``.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from functools import lru_cache
 from typing import Mapping
 
 import numpy as np
@@ -1549,20 +1548,6 @@ def decompose(content, group=None, *, rep=None, points=None, allow_incomplete=Fa
 #: :func:`symmetry_indicator` re-checks it here.
 _magnetic_type = _spacegroup._magnetic_type
 
-@lru_cache(maxsize=None)
-def _indicator_formulas(spinor: bool, magnetic: bool) -> dict:
-    """``irreptables``' named indicator formulas for every group of one table, read once.
-
-    ``spinor`` picks the double-valued table and ``magnetic`` the one keyed by
-    the magnetic group's number (``166.98``).  Every indicator of a group with
-    time reversal looks its formulas up here, and the double-valued file is
-    large, so it is read the first time and kept; the formulas are only read,
-    never changed.
-    """
-    from irreptables.symmetry_indicators import load_si_table
-
-    return load_si_table(spinor=spinor, magnetic=magnetic)
-
 def _named_forms(group, data, matrix, y, magnetic_type):
     """``irreptables``' named indicator forms for the group, in this package's convention.
 
@@ -1602,7 +1587,7 @@ def _named_forms(group, data, matrix, y, magnetic_type):
             "no named form is returned for a unitary group. The Smith-form indicator "
             "above is unaffected: it is computed from this group's own EBR matrix"), {}
     try:
-        entry = _indicator_formulas(bool(group.spinor), bool(group.magnetic)).get(
+        entry = _spacegroup._indicator_table(group.spinor, group.magnetic).get(
             str(group.number_str), {})
         forms = dict(entry.get("indicators", {}))
     except Exception as exc:                   # pragma: no cover - table defect
