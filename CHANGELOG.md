@@ -4,6 +4,14 @@
 
 - `realized_group` and `hsp_table` return sooner, `realized_group` most on a group of many
   operations, a cubic crystal's among them. What they return is unchanged.
+- `hsp_table`, `corep_content`, `characters`, `sewing_matrix` and a representation's
+  `covariance` raise `ValueError` where the model the representation was measured on has
+  been edited since, and say to call `realized_group` again. A model with a term that
+  carries a parameter is not checked, and a layer's representation holds a copy of its own,
+  which an edit of the model handed in does not reach.
+- An `hsp_table`'s `note` is one sentence, and it appears for any set of bands, all of them
+  included, one of whose energy multiplets is labelled otherwise under another labelling
+  the hoppings leave open.
 - The package's name is written pythTQC; it is installed and imported as `pythtqc`, as
   before.
 - `CITATION.cff` asks work that uses the package to cite Hwang et al., arXiv:2601.06293,
