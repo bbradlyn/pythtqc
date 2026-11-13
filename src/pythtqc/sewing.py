@@ -389,20 +389,20 @@ def _wfarray_fiber(wf, k, *, mesh_tol=MESH_TOL):
         w = None                      # a sector WFArray carries states, not energies
     return w, V
 
-def _resolve_states(source, rep, k, *, mesh_tol=MESH_TOL, params=None):
+def _resolve_states(source, rep, k, *, mesh_tol=MESH_TOL, params=None, bloch=None):
     """The **single** eigenvector source at ``k`` -> ``(energies_or_None, V)``.
 
     ``source`` is a solved :class:`pythtb.WFArray`, the ``(evals, evecs)`` pair
     :meth:`pythtb.TBModel.solve_ham` returns, a bare fiber of eigenvector rows,
     or ``None``/``rep.model`` (solve here, storing nothing).  There is exactly
     one slot, which is what makes a second diagonalization unreachable by
-    accident.
+    accident.  ``bloch`` is as in :func:`_hamiltonian_at`.
     """
     k = np.asarray(k, dtype=float).reshape(-1)
     params = dict(params or {})
 
     if source is None or source is rep.model:
-        evals, evecs = solve_at(rep.model, k, params=params)
+        evals, evecs = _bloch.solve(rep.model, np.atleast_2d(k), params, bloch)
         return np.asarray(evals, dtype=float).reshape(-1), _as_columns(evecs)
 
     if hasattr(source, "wfs") and hasattr(source, "mesh"):
@@ -434,6 +434,16 @@ def _hamiltonian_at(rep, k, params=None, bloch=None) -> np.ndarray:
     k = np.asarray(k, dtype=float).reshape(-1)
     H = np.asarray(_bloch.hamiltonian(rep.model, np.atleast_2d(k), params, bloch))[0]
     return 0.5 * (H + H.conj().T)
+
+def _measured_sum(rep, params, bloch=None):
+    """The Bloch sum of ``rep.model`` at these parameter values, checked against ``rep``.
+
+    A ``bloch`` handed in has been checked already, and is returned as it is.
+    """
+    if bloch is None:
+        bloch = _bloch.evaluator(rep.model, params)
+        rep._check_unedited(bloch)
+    return bloch
 
 def _states_at_k(H, w, V):
     """``max |H V - V diag(w)|`` — the measured "these states are at this k" number."""
@@ -668,8 +678,9 @@ def sewing_matrix(rep, operation=None, k=None, *, states=None, bands=None, atol=
     TypeError
         ``operation`` or ``k`` left out.
     ValueError
-        States of another model than ``rep.model``, or ``bands`` outside the
-        states.
+        States of another model than ``rep.model``, ``bands`` outside the
+        states, or ``rep.model``, none of whose terms carries a parameter, edited since
+        :func:`..groups.realized_group` measured it.
 
     Refusals
     --------
@@ -697,13 +708,16 @@ def sewing_matrix(rep, operation=None, k=None, *, states=None, bands=None, atol=
     if k is None:
         raise TypeError("sewing_matrix() missing required argument 'k'")
     k = np.asarray(k, dtype=float).reshape(-1)
-    got = _resolve_states(states, rep, k, mesh_tol=mesh_tol, params=params)
+    bloch = (_measured_sum(rep, params) if states is None or states is rep.model
+             else None)
+    got = _resolve_states(states, rep, k, mesh_tol=mesh_tol, params=params, bloch=bloch)
     if isinstance(got, Refusal):
         return got
     w, V = got
     idx = _band_block(V.shape[1], bands)
 
-    H = _hamiltonian_at(rep, k, params)
+    bloch = _measured_sum(rep, params, bloch)
+    H = _hamiltonian_at(rep, k, params, bloch)
     resid = float("nan") if w is None else _states_at_k(H, w, V)
 
     if check and w is not None:
@@ -878,7 +892,9 @@ def characters(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL
     Raises
     ------
     ValueError
-        States without energies, or of another model than ``rep.model``.
+        States without energies or of another model than ``rep.model``, or
+        ``rep.model``, none of whose terms carries a parameter, edited since
+        :func:`..groups.realized_group` measured it.
     ..refusal.InternalError
         The representation leaves out an operation of the little group at
         ``k``: the package disagreeing with itself.
@@ -912,7 +928,9 @@ def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol, params
     if gate is not None:
         return gate
     k = np.asarray(k, dtype=float).reshape(-1)
-    got = _resolve_states(states, rep, k, mesh_tol=mesh_tol, params=params)
+    if states is None or states is rep.model:
+        bloch = _measured_sum(rep, params, bloch)
+    got = _resolve_states(states, rep, k, mesh_tol=mesh_tol, params=params, bloch=bloch)
     if isinstance(got, Refusal):
         return got
     w, V = got
@@ -924,6 +942,7 @@ def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol, params
             "in the model / the (evals, evecs) pair.")
     idx = _band_block(V.shape[1], bands)
 
+    bloch = _measured_sum(rep, params, bloch)
     H = _hamiltonian_at(rep, k, params, bloch)
     resid = _states_at_k(H, w, V)
     foreign = _foreign_states(H, k, resid)
@@ -1149,7 +1168,9 @@ def corep_content(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_
     Raises
     ------
     ValueError
-        States without energies, or of another model than ``rep.model``.
+        States without energies or of another model than ``rep.model``, or
+        ``rep.model``, none of whose terms carries a parameter, edited since
+        :func:`..groups.realized_group` measured it.
     ..refusal.InternalError
         The representation leaves out an operation of the little group at
         ``k``: the package disagreeing with itself.
@@ -1505,8 +1526,9 @@ def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
     Raises
     ------
     ValueError
-        States of another model than ``rep.model``, or ``bands`` outside the
-        states.
+        States of another model than ``rep.model``, ``bands`` outside the
+        states, or ``rep.model``, none of whose terms carries a parameter, edited since
+        :func:`..groups.realized_group` measured it.
 
     Refusals
     --------
@@ -1562,7 +1584,7 @@ def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
     bloch = None                    # the model's Bloch sum, where the model is solved here
     if wanted and (states is None or states is rep.model):
         karr = np.array([k for _, k in wanted], dtype=float)
-        bloch = _bloch.evaluator(rep.model, params)
+        bloch = _measured_sum(rep, params)
         evals, evecs = _bloch.solve(rep.model, karr, params, bloch)
         evals, evecs = np.asarray(evals), np.asarray(evecs)
         if evals.ndim == 1:                     # solve_ham drops a length-1 k axis

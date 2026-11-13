@@ -1983,9 +1983,10 @@ def _stack_in_group(table, group, rep, restriction, *, c, bands, verify, charact
     rng = np.random.default_rng(20241004)
     battery = rng.uniform(-0.5, 0.5, size=(8, 3))
     battery[:len(_KZ_PROBE), 2] = _KZ_PROBE
+    # the stack is built here and held by nothing else, so no edit of it is checked for
     rep3 = replace(rep, model=stack, group=g3, assignment=asg3,
                    _operations=tuple(by_ind[int(i)] for i in rep.indices),
-                   _battery=battery)
+                   _battery=battery, _model_key=None)
     residuals = rep3.covariance(battery)
     scale = float(np.abs(np.asarray(_bloch.hamiltonian(stack, battery))).max())
     gate = max(covariance_gate(len(rep.indices), int(stack.nstate), scale),

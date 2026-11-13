@@ -748,6 +748,11 @@ class SpaceGroupRep:
     # only a group of involutions allows (mm2, P-1, a spinful 2/m), and then
     # `_choice["orientation"]` is +1 by convention
     _branch_tie: bool = False
+    # the content hash of `model` when the representation was measured on it
+    # (`_bloch.model_key`), against which the calls that label bands check that
+    # the model is unedited; `None` where nothing is checked: a model whose terms
+    # carry a parameter, and the decoupled stack a layer's indicator is completed on
+    _model_key: str | None = field(default=None, repr=False, compare=False)
 
     # -- lookups -----------------------------------------------------------
     def __len__(self) -> int:
@@ -794,6 +799,18 @@ class SpaceGroupRep:
             if int(op.ind) == int(ind):
                 return op
         raise KeyError(f"operation #{ind} is not part of this representation")
+
+    def _check_unedited(self, bloch) -> None:
+        """Raise ``ValueError`` where ``model`` has been edited since it was measured.
+
+        ``bloch`` is the model's Bloch sum, which carries the hash of the
+        content it was summed from (:func:`.._bloch.evaluator`).
+        """
+        if self._model_key is not None and bloch.key != self._model_key:
+            raise ValueError(
+                "the model has been edited since realized_group measured it, and this "
+                "representation describes the model as it was: call realized_group on the "
+                "edited model and label its bands through the representation it returns.")
 
     def k_action(self, ind):
         """One operation's action on the model's reduced ``k``, ``k → Rk``, as a function: the image not folded back into the zone."""
@@ -856,10 +873,17 @@ class SpaceGroupRep:
         On ``k_pts``, or by default at the ``k`` the representation was built
         at; ``params`` are the values of a model whose terms are given by
         parameter names.
+
+        Raises
+        ------
+        ValueError
+            ``model``, none of whose terms carries a parameter, edited since the
+            representation was measured on it.
         """
         k_pts = self._battery if k_pts is None else np.atleast_2d(np.asarray(k_pts, float))
         params = dict(params or {})
         bloch = _bloch.evaluator(self.model, params)
+        self._check_unedited(bloch)
         H = np.asarray(bloch(k_pts))
         out = {}
         for ind in self.indices:

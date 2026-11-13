@@ -105,8 +105,8 @@ _FEW_ULP = 8 * _ULP                   # one sandwich of O(1) unitaries, 1.78e-15
 #: takes.  This *is* the package's eigenvector currency: there is no ``tqc``
 #: container to put it in, so a test that wants several readouts from one
 #: diagonalization keeps the pair and hands it to each call — which is what
-#: ``characters``/``corep_content`` do internally as well, through this same
-#: function (``_resolve_states``' ``source=None`` branch).
+#: ``characters``/``corep_content`` do internally as well, by this same
+#: diagonalization (``_resolve_states``' ``source=None`` branch).
 solve_at = tqw.solve_at
 
 
@@ -683,7 +683,10 @@ def test_hsp_table_shape(lin3g_undeclared):
     The character table under it has columns in ``little_group(...).unitary``
     order, and an antiunitary operation never appears among them.  Both records
     belong to the model the representation was built on, and a foreign model
-    is a ``ValueError``.
+    is a ``ValueError``.  So is the model a crystal's representation holds,
+    edited in place after it was measured, until its content is put back; a
+    layer's representation holds its own presentation, which an edit of the
+    model handed in does not reach.
     """
     model, group, _, _, rep = lin3g_undeclared
     table = tqw.hsp_table(rep, bands=6)
@@ -714,6 +717,46 @@ def test_hsp_table_shape(lin3g_undeclared):
         tqw.hsp_table(rep, states=tqc_models.lin3g(), bands=6)
     with pytest.raises(ValueError, match="rep.model"):
         tqw.characters(rep, np.zeros(2), states=tqc_models.lin3g(), bands=6)
+
+    # a crystal edited in place after it was measured, then put back
+    lat = Lattice([[1.0, 0.0, 0.0], [0.0, 1.3, 0.0], [0.0, 0.0, 1.7]], [[0.0, 0.0, 0.0]],
+                  periodic_dirs=[0, 1, 2])
+    crystal = TBModel(lat, spinful=False)
+    crystal.set_onsite([0.0])
+    for t, lv in ((-1.0, [1, 0, 0]), (-0.5, [0, 1, 0]), (-0.2, [0, 0, 1])):
+        crystal.set_hop(t, 0, 0, lv)
+    r = tqg.realized_group(crystal)
+    assert r and r.rep.model is crystal, str(r)
+    kX = tqg.high_symmetry_points(r.group)["X"]
+    op = r.rep.little_group(kX)[1]
+    calls = {"hsp_table": lambda: [(name, rec.counts, float(rec.table.energies[0])) for
+                                   name, rec in tqw.hsp_table(r.rep, bands=1).records.items()],
+             "corep_content": lambda: tqw.corep_content(r.rep, kX, bands=1).table.spectrum,
+             "characters": lambda: tqw.characters(r.rep, kX, bands=1).energies,
+             "sewing_matrix": lambda: tqw.sewing_matrix(r.rep, op, kX, bands=1).matrix,
+             "covariance": lambda: r.rep.covariance()}
+    before = {name: call() for name, call in calls.items()}
+    crystal.set_hop(-0.3, 0, 0, [0, 0, 1], mode="set")
+    for name, call in calls.items():
+        with pytest.raises(ValueError, match="edited since realized_group measured it"):
+            call()
+    crystal.set_hop(-0.2, 0, 0, [0, 0, 1], mode="set")
+    for name, call in calls.items():
+        again = call()
+        assert (np.array_equal(again, before[name]) if isinstance(again, np.ndarray)
+                else again == before[name]), name
+
+    # a layer: its representation labels on after the model handed in is edited
+    square = TBModel(Lattice([[1.0, 0.0], [0.0, 1.0]], [[0.0, 0.0]], periodic_dirs=[0, 1]),
+                     spinful=False)
+    square.set_onsite([0.0])
+    for t, lv in ((-1.0, [1, 0]), (-1.0, [0, 1]), (0.1, [1, 1]), (0.1, [1, -1])):
+        square.set_hop(t, 0, 0, lv)
+    layer = tqg.realized_group(square)
+    assert layer and layer.rep.model is not square, str(layer)
+    labels = tqw.hsp_table(layer.rep, bands=1).content
+    square.set_hop(-0.7, 0, 0, [1, 0], mode="set")
+    assert tqw.hsp_table(layer.rep, bands=1).content == labels
 
 
 def test_hsp_table_skips_a_trivial_little_group():

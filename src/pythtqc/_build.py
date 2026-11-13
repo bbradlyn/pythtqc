@@ -2100,7 +2100,8 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
         _failed=tuple(validated.discrepancies),
         _battery=k_pts, multiplets=layout, _normalization=normalization,
         _time_reversal=None if T_pos is None else int(syms[T_pos].ind),
-        characters=limits, spin=spin, _branch_tie=bool(branch_tie))
+        characters=limits, spin=spin, _branch_tie=bool(branch_tie),
+        _model_key=_bloch.kept_key(model, bloch))
     return _with_tables_unavailable(_with_band_representations(built) if _returned
                                     else built)
 

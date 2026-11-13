@@ -123,6 +123,15 @@ def model_key(model) -> str:
     return _digest(model, *hopping_arrays(model), model.onsite)
 
 
+def kept_key(model, bloch):
+    """The content hash a representation keeps for ``model``, whose Bloch sum is ``bloch``.
+
+    It is the sum's own key where no term of the model carries a parameter, and
+    ``None`` otherwise.
+    """
+    return None if model._has_parameterized_terms() else bloch.key
+
+
 # --------------------------------------------------------------------------
 # the Bloch sum
 # --------------------------------------------------------------------------
@@ -136,10 +145,12 @@ class _BlochSum:
 
     Called with k-points in any form ``TBModel.hamiltonian`` takes, it returns
     the ``(Nk, nstate, nstate)`` array that call returns with
-    ``flatten_spin_axis=True``, bit for bit.
+    ``flatten_spin_axis=True``, bit for bit.  ``key`` is the content hash it
+    was built from.
     """
 
-    def __init__(self, model, arrays):
+    def __init__(self, model, arrays, key=None):
+        self.key = key
         hop_amps, i_idx, j_idx, R_vecs, site = arrays
         lattice = model.lattice
         norb = int(lattice.norb)
@@ -206,6 +217,9 @@ class _BlochSum:
 class _PythtbSum:
     """``H(k)`` by pythtb's ``hamiltonian`` itself: no periodic direction, or a sweep."""
 
+    # no content hash is taken for such a model
+    key = None
+
     def __init__(self, model, params):
         self.model, self.params = model, dict(params)
         self.nstate = int(model.nstate)
@@ -238,7 +252,9 @@ def evaluator(model, params=None):
     The parameter names are checked as ``TBModel.hamiltonian`` checks them, with
     the same error.  The blocks are gathered from the arrays pythtb itself would
     sum at these values, and kept under their content; a later request for the
-    same content, from this model or any other, finds them.
+    same content, from this model or any other, finds them.  The sum returned
+    carries that content hash as ``key``, which is :func:`model_key` for a
+    model whose terms carry no parameter, and ``None`` where pythtb sums it.
     """
     params = dict(params or {})
     model._check_missing_parameters(params)
@@ -253,7 +269,7 @@ def evaluator(model, params=None):
     if bloch is not None:
         _kept.move_to_end(key)
         return bloch
-    bloch = _BlochSum(model, arrays)
+    bloch = _BlochSum(model, arrays, key)
     _keep(key, bloch)
     return bloch
 
