@@ -99,6 +99,10 @@ def _power(D, antiunitary, n):
     return out
 
 
+#: How many bytes of matrices :func:`_product_table_residual` multiplies at a time.
+_RESIDUAL_BLOCK = 2 ** 18
+
+
 def _product_table_residual(D, positions, syms, prod, spf):
     r"""``max ‖D(g₁)∘D(g₂) − spf(g₁,g₂)·D(g₁g₂)‖`` over the represented pairs.
 
@@ -117,15 +121,44 @@ def _product_table_residual(D, positions, syms, prod, spf):
     skipped — for a closed set (which :func:`.._build._build_rep` checks separately)
     there are none.
     """
+    positions = [int(p) for p in positions]
+    if not positions:
+        return 0.0
+    right = np.stack([D[b] for b in positions])      # D(b) over the positions
+    keys = [int(k) for k in D]
+    held = np.stack([D[k] for k in keys])            # every matrix, in the order of keys
+    where = np.full(max(int(np.max(prod)), *keys) + 1, -1)
+    where[keys] = np.arange(len(keys))               # position -> index into held
+    cols = np.array(positions)
+    # how many D(b) one step takes
+    step = max(1, int(_RESIDUAL_BLOCK // max(1, right[0].nbytes)))
+    right_conj = None
     worst = 0.0
     for a in positions:
-        Da, anti_a = D[a], bool(syms[a].time_reversal)
-        for b in positions:
-            c = int(prod[a, b])
-            if c not in D:
+        index = where[np.asarray(prod[a, cols], dtype=int)]
+        kept = index >= 0
+        if not kept.any():
+            continue
+        if syms[a].time_reversal:
+            if right_conj is None:
+                right_conj = np.conj(right)
+            side = right_conj
+        else:
+            side = right
+        Da = D[a]
+        signs = np.array([int(s) for s in spf[a, cols]], dtype=held.dtype)
+        for lo in range(0, len(positions), step):
+            part = slice(lo, lo + step)
+            here = kept[part]
+            if not here.any():
                 continue
-            lhs = _compose(Da, anti_a, D[b])
-            worst = max(worst, float(np.abs(lhs - int(spf[a, b]) * D[c]).max()))
+            lhs = np.matmul(Da, side[part])          # one product of two matrices for each b
+            target, sign = index[part], signs[part]
+            if not here.all():
+                lhs, target, sign = lhs[here], target[here], sign[here]
+            per_pair = np.abs(lhs - sign[:, None, None] * held[target]).max(axis=(1, 2))
+            # a pair whose residual is not a number does not count
+            worst = max(worst, float(np.fmax.reduce(per_pair)))
     return worst
 
 
