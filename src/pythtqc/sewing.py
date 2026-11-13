@@ -1286,13 +1286,10 @@ class HSPTable:
         ``"realized"`` for a group measured on ``H``, ``"descended"`` for one
         measured after the cell was lowered.
     note : str
-        Where these bands' labels rest on a choice the hoppings leave open, a
-        sentence naming the orbitals it is made on and what made it, and ``""``
-        elsewhere.  The choice is a one-dimensional character on a coupled part
-        of the crystal, which keeps every orbital's site irrep and the labels
-        of all the bands and can label some of them differently; or, where the
-        Hamiltonian conserves a pseudospin and nothing declares what its copies
-        carry, that content itself.
+        Where another labelling the hoppings leave open gives some energy
+        multiplet of these bands, at a point the table labels, other labels, or
+        a pseudospin's undeclared content sets them, a sentence saying so;
+        ``""`` elsewhere.
     rep : ..symmetry.SpaceGroupRep
         The representation the table was read with, ``r.rep``: its group,
         ``rep.group``, is the group whose coreps the labels name, and the
@@ -1343,15 +1340,17 @@ class HSPTable:
                 f"{len(self.refusals)} refused, {len(self.skipped)} skipped, "
                 f"group={self.group_provenance})")
 
-#: What the labelling returned rests on, by the key that set the others aside:
-#: the site content at the lowest angular momentum, the functions the orbitals
-#: read as, and the band labels themselves.
-_DECIDED_BY = {
-    "content": "the one that reads each site's content at the lowest angular momentum",
-    "orbitals": ("the one whose orbitals read as the lowest-angular-momentum functions "
-                 "carrying their site content"),
-    "bands": "the one whose band labels come first in the tables' order",
-}
+#: The keys under which a labelling set aside can label a band otherwise: the
+#: site content at the lowest angular momentum, the functions the orbitals read
+#: as, and the band labels.
+_RELABELLING_KEYS = ("content", "orbitals", "bands")
+
+#: The note, where some energy multiplet of a set of bands reads otherwise under
+#: another labelling the hoppings leave open.
+_ANOTHER_LABELLING_RELABELS = (
+    "another labelling the hoppings leave open keeps every site irrep and labels some energy "
+    "multiplets of these bands differently; it keeps which bands are degenerate and the labels "
+    "of all the model's bands together")
 
 def _labelling_note(rep, block) -> str:
     """The sentence :attr:`HSPTable.note` carries, or ``""``.
@@ -1360,85 +1359,39 @@ def _labelling_note(rep, block) -> str:
     coupled part that give every orbital the same site irrep, and another of
     them labels some band differently, the atomic-limit table holds the labels
     every energy multiplet carries under each.  A set of bands rests on that
-    choice where the multiplets it holds add up, at some point, to other labels
-    under another of them; the sentence names the orbitals of the coupled part
-    the choice is made on, and what made it.  Where only the group's order of
-    operations set them apart, no label rests on the choice and nothing is said.
+    choice where an energy multiplet it holds whole, at a point where it cuts
+    none, carries other labels under another of them.  Where only the group's order of operations set them
+    apart, no label rests on the choice and nothing is said.
     """
     table = getattr(rep, "characters", None)
     record = getattr(table, "_labellings", {}) or {}
-    choices = record.get("choices", ())
-    nstate = int(rep.model.nstate)
-    if not choices or len(block) >= nstate:
-        return ""
     held = {int(b) for b in block}
-    moved = [(int(rec["part"]), key) for rec in choices for key, other in rec["others"]
-             if key in _DECIDED_BY and _labelled_apart(rec["chosen"], other, held)]
-    if not moved:
-        return ""
-    decided = next(key for key in _DECIDED_BY if any(k == key for _p, k in moved))
-    where = _parts_named(rep, sorted({p for p, _k in moved}), record.get("parts", ()))
-    return (f"the labels of these {len(block)} of the {nstate} bands rest on a "
-            f"one-dimensional character the hoppings leave open on {where}: another choice "
-            f"of it keeps every orbital's site irrep and the labels of all {nstate} bands, "
-            f"and labels these {len(block)} differently; the lowest-angular-momentum rule "
-            f"chose {_DECIDED_BY[decided]}")
+    if any(key in _RELABELLING_KEYS and _labelled_apart(rec["chosen"], other, held)
+           for rec in record.get("choices", ()) for key, other in rec["others"]):
+        return _ANOTHER_LABELLING_RELABELS
+    return ""
 
 def _labelled_apart(chosen, other, held) -> bool:
-    """Whether the multiplets the bands ``held`` fill carry other labels under ``other``.
+    """Whether a multiplet the bands ``held`` hold whole is labelled otherwise under ``other``.
 
     ``chosen`` and ``other`` are ``{point: ((bands, {corep: m}), ...)}``, and one
-    point whose labels differ is enough.  A point where the bands held cut a
-    multiplet says nothing and is passed over.
+    multiplet whose labels differ is enough.  A point where the bands held cut
+    a multiplet is one the table does not label, and is passed over.
     """
     for point, multiplets in chosen.items():
         theirs = other.get(point)
         if theirs is None or len(theirs) != len(multiplets):
             continue
-        mine_sum, their_sum, whole = {}, {}, True
-        for (bands, labels), (bands_other, labels_other) in zip(multiplets, theirs):
-            inside = held.intersection(bands)
-            if not inside:
-                continue
-            if len(inside) != len(bands) or tuple(bands) != tuple(bands_other):
-                whole = False
-                break
-            for label, m in labels.items():
-                mine_sum[label] = mine_sum.get(label, 0) + int(m)
-            for label, m in labels_other.items():
-                their_sum[label] = their_sum.get(label, 0) + int(m)
-        if whole and mine_sum != their_sum:
+        inside = [(bands, labels, bands_other, labels_other)
+                  for (bands, labels), (bands_other, labels_other) in zip(multiplets, theirs)
+                  if held.intersection(bands)]
+        if any(not held.issuperset(bands) or tuple(bands) != tuple(bands_other)
+               for bands, _labels, bands_other, _other in inside):
+            continue
+        if any(dict(labels) != dict(labels_other)
+               for _bands, labels, _bands_other, labels_other in inside):
             return True
     return False
-
-def _parts_named(rep, parts, states_of) -> str:
-    """Coupled parts by their orbitals: ``"the coupled part holding orbitals 1 and 5"``.
-
-    A pseudospin the Hamiltonian conserves on them is named with them.
-    """
-    nspin = max(int(getattr(rep.model, "nspin", 1)), 1)
-    norb = int(rep.model.norb)
-    orbitals = sorted({int(s) // nspin for p in parts if int(p) < len(states_of)
-                       for s in states_of[int(p)]})
-    which = "the coupled parts holding" if len(parts) > 1 else "the coupled part holding"
-    if not orbitals or len(orbitals) == norb:
-        named = f"{which} every orbital"
-    elif len(orbitals) == 1:
-        named = f"{which} orbital {orbitals[0]}"
-    else:
-        named = (f"{which} orbitals " + ", ".join(str(o) for o in orbitals[:-1])
-                 + f" and {orbitals[-1]}")
-    held = set(orbitals) if orbitals else set(range(norb))
-    table = getattr(rep, "characters", None)
-    copies = [tuple(int(o) for o in space.orbitals)
-              for space in (getattr(table, "multiplicity_spaces", ()) or ())
-              if {int(o) for o in space.orbitals} <= held]
-    if len(copies) == 1 and set(copies[0]) == held:
-        return f"{named}, on which the Hamiltonian conserves a pseudospin"
-    if copies:
-        return (f"{named}, the Hamiltonian conserving a pseudospin on orbitals "
-                + " and ".join(str(c) for c in copies))
-    return named
 
 def _multiplicity_note(rep, block, fibers) -> str:
     """The sentence :attr:`HSPTable.note` carries where a pseudospin sets the content, or ``""``.

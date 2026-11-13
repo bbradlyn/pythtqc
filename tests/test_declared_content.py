@@ -869,7 +869,7 @@ def test_a_declaration_a_complex_twist_serves_is_served_with_it():
             for key, _labels in choice["others"]] == ["bands"]
     lowest = tqw.hsp_table(out, bands=2)
     assert lowest.content["GM"] == {"-GM5": 1, "-GM8": 1}
-    assert lowest.note.endswith("come first in the tables' order")
+    assert lowest.note == tqw._ANOTHER_LABELLING_RELABELS
     assert all(abs(abs(v) - 1.0) < 1e-9 for v in twist.values())
     assert max(out.residuals.values()) < 1e-13 and out.product_residual < 1e-13, \
         "a complex character preserves the covariance and the product table"

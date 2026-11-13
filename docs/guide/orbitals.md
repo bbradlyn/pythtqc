@@ -293,7 +293,7 @@ bare = tqc.realized_group(pair)
 print(bare.rep.characters.irreps, [row.determined_by for row in bare.rep.characters.orbitals])
 #  ('E', 'E') ['hamiltonian', 'hamiltonian']
 print(tqc.hsp_table(bare.rep, bands=1).note)
-#  the labels of these 1 of the 2 bands rest on a one-dimensional character the hoppings leave open on the coupled part holding every orbital: another choice of it keeps every orbital's site irrep and the labels of all 2 bands, and labels these 1 differently; the lowest-angular-momentum rule chose the one whose band labels come first in the tables' order
+#  another labelling the hoppings leave open keeps every site irrep and labels some energy multiplets of these bands differently; it keeps which bands are degenerate and the labels of all the model's bands together
 ```
 
 The rows read `hamiltonian`, and the label of the lower band rests on a

@@ -1314,10 +1314,9 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
                                                  "R4-": 1, "X3-": 1, "X4-": 1, "Z5-": 1}
     assert "pseudospin" in lowest.note and "2xEu" in lowest.note
     # ... and copies every representation of which gives one site content: a
-    # labelling like any other, under the one disclaimer, which names the pseudospin
+    # labelling like any other, under the one sentence
     note = tqw.hsp_table(tqg.realized_group(tqc_models.p1bar_s_copies()).rep, bands=2).note
-    assert note.count("the labels of these") == 1, note
-    assert ", on which the Hamiltonian conserves a pseudospin: another choice" in note, note
+    assert note == tqw._ANOTHER_LABELLING_RELABELS, note
     # ... declared four copies of A1g, which no representation of the copies
     # carries on P4/mmm: the group descends to Pmmm1', every operation left
     # out broken by the declaration

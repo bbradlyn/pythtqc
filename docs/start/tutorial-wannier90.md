@@ -269,7 +269,7 @@ print(valence.summary())
 #      F: 2×F1+ + F1- + F2-
 #      L: 2×L1+ + L2+ + L2-
 #      T: T1+ + T2- + T3-
-#    the labels of these 4 of the 8 bands rest on a one-dimensional character the hoppings leave open on the coupled part holding every orbital: another choice of it keeps every orbital's site irrep and the labels of all 8 bands, and labels these 4 differently; the lowest-angular-momentum rule chose the one whose orbitals read as the lowest-angular-momentum functions carrying their site content   (.note)
+#    another labelling the hoppings leave open keeps every site irrep and labels some energy multiplets of these bands differently; it keeps which bands are degenerate and the labels of all the model's bands together   (.note)
 dec = tqc.decompose(valence)
 print(dec.verdict, "|", len(dec.solutions), "solution:", *dec.solution_strings())
 #  symmetry-indicated decomposable | 1 solution: 1 x A1g↑G(1)@3a(-3m1',-3m) + 1 x Ag↑G(3)@9d(2/m1',2/m)
@@ -303,8 +303,8 @@ through that centre. Where the functions are known to carry other content,
 The model has no spin, so the labels are single-valued coreps of `R-3m1'` at
 its four high-symmetry points, `+` and `−` their parity under inversion: at
 `GM` the four valence bands are two `GM1+` and one two-dimensional `GM3+`. The
-line under them says what they rest on, a one-dimensional character the
-hoppings leave open. The site irreps leave two labellings of the
+line under them says what they rest on, a labelling the hoppings leave
+open. The site irreps leave two labellings of the
 representation open, and the one returned is the lowest-ℓ rule's; the
 other differs from it by a sign on the inversion, the twofold rotations and the
 rotoinversions, a one-dimensional character the site groups `3m` and `m`

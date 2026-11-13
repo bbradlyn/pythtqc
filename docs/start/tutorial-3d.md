@@ -267,7 +267,7 @@ for name, rr in phases.items():
 #  weak    - - - + - + + +   (0;111)   4 odd pairs, 4 mod 4 = 0
 #  dimers  - - - - - - - -   (0;000)   8 odd pairs, 8 mod 4 = 0
 print(tables["strong"].note)
-#  the labels of these 2 of the 4 bands rest on a one-dimensional character the hoppings leave open on the coupled part holding every orbital: another choice of it keeps every orbital's site irrep and the labels of all 4 bands, and labels these 2 differently; the lowest-angular-momentum rule chose the one whose orbitals read as the lowest-angular-momentum functions carrying their site content
+#  another labelling the hoppings leave open keeps every site irrep and labels some energy multiplets of these bands differently; it keeps which bands are degenerate and the labels of all the model's bands together
 ```
 
 The eight momenta are listed in reduced coordinates as `itertools.product`
@@ -286,8 +286,8 @@ Two choices stand behind these parities, and behind `z4`. They are taken about
 the bond's centre: about an inversion centre half a lattice vector away, the
 parities at four of the eight momenta flip, which can move the count by 2. And
 they are the parities of `s` orbitals. The last line, the note under the strong
-phase's table, says that its labels rest on a one-dimensional character the
-hoppings leave open: the site irreps leave two labellings of the representation
+phase's table, says that its labels rest on a labelling the hoppings leave
+open: the site irreps leave two labellings of the representation
 open, and the one returned reads both orbitals as `s` functions, which the
 inversion carries onto each other with `+1`. The other differs from it by a
 sign on the inversion, the twofold rotations and the rotoinversions, a

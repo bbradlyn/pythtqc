@@ -969,14 +969,14 @@ print(t.summary())
 #      GM: -GM9
 #      K: -K6
 #      M: -M5
-#    the labels of these 2 of the 4 bands rest on a one-dimensional character the hoppings leave open on the coupled part holding every orbital: another choice of it keeps every orbital's site irrep and the labels of all 4 bands, and labels these 2 differently; the lowest-angular-momentum rule chose the one whose orbitals read as the lowest-angular-momentum functions carrying their site content   (.note)
+#    another labelling the hoppings leave open keeps every site irrep and labels some energy multiplets of these bands differently; it keeps which bands are degenerate and the labels of all the model's bands together   (.note)
 print(t.complete, t.counts, hsp.missing)
 #  True {'-GM9': 1, '-K6': 1, '-M5': 1} ('A', 'H', 'L')
 ```
 
 The two occupied bands carry `-GM9`, `-K6` and `-M5`, every point resolved. The
-last line, the table's `note`, says the pair's labels rest on the
-one-dimensional character returned; its partition does not. The points `A`,
+last line, the table's `note`, says the pair's labels rest on the labelling
+returned; which bands are degenerate does not. The points `A`,
 `H` and `L` of the slab group lie out of the layer's plane, and a layer has no
 `k` for them.
 
@@ -989,7 +989,7 @@ one-dimensional character returned; its partition does not. The points `A`,
 | `complete` | whether every point that constrains anything resolved; a table that is not complete is refused by the calls that need all of it |
 | `records`, `refusals`, `skipped` | per point, the `CorepContent` read there, the `Refusal` returned there, and the points skipped for carrying no constraint, a little group of the identity alone |
 | `thresholds` | per point, the zero thresholds in force |
-| `note` | where the labels of these bands rest on the labelling returned, a one-dimensional character the hoppings leave open on a coupled part of the crystal: the orbitals that part holds, and what chose it; empty otherwise |
+| `note` | where some energy multiplet of these bands, at a point the table labels, is labelled otherwise under another labelling the hoppings leave open, a one-dimensional character on a coupled part of the crystal: a sentence saying so, and that every such labelling keeps which bands are degenerate and the labels of all the bands together; empty otherwise |
 | `group_provenance` | the provenance of the group the labels are read in, as [`GroupData`](#groupdata) gives it: `"realized"` for a group measured on `H`, `"descended"` for one measured after the cell was lowered |
 | `rep` | the representation the table was read with, `r.rep`; `rep.group` is the group whose coreps the labels name, the one `decompose`, `symmetry_indicator`, `completeness_check`, `regular_completion` and `srsi_of_bands` read the table in, and a group or a `rep=` handed to them beside the table that is not this one raises `ValueError` |
 

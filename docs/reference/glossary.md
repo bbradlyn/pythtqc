@@ -219,10 +219,10 @@ one-dimensional character of the group on each part of the crystal they couple,
 the orbitals they connect directly or through others. A labelling is one
 choice of those characters, and with it of what each orbital carries. A
 declaration fixes it, and the lowest-ℓ rule makes it where the declarations
-leave it open. Labellings that give every orbital the same site irrep label the
-whole set of bands alike, while a subset of the bands can read differently
-under each, and an `hsp_table`'s `note` says where a band set's labels rest on
-the one returned.
+leave it open. Labellings that give every orbital the same site irrep give the
+whole set of bands the same labels together, while a subset of the bands, or
+one energy multiplet, can read differently under each, and an `hsp_table`'s
+`note` says where a band set's labels rest on the one returned.
 [What the hoppings fix](../background/measurement.md#what-the-hoppings-fix).
 
 **Little group.** The operations that leave `k` invariant up to a reciprocal

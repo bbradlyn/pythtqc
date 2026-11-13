@@ -430,7 +430,8 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
     # image, which a turn common to both leaves alone:
     # the valence pair is the paper's set at every angle.  The site irreps leave
     # four labellings open, and the pair's labels -- two of the four bands --
-    # rest on the one returned, which its content says; all four bands do not.
+    # rest on the one returned, which its content says; so do the labels each
+    # energy multiplet of all four bands carries, though not their sum.
     for turn in (0.37, 1.3):
         turned = tqg.realized_group(tqm.pxpy_honeycomb(turn=turn), typat=[0, 0, 0, 0],
                                     environment="free-standing", cross_check=False)
@@ -440,9 +441,8 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
         assert valence and valence.content == even, turn
         assert [key for choice in turned.rep.characters._labellings["choices"]
                 for key, _labels in choice["others"]] == ["orbitals", "orbitals", "bands"]
-        assert "rest on a one-dimensional character the hoppings leave open" \
-            in valence.summary()
-        assert not tqw.hsp_table(turned.rep, bands=4).note
+        assert tqw._ANOTHER_LABELLING_RELABELS in valence.summary()
+        assert tqw.hsp_table(turned.rep, bands=4).note == tqw._ANOTHER_LABELLING_RELABELS
 
     # The honeycomb with site group 3 -- the mirrors through the hexagon centre
     # exchanging the sublattices, P31m1' on a substrate and P-62m1' free-standing
@@ -470,7 +470,7 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
     # is the one whose labels come first in the tables' order, so every listing
     # -- as built, both pairs turned alike by 90 degrees (which is the other
     # labelling's frame exactly), one pair negated -- reads the lower pair alike,
-    # and its table says which step returned it.  With the spin and an on-site
+    # and its table says the labels rest on the choice.  With the spin and an on-site
     # L_z S_z no band label depends on the choice, which the group's own order
     # then makes, and nothing is said.
     listings = ((0.0, 0.0), (np.pi / 2, np.pi / 2), (0.0, np.pi))
@@ -493,11 +493,10 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
             if soc is None:
                 assert table.irreps == ("1E2E",) * 4
                 assert lower.content["M"] == {"M1": 2}
-                assert lower.note.endswith(
-                    "the lowest-angular-momentum rule chose the one whose band labels "
-                    "come first in the tables' order")
+                assert lower.note == tqw._ANOTHER_LABELLING_RELABELS
             else:
                 assert not lower.note, "no band label depends on the choice"
+                assert not tqw.hsp_table(got.rep, bands=8).note, "nor over all the bands"
         assert len(read) == 1, (soc, read)
 
 
@@ -2599,12 +2598,12 @@ _LOWEST_PAIR_AT_GAMMA = {
 
 #: The same crystal with each site's axis uncoupled from its pair, where the
 #: lowest six bands' labels rest on a one-dimensional character the hoppings
-#: leave open: per reading, the coupled part the note names and what chose.
+#: leave open: the crystal with every site's shell aligned, and with the shell
+#: of site 1 turned.
 _LABELS_REST_ON = {
     "P-43m 3c, a spinful p shell, one site's shell turned, the other two aligned": (
-        (lambda: tqm.p43m_3c_p_shell(decoupled=True), "orbitals 1, 2, 3, 5, 6 and 7", "bands"),
-        (lambda: tqm.p43m_3c_p_shell(decoupled=True, turned=True, turned_site=1),
-         "every orbital", "orbitals")),
+        lambda: tqm.p43m_3c_p_shell(decoupled=True),
+        lambda: tqm.p43m_3c_p_shell(decoupled=True, turned=True, turned_site=1)),
 }
 
 
@@ -2769,12 +2768,10 @@ def test_a_site_s_operations_bind_its_orbitals_and_copies_of_one_irrep_are_one(c
                 assert here.content["GM"] == _LOWEST_PAIR_AT_GAMMA[case]
     # ... and where the hoppings leave a coupled part a one-dimensional character
     # of its own, a subset of the bands that reads differently under another
-    # says so, naming the part and what chose: the pairs' orbit aligned, every
-    # orbital with a site's shell turned
-    for apart, part, key in _LABELS_REST_ON.get(case, ()):
+    # says so, with every site's shell aligned and with one site's turned
+    for apart in _LABELS_REST_ON.get(case, ()):
         note = tqw.hsp_table(realize(apart(), **kwargs).rep, bands=6).note
-        assert f"leave open on the coupled part holding {part}: another choice" in note \
-            and note.endswith(tqw._DECIDED_BY[key]), (part, note)
+        assert note == tqw._ANOTHER_LABELLING_RELABELS, note
     # the covariance gate is the larger of the exact floor and the rounding the
     # representation's own arithmetic carries, |G| N eps max|H| on its battery:
     # the floor for the 4mm pair, the P2/m cases and the shells of R3m, R-3m and
@@ -2902,10 +2899,12 @@ def test_two_decoupled_sublattices_are_measured_and_the_convention_names_the_res
             assert terms_turned == terms
             for n in (2, 4, 6):
                 assert bands_turned[n].content == bands[n].content or all(
-                    "rest on a one-dimensional character the hoppings leave open" in t.note
+                    t.note == tqw._ANOTHER_LABELLING_RELABELS
                     for t in (bands[n], bands_turned[n])), (soc, environment, n)
             if soc and environment == "substrate":
-                assert not bands[6].note and bands[6].content == {
+                # the six bands read alike under every labelling, and which
+                # multiplet carries which label rests on the one returned
+                assert bands[6].note == tqw._ANOTHER_LABELLING_RELABELS and bands[6].content == {
                     "GM": {"-GM7": 1, "-GM8": 1, "-GM9": 1},
                     "K": {"-K4": 1, "-K5": 1, "-K6": 2}, "M": {"-M5": 3}}
 
