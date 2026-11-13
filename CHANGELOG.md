@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-- `realized_group` returns sooner, most on a group of many operations, a cubic crystal's
-  among them. What it returns is unchanged.
+- `realized_group` and `hsp_table` return sooner, `realized_group` most on a group of many
+  operations, a cubic crystal's among them. What they return is unchanged.
 - The package's name is written pythTQC; it is installed and imported as `pythtqc`, as
   before.
 - `CITATION.cff` asks work that uses the package to cite Hwang et al., arXiv:2601.06293,
