@@ -674,6 +674,118 @@ def _named_refusal(rep, group, validated=None) -> Refusal:
                    context=dict(rep.context, group=group))
 
 
+@dataclass(frozen=True)
+class _Selection:
+    """What the measurement ends in: the group the Hamiltonian obeys, and what was read on the way.
+
+    Attributes
+    ----------
+    model : object
+        The model as measured, projected where the symmetrizing pass ran.
+    cell, cell_typat : object, list
+        The identification cell and its species.
+    base_typat : list
+        The species of the cell every descent builds on.
+    group : GroupData
+        The group settled on.
+    assignment : OrbitalAssignment
+        The orbitals assigned to its Wyckoff orbits.
+    validated : ValidatedGroup
+        The detector's verdict on each operation.
+    descent : tuple of dict
+        The descent steps, empty where none ran.
+    parents : tuple
+        The group each step lowered.
+    held : tuple of frozenset
+        The operations each step's round measured to hold.
+    positions : dict or None
+        The record of the centres' move, where one was made.
+    symmetrization : Symmetrization or None
+        The symmetrizing pass, where it ran.
+    layout : SiteMultiplets
+        The multiplets measured on the group settled on.
+    time_reversal : dict or None
+        The time-reversal verdict.
+    antiunitary : tuple of _AntiunitaryRound
+        What the rounds measured of the operations combined with time reversal.
+    declared : dict or None
+        The declared contents as they stand on the group settled on.
+    choices : _Verdict or None
+        The last round's reading of the solution spaces.
+    reduction : dict or None
+        What the declared content took out of the cell, where it took anything.
+    unread : Refusal or None
+        On the cross-check's selection, the refusal of a declaration this
+        environment's site groups name nothing for.
+    sectors : object
+        The sectors the conserved matrices split the states into.
+    """
+
+    model: object
+    cell: object
+    cell_typat: object
+    base_typat: object
+    group: object
+    assignment: object
+    validated: object
+    descent: tuple
+    parents: tuple
+    held: tuple
+    positions: object
+    symmetrization: object
+    layout: object
+    time_reversal: object
+    antiunitary: tuple
+    declared: object
+    choices: object
+    reduction: object
+    unread: object
+    sectors: object
+
+
+@dataclass(frozen=True)
+class _Compared:
+    """The selection the cross-check compares, made in a layer's other environment.
+
+    Attributes
+    ----------
+    environment : str or None
+        The environment it was made in.
+    group : GroupData
+        The group settled on.
+    validated : ValidatedGroup
+        The detector's verdict on each operation.
+    assignment : OrbitalAssignment
+        The orbitals assigned to its Wyckoff orbits.
+    model : object
+        The model as measured.
+    descent : tuple of dict
+        The descent steps, empty where none ran.
+    parents : tuple
+        The group each step lowered.
+    held : tuple of frozenset
+        The operations each step's round measured to hold.
+    positions : dict or None
+        The record of the centres' move, where one was made.
+    time_reversal : dict or None
+        The time-reversal verdict, its operations combined with time reversal read.
+    unread : Refusal or None
+        The refusal of a declaration this environment's site groups name nothing for.
+    """
+
+    environment: object
+    group: object
+    validated: object
+    assignment: object
+    model: object
+    descent: tuple
+    parents: tuple
+    held: tuple
+    positions: object
+    time_reversal: object
+    unread: object
+
+
 def _realize(model, *, typat=None, environment=None, cross_check=True,
              decorations=None, dz=DECORATION_DZ,
              c=SLAB_C, nk=6, tol=None, cut=None, window=None,
@@ -934,32 +1046,32 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
             return got
         sel, cross, presented = got
 
-    m3, group, assignment = sel["model"], sel["group"], sel["assignment"]
-    validated, cell, cell_typat = sel["validated"], sel["cell"], sel["cell_typat"]
-    steps, positions = sel["descent"], sel["positions"]
-    symmetrization = sel["symmetrization"]
-    time_reversal, asked = sel["time_reversal"], sel["antiunitary"]
+    m3, group, assignment = sel.model, sel.group, sel.assignment
+    validated, cell, cell_typat = sel.validated, sel.cell, sel.cell_typat
+    steps, positions = sel.descent, sel.positions
+    symmetrization = sel.symmetrization
+    time_reversal, asked = sel.time_reversal, sel.antiunitary
 
     if selection_only:
         # a comparison, whose representation is never built: its operations
         # combined with time reversal are read without matrices
         time_reversal, _beyond = _beyond_grey(group, None, asked, time_reversal,
                                               tolerances=tolerances)
-        return {"environment": environment, "group": group, "validated": validated,
-                "assignment": assignment, "model": m3,
-                "descent": steps, "parents": sel.get("parents", ()),
-                "held": sel.get("held", ()),
-                "positions": positions,
-                "time_reversal": time_reversal, "unread": sel.get("unread")}
+        return _Compared(environment=environment, group=group, validated=validated,
+                         assignment=assignment, model=m3,
+                         descent=steps, parents=sel.parents,
+                         held=sel.held,
+                         positions=positions,
+                         time_reversal=time_reversal, unread=sel.unread)
 
     # The representation is built on what the loop settled on, and with the
     # DECLARED CONTENTS as they stand there rather than with the declaration's
     # words: a label read in the cell's group need not name anything in the
     # returned one (`A2` of `3m` is `A` of `3`, and `E` of `3m` is the merged pair
     # `1E2E`), so what is carried is the constraint, restricted.
-    build_now = {**build_kw, "multiplets": sel["layout"]}
-    if sel.get("declared"):
-        build_now["characters"] = sel["declared"]
+    build_now = {**build_kw, "multiplets": sel.layout}
+    if sel.declared:
+        build_now["characters"] = sel.declared
     # WHAT THE VERDICT STAGE READ on this same group -- the scalars the hoppings
     # pin -- handed down rather than read again: one reading of one
     # measurement, carried from the per-operation verdict into the
@@ -967,7 +1079,7 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
     # checks that the reading is about the operation set it represents and
     # makes its own where it is not.
     rep = _build_rep(m3, group, assignment, validated=validated, spin=spin,
-                     _choices=sel.get("choices"), **build_now)
+                     _choices=sel.choices, **build_now)
     if isinstance(rep, Refusal):
         if (rep.gate == "rep_not_covariant"
                 and not (rep.value is not None
@@ -1025,7 +1137,7 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
 
     # THE SECTORS, as the measurement read them where the model entered, and
     # what the operations of the group returned do to them, for the record
-    sectors = sel.get("sectors")
+    sectors = sel.sectors
     if sectors is not None:
         sectors = (sectors, sector_action(sectors, m3, group, assignment, spin, validated,
                                           tol=tolerances.matrix or None))
@@ -1034,9 +1146,9 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
     # the orbit step 1 added where the declared content reduced the cell: the
     # descent's own species are the descent's business and are on
     # `descent["cell"]`.
-    reduction = sel.get("reduction")
+    reduction = sel.reduction
     bare_3d = three_d and not extras and reduction is None
-    base_typat = sel["base_typat"]
+    base_typat = sel.base_typat
     n_extra = len(base_typat) - len(labels)
     # ... and the ENVIRONMENT's own base underneath it: a substrate
     # builds the shadow species, at the height `dz`, whether or not anything was put
@@ -1371,7 +1483,7 @@ def _layer_realized(model, *, environment, cross_check, typat, decorations, extr
         if isinstance(got, Refusal):
             return got
         m3, cell, cell_typat, read = got
-        extras = read["extras"]
+        extras = read.extras
 
     # WHAT THE DECLARED CONTENT SAYS THE SITES ARE, read in the layer's own site
     # groups.  Two sites declared different content are different sites in
@@ -1442,7 +1554,7 @@ def _layer_realized(model, *, environment, cross_check, typat, decorations, extr
     # nothing for, is not compared at all: it says a substrate is meant.  A
     # free-standing layer's words are read on the substrate by restriction, and
     # compared.
-    group = got["group"]
+    group = got.group
     other_environment = ("free-standing" if environment == "substrate"
                          else "substrate")
     other = _realized_selection(
@@ -1477,7 +1589,7 @@ def _layer_realized(model, *, environment, cross_check, typat, decorations, extr
                 "not be compared; a refusal there is not a mismatch here, and this "
                 "group is returned. The refusal is in `refusal` and is reproducible "
                 f"with realized_group(..., environment={other_environment!r})")}
-    elif other.get("unread") is not None:
+    elif other.unread is not None:
         # THE DECLARATION SAYS WHICH ENVIRONMENT IS MEANT.  Its words are this
         # environment's site irreps and name nothing in the other's site groups,
         # so the other environment's group, read without them, is the group of
@@ -1504,8 +1616,8 @@ def _layer_realized(model, *, environment, cross_check, typat, decorations, extr
                 f"realized_group(..., environment={other_environment!r}) lists where "
                 "it refuses this declaration")}
     else:
-        free = group if environment == "free-standing" else other["group"]
-        sub = other["group"] if environment == "free-standing" else group
+        free = group if environment == "free-standing" else other.group
+        sub = other.group if environment == "free-standing" else group
         dropped, ties = _environment_ties(((str(environment), got),
                                            (other_environment, other)))
         cross = dict(_environment_record(free, sub), tie=dropped, refusal=None)
@@ -1570,7 +1682,7 @@ def _environment_ties(records) -> tuple:
     """
     left, words = [], []
     for where, rec in records:
-        for step in (rec.get("descent") or ()):
+        for step in (rec.descent or ()):
             broken = tuple(step.get("dropped", ()))
             if any(str(b.get("refuted_by")) == "tie" for b in broken):
                 left += [{"environment": where, "ind": int(b["ind"]),
@@ -1626,10 +1738,10 @@ def _environment_candidates(rec) -> tuple:
     """
     from types import SimpleNamespace
 
-    group = rec["group"]
+    group = rec.group
     out = [(f"{group.name} #{group.number_str}", group)]
-    steps, parents = tuple(rec.get("descent") or ()), tuple(rec.get("parents") or ())
-    held = tuple(rec.get("held") or ())
+    steps, parents = tuple(rec.descent or ()), tuple(rec.parents or ())
+    held = tuple(rec.held or ())
     if not steps or len(parents) != len(steps) or len(held) != len(steps):
         return tuple(out)
     step, parent, measured = steps[-1], parents[-1], held[-1]
@@ -1833,21 +1945,21 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
     restricted from (:func:`_restricted_contents`).  ``None`` where there is
     none.
 
-    Returns the record the measurement ends in — the model as measured, the cell
+    Returns the :class:`_Selection` the measurement ends in — the model as measured, the cell
     and its species, the group, the assignment, the detector's verdicts, the
-    step 1 ``"reduction"`` where the declared content made one, the descent
-    steps, the group each of them lowered (``"parents"``) and the operations
-    its round measured to hold (``"held"``), the position and
+    step 1 ``reduction`` where the declared content made one, the descent
+    steps, the group each of them lowered (``parents``) and the operations
+    its round measured to hold (``held``), the position and
     symmetrizing passes, the time-reversal verdict,
     what the rounds measured of the operations combined with time reversal
-    (``"antiunitary"``, carried onto the group returned where time reversal is
-    broken), the last round's own reading of the solution spaces (``"choices"``, which
+    (``antiunitary``, carried onto the group returned where time reversal is
+    broken), the last round's own reading of the solution spaces (``choices``, which
     the representation is then assembled from), the sectors the conserved
     matrices acting within sites split the states into, read on the first round
-    and carried through every later one (``"sectors"``,
+    and carried through every later one (``sectors``,
     :func:`.._sectors.read_sectors`) and, on the cross-check's selection, the
     refusal a declaration this environment's site groups name nothing for would
-    have met (``"unread"``, ``None`` where the words were read) — or a
+    have met (``unread``, ``None`` where the words were read) — or a
     :class:`..refusal.Refusal`.
     """
 
@@ -1896,8 +2008,8 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
         return _refused(assignment)
     # centres the whole group carried within the declaration were moved before
     # the cell was identified, and that move is the record's
-    if centres_read is not None and centres_read["branch"] == "carried":
-        positions = dict(centres_read["positions"])
+    if centres_read is not None and centres_read.branch == "carried":
+        positions = dict(centres_read.positions)
 
     layout = choices = None
     time_reversal = None
@@ -2012,12 +2124,12 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                 return _refused(got)
             before = group
             model, group, assignment, positions, centres, extras_now = got
-            env_cell, env_typat = centres_read["rebuild"](model, extras_now)
+            env_cell, env_typat = centres_read.rebuild(model, extras_now)
             base_cell, base_typat = _cell_carried(
                 env_cell, env_typat, base_cell, base_typat,
-                len(centres_read["frame"]["points"]),
+                len(centres_read.frame.points),
                 (np.asarray(group._shiftUC, dtype=float)
-                 - np.asarray(before._shiftUC, dtype=float)) * centres_read["frame"]["scale"])
+                 - np.asarray(before._shiftUC, dtype=float)) * centres_read.frame.scale)
             cell, cell_typat = base_cell, list(base_typat)
             if free_standing is not None:
                 # the free-standing cell of the same point set, on the moved centres
@@ -2141,7 +2253,8 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                                       build_kw.get("max_candidates", 2 ** 20)
                                       or 2 ** 20),
                                   free_standing=free_standing,
-                                  centres=(centres or {}).get("refuted"),
+                                  centres=(None if centres is None
+                                           else centres.refuted),
                                   sectors=sectors, own_form=own_form)
         if isinstance(got, Refusal):
             # fired before the group is settled: what is named is the cell's
@@ -2167,15 +2280,15 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                 # is handed a fixed group, and this call was told not to lower
                 # one.  A Hamiltonian that also breaks operations by its own
                 # hoppings is a different statement, and keeps its own refusal.
-                if (declaration is not None and declaration["refuted"]
+                if (declaration is not None and declaration.refuted
                         and not (set(validated.broken) | set(refuted))
-                        - set(declaration["refuted"])):
+                        - set(declaration.refuted)):
                     return _refused(_declaration_breaks(
                         group, assignment, decls, choices,
                         standing=validated.indices,
-                        subgroup=declaration["subgroup"],
-                        broken=declaration["refuted"],
-                        readings=declaration["candidates"],
+                        subgroup=declaration.subgroup,
+                        broken=declaration.refuted,
+                        readings=declaration.candidates,
                         not_lowered=("This call was told `descend=False`, "
                                      "which asks for the group the cell "
                                      "allows, so the descent was not made.")))
@@ -2196,7 +2309,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
             # for the one reading of them once the group settles
             left = _antiunitary_settled(group, validated, refuted, square,
                                         got[3]["kept"], tolerances=tolerances)
-            if left["n"]:
+            if left.n:
                 asked.append(left)
             parents.append(group)
             held.append(frozenset(int(i) for i in validated.indices))
@@ -2451,15 +2564,78 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
     # once, against it, where its representation is built (`_beyond_grey`)
     if (time_reversal or {}).get("outcome") == "measured broken":
         asked = list(_carried_onto(group, asked, tolerances.finder))
-    return {"model": model, "cell": cell, "cell_typat": cell_typat,
-            "base_typat": base_typat, "group": group, "assignment": assignment,
-            "validated": validated, "descent": tuple(steps), "parents": tuple(parents),
-            "held": tuple(held),
-            "positions": positions,
-            "symmetrization": symmetrization, "layout": layout,
-            "time_reversal": time_reversal, "antiunitary": tuple(asked),
-            "declared": declared, "choices": choices, "reduction": reduction,
-            "unread": unread, "sectors": sectors}
+    return _Selection(model=model, cell=cell, cell_typat=cell_typat,
+                      base_typat=base_typat, group=group, assignment=assignment,
+                      validated=validated, descent=tuple(steps), parents=tuple(parents),
+                      held=tuple(held),
+                      positions=positions,
+                      symmetrization=symmetrization, layout=layout,
+                      time_reversal=time_reversal, antiunitary=tuple(asked),
+                      declared=declared, choices=choices, reduction=reduction,
+                      unread=unread, sectors=sectors)
+
+
+@dataclass(frozen=True)
+class _CentresRead:
+    """What the measurement continues from, the centres made exact under a declared precision.
+
+    Attributes
+    ----------
+    branch : str
+        ``"carried"`` where the whole group carried the centres and they were
+        moved, ``"named"`` where it did not, ``"as found"`` where they could not
+        be read as a symmetric set.
+    frame : _SiteFrame
+        The cell's sites as handed in.
+    source : object
+        The model as handed in.
+    extras : tuple
+        The decorations, moved with the centres where they were moved.
+    rebuild : callable
+        Builds the identification cell from a model and its decorations.
+    positions : dict or None
+        The record of the move, where the centres were moved; ``None`` otherwise.
+    move : float or None
+        On the ``"named"`` branch, the largest move the whole group asks of a
+        centre, reduced coordinates; ``None`` otherwise.
+    """
+
+    branch: str
+    frame: object
+    source: object
+    extras: tuple
+    rebuild: object
+    positions: dict | None = None
+    move: float | None = None
+
+
+@dataclass(frozen=True)
+class _CentresVerdict:
+    """Which operations of a group carry the orbital centres within a declared precision.
+
+    Attributes
+    ----------
+    precision : float
+        The declared precision, reduced coordinates.
+    move : float
+        The largest move the whole group asks of a centre, reduced coordinates.
+    kept : tuple of int
+        The indices of the operations kept, every one where the whole group
+        carries the centres.
+    refuted : dict
+        Each operation the centres break, ``{ind: entry}``.
+    tied : tuple
+        The subgroups that tie, in the tie rule's order, where several do; empty otherwise.
+    note : str
+        What was found, in words; empty where nothing is refuted.
+    """
+
+    precision: float
+    move: float
+    kept: tuple
+    refuted: dict
+    tied: tuple
+    note: str
 
 
 def _exact_centres(model, cell, cell_typat, *, extras, rebuild, tolerances):
@@ -2501,12 +2677,9 @@ def _exact_centres(model, cell, cell_typat, *, extras, rebuild, tolerances):
     decorating it -- the environment's species and ``decorations=``, geometry
     declared beside the model, which moves with the centres.
 
-    Returns ``(model, cell, cell_typat, read)``, ``read`` the record the
-    measurement continues from -- ``branch`` (``"carried"``, ``"named"`` or
-    ``"as found"``), ``frame`` (the cell's sites as handed in,
-    :func:`_cell_sites`), ``source`` (the model as handed in), ``extras`` (the
-    decorations as they now stand), ``rebuild`` and, where the centres were
-    moved, ``positions`` -- or the refusal the spectrum check made.
+    Returns ``(model, cell, cell_typat, read)``, ``read`` the
+    :class:`_CentresRead` the measurement continues from, or the refusal the
+    spectrum check made.
     """
     import spglib
 
@@ -2514,12 +2687,12 @@ def _exact_centres(model, cell, cell_typat, *, extras, rebuild, tolerances):
     p = float(tolerances.centre)
     extras = tuple(extras or ())
     frame = _cell_sites(cell, cell_typat, tolerances.finder, n_extra=len(extras))
-    read = {"branch": "as found", "frame": frame, "source": model, "extras": extras,
-            "rebuild": rebuild, "positions": None}
-    if not len(frame["moving"]):                   # pragma: no cover - a model has orbitals
+    read = _CentresRead(branch="as found", frame=frame, source=model, extras=extras,
+                        rebuild=rebuild, positions=None)
+    if not len(frame.moving):                   # pragma: no cover - a model has orbitals
         return model, cell, cell_typat, read
     found = spglib.get_symmetry_dataset(
-        (frame["lattice"], frame["first"], frame["species"]),
+        (frame.lattice, frame.first, frame.species),
         symprec=float(tolerances.finder))
     if found is None:
         return model, cell, cell_typat, read
@@ -2533,7 +2706,7 @@ def _exact_centres(model, cell, cell_typat, *, extras, rebuild, tolerances):
     x, trans, closure = _symmetric_sites(frame, perm, shift, rotations, rows)
     if not closure <= _EXACT_CLOSURE:
         return model, cell, cell_typat, read
-    own = frame["own"]
+    own = frame.own
     dim_r = int(model.lattice.dim_r)
     moves = _moves_of(frame, x)
     whole = float(np.abs(moves[:own]).max(initial=0.0))
@@ -2549,7 +2722,7 @@ def _exact_centres(model, cell, cell_typat, *, extras, rebuild, tolerances):
         # named on the centres it would put them at, and the centres themselves
         # are moved by the measurement, onto the operations that do
         named, named_typat = rebuild(_geometry(model, orb), moved_extras)
-        read.update(branch="named", move=whole)
+        read = replace(read, branch="named", move=whole)
         return model, named, named_typat, read
     if np.array_equal(orb, raw):
         moved, resid, n_check = model, 0.0, 0
@@ -2559,7 +2732,7 @@ def _exact_centres(model, cell, cell_typat, *, extras, rebuild, tolerances):
     final_trans = np.array([final[perm[g, 0]] + shift[g, 0] - rotations[g] @ final[0]
                             for g in rows])
     defect = _frame_defect(frame, perm, rotations, final_trans, rows)
-    offset = (0.0 - np.asarray(delta) * frame["scale"])[:dim_r] if in_frame else np.zeros(dim_r)
+    offset = (0.0 - np.asarray(delta) * frame.scale)[:dim_r] if in_frame else np.zeros(dim_r)
     record = {
         "defect": defect, "position_tol": p, "adjusted": True,
         "defect_before": defect,
@@ -2569,7 +2742,7 @@ def _exact_centres(model, cell, cell_typat, *, extras, rebuild, tolerances):
         "spectrum_residual": float(resid), "n_check": int(n_check),
         "n_moved": int(np.count_nonzero(np.abs(orb - raw).max(axis=1) > 0.0)),
         "note": _moved_note(whole, offset, in_frame, delta, p, resid)}
-    read.update(branch="carried", extras=moved_extras, positions=record)
+    read = replace(read, branch="carried", extras=moved_extras, positions=record)
     return moved, new_cell, new_typat, read
 
 
@@ -2604,7 +2777,8 @@ def _moved_note(move, offset, in_frame, delta, p, resid,
                    ": nothing was moved.")
 
 
-def _centres_carried(group, frame, perm, shift, rotations, ind_of_row, tolerances) -> dict:
+def _centres_carried(group, frame, perm, shift, rotations, ind_of_row,
+                     tolerances) -> _CentresVerdict:
     r"""Which operations of the group carry the orbital centres within the declared precision.
 
     A declared precision ``p`` -- ``tolerances.centre``, a precision's own ``p``
@@ -2627,8 +2801,8 @@ def _centres_carried(group, frame, perm, shift, rotations, ind_of_row, tolerance
     ``perm`` and ``shift`` are the unitary operations' action on the sites of
     ``frame`` (:func:`_site_action`), row by row as ``ind_of_row`` keys them.
 
-    Returns ``{"precision", "move", "kept", "refuted", "tied", "note"}``: the
-    move the whole group asks, the ``.ind`` of the operations kept (all of them
+    Returns the :class:`_CentresVerdict`: the move the whole group asks, the
+    ``.ind`` of the operations kept (all of them
     where the whole group carries the centres), the refuted operations keyed by
     ``.ind`` (``refuted_by = "centres"``, with ``miss``, ``precision`` and
     ``note``), the tied subgroups in the rule's order where several tied, and
@@ -2638,7 +2812,7 @@ def _centres_carried(group, frame, perm, shift, rotations, ind_of_row, tolerance
     syms = group.symmetries
     every = frozenset(int(s.ind) for s in syms)
     row_of = {int(i): r for r, i in enumerate(ind_of_row)}
-    own = frame["own"]
+    own = frame.own
 
     def move(ops):
         """The largest move the operations ``ops`` ask of a centre, the origin fitted."""
@@ -2648,8 +2822,8 @@ def _centres_carried(group, frame, perm, shift, rotations, ind_of_row, tolerance
 
     whole = move(every)
     if within(whole, p):
-        return {"precision": p, "move": whole, "kept": tuple(sorted(every)),
-                "refuted": {}, "tied": (), "note": ""}
+        return _CentresVerdict(precision=p, move=whole, kept=tuple(sorted(every)),
+                               refuted={}, tied=(), note="")
     # the primed partner of each unitary operation, through the group's own
     # product table: T * g, with T the pure time reversal, which moves no centre
     prod = group.get_product_table(get_diff=False)
@@ -2727,8 +2901,8 @@ def _centres_carried(group, frame, perm, shift, rotations, ind_of_row, tolerance
                f"rule `realized_group` states -- {_tie_rule_words(group)} -- since "
                f"{_tie_reason(group, ranked)}" if len(ranked) > 1 else "")
             + ".")
-    return {"precision": p, "move": whole, "kept": tuple(sorted(primed(kept))),
-            "refuted": refuted, "tied": ranked if len(ranked) > 1 else (), "note": note}
+    return _CentresVerdict(precision=p, move=whole, kept=tuple(sorted(primed(kept))),
+                           refuted=refuted, tied=ranked if len(ranked) > 1 else (), note=note)
 
 
 def _position_pass(model, group, tolerances, labels, read):
@@ -2760,9 +2934,9 @@ def _position_pass(model, group, tolerances, labels, read):
 
 
     p = float(tolerances.centre)
-    frame = read["frame"]
-    source = read["source"]
-    extras = tuple(read["extras"])
+    frame = read.frame
+    source = read.source
+    extras = tuple(read.extras)
     syms = group.symmetries
     unitary = [k for k, s in enumerate(syms) if not s.time_reversal]
     rotations = np.array([np.asarray(syms[k].rotation, dtype=float) for k in unitary])
@@ -2781,8 +2955,8 @@ def _position_pass(model, group, tolerances, labels, read):
             value=float("nan"), threshold=p, context={"group": group})
     perm, shift = action
     verdict = _centres_carried(group, frame, perm, shift, rotations, ind_of_row, tolerances)
-    beyond = bool(verdict["refuted"])
-    kept = set(int(i) for i in verdict["kept"])
+    beyond = bool(verdict.refuted)
+    kept = set(int(i) for i in verdict.kept)
     rows = [r for r, i in enumerate(ind_of_row) if i in kept]
     x, trans, closure = _symmetric_sites(frame, perm, shift, rotations, rows)
     if not closure <= _EXACT_CLOSURE:          # pragma: no cover - a group acts as a group
@@ -2791,7 +2965,7 @@ def _position_pass(model, group, tolerances, labels, read):
             "orbital centres do not carry the positions projected onto them, missing by "
             f"{closure:.3g}: their action on the sites is a group's by construction, so this "
             "is arithmetic in this package failing, not a measurement about the model.")
-    own = frame["own"]
+    own = frame.own
     dim_r = int(source.lattice.dim_r)
     moves = _moves_of(frame, x)
     worst = float(np.abs(moves[:own]).max(initial=0.0))
@@ -2815,7 +2989,7 @@ def _position_pass(model, group, tolerances, labels, read):
         moved, resid, n_check = model, 0.0, 0
     else:
         (moved, resid), n_check = _with_centres(model, orb), _bloch.CHECK_K
-    moved_extras = _moved_extras(extras, shifted, len(frame["points"]) - len(extras), dim_r)
+    moved_extras = _moved_extras(extras, shifted, len(frame.points) - len(extras), dim_r)
     # the group, carried onto the origin the moved centres are exact about: once
     # in the frame the centres were read in, which the defects below are
     # measured in, and once as every later step reads the moved model against
@@ -2827,12 +3001,12 @@ def _position_pass(model, group, tolerances, labels, read):
                                                      translation=final_trans[r])
                                      for r in rows], pairs)
     _lat, at_group, _pad = _pad_cell(moved, group.vacuum_length, lattice=group.lattice)
-    move_sites = [int(s) for s in frame["moving"]]
-    first = int(frame["site_orbs"][move_sites[0]][0])
+    move_sites = [int(s) for s in frame.moving]
+    first = int(frame.site_orbs[move_sites[0]][0])
 
     def as_read(r):
         """Operation ``r``'s translation on the moved model, read against the group."""
-        image = int(frame["site_orbs"][move_sites[int(perm[r, 0])]][0])
+        image = int(frame.site_orbs[move_sites[int(perm[r, 0])]][0])
         if image >= own:                          # pragma: no cover - sites lead with orbitals
             return final_trans[r]
         t = at_group[image] - rotations[r] @ at_group[first]
@@ -2846,7 +3020,7 @@ def _position_pass(model, group, tolerances, labels, read):
     on_trans = np.array([np.asarray(read_in.symmetries[k].translation, dtype=float).reshape(-1)
                          for k in unitary])
     every = list(range(len(unitary)))
-    offset = (0.0 - np.asarray(delta) * frame["scale"])[:dim_r] if in_frame else np.zeros(dim_r)
+    offset = (0.0 - np.asarray(delta) * frame.scale)[:dim_r] if in_frame else np.zeros(dim_r)
     record = {
         "defect": _frame_defect(frame, perm, rotations, on_trans, every),
         "position_tol": p, "adjusted": True,
@@ -2859,9 +3033,9 @@ def _position_pass(model, group, tolerances, labels, read):
                                         .max(axis=1) > 0.0))}
     if beyond:
         said = _moved_note(worst, offset, in_frame, delta, p, resid, where="of that group")
-        record["move"] = float(verdict["move"])
-        record["carried"] = len(verdict["kept"])
-        record["note"] = verdict["note"] + " " + said[:1].upper() + said[1:]
+        record["move"] = float(verdict.move)
+        record["carried"] = len(verdict.kept)
+        record["note"] = verdict.note + " " + said[:1].upper() + said[1:]
     else:
         record["note"] = _moved_note(worst, offset, in_frame, delta, p, resid)
     return moved, on, asg, record, (verdict if beyond else None), moved_extras

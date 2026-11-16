@@ -7,7 +7,7 @@ and what each step dropped, by cause.
 from __future__ import annotations
 
 import copy
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import math
 
 import numpy as np
@@ -45,6 +45,135 @@ from ._layers import _decorated_cell
 from ._measure import _detection_grid, _max_hamiltonian
 
 
+@dataclass(frozen=True)
+class _DeclarationVerdict:
+    """Which operations the declared orbital content breaks, and the subgroup it leaves.
+
+    Attributes
+    ----------
+    refuted : dict
+        Each operation the declaration breaks, its primed partner included,
+        ``{ind: entry}``, each entry naming the orbitals, what was declared and
+        what was measured.
+    subgroup : tuple of int
+        The indices of the grey subgroup the declared content is covariant on.
+    candidates : tuple
+        The maximal readings in the tie rule's order where several tie; empty
+        otherwise.
+    rows : tuple of dict
+        The measured-versus-declared table as a record returns it.
+    """
+
+    refuted: dict
+    subgroup: tuple
+    candidates: tuple
+    rows: tuple
+
+
+@dataclass(frozen=True, eq=False)
+class _Square:
+    """An antiunitary operation's square, against the sign the group's table gives it.
+
+    Attributes
+    ----------
+    ind : int
+        The operation's index in the group.
+    asked : int
+        The sign the tables ask the square to have, ``+1`` or ``-1``.
+    measured : float
+        The sign of the square of the member the verdict rests on, where that
+        square is a multiple of the identity; ``nan`` otherwise.
+    obeyed : bool
+        Whether a member of the sign asked was found.
+    member : ndarray or None
+        The member of the sign asked; ``None`` where the solution space holds none.
+    """
+
+    ind: int
+    asked: int
+    measured: float
+    obeyed: bool
+    member: object
+
+
+@dataclass(frozen=True, eq=False)
+class _AntiunitaryOp:
+    """What one round measured of one operation combined with time reversal.
+
+    Attributes
+    ----------
+    sym : object
+        The operation itself.
+    entry : dict
+        The operation as :attr:`RealizedGroup.beyond_grey` names it
+        (:func:`_antiunitary_entry`).
+    member : ndarray or None
+        Its matrix; ``None`` where it is refuted.
+    space : ndarray or None
+        The solution space the matrix is a member of; ``None`` where it is refuted.
+    """
+
+    sym: object
+    entry: dict
+    member: object
+    space: object
+
+
+@dataclass(frozen=True)
+class _AntiunitaryRound:
+    """What one round measured of the operations combined with time reversal it asks last.
+
+    Attributes
+    ----------
+    group : GroupData
+        The round's group.
+    ops : dict
+        Each operation asked last here, ``{ind: _AntiunitaryOp}``.
+    detector : frozenset of int
+        The operations the detector refuted, time reversal among them where its
+        square is not the sign asked.
+    refuted : frozenset of int
+        The operations refuted here at all.
+    n : int
+        How many operations were asked last here.
+    closed : bool
+        Whether the operations the detector kept close in this group.
+    reversal : bool
+        Whether this is the group time reversal was measured on.
+    itself : str
+        On that group's round, what broke time reversal itself, in words; empty otherwise.
+    returned : dict or None
+        Once carried onto the group returned, ``{index here: index there}``;
+        ``None`` before.
+    """
+
+    group: object
+    ops: dict
+    detector: frozenset
+    refuted: frozenset
+    n: int
+    closed: bool
+    reversal: bool
+    itself: str = ""
+    returned: dict | None = None
+
+
+@dataclass(frozen=True)
+class _AntiunitaryReading:
+    """Which operations combined with time reversal hold, read once against the group returned.
+
+    Attributes
+    ----------
+    verdicts : dict
+        What decided each operation, ``{(round, ind): reason}``.
+    held : tuple
+        The ``(round, ind)`` that hold, in order.
+    """
+
+    verdicts: dict
+    held: tuple
+
+
 def _antiunitary_entry(group, validated, ind) -> dict:
     """One operation combined with time reversal, as :attr:`RealizedGroup.beyond_grey` names it.
 
@@ -70,7 +199,7 @@ def _antiunitary_entry(group, validated, ind) -> dict:
 
 
 def _antiunitary_settled(group, validated, refuted, square, kept=None, *,
-                         tolerances=EXACT) -> dict:
+                         tolerances=EXACT) -> _AntiunitaryRound:
     r"""What one round measured of the operations combined with time reversal it asks last.
 
     A descent keeps the unitary operations measured to hold, ``kept``, and the
@@ -93,9 +222,9 @@ def _antiunitary_settled(group, validated, refuted, square, kept=None, *,
     kept.  The operations are read once, after the group settles, against the
     group returned (:func:`_antiunitary_held`).
 
-    Returns ``{"group", "ops", "detector", "refuted", "n", "closed",
-    "reversal"}``: this round's group; per operation asked last here, keyed by
-    its ``.ind``, the operation itself (``sym``), its entry as
+    Returns the :class:`_AntiunitaryRound`: this round's group; per operation
+    asked last here, keyed by its ``.ind``, the operation itself (``sym``), its
+    entry as
     :attr:`RealizedGroup.beyond_grey` names it (``entry``,
     :func:`_antiunitary_entry`), its matrix (``member``, ``None`` where it
     is refuted) and the solution space it is a member of (``space``), which
@@ -117,8 +246,8 @@ def _antiunitary_settled(group, validated, refuted, square, kept=None, *,
                    if not s.time_reversal and int(s.ind) in kept}
         asked = {i for i, s in antiunitary.items() if _operation_key(s)[:2] not in staying}
     detector = {i for i in antiunitary if i in set(validated.broken)}
-    reversal = None if square is None else int(square["ind"])
-    if square is not None and not square["obeyed"]:
+    reversal = None if square is None else int(square.ind)
+    if square is not None and not square.obeyed:
         detector.add(reversal)
     failed = detector | {i for i in antiunitary if i in set(refuted or ())}
     at = {int(s.ind): p for p, s in enumerate(group.symmetries)}
@@ -130,16 +259,17 @@ def _antiunitary_settled(group, validated, refuted, square, kept=None, *,
             # the member of the sign the table gives it is the matrix kept
             got = _antiunitary_square(group, validated, at[i], tolerances=tolerances)
             if got is not None:
-                member = got["member"] if got["obeyed"] else None
+                member = got.member if got.obeyed else None
         if member is None:
             failed.add(i)
         space = None if member is None else (getattr(validated, "_bases", None) or {}).get(i)
-        ops[i] = {"sym": antiunitary[i], "entry": _antiunitary_entry(group, validated, i),
-                  "member": None if member is None else np.asarray(member, dtype=complex),
-                  "space": None if space is None else np.asarray(space, dtype=complex)}
-    return {"group": group, "ops": ops, "detector": frozenset(detector),
-            "refuted": frozenset(failed), "n": len(asked),
-            "closed": bool(validated.closed), "reversal": kept is None}
+        ops[i] = _AntiunitaryOp(
+            sym=antiunitary[i], entry=_antiunitary_entry(group, validated, i),
+            member=None if member is None else np.asarray(member, dtype=complex),
+            space=None if space is None else np.asarray(space, dtype=complex))
+    return _AntiunitaryRound(group=group, ops=ops, detector=frozenset(detector),
+                             refuted=frozenset(failed), n=len(asked),
+                             closed=bool(validated.closed), reversal=kept is None)
 
 
 def _time_reversal_measured(group, validated, refuted=None, *, tolerances=EXACT) -> tuple:
@@ -208,17 +338,17 @@ def _time_reversal_measured(group, validated, refuted=None, *, tolerances=EXACT)
     broken = {i for i in validated.broken if i in antiunitary}
     square = (_time_reversal_square(group, validated, tolerances=tolerances)
               if antiunitary else None)
-    if square is not None and not square["obeyed"]:
-        broken.add(int(square["ind"]))
+    if square is not None and not square.obeyed:
+        broken.add(int(square.ind))
     # ... and time reversal whose own tensor structure the verdict stage refuted:
     # no member of its solution space carries its lift, i sigma_y on every spin
     # pair, as on spin pairs declared across two Wannier functions of one site
     lift = (None if square is None
-            else (refuted or {}).get(int(square["ind"])))
+            else (refuted or {}).get(int(square.ind)))
     lifted = (isinstance(lift, dict)
               and str(lift.get("refuted_by", "tensor structure")) == "tensor structure")
     if lifted:
-        broken.add(int(square["ind"]))
+        broken.add(int(square.ind))
     validated = _time_reversal_member(validated, square)
     obeyed = sorted(set(antiunitary) - broken)
     undetermined = tuple(i for i in obeyed
@@ -230,7 +360,7 @@ def _time_reversal_measured(group, validated, refuted=None, *, tolerances=EXACT)
         "undetermined": undetermined, "grey_number_str": str(group.number_str),
         "grey_name": str(group.name),
         "square": (None if square is None else
-                   {"asked": int(square["asked"]), "measured": float(square["measured"])}),
+                   {"asked": int(square.asked), "measured": float(square.measured)}),
     }
     if not antiunitary or not broken:
         record["outcome"] = "kept"
@@ -252,26 +382,26 @@ def _time_reversal_measured(group, validated, refuted=None, *, tolerances=EXACT)
                   "the sites as time reversal composed with another operation does, a "
                   "translation in an antiferromagnet whose moments, or currents, "
                   "alternate between sites the cell's point set does not tell apart.")
-    elif square is not None and not square["obeyed"]:
-        tables = "single-valued" if square["asked"] > 0 else "double-valued"
-        measured = float(square["measured"])
+    elif square is not None and not square.obeyed:
+        tables = "single-valued" if square.asked > 0 else "double-valued"
+        measured = float(square.measured)
         if np.isfinite(measured):
             kind = ("a spinor's time reversal" if measured < 0
                     else "a spin-free time reversal")
             said = (f"with X its intertwiner the square X conj(X) measures "
                     f"{measured:+.6g}, {kind}, where the {tables} tables read here ask "
-                    f"for {square['asked']:+d} -- a rescaling of X changes the square only "
+                    f"for {square.asked:+d} -- a rescaling of X changes the square only "
                     f"by a positive factor, so the sign is the Hamiltonian's own, and no "
                     f"member of its solution space carries the other.")
         else:
             said = (f"no member X of its solution space squares, X conj(X), to the "
-                    f"{square['asked']:+d} the {tables} tables read here ask for.")
+                    f"{square.asked:+d} the {tables} tables read here ask for.")
         itself = (
             f" Time reversal itself is broken by its square: {said}"
             + (" A spinless model carrying spinors in its orbital index, as a wannier90 "
                "import does, reads this way; `spin=` declares which orbitals are spin "
                "partners, and the double-valued tables are then read."
-               if square["asked"] > 0 else ""))
+               if square.asked > 0 else ""))
     elif lifted:
         itself = (" Time reversal itself is refuted by its spin lift: no member of its "
                   "solution space acts as i sigma_y on every spin pair, as time reversal "
@@ -282,9 +412,9 @@ def _time_reversal_measured(group, validated, refuted=None, *, tolerances=EXACT)
     # of spinor states read spinless -- still able to leave a unitary part
     # out.  Its count and its note are written where they are read, once,
     # against the group returned (`_beyond_grey`).
-    asked = dict(_antiunitary_settled(group, validated, refuted, square,
-                                      tolerances=tolerances),
-                 itself=itself)
+    asked = replace(_antiunitary_settled(group, validated, refuted, square,
+                                         tolerances=tolerances),
+                    itself=itself)
     record["n_obeyed"] = record["n_broken"] = record["note"] = None
     return record, asked, validated
 
@@ -319,21 +449,21 @@ def _carried_onto(group, asked, symprec) -> tuple:
     unitary = [s for s in group.symmetries if not s.time_reversal]
     out = []
     for rec in asked:
-        theirs = [s for s in rec["group"].symmetries if not s.time_reversal]
+        theirs = [s for s in rec.group.symmetries if not s.time_reversal]
         pairs, lost, _extra = _match_operations(unitary, theirs, symprec, group.lattice)
         if lost:
             raise InternalError(
                 f"the group returned, {group.name} #{group.number_str}, holds "
                 f"{len(lost)} operation{'' if len(lost) == 1 else 's'} {lost} that "
-                f"{rec['group'].name} #{rec['group'].number_str}, the group of an earlier "
+                f"{rec.group.name} #{rec.group.number_str}, the group of an earlier "
                 "round, does not. Every round keeps a subset of the operations the round "
                 "before it measured, so this is this package's own bookkeeping failing, "
                 "not a measurement about the model.")
-        out.append(dict(rec, returned={int(t): int(g) for g, t in pairs}))
+        out.append(replace(rec, returned={int(t): int(g) for g, t in pairs}))
     return tuple(out)
 
 
-def _antiunitary_held(group, matrices, asked, *, tolerances=EXACT) -> dict:
+def _antiunitary_held(group, matrices, asked, *, tolerances=EXACT) -> _AntiunitaryReading:
     r"""Which operations of the cell combined with time reversal hold, read once against the group returned.
 
     ``asked`` is what the rounds measured of the operations combined with time
@@ -389,7 +519,7 @@ def _antiunitary_held(group, matrices, asked, *, tolerances=EXACT) -> dict:
     exactly the ones of one ``M``, no single magnetic group holds them with
     ``G``, and none counts.
 
-    Returns ``{"verdicts", "held"}``: per operation, keyed ``(round, ind)``,
+    Returns the :class:`_AntiunitaryReading`: per operation, keyed ``(round, ind)``,
     what decided it -- ``"returned"`` where its unitary part is in the group
     returned, ``"refuted"`` in its own round, ``"closure"`` where the group it
     makes holds a refuted operation, ``"unread"`` where no matrices were built
@@ -412,12 +542,12 @@ def _antiunitary_held(group, matrices, asked, *, tolerances=EXACT) -> dict:
     characters = None
     verdicts, held, cosets = {}, [], {}
     for r, rec in enumerate(asked):
-        cell = rec["group"]
+        cell = rec.group
         syms = cell.symmetries
         at = {int(s.ind): p for p, s in enumerate(syms)}
         prod, _tdiff, spf = cell.get_product_table(get_diff=True)
         ident = _identity_position(cell)
-        onto = rec["returned"]
+        onto = rec.returned
         inside = {at[i] for i in onto}
         here = {int(g): at[int(i)] for i, g in onto.items()}
         unitary = {_operation_key(s)[:2]: p for p, s in enumerate(syms)
@@ -526,13 +656,13 @@ def _antiunitary_held(group, matrices, asked, *, tolerances=EXACT) -> dict:
                             out.append(U)
             return out
 
-        for ind in sorted(rec["ops"]):
+        for ind in sorted(rec.ops):
             key = (r, int(ind))
             p = at[int(ind)]
             if unitary.get(_operation_key(syms[p])[:2]) in inside:
                 verdicts[key] = "returned"
                 continue
-            if ind in rec["refuted"]:
+            if ind in rec.refuted:
                 verdicts[key] = "refuted"
                 continue
             # THE GROUP IT MAKES with the group returned G: G and the coset aG,
@@ -544,8 +674,8 @@ def _antiunitary_held(group, matrices, asked, *, tolerances=EXACT) -> dict:
             if (int(prod[p, p]) not in inside
                     or any(int(prod[int(prod[p, here[g]]), back]) not in inside
                            for g in gens)
-                    or any(int(syms[q].ind) in rec["refuted"]
-                           or int(syms[q].ind) not in rec["ops"] for q in coset)):
+                    or any(int(syms[q].ind) in rec.refuted
+                           or int(syms[q].ind) not in rec.ops for q in coset)):
                 verdicts[key] = "closure"
                 continue
             if matrices is None or any(int(g) not in matrices for g in onto.values()):
@@ -553,10 +683,10 @@ def _antiunitary_held(group, matrices, asked, *, tolerances=EXACT) -> dict:
                 continue
             if characters is None:
                 characters = _characters_of_subgroup(group, sorted(by_ind), roots=True)
-            op = rec["ops"][ind]
-            if not (_carried(p, back, op["member"])
+            op = rec.ops[ind]
+            if not (_carried(p, back, op.member)
                     or any(_carried(p, back, X)
-                           for X in _carrying(p, back, op.get("space")))):
+                           for X in _carrying(p, back, op.space))):
                 verdicts[key] = "matrices"
                 continue
             verdicts[key] = "held"
@@ -568,7 +698,7 @@ def _antiunitary_held(group, matrices, asked, *, tolerances=EXACT) -> dict:
         for key in held:
             verdicts[key] = "apart"
         held = []
-    return {"verdicts": verdicts, "held": tuple(held)}
+    return _AntiunitaryReading(verdicts=verdicts, held=tuple(held))
 
 
 def _beyond_grey(group, matrices, asked, record, *, tolerances=EXACT) -> tuple:
@@ -598,13 +728,13 @@ def _beyond_grey(group, matrices, asked, record, *, tolerances=EXACT) -> tuple:
     if record is None or record.get("outcome") != "measured broken":
         return record, None
     read = _antiunitary_held(group, matrices, asked, tolerances=tolerances)
-    verdicts, held = read["verdicts"], read["held"]
-    r_t = next(r for r, rec in enumerate(asked) if rec["reversal"])
+    verdicts, held = read.verdicts, read.held
+    r_t = next(r for r, rec in enumerate(asked) if rec.reversal)
     reversal = asked[r_t]
     # the count is of the group time reversal was measured on, and the note
     # says what decided the operations of it the detector kept
     mine = [v for (r, i), v in verdicts.items()
-            if r == r_t and i not in reversal["detector"]]
+            if r == r_t and i not in reversal.detector]
     n_all = int(record["n_antiunitary"])
     n_held = mine.count("held")
     unread = mine.count("unread")
@@ -672,24 +802,24 @@ def _beyond_grey(group, matrices, asked, record, *, tolerances=EXACT) -> tuple:
         "time reversal."
         + said
         + " Labels, EBR rows and the indicator that follow are the unitary group's "
-        f"own.{reversal['itself']}"))
+        f"own.{reversal.itself}"))
     if not held:
         return record, None
 
     rec = asked[held[0][0]]
     inds = [i for _r, i in held]
-    entries = tuple(rec["ops"][i]["entry"] for i in inds)
-    kind = _magnetic_type(_CosetView([rec["ops"][i]["sym"] for i in inds]))
+    entries = tuple(rec.ops[i].entry for i in inds)
+    kind = _magnetic_type(_CosetView([rec.ops[i].sym for i in inds]))
     n = len(entries)
     beyond = {
         "operations": entries,
         "n_operations": n,
-        "n_measured": sum(int(r["n"]) for r in asked),
+        "n_measured": sum(int(r.n) for r in asked),
         "magnetic_type": kind if kind in ("III", "IV") else "magnetic, beyond grey",
-        "closed": bool(rec["closed"]),
+        "closed": bool(rec.closed),
         "note": (
-            f"{n} operation{'' if n == 1 else 's'} of {rec['group'].name} "
-            f"#{rec['group'].number_str} combined with time reversal, "
+            f"{n} operation{'' if n == 1 else 's'} of {rec.group.name} "
+            f"#{rec.group.number_str} combined with time reversal, "
             + ("a coset representative of the lattice translations" if n == 1
                else _PER_COSET)
             + ((", the single-valued group's, standing for itself and its negative in "
@@ -1665,7 +1795,7 @@ def _antiunitary_square(group, validated, position, *, asked=None, tolerances=EX
                 if (float(np.abs(square - scalar * eye).max()) <= _TIME_REVERSAL_SQUARE_MARGIN
                     and scalar.real != 0.0)
                 else float("nan"))
-    out = {"ind": ind, "asked": asked, "measured": measured, "obeyed": True, "member": X}
+    out = _Square(ind=ind, asked=asked, measured=measured, obeyed=True, member=X)
     if float(np.abs(square - asked * eye).max()) <= snap:
         return out                               # the detector's own, of the sign asked
     basis = (getattr(validated, "_bases", None) or {}).get(ind)
@@ -1693,14 +1823,12 @@ def _antiunitary_square(group, validated, position, *, asked=None, tolerances=EX
             if (float(np.abs(inside).max()) <= in_span
                     and float(np.abs(U @ U.conj() - asked * eye).max())
                     <= _TIME_REVERSAL_SQUARE_MARGIN):
-                out["member"] = U
-                out["measured"] = float(np.sign((complex(np.trace(U @ U.conj()))
-                                                 / U.shape[0]).real))
-                return out
+                return replace(out, member=U,
+                               measured=float(np.sign((complex(np.trace(U @ U.conj()))
+                                                       / U.shape[0]).real)))
     if float(np.abs(square - asked * eye).max()) <= _TIME_REVERSAL_SQUARE_MARGIN:
         return out                               # the sign asked, read off a noisy member
-    out.update(obeyed=False, member=None)
-    return out
+    return replace(out, obeyed=False, member=None)
 
 
 def _time_reversal_member(validated, square):
@@ -1710,11 +1838,11 @@ def _time_reversal_member(validated, square):
     detector's own member, or found none of the sign asked, the record is
     returned as it stands.
     """
-    if (square is None or not square["obeyed"]
-            or square["member"] is validated._intertwiners.get(square["ind"])):
+    if (square is None or not square.obeyed
+            or square.member is validated._intertwiners.get(square.ind)):
         return validated
     return replace(validated, _intertwiners={**validated._intertwiners,
-                                            int(square["ind"]): square["member"]})
+                                            int(square.ind): square.member})
 
 
 def _ansatz_refuted(model, group, assignment, validated, *, layout, spin,
@@ -2562,7 +2690,7 @@ def _declaration_refuted(group, validated, *, refuted, verdict, tolerances=EXACT
     the *unitary* site group, and the antiunitary copy of a broken operation is
     broken with it.
 
-    Returns ``{"refuted", "subgroup", "candidates", "rows"}``, or the
+    Returns the :class:`_DeclarationVerdict`, or the
     ``rep_search_too_large`` :class:`..refusal.Refusal` of a search past its
     ceiling.
     """
@@ -2573,12 +2701,12 @@ def _declaration_refuted(group, validated, *, refuted, verdict, tolerances=EXACT
               if int(s.ind) in standing and not s.time_reversal]
     got = verdict
     unitary_only = not any(s.time_reversal and int(s.ind) in standing for s in syms)
-    sub = _covariant_subgroup(group, kept_u, got["requirements"],
+    sub = _covariant_subgroup(group, kept_u, got.requirements,
                               unitary_only=unitary_only,
                               tol=tolerances.noise(CHARACTER),
-                              joint=got.get("joint", ()),
-                              search=got.get("search"),
-                              matrices=got.get("matrices", ()))
+                              joint=got.joint,
+                              search=got.search,
+                              matrices=got.matrices)
     if isinstance(sub, Refusal):
         return sub
     lattice = np.asarray(group.lattice, dtype=float)
@@ -2599,30 +2727,31 @@ def _declaration_refuted(group, validated, *, refuted, verdict, tolerances=EXACT
     broken = {}
     # the contents read together, and those the sectors alone weigh, each named
     # where it is read
-    read_together = tuple(got.get("joint", ())) + tuple(got.get("by_sectors", ()))
-    for ind in sub["broken"]:
-        rows = tuple(r for r in got["rows"] if int(r["ind"]) == int(ind))
-        culprit = next((r for r in rows if r["required"] is not None
-                        and int(ind) in got["reasons"]), rows[-1] if rows else None)
-        note = got["reasons"].get(int(ind)) or _joint_reason(read_together, ind)
+    read_together = tuple(got.joint) + tuple(got.by_sectors)
+    for ind in sub.broken:
+        rows = tuple(r for r in got.rows if int(r.ind) == int(ind))
+        culprit = next((r for r in rows if r.required is not None
+                        and int(ind) in got.reasons), rows[-1] if rows else None)
+        said = None if culprit is None else (culprit.declared, culprit.measured)
+        note = got.reasons.get(int(ind)) or _joint_reason(read_together, ind)
         if note is None:
             note = ("the declared content is carried by this operation on its own, but "
                     "no group of operations containing it and those kept carries every "
                     "declared multiplet in its declared irrep at once")
         together = next((j for j in read_together
-                         if any(int(ind) in row for row in j["theta"].values())), None)
+                         if any(int(ind) in row for row in j.theta.values())), None)
         if culprit is None and together is not None:
             # a content read over several multiplets: the declared value there,
             # and what its multiplets carry, each against its own part's scale
-            culprit = {"declared": together["decl"]["constraints"].get(int(ind), 0.0),
-                       "measured": sum(v for row in together["theta"].values()
-                                       for g, v in row.items() if int(g) == int(ind))}
-        orbitals = ({int(o) for r in rows for o in r["orbitals"]} if rows else
-                    {int(o) for o in (together["decl"]["orbitals"] if together else ())})
+            said = (together.decl["constraints"].get(int(ind), 0.0),
+                    sum(v for row in together.theta.values()
+                        for g, v in row.items() if int(g) == int(ind)))
+        orbitals = ({int(o) for r in rows for o in r.orbitals} if rows else
+                    {int(o) for o in (together.decl["orbitals"] if together else ())})
         rec = {"ind": int(ind), "refuted_by": "declaration", "note": str(note),
                "orbitals": tuple(sorted(orbitals)),
-               "declared": (None if culprit is None else complex(culprit["declared"])),
-               "measured": (None if culprit is None else complex(culprit["measured"])),
+               "declared": (None if said is None else complex(said[0])),
+               "measured": (None if said is None else complex(said[1])),
                "rows": _returned_rows(rows)}
         broken[int(ind)] = rec
         if int(ind) in partner:
@@ -2636,11 +2765,11 @@ def _declaration_refuted(group, validated, *, refuted, verdict, tolerances=EXACT
     # the returned subgroup is the GREY one the survivors generate: a site
     # character decides about the unitary half, and the primed copy of an
     # operation it keeps is kept with it
-    grey = set(sub["subgroup"]) | {partner[i] for i in sub["subgroup"]
+    grey = set(sub.subgroup) | {partner[i] for i in sub.subgroup
                                    if i in partner}
-    return {"refuted": broken, "subgroup": tuple(sorted(grey)),
-            "candidates": sub["candidates"],
-            "rows": _returned_rows(got["rows"])}
+    return _DeclarationVerdict(refuted=broken, subgroup=tuple(sorted(grey)),
+                               candidates=sub.candidates,
+                               rows=_returned_rows(got.rows))
 
 
 def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
@@ -2811,7 +2940,7 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
             return declaration
         # integer operation indices as keys: a mapping merge, not keyword
         # arguments to a call
-        refuted = {**refuted, **declaration["refuted"]}
+        refuted = {**refuted, **declaration.refuted}
     # THE LATTICE, measured on the same group and before anything is concluded
     # from the rest.  A cell whose point set repeats under a pure translation was
     # returned as the lattice supergroup, and only the Hamiltonian can say what
@@ -3090,11 +3219,11 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
     if tie is not None:
         record["tie"] = tie
     if declaration is not None:
-        readings = tuple(declaration.get("candidates", ()))
+        readings = tuple(declaration.candidates)
         record["declaration"] = {
-            "subgroup": tuple(declaration.get("subgroup", ())),
+            "subgroup": tuple(declaration.subgroup),
             "tied": readings,
-            "rows": tuple(declaration.get("rows", ())),
+            "rows": tuple(declaration.rows),
         }
         if readings:
             # the readings, one by one in the rule's order, by their operations'
@@ -3111,12 +3240,12 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
     if projective is not None:
         record["projective"] = dict(projective)
     if centres is not None:
-        record["centres"] = {"precision": float(centres["precision"]),
-                             "move": float(centres["move"]),
-                             "kept": tuple(int(i) for i in centres["kept"]),
+        record["centres"] = {"precision": float(centres.precision),
+                             "move": float(centres.move),
+                             "kept": tuple(int(i) for i in centres.kept),
                              "tied": tuple(tuple(int(i) for i in c)
-                                           for c in centres.get("tied", ())),
-                             "note": str(centres["note"])}
+                                           for c in centres.tied),
+                             "note": str(centres.note)}
     if lattice_record:
         record["lattice"] = dict(lattice_record)
         record["lattice"]["note"] = _lattice_note(lattice_record, got)

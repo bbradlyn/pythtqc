@@ -5,6 +5,8 @@ first to last, and the atomic-limit table read off the choice.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import itertools
 
 import numpy as np
@@ -92,6 +94,76 @@ class _LazyOption(dict):
             return self[key]
         except KeyError:
             return default
+
+
+@dataclass(frozen=True)
+class _PseudospinChoice:
+    """What the chooser took for one conserved pseudospin, and what it chose among.
+
+    Attributes
+    ----------
+    record : _OrbitRecord
+        The orbit of sectors the pseudospin's copies lie on.
+    content : dict
+        The site content returned at the orbit's lead multiplet.
+    contents : tuple of dict
+        Every content the representations of its copies give there, in the
+        order the key ranks them.
+    declared : bool
+        Whether a declaration speaks for its copies.
+    open : int
+        How many site irreps the representations a declaration leaves give there.
+    """
+
+    record: object
+    content: dict
+    contents: tuple
+    declared: bool
+    open: int
+
+
+@dataclass(frozen=True)
+class _LabellingChoice:
+    """The labelling the chooser took, one per coupled part, and what it rests on.
+
+    Attributes
+    ----------
+    of_chan : dict
+        The character chosen for each multiplet's part, ``{multiplet: {ind: value}}``.
+    swaps : tuple
+        The representations chosen on orbits built by induction, ``(states, matrices)``.
+    raw : dict
+        What each multiplet holds under the labelling, ``{multiplet: {ind: character}}``.
+    chosen : list
+        The character chosen for each part.
+    candidates : list
+        Every option each part had, with where it came from.
+    labelled : tuple of dict
+        The parts whose other options label a band differently, and those labels.
+    parts : list
+        The multiplets of each part.
+    part_states : list
+        The states of each part.
+    spaces : tuple of _PseudospinChoice
+        What was chosen for each conserved pseudospin.
+    lift_trace : dict
+        The trace of each operation's spin-1/2 lift, by index.
+    matrices_carried : dict
+        Whether each declaration of generator matrices is carried, keyed by the
+        declaration.
+    """
+
+    of_chan: dict
+    swaps: tuple
+    raw: dict
+    chosen: list
+    candidates: list
+    labelled: tuple
+    parts: list
+    part_states: list
+    spaces: tuple
+    lift_trace: dict
+    matrices_carried: dict
 
 
 def _choose(options, keys):
@@ -298,10 +370,10 @@ def _parts_apart(verdict, layout, sectors):
     held apart only where no sector joins them: the finest partition both
     coarsen into.  ``None`` where that is one part, or nothing was read.
     """
-    if not verdict or verdict.get("classes") is None or sectors is None:
+    if not verdict or verdict.classes is None or sectors is None:
         return None
-    classes = np.asarray(verdict["classes"], dtype=int)
-    parts = _coupled_parts(classes, verdict.get("free_classes"), verdict.get("parts"))
+    classes = np.asarray(verdict.classes, dtype=int)
+    parts = _coupled_parts(classes, verdict.free_classes, verdict.parts)
     if len(parts) < 2:
         return None
     joined = [tuple(sorted({int(o) for c in range(len(classes)) if int(classes[c]) in part
@@ -503,13 +575,13 @@ def _in_tables_gauge(rec, winner, *, group, layout, syms, u_pos, cperm, site_tab
     """
 
     W = winner["W"]
-    induced = rec.get("induced")
+    induced = rec.induced
     if induced is None:
         return W
     frames = induced.sector_frames()
     if len(frames) < 2 and all(int(f[1]) < 2 for f in frames):
         return W
-    lead = int(rec["lead"])
+    lead = int(rec.lead)
     orbitals, places = layout._chan_orbs[lead], None
     if layout._spinful:
         # the lead's orbitals (or declared pairs) once each, as its states reach them
@@ -530,7 +602,7 @@ def _in_tables_gauge(rec, winner, *, group, layout, syms, u_pos, cperm, site_tab
         spin = [s for _a, s in places]
         target = {p: T[np.ix_(at, at)] * _lift_of(syms[p], True)[np.ix_(spin, spin)]
                   for p, T in target.items()}
-    local = {int(a): i for i, a in enumerate(rec["states"])}
+    local = {int(a): i for i, a in enumerate(rec.states)}
     rows = [local[int(a)] for a in layout._chan_states[lead]]
     return _sectors.tables_gauge(frames, W, target, rows, syms,
                                  tol=getattr(layout, "_tol", None) or None)
@@ -582,9 +654,8 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
        representation whose character is nearest the trivial one: where it
        decides, no band label rests on it.
 
-    Returns ``{"of_chan", "swaps", "raw", "chosen", "candidates", "labelled",
-    "parts", "part_states", "spaces", "lift_trace", "matrices_carried"}``: the
-    character every multiplet is assembled with; the representation chosen on each orbit built
+    Returns the :class:`_LabellingChoice`: the character every multiplet is
+    assembled with; the representation chosen on each orbit built
     by induction, as matrices on the orbit's states; every multiplet's
     character under the labelling's representation before its characters are
     multiplied in; per part the character chosen, and for each candidate its
@@ -608,8 +679,8 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
     shells, lowest = {}, {}
     chans_of = [[int(c) for c in range(nchan) if int(classes[c]) in part] for part in parts]
     part_states = [sorted(int(a) for c in chans for a in chan_states[c]) for chans in chans_of]
-    spaces = {tuple(sorted(int(c) for c in rec["multiplets"])): rec
-              for rec in (multiplicity or ()) if rec.get("candidates")}
+    spaces = {tuple(sorted(int(c) for c in rec.multiplets)): rec
+              for rec in (multiplicity or ()) if rec.candidates}
     names = _KEY_NAMES
     # the declared function of each orbital, where one was written: the tables'
     # matrices a representation the hoppings leave open is written in follow it
@@ -629,13 +700,13 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
             # instead they come back in another gauge, and a content declared on
             # such a part is not carried.
             return [{"chi": chi, "W": None} for chi in pool], None
-        st = rec["states"]
+        st = rec.states
         # each a representation induced on the orbit, its matrices built where
         # a key reads them
         return [_LazyOption(D, cand, st, chi={}, contents=cand["contents"],
-                            character=cand["character"], k=int(rec["dim"]),
+                            character=cand["character"], k=int(rec.dim),
                             parts=cand.get("parts"), key=id(cand))
-                for cand in rec["candidates"]], rec
+                for cand in rec.candidates], rec
 
     def _source(opt):
         return opt["contents"] if opt["W"] is not None else raw
@@ -1002,7 +1073,7 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
             # exchanges: the representation chosen is assembled whole
             for c in chans:
                 raw_after[int(c)] = dict(winner["contents"][c])
-            swaps.append((tuple(int(a) for a in rec["states"]),
+            swaps.append((tuple(int(a) for a in rec.states),
                           _in_tables_gauge(rec, winner, group=group, layout=layout,
                                            syms=syms, u_pos=u_pos, cperm=cperm,
                                            site_tables=site_tables, rotations=rotations,
@@ -1011,9 +1082,9 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
             # what each multiplet holds under the representations the
             # declarations leave, the rows' own reading of how they are known
             candidates.append([({}, o["contents"]) for o in cands])
-            if int(rec["dim"]) > 1:
+            if int(rec.dim) > 1:
                 # a pseudospin's own record; an orbit of one copy holds none
-                ranked, lead_c = [], int(rec["lead"])
+                ranked, lead_c = [], int(rec.lead)
                 for o in sorted(options, key=lambda o: (keys[-7](o), keys[-6](o),
                                                         keys[-5](o), keys[-4](o), _order(o))):
                     content = o["contents"][lead_c]
@@ -1022,10 +1093,10 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
                             for r in ranked):
                         ranked.append(content)
                 declared = bool(mine_of[i]) or any(i in spanned[id(d)] for d in shared)
-                spaces_out.append({"record": rec, "content": dict(winner["contents"][lead_c]),
-                                   "contents": tuple(ranked), "declared": declared,
-                                   "open": len({_site_irrep(o["contents"][lead_c], {})
-                                                for o in cands})})
+                spaces_out.append(_PseudospinChoice(
+                    record=rec, content=dict(winner["contents"][lead_c]),
+                    contents=tuple(ranked), declared=declared,
+                    open=len({_site_irrep(o["contents"][lead_c], {}) for o in cands})))
     # ... AND THE BAND LABELS EACH OF THEM GIVES, read by the chooser's own band
     # key with every other part at the labelling kept: those that label a band
     # differently are the choice the band labels rest on
@@ -1043,18 +1114,18 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
     winners = {id(getattr(w, "_cand", None)) for w in (o["W"] for o in held_at
                                                        if o["W"] is not None)}
     for rec in records:
-        if rec is not None and rec.get("induced") is not None:
-            for cand in rec["candidates"]:
+        if rec is not None and rec.induced is not None:
+            for cand in rec.candidates:
                 if id(cand) not in winners:
                     cand.release()
     of_chan = {}
     for i, chans in enumerate(chans_of):
         for c in chans:
             of_chan[int(c)] = chosen[i]
-    return {"of_chan": of_chan, "swaps": tuple(swaps), "raw": raw_after, "chosen": chosen,
-            "candidates": candidates, "labelled": tuple(labelled), "parts": chans_of,
-            "part_states": part_states, "spaces": tuple(spaces_out), "lift_trace": lift_trace,
-            "matrices_carried": matrices_carried}
+    return _LabellingChoice(of_chan=of_chan, swaps=tuple(swaps), raw=raw_after, chosen=chosen,
+                            candidates=candidates, labelled=tuple(labelled), parts=chans_of,
+                            part_states=part_states, spaces=tuple(spaces_out),
+                            lift_trace=lift_trace, matrices_carried=matrices_carried)
 
 
 def _assembled(D, choice, syms, layout):
@@ -1070,12 +1141,12 @@ def _assembled(D, choice, syms, layout):
     for p, M in D.items():
         ind = int(syms[p].ind)
         N = np.array(M, dtype=complex, copy=True)
-        for states, W in choice["swaps"]:
+        for states, W in choice.swaps:
             if p in W:
                 st = np.asarray(states, dtype=int)
                 N[np.ix_(st, st)] = W[p]
         for c in range(int(layout._nchan)):
-            f = complex(choice["of_chan"][int(c)].get(ind, 1.0))
+            f = complex(choice.of_chan[int(c)].get(ind, 1.0))
             if abs(f - 1.0) <= 1e-12:
                 continue
             N[:, np.asarray(layout._chan_states[int(c)], dtype=int)] *= f
@@ -1114,8 +1185,8 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
                         + ("'" if syms[p].time_reversal else "") for p in kept}
     site_of = np.asarray(assignment.site_of_orbital, dtype=int)
     norb = int(model.norb)
-    of_chan, lift_trace = choice["of_chan"], choice["lift_trace"]
-    part_of_chan = {int(c): i for i, chans in enumerate(choice["parts"]) for c in chans}
+    of_chan, lift_trace = choice.of_chan, choice.lift_trace
+    part_of_chan = {int(c): i for i, chans in enumerate(choice.parts) for c in chans}
     final = {c: {ind: complex(of_chan[c].get(int(ind), 1.0)) * v for ind, v in chi.items()}
              for c, chi in raw.items()}
 
@@ -1146,7 +1217,7 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
             # ... and declared matrices on the matrices returned, which the
             # labelling read as it chose (:func:`_labelling`)
             carried[id(d)] = (carried[id(d)]
-                              and choice.get("matrices_carried", {}).get(id(d), True))
+                              and choice.matrices_carried.get(id(d), True))
 
     decl_of = {}
     for d in decls:
@@ -1231,7 +1302,7 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
                           f"{returned[id(d)] or 'a character no irrep of this site group names'}"
                           " under the one returned")
         else:
-            options = choice["candidates"][part_of_chan[ch]]
+            options = choice.candidates[part_of_chan[ch]]
             seen = {_site_irrep({int(ind): v for ind, v in (raw if src is None else src)[ch].items()
                                  if int(ind) in theta}, chi) for chi, src in options}
             determined_by = "hamiltonian" if len(seen) <= 1 else "lowest-l"
@@ -1285,8 +1356,8 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
         frame=dict(names), residual=float(worst), site_tables=dict(site_tables),
         spin=spin,
         _labellings={"parts": tuple(tuple(int(a) for a in states)
-                                    for states in choice["part_states"]),
-                     "choices": tuple(choice["labelled"])})
+                                    for states in choice.part_states),
+                     "choices": tuple(choice.labelled)})
 
 
 def _wyckoff_sites(group, assignment):

@@ -1092,11 +1092,11 @@ def test_the_verdict_stage_chooses_and_the_build_does_not_re_measure(realized):
     got = _declaration._verdicts_and_choices(model, group, assignment, None, validated,
                                     layout, (), u_pos)
     assert not isinstance(got, Refusal), str(got)
-    assert got["nclass"] == 2 and got["free_classes"] == frozenset({1}), \
+    assert got.nclass == 2 and got.free_classes == frozenset({1}), \
         "the reference class is pinned to 1 by construction; the other is free"
     assert all(abs(complex(v) - 1.0) < 1e-12
-               for (ind, cls), v in got["chosen"].items() if cls == 0)
-    assert not [k for k in got["chosen"] if k[1] == 1], \
+               for (ind, cls), v in got.chosen.items() if cls == 0)
+    assert not [k for k in got.chosen if k[1] == 1], \
         "nothing was measured about the free class, so nothing was recorded for it"
 
     plain = _build._build_rep(model, group, assignment, validated=validated)

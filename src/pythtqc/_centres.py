@@ -5,6 +5,7 @@ centres miss, and the least move onto a set the operations carry exactly.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import math
 
 import numpy as np
@@ -54,7 +55,51 @@ def _position_defect(model, group, assignment, ops):
 # the centres against the group's action: the sites, the moves and the defect
 # --------------------------------------------------------------------------
 
-def _cell_sites(cell, cell_typat, symprec, *, n_extra=0) -> dict:
+@dataclass(frozen=True, eq=False)
+class _SiteFrame:
+    """A cell's sites as the symmetry finder reads them, set in 3D, and which of them may move.
+
+    Attributes
+    ----------
+    lattice : ndarray, shape (3, 3)
+        The 3D cell's lattice vectors, Cartesian, in the model's unit of length.
+    vacuum_dirs : tuple of int
+        The directions along which the cell is set in vacuum (:func:`_pad_cell`).
+    points : ndarray, shape (n, 3)
+        Every point of the cell, reduced coordinates of the 3D cell.
+    first : ndarray, shape (n_sites, 3)
+        Each site's first point, reduced coordinates of the 3D cell.
+    site_orbs : tuple of tuple of int
+        The points of each site.
+    species : ndarray or None
+        Each site's species.
+    sites : ndarray, shape (n_sites, 3)
+        Each site's position, reduced coordinates of the 3D cell: its points'
+        mean, each read on the branch of its first point.
+    weights : ndarray
+        How many points each site holds.
+    scale : ndarray, shape (3,)
+        How a coordinate of the 3D cell maps onto the cell's own, per direction.
+    own : int
+        How many points are the model's orbitals, which lead the cell.
+    moving : ndarray of int
+        The sites that are not shadows, the ones a projection moves.
+    """
+
+    lattice: object
+    vacuum_dirs: tuple
+    points: object
+    first: object
+    site_orbs: tuple
+    species: object
+    sites: object
+    weights: object
+    scale: object
+    own: int
+    moving: object
+
+
+def _cell_sites(cell, cell_typat, symprec, *, n_extra=0) -> _SiteFrame:
     r"""The cell's sites as the symmetry finder reads them, and which of them may move.
 
     The cell is set in 3D and its points grouped into sites at the finder's
@@ -67,13 +112,8 @@ def _cell_sites(cell, cell_typat, symprec, *, n_extra=0) -> dict:
     they are read with the rest, so that they remove the operations they
     remove, and they are built again under the moved sites.
 
-    Returns ``lattice`` and ``vacuum_dirs`` (:func:`_pad_cell`), ``points`` (every
-    point of the cell in the 3D cell's frame), ``first``, ``site_orbs`` and
-    ``species`` (:func:`_sites_and_typat`), ``sites`` and ``weights`` (each
-    site's position and count), ``scale`` (how a coordinate of the 3D cell
-    maps onto the cell's own, per direction), ``own`` (how many points are the model's
-    orbitals, which lead the cell) and ``moving`` (the sites that are not
-    shadows, the ones the projection moves).
+    Returns the :class:`_SiteFrame`, its sites, first points and species
+    grouped by :func:`_sites_and_typat`.
     """
     lattice, points, padded = _pad_cell(cell, _PAD_LENGTH)
     first, site_orbs, species = _sites_and_typat(points, cell_typat, symprec, lattice)
@@ -87,7 +127,7 @@ def _cell_sites(cell, cell_typat, symprec, *, n_extra=0) -> dict:
 
 
 def _sites_frame(model, lattice, points, padded, site_orbs, *, species=None, own=None,
-                 moving=None) -> dict:
+                 moving=None) -> _SiteFrame:
     """The record :func:`_cell_sites` returns, for points already set in 3D and grouped."""
     points = np.asarray(points, dtype=float)
     first = np.array([points[int(orbs[0])] for orbs in site_orbs])
@@ -100,18 +140,18 @@ def _sites_frame(model, lattice, points, padded, site_orbs, *, species=None, own
     scale = np.ones(3)
     for d in range(lat_model.shape[0]):
         scale[d] = float(np.linalg.norm(lattice[d]) / np.linalg.norm(lat_model[d]))
-    return {"lattice": np.asarray(lattice, dtype=float), "vacuum_dirs": tuple(padded),
-            "points": points, "first": first,
-            "site_orbs": tuple(tuple(int(o) for o in orbs) for orbs in site_orbs),
-            "species": None if species is None else np.asarray(species),
-            "sites": np.array(sites, dtype=float),
-            "weights": np.array([float(len(orbs)) for orbs in site_orbs]),
-            "scale": scale, "own": int(points.shape[0] if own is None else own),
-            "moving": np.array(range(len(site_orbs)) if moving is None else moving,
-                               dtype=int)}
+    return _SiteFrame(lattice=np.asarray(lattice, dtype=float), vacuum_dirs=tuple(padded),
+                      points=points, first=first,
+                      site_orbs=tuple(tuple(int(o) for o in orbs) for orbs in site_orbs),
+                      species=None if species is None else np.asarray(species),
+                      sites=np.array(sites, dtype=float),
+                      weights=np.array([float(len(orbs)) for orbs in site_orbs]),
+                      scale=scale, own=int(points.shape[0] if own is None else own),
+                      moving=np.array(range(len(site_orbs)) if moving is None else moving,
+                                      dtype=int))
 
 
-def _assigned_sites(model, group, assignment) -> dict:
+def _assigned_sites(model, group, assignment) -> _SiteFrame:
     """A model's sites as its assignment to ``group`` groups them, read against the group.
 
     The record :func:`_cell_sites` returns, built from the model alone -- set
@@ -133,10 +173,10 @@ def _site_action(frame, rotations, translations):
     ``shift[g, s]`` the lattice vector with ``R·x_s + t ≈ x_perm + shift``, or
     ``None`` where an operation does not permute them.
     """
-    lattice = frame["lattice"]
-    move = frame["moving"]
-    sites = frame["sites"][move]
-    species = frame["species"][move]
+    lattice = frame.lattice
+    move = frame.moving
+    sites = frame.sites[move]
+    species = frame.species[move]
     same = species[:, None] == species[None, :]
     n = len(sites)
     perm = np.empty((len(rotations), n), dtype=int)
@@ -204,10 +244,10 @@ def _symmetric_sites(frame, perm, shift, rotations, rows):
     ``rows`` with those translations -- rounding wherever the operations act on
     the sites as a group does.
     """
-    lattice = frame["lattice"]
-    move = frame["moving"]
-    y = frame["sites"][move]
-    w = frame["weights"][move]
+    lattice = frame.lattice
+    move = frame.moving
+    y = frame.sites[move]
+    w = frame.weights[move]
     n = len(y)
     rows = [int(g) for g in rows]
     inv = np.linalg.inv(lattice)
@@ -295,12 +335,12 @@ def _moves_of(frame, x) -> np.ndarray:
     rounding is none, and the shadows the projection does not move stay at
     zero.
     """
-    pts = frame["points"]
+    pts = frame.points
     out = np.zeros_like(pts)
-    for k, s in enumerate(frame["moving"]):
-        for o in frame["site_orbs"][int(s)]:
+    for k, s in enumerate(frame.moving):
+        for o in frame.site_orbs[int(s)]:
             d = x[k] - pts[int(o)]
-            out[int(o)] = (d - np.rint(d)) * frame["scale"]
+            out[int(o)] = (d - np.rint(d)) * frame.scale
     out[np.abs(out) <= ROUNDING] = 0.0
     return out
 
@@ -314,20 +354,20 @@ def _frame_defect(frame, perm, rotations, trans, rows, sites=None) -> float:
     (:func:`.._centres._position_defect`), read on the centres as they
     are, or with every orbital on its site at ``sites`` where that is given.
     """
-    pts = frame["points"]
-    move = [int(s) for s in frame["moving"]]
+    pts = frame.points
+    move = [int(s) for s in frame.moving]
     if sites is not None:
         pts = pts.copy()
         for k, s in enumerate(move):
-            for o in frame["site_orbs"][s]:
+            for o in frame.site_orbs[s]:
                 pts[int(o)] = sites[k]
-    own = frame["own"]
+    own = frame.own
     worst = 0.0
     for g in rows:
         R = np.asarray(rotations[g], dtype=float)
         for k, s in enumerate(move):
-            target = int(frame["site_orbs"][move[int(perm[g, k])]][0])
-            for o in frame["site_orbs"][s]:
+            target = int(frame.site_orbs[move[int(perm[g, k])]][0])
+            for o in frame.site_orbs[s]:
                 if int(o) >= own:
                     continue
                 r = R @ pts[int(o)] + trans[g] - pts[target]

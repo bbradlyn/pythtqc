@@ -71,6 +71,8 @@ What each test is for, and the number that closes it.
   at ``0.0``.
 """
 
+import dataclasses
+
 import numpy as np
 import pytest
 from pythtb.models import kane_mele
@@ -88,6 +90,7 @@ from pythtqc import _descent
 from pythtqc import _layers
 from pythtqc import _measure
 from pythtqc import _realized as _rz
+from pythtqc import _sectors
 from pythtqc import _spacegroup
 from pythtqc import _subgroups
 from pythtqc import _tables
@@ -923,7 +926,8 @@ def test_a_pairing_is_read_pair_by_pair_and_a_wrong_one_descends(two_spinors_per
 
 
 @pytest.mark.slow
-def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_spinor):
+def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_spinor,
+                                                    monkeypatch):
     """Spinor states in single-valued tables: declared, a contradiction; undeclared, a spinless crystal.
 
     ``_group_of(flat, spinor=False)`` is a perfectly legitimate ask for a
@@ -1317,6 +1321,15 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     # labelling like any other, under the one sentence
     note = tqw.hsp_table(tqg.realized_group(tqc_models.p1bar_s_copies()).rep, bands=2).note
     assert note == tqw._ANOTHER_LABELLING_RELABELS, note
+    # ... and copies none of whose representations is admitted: the build
+    # refuses, saying how many sums of irreps of that dimension it weighed
+    record = _sectors.InducedOrbit.record
+    monkeypatch.setattr(_sectors.InducedOrbit, "record", lambda self: dataclasses.replace(
+        record(self), n_admitted=0, candidates=()))
+    none = tqg.realized_group(tqc_models.p1bar_s_copies())
+    assert isinstance(none, Refusal) and none.gate == "rep_not_multiplicative", str(none)
+    assert none.context["n_candidates"] == 3 and "of the 3 sums of the group's" in none.reason
+    monkeypatch.undo()
     # ... declared four copies of A1g, which no representation of the copies
     # carries on P4/mmm: the group descends to Pmmm1', every operation left
     # out broken by the declaration

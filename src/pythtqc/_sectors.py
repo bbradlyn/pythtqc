@@ -1251,6 +1251,47 @@ class _InducedCandidate:
         """Drop the matrices built, keeping what was read off them."""
         self._W = None
 
+@dataclass(frozen=True)
+class _OrbitRecord:
+    """An orbit of sectors built by induction, and the representations the hoppings leave.
+
+    Attributes
+    ----------
+    multiplets : tuple of int
+        The multiplets the orbit lies on.
+    orbitals : tuple of int
+        Their orbitals.
+    lead : int
+        The multiplet the orbit is read from.
+    site : int
+        The site of that multiplet.
+    dim : int
+        How many identical copies each sector holds, one where it holds none.
+    n_candidates : int
+        How many representations of the orbit there were.
+    n_admitted : int
+        How many of them were admitted.
+    states : tuple of int
+        The orbit's states.
+    candidates : tuple
+        The admitted representations, in order, each with the site content it
+        gives each multiplet and its own character.
+    induced : InducedOrbit or SharedOrbits
+        The orbit itself.
+    """
+
+    multiplets: tuple
+    orbitals: tuple
+    lead: int
+    site: int
+    dim: int
+    n_candidates: int
+    n_admitted: int
+    states: tuple
+    candidates: tuple
+    induced: object
+
+
 class InducedOrbit:
     r"""One orbit of sectors, and every representation the hoppings leave on it.
 
@@ -1695,10 +1736,11 @@ class InducedOrbit:
 
     def record(self):
         """The orbit's record, a conserved pseudospin's where it holds copies, its admitted candidates in order."""
-        return {"multiplets": self.members, "orbitals": self.orbitals, "lead": self.lead,
-                "site": self.site, "dim": int(self.m), "n_candidates": int(self.n_candidates),
-                "n_admitted": len(self.candidates), "states": self.states,
-                "candidates": tuple(self.candidates), "induced": self}
+        return _OrbitRecord(multiplets=self.members, orbitals=self.orbitals, lead=self.lead,
+                            site=self.site, dim=int(self.m),
+                            n_candidates=int(self.n_candidates),
+                            n_admitted=len(self.candidates), states=self.states,
+                            candidates=tuple(self.candidates), induced=self)
 
 class _SharedCandidate:
     """One representation of orbits read together: one of each orbit's, their matrices summed."""
@@ -1795,10 +1837,10 @@ class SharedOrbits:
 
     def record(self):
         """The orbits' record, their admitted candidates in order."""
-        return {"multiplets": self.members, "orbitals": self.orbitals, "lead": self.lead,
-                "site": self.site, "dim": 1, "n_candidates": int(self.n_candidates),
-                "n_admitted": len(self.candidates), "states": self.states,
-                "candidates": tuple(self.candidates), "induced": self}
+        return _OrbitRecord(multiplets=self.members, orbitals=self.orbitals, lead=self.lead,
+                            site=self.site, dim=1, n_candidates=int(self.n_candidates),
+                            n_admitted=len(self.candidates), states=self.states,
+                            candidates=tuple(self.candidates), induced=self)
 
 def held_sectors(reading, layout, *, tol=None):
     """``[sectors]`` -- per multiplet of ``layout``, the sectors of ``reading`` its states lie on."""

@@ -6,6 +6,7 @@ declared content breaks the group.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import itertools
 
 import numpy as np
@@ -31,6 +32,176 @@ from ._naming import _SiteTableOf, _contained, _site_tables
 from ._multiplets import (
     _MultipletBlocks, _channel_perms, _multiplet_blocks, _reversal_scalars,
     _transported_lifts)
+
+
+@dataclass(frozen=True, eq=False)
+class _Row:
+    """One row of the measured-versus-declared table: a declared multiplet under one operation.
+
+    Attributes
+    ----------
+    orbitals : tuple of int
+        The orbitals the declaration names.
+    ind : int
+        The operation's index in the group.
+    name : str
+        The operation's name in the generator frame.
+    measured : complex
+        The character the hoppings carry the orbitals with, against their part's scale.
+    declared : complex
+        The character the declaration states.
+    part : int
+        The coupled part of the crystal the declaration is read in.
+    required : complex or None
+        The value the part's one-dimensional character has to take for the
+        declaration to hold; ``None`` where no value does.
+    matrices : tuple of ndarray or None
+        The declared and the measured generator matrix, where the declaration
+        states matrices; ``None`` otherwise.
+    """
+
+    orbitals: tuple
+    ind: int
+    name: str
+    measured: complex
+    declared: complex
+    part: int
+    required: complex | None
+    matrices: tuple | None = None
+
+
+@dataclass(frozen=True)
+class _ReadTogether:
+    """A declared content read over several multiplets at once, operation by operation.
+
+    Attributes
+    ----------
+    decl : dict
+        The declaration read.
+    theta : dict
+        What each of its multiplets carries, ``{multiplet: {ind: character}}``,
+        against its own part's scale, or under the representation an orbit
+        built by induction is assembled with.
+    part : dict or None
+        The coupled part each multiplet is in, ``{multiplet: part}``; ``None``
+        on an orbit built by induction, which the sectors alone weigh.
+    site_group : tuple of int or None
+        The indices of the operations kept that fix the declaration's site.
+    table_of : _SiteTableOf or None
+        The site's character table on any subgroup of its site group.
+    lift_trace : dict or None
+        The trace of each operation's spin-1/2 lift, by index.
+    """
+
+    decl: dict
+    theta: dict
+    part: dict | None = None
+    site_group: tuple | None = None
+    table_of: object = None
+    lift_trace: dict | None = None
+
+
+@dataclass(frozen=True)
+class _CovariantSubgroup:
+    """The largest subgroup a declared content is covariant on, and what it leaves out.
+
+    Attributes
+    ----------
+    subgroup : frozenset of int
+        The indices of the subgroup returned.
+    candidates : tuple
+        The maximal subgroups in the tie rule's order where several tie, the
+        one returned first; empty otherwise.
+    broken : tuple of int
+        The indices of the operations asked about that the subgroup leaves out.
+    """
+
+    subgroup: frozenset
+    candidates: tuple
+    broken: tuple
+
+
+@dataclass(frozen=True, eq=False)
+class _Verdict:
+    """The one reading of the solution spaces: a verdict per operation, and what the hoppings pin.
+
+    Attributes
+    ----------
+    rows : tuple of _Row
+        The measured-versus-declared table.
+    parts : tuple of frozenset
+        The coupled parts of the crystal as sets of multiplet orbits, the anchor's first.
+    requirements : tuple of dict
+        Per part, what each operation asks of its one-dimensional character,
+        ``{ind: value}``, ``None`` where the declaration breaks the operation.
+    scalars : tuple of dict
+        Per part, that value before it is rounded onto a sign or a phase.
+    matrices : tuple of dict
+        Per part, the requirements at the operations declared generator
+        matrices were read at.
+    joint : tuple of _ReadTogether
+        The contents read over several coupled parts, or stating part of a site.
+    by_sectors : tuple of _ReadTogether
+        The contents declared on orbits built by induction.
+    reasons : dict
+        One sentence per broken operation, by index.
+    classes : ndarray of int
+        The multiplet orbit of each multiplet.
+    nclass : int
+        The number of multiplet orbits.
+    chosen : dict
+        The class scalar the hoppings pin, ``{(ind, class): value}``.
+    within : dict
+        The ratio an orbit of a part free of the anchor holds to that part's
+        first, ``{(ind, class): value}``.
+    free : frozenset
+        The ``(ind, class)`` pairs the hoppings leave open.
+    free_classes : frozenset of int
+        The classes free at every operation that was measured.
+    seen : dict
+        The classes measured at each operation, ``{ind: frozenset}``.
+    anchor : int
+        The multiplet every scalar is read against, orbital 0's.
+    reference_orbital : int
+        The orbital the lowest-angular-momentum rule reads the crystal from first.
+    declared : tuple
+        What was declared, in the form a later reading is compared against.
+    space_tol : float
+        How far outside the blocks a member may sit and count as inside, dimensionless.
+    indices : frozenset of int
+        The indices of the operations read.
+    blocks : _MultipletBlocks
+        The multiplets' own blocks, with every orbit of sectors built by induction.
+    reversal : ndarray or None
+        What time reversal carries on each orbit; ``None`` where it was not read.
+    search : SectorSearch or None
+        What the declaration asks of the sectors on any subgroup; ``None``
+        where they read nothing.
+    """
+
+    rows: tuple
+    parts: tuple
+    requirements: tuple
+    scalars: tuple
+    matrices: tuple
+    joint: tuple
+    by_sectors: tuple
+    reasons: dict
+    classes: object
+    nclass: int
+    chosen: dict
+    within: dict
+    free: frozenset
+    free_classes: frozenset
+    seen: dict
+    anchor: int
+    reference_orbital: int
+    declared: tuple
+    space_tol: float
+    indices: frozenset
+    blocks: object
+    reversal: object
+    search: object
 
 
 def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=CHARACTER,
@@ -100,7 +271,7 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
     solution spaces, so it is the declared tolerance where that is larger than
     its exact default.
 
-    Returns ``{"subgroup", "candidates", "broken"}`` — the returned set of
+    Returns the :class:`_CovariantSubgroup` — the returned set of
     ``.ind``, the maximal candidates in the rule's order where several tie, the
     one returned first, and the operations of ``kept_u`` outside ``S`` — or the
     :class:`..refusal.Refusal` of a search past its ceiling.
@@ -118,7 +289,7 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
 
     if search is not None and search.complete:
         got = _subgroup_read(group, kept_u, search)
-        if got is not None and _carries_matrices(got["subgroup"]):
+        if got is not None and _carries_matrices(got.subgroup):
             return got
     parts = ([requirements] if isinstance(requirements, dict)
              else [dict(part) for part in requirements])
@@ -151,8 +322,8 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
         # character question is asked again on the next round, on whatever
         # group that resolution lands on.
         bad = {i for i in keep if _barred(i)}
-        return {"subgroup": frozenset(keep - bad), "candidates": (),
-                "broken": tuple(sorted(bad))}
+        return _CovariantSubgroup(subgroup=frozenset(keep - bad), candidates=(),
+                                  broken=tuple(sorted(bad)))
     baseline = set(widest[0])
     allowed = {i for i in baseline if not _barred(i)}
 
@@ -165,7 +336,7 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
         inside = {int(i) for i in sub}
         asked = [i for i, wants in enumerate(parts) if any(int(g) in inside for g in wants)]
         together = [j for j in joint
-                    if any(int(g) in inside for row in j["theta"].values() for g in row)]
+                    if any(int(g) in inside for row in j.theta.values() for g in row)]
         if not asked and not together:
             return True
         chars = (_characters_of_subgroup(group, sub, roots=bool(unitary_only))
@@ -176,7 +347,7 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
             return False
         if not together:
             return True
-        spanned = sorted({int(i) for j in together for i in j["part"].values()})
+        spanned = sorted({int(i) for j in together for i in j.part.values()})
         options = [own.get(i, chars) for i in spanned]
         for combo in itertools.product(*options):
             pick = dict(zip(spanned, combo))
@@ -187,13 +358,14 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
     if closes and _closes(group, allowed) and _met(frozenset(allowed)):
         # the operations the declaration allows are a group carrying it, the one
         # largest consistent subgroup, with no tie
-        return {"subgroup": frozenset(allowed), "candidates": (),
-                "broken": tuple(sorted(i for i in baseline if i not in allowed))}
+        return _CovariantSubgroup(
+            subgroup=frozenset(allowed), candidates=(),
+            broken=tuple(sorted(i for i in baseline if i not in allowed)))
     consistent = {frozenset(int(i) for i in sub)
                   for sub in _subgroups_inside(group, allowed) if _met(sub)}
     if not consistent:                   # pragma: no cover - {E} always is
-        return {"subgroup": frozenset(), "candidates": (),
-                "broken": tuple(sorted(keep))}
+        return _CovariantSubgroup(subgroup=frozenset(), candidates=(),
+                                  broken=tuple(sorted(keep)))
     # The LARGEST consistent subgroup, and the tie rule only where the largest
     # is not unique.  Maximality by inclusion alone would let a small subgroup
     # nothing constrains -- the sigma_h fiber partners that survive beside a kept
@@ -204,8 +376,8 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
     ranked = _tie_ranked(group, [s for s in consistent if len(s) == top])
     best = frozenset(ranked[0])
     candidates = ranked if len(ranked) > 1 else ()
-    return {"subgroup": best, "candidates": candidates,
-            "broken": tuple(sorted(i for i in baseline if i not in best))}
+    return _CovariantSubgroup(subgroup=best, candidates=candidates,
+                              broken=tuple(sorted(i for i in baseline if i not in best)))
 
 
 def _cyclic(group, ind):
@@ -245,15 +417,15 @@ def _subgroup_read(group, kept_u, search):
             # it carries the declaration it is the subgroup kept, with no tie
             baseline = keep
             if search.met(baseline):
-                return {"subgroup": baseline, "candidates": (), "broken": ()}
+                return _CovariantSubgroup(subgroup=baseline, candidates=(), broken=())
         else:
             plain = _subgroups_inside(group, keep)
             top = max(len(s) for s in plain) if plain else 0
             widest = sorted((s for s in plain if len(s) == top), key=sorted)
             if len(widest) != 1:
                 bad = {i for i in keep if not search.met(_cyclic(group, i))}
-                return {"subgroup": frozenset(keep - bad), "candidates": (),
-                        "broken": tuple(sorted(bad))}
+                return _CovariantSubgroup(subgroup=frozenset(keep - bad), candidates=(),
+                                          broken=tuple(sorted(bad)))
             baseline = frozenset(widest[0])
         carried, size = [], None
         for sub in sorted(_subgroups_inside(group, baseline), key=lambda s: (-len(s), sorted(s))):
@@ -284,8 +456,8 @@ def _subgroup_read(group, kept_u, search):
             "every declared dimension.")
     ranked = _tie_ranked(group, carried)
     best = frozenset(ranked[0])
-    return {"subgroup": best, "candidates": ranked if len(ranked) > 1 else (),
-            "broken": tuple(sorted(i for i in baseline if i not in best))}
+    return _CovariantSubgroup(subgroup=best, candidates=ranked if len(ranked) > 1 else (),
+                              broken=tuple(sorted(i for i in baseline if i not in best)))
 
 
 def _declaration_breaks(group, assignment, decls, verdict, *, standing, subgroup, broken,
@@ -331,9 +503,9 @@ def _declaration_breaks(group, assignment, decls, verdict, *, standing, subgroup
     primed = [partners[i] for i in broken_u if i in partners]
     every = sorted(set(broken_u) | set(primed))
     kept = sorted(set(kept_u) | {partners[i] for i in kept_u if i in partners})
-    rows = tuple(verdict["rows"])
-    reasons = verdict.get("reasons") or {}
-    read_together = tuple(verdict.get("joint", ())) + tuple(verdict.get("by_sectors", ()))
+    rows = tuple(verdict.rows)
+    reasons = verdict.reasons or {}
+    read_together = tuple(verdict.joint) + tuple(verdict.by_sectors)
     why_of = {i: str(reasons.get(i) or _joint_reason(read_together, i) or (
         "the declared content is carried by this operation on its own, but no group "
         "of operations containing it and those kept carries every declared multiplet "
@@ -356,7 +528,7 @@ def _declaration_breaks(group, assignment, decls, verdict, *, standing, subgroup
     if admissible is None:
         admissible = _characters_of_subgroup(group, unitary)
     named = _mismatch_named(decls, rows, admissible, site_tables,
-                            ref_orb=int(verdict.get("reference_orbital", 0)))
+                            ref_orb=int(verdict.reference_orbital))
 
     def _listed(inds):
         return ", ".join(f"#{i} {names[i]}" for i in inds)
@@ -371,10 +543,10 @@ def _declaration_breaks(group, assignment, decls, verdict, *, standing, subgroup
                 f"{_tie_reason(group, readings)}.")
     why = "\n".join(f"    #{i} {names[i]}: {why_of[i]}" for i in every)
     table = "\n".join(
-        f"    #{r['ind']:<4d} {r['name']:<14s} orbitals {tuple(r['orbitals'])}"
-        f"   measured {_fmt_char(r['measured'])}"
-        f"   declared {_fmt_char(r['declared'])}"
-        for r in rows if int(r["ind"]) in set(broken_u))
+        f"    #{r.ind:<4d} {r.name:<14s} orbitals {tuple(r.orbitals)}"
+        f"   measured {_fmt_char(r.measured)}"
+        f"   declared {_fmt_char(r.declared)}"
+        for r in rows if int(r.ind) in set(broken_u))
     return Refusal(
         "declaration_breaks_group",
         f"the declared orbital content is not covariant under {len(broken_u)} of the "
@@ -399,7 +571,7 @@ def _declaration_breaks(group, assignment, decls, verdict, *, standing, subgroup
             "subgroup": tuple(kept),
             "broken": tuple({"ind": int(i), "name": names[i], "note": why_of[i],
                              "rows": _returned_rows(r for r in rows
-                                                    if int(r["ind"]) == int(i))}
+                                                    if int(r.ind) == int(i))}
                             for i in every),
             "tied": tuple(tuple(int(i) for i in r) for r in readings),
             "checks": _returned_rows(rows),
@@ -417,9 +589,9 @@ def _joint_reason(joint, ind):
     ``ind`` is named.
     """
     for j in joint:
-        if not any(int(ind) in row for row in j["theta"].values()):
+        if not any(int(ind) in row for row in j.theta.values()):
             continue
-        d = j["decl"]
+        d = j.decl
         said = d.get("label") or repr(d.get("spec"))
         orbs = tuple(int(o) for o in d["orbitals"])
         if d.get("partial"):
@@ -712,31 +884,16 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
     here -- a scalar that vanishes, a ratio the hoppings pin -- reads the
     declared tolerance the multiplets were measured at in the same way.
 
-    Returns a mapping — ``"rows"`` the measured-versus-declared table in
-    :attr:`AtomicLimitTable.checks`'s own shape, ``"parts"`` the coupled parts
-    as sets of multiplet orbits, the anchor's first,
-    ``"requirements"`` and ``"scalars"`` one mapping per part, the verdict per
-    operation (``None`` where the declaration breaks it) and the raw scalar,
-    ``"matrices"`` the requirements of each part at the operations declared
-    generator matrices were read at,
-    ``"joint"`` the contents read together, each with what its multiplets carry
-    per operation and the part each is in, ``"by_sectors"`` the contents
-    declared on orbits built by induction, which the sectors alone weigh, each
-    with what its multiplets carry under the representation they are assembled
-    with, ``"reasons"`` one sentence per broken operation, ``"classes"``/``"nclass"``
-    the multiplet orbits, ``"chosen"`` the pinned class scalar at ``(ind,
-    class)``, ``"within"`` the ratio an orbit of a part free of the anchor
-    holds to that part's first at ``(ind, class)``, ``"free"`` the ``(ind,
-    class)`` pairs the hoppings leave open, ``"free_classes"`` the classes free
-    at every operation that was measured, ``"seen"`` what was measured where,
-    ``"blocks"`` the multiplets' own blocks with every orbit of sectors built
-    by induction and its candidates (:func:`_multiplet_blocks`), ``"reversal"`` what time reversal
-    carries on each orbit (:func:`_reversal_scalars`), and ``"anchor"``,
-    ``"reference_orbital"``, ``"declared"``, ``"space_tol"`` and ``"indices"``
-    — what the reading was made about, so that one handed down can be checked
-    against the question being asked — or the :class:`..refusal.Refusal` the
-    multiplet permutation or the block enumeration made.  ``spin`` is the
-    declared :class:`..spin.SpinBasis` itself, or ``None``.
+    Returns the :class:`_Verdict`: the measured-versus-declared table in
+    :attr:`AtomicLimitTable.checks`'s own shape, the coupled parts, what each
+    operation asks of each part's character, the contents read together, the
+    scalars the hoppings pin and the ones they leave open, the multiplets' own
+    blocks (:func:`_multiplet_blocks`), what time reversal carries on each
+    orbit (:func:`_reversal_scalars`), and what the reading was made about, so
+    that one handed down can be checked against the question being asked --
+    or the :class:`..refusal.Refusal` the multiplet permutation or the block
+    enumeration made.  ``spin`` is the declared :class:`..spin.SpinBasis`
+    itself, or ``None``.
     """
     syms = group.symmetries
     positions = [p for p in positions if not bool(syms[p].time_reversal)]
@@ -885,9 +1042,9 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
     # multiplet and free of it otherwise.
     induced_classes = []
     for rec in multiplicity:
-        if rec.get("induced") is None or not rec["n_admitted"]:
+        if rec.induced is None or not rec.n_admitted:
             continue
-        own = frozenset(int(classes[int(c)]) for c in rec["multiplets"])
+        own = frozenset(int(classes[int(c)]) for c in rec.multiplets)
         induced_classes.append(own)
         if ref_cls in own:
             free_classes = free_classes - own
@@ -1173,10 +1330,10 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
 
     for r in pre:
         if "matrices" in r:
-            rows.append(r)                # its scalar was read off the matrices
+            rows.append(_Row(**r))        # its scalar was read off the matrices
             continue
         theta, want = complex(r["measured"]), complex(r["declared"])
-        rows.append(dict(r, required=None if abs(theta) <= tol else want / theta))
+        rows.append(_Row(**r, required=None if abs(theta) <= tol else want / theta))
     # EVERY DECLARATION CONSTRAINS ITS OWN PART'S CHARACTER, wherever it sits:
     # what each operation asks of that character, part by part.  An operation
     # the multiplets break is broken in every part, and one two declarations
@@ -1185,13 +1342,13 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
     requirements, scalars, by_matrices = [], [], []
     for i in range(len(parts)):
         req, raw, said = dict(broken), {}, {}
-        _needs_per_operation([r for r in rows if r["part"] == i], req, raw, said,
+        _needs_per_operation([r for r in rows if r.part == i], req, raw, said,
                              tol=tol, roots=roots.get(i, False))
         requirements.append(req)
         scalars.append(raw)
         # ... and what the part's declared matrices ask, which a reading of
         # contents alone does not hear (:func:`_covariant_subgroup`)
-        asked = {int(r["ind"]) for r in rows if r["part"] == i and "matrices" in r}
+        asked = {int(r.ind) for r in rows if r.part == i and r.matrices is not None}
         by_matrices.append({ind: req[ind] for ind in sorted(asked) if ind in req})
         for ind, sentence in said.items():
             why.setdefault(int(ind), sentence)
@@ -1207,22 +1364,21 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
         if not theta:
             continue
         site = int(d["site"])
-        joint.append({"decl": d, "theta": theta,
-                      "part": {int(c): int(part_of[int(classes[int(c)])])
-                               for c in d["channels"]},
-                      "site_group": tuple(int(i) for i in assignment.site_group[site]
-                                          if int(i) in kept_inds),
-                      "table_of": _SiteTableOf(group, assignment, site,
-                                               corep=bool(d.get("corep"))),
-                      "lift_trace": lift_trace})
+        joint.append(_ReadTogether(
+            decl=d, theta=theta,
+            part={int(c): int(part_of[int(classes[int(c)])]) for c in d["channels"]},
+            site_group=tuple(int(i) for i in assignment.site_group[site]
+                             if int(i) in kept_inds),
+            table_of=_SiteTableOf(group, assignment, site, corep=bool(d.get("corep"))),
+            lift_trace=lift_trace))
     # ... and every content declared on an orbit built by induction, which the
     # sectors alone weigh: what its multiplets carry under the representation
     # they are assembled with, at every operation fixing all of them, so that
     # an operation it breaks is said of its own orbitals
     by_sectors = []
     held_by = {int(c): rec for rec in multiplicity
-               if rec.get("induced") is not None and rec["n_admitted"]
-               for c in rec["multiplets"]}
+               if rec.induced is not None and rec.n_admitted
+               for c in rec.multiplets}
     for d in on_induced:
         if not all(int(x) in held_by for x in d["channels"]):
             continue
@@ -1235,11 +1391,11 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
             if d.get("corep") and abs(complex(np.trace(_lift_of(syms[p], su2)))) <= zero:
                 continue                  # a corep content says nothing here
             for x in d["channels"]:
-                got = held_by[int(x)]["candidates"][0]["contents"].get(int(x), {})
+                got = held_by[int(x)].candidates[0]["contents"].get(int(x), {})
                 if ind in got:
                     theta.setdefault(int(x), {})[ind] = complex(got[ind])
         if theta:
-            by_sectors.append({"decl": d, "theta": theta})
+            by_sectors.append(_ReadTogether(decl=d, theta=theta))
 
     # WHAT TIME REVERSAL CARRIES ON EACH ORBIT OF MULTIPLETS, read here once: its
     # own internal factor on every multiplet, times the scalar its solution space
@@ -1276,19 +1432,19 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
         search = _declaration_search(model, group, assignment, spin, validated, layout,
                                      decls, positions, reversal=reversal, sectors=sectors,
                                      tol=tol, max_candidates=max_candidates)
-    return {"rows": tuple(rows), "parts": tuple(parts),
-            "requirements": tuple(requirements), "scalars": tuple(scalars),
-            "matrices": tuple(by_matrices),
-            "joint": tuple(joint), "by_sectors": tuple(by_sectors),
-            "reasons": why,
-            "classes": classes, "nclass": int(nclass), "chosen": chosen, "within": within,
-            "free": frozenset(free), "free_classes": free_classes,
-            "seen": {int(k): frozenset(v) for k, v in seen.items()},
-            "anchor": int(ref), "reference_orbital": int(ref_orb),
-            "declared": _declared_key(decls), "space_tol": float(space_tol),
-            "indices": frozenset(int(syms[p].ind) for p in positions),
-            "blocks": _MultipletBlocks(measured_of, multiplicity=multiplicity),
-            "reversal": reversal_scalars, "search": search}
+    return _Verdict(rows=tuple(rows), parts=tuple(parts),
+                    requirements=tuple(requirements), scalars=tuple(scalars),
+                    matrices=tuple(by_matrices),
+                    joint=tuple(joint), by_sectors=tuple(by_sectors),
+                    reasons=why,
+                    classes=classes, nclass=int(nclass), chosen=chosen, within=within,
+                    free=frozenset(free), free_classes=free_classes,
+                    seen={int(k): frozenset(v) for k, v in seen.items()},
+                    anchor=int(ref), reference_orbital=int(ref_orb),
+                    declared=_declared_key(decls), space_tol=float(space_tol),
+                    indices=frozenset(int(syms[p].ind) for p in positions),
+                    blocks=_MultipletBlocks(measured_of, multiplicity=multiplicity),
+                    reversal=reversal_scalars, search=search)
 
 
 def _declaration_search(model, group, assignment, spin, validated, layout, decls, positions,
@@ -1358,7 +1514,7 @@ def _needs_per_operation(rows, req, raw, why, *, tol=CHARACTER, roots=False):
     """
     by_ind: dict = {}
     for r in rows:
-        by_ind.setdefault(int(r["ind"]), []).append(r)
+        by_ind.setdefault(int(r.ind), []).append(r)
     for ind, group_rows in by_ind.items():
         if ind in req:                    # the multiplets already broke this operation
             continue
@@ -1366,26 +1522,27 @@ def _needs_per_operation(rows, req, raw, why, *, tol=CHARACTER, roots=False):
         for r in group_rows:
             if need == "broken":
                 break
-            orbs = tuple(r["orbitals"])
-            if r["required"] is None:
-                if "matrices" in r:
+            orbs = tuple(r.orbitals)
+            if r.required is None:
+                if r.matrices is not None:
                     # a declared matrix no scalar carries the measured one onto
                     need = "broken"
                     why[ind] = (f"orbitals {orbs} are declared "
                                 f"{_stated(r, 'declared')} under this operation, and the "
                                 f"hoppings carry them with {_stated(r, 'measured')} up to "
                                 "one scalar, which is no multiple of it")
-                elif abs(complex(r["declared"])) > tol:
+                elif abs(complex(r.declared)) > tol:
                     need = "broken"
                     why[ind] = (f"orbitals {orbs} are declared "
-                                f"{_fmt_char(r['declared'])} under this operation, and "
+                                f"{_fmt_char(r.declared)} under this operation, and "
                                 "the character the hoppings carry them with vanishes")
                 continue
-            lam = complex(r["required"])
+            lam = complex(r.required)
             if need is None:
                 need, first = lam, r
-            elif abs(need - lam) > tol and ("matrices" in r or "matrices" in first):
-                why[ind] = (f"the declarations of orbitals {tuple(first['orbitals'])} and "
+            elif abs(need - lam) > tol and (r.matrices is not None
+                                            or first.matrices is not None):
+                why[ind] = (f"the declarations of orbitals {tuple(first.orbitals)} and "
                             f"{orbs} ask their part's one-dimensional character for "
                             f"{_fmt_char(need)} and {_fmt_char(lam)} under this operation, "
                             "and it takes one value")
@@ -1393,16 +1550,16 @@ def _needs_per_operation(rows, req, raw, why, *, tol=CHARACTER, roots=False):
             elif abs(need - lam) > tol:
                 # both measured characters are nonzero here: a row whose
                 # measured character vanishes carries no requirement
-                ratio = complex(r["measured"]) / complex(first["measured"])
-                base = complex(first["declared"])
-                said = (f"state {_fmt_char(complex(r['declared']) / base)}"
+                ratio = complex(r.measured) / complex(first.measured)
+                base = complex(first.declared)
+                said = (f"state {_fmt_char(complex(r.declared) / base)}"
                         if abs(base) > tol else "are not in that ratio")
-                why[ind] = (f"relative to orbitals {tuple(first['orbitals'])}, the "
+                why[ind] = (f"relative to orbitals {tuple(first.orbitals)}, the "
                             f"hoppings carry orbitals {orbs} with {_fmt_char(ratio)} "
                             f"under this operation, and the declarations "
-                            f"({tuple(first['orbitals'])} "
-                            f"{_fmt_char(first['declared'])}, {orbs} "
-                            f"{_fmt_char(r['declared'])}) {said}")
+                            f"({tuple(first.orbitals)} "
+                            f"{_fmt_char(first.declared)}, {orbs} "
+                            f"{_fmt_char(r.declared)}) {said}")
                 need = "broken"
         if need is None:
             continue
@@ -1413,7 +1570,7 @@ def _needs_per_operation(rows, req, raw, why, *, tol=CHARACTER, roots=False):
         if roots and min(abs(need - 1.0), abs(need + 1.0)) > tol:
             if abs(abs(need) - 1.0) > tol:
                 req[ind] = None
-                why[ind] = (f"orbitals {tuple(first['orbitals'])} are declared "
+                why[ind] = (f"orbitals {tuple(first.orbitals)} are declared "
                             f"{_stated(first, 'declared')} under this operation and "
                             f"the hoppings carry them with {_stated(first, 'measured')}, "
                             f"a ratio of {_fmt_char(need)} that is not a phase, and so "
@@ -1422,7 +1579,7 @@ def _needs_per_operation(rows, req, raw, why, *, tol=CHARACTER, roots=False):
                 req[ind] = complex(need) / abs(need)
         elif min(abs(need - 1.0), abs(need + 1.0)) > tol:
             req[ind] = None
-            why[ind] = (f"orbitals {tuple(first['orbitals'])} are declared "
+            why[ind] = (f"orbitals {tuple(first.orbitals)} are declared "
                         f"{_stated(first, 'declared')} under this operation and the "
                         f"hoppings carry them with {_stated(first, 'measured')}, a "
                         f"ratio of {_fmt_char(need)} that is not a sign: an antiunitary "
@@ -1439,9 +1596,9 @@ def _stated(row, which) -> str:
     A character, or for a declaration of generator matrices the matrix itself,
     which is what was declared and what the hoppings carry.
     """
-    if "matrices" in row:
-        return _sitechars._fmt_matrix(row["matrices"][0 if which == "declared" else 1])
-    return _fmt_char(row[which])
+    if row.matrices is not None:
+        return _sitechars._fmt_matrix(row.matrices[0 if which == "declared" else 1])
+    return _fmt_char(getattr(row, which))
 
 
 def _declared_atoms(d, chan_states, su2, nspin):
@@ -2446,15 +2603,15 @@ def _mismatch_named(decls, rows, admissible, site_tables, *, ref_orb=0):
         """What the rows measured for one declaration ask of its part's character."""
         out = {}
         for r in rows:
-            if tuple(r["orbitals"]) != tuple(d["orbitals"]):
+            if tuple(r.orbitals) != tuple(d["orbitals"]):
                 continue
-            if r["required"] is not None:
-                out[int(r["ind"])] = complex(r["required"])
-            elif abs(complex(r["declared"])) > 1e-6:
-                out[int(r["ind"])] = None
+            if r.required is not None:
+                out[int(r.ind)] = complex(r.required)
+            elif abs(complex(r.declared)) > 1e-6:
+                out[int(r.ind)] = None
         return out
 
-    part_of = {tuple(r["orbitals"]): int(r.get("part", 0)) for r in rows}
+    part_of = {tuple(r.orbitals): int(r.part) for r in rows}
     first = _reference_declaration(decls, ref_orb)
     order = ([first] if first is not None else []) + [d for d in decls if d is not first]
     failed, still_free, left = None, None, {}
@@ -2474,8 +2631,8 @@ def _mismatch_named(decls, rows, admissible, site_tables, *, ref_orb=0):
     measured = {}
     for d in decls:
         measured[tuple(d["orbitals"])] = {
-            int(r["ind"]): complex(r["measured"]) for r in rows
-            if tuple(r["orbitals"]) == tuple(d["orbitals"])}
+            int(r.ind): complex(r.measured) for r in rows
+            if tuple(r.orbitals) == tuple(d["orbitals"])}
     verdict, named = _name_the_mismatch(failed, measured, still_free, decls, site_tables)
     return {"verdict": verdict,
             "named": dict(named, orbitals=tuple(failed["orbitals"]),
@@ -2811,21 +2968,21 @@ def _joint_holds(j, pick, inside, *, tol=CHARACTER):
     (:func:`_holds_part`), an operation of that site group nothing measured
     leaving the question open.
     """
-    d = j["decl"]
+    d = j.decl
     raw = {int(c): {int(g): v for g, v in row.items() if int(g) in inside}
-           for c, row in j["theta"].items()}
+           for c, row in j.theta.items()}
 
     def assigned(c):
-        return pick[j["part"][int(c)]]
+        return pick[j.part[int(c)]]
 
     if not d.get("partial"):
         carried = {c: {g: complex(assigned(c).get(g, 1.0)) * complex(v) for g, v in row.items()}
                    for c, row in raw.items()}
-        return _meets({}, _declared_needs(d, carried, j["lift_trace"]), tol=tol)
-    table = j["table_of"](tuple(int(g) for g in j["site_group"] if int(g) in inside))
+        return _meets({}, _declared_needs(d, carried, j.lift_trace), tol=tol)
+    table = j.table_of(tuple(int(g) for g in j.site_group if int(g) in inside))
     if table is None:                     # pragma: no cover - a site group closes
         return True
-    return _holds_part(d, assigned, raw, {int(d["site"]): table}, j["lift_trace"],
+    return _holds_part(d, assigned, raw, {int(d["site"]): table}, j.lift_trace,
                        unread=True)
 
 
@@ -2874,5 +3031,5 @@ def _returned_rows(rows):
     of the row and stay inside it; a returned row says what was measured and
     what was declared, as characters.
     """
-    return tuple({k: v for k, v in r.items() if k not in ("required", "part", "matrices")}
-                 for r in rows)
+    return tuple({"orbitals": r.orbitals, "ind": r.ind, "name": r.name,
+                  "measured": r.measured, "declared": r.declared} for r in rows)

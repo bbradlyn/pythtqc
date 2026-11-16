@@ -1587,7 +1587,7 @@ def symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=None
         (out, resid), measured = _with_centres(model, orb), _bloch.CHECK_K
     final_trans = np.array([final[perm[r, 0]] + shift[r, 0] - rotations[r] @ final[0]
                             for r in rows])
-    offset = (0.0 - np.asarray(delta) * frame["scale"])[:dim_r] if in_frame else np.zeros(dim_r)
+    offset = (0.0 - np.asarray(delta) * frame.scale)[:dim_r] if in_frame else np.zeros(dim_r)
     return out, {
         "defect_before": _centres._frame_defect(frame, perm, rotations, final_trans, rows),
         "defect_after": _centres._frame_defect(frame, perm, rotations, final_trans, rows,

@@ -6,7 +6,7 @@ pseudospin's copies and the band representation each orbit induces.
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import inspect
 import itertools
 
@@ -41,11 +41,110 @@ from ._labelling import (
     _assembled, _atomic_limit_table, _coupled_parts, _labelling, _wyckoff_sites)
 
 
+@dataclass(frozen=True)
+class _ReadOff:
+    """The discrete choices of a build, measured off the solution spaces of the generators.
+
+    Attributes
+    ----------
+    choices : list or tuple
+        The ``(orientation, factors)`` each branch read cleanly.
+    branches : dict
+        The record of each branch read cleanly, by orientation.
+    reason : str or None
+        Why no branch was read, where none was.
+    record : dict
+        The record of the read-off as the build returns it: every branch, and
+        the size of the enumeration behind it.
+    read : dict
+        The factors read on each branch, ``{orientation: {(ind, orbit): factor}}``.
+    """
+
+    choices: object
+    branches: dict
+    reason: object
+    record: dict
+    read: dict
+
+
+@dataclass(frozen=True)
+class _GateOutcome:
+    """The candidate representations of a build, through the three gates.
+
+    Attributes
+    ----------
+    records : list
+        Every candidate built.
+    distinct : list
+        The candidates grouped where they build the identical representation.
+    covariant : list
+        The groups that carry ``H(k)`` onto itself within the gate.
+    consistent : list
+        Those that also factorize on every site into a character times the
+        group's own internal factor.
+    survivors : list
+        Those that also reproduce the multiplication table.
+    search : dict
+        The record of the search as the build returns it.
+    """
+
+    records: list
+    distinct: list
+    covariant: list
+    consistent: list
+    survivors: list
+    search: dict
+
+
+@dataclass(frozen=True)
+class _PinnedBranch:
+    """The survivors of the gates once a tie between the two orientation branches is settled.
+
+    Attributes
+    ----------
+    survivors : list
+        The candidates left.
+    tie : bool
+        Whether the branch was pinned by convention.
+    note : str or None
+        Why it was, where it was.
+    """
+
+    survivors: list
+    tie: bool
+    note: object
+
+
+@dataclass(frozen=True, eq=False)
+class _PartUnit:
+    """The coupled parts of the crystal settled together, as one block of states.
+
+    Attributes
+    ----------
+    states : ndarray of int
+        Their states.
+    lead : int
+        The multiplet they are settled at.
+    local : dict
+        Each state's position in the block, ``{state: position}``.
+    anchor : bool
+        Whether the block holds the anchor's part.
+    orbitals : tuple of int
+        Their orbitals.
+    """
+
+    states: object
+    lead: int
+    local: dict
+    anchor: bool
+    orbitals: tuple
+
+
 def _no_multiplicity_representation(group, record, layout, kept, syms) -> Refusal:
     r"""``rep_not_multiplicative`` — a conserved pseudospin whose copies no representation fits.
 
     The operators ``H`` conserves on the orbit are a whole matrix algebra on
-    ``record["dim"]`` copies, so every representation of the group on its
+    ``record.dim`` copies, so every representation of the group on its
     states is ``B ⊗ B'`` with ``B`` the factor ``H`` fixes and ``B'`` a
     representation on the copies making up the factor system ``B`` leaves
     them (:class:`.._sectors.InducedOrbit`); no sum of the group's irreducible
@@ -55,7 +154,7 @@ def _no_multiplicity_representation(group, record, layout, kept, syms) -> Refusa
     states: the projective class they carry is one the multiplicity space
     cannot make up.
     """
-    k, orbitals = int(record["dim"]), tuple(record["orbitals"])
+    k, orbitals = int(record.dim), tuple(record.orbitals)
     named = f"{group.name} #{group.number_str}"
     return Refusal(
         "rep_not_multiplicative",
@@ -66,13 +165,13 @@ def _no_multiplicity_representation(group, record, layout, kept, syms) -> Refusa
         f"of {named} with its own factor system needs the copies to carry a "
         f"{k}-dimensional representation making up the factor system the fixed "
         f"factor leaves them, time reversal's square included, and of the "
-        f"{int(record['n_candidates'])} sums of the group's irreducible representations "
+        f"{int(record.n_candidates)} sums of the group's irreducible representations "
         f"with that factor system that have dimension {k}, none does: no "
         f"representation of {named} with its own factor system exists on these "
         f"states.",
         value=0.0, threshold=1.0,
         context={"multiplets": layout, "multiplet": orbitals, "multiplicity": k,
-                 "n_candidates": int(record["n_candidates"]),
+                 "n_candidates": int(record.n_candidates),
                  "indices": tuple(int(syms[p].ind) for p in kept)})
 
 
@@ -885,13 +984,12 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
     space_tol = max(noise_floor(IN_SPACE, eps), float(internal_tol))
     u_inds = [int(syms[p].ind) for p in u_pos]
     verdict = None
-    if _choices is not None and (set(_choices.get("indices", ())) == set(u_inds)
-                                 and _choices.get("declared") == _declared_key(decls)
-                                 and float(_choices.get("space_tol", -1.0)) == space_tol
-                                 and np.array_equal(np.asarray(_choices.get("classes")),
+    if _choices is not None and (set(_choices.indices) == set(u_inds)
+                                 and _choices.declared == _declared_key(decls)
+                                 and float(_choices.space_tol) == space_tol
+                                 and np.array_equal(np.asarray(_choices.classes),
                                                     np.asarray(classes))
-                                 and int(_choices.get("anchor", -1)) == anchor
-                                 and "blocks" in _choices):
+                                 and int(_choices.anchor) == anchor):
         verdict = _choices
     if verdict is None:
         got = _multiplet_blocks(model, group, assignment, spin, validated, layout,
@@ -906,9 +1004,9 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
                                         reversal=T_pos)
         if isinstance(verdict, Refusal):
             return verdict
-    measured_of = verdict["blocks"]
+    measured_of = verdict.blocks
     for record in measured_of.multiplicity:
-        if not record["n_admitted"]:
+        if not record.n_admitted:
             return _no_multiplicity_representation(group, record, layout, kept, syms)
 
     def _internal(p):
@@ -942,8 +1040,8 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
     # read it: its internal factor on every multiplet, times one scalar per
     # orbit -- one on orbitals that are real functions
     reversal = np.ones(ncls, dtype=complex)
-    if T_pos is not None and verdict.get("reversal") is not None:
-        reversal = np.asarray(verdict["reversal"], dtype=complex)
+    if T_pos is not None and verdict.reversal is not None:
+        reversal = np.asarray(verdict.reversal, dtype=complex)
 
     # THE CANDIDATE CHARACTERS: the one-dimensional characters of the group the
     # representation is blind to, single-valued on the orbital factor.  With
@@ -961,29 +1059,29 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
             [{int(k): complex(v) for k, v in chi.items()}
              for chi in _characters_of_subgroup(group, u_inds, roots=True)] or admissible)
 
-    unpinned = verdict["free_classes"]
+    unpinned = verdict.free_classes
     # WHAT THE DECLARATIONS ASK, as the verdict stage read it: one character per
     # coupled part of the crystal, each part's declarations constraining its
     # own.  A declared content not covariant on all of this group breaks
     # operations of it.
     if decls:
-        sub = _covariant_subgroup(group, u_inds, verdict["requirements"],
+        sub = _covariant_subgroup(group, u_inds, verdict.requirements,
                                   unitary_only=not au_pos,
                                   tol=noise_floor(CHARACTER, eps),
-                                  joint=verdict.get("joint", ()),
-                                  search=verdict.get("search"),
-                                  matrices=verdict.get("matrices", ()))
+                                  joint=verdict.joint,
+                                  search=verdict.search,
+                                  matrices=verdict.matrices)
         if isinstance(sub, Refusal):
             return sub
-        if sub["broken"]:
+        if sub.broken:
             # THE DECLARED CONTENT IS NOT COVARIANT ON ALL OF THIS GROUP, and
             # this call was handed a fixed group and cannot lower it.  So the
             # honest answer is the subgroup it IS covariant on -- the group
             # `realized_group` descends to, made by the same function there.
             return _declaration_breaks(
                 group, assignment, decls, verdict,
-                standing=[int(syms[p].ind) for p in kept], subgroup=sub["subgroup"],
-                broken=sub["broken"], readings=sub["candidates"],
+                standing=[int(syms[p].ind) for p in kept], subgroup=sub.subgroup,
+                broken=sub.broken, readings=sub.candidates,
                 not_lowered=("The representation was asked for on this group, which it "
                              "cannot lower."),
                 site_tables=site_tables, admissible=admissible)
@@ -997,7 +1095,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
         """
         if int(cls) in unpinned:
             return 1.0 + 0.0j
-        got = verdict["chosen"].get((int(syms[p_gen].ind), int(cls)))
+        got = verdict.chosen.get((int(syms[p_gen].ind), int(cls)))
         return None if got is None else complex(got)
 
     # ---- 4c. THE COUPLED PARTS OF THE CRYSTAL, as the measurement read them --
@@ -1006,7 +1104,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
     # through others: the anchor's first, then the orbits the hoppings leave
     # free of it, grouped where they pin one another.  Inside a part the orbits
     # carry the ratios the hoppings pin between them.  Derived once, here.
-    coupled_parts = _coupled_parts(classes, unpinned, verdict.get("parts"))
+    coupled_parts = _coupled_parts(classes, unpinned, verdict.parts)
     part_of_class = {int(cls): i for i, part in enumerate(coupled_parts) for cls in part}
     free_lead = {int(cls): int(min(part)) for part in coupled_parts[1:] for cls in part}
 
@@ -1173,16 +1271,16 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
     for held in held_together:
         its = [c for c in range(nchan) if part_of_class.get(int(classes[c]), 0) in held]
         where = sorted(int(a) for c in its for a in chan_states[c])
-        units.append({"states": np.asarray(where, dtype=int),
-                      "lead": _lead_of(its, anchor),
-                      "local": {a: i for i, a in enumerate(where)},
-                      "anchor": 0 in held,
-                      "orbitals": tuple(sorted(int(o) for c in its
-                                               for o in layout._chan_orbs[c]))})
+        units.append(_PartUnit(states=np.asarray(where, dtype=int),
+                               lead=_lead_of(its, anchor),
+                               local={a: i for i, a in enumerate(where)},
+                               anchor=0 in held,
+                               orbitals=tuple(sorted(int(o) for c in its
+                                                     for o in layout._chan_orbs[c]))))
 
     def _part_anchor(unit):
         """The :class:`RepAnchor` of one part's generators, at the part's own lead."""
-        lead, local = int(unit["lead"]), unit["local"]
+        lead, local = int(unit.lead), unit.local
 
         def _anchor(p, anchor_T):
             table = None
@@ -1201,12 +1299,12 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
             return bad
         return Refusal(
             bad.gate,
-            f"the coupled part of the crystal holding orbitals {unit['orbitals']} -- the "
+            f"the coupled part of the crystal holding orbitals {unit.orbitals} -- the "
             f"multiplets the hoppings connect to one another and to nothing else -- was "
             f"settled on its own in {group.name} #{group.number_str}, and its own blocks do "
             f"not settle into a representation of the group: {bad.reason}",
             value=bad.value, threshold=bad.threshold,
-            context=dict(bad.context or {}, part=unit["orbitals"]))
+            context=dict(bad.context or {}, part=unit.orbitals))
 
     def _settled_by_part(Dsearch):
         """``(refusal, D, normalization, anchor_T, DT_n, defect, roots)``, part by part.
@@ -1223,7 +1321,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
         DT_all = None if T_pos is None else np.zeros((nstate, nstate), dtype=complex)
         worst, norm_ref, roots = 0.0, {}, None
         for unit in units:
-            idx = unit["states"]
+            idx = unit.states
             here = dict(tree, nstate=int(len(idx)))
             sub = {p: np.asarray(M, dtype=complex)[np.ix_(idx, idx)] for p, M in Dsearch.items()}
             bad, D_u, norm_u, anchor_u, DT_u, defect_u, roots_u = _settle_unit(
@@ -1239,7 +1337,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
             if T_pos is not None:
                 anchor_n[np.ix_(idx, idx)] = anchor_u
                 DT_all[np.ix_(idx, idx)] = DT_u
-            if unit["anchor"]:
+            if unit.anchor:
                 norm_ref = norm_u
         at = {int(syms[p].ind): p for p in kept}
         normalization = {}
@@ -1376,7 +1474,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
                 # structure holds
                 if orient > 0:
                     for cls in range(ncls):
-                        got = verdict["chosen"].get((ind, int(cls)))
+                        got = verdict.chosen.get((ind, int(cls)))
                         if (int(cls) != anchor_cls and int(cls) not in unpinned
                                 and got is not None):
                             signs[int(cls)] = complex(got)
@@ -1389,7 +1487,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
                                                       int(c)))
                 for cls in led:
                     lead_cls = free_lead.get(int(cls), int(cls))
-                    rel = (verdict.get("within", {}).get((ind, int(cls))) if orient > 0
+                    rel = (verdict.within.get((ind, int(cls))) if orient > 0
                            else None)
                     if rel is None and lead_cls != int(cls) and abs(cls_ratio[lead_cls]) > zero:
                         rel = cls_ratio[int(cls)] / cls_ratio[lead_cls]
@@ -1444,8 +1542,8 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
                 reasons.append(f"branch {orient:+d}: {why}")
         if not choices:
             rec["reason"] = "; ".join(reasons) if reasons else "no branch was read"
-        return {"choices": choices, "branches": branches,
-                "reason": rec["reason"], "record": rec, "read": read_of}
+        return _ReadOff(choices=choices, branches=branches,
+                        reason=rec["reason"], record=rec, read=read_of)
 
     def _build(choices):
         """One candidate record per ``(orientation, combo)``, covariance measured."""
@@ -1563,10 +1661,10 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
              "killed_by": _killed_by(grp)}
             for grp in distinct)
 
-        return {
-            "records": records, "distinct": distinct, "covariant": covariant,
-            "consistent": consistent, "survivors": survivors,
-            "search": {"n_candidates": len(records), "n_distinct": len(distinct),
+        return _GateOutcome(
+            records=records, distinct=distinct, covariant=covariant,
+            consistent=consistent, survivors=survivors,
+            search={"n_candidates": len(records), "n_distinct": len(distinct),
                        "n_covariant": len(covariant), "n_consistent": len(consistent),
                        "n_survivors": len(survivors),
                        "gate": float(tol), "internal_gate": float(internal_tol),
@@ -1587,7 +1685,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
                        "killed_by": {"covariance": len(distinct) - len(covariant),
                                      "internal_factor": len(covariant) - len(consistent),
                                      "product_table": len(consistent) - len(survivors)},
-                       "candidates": candidates}}
+                       "candidates": candidates})
 
     # ---- 6b'. the orientation branch, pinned by convention when the gates tie
     # The internal-factor gate separates the two branches whenever
@@ -1639,8 +1737,8 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
         return True
 
     def _pin_branch(survivors):
-        """``{survivors, tie, note}`` — the tie settled, or left alone."""
-        out = {"survivors": survivors, "tie": False, "note": None}
+        """The :class:`_PinnedBranch` — the tie settled, or left alone."""
+        out = _PinnedBranch(survivors=survivors, tie=False, note=None)
         if len(survivors) != 2:
             return out
         per = {}
@@ -1651,7 +1749,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
         if site_tables and not _one_labelling_apart(per[1][0][0]["normalized"][0],
                                                     per[-1][0][0]["normalized"][0]):
             return out
-        out.update(survivors=[per[1][0]], tie=True, note=(
+        return replace(out, survivors=[per[1][0]], tie=True, note=(
             "the two orientation branches both carry H(k) onto itself, factorize on every "
             "site into (character) x (the group's own internal factor) and reproduce the "
             "multiplication table, and are one "
@@ -1659,13 +1757,13 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
             "the same labellings and site labels are open on both and nothing "
             "measures between them; the branch was pinned by convention to +1, "
             "the intertwiner that carries k -> gk."))
-        return out
 
     # ---- 6c. the read-off, and the enumeration behind it --------------------
     n_enumeration = int(len(phases) ** n_free * len(orients))
-    read = {"choices": (), "branches": {}, "reason": None, "read": {},
-            "record": {"n_enumeration": n_enumeration, "branches": {}, "reason": None,
-                       "notes": []}}
+    read = _ReadOff(choices=(), branches={}, reason=None,
+                    record={"n_enumeration": n_enumeration, "branches": {}, "reason": None,
+                            "notes": []},
+                    read={})
     if strategy == "readoff":
         try:
             read = _read_off()
@@ -1673,18 +1771,18 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
             # The read-off is a way to find the candidate faster; it must never
             # be the reason a build refuses.  An SVD that will not converge is a
             # reason to enumerate, not an error to return.
-            read["reason"] = (f"the projection onto the tensor structure did not "
-                              f"converge ({exc})")
-    read["record"]["n_enumeration"] = n_enumeration
+            read = replace(read, reason=(f"the projection onto the tensor structure did "
+                                         f"not converge ({exc})"))
+    read.record["n_enumeration"] = n_enumeration
     outcome, strategy_used, fallback, pin = None, None, None, None
     declared_tol = float(getattr(validated, "tol", tol))
-    if strategy == "readoff" and read["choices"]:
-        outcome = _gate(_build(read["choices"]))
-        pin = _pin_branch(outcome["survivors"])
-        best = float(outcome["search"]["best"])
-        if len(pin["survivors"]) == 1:
+    if strategy == "readoff" and read.choices:
+        outcome = _gate(_build(read.choices))
+        pin = _pin_branch(outcome.survivors)
+        best = float(outcome.search["best"])
+        if len(pin.survivors) == 1:
             strategy_used = "readoff"
-        elif not outcome["covariant"] and declared_tol > tol and tol < best <= declared_tol:
+        elif not outcome.covariant and declared_tol > tol and tol < best <= declared_tol:
             # WHAT WAS READ IS NEAR-SYMMETRIC: the representation assembled from
             # what the solution spaces measured at the declared tolerance closes
             # it and misses only the exact gate.  That is the verdict -- the
@@ -1702,17 +1800,17 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
                 f"branch {orient:+d}: " + (", ".join(
                     f"generator #{ind} reads {_factor_said(z)} on orbit {c}"
                     for (ind, c), z in sorted(got.items())) or "no orbit read")
-                for orient, got in sorted(read["read"].items(), reverse=True))
+                for orient, got in sorted(read.read.items(), reverse=True))
             fallback = (f"the factors measured between orbits of multiplets ({said}) "
-                        f"do not give one representation: {len(outcome['survivors'])} of "
-                        f"the {outcome['search']['n_distinct']} distinct candidates built "
+                        f"do not give one representation: {len(outcome.survivors)} of "
+                        f"the {outcome.search['n_distinct']} distinct candidates built "
                         "from them carry H(k) onto itself, factorize on every site into "
                         "(character) x (the group's own internal factor) and reproduce the "
                         "multiplication table (the candidates each test removed: "
-                        f"{outcome['search']['killed_by']})")
+                        f"{outcome.search['killed_by']})")
             outcome, pin = None, None
     elif strategy == "readoff":
-        fallback = read["reason"]
+        fallback = read.reason
 
     if outcome is None:
         if n_enumeration > max_candidates:
@@ -1747,20 +1845,20 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
                                for combo in itertools.product(phases, repeat=n_free)))
         strategy_used = "enumerate"
 
-    records, distinct = outcome["records"], outcome["distinct"]
-    covariant, consistent = outcome["covariant"], outcome["consistent"]
-    survivors = outcome["survivors"]
-    spectrum = outcome["search"]["residuals"]
-    int_spectrum = outcome["search"]["internal_residuals"]
-    prod_spectrum = outcome["search"]["product_residuals"]
+    records, distinct = outcome.records, outcome.distinct
+    covariant, consistent = outcome.covariant, outcome.consistent
+    survivors = outcome.survivors
+    spectrum = outcome.search["residuals"]
+    int_spectrum = outcome.search["internal_residuals"]
+    prod_spectrum = outcome.search["product_residuals"]
 
     # the branch tie of step 6b', measured on the candidate set that was accepted
     if pin is None:
         pin = _pin_branch(survivors)
-    survivors = pin["survivors"]
-    branch_tie, branch_note = pin["tie"], pin["note"]
+    survivors = pin.survivors
+    branch_tie, branch_note = pin.tie, pin.note
 
-    search_record = dict(outcome["search"])
+    search_record = dict(outcome.search)
     # The headline read-off numbers describe **the read that produced the
     # accepted representation** -- the surviving branch.  The losing branch's
     # numbers are a measurement of a candidate nobody kept (on a generator whose
@@ -1772,7 +1870,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
     accepted = {}
     if strategy_used == "readoff" and len(survivors) == 1:
         won = int(survivors[0][0]["orientation"])
-        accepted = {won: read["branches"][won]} if won in read["branches"] else {}
+        accepted = {won: read.branches[won]} if won in read.branches else {}
     search_record.update({
         "strategy": strategy_used,
         "requested": str(strategy),
@@ -1786,7 +1884,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
                               for g in b["generators"].values()), default=float("nan")),
         "ratios": {k: v for b in accepted.values() for k, v in b["ratios"].items()},
         "defects": {k: v for b in accepted.values() for k, v in b["defects"].items()},
-        "readoff": read["record"]})
+        "readoff": read.record})
     search = search_record
     if _search_record is not None:
         # the record of the search, handed back where asked beside a refusal,
@@ -1984,12 +2082,12 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
     if site_tables:
         raw, worst = _multiplet_characters(D, syms, u_pos, cperm, layout, prod)
         measured_at = {}
-        for r in verdict["rows"]:
-            measured_at.setdefault(tuple(int(o) for o in r["orbitals"]), set()).add(
-                int(r["ind"]))
-        for j in tuple(verdict.get("joint", ())) + tuple(verdict.get("by_sectors", ())):
-            measured_at.setdefault(tuple(int(o) for o in j["decl"]["orbitals"]), set()).update(
-                int(g) for row in j["theta"].values() for g in row)
+        for r in verdict.rows:
+            measured_at.setdefault(tuple(int(o) for o in r.orbitals), set()).add(
+                int(r.ind))
+        for j in tuple(verdict.joint) + tuple(verdict.by_sectors):
+            measured_at.setdefault(tuple(int(o) for o in j.decl["orbitals"]), set()).update(
+                int(g) for row in j.theta.values() for g in row)
         choice = _labelling(D, raw, decls, pool=pool, model=model, group=group,
                             assignment=assignment, layout=layout,
                             syms=syms, u_pos=u_pos, cperm=cperm, classes=classes,
@@ -1997,16 +2095,16 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
                             site_tables=site_tables, measured_at=measured_at,
                             multiplicity=measured_of.multiplicity)
         D = _assembled(D, choice, syms, layout)
-        limits = _atomic_limit_table(choice["raw"], worst, decls, choice, group=group,
+        limits = _atomic_limit_table(choice.raw, worst, decls, choice, group=group,
                                      assignment=assignment, model=model, layout=layout,
-                                     syms=syms, kept=kept, checks=verdict["rows"],
+                                     syms=syms, kept=kept, checks=verdict.rows,
                                      pool=pool, site_tables=site_tables, ident=ident,
                                      note=char_note, spin=spin, ref_chan=ref_chan)
         # A CONSERVED PSEUDOSPIN'S CHOICE, on the record: the site content
         # chosen for its copies, and every content the group's table admits
         # beside it, in the order the key ranks them.
-        if choice["spaces"]:
-            limits = _with_multiplicity_spaces(limits, choice["spaces"], group, assignment)
+        if choice.spaces:
+            limits = _with_multiplicity_spaces(limits, choice.spaces, group, assignment)
 
     # ---- 8. everything the object claims, re-measured ----------------------
     residuals, norm_res, anchor_res = {}, {}, {}
@@ -2117,27 +2215,27 @@ def _with_multiplicity_spaces(table, chosen, group, assignment):
     wyckoff = _wyckoff_sites(group, assignment)
     spaces, marked = [], set()
     for got in chosen:
-        rec = got["record"]
-        site = int(rec["site"])
+        rec = got.record
+        site = int(rec.site)
         tab = table.site_tables.get(site)
         here = wyckoff.get(site)
         # how many Wannier functions of the copies one site holds: its orbitals,
         # or its declared spinor pairs
         on_site = set(int(o) for o in assignment.site_orbitals[site])
-        held = sum(1 for o in rec["orbitals"] if int(o) in on_site)
+        held = sum(1 for o in rec.orbitals if int(o) in on_site)
         spaces.append(MultiplicitySpace(
-            orbitals=tuple(int(o) for o in rec["orbitals"]),
+            orbitals=tuple(int(o) for o in rec.orbitals),
             wyckoff="" if here is None else f"{int(here.multiplicity)}{here.letter}",
-            dim=int(rec["dim"]), content=_named_content(tab, got["content"])[0],
+            dim=int(rec.dim), content=_named_content(tab, got.content)[0],
             contents=tuple(_named_content(tab, other)[0] or "(unnamed)"
-                           for other in got["contents"]),
-            n_representations=int(rec["n_admitted"]),
-            determined_by=("declaration" if got.get("declared") else
-                           "lowest-l" if int(rec["n_admitted"]) > 1 else "hamiltonian"),
+                           for other in got.contents),
+            n_representations=int(rec.n_admitted),
+            determined_by=("declaration" if got.declared else
+                           "lowest-l" if int(rec.n_admitted) > 1 else "hamiltonian"),
             _per_site=held // (2 if table.spin is not None else 1),
             _pairs=table.spin is not None))
-        if int(got.get("open", len(got["contents"]))) > 1:
-            marked |= {int(o) for o in rec["orbitals"]}
+        if int(got.open) > 1:
+            marked |= {int(o) for o in rec.orbitals}
     rows = tuple(replace(o, determined_by="lowest-l")
                  if o.orbital in marked and o.determined_by == "hamiltonian" else o
                  for o in table.orbitals)

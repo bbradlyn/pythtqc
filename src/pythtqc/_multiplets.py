@@ -672,7 +672,7 @@ def _induced_blocks(model, group, assignment, spin, validated, layout, kept, cpe
     spin's alone.  An orbit the sectors do not read, an orbit of one copy with
     no representation, or one whose first candidate misses those checks, is
     left to the multiplets' own blocks.  Returns the records (:meth:`.._sectors.InducedOrbit.record`), the
-    orbit itself under ``"induced"``, or the ``rep_search_too_large`` refusal
+    orbit itself as ``induced``, or the ``rep_search_too_large`` refusal
     where the candidates exceed ``max_candidates``.
     """
 
@@ -734,9 +734,9 @@ def _induced_blocks(model, group, assignment, spin, validated, layout, kept, cpe
         if orbit is None:
             continue
         record = orbit.record()
-        if not record["n_admitted"] and int(record["dim"]) < 2:
+        if not record.n_admitted and int(record.dim) < 2:
             continue
-        if record["n_admitted"] and orbit.check(record["candidates"][0]["W"], bases) > gate:
+        if record.n_admitted and orbit.check(record.candidates[0]["W"], bases) > gate:
             continue
         out.append(record)
     return out
@@ -1032,17 +1032,17 @@ def _multiplet_blocks(model, group, assignment, spin, validated, layout, positio
         return got
     for record in got:
         multiplicity.append(record)
-        if not record["n_admitted"]:
+        if not record.n_admitted:
             continue
-        W = record["candidates"][0]["W"]
-        local = {int(a): i for i, a in enumerate(record["states"])}
+        W = record.candidates[0]["W"]
+        local = {int(a): i for i, a in enumerate(record.states)}
         for p in kept:
-            for c in record["multiplets"]:
+            for c in record.multiplets:
                 rows = [local[int(a)] for a in layout._chan_states[int(cperm[p][c])]]
                 cols = [local[int(a)] for a in layout._chan_states[int(c)]]
                 out.setdefault(int(syms[p].ind), {})[int(c)] = W[p][np.ix_(rows, cols)]
-        record["candidates"][0].release()
-        done |= {int(classes[int(c)]) for c in record["multiplets"]}
+        record.candidates[0].release()
+        done |= {int(classes[int(c)]) for c in record.multiplets}
     for cls in range(ncls):
         if cls in done:
             continue
