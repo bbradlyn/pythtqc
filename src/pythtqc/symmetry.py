@@ -750,8 +750,8 @@ class SpaceGroupRep:
     _branch_tie: bool = False
     # the content hash of `model` when the representation was measured on it
     # (`_bloch.model_key`), against which the calls that label bands check that
-    # the model is unedited; `None` where nothing is checked: a model whose terms
-    # carry a parameter, and the decoupled stack a layer's indicator is completed on
+    # the model is unedited; `None` where nothing is checked: the decoupled stack
+    # a layer's indicator is completed on
     _model_key: str | None = field(default=None, repr=False, compare=False)
 
     # -- lookups -----------------------------------------------------------
@@ -867,22 +867,19 @@ class SpaceGroupRep:
         return self.bloch_operator(ind, k, k_out=np.asarray(k, dtype=float).reshape(-1),
                                    **kwargs)
 
-    def covariance(self, k_pts=None, *, params=None):
+    def covariance(self, k_pts=None):
         """``{ind: max_k ‖D H(k) D† − H(Rk)‖}``, each operation's covariance measured again, in the units of ``H``.
 
         On ``k_pts``, or by default at the ``k`` the representation was built
-        at; ``params`` are the values of a model whose terms are given by
-        parameter names.
+        at.
 
         Raises
         ------
         ValueError
-            ``model``, none of whose terms carries a parameter, edited since the
-            representation was measured on it.
+            ``model`` edited since the representation was measured on it.
         """
         k_pts = self._battery if k_pts is None else np.atleast_2d(np.asarray(k_pts, float))
-        params = dict(params or {})
-        bloch = _bloch.evaluator(self.model, params)
+        bloch = _bloch.evaluator(self.model)
         self._check_unedited(bloch)
         H = np.asarray(bloch(k_pts))
         out = {}

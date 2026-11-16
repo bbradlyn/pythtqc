@@ -129,8 +129,8 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
                strategy="readoff", max_candidates=2 ** 20,
                k_pts=None, n_battery=6, tol=None, internal_tol=1e-9,
                product_tol=1e-9, seed=101, _choices=None,
-               _returned=True, _labelled=True, _search_record=None,
-               params=None) -> SpaceGroupRep | Refusal:
+               _returned=True, _labelled=True,
+               _search_record=None) -> SpaceGroupRep | Refusal:
     r"""The matrix each symmetry operation is, on this model's orbitals.
 
     Returns one matrix ``D(g)`` per operation the Hamiltonian obeys: the
@@ -431,8 +431,6 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
         ``_search["product_residuals"]``.
     seed : int, optional
         Seed of the battery's RNG, so the search is reproducible.
-    params : dict, optional
-        Model parameter values, as ``model.hamiltonian`` takes them.
 
     Returns
     -------
@@ -634,7 +632,6 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
         raise ValueError("strategy must be 'readoff' (read the choices off the measured "
                          "solution spaces) or 'enumerate' (the exhaustive search), got "
                          f"{strategy!r}")
-    params = dict(params or {})
     nspin, norb, nstate = int(model.nspin), int(model.norb), int(model.nstate)
 
     # ---- 0. the spin the tables assume and the model does not carry ---------
@@ -723,7 +720,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
     ident = _identity_position(group)
 
     if validated is None:
-        validated = _measure._validate_group(model, group, params=params)
+        validated = _measure._validate_group(model, group)
         if isinstance(validated, Refusal):
             return validated                # the detector's memory limit, as it came
 
@@ -736,8 +733,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
     # it stands, and the build assembles what was read.
     validated = _measure._own_form_once(
         model, group, assignment, spin, validated,
-        tol=(multiplets._tol if isinstance(multiplets, SiteMultiplets) else None),
-        params=params)
+        tol=(multiplets._tol if isinstance(multiplets, SiteMultiplets) else None))
 
     # ---- 1. which operations are candidates for representation -------------
     if operations is None:
@@ -1031,7 +1027,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
 
     # ---- 5. the covariance battery ----------------------------------------
     k_pts = _covariance_battery(group, k_pts, n_battery, seed)
-    bloch = _bloch.evaluator(model, params)
+    bloch = _bloch.evaluator(model)
     H = np.asarray(bloch(k_pts))
     if tol is None:
         # the rounding this representation's own arithmetic carries, measured
@@ -1995,7 +1991,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
             measured_at.setdefault(tuple(int(o) for o in j["decl"]["orbitals"]), set()).update(
                 int(g) for row in j["theta"].values() for g in row)
         choice = _labelling(D, raw, decls, pool=pool, model=model, group=group,
-                            assignment=assignment, layout=layout, params=params,
+                            assignment=assignment, layout=layout,
                             syms=syms, u_pos=u_pos, cperm=cperm, classes=classes,
                             parts=coupled_parts, ref_chan=ref_chan,
                             site_tables=site_tables, measured_at=measured_at,
@@ -2101,7 +2097,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
         _battery=k_pts, multiplets=layout, _normalization=normalization,
         _time_reversal=None if T_pos is None else int(syms[T_pos].ind),
         characters=limits, spin=spin, _branch_tie=bool(branch_tie),
-        _model_key=_bloch.kept_key(model, bloch))
+        _model_key=bloch.key)
     return _with_tables_unavailable(_with_band_representations(built) if _returned
                                     else built)
 
@@ -2200,14 +2196,14 @@ _BUILD_KEYWORDS = frozenset(name for name, p in inspect.signature(_build_rep).pa
                             if p.kind is p.KEYWORD_ONLY)
 
 
-def _exact_gate(model, group, validated, build_kw=None, params=None) -> float:
+def _exact_gate(model, group, validated, build_kw=None) -> float:
     r"""The covariance gate :func:`_build_rep` applies to this model and operation set.
 
     The same :func:`covariance_gate`, measured the way the build measures it:
     ``|G|`` the operations it represents, ``N`` the model's states and
     ``max|H|`` on its battery.  ``build_kw`` are the build's own keywords, of
     which ``operations=``, ``include_vacuum_ops=``, ``k_pts=``, ``n_battery=``
-    and ``seed=`` bear on the gate, and ``params`` the model's parameter values.
+    and ``seed=`` bear on the gate.
     A detection record carries neither ``N`` nor ``max|H|``, so
     :func:`..groups.realized_group` and :func:`..symmetrization.symmetrize`
     measure the gate here and classify operations against it.
@@ -2224,5 +2220,5 @@ def _exact_gate(model, group, validated, build_kw=None, params=None) -> float:
     n_operations = sum(1 for i in indices
                        if padded or not _moves_padded(syms[i], group.vacuum_dirs))
     k_pts = _covariance_battery(group, _given("k_pts"), _given("n_battery"), _given("seed"))
-    H = np.asarray(_bloch.hamiltonian(model, k_pts, params))
+    H = np.asarray(_bloch.hamiltonian(model, k_pts))
     return covariance_gate(n_operations, int(model.nstate), float(np.abs(H).max()))

@@ -8,8 +8,8 @@ Two objects are measured here.
     :func:`~pythtqc.groups.realized_group` call makes.  The tests are: a
     ``_validate_group`` with a context returns what one without a context
     returns, field for field and array for array; the context is rebuilt by
-    exactly the things the answer depends on — the Hamiltonian, the k-set, the
-    model parameters, ``tol``, ``window``, ``solver`` — and by nothing else; and
+    exactly the things the answer depends on — the Hamiltonian, the k-set,
+    ``tol``, ``window``, ``solver`` — and by nothing else; and
     the two steps of the pipeline that change the Hamiltonian, the position pass
     and the hopping projection, both invalidate it in a real call.
 
@@ -33,6 +33,7 @@ from pythtb.models import kane_mele
 import tqc_models
 from pythtqc import groups as tqg
 from pythtqc.refusal import Refusal
+from pythtqc import _bloch
 from pythtqc import _layers
 from pythtqc import _detector
 from pythtqc import _measure
@@ -226,7 +227,7 @@ def test_a_second_measurement_of_the_same_group_is_all_hits(monkeypatch):
 def test_the_context_is_rebuilt_by_exactly_what_the_answer_depends_on():
     """Everything the solve is a function of is in the key, and nothing else is.
 
-    The Hamiltonian, the k-set, the parameters, ``tol``, ``cut``, ``window``,
+    The Hamiltonian, the k-set, ``tol``, ``cut``, ``window``,
     ``solver``, the ceiling of the detector's memory and the floor below which
     its nullspace keeps a candidate -- each checked by moving it alone.
     ``cut`` is one of them: two calls differing only in where the nullspace is
@@ -247,19 +248,19 @@ def test_the_context_is_rebuilt_by_exactly_what_the_answer_depends_on():
     grid = _measure._detection_grid(int(model.lattice.dim_k), 4)
     ctx = _measure._MeasurementContext()
 
-    first = ctx.bind(model, grid, {}, tol=1e-8, cut=None, window=None, solver="eigen")
+    first = ctx.bind(model, grid, tol=1e-8, cut=None, window=None, solver="eigen")
     assert ctx.rebuilds == 1
     ctx.remember(("probe",), "a solution space")
 
     # the same request, again: nothing moves
-    assert ctx.bind(model, grid, {}, tol=1e-8, cut=None, window=None,
+    assert ctx.bind(model, grid, tol=1e-8, cut=None, window=None,
                     solver="eigen") is first
     assert ctx.rebuilds == 1 and ctx.spaces
 
     # a bit-identical copy: still nothing moves
     twin = _copy_model(model)
     assert twin is not model
-    assert ctx.bind(twin, grid, {}, tol=1e-8, cut=None, window=None,
+    assert ctx.bind(twin, grid, tol=1e-8, cut=None, window=None,
                     solver="eigen") is first
     assert ctx.rebuilds == 1, "a copy of the same Hamiltonian is the same Hamiltonian"
     assert ctx.spaces, "and its solution spaces are the same spaces"
@@ -274,19 +275,18 @@ def test_the_context_is_rebuilt_by_exactly_what_the_answer_depends_on():
         ("a declared cut", dict(cut=1e-6)),
         ("a declared window", dict(window=1e-3)),
         ("a different solver", dict(solver="stacked")),
-        ("a different parameter", dict(params={"p": 0.1})),
         ("a raised ceiling on the detector's memory", dict(max_bytes=2e9)),
         ("a floor a declared precision sets at the gate", dict(floor=1e-8)),
     ]
     for what, override in changed:
         ctx = _measure._MeasurementContext()
-        base = ctx.bind(model, grid, {}, tol=1e-8, cut=None, window=None,
+        base = ctx.bind(model, grid, tol=1e-8, cut=None, window=None,
                         solver="eigen")
         ctx.remember(("probe",), "a solution space")
-        call = dict(model=model, k_pts=grid, params={}, tol=1e-8, cut=None,
+        call = dict(model=model, k_pts=grid, tol=1e-8, cut=None,
                     window=None, solver="eigen", max_bytes=None, floor=None)
         call.update(override)
-        again = ctx.bind(call["model"], call["k_pts"], call["params"],
+        again = ctx.bind(call["model"], call["k_pts"],
                          tol=call["tol"], cut=call["cut"], window=call["window"],
                          solver=call["solver"], max_bytes=call["max_bytes"],
                          floor=call["floor"])
@@ -298,33 +298,16 @@ def test_the_context_is_rebuilt_by_exactly_what_the_answer_depends_on():
     # the grid is rebuilt and sums the Hamiltonian as it now is
     same = _copy_model(model)
     ctx = _measure._MeasurementContext()
-    base = ctx.bind(same, grid, {}, tol=1e-8, cut=None, window=None, solver="eigen")
+    base = ctx.bind(same, grid, tol=1e-8, cut=None, window=None, solver="eigen")
     before = base.full().copy()
     hop = same.hoppings[0]
     same.set_hop(np.asarray(hop["amplitude"]) + 1e-3, hop["from_orbital"],
                  hop["to_orbital"], list(hop.get("lattice_vector", [0, 0, 0])),
                  mode="set")
-    again = ctx.bind(same, grid, {}, tol=1e-8, cut=None, window=None, solver="eigen")
+    again = ctx.bind(same, grid, tol=1e-8, cut=None, window=None, solver="eigen")
     assert again is not base and ctx.rebuilds == 2, "a model changed in place is new content"
     assert np.array_equal(again.full(), same.hamiltonian(k_pts=grid, flatten_spin_axis=True))
     assert not np.array_equal(again.full(), before)
-
-    # the parameter case `repr` could not see: numpy truncates an array's repr past
-    # 1000 elements, so two arrays differing only beyond that point repr alike.  Found
-    # 2026-09-09 -- on the repr-keyed context they bound to ONE grid.  The key hashes
-    # dtype, shape and bytes now; an equal copy still shares, a different value rebuilds.
-    a = np.zeros(2000)
-    b = a.copy()
-    b[1000] = 1.0
-    assert repr(a) == repr(b), "the premise: repr cannot tell them apart"
-    ctx = _measure._MeasurementContext()
-    one = ctx.bind(model, grid, {"p": a}, tol=1e-8, cut=None, window=None,
-                   solver="eigen")
-    assert ctx.bind(model, grid, {"p": a.copy()}, tol=1e-8, cut=None, window=None,
-                    solver="eigen") is one, "an equal array is the same request"
-    assert ctx.bind(model, grid, {"p": b}, tol=1e-8, cut=None, window=None,
-                    solver="eigen") is not one
-    assert ctx.rebuilds == 2, "two parameter arrays that differ past index 1000 are two H(k)"
 
 
 def test_the_grid_is_only_served_for_the_mesh_it_was_built_on():
@@ -337,7 +320,7 @@ def test_the_grid_is_only_served_for_the_mesh_it_was_built_on():
     grid = _measure._detection_grid(2, 4)
     ctx = _measure._MeasurementContext()
     assert ctx.grid_for(model, grid) is None, "nothing is bound yet"
-    bound = ctx.bind(model, grid, {}, tol=1e-8, cut=None, window=None, solver="eigen")
+    bound = ctx.bind(model, grid, tol=1e-8, cut=None, window=None, solver="eigen")
     assert ctx.grid_for(model, grid) is bound
     assert ctx.grid_for(model, grid.copy()) is bound, \
         "the same points, a different array"
@@ -384,7 +367,7 @@ def test_the_position_pass_and_the_projection_both_invalidate_the_context():
     # the input Hamiltonian, on the mesh the detector will use (`realized_group`'s
     # own `nk=6`): the first bind is spent here, so the pass and the projection
     # are the two that follow
-    bound = ctx.bind(dirty, _measure._detection_grid(2, 6), {}, tol=1e-8, cut=None,
+    bound = ctx.bind(dirty, _measure._detection_grid(2, 6), tol=1e-8, cut=None,
                      window=None, solver="eigen")
     assert bound is not None and ctx.rebuilds == 1
     shared = _realized._realize(dirty, precision=1e-8, characters={0: "pz"},
@@ -399,6 +382,25 @@ def test_the_position_pass_and_the_projection_both_invalidate_the_context():
         "the last Hamiltonian bound is the projected one the answer is about"
     assert _measure._model_key(dirty) != _measure._model_key(shared.model), \
         "and it is not the one handed in"
+
+    # a parameterized model, its centre off by 1e-8, read under a declared
+    # precision: the position pass rebuilds it, and what is returned is what the
+    # model with the values in place returns
+    for cell in (np.eye(2), np.eye(3)):
+        named = TBModel(Lattice(cell.tolist(), [[1e-8] + [0.0] * (len(cell) - 1)],
+                                periodic_dirs=list(range(len(cell)))))
+        for lv in cell.astype(int).tolist():
+            named.set_hop("t", 0, 0, lv)
+        got = tqg.realized_group(named, characters={0: "s"}, precision=1e-6,
+                                 params={"t": -1.0})
+        want = tqg.realized_group(named.with_parameters(t=-1.0), characters={0: "s"},
+                                  precision=1e-6)
+        assert got.positions["adjusted"] is True, str(got)
+        assert _bloch.model_key(got.model) == _bloch.model_key(want.model)
+        assert got.summary() == want.summary()
+        assert got.operations.summary() == want.operations.summary()
+        assert str(got.rep.characters) == str(want.rep.characters)
+        assert got.source is named
 
 
 # ---------------------------------------------------------------------------

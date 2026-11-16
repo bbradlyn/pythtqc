@@ -281,20 +281,23 @@ def spinless_presentation(model, *, order="interleaved", pairs=None, params=None
         The pairs one by one, up first, every orbital in exactly one, in place
         of ``order``.
     params : dict, optional
-        Values for a model whose terms are given by parameter names.
+        The scalar value of each parameter of the model, keyed by name:
+        ``{"lam": 0.3}``.
 
     Returns
     -------
     (pythtb.TBModel, SpinBasis) or Refusal
-        The spinless model, and its pairing, which
-        ``realized_group(flat, spin=sb)`` reads as the native model's spin.  A
-        ``Refusal`` in its place is falsy.
+        The spinless model, its parameters evaluated at ``params``, and its
+        pairing, which ``realized_group(flat, spin=sb)`` reads as the native
+        model's spin.  A ``Refusal`` in its place is falsy.
 
     Raises
     ------
     ValueError
         ``pairs`` that do not hold every orbital once, or an ``order`` other
-        than ``"interleaved"`` or ``"blocked"``.
+        than ``"interleaved"`` or ``"blocked"``; or a name in ``params`` that is
+        not a parameter of the model, a parameter given no value, or a value that
+        is not a number.
     ..refusal.InternalError
         The two Hamiltonians differ by more than the rounding of their phases,
         which a relabelling of the states cannot make them: a defect to report.
@@ -314,6 +317,7 @@ def spinless_presentation(model, *, order="interleaved", pairs=None, params=None
     """
     from pythtb import Lattice, TBModel
 
+    model = _bloch.bound(model, params)
     nspin = int(model.nspin)
     if nspin != 2:
         return Refusal(
@@ -391,8 +395,8 @@ def spinless_presentation(model, *, order="interleaved", pairs=None, params=None
     Pi = sb.permutation_matrix
     k = np.random.default_rng(_bloch.CHECK_SEED).uniform(
         -0.5, 0.5, size=(_bloch.CHECK_K, int(model.lattice.dim_k)))
-    a = np.asarray(_bloch.hamiltonian(model, k, params))
-    b = np.asarray(_bloch.hamiltonian(out, k, params))
+    a = np.asarray(_bloch.hamiltonian(model, k))
+    b = np.asarray(_bloch.hamiltonian(out, k))
     worst = float(np.abs(b - Pi @ a @ Pi.T).max())
     gate = _PRESENTATION_RELATIVE * float(np.abs(a).max())
     if worst > gate:

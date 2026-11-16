@@ -216,27 +216,13 @@ four equally near. Its names are read about the one `irrep` chooses on the cell,
 choice in every run; another of them would give the same bands other names, and nothing
 about the model picks one.
 
-## Parametrized models
+## A block as the value of a parameter
 
-pythtb lets a hopping or an on-site energy be named and its value given at the call
-through `params=`. Wherever the call rebuilds the model, for every layer and wherever a
-declared precision moves a centre, the named term does not survive the rebuild and pythtb
-stops; binding the parameters first is the route:
-
-```python
-square = TBModel(Lattice([[1.0, 0.0], [0.0, 1.0]], [[0.0, 0.0]], periodic_dirs=[0, 1]))
-square.set_hop("t", 0, 0, [1, 0])                    # a hopping named, its value given later
-square.set_hop("t", 0, 0, [0, 1])
-try:
-    tqc.realized_group(square, params={"t": -1.0})
-except ValueError as error:
-    print("ValueError:", error)
-#  ValueError: Unknown parameter name(s): t
-print(repr(tqc.realized_group(square.with_parameters(t=-1.0))))
-#  RealizedGroup(P4mm1' #99.164; on a substrate (the default), the free-standing group #123.340 agrees)
-```
-
-A sweep over a parameter is one call per value.
+pythtb's `hamiltonian` takes a `2×2` block as the value of a parameter of a
+spinful model. `realized_group` and the other calls that take a model take a
+number for each parameter and raise `ValueError` for a block. A hopping that
+acts on spin is written as a function of its parameter that returns the block
+([a model with free parameters](../guide/group.md#a-model-with-free-parameters)).
 
 ## Feature-resolved and Wilson-loop verdicts
 

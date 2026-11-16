@@ -171,7 +171,7 @@ fields, so the unpacked `rep` is `r.rep`. The rest are reached by name.
 
 | field | what it holds |
 |---|---|
-| `model` | the model measured, which every later call takes: a layer's slab presentation, its `H(k)` measured identical to the layer's, or through the move `presentation` records; a three-dimensional model itself; the symmetrized model, where one was made |
+| `model` | the model measured, which every later call takes: a layer's slab presentation, its `H(k)` measured identical to the layer's, or through the move `presentation` records; a three-dimensional model itself, or with the values of its parameters in place; the symmetrized model, where one was made |
 | `source` | the model exactly as it was handed in |
 | `group` | the space group the Hamiltonian obeys ([`GroupData`](#groupdata)) |
 | `assignment` | the Wyckoff orbit of each orbital, and how each operation moves the sites ([`OrbitalAssignment`](#orbitalassignment)) |

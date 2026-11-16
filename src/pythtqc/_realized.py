@@ -72,7 +72,9 @@ class RealizedGroup:
     Attributes
     ----------
     model : pythtb.TBModel
-        The model every later call takes: a layer's slab, or ``H`` symmetrized.
+        The model every later call takes: a layer's slab; a three-dimensional
+        model itself, or with the values of its parameters in place; or ``H``
+        symmetrized.
     source : pythtb.TBModel
         The model as it was handed in.
     group : GroupData
@@ -473,7 +475,8 @@ def realized_group(model, *, typat=None, environment=None, cross_check=True,
         candidates) and on the memory of the symmetric projection (default
         ``1e9`` bytes).
     params : dict, optional
-        Values for a model whose terms are given by parameter names.
+        The scalar value of each parameter of the model, keyed by name:
+        ``{"lam": 0.3}``.
 
     Returns
     -------
@@ -488,8 +491,10 @@ def realized_group(model, *, typat=None, environment=None, cross_check=True,
         for a layer; ``r.beyond_grey``, operations combined with time reversal
         that hold where time reversal does not; ``r.precision``,
         ``r.positions`` and ``r.symmetrization``, for a numerical model;
-        ``r.conserved``, symmetry beyond the crystal's.  A ``Refusal`` in its
-        place is falsy and names what stopped the call.
+        ``r.conserved``, symmetry beyond the crystal's.  For a parameterized
+        model, ``r.model`` is the model with its parameters evaluated at
+        ``params``, and ``r.source`` the model as handed in.  A ``Refusal`` in
+        its place is falsy and names what stopped the call.
 
     Raises
     ------
@@ -497,7 +502,9 @@ def realized_group(model, *, typat=None, environment=None, cross_check=True,
         Two of the package's own measurements of one H disagree: a defect to
         report, with the model and the call.
     ValueError
-        A malformed argument, before anything is measured.
+        A malformed argument, before anything is measured; among them, a name
+        in ``params`` that is not a parameter of the model, a parameter given no
+        value, or a value that is not a number.
 
     Warns
     -----
@@ -564,14 +571,19 @@ def realized_group(model, *, typat=None, environment=None, cross_check=True,
         1c (3m): orbital 0, -E1
         1b (3m): orbital 1, -E1
     """
-    return _realize(model, typat=typat, environment=environment,
-                    cross_check=cross_check, decorations=decorations, dz=dz, c=c,
-                    nk=nk, tol=tol, cut=cut, window=window,
-                    symmetrize=symmetrize, max_bytes=max_bytes, position_tol=position_tol,
-                    precision=precision, spinor=spinor, spin=spin, descend=descend,
-                    symprec=symprec, params=params, selection_only=False, context=None,
-                    characters=characters, multiplets=multiplets,
-                    max_candidates=max_candidates)
+    bound = _bloch.bound(model, params)
+    got = _realize(bound, typat=typat, environment=environment,
+                   cross_check=cross_check, decorations=decorations, dz=dz, c=c,
+                   nk=nk, tol=tol, cut=cut, window=window,
+                   symmetrize=symmetrize, max_bytes=max_bytes, position_tol=position_tol,
+                   precision=precision, spinor=spinor, spin=spin, descend=descend,
+                   symprec=symprec, selection_only=False, context=None,
+                   characters=characters, multiplets=multiplets,
+                   max_candidates=max_candidates)
+    # `source` is the model exactly as it was handed in, its parameters still free
+    if bound is not model and isinstance(got, RealizedGroup):
+        got = replace(got, source=model)
+    return got
 
 
 def _realized_selection(model, *, context=None, **kw):
@@ -668,7 +680,7 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
              symmetrize="auto", max_bytes=1e9, position_tol=None,
              precision=None, spinor=None, spin=None, descend=True,
              symprec=DEFAULT_FINDER, check=True, n_check=_bloch.CHECK_K,
-             seed=_bloch.CHECK_SEED, params=None,
+             seed=_bloch.CHECK_SEED,
              selection_only=False, context=None, tolerances=None, **build_kw):
     """The whole pipeline, with the knobs the public signature does not carry.
 
@@ -700,7 +712,7 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
                          "measured near-symmetric), True (always project) or False "
                          f"(never), got {symmetrize!r}")
     # everything else goes to `_build_rep` by name: a word it does not take -- a
-    # misspelling, or a model parameter, which travels in `params=` -- is refused
+    # misspelling, or a model's parameter given as a keyword of its own -- is refused
     # here, before the identification runs, rather than by `_build_rep` after it
     unknown = sorted(set(build_kw) - _BUILD_KEYWORDS)
     if unknown:
@@ -827,12 +839,6 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
             "periodic in fewer is refused whatever the dimension of its cell.",
             value=float(len(per)), threshold=2.0,
             context={"periodic_dirs": per, "dim_r": int(model.lattice.dim_r)})
-    params = dict(params or {})
-    # ... and a copy that survives the symmetrizing pass, which replaces `params`
-    # with an empty mapping because what it returns is a model built from numbers.
-    # A layer's other environment is a statement about the model as handed in,
-    # so it is measured with the parameters as handed in.
-    embed_params = dict(params)
     # ONE declaration, resolved once into the tolerances every step judges noise
     # against: the centres', in reduced coordinates, where a relative precision
     # is already absolute; the Hamiltonian's, where it is not, because the
@@ -849,7 +855,7 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
         tolerances = Tolerances.declared(
             model, precision=precision, tol=tol, cut=cut, window=window,
             position_tol=position_tol, symprec=symprec,
-            scale_of=lambda: _max_hamiltonian(model, params=params))
+            scale_of=lambda: _max_hamiltonian(model))
     # A fully periodic model is already its own presentation and its own cell:
     # both preparation steps exist to make a 2D model answerable by a 3D
     # symmetry finder, and there is nothing here for them to do.
@@ -884,7 +890,7 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
         spinor = int(model.nspin) == 2 or spin is not None
 
     measured = dict(labels=labels, spinor=bool(spinor), nk=nk, tolerances=tolerances,
-                    params=params, context=context, spin=spin,
+                    context=context, spin=spin,
                     descend=descend, symmetrize=symmetrize, max_bytes=max_bytes,
                     build_kw=build_kw, returned=not selection_only)
     if three_d:
@@ -909,7 +915,7 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
         read = None
         if tolerances.centre is not None:
             got = _exact_centres(m3, cell, cell_typat, extras=extras, rebuild=rebuild,
-                                 tolerances=tolerances, params=params)
+                                 tolerances=tolerances)
             if isinstance(got, Refusal):
                 return got
             m3, cell, cell_typat, read = got
@@ -923,7 +929,7 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
         got = _layer_realized(model, environment=environment, cross_check=cross_check,
                               typat=typat, decorations=decorations, extras=extras,
                               dz=dz, c=c, check=check, n_check=n_check, seed=seed,
-                              embed_params=embed_params, **measured)
+                              **measured)
         if isinstance(got, Refusal):
             return got
         sel, cross, presented = got
@@ -931,7 +937,7 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
     m3, group, assignment = sel["model"], sel["group"], sel["assignment"]
     validated, cell, cell_typat = sel["validated"], sel["cell"], sel["cell_typat"]
     steps, positions = sel["descent"], sel["positions"]
-    symmetrization, params = sel["symmetrization"], sel["params"]
+    symmetrization = sel["symmetrization"]
     time_reversal, asked = sel["time_reversal"], sel["antiunitary"]
 
     if selection_only:
@@ -961,7 +967,7 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
     # checks that the reading is about the operation set it represents and
     # makes its own where it is not.
     rep = _build_rep(m3, group, assignment, validated=validated, spin=spin,
-                     _choices=sel.get("choices"), params=params, **build_now)
+                     _choices=sel.get("choices"), **build_now)
     if isinstance(rep, Refusal):
         if (rep.gate == "rep_not_covariant"
                 and not (rep.value is not None
@@ -1145,7 +1151,7 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
         # model's numbers would be declared at for the cell's group to hold
         holding = _precision_holding(
             steps, lambda: (tolerances.scale if tolerances.scale is not None
-                            else _max_hamiltonian(model, params=embed_params)))
+                            else _max_hamiltonian(model)))
         precise = ("" if holding is None else
                    " Each operation broken here carries H(k) onto H(gk) in its own form to "
                    f"{holding[0]:.3g} at most, beyond the tolerance "
@@ -1242,8 +1248,8 @@ def _declared_recipe(reduction, spinor=False) -> str:
 
 
 def _layer_realized(model, *, environment, cross_check, typat, decorations, extras,
-                    dz, c, check, n_check, seed, embed_params, labels, spinor, nk,
-                    tolerances, params, context, spin, descend, symmetrize,
+                    dz, c, check, n_check, seed, labels, spinor, nk,
+                    tolerances, context, spin, descend, symmetrize,
                     max_bytes, build_kw, returned):
     r"""A layer's realization: its presentation, its environment's cell, both sides.
 
@@ -1334,7 +1340,7 @@ def _layer_realized(model, *, environment, cross_check, typat, decorations, extr
         m3 = model
     else:
         m3 = _slab_presentation(model, c=c, check=check, n_check=n_check, seed=seed,
-                                params=params, record=presentation)
+                                record=presentation)
 
     # THE ENVIRONMENT'S CELL.  A free-standing layer's cell is its point set as
     # given, so nothing is decorated and `include_vacuum_ops` is on.  A layer on
@@ -1361,7 +1367,7 @@ def _layer_realized(model, *, environment, cross_check, typat, decorations, extr
     read = None
     if tolerances.centre is not None:
         got = _exact_centres(m3, cell, cell_typat, extras=extras, rebuild=rebuild,
-                             tolerances=tolerances, params=params)
+                             tolerances=tolerances)
         if isinstance(got, Refusal):
             return got
         m3, cell, cell_typat, read = got
@@ -1398,7 +1404,7 @@ def _layer_realized(model, *, environment, cross_check, typat, decorations, extr
 
     got = _realized_core(m3, cell, cell_typat, tolerances=tolerances,
                          fully_periodic=False, labels=labels, spinor=spinor,
-                         nk=nk, params=params,
+                         nk=nk,
                          context=context, spin=spin, descend=descend,
                          symmetrize=symmetrize, max_bytes=max_bytes,
                          build_kw=build_kw, returned=returned,
@@ -1445,7 +1451,7 @@ def _layer_realized(model, *, environment, cross_check, typat, decorations, extr
         decorations=decorations, dz=dz, c=c, nk=nk,
         symmetrize=symmetrize, max_bytes=max_bytes,
         spinor=spinor, spin=spin, descend=descend, check=check,
-        n_check=n_check, seed=seed, params=embed_params,
+        n_check=n_check, seed=seed,
         # the tolerances this side resolved: the same Hamiltonian's noise is
         # judged against the same numbers on the other side
         tolerances=tolerances,
@@ -1713,7 +1719,7 @@ def _model_sectors(model, group, assignment, spin, validated, *, tolerances, con
     return got
 
 
-def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk, params,
+def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                    context, spin, descend, symmetrize, max_bytes, build_kw,
                    fully_periodic, returned, declared_wider=None, free_standing=None,
                    centres_read=None):
@@ -2001,7 +2007,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk, p
         centres = None
         if (tolerances.centre is not None
                 and not (positions or {}).get("adjusted")):
-            got = _position_pass(model, group, tolerances, labels, params, centres_read)
+            got = _position_pass(model, group, tolerances, labels, centres_read)
             if isinstance(got, Refusal):
                 return _refused(got)
             before = group
@@ -2027,13 +2033,12 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk, p
             # here, before anything is built, with the number to act on.
             centres_measured = True
             refused = _centres_not_exactly_symmetric(model, group, assignment,
-                                                     tol=tolerances.energy,
-                                                     params=params)
+                                                     tol=tolerances.energy)
             if refused is not None:
                 return _refused(refused)
         got = _validate_group(model, group, nk=nk, tol=tolerances.energy,
                               cut=tolerances.cut, window=tolerances.window,
-                              max_bytes=max_bytes, context=context, params=params,
+                              max_bytes=max_bytes, context=context,
                               _floor=tolerances.floor)
         if isinstance(got, Refusal):
             # the detector's memory limit: fired before the measurement settles,
@@ -2045,7 +2050,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk, p
         # each site's states onto its image's, with the operation's own spin lift
         # on states that carry a spin.  Everything below reads those, and an
         # operation none of whose members has its own form is refuted by it.
-        covariance = _grid_covariance(model, group, nk=nk, params=params, context=context)
+        covariance = _grid_covariance(model, group, nk=nk, context=context)
         validated, own_form = _own_form_read(model, group, assignment, spin, validated,
                                              tolerances=tolerances, covariance=covariance)
         # THE SECTORS, read once, on the first round: the identity's solution
@@ -2128,7 +2133,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk, p
                 contents = _declared_parts_of(decls)
         got = _operation_verdicts(model, group, assignment, validated,
                                   tolerances=tolerances,
-                                  nk=nk, params=params, context=context, spin=spin,
+                                  nk=nk, context=context, spin=spin,
                                   layout=layout, decls=decls,
                                   reference_orbital=int(
                                       build_kw.get("reference_orbital", 0) or 0),
@@ -2288,7 +2293,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk, p
             # will be built with, measured once: the detection record carries
             # neither the number of states nor max|H|
             exact_gate = (None if symmetrize is False
-                          else _exact_gate(model, group, validated, build_kw, params))
+                          else _exact_gate(model, group, validated, build_kw))
             classes = ({} if symmetrize is False
                        else classify_operations(validated, tolerances.energy,
                                                 exact_gate=exact_gate))
@@ -2298,7 +2303,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk, p
             # the build gives each part a character of its own, which leaves
             # every covariance as it was only where the parts are exactly apart
             apart = None if symmetrize is False else _parts_apart(choices, layout, sectors)
-            coupling = 0.0 if apart is None else _parts_coupling(model, apart, params)
+            coupling = 0.0 if apart is None else _parts_coupling(model, apart)
             coupled = apart is not None and coupling > exact_gate
             # ... and what the sectors read at the declared precision keep
             # apart -- IDENTICAL COPIES, and SECTORS SPLITTING MULTIPLETS that no
@@ -2309,7 +2314,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk, p
             held_apart = (None if symmetrize is False
                           else _held_sets(sectors, layout, model, group, assignment, spin,
                                           validated))
-            off = _held_off(model, held_apart, params)
+            off = _held_off(model, held_apart)
             alike = held_apart is not None and max(off.values()) > exact_gate
             # the DECLARED CONTENTS as they stand on this group, not the words
             # they were written as: the projection builds a representation, and
@@ -2335,7 +2340,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk, p
                     and not any(c == "near" for c in classes.values())):
                 provisional, _record = _projection_operators(
                     model, group, assignment, validated, tol=tolerances.energy,
-                    params=params, build_kw={**sym_kw, "spin": spin, "_labelled": False})
+                    build_kw={**sym_kw, "spin": spin, "_labelled": False})
                 if provisional:
                     classes = classify_operations(
                         validated, tolerances.energy, exact_gate=exact_gate,
@@ -2343,7 +2348,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk, p
             if (symmetrize is True or any(c == "near" for c in classes.values())
                     or (symmetrize == "auto" and (layout._near or coupled or alike))):
                 got = _symmetrize(model, group, assignment, validated,
-                                  tol=tolerances.energy, params=params, spin=spin,
+                                  tol=tolerances.energy, spin=spin,
                                   max_bytes=max_bytes,
                                   _parts=(None if apart is None else
                                           {"orbitals": apart, "coupling": coupling}),
@@ -2367,12 +2372,6 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk, p
                     # tolerance, so it is the group identified that is named
                     return _refused(got, settled=True)
                 model, symmetrization = got
-                # The symmetrized model is built from **numbers** at these
-                # parameter values -- the inverse transform writes a hopping
-                # list, not a symbolic one -- so nothing downstream may be handed
-                # `params` again (pythtb raises on a parameter the model does not
-                # have).
-                params = {}
                 assignment = _assign_orbitals(model, group, typat=labels)
                 if isinstance(assignment, Refusal):
                     return _refused(assignment, settled=True)
@@ -2457,13 +2456,13 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk, p
             "validated": validated, "descent": tuple(steps), "parents": tuple(parents),
             "held": tuple(held),
             "positions": positions,
-            "symmetrization": symmetrization, "params": params, "layout": layout,
+            "symmetrization": symmetrization, "layout": layout,
             "time_reversal": time_reversal, "antiunitary": tuple(asked),
             "declared": declared, "choices": choices, "reduction": reduction,
             "unread": unread, "sectors": sectors}
 
 
-def _exact_centres(model, cell, cell_typat, *, extras, rebuild, tolerances, params):
+def _exact_centres(model, cell, cell_typat, *, extras, rebuild, tolerances):
     r"""The centres made exact under a declared precision, before the cell's setting is read.
 
     A declared precision says each centre is known to ``p``
@@ -2555,7 +2554,7 @@ def _exact_centres(model, cell, cell_typat, *, extras, rebuild, tolerances, para
     if np.array_equal(orb, raw):
         moved, resid, n_check = model, 0.0, 0
     else:
-        (moved, resid), n_check = _with_centres(model, orb, params=params), _bloch.CHECK_K
+        (moved, resid), n_check = _with_centres(model, orb), _bloch.CHECK_K
     new_cell, new_typat = rebuild(moved, moved_extras)
     final_trans = np.array([final[perm[g, 0]] + shift[g, 0] - rotations[g] @ final[0]
                             for g in rows])
@@ -2732,7 +2731,7 @@ def _centres_carried(group, frame, perm, shift, rotations, ind_of_row, tolerance
             "refuted": refuted, "tied": ranked if len(ranked) > 1 else (), "note": note}
 
 
-def _position_pass(model, group, tolerances, labels, params, read):
+def _position_pass(model, group, tolerances, labels, read):
     r"""The centres moved onto the largest group of the round's operations that carries them.
 
     The centres the cell was handed in with are read against the group the
@@ -2815,7 +2814,7 @@ def _position_pass(model, group, tolerances, labels, params, read):
     if np.array_equal(orb, raw):
         moved, resid, n_check = model, 0.0, 0
     else:
-        (moved, resid), n_check = _with_centres(model, orb, params=params), _bloch.CHECK_K
+        (moved, resid), n_check = _with_centres(model, orb), _bloch.CHECK_K
     moved_extras = _moved_extras(extras, shifted, len(frame["points"]) - len(extras), dim_r)
     # the group, carried onto the origin the moved centres are exact about: once
     # in the frame the centres were read in, which the defects below are

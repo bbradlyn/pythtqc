@@ -122,7 +122,7 @@ def _choose(options, keys):
     return left[0], fate
 
 
-def _band_fibers(model, group, D, syms, *, params=None):
+def _band_fibers(model, group, D, syms):
     r"""The energy multiplets at the high-symmetry points, solved once.
 
     ``H`` is solved once at every high-symmetry point the tables list, in their
@@ -150,7 +150,7 @@ def _band_fibers(model, group, D, syms, *, params=None):
         wanted.append((str(name), np.asarray(k, dtype=float).reshape(-1), lg))
     if not wanted:
         return ()
-    evals, evecs = _bloch.solve(model, np.array([k for _n, k, _lg in wanted]), params)
+    evals, evecs = _bloch.solve(model, np.array([k for _n, k, _lg in wanted]))
     evals, evecs = np.asarray(evals), np.asarray(evecs)
     if evals.ndim == 1:                     # solve_ham drops a length-1 k axis
         evals, evecs = evals[None], evecs[None]
@@ -538,7 +538,7 @@ def _in_tables_gauge(rec, winner, *, group, layout, syms, u_pos, cperm, site_tab
 
 def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_pos,
                cperm, classes, parts, ref_chan, site_tables, measured_at,
-               multiplicity=(), params=None):
+               multiplicity=()):
     r"""The labelling returned: what each coupled part of the crystal carries, chosen once.
 
     The hoppings fix the representation ``D`` only up to one one-dimensional
@@ -742,7 +742,7 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
 
     def _fibers():
         if "fibers" not in measured:
-            measured["fibers"] = _band_fibers(model, group, D, syms, params=params)
+            measured["fibers"] = _band_fibers(model, group, D, syms)
         return measured["fibers"]
 
     def _share(q, opt):

@@ -908,9 +908,11 @@ def test_the_grid_is_the_models_own_bloch_sum_bit_for_bit():
     sums them with pythtb's own arithmetic, so what it evaluates is
     ``np.array_equal`` to ``model.hamiltonian(k_pts=k, flatten_spin_axis=True,
     **params)`` on the same points: a spinless and a spinful three-dimensional
-    model, a spinful layer and a parametrized one, their eigenpairs against
-    ``solve_ham``, and the errors pythtb stops a request with.  Kept by
-    content, the blocks follow a model changed in place.
+    model, a spinful layer, and a parameterized layer, evaluated at the values
+    of its parameters where it enters; their eigenpairs against ``solve_ham``,
+    and the errors pythtb stops a request with, a name's raised where the model
+    enters.  A model with no parameter enters as itself.  Kept by content, the blocks
+    follow a model changed in place.
 
     One point of the sum holds one phase per lattice vector and per orbital
     and the ``nstate x nstate`` matrix, and that sets the chunk: at a wannier90
@@ -927,23 +929,57 @@ def test_the_grid_is_the_models_own_bloch_sum_bit_for_bit():
                           (tqc_models.fu_kane_mele_z2("strong"), {}),
                           (tqc_models.kane_mele_z2("odd"), {}),
                           (honeycomb, values)):
+        numeric = _bloch.bound(model, params)
+        assert (numeric is model) == (not params), "a model with no parameter enters as itself"
         for nk in (1, 5, 64):
             k = rng.uniform(-0.7, 0.7, size=(nk, int(model.lattice.dim_k)))
             want = model.hamiltonian(k_pts=k, flatten_spin_axis=True, **params)
-            assert np.array_equal(_detector._GridHamiltonians(model, k, params).full(), want)
+            assert np.array_equal(_detector._GridHamiltonians(numeric, k).full(), want)
             evals, evecs = model.solve_ham(k, return_eigvecs=True, flatten_spin_axis=True,
                                            **params)
-            got_evals, got_evecs = _bloch.solve(model, k, params)
+            got_evals, got_evecs = _bloch.solve(numeric, k)
             assert np.array_equal(got_evals, evals) and np.array_equal(got_evecs, evecs)
 
-    # a request pythtb stops stops with pythtb's error
+    # the names, checked where the model enters, with pythtb's error: an undeclared
+    # name, no values at all, and a declared name given no value
     k = rng.uniform(-0.5, 0.5, size=(3, 2))
-    for params, pts in (({}, k), (dict(values, u=1.0), k), (values, None),
-                        (values, k[:, :1])):
+    for params in (dict(values, u=1.0), {}, {"delta": 0.2, "t": -1.0}):
         with pytest.raises(ValueError) as theirs:
-            honeycomb.hamiltonian(k_pts=pts, flatten_spin_axis=True, **params)
+            honeycomb.hamiltonian(k_pts=k, flatten_spin_axis=True, **params)
         with pytest.raises(ValueError) as ours:
-            _bloch.hamiltonian(honeycomb, pts, params)
+            _bloch.bound(honeycomb, params)
+        assert str(ours.value) == str(theirs.value)
+        with pytest.raises(ValueError) as entry:
+            G.realized_group(honeycomb, params=params)
+        assert str(entry.value) == str(theirs.value)
+    # ... and a value that is not a number: a list, each of whose values is one
+    # call, a string, and a 2x2 block on a spinful model
+    spinful = TBModel(Lattice(np.eye(3).tolist(), [[0.0, 0.0, 0.0]], periodic_dirs=[0, 1, 2]),
+                      spinful=True)
+    spinful.set_onsite(["m"])
+    for lv in ([1, 0, 0], [0, 1, 0], [0, 0, 1]):
+        spinful.set_hop(-1.0, 0, 0, lv)
+    for model, params, message in (
+            (honeycomb, dict(values, t=[-1.0, -0.5]),
+             "Parameter 't' must be a scalar. Each value of a parameter is one call."),
+            (honeycomb, dict(values, t="u"), "Parameter 't' must be a scalar."),
+            (spinful, {"m": 0.3 * np.diag([1.0, -1.0])},
+             "Parameter 'm' must be a scalar. A term that acts on spin is written as a "
+             "function of its parameter that returns the 2x2 block: "
+             "set_hop(lambda m: m * sz, ...).")):
+        for enter in (lambda: _bloch.bound(model, params),
+                      lambda: G.realized_group(model, params=params)):
+            with pytest.raises(ValueError) as entry:
+                enter()
+            assert str(entry.value) == message
+
+    # a request pythtb stops stops with pythtb's error
+    bound = _bloch.bound(honeycomb, values)
+    for pts in (None, k[:, :1]):
+        with pytest.raises(ValueError) as theirs:
+            bound.hamiltonian(k_pts=pts, flatten_spin_axis=True)
+        with pytest.raises(ValueError) as ours:
+            _bloch.hamiltonian(bound, pts)
         assert str(ours.value) == str(theirs.value)
 
     # kept by content: the same object, changed in place, is summed as it now is

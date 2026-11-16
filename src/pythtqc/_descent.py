@@ -1521,8 +1521,8 @@ def _orbit_cell(base_cell, base_typat, group, kept, *, points, species, spinor,
         "and the orbit of none of them was identified as exactly the kept operations.")
 
 
-def _centres_not_exactly_symmetric(model, group, assignment, *, tol,
-                                   params) -> Refusal | None:
+def _centres_not_exactly_symmetric(model, group, assignment, *,
+                                   tol) -> Refusal | None:
     r"""Centres whose defect alone breaks operations — refused before anything is built.
 
     In convention I the Bloch phase carries ``e^{2πi k·(R + τ_j − τ_i)}``, so
@@ -1544,7 +1544,7 @@ def _centres_not_exactly_symmetric(model, group, assignment, *, tol,
                                    {int(s.ind): s for s in group.symmetries}))
     if not delta > 0.0:
         return None
-    max_h = _max_hamiltonian(model, params=params)
+    max_h = _max_hamiltonian(model)
     estimate = 2.0 * np.pi * delta * max_h
     if estimate <= float(tol):
         return None
@@ -1931,7 +1931,7 @@ def _translation_held(model, group, assignment, validated, position, *, spin=Non
     return True, D, (0.0 if turn <= noise_floor(SNAP, tol) else turn)
 
 
-def _translation_residual(model, assignment, position, k_pts, params, grid=None):
+def _translation_residual(model, assignment, position, k_pts, grid=None):
     r"""How far ``H(k)`` is from obeying one **pure translation** as written.
 
     For a model that writes every copy of a site in one basis, in pythtb's
@@ -1961,12 +1961,12 @@ def _translation_residual(model, assignment, position, k_pts, params, grid=None)
     # Bloch sum on the same points -- so this measurement does not change, only
     # its cost.
     H = (np.asarray(grid.full()) if grid is not None
-         else np.asarray(_bloch.hamiltonian(model, np.atleast_2d(k_pts), params)))
+         else np.asarray(_bloch.hamiltonian(model, np.atleast_2d(k_pts))))
     return float(np.abs(np.einsum("ab,kbc,dc->kad", P, H, P.conj()) - H).max())
 
 
 def _lattice_verdict(model, group, assignment, validated, refuted, tol, k_pts,
-                     params, context=None, *, spin=None, matrix_tol=None) -> dict:
+                     context=None, *, spin=None, matrix_tol=None) -> dict:
     r"""What the Hamiltonian did with the cell's own pure translations.
 
     A lattice supergroup carries ``_lattice_index - 1`` fractional translations
@@ -2042,7 +2042,7 @@ def _lattice_verdict(model, group, assignment, validated, refuted, tol, k_pts,
         scaled = (float(refuted[ind]["scaled"]) if ind in refuted and "scaled" in refuted[ind]
                   else float("nan"))
         residual = _translation_residual(
-            model, assignment, position, k_pts, params,
+            model, assignment, position, k_pts,
             grid=None if context is None else context.grid_for(model, k_pts))
         found.append((position, ind, tuple(float(x) for x in t),
                       tuple(float(x) for x in t @ lattice), why, scaled, residual))
@@ -2643,7 +2643,7 @@ def _declaration_refuted(group, validated, *, refuted, verdict, tolerances=EXACT
             "rows": _returned_rows(got["rows"])}
 
 
-def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk, params,
+def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
                         context, spin, layout, decls=None,
                         reference_orbital=0, max_candidates=2 ** 20, free_standing=None,
                         centres=None, sectors=None, own_form=None):
@@ -2745,7 +2745,7 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk, 
     if any(int(s.ind) in lifted and not s.time_reversal for s in syms):
         lattice = _lattice_verdict(model, group, assignment, validated, lifted,
                                    tolerances.energy,
-                                   _detection_grid(int(group.dim_k), int(nk)), params,
+                                   _detection_grid(int(group.dim_k), int(nk)),
                                    context=context, spin=spin,
                                    matrix_tol=tolerances.matrix or None)
         refuted = dict(lifted)
@@ -2819,7 +2819,7 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk, 
     # lattice is its translation group and the first descent is the one to it.
     lattice = _lattice_verdict(model, group, assignment, validated, refuted,
                                tolerances.energy,
-                               _detection_grid(int(group.dim_k), int(nk)), params,
+                               _detection_grid(int(group.dim_k), int(nk)),
                                context=context, spin=spin,
                                matrix_tol=tolerances.matrix or None)
     if lattice and lattice["refuted"]:

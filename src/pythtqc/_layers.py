@@ -69,7 +69,7 @@ def _is_presented_as_a_slab(model, c=SLAB_C) -> bool:
 
 
 def _slab_presentation(model, *, c=SLAB_C, check=True, n_check=_bloch.CHECK_K,
-                       seed=_bloch.CHECK_SEED, params=None, record=None):
+                       seed=_bloch.CHECK_SEED, record=None):
     r"""Internal to :func:`.._realized.realized_group`: a layer on a 3D slab lattice.
 
     A ``dim_r = 2`` model: the third lattice vector becomes ``c·ẑ`` and stays
@@ -119,7 +119,6 @@ def _slab_presentation(model, *, c=SLAB_C, check=True, n_check=_bloch.CHECK_K,
     """
     from pythtb import Lattice, TBModel
 
-    params = dict(params or {})
     record = {} if record is None else record
     record["residual"], record["tilted"] = 0.0, None
     dim_r = int(model.lattice.dim_r)
@@ -185,8 +184,8 @@ def _slab_presentation(model, *, c=SLAB_C, check=True, n_check=_bloch.CHECK_K,
         if check:
             k = np.random.default_rng(seed).uniform(-0.5, 0.5,
                                                     size=(int(n_check), len(per)))
-            a = np.asarray(_bloch.hamiltonian(model, k, params))
-            b = np.asarray(_bloch.hamiltonian(out, k, params))
+            a = np.asarray(_bloch.hamiltonian(model, k))
+            b = np.asarray(_bloch.hamiltonian(out, k))
             if moved:
                 # the model's H(k) carried through the move, Λ(k)† H(k) Λ(k):
                 # the presentation's, to the rounding of the moved phases
@@ -266,8 +265,8 @@ def _slab_presentation(model, *, c=SLAB_C, check=True, n_check=_bloch.CHECK_K,
 
     if check:
         k = np.random.default_rng(seed).uniform(-0.5, 0.5, size=(int(n_check), 2))
-        a = np.asarray(_bloch.hamiltonian(model, k, params))
-        b = np.asarray(_bloch.hamiltonian(out, k, params))
+        a = np.asarray(_bloch.hamiltonian(model, k))
+        b = np.asarray(_bloch.hamiltonian(out, k))
         worst = float(np.abs(a - b).max())
         if worst != 0.0:
             raise InternalError(
@@ -300,16 +299,20 @@ def stack_presentation(model, *, c=STACK_C, params=None):
         is the layer's extent along its normal plus ``c``.  Default
         :data:`STACK_C`, ``8.0``.
     params : dict, optional
-        Values for a model whose terms are given by parameter names.
+        The scalar value of each parameter of the model, keyed by name:
+        ``{"lam": 0.3}``.
 
     Returns
     -------
     pythtb.TBModel or Refusal
-        The stack, periodic in three directions.  A ``Refusal`` in its place is
-        falsy.
+        The stack, periodic in three directions, its parameters evaluated at
+        ``params``.  A ``Refusal`` in its place is falsy.
 
     Raises
     ------
+    ValueError
+        A name in ``params`` that is not a parameter of the model, a parameter
+        given no value, or a value that is not a number.
     ..refusal.InternalError
         The stack's ``H`` is not the layer's up to the heights' phases: the
         package disagreeing with itself.
@@ -332,7 +335,7 @@ def stack_presentation(model, *, c=STACK_C, params=None):
     """
     from pythtb import Lattice, TBModel
 
-    params = dict(params or {})
+    model = _bloch.bound(model, params)
     dim_r = int(model.lattice.dim_r)
     per = tuple(int(d) for d in model.periodic_dirs)
     if int(model.lattice.dim_k) != 2 or len(per) != 2 or dim_r not in (2, 3):
@@ -420,8 +423,8 @@ def stack_presentation(model, *, c=STACK_C, params=None):
     # here is measured on
     rng = np.random.default_rng(_bloch.CHECK_SEED)
     k2 = rng.uniform(-0.5, 0.5, size=(_bloch.CHECK_K, 2))
-    a = np.asarray(_bloch.hamiltonian(model, k2, params))
-    stack = _bloch.evaluator(out, params)
+    a = np.asarray(_bloch.hamiltonian(model, k2))
+    stack = _bloch.evaluator(out)
     phase = 2j * np.pi * orb3[:, 2]
     if int(model.nspin) == 2:
         phase = np.repeat(phase, 2)

@@ -6,7 +6,6 @@ operation's solution space read once in its own form.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-import hashlib
 from typing import Any
 
 import numpy as np
@@ -211,24 +210,6 @@ def _detection_grid(dim_k: int, nk: int) -> np.ndarray:
 # the per-call measurement context
 # --------------------------------------------------------------------------
 
-def _param_fingerprint(value) -> str:
-    """A content-complete identity for one ``params`` value.
-
-    ``repr`` is not one: numpy truncates the repr of an array past 1000 elements
-    with ``...``, so two arrays that differ only beyond that point repr alike
-    and would share one cached ``H(k)``.  Arrays and scalars are hashed by
-    dtype, shape and bytes; anything numpy cannot hold (an object array) falls
-    back to ``repr``.
-    """
-    arr = np.asarray(value)
-    if arr.dtype != object:
-        h = hashlib.blake2b(digest_size=16)
-        h.update(repr((arr.dtype.str, arr.shape)).encode())
-        h.update(np.ascontiguousarray(arr).tobytes())
-        return h.hexdigest()
-    return repr(value)
-
-
 def _model_key(model) -> str:
     """What identifies a Hamiltonian to :class:`_MeasurementContext`: its content.
 
@@ -240,9 +221,9 @@ def _model_key(model) -> str:
     rests on: it is what lets the cross-check's realized group in the other
     environment, whose slab presentation is a *different object* with
     bit-identical content (measured, and refused if it were not), share the
-    grid and the solution spaces the first one paid for.  Where no term
-    carries a parameter, the model's lattice-vector blocks are kept under the
-    same key (:func:`.._bloch.model_key`).
+    grid and the solution spaces the first one paid for.  The model's
+    lattice-vector blocks are kept under the same key
+    (:func:`.._bloch.model_key`).
     """
     return _bloch.model_key(model)
 
@@ -278,8 +259,8 @@ class _MeasurementContext:
     in-plane k-actions.
 
     **Invalidation is structural, not remembered.**  The key carries the
-    model's content (:func:`_model_key`, whatever the model's size), the k-set,
-    the model parameters and the six numbers the solution space depends on —
+    model's content (:func:`_model_key`, whatever the model's size), the k-set
+    and the six numbers the solution space depends on —
     ``tol``, ``cut``, ``window``, ``solver``, the detector's ceiling
     ``max_bytes``, and the floor below which its nullspace keeps a candidate,
     which a declared precision sets at the gate — and any difference rebuilds
@@ -311,20 +292,18 @@ class _MeasurementContext:
         self.rebuilds = 0
         self.sectors = {}
 
-    def bind(self, model, k_pts, params, *, tol, cut, window, solver, max_bytes=None,
+    def bind(self, model, k_pts, *, tol, cut, window, solver, max_bytes=None,
              floor=None):
         """The shared grid for this request, rebuilt when anything it rests on moved."""
         key = (_model_key(model),
                np.ascontiguousarray(np.asarray(k_pts, dtype=float)).tobytes(),
-               tuple(sorted((str(k), _param_fingerprint(v))
-                            for k, v in (params or {}).items())),
                float(tol), None if cut is None else float(cut),
                None if window is None else float(window), str(solver),
                None if max_bytes is None else float(max_bytes),
                None if floor is None else float(floor))
         if key != self._key:
             self._key = key
-            self.grid = _GridHamiltonians(model, k_pts, params)
+            self.grid = _GridHamiltonians(model, k_pts)
             self.spaces = {}
             self.rebuilds += 1
         return self.grid
@@ -371,7 +350,7 @@ class _MeasurementContext:
 def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=None,
                     k_pts=None, include_antiunitary=True, keep_intertwiners=True,
                     window=None, solver="eigen", max_bytes=None, context=None,
-                    params=None, _floor=None) -> ValidatedGroup | Refusal:
+                    _floor=None) -> ValidatedGroup | Refusal:
     """Which operations of a group ``H(k)`` obeys, one residual each.
 
     Returned as :attr:`.._realized.RealizedGroup.validated`; the descent and the
@@ -448,8 +427,6 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
         function's behaviour bit for bit, and what comes back is identical
         either way: the solve is a deterministic function of the model, the
         k-set and ``tol``/``cut``/``window``/``solver``/``max_bytes``.
-    params : dict, optional
-        Model parameter values, as ``model.hamiltonian`` takes them.
 
     Returns
     -------
@@ -516,9 +493,9 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
     # a projection and the other environment's realized group measure the same H
     # on the same mesh.
     if context is None:
-        grid_H = _GridHamiltonians(model, k_pts, params)
+        grid_H = _GridHamiltonians(model, k_pts)
     else:
-        grid_H = context.bind(model, k_pts, params, tol=tol, cut=cut,
+        grid_H = context.bind(model, k_pts, tol=tol, cut=cut,
                               window=window, solver=solver, max_bytes=max_bytes,
                               floor=_floor)
 
@@ -553,7 +530,7 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
                 space = _find_intertwiners(
                     model, action, k_pts, antiunitary=bool(sym.time_reversal), tol=tol,
                     cut=cut, window=window, solver=solver, degenerate_max_bytes=max_bytes,
-                    hamiltonians=grid_H, params=params, _floor=_floor)
+                    hamiltonians=grid_H, _floor=_floor)
                 if isinstance(space, Refusal):
                     return space            # the detector's memory limit, as it came
                 if context is not None:
@@ -635,7 +612,7 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
                           _records=records, _bases=bases, _group=group)
 
 
-def _grid_covariance(model, group, *, nk, params=None, context=None):
+def _grid_covariance(model, group, *, nk, context=None):
     r"""A candidate matrix's covariance residual, measured as the detector measures its own.
 
     Returns the measure :func:`.._multiplets._own_form_spaces` hands a
@@ -650,7 +627,7 @@ def _grid_covariance(model, group, *, nk, params=None, context=None):
     k_pts = _detection_grid(int(group.dim_k), int(nk))
     grid = None if context is None else context.grid_for(model, k_pts)
     if grid is None:
-        grid = _GridHamiltonians(model, k_pts, params)
+        grid = _GridHamiltonians(model, k_pts)
     syms = group.symmetries
 
     def residual(position, candidate):
@@ -732,7 +709,7 @@ def _own_form_read(model, group, assignment, spin, validated, *, tolerances, cov
             refuted)
 
 
-def _own_form_once(model, group, assignment, spin, validated, *, tol=None, params=None):
+def _own_form_once(model, group, assignment, spin, validated, *, tol=None):
     r"""The record each operation's own form was read on: as it stands where it was read, else read here, once.
 
     :func:`.._realized.realized_group` reads every record in the verdict stage
@@ -749,7 +726,7 @@ def _own_form_once(model, group, assignment, spin, validated, *, tol=None, param
         return validated
     dim = max(int(group.dim_k), 1)
     side = max(2, int(round(float(max(int(validated.n_kpts), 1)) ** (1.0 / dim))))
-    covariance = _grid_covariance(model, group, nk=side, params=params)
+    covariance = _grid_covariance(model, group, nk=side)
     tolerances = replace(EXACT, matrix=float(tol or 0.0))
     got, _refuted = _own_form_read(model, group, assignment, spin, validated,
                                    tolerances=tolerances, covariance=covariance)
@@ -764,7 +741,7 @@ def _own_form_once(model, group, assignment, spin, validated, *, tol=None, param
 _MAX_H_NK, _MAX_H_SEED = 64, 3
 
 
-def _max_hamiltonian(model, *, params=None) -> float:
+def _max_hamiltonian(model) -> float:
     r"""``max|H|`` — the Hamiltonian's own magnitude, measured on the model.
 
     The declared symmetry tolerance is **absolute**, in the units of ``H``, so a
@@ -787,8 +764,8 @@ def _max_hamiltonian(model, *, params=None) -> float:
     import moves no tolerance, and a model whose on-site energies average to
     zero reads the largest entry of ``H`` itself.
     """
-    mu = _bloch.onsite_mean(model, params)
-    site = _bloch.onsite(model, params)
+    mu = _bloch.onsite_mean(model)
+    site = _bloch.onsite(model)
     got = (float(np.abs(site - mu).max()) if site.ndim == 1
            else _bloch.magnitude(site, mu)) if site.size else 0.0
     amps = _bloch.hopping_arrays(model)[0]
@@ -798,5 +775,5 @@ def _max_hamiltonian(model, *, params=None) -> float:
     if dim_k:
         k = np.random.default_rng(_MAX_H_SEED).uniform(-0.5, 0.5,
                                                        size=(_MAX_H_NK, dim_k))
-        got = max(got, _bloch.magnitude(_bloch.hamiltonian(model, k, params), mu))
+        got = max(got, _bloch.magnitude(_bloch.hamiltonian(model, k), mu))
     return float(got)

@@ -86,6 +86,7 @@ from pythtqc import groups as tqg
 from pythtqc import sewing as tqw
 from pythtqc import symmetry as tqs
 from pythtqc.refusal import InternalError, Refusal
+from pythtqc import _bloch
 from pythtqc import _build
 from pythtqc import _measure
 from pythtqc import _spacegroup
@@ -685,8 +686,11 @@ def test_hsp_table_shape(lin3g_undeclared):
     belong to the model the representation was built on, and a foreign model
     is a ``ValueError``.  So is the model a crystal's representation holds,
     edited in place after it was measured, until its content is put back; a
-    layer's representation holds its own presentation, which an edit of the
-    model handed in does not reach.
+    layer's representation holds its own presentation, and the representation
+    of a parameterized model holds the model with the values of its parameters
+    in place; an edit of the model handed in reaches neither.  What a
+    parameterized model returns is what the same model with the values in place
+    returns.
     """
     model, group, _, _, rep = lin3g_undeclared
     table = tqw.hsp_table(rep, bands=6)
@@ -726,7 +730,7 @@ def test_hsp_table_shape(lin3g_undeclared):
     for t, lv in ((-1.0, [1, 0, 0]), (-0.5, [0, 1, 0]), (-0.2, [0, 0, 1])):
         crystal.set_hop(t, 0, 0, lv)
     r = tqg.realized_group(crystal)
-    assert r and r.rep.model is crystal, str(r)
+    assert r and r.rep.model is crystal and r.model is crystal, str(r)
     kX = tqg.high_symmetry_points(r.group)["X"]
     op = r.rep.little_group(kX)[1]
     calls = {"hsp_table": lambda: [(name, rec.counts, float(rec.table.energies[0])) for
@@ -757,6 +761,24 @@ def test_hsp_table_shape(lin3g_undeclared):
     labels = tqw.hsp_table(layer.rep, bands=1).content
     square.set_hop(-0.7, 0, 0, [1, 0], mode="set")
     assert tqw.hsp_table(layer.rep, bands=1).content == labels
+
+    # a crystal and a layer whose bonds are a parameter, its value given at the call
+    for cell in (np.eye(3), np.eye(2)):
+        named = TBModel(Lattice(cell.tolist(), [[0.0] * len(cell)],
+                                periodic_dirs=list(range(len(cell)))), spinful=False)
+        for lv in cell.astype(int).tolist():
+            named.set_hop("t", 0, 0, lv)
+        got = tqg.realized_group(named, characters={0: "s"}, params={"t": -1.0})
+        want = tqg.realized_group(named.with_parameters(t=-1.0), characters={0: "s"})
+        assert _bloch.model_key(got.model) == _bloch.model_key(want.model)
+        assert got.summary() == want.summary()
+        assert got.operations.summary() == want.operations.summary()
+        assert str(got.rep.characters) == str(want.rep.characters)
+        labels = tqw.hsp_table(got.rep, bands=1).content
+        assert labels == tqw.hsp_table(want.rep, bands=1).content
+        assert got.source is named and got.model is not named
+        named.set_onsite([0.5], mode="set")
+        assert tqw.hsp_table(got.rep, bands=1).content == labels
 
 
 def test_hsp_table_skips_a_trivial_little_group():

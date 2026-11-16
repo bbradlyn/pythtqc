@@ -259,16 +259,14 @@ class _GridHamiltonians:
     model : pythtb.TBModel
     k_pts : array, shape (Nk, dim_k)
         The grid.  Held by reference; do not mutate it.
-    params : dict, optional
-        Model parameter values, as ``model.hamiltonian`` takes them.
     max_bytes : float, optional
         Budget for one evaluation, in bytes.  Default ``256e6``.  A grid whose
         Hamiltonians fit inside it is evaluated **in one call** (bit-identical
         to ``model.hamiltonian`` on the same points) and cached whole; a larger
         one is streamed.
     bloch : optional
-        The model's Bloch sum at these parameter values, where another grid of
-        the same model already holds it (:meth:`rotated` hands its own on).
+        The model's Bloch sum, where another grid of the same model already
+        holds it (:meth:`rotated` hands its own on).
         Looked up at the first evaluation otherwise.
 
     Attributes
@@ -278,10 +276,9 @@ class _GridHamiltonians:
         meant to reduce, so it is reported rather than assumed.
     """
 
-    def __init__(self, model, k_pts, params=None, max_bytes=256e6, *, bloch=None):
+    def __init__(self, model, k_pts, max_bytes=256e6, *, bloch=None):
         self.model = model
         self.k_pts = np.atleast_2d(np.asarray(k_pts, dtype=float))
-        self.params = dict(params or {})
         self.max_bytes = float(max_bytes)
         self.n_kpts = int(self.k_pts.shape[0])
         self.nstate = int(model.nstate)
@@ -293,9 +290,9 @@ class _GridHamiltonians:
         self._bloch_sum = bloch
 
     def _sum(self):
-        """The model's Bloch sum at these parameter values (:func:`.._bloch.evaluator`)."""
+        """The model's Bloch sum (:func:`.._bloch.evaluator`)."""
         if self._bloch_sum is None:
-            self._bloch_sum = _bloch.evaluator(self.model, self.params)
+            self._bloch_sum = _bloch.evaluator(self.model)
         return self._bloch_sum
 
     @property
@@ -364,7 +361,7 @@ class _GridHamiltonians:
 
     def rotated(self, k_rot) -> "_GridHamiltonians":
         """The same model, Bloch sum and budget on the rotated k-set ``Rk``."""
-        return _GridHamiltonians(self.model, k_rot, self.params, self.max_bytes,
+        return _GridHamiltonians(self.model, k_rot, self.max_bytes,
                                  bloch=self._sum())
 
 
@@ -665,7 +662,7 @@ def _sift(pair, nk, n, *, cut, floor, delta, stable, max_pairs, probes=_EIGEN_PR
     # that bound rounding -- the window's floor, the vacuity cut, the probe of the
     # whole grid -- read its magnitude with the energy zero, `h`, since rounding
     # is relative to the numbers the arithmetic holds.
-    mu = _bloch.onsite_mean(pair.src.model, pair.src.params)
+    mu = _bloch.onsite_mean(pair.src.model)
 
     def spec(i):
         if i not in spectra:
@@ -892,7 +889,7 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
                        max_window=_EIGEN_WINDOW_CEIL, max_bytes=512e6,
                        degenerate_max_bytes=None, stable=_SIFT_STABLE, hamiltonians=None,
                        max_solve_entries=2_000_000,
-                       params=None, _floor=None) -> _IntertwinerSpace | Refusal:
+                       _floor=None) -> _IntertwinerSpace | Refusal:
     r"""Every matrix that commutes ``H(k)`` with ``H(Rk)``.
 
     An empty space proves the operation is broken, a two-dimensional one means
@@ -1001,8 +998,6 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
         in entries: a grid that would exceed it is solved on a deterministic
         subset of its own points, and every candidate is then verified against
         the full grid.  Default ``2_000_000``.
-    params : dict, optional
-        Model parameter values, as ``model.hamiltonian`` takes them.
 
     Returns
     -------
@@ -1094,7 +1089,6 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
                          "every function of H(k) is an intertwiner")
     if solver not in ("eigen", "stacked"):
         raise ValueError(f"solver must be 'eigen' or 'stacked', got {solver!r}")
-    params = dict(params or {})
     cut = float(tol) if cut is None else float(cut)
     # the covariance, in the units of H, a candidate the nullspace keeps may carry
     # at a point: the cut read in those units, unless a declared precision, whose
@@ -1112,15 +1106,12 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
     eye = np.eye(n)
 
     if hamiltonians is None:
-        src_grid = _GridHamiltonians(model, k_pts, params)
+        src_grid = _GridHamiltonians(model, k_pts)
     else:
         src_grid = hamiltonians
         if src_grid.n_kpts != nk or not np.array_equal(src_grid.k_pts, k_pts):
             raise ValueError("hamiltonians= was built on a different k-grid than the "
                              "k_pts supplied here; a shared cache is keyed by its grid")
-        if params and params != src_grid.params:
-            raise ValueError("hamiltonians= was built with different model parameters "
-                             f"({src_grid.params}) than the ones passed here ({params})")
     rot_grid = src_grid.rotated(k_rot)
 
     window_used, k_solve, trace, escalated = 0.0, -1, (), ()

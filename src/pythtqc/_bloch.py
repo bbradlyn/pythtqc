@@ -11,13 +11,16 @@ phase per lattice vector and one per orbital:
 pythtb's ``TBModel.hamiltonian`` gathers the hoppings into those blocks on every
 evaluation.  On a wannier90 import -- several hundred thousand hoppings over a
 few dozen lattice vectors -- the gathering costs about a second each time,
-however few k-points are asked for.  The blocks depend on nothing but the model
-and its parameter values, so they are gathered once and kept, and every later
-``H(k)`` is a product of phases with blocks.  After the gathering the arithmetic
-is pythtb's own, step for step, so for the same k-points ``H(k)`` is bit for bit
-the array ``model.hamiltonian(k_pts=k, flatten_spin_axis=True, **params)``
-returns.  A model with no periodic direction, and parameter values given as a
-sweep, are evaluated by pythtb itself.
+however few k-points are asked for.  The blocks depend on nothing but the
+model, so they are gathered once and kept, and every later ``H(k)`` is a
+product of phases with blocks.  After the gathering the arithmetic is pythtb's
+own, step for step, so for the same k-points ``H(k)`` is bit for bit the array
+``model.hamiltonian(k_pts=k, flatten_spin_axis=True)`` returns.  A model with no
+periodic direction is evaluated by pythtb itself.
+
+A parameterized model, the values of its parameters given at the call, is
+evaluated at those values once, where it enters (:func:`bound`), and every step
+after sees that numeric model.
 
 The blocks are kept by the model's **content** -- the lattice, the orbital
 centres, the on-site terms and the hopping arrays, hashed together.  Two models
@@ -34,6 +37,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import numbers
 from collections import OrderedDict
 
 import numpy as np
@@ -84,7 +88,7 @@ def hopping_arrays(model):
         ``i`` and ``j`` the two orbitals of each term ``t_ij(R)``; ``R`` of
         shape ``(n, dim_r)``, integer.  Read-only views of the model's own
         storage, in the order ``model.hoppings`` lists them and with the same
-        numbers; a parametrized term is in neither.
+        numbers.
     """
     out = []
     for arr in model._hoptable.components():
@@ -117,19 +121,43 @@ def model_key(model) -> str:
     """The content hash of the model as it stands: lattice, centres, on-site terms, hoppings.
 
     Two models with the same key have the same ``H(k)`` at every ``k``.  It is
-    also the key the model's blocks are kept under, whenever its terms carry
-    no parameter.
+    also the key the model's blocks are kept under.
     """
     return _digest(model, *hopping_arrays(model), model.onsite)
 
 
-def kept_key(model, bloch):
-    """The content hash a representation keeps for ``model``, whose Bloch sum is ``bloch``.
+def bound(model, params=None):
+    """The model with the values of its parameters in place; the model itself where it has none.
 
-    It is the sum's own key where no term of the model carries a parameter, and
-    ``None`` otherwise.
+    The names are checked as ``TBModel.hamiltonian`` checks them, with the same
+    error, and each value is a number, before anything is evaluated.
+
+    Raises
+    ------
+    ValueError
+        A name in ``params`` that is not a parameter of the model, a parameter
+        given no value, or a value that is not a number.
     """
-    return None if model._has_parameterized_terms() else bloch.key
+    params = dict(params or {})
+    model._check_missing_parameters(params)
+    for name, value in params.items():
+        # a Python or numpy number, or a zero-dimensional numeric array
+        one = (value.ndim == 0 and np.issubdtype(value.dtype, np.number)
+               if isinstance(value, np.ndarray) else isinstance(value, numbers.Number))
+        if not one:
+            try:
+                dims = np.ndim(value)
+            except ValueError:                  # values of different lengths
+                dims = None
+            arg = name if name.isidentifier() else "m"
+            hint = {1: " Each value of a parameter is one call.",
+                    2: (" A term that acts on spin is written as a function of its parameter "
+                        f"that returns the 2x2 block: set_hop(lambda {arg}: {arg} * sz, ...).")
+                    }.get(dims, "")
+            raise ValueError(f"Parameter '{name}' must be a scalar.{hint}")
+    if not model._has_parameterized_terms():
+        return model
+    return model.with_parameters(params)
 
 
 # --------------------------------------------------------------------------
@@ -141,7 +169,7 @@ _phases = TBModel._phases_from_reduced_dot_products
 
 
 class _BlochSum:
-    """``H(k)`` of one model at one set of parameter values, from blocks built once.
+    """``H(k)`` of one model, from blocks built once.
 
     Called with k-points in any form ``TBModel.hamiltonian`` takes, it returns
     the ``(Nk, nstate, nstate)`` array that call returns with
@@ -214,22 +242,6 @@ class _BlochSum:
         return ham
 
 
-class _PythtbSum:
-    """``H(k)`` by pythtb's ``hamiltonian`` itself: no periodic direction, or a sweep."""
-
-    # no content hash is taken for such a model
-    key = None
-
-    def __init__(self, model, params):
-        self.model, self.params = model, dict(params)
-        self.nstate = int(model.nstate)
-        # every hopping its own lattice vector: the most one evaluation can hold
-        self.point_bytes = point_bytes(int(model.nhops), int(model.norb), self.nstate)
-
-    def __call__(self, k_pts) -> np.ndarray:
-        return self.model.hamiltonian(k_pts=k_pts, flatten_spin_axis=True, **self.params)
-
-
 _kept: OrderedDict = OrderedDict()
 _kept_bytes = 0
 
@@ -246,24 +258,15 @@ def _keep(key, bloch) -> None:
         _kept_bytes -= old.nbytes
 
 
-def evaluator(model, params=None):
-    """The Bloch sum of ``model`` at these parameter values, built once per content.
+def evaluator(model):
+    """The Bloch sum of ``model``, a model with a periodic direction, built once per content.
 
-    The parameter names are checked as ``TBModel.hamiltonian`` checks them, with
-    the same error.  The blocks are gathered from the arrays pythtb itself would
-    sum at these values, and kept under their content; a later request for the
-    same content, from this model or any other, finds them.  The sum returned
-    carries that content hash as ``key``, which is :func:`model_key` for a
-    model whose terms carry no parameter, and ``None`` where pythtb sums it.
+    The blocks are gathered from the arrays pythtb itself sums, and kept under
+    their content; a later request for the same content, from this model or any
+    other, finds them.  The sum returned carries that content hash as ``key``,
+    which is :func:`model_key`.
     """
-    params = dict(params or {})
-    model._check_missing_parameters(params)
-    if int(model.lattice.dim_k) == 0:
-        return _PythtbSum(model, params)
-    scalars, _names, sweeps = model._params_to_sweep(params)
-    if sweeps:
-        return _PythtbSum(model, params)
-    arrays = model._evaluate_params(scalars)
+    arrays = model._evaluate_params({})
     key = _digest(model, *arrays)
     bloch = _kept.get(key)
     if bloch is not None:
@@ -274,35 +277,29 @@ def evaluator(model, params=None):
     return bloch
 
 
-def hamiltonian(model, k_pts, params=None, bloch=None) -> np.ndarray:
-    """``model.hamiltonian(k_pts=k_pts, flatten_spin_axis=True, **params)``, bit for bit.
+def hamiltonian(model, k_pts, bloch=None) -> np.ndarray:
+    """``model.hamiltonian(k_pts=k_pts, flatten_spin_axis=True)``, bit for bit.
 
-    The checks run in pythtb's order -- the parameter names, then the
-    k-points -- so a request pythtb stops stops here with the same error.
-    ``bloch``, where it is given, is what :func:`evaluator` returns for the
-    model at these parameter values, and ``H(k)`` is summed by it.
+    The k-points are checked as pythtb checks them, so a request pythtb stops
+    stops here with the same error.  ``bloch``, where it is given, is what
+    :func:`evaluator` returns for the model, and ``H(k)`` is summed by it.
     """
-    params = dict(params or {})
-    model._check_missing_parameters(params)
     if int(model.lattice.dim_k) == 0:
-        return model.hamiltonian(k_pts=k_pts, flatten_spin_axis=True, **params)
+        return model.hamiltonian(k_pts=k_pts, flatten_spin_axis=True)
     if k_pts is None:
         raise ValueError("k_pts must be specified for periodic systems (dim_k > 0).")
     k_vecs = model._normalize_kpoints(k_pts)
     if bloch is None:
-        bloch = evaluator(model, params)
+        bloch = evaluator(model)
     return bloch(k_vecs)
 
 
-def onsite(model, params=None) -> np.ndarray:
-    """The on-site terms at these parameter values: ``(norb,)``, or ``(norb, 2, 2)`` spinful."""
-    params = dict(params or {})
-    model._check_missing_parameters(params)
-    scalars, _names, _sweeps = model._params_to_sweep(params)
-    return np.asarray(model._evaluate_params(scalars)[4], dtype=complex)
+def onsite(model) -> np.ndarray:
+    """The on-site terms: ``(norb,)``, or ``(norb, 2, 2)`` spinful."""
+    return np.asarray(model._evaluate_params({})[4], dtype=complex)
 
 
-def onsite_mean(model, params=None) -> float:
+def onsite_mean(model) -> float:
     r"""The mean on-site energy per state: the energy zero of the model's own numbers.
 
     ``tr H(k)`` averages over the Brillouin zone to the trace of the on-site
@@ -311,7 +308,7 @@ def onsite_mean(model, params=None) -> float:
     calculation it came from.  The diagonal on-site entries are summed exactly,
     so on-site energies that cancel read ``0.0``, not a rounding of it.
     """
-    site = onsite(model, params)
+    site = onsite(model)
     diagonal = site if site.ndim == 1 else np.diagonal(site, axis1=-2, axis2=-1)
     return math.fsum(np.real(diagonal).ravel().tolist()) / float(model.nstate)
 
@@ -329,14 +326,14 @@ def magnitude(H, shift=0.0) -> float:
     return float(out.max())
 
 
-def solve(model, k_pts, params=None, bloch=None):
-    """``model.solve_ham(k_pts, return_eigvecs=True, flatten_spin_axis=True, **params)``, bit for bit.
+def solve(model, k_pts, bloch=None):
+    """``model.solve_ham(k_pts, return_eigvecs=True, flatten_spin_axis=True)``, bit for bit.
 
     pythtb's diagonalization of the same ``H(k)``: the same Hermiticity check,
     ``numpy.linalg.eigh`` on the same matrices, eigenvectors as rows, and a
     single k-point's axis dropped.  ``bloch`` is as in :func:`hamiltonian`.
     """
-    ham = hamiltonian(model, k_pts, params, bloch)
+    ham = hamiltonian(model, k_pts, bloch)
     if not np.allclose(ham, ham.swapaxes(-1, -2).conj()):
         raise ValueError("Hamiltonian matrix is not Hermitian.")
     evals, evecs = np.linalg.eigh(ham.astype(np.complex128))

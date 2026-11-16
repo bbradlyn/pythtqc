@@ -474,8 +474,7 @@ def _projection_too_large(n_bytes, budget, *, divisions, least, n_states, R_max,
 # the operators
 # --------------------------------------------------------------------------
 
-def _provisional_rep(model, group, assignment, validated, *, tol, scale, params,
-                     build_kw):
+def _provisional_rep(model, group, assignment, validated, *, tol, scale, build_kw):
     r"""The exact ``D(g)``, from a provisional :func:`.._build._build_rep`.
 
     Two tolerances move for this pass and nothing else does.
@@ -542,8 +541,7 @@ def _provisional_rep(model, group, assignment, validated, *, tol, scale, params,
     kw = dict(build_kw)
     kw.setdefault("internal_tol", internal)
     kw.setdefault("_returned", False)
-    rep = _build_rep(model, group, assignment, validated=validated, tol=float(tol),
-                     params=params, **kw)
+    rep = _build_rep(model, group, assignment, validated=validated, tol=float(tol), **kw)
     ambiguity = None
     if (not rep and getattr(rep, "gate", None) in ("rep_not_unique",
                                                    "rep_search_too_large")
@@ -552,7 +550,7 @@ def _provisional_rep(model, group, assignment, validated, *, tol, scale, params,
         branches = {}
         for branch in (1, -1):
             got = _build_rep(model, group, assignment, validated=validated,
-                             tol=float(tol), orientation_branch=branch, params=params, **kw)
+                             tol=float(tol), orientation_branch=branch, **kw)
             if not got:
                 return first, {}
             branches[branch] = got
@@ -574,7 +572,7 @@ def _provisional_rep(model, group, assignment, validated, *, tol, scale, params,
                  "branch_ambiguity": ambiguity,
                  "covariance": float(max(rep.residuals.values(), default=0.0))}
 
-def _projection_operators(model, group, assignment, validated, *, tol, params, build_kw):
+def _projection_operators(model, group, assignment, validated, *, tol, build_kw):
     r"""``(rep, record)`` -- the representation a projection of this model is built with.
 
     :func:`_provisional_rep` at the scale the projection reads, ``max|H|`` about
@@ -583,14 +581,14 @@ def _projection_operators(model, group, assignment, validated, *, tol, params, b
     detector's residual (:func:`classify_operations`), and the average is
     taken with them (:func:`symmetrize`).
     """
-    mu = _bloch.onsite_mean(model, params)
+    mu = _bloch.onsite_mean(model)
     probe = np.random.default_rng(1729).uniform(-0.5, 0.5, size=(8, int(group.dim_k)))
-    scale = _bloch.magnitude(_bloch.hamiltonian(model, probe, params), mu)
+    scale = _bloch.magnitude(_bloch.hamiltonian(model, probe), mu)
     return _provisional_rep(model, group, assignment, validated, tol=tol, scale=scale,
-                            params=params, build_kw=build_kw)
+                            build_kw=build_kw)
 
-def _with_centres(model, orb, *, check=True, n_check=_bloch.CHECK_K, seed=_bloch.CHECK_SEED,
-                  params=None):
+def _with_centres(model, orb, *, check=True, n_check=_bloch.CHECK_K,
+                  seed=_bloch.CHECK_SEED):
     r"""The model with its orbital centres at ``orb``, its spectrum measured unchanged.
 
     The same lattice, on-site terms and hopping table, row for row, with the
@@ -615,8 +613,8 @@ def _with_centres(model, orb, *, check=True, n_check=_bloch.CHECK_K, seed=_bloch
     if check:
         k = np.random.default_rng(int(seed)).uniform(
             -0.5, 0.5, size=(int(n_check), int(model.lattice.dim_k)))
-        Ea = np.linalg.eigvalsh(np.asarray(_bloch.hamiltonian(model, k, params)))
-        Eb = np.linalg.eigvalsh(np.asarray(_bloch.hamiltonian(out, k, params)))
+        Ea = np.linalg.eigvalsh(np.asarray(_bloch.hamiltonian(model, k)))
+        Eb = np.linalg.eigvalsh(np.asarray(_bloch.hamiltonian(out, k)))
         scale = max(float(np.abs(Ea).max()), 1.0)
         resid = float(np.abs(Ea - Eb).max())
         if resid > 1e-9 * scale:
@@ -655,7 +653,7 @@ def _same_part(parts, model):
             "cover every orbital.")
     return part_of[:, None] == part_of[None, :]
 
-def _parts_coupling(model, parts, params=None) -> float:
+def _parts_coupling(model, parts) -> float:
     r"""The largest entry of ``H(k)`` between two of the coupled parts ``parts`` holds.
 
     Read on the fixed probe of eight k the projection's scale is read on
@@ -665,7 +663,7 @@ def _parts_coupling(model, parts, params=None) -> float:
     if same is None:
         return 0.0
     probe = np.random.default_rng(1729).uniform(-0.5, 0.5, size=(8, int(model.lattice.dim_k)))
-    H = np.asarray(_bloch.hamiltonian(model, probe, params))
+    H = np.asarray(_bloch.hamiltonian(model, probe))
     return float(np.abs(H[:, ~same]).max(initial=0.0))
 
 def _as_held(X, held):
@@ -699,7 +697,7 @@ def _as_held(X, held):
             out = out + Pt @ X @ Pt
     return out
 
-def _held_off(model, held, params=None) -> dict:
+def _held_off(model, held) -> dict:
     r"""``{"copies", "shares"}`` -- the largest entry of ``H(k)`` each kind ``held`` holds leaves out.
 
     Read on the probe :func:`_parts_coupling` reads, each kind on its own;
@@ -709,14 +707,14 @@ def _held_off(model, held, params=None) -> dict:
     if not held:
         return out
     probe = np.random.default_rng(1729).uniform(-0.5, 0.5, size=(8, int(model.lattice.dim_k)))
-    H = np.asarray(_bloch.hamiltonian(model, probe, params))
+    H = np.asarray(_bloch.hamiltonian(model, probe))
     for kind in out:
         if held.get(kind):
             alone = {kind: held[kind]}
             out[kind] = float(np.abs(H - _as_held(H, alone)).max(initial=0.0))
     return out
 
-def _average_on_grid(model, group, assignment, ops, D, kpts, divisions, params, *,
+def _average_on_grid(model, group, assignment, ops, D, kpts, divisions, *,
                      bloch_tol, work, apart=None, held=None):
     r"""``(H_sym, moved, scale)`` on the transform grid — the group average.
 
@@ -749,7 +747,7 @@ def _average_on_grid(model, group, assignment, ops, D, kpts, divisions, params, 
     n_points = int(kpts.shape[0])
     counts = tuple(int(c) for c in divisions)
     n = np.asarray(counts, dtype=float)
-    H = _GridHamiltonians(model, kpts, params, max_bytes=work).full()
+    H = _GridHamiltonians(model, kpts, max_bytes=work).full()
     acc = np.zeros_like(H)
     step = _slice_points(work, _POINT_MATRICES * 16.0 * float(H.shape[-1]) ** 2, n_points)
     for ind, sym in ops.items():
@@ -786,7 +784,7 @@ def _average_on_grid(model, group, assignment, ops, D, kpts, divisions, params, 
         scale = max(scale, float(np.abs(H[lo:hi]).max()))
     return acc, moved, scale
 
-def _average_at(model, group, assignment, ops, D, k, params, *, bloch_tol, apart=None,
+def _average_at(model, group, assignment, ops, D, k, *, bloch_tol, apart=None,
                 held=None):
     r"""``(H_sym, residue)`` at arbitrary k — the average **pulled back**.
 
@@ -806,7 +804,7 @@ def _average_at(model, group, assignment, ops, D, k, params, *, bloch_tol, apart
     :func:`_average_on_grid` does.
     """
     k = np.atleast_2d(np.asarray(k, dtype=float))
-    evaluate = _bloch.evaluator(model, params)
+    evaluate = _bloch.evaluator(model)
     H = np.asarray(evaluate(k))
     acc = np.zeros_like(H)
     residue = 0.0
@@ -1058,13 +1056,14 @@ def symmetrize(model, group, assignment, validated, *, tol, k_grid=None, params=
         The largest search for the representation's discrete choices that is
         run.  Default ``2**20``.
     params : dict, optional
-        Values for a model whose terms are given by parameter names; the model
-        returned holds the numbers.
+        The scalar value of each parameter of the model, keyed by name:
+        ``{"lam": 0.3}``.
 
     Returns
     -------
     (pythtb.TBModel, Symmetrization) or Refusal
-        The symmetrized model, and the record of the average: ``rec.summary()``;
+        The symmetrized model, its parameters evaluated at ``params``, and the
+        record of the average: ``rec.summary()``;
         ``rec.defect``, how far ``H`` moved, in its units; ``rec.near``, the
         operations obeyed only within ``tol``; ``rec.verification``, the
         operations measured again on the model returned.  A ``Refusal`` in its
@@ -1073,8 +1072,10 @@ def symmetrize(model, group, assignment, validated, *, tol, k_grid=None, params=
     Raises
     ------
     ValueError
-        A malformed argument, before anything is measured, or a ``k_grid`` too
-        coarse for the hoppings' range.
+        A malformed argument, before anything is measured, among them a name
+        in ``params`` that is not a parameter of the model, a parameter given no
+        value, or a value that is not a number; or a ``k_grid`` too coarse for
+        the hoppings' range.
     ..refusal.InternalError
         The hopping list returned misses the average, which it reproduces
         exactly: a defect to report.
@@ -1108,13 +1109,14 @@ def symmetrize(model, group, assignment, validated, *, tol, k_grid=None, params=
     >>> rec.verification["broken"]                                  # doctest: +SKIP
     ()
     """
+    model = _bloch.bound(model, params)
     return _symmetrized(model, group, assignment, validated, tol=tol, k_grid=k_grid,
-                        params=params, max_passes=max_passes, verify=verify,
+                        max_passes=max_passes, verify=verify,
                         verify_nk=verify_nk, verify_tol=verify_tol, max_bytes=max_bytes,
                         characters=characters, multiplets=multiplets, spin=spin,
                         max_candidates=max_candidates)
 
-def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None, params=None,
+def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
                  max_passes=3, verify=True, verify_nk=None, verify_tol=None,
                  max_bytes=1e9, _parts=None, _held=None, **build_kw):
     """The pass :func:`symmetrize` runs, every keyword of its provisional build passed by name.
@@ -1138,7 +1140,6 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None, param
                          multiplets=build_kw.get("multiplets"),
                          spin=_resolve_spin(build_kw.get("spin"), model),
                          site_of=assignment.site_of_orbital)
-    params = dict(params or {})
     per = tuple(int(d) for d in group.periodic_dirs)
     dim_k = int(group.dim_k)
     syms_by_ind = {int(s.ind): s for s in group.symmetries}
@@ -1146,7 +1147,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None, param
     # ---- 1. the classification, and the one thing that is refused ----------
     # against the exact gate of THIS model and operation set, measured once: the
     # detection record carries neither the number of states nor max|H|
-    exact_gate = _exact_gate(model, group, validated, build_kw, params)
+    exact_gate = _exact_gate(model, group, validated, build_kw)
     classes = classify_operations(validated, tol, exact_gate=exact_gate)
     broken = sorted(i for i, c in classes.items() if c == "broken")
     if broken:
@@ -1193,7 +1194,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None, param
 
     # ---- 2. the operators, and the classes read on them ---------------------
     rep, prov = _projection_operators(model, group, assignment, validated, tol=tol,
-                                      params=params, build_kw=build_kw)
+                                      build_kw=build_kw)
     if not rep:
         return rep
     # each operation read again at the larger of the detector's residual and its
@@ -1277,7 +1278,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None, param
     step = _slice_points(work, _POINT_MATRICES * matrix, n_points)
     for _ in range(max(1, int(max_passes))):
         Hsym, moved, scale = _average_on_grid(current, group, assignment, ops, D, kpts,
-                                              divisions, params if current is model else {},
+                                              divisions,
                                               bloch_tol=bloch_tol, work=work, apart=apart,
                                               held=held_apart)
         passes += 1
@@ -1327,7 +1328,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None, param
         # the identity that says the hopping list IS H_sym, measured OFF the
         # grid the transform was taken on -- on the grid it holds by construction
         target, _ = _average_at(current, group, assignment, ops, D, k_random,
-                                params if current is model else {}, bloch_tol=bloch_tol,
+                                bloch_tol=bloch_tol,
                                 apart=apart, held=held_apart)
         Hnew = np.asarray(_bloch.hamiltonian(out, k_random))
         checks["k_identity"] = float(np.abs(Hnew - target).max())
@@ -1344,7 +1345,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None, param
                 f"range box is {out_box:.3g} relative (so the transform did not alias). "
                 "The inverse transform is exact under those conditions; this is a defect "
                 "in the rebuild, not a measurement.")
-        _, residue = _average_at(out, group, assignment, ops, D, k_random, {},
+        _, residue = _average_at(out, group, assignment, ops, D, k_random,
                                  bloch_tol=bloch_tol, apart=apart, held=held_apart)
         checks["covariance_residue"] = float(residue)
         floor = covariance_gate(len(ops), int(model.nstate), scale)
@@ -1360,9 +1361,9 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None, param
     # ---- 5. how far the model moved, in total ------------------------------
     # both Hamiltonians over slices of the grid, no grid of either held, and
     # the scale about the mean on-site energy, which a constant shift moves
-    mu = _bloch.onsite_mean(model, params)
-    before = _bloch.evaluator(model, params)
-    after = _bloch.evaluator(current, {})
+    mu = _bloch.onsite_mean(model)
+    before = _bloch.evaluator(model)
+    after = _bloch.evaluator(current)
     step = _slice_points(work, max(_POINT_MATRICES * matrix, 2.0 * matrix + max(
         before.point_bytes, after.point_bytes)), n_points)
     defect = scale = 0.0
@@ -1498,12 +1499,14 @@ def symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=None
         coordinates, a shift of all of them together not counted; and how far
         that shift may reach and still be removed.  Default ``1e-5``.
     params : dict, optional
-        Values for a model whose terms are given by parameter names.
+        The scalar value of each parameter of the model, keyed by name:
+        ``{"lam": 0.3}``.
 
     Returns
     -------
     (pythtb.TBModel, dict) or Refusal
-        The model with its centres moved, and the record of the move:
+        The model with its centres moved and its parameters evaluated at
+        ``params``, and the record of the move:
         ``defect_before`` and ``defect_after``, how far the centres miss the
         group's action before and after, in reduced coordinates;
         ``max_move``, the largest move of one centre; ``offset``, the shift of
@@ -1516,6 +1519,9 @@ def symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=None
 
     Raises
     ------
+    ValueError
+        A name in ``params`` that is not a parameter of the model, a parameter
+        given no value, or a value that is not a number.
     ..refusal.InternalError
         The spectrum moved, or the group's operations miss the positions moved
         onto them, neither of which the move can do: a defect to report.
@@ -1538,6 +1544,7 @@ def symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=None
     ('2.0e-08 -> 1.1e-16', 'model')
     """
 
+    model = _bloch.bound(model, params)
     frame = _centres._assigned_sites(model, group, assignment)
     syms = group.symmetries
     unitary = [k for k, s in enumerate(syms) if not s.time_reversal]
@@ -1577,7 +1584,7 @@ def symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=None
     if np.array_equal(orb, raw):
         out, resid, measured = model, 0.0, 0
     else:
-        (out, resid), measured = _with_centres(model, orb, params=params), _bloch.CHECK_K
+        (out, resid), measured = _with_centres(model, orb), _bloch.CHECK_K
     final_trans = np.array([final[perm[r, 0]] + shift[r, 0] - rotations[r] @ final[0]
                             for r in rows])
     offset = (0.0 - np.asarray(delta) * frame["scale"])[:dim_r] if in_frame else np.zeros(dim_r)

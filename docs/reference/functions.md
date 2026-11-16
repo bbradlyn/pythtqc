@@ -110,7 +110,8 @@ The space group obeyed by H, obtained by descent from the space group of the lat
   candidates) and on the memory of the symmetric projection (default
   `1e9` bytes).
 
-- **`params`** (`dict, optional`): Values for a model whose terms are given by parameter names.
+- **`params`** (`dict, optional`): The scalar value of each parameter of the model, keyed by name:
+  `{"lam": 0.3}`.
 
 **Returns**
 
@@ -124,8 +125,10 @@ The space group obeyed by H, obtained by descent from the space group of the lat
   for a layer; `r.beyond_grey`, operations combined with time reversal
   that hold where time reversal does not; `r.precision`,
   `r.positions` and `r.symmetrization`, for a numerical model;
-  `r.conserved`, symmetry beyond the crystal's.  A `Refusal` in its
-  place is falsy and names what stopped the call.
+  `r.conserved`, symmetry beyond the crystal's.  For a parameterized
+  model, `r.model` is the model with its parameters evaluated at
+  `params`, and `r.source` the model as handed in.  A `Refusal` in
+  its place is falsy and names what stopped the call.
 
 **Refusals**
 
@@ -321,13 +324,14 @@ The same crystal as a `wannier90` spinor import delivers it: `2N` orbitals, the 
 - **`pairs`** (`sequence of (int, int), optional`): The pairs one by one, up first, every orbital in exactly one, in place
   of `order`.
 
-- **`params`** (`dict, optional`): Values for a model whose terms are given by parameter names.
+- **`params`** (`dict, optional`): The scalar value of each parameter of the model, keyed by name:
+  `{"lam": 0.3}`.
 
 **Returns**
 
-- `(pythtb.TBModel, SpinBasis) or Refusal`: The spinless model, and its pairing, which
-  `realized_group(flat, spin=sb)` reads as the native model's spin.  A
-  `Refusal` in its place is falsy.
+- `(pythtb.TBModel, SpinBasis) or Refusal`: The spinless model, its parameters evaluated at `params`, and its
+  pairing, which `realized_group(flat, spin=sb)` reads as the native
+  model's spin.  A `Refusal` in its place is falsy.
 
 **Refusals**
 
@@ -599,20 +603,22 @@ The energies and eigenvectors at one k, from one diagonalization.
 
 - **`k`** (`array_like, shape (dim_k,)`): One k-point, in reduced coordinates.
 
-- **`params`** (`dict, optional`): Values for a model whose terms are given by parameter names.
+- **`params`** (`dict, optional`): The scalar value of each parameter of the model, keyed by name:
+  `{"lam": 0.3}`.
 
 **Returns**
 
 - `(ndarray, ndarray)`: `(evals, evecs)`: the energies, ascending, and the eigenvectors as
   rows, as `model.solve_ham` returns them with `return_eigvecs=True`
-  and `flatten_spin_axis=True`.
+  and `flatten_spin_axis=True`, for the model with its parameters
+  evaluated at `params`.
 
 ### `sewing_matrix`
 
 ```text
 sewing_matrix(
     rep, operation=None, k=None, *, states=None, bands=None, atol=1e-08,
-    degeneracy_tol=1e-08, mesh_tol=1e-09, check=True, params=None, **kwargs
+    degeneracy_tol=1e-08, mesh_tol=1e-09, check=True, **kwargs
 )
 ```
 
@@ -647,8 +653,6 @@ The matrix of one operation on a set of bands, at a k-point the operation leaves
 - **`check`** (`bool, optional`): Check that the states solve `H(k)` and that `bands` closes its
   multiplets.  Default `True`.
 
-- **`params`** (`dict, optional`): Values for a model whose terms are given by parameter names.
-
 - **`**kwargs`**: Passed to `SpaceGroupRep.sewing_operator`.
 
 **Returns**
@@ -673,8 +677,7 @@ The matrix of one operation on a set of bands, at a k-point the operation leaves
 
 ```text
 characters(
-    rep, k, *, states=None, bands=None, degeneracy_tol=1e-08, atol=1e-08,
-    mesh_tol=1e-09, params=None
+    rep, k, *, states=None, bands=None, degeneracy_tol=1e-08, atol=1e-08, mesh_tol=1e-09
 )
 ```
 
@@ -700,8 +703,6 @@ The characters of a set of bands at one k: the trace of each unitary operation o
 - **`atol`, `mesh_tol`** (`float, optional`): In reduced reciprocal coordinates: whether an operation leaves `k`
   invariant (default `1e-8`), and finding `k` on a mesh (`1e-9`).
 
-- **`params`** (`dict, optional`): Values for a model whose terms are given by parameter names.
-
 **Returns**
 
 - `CharacterTable or Refusal`: `table.summary()` prints it.  `table.characters` holds a row per
@@ -726,7 +727,7 @@ A refusal handed in as `rep` is returned unchanged, and one from
 ```text
 corep_content(
     rep, k, *, states=None, bands=None, degeneracy_tol=1e-08, label_tol=0.001,
-    ktol=1e-05, kpname=None, atol=1e-08, mesh_tol=1e-09, params=None
+    ktol=1e-05, kpname=None, atol=1e-08, mesh_tol=1e-09
 )
 ```
 
@@ -758,8 +759,6 @@ The coreps a set of bands carries at one high-symmetry point, and which of its d
 - **`ktol`, `atol`, `mesh_tol`** (`float, optional`): In reduced reciprocal coordinates: matching `k` to a tabulated point
   (default `1e-5`), whether an operation leaves `k` invariant
   (`1e-8`), and finding `k` on a mesh (`1e-9`).
-
-- **`params`** (`dict, optional`): Values for a model whose terms are given by parameter names.
 
 **Returns**
 
@@ -793,7 +792,7 @@ A refusal handed in as `rep` is returned unchanged.
 ```text
 hsp_table(
     rep, *, states=None, bands=None, degeneracy_tol=1e-08, label_tol=0.001, ktol=1e-05,
-    atol=1e-08, mesh_tol=1e-09, params=None
+    atol=1e-08, mesh_tol=1e-09
 )
 ```
 
@@ -814,8 +813,6 @@ The coreps a set of bands carries at every high-symmetry point of the group: its
   multiplet.  Default `1e-8`.
 
 - **`label_tol`, `ktol`, `atol`, `mesh_tol`** (`float, optional`): The tolerances of [`corep_content`](#corep_content), read at each point.
-
-- **`params`** (`dict, optional`): Values for a model whose terms are given by parameter names.
 
 **Returns**
 
@@ -1204,12 +1201,13 @@ The layer repeated along its normal with no hopping between the copies: a crysta
   is the layer's extent along its normal plus `c`.  Default
   `STACK_C`, `8.0`.
 
-- **`params`** (`dict, optional`): Values for a model whose terms are given by parameter names.
+- **`params`** (`dict, optional`): The scalar value of each parameter of the model, keyed by name:
+  `{"lam": 0.3}`.
 
 **Returns**
 
-- `pythtb.TBModel or Refusal`: The stack, periodic in three directions.  A `Refusal` in its place is
-  falsy.
+- `pythtb.TBModel or Refusal`: The stack, periodic in three directions, its parameters evaluated at
+  `params`.  A `Refusal` in its place is falsy.
 
 **Refusals**
 
@@ -1539,11 +1537,13 @@ The model with its orbital centres moved onto the nearest positions its group ca
   coordinates, a shift of all of them together not counted; and how far
   that shift may reach and still be removed.  Default `1e-5`.
 
-- **`params`** (`dict, optional`): Values for a model whose terms are given by parameter names.
+- **`params`** (`dict, optional`): The scalar value of each parameter of the model, keyed by name:
+  `{"lam": 0.3}`.
 
 **Returns**
 
-- `(pythtb.TBModel, dict) or Refusal`: The model with its centres moved, and the record of the move:
+- `(pythtb.TBModel, dict) or Refusal`: The model with its centres moved and its parameters evaluated at
+  `params`, and the record of the move:
   `defect_before` and `defect_after`, how far the centres miss the
   group's action before and after, in reduced coordinates;
   `max_move`, the largest move of one centre; `offset`, the shift of
@@ -1604,12 +1604,13 @@ The model nearest a near-symmetric one that obeys its group exactly, and how far
 - **`max_candidates`** (`int, optional`): The largest search for the representation's discrete choices that is
   run.  Default `2**20`.
 
-- **`params`** (`dict, optional`): Values for a model whose terms are given by parameter names; the model
-  returned holds the numbers.
+- **`params`** (`dict, optional`): The scalar value of each parameter of the model, keyed by name:
+  `{"lam": 0.3}`.
 
 **Returns**
 
-- `(pythtb.TBModel, Symmetrization) or Refusal`: The symmetrized model, and the record of the average: `rec.summary()`;
+- `(pythtb.TBModel, Symmetrization) or Refusal`: The symmetrized model, its parameters evaluated at `params`, and the
+  record of the average: `rec.summary()`;
   `rec.defect`, how far `H` moved, in its units; `rec.near`, the
   operations obeyed only within `tol`; `rec.verification`, the
   operations measured again on the model returned.  A `Refusal` in its

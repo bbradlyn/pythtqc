@@ -317,16 +317,25 @@ def solve_at(model, k, *, params=None):
     k : array_like, shape (dim_k,)
         One k-point, in reduced coordinates.
     params : dict, optional
-        Values for a model whose terms are given by parameter names.
+        The scalar value of each parameter of the model, keyed by name:
+        ``{"lam": 0.3}``.
 
     Returns
     -------
     (ndarray, ndarray)
         ``(evals, evecs)``: the energies, ascending, and the eigenvectors as
         rows, as ``model.solve_ham`` returns them with ``return_eigvecs=True``
-        and ``flatten_spin_axis=True``.
+        and ``flatten_spin_axis=True``, for the model with its parameters
+        evaluated at ``params``.
+
+    Raises
+    ------
+    ValueError
+        A name in ``params`` that is not a parameter of the model, a parameter
+        given no value, or a value that is not a number.
     """
-    return _bloch.solve(model, np.atleast_2d(np.asarray(k, dtype=float).reshape(-1)), params)
+    model = _bloch.bound(model, params)
+    return _bloch.solve(model, np.atleast_2d(np.asarray(k, dtype=float).reshape(-1)))
 
 def _as_columns(states) -> np.ndarray:
     """A fiber of eigenvector **rows** -> the matrix whose **columns** they are.
@@ -389,7 +398,7 @@ def _wfarray_fiber(wf, k, *, mesh_tol=MESH_TOL):
         w = None                      # a sector WFArray carries states, not energies
     return w, V
 
-def _resolve_states(source, rep, k, *, mesh_tol=MESH_TOL, params=None, bloch=None):
+def _resolve_states(source, rep, k, *, mesh_tol=MESH_TOL, bloch=None):
     """The **single** eigenvector source at ``k`` -> ``(energies_or_None, V)``.
 
     ``source`` is a solved :class:`pythtb.WFArray`, the ``(evals, evecs)`` pair
@@ -399,10 +408,9 @@ def _resolve_states(source, rep, k, *, mesh_tol=MESH_TOL, params=None, bloch=Non
     accident.  ``bloch`` is as in :func:`_hamiltonian_at`.
     """
     k = np.asarray(k, dtype=float).reshape(-1)
-    params = dict(params or {})
 
     if source is None or source is rep.model:
-        evals, evecs = _bloch.solve(rep.model, np.atleast_2d(k), params, bloch)
+        evals, evecs = _bloch.solve(rep.model, np.atleast_2d(k), bloch)
         return np.asarray(evals, dtype=float).reshape(-1), _as_columns(evecs)
 
     if hasattr(source, "wfs") and hasattr(source, "mesh"):
@@ -425,23 +433,23 @@ def _resolve_states(source, rep, k, *, mesh_tol=MESH_TOL, params=None, bloch=Non
 
     return None, _as_columns(source)
 
-def _hamiltonian_at(rep, k, params=None, bloch=None) -> np.ndarray:
+def _hamiltonian_at(rep, k, bloch=None) -> np.ndarray:
     """``H(k)`` from ``rep.model``, Hermitized — recomputed on demand, never stored.
 
-    ``bloch``, where it is given, is the model's Bloch sum at these parameter
-    values, as :func:`.._bloch.evaluator` returns it.
+    ``bloch``, where it is given, is the model's Bloch sum, as
+    :func:`.._bloch.evaluator` returns it.
     """
     k = np.asarray(k, dtype=float).reshape(-1)
-    H = np.asarray(_bloch.hamiltonian(rep.model, np.atleast_2d(k), params, bloch))[0]
+    H = np.asarray(_bloch.hamiltonian(rep.model, np.atleast_2d(k), bloch))[0]
     return 0.5 * (H + H.conj().T)
 
-def _measured_sum(rep, params, bloch=None):
-    """The Bloch sum of ``rep.model`` at these parameter values, checked against ``rep``.
+def _measured_sum(rep, bloch=None):
+    """The Bloch sum of ``rep.model``, checked against ``rep``.
 
     A ``bloch`` handed in has been checked already, and is returned as it is.
     """
     if bloch is None:
-        bloch = _bloch.evaluator(rep.model, params)
+        bloch = _bloch.evaluator(rep.model)
         rep._check_unedited(bloch)
     return bloch
 
@@ -624,7 +632,7 @@ def _sewing_core(rep, operation, k, V, idx, H, *, atol=1e-8, residual=float("nan
 
 def sewing_matrix(rep, operation=None, k=None, *, states=None, bands=None, atol=1e-8,
                   degeneracy_tol=DEGENERACY_TOL, mesh_tol=MESH_TOL, check=True,
-                  params=None, **kwargs) -> SewingMatrix | Refusal:
+                  **kwargs) -> SewingMatrix | Refusal:
     r"""The matrix of one operation on a set of bands, at a k-point the operation leaves invariant: the sewing matrix ``B(g,k)_mn = <u_m(k)|U(g;k)|u_n(k)>``.
 
     Its trace over a degenerate multiplet is that multiplet's character, and its
@@ -659,8 +667,6 @@ def sewing_matrix(rep, operation=None, k=None, *, states=None, bands=None, atol=
     check : bool, optional
         Check that the states solve ``H(k)`` and that ``bands`` closes its
         multiplets.  Default ``True``.
-    params : dict, optional
-        Values for a model whose terms are given by parameter names.
     **kwargs
         Passed to :meth:`..symmetry.SpaceGroupRep.sewing_operator`.
 
@@ -679,8 +685,8 @@ def sewing_matrix(rep, operation=None, k=None, *, states=None, bands=None, atol=
         ``operation`` or ``k`` left out.
     ValueError
         States of another model than ``rep.model``, ``bands`` outside the
-        states, or ``rep.model``, none of whose terms carries a parameter, edited since
-        :func:`..groups.realized_group` measured it.
+        states, or ``rep.model`` edited since :func:`..groups.realized_group`
+        measured it.
 
     Refusals
     --------
@@ -708,16 +714,16 @@ def sewing_matrix(rep, operation=None, k=None, *, states=None, bands=None, atol=
     if k is None:
         raise TypeError("sewing_matrix() missing required argument 'k'")
     k = np.asarray(k, dtype=float).reshape(-1)
-    bloch = (_measured_sum(rep, params) if states is None or states is rep.model
+    bloch = (_measured_sum(rep) if states is None or states is rep.model
              else None)
-    got = _resolve_states(states, rep, k, mesh_tol=mesh_tol, params=params, bloch=bloch)
+    got = _resolve_states(states, rep, k, mesh_tol=mesh_tol, bloch=bloch)
     if isinstance(got, Refusal):
         return got
     w, V = got
     idx = _band_block(V.shape[1], bands)
 
-    bloch = _measured_sum(rep, params, bloch)
-    H = _hamiltonian_at(rep, k, params, bloch)
+    bloch = _measured_sum(rep, bloch)
+    H = _hamiltonian_at(rep, k, bloch)
     resid = float("nan") if w is None else _states_at_k(H, w, V)
 
     if check and w is not None:
@@ -854,7 +860,7 @@ class CharacterTable:
                 f"in {n} multiplet{'' if n == 1 else 's'}, group={self.group_provenance})")
 
 def characters(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
-               atol=1e-8, mesh_tol=MESH_TOL, params=None) -> CharacterTable | Refusal:
+               atol=1e-8, mesh_tol=MESH_TOL) -> CharacterTable | Refusal:
     r"""The characters of a set of bands at one k: the trace of each unitary operation of the little group over each degenerate multiplet of the set.
 
     Parameters
@@ -877,8 +883,6 @@ def characters(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL
     atol, mesh_tol : float, optional
         In reduced reciprocal coordinates: whether an operation leaves ``k``
         invariant (default ``1e-8``), and finding ``k`` on a mesh (``1e-9``).
-    params : dict, optional
-        Values for a model whose terms are given by parameter names.
 
     Returns
     -------
@@ -893,8 +897,7 @@ def characters(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL
     ------
     ValueError
         States without energies or of another model than ``rep.model``, or
-        ``rep.model``, none of whose terms carries a parameter, edited since
-        :func:`..groups.realized_group` measured it.
+        ``rep.model`` edited since :func:`..groups.realized_group` measured it.
     ..refusal.InternalError
         The representation leaves out an operation of the little group at
         ``k``: the package disagreeing with itself.
@@ -912,9 +915,9 @@ def characters(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL
         the mesh handed in does not hold ``k``.
     """
     return _characters(rep, k, states=states, bands=bands, degeneracy_tol=degeneracy_tol,
-                       atol=atol, mesh_tol=mesh_tol, params=params, bloch=None)
+                       atol=atol, mesh_tol=mesh_tol, bloch=None)
 
-def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol, params,
+def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol,
                 bloch) -> CharacterTable | Refusal:
     """The table :func:`characters` returns.
 
@@ -929,8 +932,8 @@ def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol, params
         return gate
     k = np.asarray(k, dtype=float).reshape(-1)
     if states is None or states is rep.model:
-        bloch = _measured_sum(rep, params, bloch)
-    got = _resolve_states(states, rep, k, mesh_tol=mesh_tol, params=params, bloch=bloch)
+        bloch = _measured_sum(rep, bloch)
+    got = _resolve_states(states, rep, k, mesh_tol=mesh_tol, bloch=bloch)
     if isinstance(got, Refusal):
         return got
     w, V = got
@@ -942,8 +945,8 @@ def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol, params
             "in the model / the (evals, evecs) pair.")
     idx = _band_block(V.shape[1], bands)
 
-    bloch = _measured_sum(rep, params, bloch)
-    H = _hamiltonian_at(rep, k, params, bloch)
+    bloch = _measured_sum(rep, bloch)
+    H = _hamiltonian_at(rep, k, bloch)
     resid = _states_at_k(H, w, V)
     foreign = _foreign_states(H, k, resid)
     if foreign is not None:
@@ -1121,7 +1124,7 @@ def _isolation(spectrum, bands):
 
 def corep_content(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
                   label_tol=LABEL_TOL, ktol=1e-5, kpname=None, atol=1e-8,
-                  mesh_tol=MESH_TOL, params=None) -> CorepContent | Refusal:
+                  mesh_tol=MESH_TOL) -> CorepContent | Refusal:
     r"""The coreps a set of bands carries at one high-symmetry point, and which of its degenerate multiplets carry the same characters.
 
     Parameters
@@ -1151,8 +1154,6 @@ def corep_content(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_
         In reduced reciprocal coordinates: matching ``k`` to a tabulated point
         (default ``1e-5``), whether an operation leaves ``k`` invariant
         (``1e-8``), and finding ``k`` on a mesh (``1e-9``).
-    params : dict, optional
-        Values for a model whose terms are given by parameter names.
 
     Returns
     -------
@@ -1169,8 +1170,7 @@ def corep_content(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_
     ------
     ValueError
         States without energies or of another model than ``rep.model``, or
-        ``rep.model``, none of whose terms carries a parameter, edited since
-        :func:`..groups.realized_group` measured it.
+        ``rep.model`` edited since :func:`..groups.realized_group` measured it.
     ..refusal.InternalError
         The representation leaves out an operation of the little group at
         ``k``: the package disagreeing with itself.
@@ -1209,10 +1209,10 @@ def corep_content(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_
     """
     return _corep_content(rep, k, states=states, bands=bands, degeneracy_tol=degeneracy_tol,
                           label_tol=label_tol, ktol=ktol, kpname=kpname, atol=atol,
-                          mesh_tol=mesh_tol, params=params, bloch=None)
+                          mesh_tol=mesh_tol, bloch=None)
 
 def _corep_content(rep, k, *, states, bands, degeneracy_tol, label_tol, ktol, kpname, atol,
-                   mesh_tol, params, bloch) -> CorepContent | Refusal:
+                   mesh_tol, bloch) -> CorepContent | Refusal:
     """The coreps :func:`corep_content` returns.
 
     ``bloch`` is the model's Bloch sum or ``None``, as in :func:`_hamiltonian_at`.
@@ -1225,7 +1225,7 @@ def _corep_content(rep, k, *, states, bands, degeneracy_tol, label_tol, ktol, kp
     if gate is not None:
         return gate
     tab = _characters(rep, k, states=states, bands=bands, degeneracy_tol=degeneracy_tol,
-                      atol=atol, mesh_tol=mesh_tol, params=params, bloch=bloch)
+                      atol=atol, mesh_tol=mesh_tol, bloch=bloch)
     if isinstance(tab, Refusal):
         return tab
 
@@ -1439,8 +1439,8 @@ def _multiplicity_note(rep, block, fibers) -> str:
     return "; ".join(said)
 
 def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
-              label_tol=LABEL_TOL, ktol=1e-5, atol=1e-8, mesh_tol=MESH_TOL,
-              params=None) -> HSPTable | Refusal:
+              label_tol=LABEL_TOL, ktol=1e-5, atol=1e-8,
+              mesh_tol=MESH_TOL) -> HSPTable | Refusal:
     """The coreps a set of bands carries at every high-symmetry point of the group: its symmetry data vector.
 
     Parameters
@@ -1459,8 +1459,6 @@ def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
         multiplet.  Default ``1e-8``.
     label_tol, ktol, atol, mesh_tol : float, optional
         The tolerances of :func:`corep_content`, read at each point.
-    params : dict, optional
-        Values for a model whose terms are given by parameter names.
 
     Returns
     -------
@@ -1480,8 +1478,8 @@ def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
     ------
     ValueError
         States of another model than ``rep.model``, ``bands`` outside the
-        states, or ``rep.model``, none of whose terms carries a parameter, edited since
-        :func:`..groups.realized_group` measured it.
+        states, or ``rep.model`` edited since :func:`..groups.realized_group`
+        measured it.
 
     Refusals
     --------
@@ -1537,8 +1535,8 @@ def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
     bloch = None                    # the model's Bloch sum, where the model is solved here
     if wanted and (states is None or states is rep.model):
         karr = np.array([k for _, k in wanted], dtype=float)
-        bloch = _measured_sum(rep, params)
-        evals, evecs = _bloch.solve(rep.model, karr, params, bloch)
+        bloch = _measured_sum(rep)
+        evals, evecs = _bloch.solve(rep.model, karr, bloch)
         evals, evecs = np.asarray(evals), np.asarray(evecs)
         if evals.ndim == 1:                     # solve_ham drops a length-1 k axis
             evals, evecs = evals[None], evecs[None]
@@ -1549,7 +1547,7 @@ def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
     for name, k in wanted:
         got = _corep_content(rep, k, states=per_point[name], bands=block,
                              degeneracy_tol=degeneracy_tol, label_tol=label_tol, ktol=ktol,
-                             kpname=None, atol=atol, mesh_tol=mesh_tol, params=params,
+                             kpname=None, atol=atol, mesh_tol=mesh_tol,
                              bloch=bloch)
         if isinstance(got, Refusal):
             refusals[name] = got

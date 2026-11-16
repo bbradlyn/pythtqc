@@ -4,7 +4,8 @@
 returns it with the orbitals' Wyckoff positions and the matrices every later
 call labels the bands with. This chapter reads what it returns: the group, a
 descent when the Hamiltonian has less symmetry than its cell, time reversal, a
-conserved operator, and a cell that is a supercell. The models are pythtb's own:
+conserved operator, a cell that is a supercell, and a model with free parameters.
+The models are pythtb's own:
 graphene and Haldane's model, Kane–Mele, Fu–Kane–Mele's diamond and the
 checkerboard. Why the group is measured rather than read off the positions is in
 [how pythTQC reads a Hamiltonian](../background/measurement.md).
@@ -44,7 +45,8 @@ print(group is r.group, rep is r.rep)
 
 The record unpacks into five of its own attributes, so the unpacked `rep` is
 `r.rep` itself: `r.model`, the model measured and the one every later call takes
-(for a layer, its slab presentation, with the same `H(k)`); `r.group`, the
+(for a layer, its slab presentation, with the same `H(k)`; for a parameterized model,
+the model with the values of its parameters in place); `r.group`, the
 group, written in the model's own reduced coordinates; `r.assignment`, the
 Wyckoff orbit of each orbital, here one orbit at letter `b`, site symmetry
 `3m`; `r.validated`, the verdict on each operation; and `r.rep`, the matrix of
@@ -274,6 +276,42 @@ rebuilt on the primitive cell as above.
 
 Folding a supercell onto its primitive cell is not supported yet
 ([what the package cannot do yet](../background/limits.md#a-supercell-is-refused-not-folded)).
+
+## A model with free parameters
+
+pythtb allows the hoppings and on-site energies of a model to be specified as
+free parameters, names whose values are given when the Hamiltonian is
+evaluated. pythTQC identifies the group of a parameterized model through the
+`params=` argument of `realized_group`, which takes the value of each
+parameter by name. The model is read at those values: the group, the
+representation and `r.model` are those of the model with the numbers in
+place, and the calls that follow take `r.rep` as for any other model. Each
+set of values is one call. A parameter takes a number, so a hopping that
+acts on spin is written as a function of its parameter that returns the
+`2×2` block.
+
+As a simple example, consider the Kane–Mele model as a function of the
+spin–orbit coupling strength `lam`, with no Rashba term, read as a
+free-standing layer:
+
+```python
+import numpy as np
+
+sz = np.diag([1.0, -1.0])
+named = kane_mele(1.0, -1.0, 0.0, 0.0)          # delta, t, soc, rashba: no spin-orbit coupling yet
+for site, R, nu in ((0, [0, 1], -1), (0, [1, 0], 1), (0, [1, -1], -1),
+                    (1, [0, 1], 1), (1, [1, 0], -1), (1, [1, -1], 1)):
+    named.set_hop(lambda lam, nu=nu: 1j * lam * nu * sz, site, site, R)   # i lam nu sigma_z
+for lam in (0.06, 0.3):
+    r = tqc.realized_group(named, params={"lam": lam}, environment="free-standing")
+    si = tqc.symmetry_indicator(tqc.hsp_table(r.rep, bands=2))
+    print(lam, r.group.name, r.group.number_str, si.values)
+#  0.06 P-6m21' 187.210 (0, 0)
+#  0.3 P-6m21' 187.210 (2, 0)
+```
+
+The group is the same at both strengths and the symmetry indicator of the two
+lowest bands is not: the gap closes in between, at `lam = δ/(3√3) ≈ 0.19`.
 
 ## When it refuses
 
