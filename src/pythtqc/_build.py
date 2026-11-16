@@ -140,6 +140,246 @@ class _PartUnit:
     orbitals: tuple
 
 
+@dataclass(frozen=True, eq=False)
+class _Operations:
+    """The operations a build represents, with their generators and the word of each.
+
+    Attributes
+    ----------
+    group : ..groups.GroupData
+        As in :func:`_build_rep`.
+    syms : list
+        The group's operations, in the group's order.
+    kept : list of int
+        The positions in ``syms`` of the operations represented.
+    u_pos : list of int
+        Those of them that are unitary.
+    au_pos : list of int
+        Those of them that carry time reversal.
+    gens : tuple of int
+        The generators of the unitary operations, by position.
+    words : dict
+        Each unitary operation's word in the generators, by position.
+    parent : dict
+        Each unitary operation's edge in the tree of words.
+    T_pos : int or None
+        The antiunitary operation the others are written from: a pure time reversal where
+        one is represented.
+    au_of : dict
+        For each antiunitary operation, the unitary one whose product with ``T_pos`` it is.
+    prod : ndarray of int
+        The group's multiplication table, by position.
+    spf : ndarray of int
+        The sign the spin-1/2 lifts carry in each product.
+    ident : int
+        The position of the identity.
+    nstate : int
+        The model's number of states.
+    spin : ..spin.SpinBasis or None
+        The declared spinor basis, resolved; ``None`` where none is declared.
+    validated : ..groups.ValidatedGroup
+        The measurement of the operations, each read in its own form.
+    """
+
+    group: object
+    syms: object
+    kept: object
+    u_pos: object
+    au_pos: object
+    gens: object
+    words: object
+    parent: object
+    T_pos: object
+    au_of: object
+    prod: object
+    spf: object
+    ident: object
+    nstate: object
+    spin: object
+    validated: object
+
+
+@dataclass(frozen=True, eq=False)
+class _Multiplets:
+    """The multiplets of a build, their orbits under the operations, and the anchor.
+
+    Attributes
+    ----------
+    layout : SiteMultiplets
+        The multiplets.
+    su2 : bool
+        Whether the states carry the spin-1/2 lift.
+    nchan : int
+        The number of multiplets.
+    chan_states : tuple
+        The states of each multiplet.
+    cperm : dict
+        Where each operation carries each multiplet, by position.
+    classes : ndarray of int
+        The orbit each multiplet belongs to.
+    ncls : int
+        The number of orbits.
+    anchor : int
+        Orbital 0's multiplet, which the representation is written against.
+    anchor_cls : int
+        Its orbit.
+    free_cls : list of int
+        The other orbits.
+    site_tables : dict
+        The character tables of the sites, empty where they are not read or not available.
+    decls : list
+        The declarations, read on the multiplets.
+    char_note : str
+        Why the site tables are unavailable, empty where they are not.
+    ref_orb : int
+        The reference orbital.
+    ref_chan : int
+        Its multiplet.
+    """
+
+    layout: object
+    su2: object
+    nchan: object
+    chan_states: object
+    cperm: object
+    classes: object
+    ncls: object
+    anchor: object
+    anchor_cls: object
+    free_cls: object
+    site_tables: object
+    decls: object
+    char_note: object
+    ref_orb: object
+    ref_chan: object
+
+
+@dataclass(frozen=True, eq=False)
+class _Measured:
+    """What the measurement of a build read: the blocks, the scalars and the coupled parts.
+
+    Attributes
+    ----------
+    verdict : .._declaration._Verdict
+        The measurement, handed in or made once.
+    measured_of : dict
+        Each operation's internal block on each multiplet.
+    zero : float
+        The size below which a block or a ratio vanishes.
+    snap : float
+        The distance within which a factor is read as a root of unity.
+    S_gen : dict
+        The internal blocks of each generator and of the antiunitary operation the others
+        are written from, one for each multiplet.
+    reversal : ndarray of complex
+        The scalar time reversal carries on each orbit.
+    pool : list of dict
+        The one-dimensional characters the labelling is chosen among.
+    unpinned : frozenset of int
+        The orbits the hoppings leave free of the anchor.
+    coupled_parts : list
+        The orbits of each coupled part of the crystal, the anchor's first.
+    part_of_class : dict
+        The coupled part of each orbit.
+    free_lead : dict
+        The lead orbit of the part of each orbit outside the anchor's.
+    """
+
+    verdict: object
+    measured_of: object
+    zero: object
+    snap: object
+    S_gen: object
+    reversal: object
+    pool: object
+    unpinned: object
+    coupled_parts: object
+    part_of_class: object
+    free_lead: object
+
+
+@dataclass(frozen=True, eq=False)
+class _Battery:
+    """What every candidate of a build is measured against, and the choices on offer.
+
+    Attributes
+    ----------
+    tree : dict
+        The tree of words, as the generators are propagated along it.
+    k_pts : ndarray
+        The k-points of the covariance battery, in reduced coordinates.
+    bloch : .._bloch._BlochSum
+        The model's Bloch Hamiltonian, evaluated by k-point.
+    H : ndarray
+        ``H(k)`` on the battery.
+    Hrot : dict
+        ``H`` at each operation's image of the battery.
+    kact : dict
+        Each operation's action on k.
+    tol : float
+        The covariance gate, in the units of ``H``.
+    internal_tol : float
+        As in :func:`_build_rep`.
+    product_tol : float
+        As in :func:`_build_rep`.
+    _gate_lifts : dict
+        The block each multiplet carries under each unitary operation, which the
+        internal-factor gate measures against.
+    reach : float
+        The largest defect of the product table, as the largest entry of a difference of
+        matrices, that is replaced by the nearest exact representation.
+    units : list of _PartUnit
+        The coupled parts, as they are settled together.
+    phases : tuple of complex
+        The phases the enumeration tries on each free orbit.
+    n_free : int
+        The number of phases a candidate chooses.
+    orients : tuple of int
+        The orientation branches tried.
+    all_blocks : list
+        The multiplets one choice applies to at once.
+    part_chans : list of list of int
+        The multiplets of each coupled part.
+    """
+
+    tree: object
+    k_pts: object
+    bloch: object
+    H: object
+    Hrot: object
+    kact: object
+    tol: object
+    internal_tol: object
+    product_tol: object
+    _gate_lifts: object
+    reach: object
+    units: object
+    phases: object
+    n_free: object
+    orients: object
+    all_blocks: object
+    part_chans: object
+
+
+@dataclass(frozen=True, eq=False)
+class _Accepted:
+    """The candidate representation the gates accept, with the record of the search.
+
+    Attributes
+    ----------
+    winner : dict
+        The candidate, its settled matrices with it.
+    search : dict
+        The record of the search, as the representation returns it.
+    branch_tie : bool
+        Whether the orientation branch was pinned by convention.
+    """
+
+    winner: object
+    search: object
+    branch_tie: object
+
+
 def _no_multiplicity_representation(group, record, layout, kept, syms) -> Refusal:
     r"""``rep_not_multiplicative`` — a conserved pseudospin whose copies no representation fits.
 
@@ -726,7 +966,81 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
                          validated=r.validated,
                          multiplets=[[orbs] for orbs in r.assignment.site_orbitals])
     """
+    ops = _represented_operations(model, group, assignment, validated=validated,
+                                  multiplets=multiplets, characters=characters, spin=spin,
+                                  generators=generators, operations=operations,
+                                  include_vacuum_ops=include_vacuum_ops, strategy=strategy)
+    if not isinstance(ops, _Operations):
+        return ops
+    mul = _multiplet_layout(model, group, assignment, ops, multiplets=multiplets,
+                            characters=characters, reference_orbital=reference_orbital,
+                            _labelled=_labelled)
+    if not isinstance(mul, _Multiplets):
+        return mul
+    meas = _measurement_read(model, group, assignment, ops, mul, internal_tol=internal_tol,
+                             max_candidates=max_candidates, _choices=_choices)
+    if not isinstance(meas, _Measured):
+        return meas
+    bat = _candidate_battery(model, group, ops, mul, meas, k_pts=k_pts, n_battery=n_battery,
+                             seed=seed, tol=tol, internal_tol=internal_tol,
+                             product_tol=product_tol, phases=phases,
+                             orientation_branch=orientation_branch)
+    acc = _accepted_candidate(group, ops, mul, meas, bat, strategy=strategy,
+                              max_candidates=max_candidates, internal_tol=internal_tol,
+                              product_tol=product_tol, _search_record=_search_record)
+    if not isinstance(acc, _Accepted):
+        return acc
+    return _returned_representation(model, group, assignment, ops, mul, meas, bat, acc,
+                                    _returned=_returned)
 
+
+def _represented_operations(model, group, assignment, *, validated, multiplets, characters,
+                            spin, generators, operations, include_vacuum_ops, strategy):
+    """The operations to be represented, with their generators and the word of each.
+
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        As in :func:`_build_rep`.
+    group : ..groups.GroupData
+        As in :func:`_build_rep`.
+    assignment : ..groups.OrbitalAssignment
+        As in :func:`_build_rep`.
+    validated : ..groups.ValidatedGroup
+        As in :func:`_build_rep`.
+    multiplets : SiteMultiplets
+        As in :func:`_build_rep`.
+    characters : sequence or mapping
+        As in :func:`_build_rep`.
+    spin : ..spin.SpinBasis, str or dict
+        As in :func:`_build_rep`.
+    generators : sequence of int
+        As in :func:`_build_rep`.
+    operations : sequence of int
+        As in :func:`_build_rep`.
+    include_vacuum_ops : bool
+        As in :func:`_build_rep`.
+    strategy : {"readoff", "enumerate"}
+        As in :func:`_build_rep`.
+
+    Returns
+    -------
+    _Operations or Refusal
+        The record, or the refusal that ends the build.
+
+    Raises
+    ------
+    ValueError
+        Grammar in the arguments, as in :func:`_build_rep`: a ``strategy=`` that names
+        nothing, a malformed declaration or one written for another model, a group of
+        single-valued tables for states that carry spin-1/2, ``operations=`` without the
+        identity or not closed, ``generators=`` that do not generate the represented unitary
+        operations.
+    ..refusal.InternalError
+        An operation to be represented none of whose matrices has its own form, operations
+        measured to hold that do not close into a group, or no generating set of three
+        operations or fewer for the unitary ones.
+    """
     if strategy not in ("readoff", "enumerate"):
         raise ValueError("strategy must be 'readoff' (read the choices off the measured "
                          "solution spaces) or 'enumerate' (the exhaustive search), got "
@@ -905,6 +1219,47 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
                     raise ValueError(f"{said}; `operations=` names a subgroup.")
                 raise InternalError(f"{said}, and they are the operations measured to hold.")
             au_of[p] = match[0]
+    return _Operations(group=group, syms=syms, kept=kept, u_pos=u_pos, au_pos=au_pos,
+                       gens=gens, words=words, parent=parent, T_pos=T_pos, au_of=au_of,
+                       prod=prod, spf=spf, ident=ident, nstate=nstate, spin=spin,
+                       validated=validated)
+
+
+def _multiplet_layout(model, group, assignment, ops, *, multiplets, characters,
+                      reference_orbital, _labelled):
+    """The multiplets, their orbits under the operations, and the anchor.
+
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        As in :func:`_build_rep`.
+    group : ..groups.GroupData
+        As in :func:`_build_rep`.
+    assignment : ..groups.OrbitalAssignment
+        As in :func:`_build_rep`.
+    multiplets : SiteMultiplets
+        As in :func:`_build_rep`.
+    characters : sequence or mapping
+        As in :func:`_build_rep`.
+    reference_orbital : int
+        As in :func:`_build_rep`.
+    _labelled : bool
+        Whether the labelling is named: with it ``False`` and nothing declared, the site
+        tables are not read.
+    ops : _Operations
+        As :func:`_represented_operations` returns it.
+
+    Returns
+    -------
+    _Multiplets or Refusal
+        The record, or the refusal that ends the build.
+    """
+    au_pos = ops.au_pos
+    kept = ops.kept
+    spin = ops.spin
+    syms = ops.syms
+    u_pos = ops.u_pos
+    validated = ops.validated
 
     # ---- 3. multiplets, their permutations and their orbits ----------------
     # The multiplets are measured, or stated by `multiplets=`; `characters=`
@@ -961,6 +1316,68 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
     anchor = int(chan_of[0])
     anchor_cls = int(classes[anchor])
     free_cls = [c for c in range(ncls) if c != anchor_cls]
+    return _Multiplets(layout=layout, su2=su2, nchan=nchan, chan_states=chan_states,
+                       cperm=cperm, classes=classes, ncls=ncls, anchor=anchor,
+                       anchor_cls=anchor_cls, free_cls=free_cls, site_tables=site_tables,
+                       decls=decls, char_note=char_note, ref_orb=ref_orb, ref_chan=ref_chan)
+
+
+def _measurement_read(model, group, assignment, ops, mul, *, internal_tol, max_candidates,
+                      _choices):
+    """What the measurement reads on the multiplets, made once or handed in.
+
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        As in :func:`_build_rep`.
+    group : ..groups.GroupData
+        As in :func:`_build_rep`.
+    assignment : ..groups.OrbitalAssignment
+        As in :func:`_build_rep`.
+    internal_tol : float
+        As in :func:`_build_rep`.
+    max_candidates : int
+        As in :func:`_build_rep`.
+    _choices : .._declaration._Verdict or None
+        A measurement made earlier on this group, used where it was made on the same unitary
+        operations, declarations, tolerance, orbits and anchor.
+    ops : _Operations
+        As :func:`_represented_operations` returns it.
+    mul : _Multiplets
+        As :func:`_multiplet_layout` returns it.
+
+    Returns
+    -------
+    _Measured or Refusal
+        The record, or the refusal that ends the build.
+
+    Raises
+    ------
+    ..refusal.InternalError
+        An internal block of a generator the measurement does not reach.
+    """
+    T_pos = ops.T_pos
+    au_of = ops.au_of
+    au_pos = ops.au_pos
+    gens = ops.gens
+    ident = ops.ident
+    kept = ops.kept
+    parent = ops.parent
+    prod = ops.prod
+    spin = ops.spin
+    syms = ops.syms
+    u_pos = ops.u_pos
+    validated = ops.validated
+    words = ops.words
+    anchor = mul.anchor
+    chan_states = mul.chan_states
+    classes = mul.classes
+    decls = mul.decls
+    layout = mul.layout
+    nchan = mul.nchan
+    ncls = mul.ncls
+    ref_orb = mul.ref_orb
+    site_tables = mul.site_tables
 
     # ---- 4. THE MEASUREMENT, made once ----------------------------------------
     # What each operation's solution space says about the orbitals, read once:
@@ -1009,24 +1426,9 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
         if not record.n_admitted:
             return _no_multiplicity_representation(group, record, layout, kept, syms)
 
-    def _internal(p):
-        """``[S per channel]`` for one operation, or ``None`` where a block is missing."""
-        lift = _lift_of(syms[p], su2)
-        blocks = measured_of.get(int(syms[p].ind), {})
-        out = []
-        for c in range(nchan):
-            S = blocks.get(int(c))
-            if S is None and layout._chan_kind[c] != "measured":
-                out.append(lift)
-                continue
-            if S is None or S.shape != (len(chan_states[c]),) * 2:
-                return None
-            out.append(S)
-        return out
-
     S_gen = {}
     for p in list(gens) + ([T_pos] if T_pos is not None else []):
-        S = _internal(p)
+        S = _internal(ops, mul, measured_of, p)
         if S is None or any(float(np.abs(M).max()) < zero for M in S):
             asked = sorted({len(chan_states[c]) for c in range(nchan)})
             raise InternalError(
@@ -1086,18 +1488,6 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
                              "cannot lower."),
                 site_tables=site_tables, admissible=admissible)
 
-    def _relative(p_gen, cls):
-        """The class scalar the build assembles with, at one generator.
-
-        What the measurement pinned relative to the anchor; and on an orbit the
-        hoppings leave free of it, the trivial relative character -- the
-        labelling chooses its part's own afterwards.
-        """
-        if int(cls) in unpinned:
-            return 1.0 + 0.0j
-        got = verdict.chosen.get((int(syms[p_gen].ind), int(cls)))
-        return None if got is None else complex(got)
-
     # ---- 4c. THE COUPLED PARTS OF THE CRYSTAL, as the measurement read them --
     # The hoppings fix every multiplet's block up to one one-dimensional
     # character per coupled part -- the multiplets they connect, directly or
@@ -1107,21 +1497,77 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
     coupled_parts = _coupled_parts(classes, unpinned, verdict.parts)
     part_of_class = {int(cls): i for i, part in enumerate(coupled_parts) for cls in part}
     free_lead = {int(cls): int(min(part)) for part in coupled_parts[1:] for cls in part}
+    return _Measured(verdict=verdict, measured_of=measured_of, zero=zero, snap=snap,
+                     S_gen=S_gen, reversal=reversal, pool=pool, unpinned=unpinned,
+                     coupled_parts=coupled_parts, part_of_class=part_of_class,
+                     free_lead=free_lead)
 
-    def _assemble(p, S, sign_of_class):
-        D = np.zeros((nstate, nstate), dtype=complex)
-        for c in range(nchan):
-            rows = np.asarray(chan_states[int(cperm[p][c])], dtype=int)
-            cols = np.asarray(chan_states[c], dtype=int)
-            D[np.ix_(rows, cols)] = sign_of_class[int(classes[c])] * S[c]
-        return D
+
+def _candidate_battery(model, group, ops, mul, meas, *, k_pts, n_battery, seed, tol,
+                       internal_tol, product_tol, phases, orientation_branch):
+    """What each candidate representation is measured against, and the choices on offer.
+
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        As in :func:`_build_rep`.
+    group : ..groups.GroupData
+        As in :func:`_build_rep`.
+    k_pts : array
+        As in :func:`_build_rep`.
+    n_battery : int
+        As in :func:`_build_rep`.
+    seed : int
+        As in :func:`_build_rep`.
+    tol : float
+        As in :func:`_build_rep`.
+    internal_tol : float
+        As in :func:`_build_rep`.
+    product_tol : float
+        As in :func:`_build_rep`.
+    phases : sequence of complex
+        As in :func:`_build_rep`.
+    orientation_branch : None or {+1, -1}
+        As in :func:`_build_rep`.
+    ops : _Operations
+        As :func:`_represented_operations` returns it.
+    mul : _Multiplets
+        As :func:`_multiplet_layout` returns it.
+    meas : _Measured
+        As :func:`_measurement_read` returns it.
+
+    Returns
+    -------
+    _Battery
+        What every candidate is measured against, and the choices on offer.
+
+    Raises
+    ------
+    ValueError
+        An ``orientation_branch=`` that names nothing.
+    """
+    T_pos = ops.T_pos
+    au_of = ops.au_of
+    gens = ops.gens
+    ident = ops.ident
+    kept = ops.kept
+    nstate = ops.nstate
+    parent = ops.parent
+    spf = ops.spf
+    syms = ops.syms
+    u_pos = ops.u_pos
+    words = ops.words
+    anchor = mul.anchor
+    chan_states = mul.chan_states
+    classes = mul.classes
+    free_cls = mul.free_cls
+    layout = mul.layout
+    nchan = mul.nchan
+    coupled_parts = meas.coupled_parts
+    part_of_class = meas.part_of_class
 
     tree = {"gens": gens, "words": words, "parent": parent, "spf": spf, "ident": ident,
             "nstate": nstate, "T_pos": T_pos, "au_of": au_of}
-
-    def _propagate(Dgen, DT):
-        """Propagate the generators along the word tree (:func:`_propagated`)."""
-        return _propagated(Dgen, DT, **tree)
 
     # ---- 5. the covariance battery ----------------------------------------
     k_pts = _covariance_battery(group, k_pts, n_battery, seed)
@@ -1137,82 +1583,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
         kact[p] = act
         Hrot[p] = np.asarray(bloch(act(k_pts)))
 
-    def _covariance(D):
-        worst = 0.0
-        for p in kept:
-            U = D[p]
-            src = H.conj() if syms[p].time_reversal else H
-            worst = max(worst, float(np.abs(U @ src @ U.conj().T - Hrot[p]).max()))
-        return worst
-
-    def _gate_lift(p):
-        r"""``[S per channel]`` the closed gate below measures against.
-
-        It is the block :func:`_multiplet_blocks` settled on — the one the
-        matrices were assembled from, so that the gate is the statement that
-        every multiplet carries its own block and not a comparison against
-        whichever member of the solution space a polar extraction happened to
-        return — and the operation's own lift, the tables'
-        (``sym.spinor_rotation``), on a one-dimensional multiplet no block was
-        read for.  An entry is ``None`` where no block could be measured, and
-        that multiplet is skipped: there is nothing to test it against.
-        """
-        lift = _lift_of(syms[p], su2)
-        blocks = measured_of.get(int(syms[p].ind), {})
-        return [blocks.get(int(c),
-                           None if layout._chan_kind[c] == "measured" else lift)
-                for c in range(nchan)]
-
-    _gate_lifts = {p: _gate_lift(p) for p in u_pos}
-
-    def _internal_defect(D):
-        r"""Worst factorization defect ``max ‖B(g) − χ·S(g)‖``, over **every** block.
-
-        The tensor structure behind the build is ``D(g) = O(g) ⊗ S(g)``, and
-        that is a statement about every multiplet block of ``D(g)`` — the block
-        carrying a multiplet to its *image* as much as the block of a multiplet
-        the operation fixes.  This measures it on every one of them, with the
-        per-block coefficient free (the tensor-structure subspace), so it is
-        blind to the one-dimensional character the labelling puts in
-        afterwards.  A candidate with a large defect carries no site
-        characters at all: its blocks are some *other* SU(2) element, so "the
-        ``d`` orbital at ``1a``" has nothing to be measured against.
-
-        **Why every block and not only the fixed ones.**  Tested on the fixed
-        multiplets alone the gate has a hole, and it is not a small one: the
-        ``σ_h``-partner ``σ_h·g`` of an operation has a *different* lift, so a
-        Hamiltonian written in the opposite spin convention can carry the
-        partner's lift on every site-swapping block and still close a gate that
-        never looks at one.  Measured: the SRSI paper's ``P41'`` model
-        transcribed raw admits a faithful representation of ``P-4m2`` under the
-        name ``P4mm1' #99.164`` — the two are isomorphic, so the product table
-        closes at ``5e-16`` too — with ``C4``, ``C4⁻¹`` and both diagonal
-        mirrors carrying ``S(σ_h)·S(g)``.  Closing the gate over every block
-        refuses that build instead of returning it.
-
-        This is also what separates the ``g``-versus-``g⁻¹`` orientation branch
-        on a spinful model, and neither of the other two gates can see it — the
-        covariance battery and the product table are both statements about the
-        ``D``'s among themselves, while this one is the statement that they are
-        the ``D``'s of *these* operations.  Measured on the search matrices: it
-        is invariant under ``D → λD``, so normalization cannot change it.
-
-        Vacuous where there is no internal factor to check: a spinless model
-        with no declared spinor basis, whose ``S`` is ``1×1`` and every block a
-        multiple of it by arithmetic.
-        """
-        worst = 0.0
-        for p in u_pos:
-            lifts = _gate_lifts.get(p) or []
-            for c in range(nchan):
-                S = lifts[c] if c < len(lifts) else None
-                if S is None:
-                    continue
-                rows = np.asarray(chan_states[int(cperm[p][c])], dtype=int)
-                cols = np.asarray(chan_states[c], dtype=int)
-                _, res = _proportionality(D[p][np.ix_(rows, cols)], S)
-                worst = max(worst, float(res))
-        return worst
+    _gate_lifts = {p: _gate_lift(ops, mul, meas, p) for p in u_pos}
 
     # ---- 5b. normalization, as a function of one candidate ------------------
     # Phase-canonicalize the generators (canonical norm + antiunitary anchor +
@@ -1278,77 +1649,6 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
                                orbitals=tuple(sorted(int(o) for c in its
                                                      for o in layout._chan_orbs[c]))))
 
-    def _part_anchor(unit):
-        """The :class:`RepAnchor` of one part's generators, at the part's own lead."""
-        lead, local = int(unit.lead), unit.local
-
-        def _anchor(p, anchor_T):
-            table = None
-            if anchor_T is None and layout._chan_kind[lead] == "tables":
-                table = (np.asarray(syms[p].spinor_rotation, dtype=complex) if su2
-                         else np.eye(1, dtype=complex))
-            return RepAnchor(antiunitary=anchor_T,
-                             rows=tuple(local[int(a)] for a in chan_states[int(cperm[p][lead])]),
-                             cols=tuple(local[int(a)] for a in chan_states[lead]),
-                             internal=table)
-        return _anchor
-
-    def _part_unsettled(bad, unit):
-        """The refusal of a part whose own blocks settle into no representation, said as one."""
-        if len(units) == 1:
-            return bad
-        return Refusal(
-            bad.gate,
-            f"the coupled part of the crystal holding orbitals {unit.orbitals} -- the "
-            f"multiplets the hoppings connect to one another and to nothing else -- was "
-            f"settled on its own in {group.name} #{group.number_str}, and its own blocks do "
-            f"not settle into a representation of the group: {bad.reason}",
-            value=bad.value, threshold=bad.threshold,
-            context=dict(bad.context or {}, part=unit.orbitals))
-
-    def _settled_by_part(Dsearch):
-        """``(refusal, D, normalization, anchor_T, DT_n, defect, roots)``, part by part.
-
-        Each part is settled on its own by :func:`.._matrices._settled`, and by
-        :func:`.._matrices._table_phases` where nothing anchors its generators' phases; the
-        matrices are then the parts' side by side.  ``normalization`` is the
-        anchor's part's, written on the whole matrices, and ``roots`` is
-        ``(found, matrices)`` for the first part whose roots do not multiply.
-        """
-        eye_n = np.eye(nstate, dtype=complex)
-        Dn = {p: np.zeros((nstate, nstate), dtype=complex) for p in Dsearch}
-        anchor_n = None if T_pos is None else np.zeros((nstate, nstate), dtype=complex)
-        DT_all = None if T_pos is None else np.zeros((nstate, nstate), dtype=complex)
-        worst, norm_ref, roots = 0.0, {}, None
-        for unit in units:
-            idx = unit.states
-            here = dict(tree, nstate=int(len(idx)))
-            sub = {p: np.asarray(M, dtype=complex)[np.ix_(idx, idx)] for p, M in Dsearch.items()}
-            bad, D_u, norm_u, anchor_u, DT_u, defect_u, roots_u = _settle_unit(
-                sub, group=group, tree=here, kept=kept, u_pos=u_pos, prod=prod,
-                anchor_of=_part_anchor(unit), reach=reach, product_tol=product_tol)
-            worst = max(worst, float(defect_u))
-            if bad is not None:
-                return _part_unsettled(bad, unit), None, None, None, None, worst, None
-            if roots is None:
-                roots = roots_u
-            for p, M in D_u.items():
-                Dn[p][np.ix_(idx, idx)] = M
-            if T_pos is not None:
-                anchor_n[np.ix_(idx, idx)] = anchor_u
-                DT_all[np.ix_(idx, idx)] = DT_u
-            if unit.anchor:
-                norm_ref = norm_u
-        at = {int(syms[p].ind): p for p in kept}
-        normalization = {}
-        for ind, rec in norm_ref.items():
-            M = Dn[at[int(ind)]]
-            normalization[int(ind)] = replace(
-                rec, matrix=M,
-                norm_residual=float(np.abs(_power(M, bool(syms[at[int(ind)]].time_reversal),
-                                                  rec.order) - rec.required * eye_n).max()))
-        return None, Dn, normalization, anchor_n, DT_all, worst, roots
-
     # ---- 6. the search ----------------------------------------------------
     phases = tuple(complex(z) for z in phases)
     n_free = len(gens) * len(free_cls)
@@ -1377,316 +1677,6 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
     # where the decoupling is said.
     all_blocks = [list(range(nchan))]
 
-    # ---- 6a. the read-off ---------------------------------------------------
-    # The detector has already solved `X H(k) = H(Rk) X` for every operation
-    # this build represents, and `validated._bases` carries the whole solution
-    # space.  A realizable tensor structure `D(g) = O(g) (x) S(g)` is an element
-    # of it, so the discrete choices are a *measurement* on that space rather than a
-    # search through their product set.  Only the generators are read: the
-    # antiunitary operator carries the scalars the measurement of step 4 read
-    # once, and no sign left to search, in both strategies, and every other
-    # operation is propagated along the BFS tree.
-    def _solution_space(p):
-        """``(basis, note)`` — the detector's solution space for operation ``p``."""
-        ind = int(syms[p].ind)
-        B = getattr(validated, "_bases", {}).get(ind)
-        if B is None or len(np.asarray(B)) == 0:
-            U = validated._intertwiners.get(ind)
-            if U is None:
-                return None, (f"the validated group carries no measured intertwiner for "
-                              f"generator #{ind}")
-            # A hand-built ValidatedGroup may carry only the polar-extracted
-            # member.  That IS the space when dim == 1, and when it is not the
-            # projection below has nothing to choose from and the block defects
-            # say so -- which is a fallback, not a wrong verdict.
-            return np.asarray(U)[None, :, :], f"only `intertwiners[{ind}]`, not the whole space"
-        B = np.asarray(B)
-        if B.shape[0] * nstate * nstate * 16 > _READOFF_MAX_BYTES:
-            return None, (f"the solution space of generator #{ind} is "
-                          f"{B.shape[0]}-dimensional at nstate = {nstate}, whose "
-                          f"projection onto the tensor structure would allocate more "
-                          f"than {_READOFF_MAX_BYTES / 1e6:.0f} MB")
-        return B, None
-
-    def _read_off():
-        """The discrete choices, measured off the solution spaces of the generators."""
-        rec = {"n_enumeration": None, "branches": {}, "reason": None, "notes": []}
-        branches, choices, reasons, read_of = {}, [], [], {}
-        for orient in orients:
-            per_gen, ratios, defects, combo, why = {}, {}, {}, [], None
-            read_as = {}
-            for gi, gp in enumerate(gens):
-                ind = int(syms[gp].ind)
-                basis, note = _solution_space(gp)
-                if note and note not in rec["notes"]:
-                    rec["notes"].append(note)
-                if basis is None:
-                    why = note
-                    break
-                lifts = S_gen[gp]
-                if orient < 0:
-                    # the g^-1 branch's candidate is the adjoint, so its blocks
-                    # are the transposed ones and carry S(g)^dagger
-                    lifts = [M.conj().T for M in lifts]
-                blocks = _ansatz_blocks(chan_states, cperm[gp], orient)
-                # THE CHOSEN MEMBER.  Where the space leaves a block open, the
-                # member taken is the one carrying the scalar `_relative` gives
-                # there -- what the measurement pinned, or the trivial relative
-                # character, the labelling being chosen in step 7b -- rather
-                # than whichever direction a decomposition happened to return.
-                want = {cls: _relative(gp, cls) for cls in range(ncls)}
-                w_of = [(1.0 + 0.0j) if want[int(classes[c])] is None else
-                        complex(np.conj(want[int(classes[c])]) if orient < 0
-                                else want[int(classes[c])])
-                        for c in range(nchan)]
-                X, defect, scale = _ansatz_member(basis, blocks, lifts,
-                                                  prefer=all_blocks, weights=w_of,
-                                                  tol=zero)
-                w_, sv_, vh_ = np.linalg.svd(X)
-                entry = {"ind": ind, "dim": int(np.asarray(basis).shape[0]),
-                         "ansatz_defect": float(defect), "ansatz_scale": float(scale),
-                         "conditioning": float(sv_[-1] / sv_[0]) if sv_[0] > 0 else 0.0}
-                per_gen[ind] = entry
-                if float(sv_[0]) <= 1e-12:  # pragma: no cover - a guard, not a path
-                    why = (f"the projection of generator #{ind}'s solution space onto "
-                           f"the tensor structure is the zero matrix")
-                    break
-                U = w_ @ vh_
-                cls_ratio, cls_defect = {}, {}
-                for cls in range(ncls):
-                    c0 = (anchor if cls == anchor_cls
-                          else int(np.flatnonzero(classes == cls)[0]))
-                    rows, cols = blocks[c0]
-                    rho, res = _proportionality(U[np.ix_(rows, cols)], lifts[c0])
-                    cls_ratio[cls], cls_defect[cls] = complex(rho), float(res)
-                entry["block_defect"] = max(cls_defect.values())
-                lam = cls_ratio[anchor_cls]
-                entry["lambda"] = complex(lam)
-                if abs(lam) < snap:
-                    why = (f"generator #{ind}'s block on orbital 0's multiplet is not a "
-                           f"multiple of S(g): |lambda| = {abs(lam):.3g}")
-                    break
-                signs = {cls: (np.conj(r / lam) if orient < 0 else r / lam)
-                         for cls, r in cls_ratio.items()}
-                # WHAT THE MEASUREMENT PINNED is taken from it: on the branch it
-                # read, every orbit's ratio to the anchor, rather than read again
-                # off the member above, which says only whether the tensor
-                # structure holds
-                if orient > 0:
-                    for cls in range(ncls):
-                        got = verdict.chosen.get((ind, int(cls)))
-                        if (int(cls) != anchor_cls and int(cls) not in unpinned
-                                and got is not None):
-                            signs[int(cls)] = complex(got)
-                # An orbit the hoppings leave free of the anchor carries the
-                # trivial relative character (`_relative`; the labelling
-                # chooses its part's own in step 7b); the other orbits of its
-                # part are pinned to its first by the hoppings, at the ratio the
-                # measurement read between them.
-                led = sorted(unpinned, key=lambda c: (free_lead.get(int(c), int(c)) != int(c),
-                                                      int(c)))
-                for cls in led:
-                    lead_cls = free_lead.get(int(cls), int(cls))
-                    rel = (verdict.within.get((ind, int(cls))) if orient > 0
-                           else None)
-                    if rel is None and lead_cls != int(cls) and abs(cls_ratio[lead_cls]) > zero:
-                        rel = cls_ratio[int(cls)] / cls_ratio[lead_cls]
-                        rel = np.conj(rel) if orient < 0 else rel
-                    if lead_cls != int(cls) and rel is not None:
-                        signs[int(cls)] = complex(signs[lead_cls]) * complex(rel)
-                    elif want.get(int(cls)) is not None:
-                        signs[int(cls)] = complex(want[int(cls)])
-                entry["signs"] = {int(c): complex(z) for c, z in signs.items()}
-                for cls in range(ncls):
-                    ratios[(ind, int(cls))] = complex(signs[cls])
-                    defects[(ind, int(cls))] = float(cls_defect[cls])
-                bad = max(cls_defect, key=lambda c: cls_defect[c])
-                if cls_defect[bad] > internal_tol:
-                    why = (f"generator #{ind}'s block on orbit {bad} of the multiplets "
-                           f"is not a multiple of S(g), the operation's own internal "
-                           f"factor: it misses one by "
-                           f"{cls_defect[bad]:.3g} > {internal_tol:.3g}")
-                    break
-                factors = []
-                for c in free_cls:
-                    if int(c) in unpinned:
-                        # settled, not read against the anchor: the hoppings
-                        # leave this orbit free of it, and it carries the factor
-                        # its part is settled with above
-                        factors.append(complex(signs[c]))
-                        continue
-                    # THE FACTOR AS MEASURED, whatever it is: a root of unity
-                    # where it is one within the noise, the measured phase
-                    # otherwise; the three gates say whether it builds a
-                    # representation
-                    z = _orbit_factor(signs[c], snap)
-                    if z is None:
-                        why = (f"generator #{ind} reads {signs[c]:.6g} on orbit {c} of "
-                               f"the multiplets, which is no phase: its modulus misses one "
-                               f"by {abs(abs(signs[c]) - 1.0):.3g}")
-                        break
-                    factors.append(z)
-                    read_as[(ind, int(c))] = z
-                if why is not None:
-                    break
-                combo.extend(factors)
-            branch = {"orientation": int(orient), "generators": per_gen,
-                      "ratios": ratios, "defects": defects,
-                      "ok": why is None, "reason": why}
-            rec["branches"][int(orient)] = branch
-            if why is None:
-                branches[int(orient)] = branch
-                choices.append((orient, tuple(combo)))
-                read_of[int(orient)] = read_as
-            else:
-                reasons.append(f"branch {orient:+d}: {why}")
-        if not choices:
-            rec["reason"] = "; ".join(reasons) if reasons else "no branch was read"
-        return _ReadOff(choices=choices, branches=branches,
-                        reason=rec["reason"], record=rec, read=read_of)
-
-    def _build(choices):
-        """One candidate record per ``(orientation, combo)``, covariance measured."""
-        out = []
-        for orient, combo in choices:
-            sign = {}
-            for gi in range(len(gens)):
-                sgn = np.ones(ncls, dtype=complex)
-                for j, c in enumerate(free_cls):
-                    sgn[c] = combo[gi * len(free_cls) + j]
-                sign[gi] = sgn
-            Dgen = [_assemble(gens[gi], S_gen[gens[gi]], sign[gi]) for gi in range(len(gens))]
-            DT = None
-            if T_pos is not None:
-                DT = _assemble(T_pos, S_gen[T_pos], reversal)
-            if orient < 0:
-                Dgen = [d.conj().T for d in Dgen]
-                DT = None if DT is None else DT.conj().T
-            D = _propagate(Dgen, DT)
-            out.append({"orientation": int(orient), "combo": tuple(combo),
-                        "residual": _covariance(D), "matrices": D})
-        return out
-
-    # ---- 6b. the joint gate -------------------------------------------------
-    # Three independent measurements, each of which a candidate must pass, run
-    # cheapest first so the expensive ones see the fewest candidates:
-    #
-    #   covariance      |kept| * n_battery triple products of size nstate;
-    #                   kills a wrong relative sign inside a Wyckoff orbit.
-    #   internal factor |kept_u| * nchan block proportionalities of size nspin
-    #                   -- EVERY block, the site-swapping ones too; kills the
-    #                   g-versus-g^-1 orientation branch, which is exactly
-    #                   covariant AND exactly multiplicative, and a build whose
-    #                   swapped blocks carry the sigma_h-partner's lift, which
-    #                   is exactly covariant and multiplicative too whenever the
-    #                   layer group and the one being named are isomorphic.
-    #   product table   one normalize_rep pass + |kept|**2 products of size
-    #                   nstate; kills a set that is not a representation.
-    #
-    # The ordering is a cost choice only -- the gates are independent, and which
-    # one fired is recorded per candidate, which is physics rather than
-    # accounting.  Written as a function of the candidate *set* so that the
-    # read-off's one-or-two candidates and the enumeration's thousands go
-    # through the identical arithmetic: the read-off finds the candidate, this
-    # accepts it, and nothing here knows which produced the input.
-    def _gate(records):
-        # merge candidates that build the identical representation
-        distinct = []
-        for rec in records:
-            for grp in distinct:
-                ref = grp[0]["matrices"]
-                if all(np.abs(rec["matrices"][p] - ref[p]).max() < 1e-12 for p in kept):
-                    grp.append(rec)
-                    break
-            else:
-                distinct.append([rec])
-
-        covariant = [grp for grp in distinct if grp[0]["residual"] <= tol]
-        for grp in covariant:
-            grp[0]["internal"] = _internal_defect(grp[0]["matrices"])
-        consistent = [grp for grp in covariant if grp[0]["internal"] <= internal_tol]
-        for grp in consistent:
-            rec = grp[0]
-            # each coupled part settled on its own (step 5c), a crystal of one
-            # part being one
-            bad, Dn, norm, anchor_T, DT_n, defect, roots = _settled_by_part(rec["matrices"])
-            rec["composition"] = float(defect)
-            if bad is not None:
-                rec["product"], rec["refusal"] = float("inf"), bad
-                continue
-            rec["normalized"] = (Dn, norm, anchor_T, DT_n)
-            rec["product"] = _product_table_residual(Dn, kept, syms, prod, spf)
-            if roots is not None:
-                rec["roots"], rec["roots_matrices"] = roots
-        survivors = [grp for grp in consistent if grp[0]["product"] <= product_tol]
-        if len(units) > 1 and len(survivors) > 1:
-            # A PART'S OWN PHASE IS ITS SETTLING'S, not a choice: candidates
-            # that differ only in the phase a part is settled out of are one
-            # representation once each part is settled, and are merged as the
-            # identical matrices are above
-            merged = []
-            for grp in survivors:
-                Dn = grp[0]["normalized"][0]
-                for keep in merged:
-                    same = keep[0]["normalized"][0]
-                    if all(np.abs(Dn[p] - same[p]).max() < 1e-12 for p in kept):
-                        keep.extend(grp)
-                        break
-                else:
-                    merged.append(grp)
-            gone = {id(grp) for grp in survivors} - {id(grp) for grp in merged}
-            distinct = [grp for grp in distinct if id(grp) not in gone]
-            covariant = [grp for grp in covariant if id(grp) not in gone]
-            consistent = [grp for grp in consistent if id(grp) not in gone]
-            survivors = merged
-        alive = {id(grp) for grp in survivors}
-
-        def _killed_by(grp):
-            if id(grp) in alive:
-                return None
-            if grp[0]["residual"] > tol:
-                return "covariance"
-            if grp[0]["internal"] > internal_tol:
-                return "internal_factor"
-            return "product_table"
-
-        spectrum = tuple(sorted(float(grp[0]["residual"]) for grp in distinct))
-        int_spectrum = tuple(sorted(float(grp[0]["internal"]) for grp in covariant))
-        prod_spectrum = tuple(sorted(float(grp[0]["product"]) for grp in consistent))
-        candidates = tuple(
-            {"orientation": int(grp[0]["orientation"]), "combo": grp[0]["combo"],
-             "n_merged": len(grp), "covariance": float(grp[0]["residual"]),
-             "internal": float(grp[0].get("internal", float("nan"))),
-             "product": float(grp[0].get("product", float("nan"))),
-             "killed_by": _killed_by(grp)}
-            for grp in distinct)
-
-        return _GateOutcome(
-            records=records, distinct=distinct, covariant=covariant,
-            consistent=consistent, survivors=survivors,
-            search={"n_candidates": len(records), "n_distinct": len(distinct),
-                       "n_covariant": len(covariant), "n_consistent": len(consistent),
-                       "n_survivors": len(survivors),
-                       "gate": float(tol), "internal_gate": float(internal_tol),
-                       "product_gate": float(product_tol),
-                       "best": spectrum[0] if spectrum else float("nan"),
-                       "runner_up": spectrum[1] if len(spectrum) > 1 else float("nan"),
-                       "residuals": spectrum,
-                       "internal_best": (int_spectrum[0] if int_spectrum
-                                         else float("nan")),
-                       "internal_runner_up": (int_spectrum[1] if len(int_spectrum) > 1
-                                              else float("nan")),
-                       "internal_residuals": int_spectrum,
-                       "product_best": (prod_spectrum[0] if prod_spectrum
-                                        else float("nan")),
-                       "product_runner_up": (prod_spectrum[1] if len(prod_spectrum) > 1
-                                             else float("nan")),
-                       "product_residuals": prod_spectrum,
-                       "killed_by": {"covariance": len(distinct) - len(covariant),
-                                     "internal_factor": len(covariant) - len(consistent),
-                                     "product_table": len(consistent) - len(survivors)},
-                       "candidates": candidates})
-
     # ---- 6b'. the orientation branch, pinned by convention when the gates tie
     # The internal-factor gate separates the two branches whenever
     # `S(g)^dag != +-S(g)` -- every rotation of order three or more -- because
@@ -1713,50 +1703,61 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
     # representation and none at all.
     part_chans = [[int(c) for c in range(nchan) if int(classes[c]) in part]
                   for part in coupled_parts]
+    return _Battery(tree=tree, k_pts=k_pts, bloch=bloch, H=H, Hrot=Hrot, kact=kact, tol=tol,
+                    internal_tol=internal_tol, product_tol=product_tol,
+                    _gate_lifts=_gate_lifts, reach=reach, units=units, phases=phases,
+                    n_free=n_free, orients=orients, all_blocks=all_blocks,
+                    part_chans=part_chans)
 
-    def _one_labelling_apart(A, B, tol=1e-8):
-        """Whether two settled candidates differ by one character on each coupled part.
 
-        Asked of the unitary operations, which the site irreps and the band
-        labels are characters of.
-        """
-        for p in u_pos:
-            for chans in part_chans:
-                ratio = None
-                for c in chans:
-                    rows = np.asarray(chan_states[int(cperm[p][c])], dtype=int)
-                    cols = np.asarray(chan_states[c], dtype=int)
-                    a, b = A[p][np.ix_(rows, cols)], B[p][np.ix_(rows, cols)]
-                    rho, res = _proportionality(b, a)
-                    if res > tol or abs(abs(rho) - 1.0) > tol:
-                        return False
-                    if ratio is None:
-                        ratio = rho
-                    elif abs(rho - ratio) > tol:
-                        return False
-        return True
+def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
+                        internal_tol, product_tol, _search_record):
+    """The candidate representation the three gates accept.
 
-    def _pin_branch(survivors):
-        """The :class:`_PinnedBranch` — the tie settled, or left alone."""
-        out = _PinnedBranch(survivors=survivors, tie=False, note=None)
-        if len(survivors) != 2:
-            return out
-        per = {}
-        for grp in survivors:
-            per.setdefault(int(grp[0]["orientation"]), []).append(grp)
-        if sorted(per) != [-1, 1] or any(len(v) != 1 for v in per.values()):
-            return out
-        if site_tables and not _one_labelling_apart(per[1][0][0]["normalized"][0],
-                                                    per[-1][0][0]["normalized"][0]):
-            return out
-        return replace(out, survivors=[per[1][0]], tie=True, note=(
-            "the two orientation branches both carry H(k) onto itself, factorize on every "
-            "site into (character) x (the group's own internal factor) and reproduce the "
-            "multiplication table, and are one "
-            "representation up to a one-dimensional character on each coupled part, so "
-            "the same labellings and site labels are open on both and nothing "
-            "measures between them; the branch was pinned by convention to +1, "
-            "the intertwiner that carries k -> gk."))
+    Parameters
+    ----------
+    group : ..groups.GroupData
+        As in :func:`_build_rep`.
+    strategy : {"readoff", "enumerate"}
+        As in :func:`_build_rep`.
+    max_candidates : int
+        As in :func:`_build_rep`.
+    internal_tol : float
+        As in :func:`_build_rep`.
+    product_tol : float
+        As in :func:`_build_rep`.
+    _search_record : dict or None
+        Where given, the record of the search is put under its ``"search"`` key, beside a
+        refusal as well.
+    ops : _Operations
+        As :func:`_represented_operations` returns it.
+    mul : _Multiplets
+        As :func:`_multiplet_layout` returns it.
+    meas : _Measured
+        As :func:`_measurement_read` returns it.
+    bat : _Battery
+        As :func:`_candidate_battery` returns it.
+
+    Returns
+    -------
+    _Accepted or Refusal
+        The record, or the refusal that ends the build.
+    """
+    gens = ops.gens
+    kept = ops.kept
+    prod = ops.prod
+    spf = ops.spf
+    spin = ops.spin
+    syms = ops.syms
+    u_pos = ops.u_pos
+    validated = ops.validated
+    layout = mul.layout
+    ncls = mul.ncls
+    k_pts = bat.k_pts
+    n_free = bat.n_free
+    orients = bat.orients
+    phases = bat.phases
+    tol = bat.tol
 
     # ---- 6c. the read-off, and the enumeration behind it --------------------
     n_enumeration = int(len(phases) ** n_free * len(orients))
@@ -1766,7 +1767,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
                     read={})
     if strategy == "readoff":
         try:
-            read = _read_off()
+            read = _read_off(ops, mul, meas, bat)
         except np.linalg.LinAlgError as exc:  # pragma: no cover - not seen on any fixture
             # The read-off is a way to find the candidate faster; it must never
             # be the reason a build refuses.  An SVD that will not converge is a
@@ -1777,8 +1778,8 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
     outcome, strategy_used, fallback, pin = None, None, None, None
     declared_tol = float(getattr(validated, "tol", tol))
     if strategy == "readoff" and read.choices:
-        outcome = _gate(_build(read.choices))
-        pin = _pin_branch(outcome.survivors)
+        outcome = _gate(ops, mul, bat, _build(ops, mul, meas, bat, read.choices))
+        pin = _pin_branch(ops, mul, bat, outcome.survivors)
         best = float(outcome.search["best"])
         if len(pin.survivors) == 1:
             strategy_used = "readoff"
@@ -1841,8 +1842,10 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
                          "n_free": int(n_free), "n_candidates": n_enumeration,
                          "max_candidates": int(max_candidates),
                          "multiplets": layout, "fallback_reason": fallback})
-        outcome = _gate(_build((orient, combo) for orient in orients
-                               for combo in itertools.product(phases, repeat=n_free)))
+        outcome = _gate(ops, mul, bat,
+                        _build(ops, mul, meas, bat,
+                               ((orient, combo) for orient in orients
+                                for combo in itertools.product(phases, repeat=n_free))))
         strategy_used = "enumerate"
 
     records, distinct = outcome.records, outcome.distinct
@@ -1854,7 +1857,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
 
     # the branch tie of step 6b', measured on the candidate set that was accepted
     if pin is None:
-        pin = _pin_branch(survivors)
+        pin = _pin_branch(ops, mul, bat, survivors)
     survivors = pin.survivors
     branch_tie, branch_note = pin.tie, pin.note
 
@@ -2061,6 +2064,80 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
     search["internal"] = float(winner["internal"])
     search["product"] = float(winner["product"])
     search["composition"] = float(winner.get("composition", 0.0))
+    return _Accepted(winner=winner, search=search, branch_tie=branch_tie)
+
+
+def _returned_representation(model, group, assignment, ops, mul, meas, bat, acc, *,
+                             _returned):
+    """The representation returned, its labelling put in and everything it claims measured.
+
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        As in :func:`_build_rep`.
+    group : ..groups.GroupData
+        As in :func:`_build_rep`.
+    assignment : ..groups.OrbitalAssignment
+        As in :func:`_build_rep`.
+    _returned : bool
+        Whether this is the representation returned: only then are the Bloch operators'
+        factor system and each orbit's band representation measured.
+    ops : _Operations
+        As :func:`_represented_operations` returns it.
+    mul : _Multiplets
+        As :func:`_multiplet_layout` returns it.
+    meas : _Measured
+        As :func:`_measurement_read` returns it.
+    bat : _Battery
+        As :func:`_candidate_battery` returns it.
+    acc : _Accepted
+        As :func:`_accepted_candidate` returns it.
+
+    Returns
+    -------
+    SpaceGroupRep
+
+    Raises
+    ------
+    ..refusal.InternalError
+        The representation with its labelling in it does not carry ``H(k)`` onto itself
+        within the gate its candidates closed.
+    """
+    T_pos = ops.T_pos
+    au_pos = ops.au_pos
+    gens = ops.gens
+    ident = ops.ident
+    kept = ops.kept
+    nstate = ops.nstate
+    prod = ops.prod
+    spf = ops.spf
+    spin = ops.spin
+    syms = ops.syms
+    u_pos = ops.u_pos
+    validated = ops.validated
+    words = ops.words
+    char_note = mul.char_note
+    classes = mul.classes
+    cperm = mul.cperm
+    decls = mul.decls
+    free_cls = mul.free_cls
+    layout = mul.layout
+    ref_chan = mul.ref_chan
+    ref_orb = mul.ref_orb
+    site_tables = mul.site_tables
+    coupled_parts = meas.coupled_parts
+    measured_of = meas.measured_of
+    pool = meas.pool
+    verdict = meas.verdict
+    H = bat.H
+    Hrot = bat.Hrot
+    bloch = bat.bloch
+    k_pts = bat.k_pts
+    kact = bat.kact
+    tol = bat.tol
+    branch_tie = acc.branch_tie
+    search = acc.search
+    winner = acc.winner
 
     # ---- 7. the winner's normalization, already measured by the gate -------
     D, normalization, anchor_T, DT_n = winner["normalized"]
@@ -2198,6 +2275,667 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
         _model_key=bloch.key)
     return _with_tables_unavailable(_with_band_representations(built) if _returned
                                     else built)
+
+
+def _internal(ops, mul, measured_of, p):
+    """``[S per channel]`` for one operation, or ``None`` where a block is missing."""
+    syms = ops.syms
+    chan_states = mul.chan_states
+    layout = mul.layout
+    nchan = mul.nchan
+    su2 = mul.su2
+
+    lift = _lift_of(syms[p], su2)
+    blocks = measured_of.get(int(syms[p].ind), {})
+    out = []
+    for c in range(nchan):
+        S = blocks.get(int(c))
+        if S is None and layout._chan_kind[c] != "measured":
+            out.append(lift)
+            continue
+        if S is None or S.shape != (len(chan_states[c]),) * 2:
+            return None
+        out.append(S)
+    return out
+
+
+def _relative(ops, meas, p_gen, cls):
+    """The class scalar the build assembles with, at one generator.
+
+    What the measurement pinned relative to the anchor; and on an orbit the
+    hoppings leave free of it, the trivial relative character -- the
+    labelling chooses its part's own afterwards.
+    """
+    syms = ops.syms
+    unpinned = meas.unpinned
+    verdict = meas.verdict
+
+    if int(cls) in unpinned:
+        return 1.0 + 0.0j
+    got = verdict.chosen.get((int(syms[p_gen].ind), int(cls)))
+    return None if got is None else complex(got)
+
+
+def _assemble(ops, mul, p, S, sign_of_class):
+    nstate = ops.nstate
+    chan_states = mul.chan_states
+    classes = mul.classes
+    cperm = mul.cperm
+    nchan = mul.nchan
+
+    D = np.zeros((nstate, nstate), dtype=complex)
+    for c in range(nchan):
+        rows = np.asarray(chan_states[int(cperm[p][c])], dtype=int)
+        cols = np.asarray(chan_states[c], dtype=int)
+        D[np.ix_(rows, cols)] = sign_of_class[int(classes[c])] * S[c]
+    return D
+
+
+def _propagate(bat, Dgen, DT):
+    """Propagate the generators along the word tree (:func:`_propagated`)."""
+    tree = bat.tree
+
+    return _propagated(Dgen, DT, **tree)
+
+
+def _covariance(ops, bat, D):
+    kept = ops.kept
+    syms = ops.syms
+    H = bat.H
+    Hrot = bat.Hrot
+
+    worst = 0.0
+    for p in kept:
+        U = D[p]
+        src = H.conj() if syms[p].time_reversal else H
+        worst = max(worst, float(np.abs(U @ src @ U.conj().T - Hrot[p]).max()))
+    return worst
+
+
+def _gate_lift(ops, mul, meas, p):
+    r"""``[S per channel]`` the closed gate below measures against.
+
+    It is the block :func:`_multiplet_blocks` settled on — the one the
+    matrices were assembled from, so that the gate is the statement that
+    every multiplet carries its own block and not a comparison against
+    whichever member of the solution space a polar extraction happened to
+    return — and the operation's own lift, the tables'
+    (``sym.spinor_rotation``), on a one-dimensional multiplet no block was
+    read for.  An entry is ``None`` where no block could be measured, and
+    that multiplet is skipped: there is nothing to test it against.
+    """
+    syms = ops.syms
+    layout = mul.layout
+    nchan = mul.nchan
+    su2 = mul.su2
+    measured_of = meas.measured_of
+
+    lift = _lift_of(syms[p], su2)
+    blocks = measured_of.get(int(syms[p].ind), {})
+    return [blocks.get(int(c),
+                       None if layout._chan_kind[c] == "measured" else lift)
+            for c in range(nchan)]
+
+
+def _internal_defect(ops, mul, bat, D):
+    r"""Worst factorization defect ``max ‖B(g) − χ·S(g)‖``, over **every** block.
+
+    The tensor structure behind the build is ``D(g) = O(g) ⊗ S(g)``, and
+    that is a statement about every multiplet block of ``D(g)`` — the block
+    carrying a multiplet to its *image* as much as the block of a multiplet
+    the operation fixes.  This measures it on every one of them, with the
+    per-block coefficient free (the tensor-structure subspace), so it is
+    blind to the one-dimensional character the labelling puts in
+    afterwards.  A candidate with a large defect carries no site
+    characters at all: its blocks are some *other* SU(2) element, so "the
+    ``d`` orbital at ``1a``" has nothing to be measured against.
+
+    **Why every block and not only the fixed ones.**  Tested on the fixed
+    multiplets alone the gate has a hole, and it is not a small one: the
+    ``σ_h``-partner ``σ_h·g`` of an operation has a *different* lift, so a
+    Hamiltonian written in the opposite spin convention can carry the
+    partner's lift on every site-swapping block and still close a gate that
+    never looks at one.  Measured: the SRSI paper's ``P41'`` model
+    transcribed raw admits a faithful representation of ``P-4m2`` under the
+    name ``P4mm1' #99.164`` — the two are isomorphic, so the product table
+    closes at ``5e-16`` too — with ``C4``, ``C4⁻¹`` and both diagonal
+    mirrors carrying ``S(σ_h)·S(g)``.  Closing the gate over every block
+    refuses that build instead of returning it.
+
+    This is also what separates the ``g``-versus-``g⁻¹`` orientation branch
+    on a spinful model, and neither of the other two gates can see it — the
+    covariance battery and the product table are both statements about the
+    ``D``'s among themselves, while this one is the statement that they are
+    the ``D``'s of *these* operations.  Measured on the search matrices: it
+    is invariant under ``D → λD``, so normalization cannot change it.
+
+    Vacuous where there is no internal factor to check: a spinless model
+    with no declared spinor basis, whose ``S`` is ``1×1`` and every block a
+    multiple of it by arithmetic.
+    """
+    u_pos = ops.u_pos
+    chan_states = mul.chan_states
+    cperm = mul.cperm
+    nchan = mul.nchan
+    _gate_lifts = bat._gate_lifts
+
+    worst = 0.0
+    for p in u_pos:
+        lifts = _gate_lifts.get(p) or []
+        for c in range(nchan):
+            S = lifts[c] if c < len(lifts) else None
+            if S is None:
+                continue
+            rows = np.asarray(chan_states[int(cperm[p][c])], dtype=int)
+            cols = np.asarray(chan_states[c], dtype=int)
+            _, res = _proportionality(D[p][np.ix_(rows, cols)], S)
+            worst = max(worst, float(res))
+    return worst
+
+
+def _part_anchor(ops, mul, unit):
+    """The :class:`RepAnchor` of one part's generators, at the part's own lead."""
+    syms = ops.syms
+    chan_states = mul.chan_states
+    cperm = mul.cperm
+    layout = mul.layout
+    su2 = mul.su2
+
+    lead, local = int(unit.lead), unit.local
+
+    def _anchor(p, anchor_T):
+        table = None
+        if anchor_T is None and layout._chan_kind[lead] == "tables":
+            table = (np.asarray(syms[p].spinor_rotation, dtype=complex) if su2
+                     else np.eye(1, dtype=complex))
+        return RepAnchor(antiunitary=anchor_T,
+                         rows=tuple(local[int(a)] for a in chan_states[int(cperm[p][lead])]),
+                         cols=tuple(local[int(a)] for a in chan_states[lead]),
+                         internal=table)
+    return _anchor
+
+
+def _part_unsettled(ops, bat, bad, unit):
+    """The refusal of a part whose own blocks settle into no representation, said as one."""
+    group = ops.group
+    units = bat.units
+
+    if len(units) == 1:
+        return bad
+    return Refusal(
+        bad.gate,
+        f"the coupled part of the crystal holding orbitals {unit.orbitals} -- the "
+        f"multiplets the hoppings connect to one another and to nothing else -- was "
+        f"settled on its own in {group.name} #{group.number_str}, and its own blocks do "
+        f"not settle into a representation of the group: {bad.reason}",
+        value=bad.value, threshold=bad.threshold,
+        context=dict(bad.context or {}, part=unit.orbitals))
+
+
+def _settled_by_part(ops, mul, bat, Dsearch):
+    """``(refusal, D, normalization, anchor_T, DT_n, defect, roots)``, part by part.
+
+    Each part is settled on its own by :func:`.._matrices._settled`, and by
+    :func:`.._matrices._table_phases` where nothing anchors its generators' phases; the
+    matrices are then the parts' side by side.  ``normalization`` is the
+    anchor's part's, written on the whole matrices, and ``roots`` is
+    ``(found, matrices)`` for the first part whose roots do not multiply.
+    """
+    T_pos = ops.T_pos
+    group = ops.group
+    kept = ops.kept
+    nstate = ops.nstate
+    prod = ops.prod
+    syms = ops.syms
+    u_pos = ops.u_pos
+    product_tol = bat.product_tol
+    reach = bat.reach
+    tree = bat.tree
+    units = bat.units
+
+    eye_n = np.eye(nstate, dtype=complex)
+    Dn = {p: np.zeros((nstate, nstate), dtype=complex) for p in Dsearch}
+    anchor_n = None if T_pos is None else np.zeros((nstate, nstate), dtype=complex)
+    DT_all = None if T_pos is None else np.zeros((nstate, nstate), dtype=complex)
+    worst, norm_ref, roots = 0.0, {}, None
+    for unit in units:
+        idx = unit.states
+        here = dict(tree, nstate=int(len(idx)))
+        sub = {p: np.asarray(M, dtype=complex)[np.ix_(idx, idx)] for p, M in Dsearch.items()}
+        bad, D_u, norm_u, anchor_u, DT_u, defect_u, roots_u = _settle_unit(
+            sub, group=group, tree=here, kept=kept, u_pos=u_pos, prod=prod,
+            anchor_of=_part_anchor(ops, mul, unit), reach=reach, product_tol=product_tol)
+        worst = max(worst, float(defect_u))
+        if bad is not None:
+            return _part_unsettled(ops, bat, bad, unit), None, None, None, None, worst, None
+        if roots is None:
+            roots = roots_u
+        for p, M in D_u.items():
+            Dn[p][np.ix_(idx, idx)] = M
+        if T_pos is not None:
+            anchor_n[np.ix_(idx, idx)] = anchor_u
+            DT_all[np.ix_(idx, idx)] = DT_u
+        if unit.anchor:
+            norm_ref = norm_u
+    at = {int(syms[p].ind): p for p in kept}
+    normalization = {}
+    for ind, rec in norm_ref.items():
+        M = Dn[at[int(ind)]]
+        normalization[int(ind)] = replace(
+            rec, matrix=M,
+            norm_residual=float(np.abs(_power(M, bool(syms[at[int(ind)]].time_reversal),
+                                              rec.order) - rec.required * eye_n).max()))
+    return None, Dn, normalization, anchor_n, DT_all, worst, roots
+
+
+# ---- 6a. the read-off ---------------------------------------------------
+# The detector has already solved `X H(k) = H(Rk) X` for every operation
+# this build represents, and `validated._bases` carries the whole solution
+# space.  A realizable tensor structure `D(g) = O(g) (x) S(g)` is an element
+# of it, so the discrete choices are a *measurement* on that space rather than a
+# search through their product set.  Only the generators are read: the
+# antiunitary operator carries the scalars the measurement of step 4 read
+# once, and no sign left to search, in both strategies, and every other
+# operation is propagated along the BFS tree.
+def _solution_space(ops, p):
+    """``(basis, note)`` — the detector's solution space for operation ``p``."""
+    nstate = ops.nstate
+    syms = ops.syms
+    validated = ops.validated
+
+    ind = int(syms[p].ind)
+    B = getattr(validated, "_bases", {}).get(ind)
+    if B is None or len(np.asarray(B)) == 0:
+        U = validated._intertwiners.get(ind)
+        if U is None:
+            return None, (f"the validated group carries no measured intertwiner for "
+                          f"generator #{ind}")
+        # A hand-built ValidatedGroup may carry only the polar-extracted
+        # member.  That IS the space when dim == 1, and when it is not the
+        # projection below has nothing to choose from and the block defects
+        # say so -- which is a fallback, not a wrong verdict.
+        return np.asarray(U)[None, :, :], f"only `intertwiners[{ind}]`, not the whole space"
+    B = np.asarray(B)
+    if B.shape[0] * nstate * nstate * 16 > _READOFF_MAX_BYTES:
+        return None, (f"the solution space of generator #{ind} is "
+                      f"{B.shape[0]}-dimensional at nstate = {nstate}, whose "
+                      f"projection onto the tensor structure would allocate more "
+                      f"than {_READOFF_MAX_BYTES / 1e6:.0f} MB")
+    return B, None
+
+
+def _read_off(ops, mul, meas, bat):
+    """The discrete choices, measured off the solution spaces of the generators."""
+    gens = ops.gens
+    syms = ops.syms
+    anchor = mul.anchor
+    anchor_cls = mul.anchor_cls
+    chan_states = mul.chan_states
+    classes = mul.classes
+    cperm = mul.cperm
+    free_cls = mul.free_cls
+    nchan = mul.nchan
+    ncls = mul.ncls
+    S_gen = meas.S_gen
+    free_lead = meas.free_lead
+    snap = meas.snap
+    unpinned = meas.unpinned
+    verdict = meas.verdict
+    zero = meas.zero
+    all_blocks = bat.all_blocks
+    internal_tol = bat.internal_tol
+    orients = bat.orients
+
+    rec = {"n_enumeration": None, "branches": {}, "reason": None, "notes": []}
+    branches, choices, reasons, read_of = {}, [], [], {}
+    for orient in orients:
+        per_gen, ratios, defects, combo, why = {}, {}, {}, [], None
+        read_as = {}
+        for gi, gp in enumerate(gens):
+            ind = int(syms[gp].ind)
+            basis, note = _solution_space(ops, gp)
+            if note and note not in rec["notes"]:
+                rec["notes"].append(note)
+            if basis is None:
+                why = note
+                break
+            lifts = S_gen[gp]
+            if orient < 0:
+                # the g^-1 branch's candidate is the adjoint, so its blocks
+                # are the transposed ones and carry S(g)^dagger
+                lifts = [M.conj().T for M in lifts]
+            blocks = _ansatz_blocks(chan_states, cperm[gp], orient)
+            # THE CHOSEN MEMBER.  Where the space leaves a block open, the
+            # member taken is the one carrying the scalar `_relative` gives
+            # there -- what the measurement pinned, or the trivial relative
+            # character, the labelling being chosen in step 7b -- rather
+            # than whichever direction a decomposition happened to return.
+            want = {cls: _relative(ops, meas, gp, cls) for cls in range(ncls)}
+            w_of = [(1.0 + 0.0j) if want[int(classes[c])] is None else
+                    complex(np.conj(want[int(classes[c])]) if orient < 0
+                            else want[int(classes[c])])
+                    for c in range(nchan)]
+            X, defect, scale = _ansatz_member(basis, blocks, lifts,
+                                              prefer=all_blocks, weights=w_of,
+                                              tol=zero)
+            w_, sv_, vh_ = np.linalg.svd(X)
+            entry = {"ind": ind, "dim": int(np.asarray(basis).shape[0]),
+                     "ansatz_defect": float(defect), "ansatz_scale": float(scale),
+                     "conditioning": float(sv_[-1] / sv_[0]) if sv_[0] > 0 else 0.0}
+            per_gen[ind] = entry
+            if float(sv_[0]) <= 1e-12:  # pragma: no cover - a guard, not a path
+                why = (f"the projection of generator #{ind}'s solution space onto "
+                       f"the tensor structure is the zero matrix")
+                break
+            U = w_ @ vh_
+            cls_ratio, cls_defect = {}, {}
+            for cls in range(ncls):
+                c0 = (anchor if cls == anchor_cls
+                      else int(np.flatnonzero(classes == cls)[0]))
+                rows, cols = blocks[c0]
+                rho, res = _proportionality(U[np.ix_(rows, cols)], lifts[c0])
+                cls_ratio[cls], cls_defect[cls] = complex(rho), float(res)
+            entry["block_defect"] = max(cls_defect.values())
+            lam = cls_ratio[anchor_cls]
+            entry["lambda"] = complex(lam)
+            if abs(lam) < snap:
+                why = (f"generator #{ind}'s block on orbital 0's multiplet is not a "
+                       f"multiple of S(g): |lambda| = {abs(lam):.3g}")
+                break
+            signs = {cls: (np.conj(r / lam) if orient < 0 else r / lam)
+                     for cls, r in cls_ratio.items()}
+            # WHAT THE MEASUREMENT PINNED is taken from it: on the branch it
+            # read, every orbit's ratio to the anchor, rather than read again
+            # off the member above, which says only whether the tensor
+            # structure holds
+            if orient > 0:
+                for cls in range(ncls):
+                    got = verdict.chosen.get((ind, int(cls)))
+                    if (int(cls) != anchor_cls and int(cls) not in unpinned
+                            and got is not None):
+                        signs[int(cls)] = complex(got)
+            # An orbit the hoppings leave free of the anchor carries the
+            # trivial relative character (`_relative`; the labelling
+            # chooses its part's own in step 7b); the other orbits of its
+            # part are pinned to its first by the hoppings, at the ratio the
+            # measurement read between them.
+            led = sorted(unpinned, key=lambda c: (free_lead.get(int(c), int(c)) != int(c),
+                                                  int(c)))
+            for cls in led:
+                lead_cls = free_lead.get(int(cls), int(cls))
+                rel = (verdict.within.get((ind, int(cls))) if orient > 0
+                       else None)
+                if rel is None and lead_cls != int(cls) and abs(cls_ratio[lead_cls]) > zero:
+                    rel = cls_ratio[int(cls)] / cls_ratio[lead_cls]
+                    rel = np.conj(rel) if orient < 0 else rel
+                if lead_cls != int(cls) and rel is not None:
+                    signs[int(cls)] = complex(signs[lead_cls]) * complex(rel)
+                elif want.get(int(cls)) is not None:
+                    signs[int(cls)] = complex(want[int(cls)])
+            entry["signs"] = {int(c): complex(z) for c, z in signs.items()}
+            for cls in range(ncls):
+                ratios[(ind, int(cls))] = complex(signs[cls])
+                defects[(ind, int(cls))] = float(cls_defect[cls])
+            bad = max(cls_defect, key=lambda c: cls_defect[c])
+            if cls_defect[bad] > internal_tol:
+                why = (f"generator #{ind}'s block on orbit {bad} of the multiplets "
+                       f"is not a multiple of S(g), the operation's own internal "
+                       f"factor: it misses one by "
+                       f"{cls_defect[bad]:.3g} > {internal_tol:.3g}")
+                break
+            factors = []
+            for c in free_cls:
+                if int(c) in unpinned:
+                    # settled, not read against the anchor: the hoppings
+                    # leave this orbit free of it, and it carries the factor
+                    # its part is settled with above
+                    factors.append(complex(signs[c]))
+                    continue
+                # THE FACTOR AS MEASURED, whatever it is: a root of unity
+                # where it is one within the noise, the measured phase
+                # otherwise; the three gates say whether it builds a
+                # representation
+                z = _orbit_factor(signs[c], snap)
+                if z is None:
+                    why = (f"generator #{ind} reads {signs[c]:.6g} on orbit {c} of "
+                           f"the multiplets, which is no phase: its modulus misses one "
+                           f"by {abs(abs(signs[c]) - 1.0):.3g}")
+                    break
+                factors.append(z)
+                read_as[(ind, int(c))] = z
+            if why is not None:
+                break
+            combo.extend(factors)
+        branch = {"orientation": int(orient), "generators": per_gen,
+                  "ratios": ratios, "defects": defects,
+                  "ok": why is None, "reason": why}
+        rec["branches"][int(orient)] = branch
+        if why is None:
+            branches[int(orient)] = branch
+            choices.append((orient, tuple(combo)))
+            read_of[int(orient)] = read_as
+        else:
+            reasons.append(f"branch {orient:+d}: {why}")
+    if not choices:
+        rec["reason"] = "; ".join(reasons) if reasons else "no branch was read"
+    return _ReadOff(choices=choices, branches=branches,
+                    reason=rec["reason"], record=rec, read=read_of)
+
+
+def _build(ops, mul, meas, bat, choices):
+    """One candidate record per ``(orientation, combo)``, covariance measured."""
+    T_pos = ops.T_pos
+    gens = ops.gens
+    free_cls = mul.free_cls
+    ncls = mul.ncls
+    S_gen = meas.S_gen
+    reversal = meas.reversal
+
+    out = []
+    for orient, combo in choices:
+        sign = {}
+        for gi in range(len(gens)):
+            sgn = np.ones(ncls, dtype=complex)
+            for j, c in enumerate(free_cls):
+                sgn[c] = combo[gi * len(free_cls) + j]
+            sign[gi] = sgn
+        Dgen = [_assemble(ops, mul, gens[gi], S_gen[gens[gi]], sign[gi])
+                for gi in range(len(gens))]
+        DT = None
+        if T_pos is not None:
+            DT = _assemble(ops, mul, T_pos, S_gen[T_pos], reversal)
+        if orient < 0:
+            Dgen = [d.conj().T for d in Dgen]
+            DT = None if DT is None else DT.conj().T
+        D = _propagate(bat, Dgen, DT)
+        out.append({"orientation": int(orient), "combo": tuple(combo),
+                    "residual": _covariance(ops, bat, D), "matrices": D})
+    return out
+
+
+# ---- 6b. the joint gate -------------------------------------------------
+# Three independent measurements, each of which a candidate must pass, run
+# cheapest first so the expensive ones see the fewest candidates:
+#
+#   covariance      |kept| * n_battery triple products of size nstate;
+#                   kills a wrong relative sign inside a Wyckoff orbit.
+#   internal factor |kept_u| * nchan block proportionalities of size nspin
+#                   -- EVERY block, the site-swapping ones too; kills the
+#                   g-versus-g^-1 orientation branch, which is exactly
+#                   covariant AND exactly multiplicative, and a build whose
+#                   swapped blocks carry the sigma_h-partner's lift, which
+#                   is exactly covariant and multiplicative too whenever the
+#                   layer group and the one being named are isomorphic.
+#   product table   one normalize_rep pass + |kept|**2 products of size
+#                   nstate; kills a set that is not a representation.
+#
+# The ordering is a cost choice only -- the gates are independent, and which
+# one fired is recorded per candidate, which is physics rather than
+# accounting.  Written as a function of the candidate *set* so that the
+# read-off's one-or-two candidates and the enumeration's thousands go
+# through the identical arithmetic: the read-off finds the candidate, this
+# accepts it, and nothing here knows which produced the input.
+def _gate(ops, mul, bat, records):
+    kept = ops.kept
+    prod = ops.prod
+    spf = ops.spf
+    syms = ops.syms
+    internal_tol = bat.internal_tol
+    product_tol = bat.product_tol
+    tol = bat.tol
+    units = bat.units
+
+    # merge candidates that build the identical representation
+    distinct = []
+    for rec in records:
+        for grp in distinct:
+            ref = grp[0]["matrices"]
+            if all(np.abs(rec["matrices"][p] - ref[p]).max() < 1e-12 for p in kept):
+                grp.append(rec)
+                break
+        else:
+            distinct.append([rec])
+
+    covariant = [grp for grp in distinct if grp[0]["residual"] <= tol]
+    for grp in covariant:
+        grp[0]["internal"] = _internal_defect(ops, mul, bat, grp[0]["matrices"])
+    consistent = [grp for grp in covariant if grp[0]["internal"] <= internal_tol]
+    for grp in consistent:
+        rec = grp[0]
+        # each coupled part settled on its own (step 5c), a crystal of one
+        # part being one
+        bad, Dn, norm, anchor_T, DT_n, defect, roots = _settled_by_part(
+            ops, mul, bat, rec["matrices"])
+        rec["composition"] = float(defect)
+        if bad is not None:
+            rec["product"], rec["refusal"] = float("inf"), bad
+            continue
+        rec["normalized"] = (Dn, norm, anchor_T, DT_n)
+        rec["product"] = _product_table_residual(Dn, kept, syms, prod, spf)
+        if roots is not None:
+            rec["roots"], rec["roots_matrices"] = roots
+    survivors = [grp for grp in consistent if grp[0]["product"] <= product_tol]
+    if len(units) > 1 and len(survivors) > 1:
+        # A PART'S OWN PHASE IS ITS SETTLING'S, not a choice: candidates
+        # that differ only in the phase a part is settled out of are one
+        # representation once each part is settled, and are merged as the
+        # identical matrices are above
+        merged = []
+        for grp in survivors:
+            Dn = grp[0]["normalized"][0]
+            for keep in merged:
+                same = keep[0]["normalized"][0]
+                if all(np.abs(Dn[p] - same[p]).max() < 1e-12 for p in kept):
+                    keep.extend(grp)
+                    break
+            else:
+                merged.append(grp)
+        gone = {id(grp) for grp in survivors} - {id(grp) for grp in merged}
+        distinct = [grp for grp in distinct if id(grp) not in gone]
+        covariant = [grp for grp in covariant if id(grp) not in gone]
+        consistent = [grp for grp in consistent if id(grp) not in gone]
+        survivors = merged
+    alive = {id(grp) for grp in survivors}
+
+    def _killed_by(grp):
+        if id(grp) in alive:
+            return None
+        if grp[0]["residual"] > tol:
+            return "covariance"
+        if grp[0]["internal"] > internal_tol:
+            return "internal_factor"
+        return "product_table"
+
+    spectrum = tuple(sorted(float(grp[0]["residual"]) for grp in distinct))
+    int_spectrum = tuple(sorted(float(grp[0]["internal"]) for grp in covariant))
+    prod_spectrum = tuple(sorted(float(grp[0]["product"]) for grp in consistent))
+    candidates = tuple(
+        {"orientation": int(grp[0]["orientation"]), "combo": grp[0]["combo"],
+         "n_merged": len(grp), "covariance": float(grp[0]["residual"]),
+         "internal": float(grp[0].get("internal", float("nan"))),
+         "product": float(grp[0].get("product", float("nan"))),
+         "killed_by": _killed_by(grp)}
+        for grp in distinct)
+
+    return _GateOutcome(
+        records=records, distinct=distinct, covariant=covariant,
+        consistent=consistent, survivors=survivors,
+        search={"n_candidates": len(records), "n_distinct": len(distinct),
+                   "n_covariant": len(covariant), "n_consistent": len(consistent),
+                   "n_survivors": len(survivors),
+                   "gate": float(tol), "internal_gate": float(internal_tol),
+                   "product_gate": float(product_tol),
+                   "best": spectrum[0] if spectrum else float("nan"),
+                   "runner_up": spectrum[1] if len(spectrum) > 1 else float("nan"),
+                   "residuals": spectrum,
+                   "internal_best": (int_spectrum[0] if int_spectrum
+                                     else float("nan")),
+                   "internal_runner_up": (int_spectrum[1] if len(int_spectrum) > 1
+                                          else float("nan")),
+                   "internal_residuals": int_spectrum,
+                   "product_best": (prod_spectrum[0] if prod_spectrum
+                                    else float("nan")),
+                   "product_runner_up": (prod_spectrum[1] if len(prod_spectrum) > 1
+                                         else float("nan")),
+                   "product_residuals": prod_spectrum,
+                   "killed_by": {"covariance": len(distinct) - len(covariant),
+                                 "internal_factor": len(covariant) - len(consistent),
+                                 "product_table": len(consistent) - len(survivors)},
+                   "candidates": candidates})
+
+
+def _one_labelling_apart(ops, mul, bat, A, B, tol=1e-8):
+    """Whether two settled candidates differ by one character on each coupled part.
+
+    Asked of the unitary operations, which the site irreps and the band
+    labels are characters of.
+    """
+    u_pos = ops.u_pos
+    chan_states = mul.chan_states
+    cperm = mul.cperm
+    part_chans = bat.part_chans
+
+    for p in u_pos:
+        for chans in part_chans:
+            ratio = None
+            for c in chans:
+                rows = np.asarray(chan_states[int(cperm[p][c])], dtype=int)
+                cols = np.asarray(chan_states[c], dtype=int)
+                a, b = A[p][np.ix_(rows, cols)], B[p][np.ix_(rows, cols)]
+                rho, res = _proportionality(b, a)
+                if res > tol or abs(abs(rho) - 1.0) > tol:
+                    return False
+                if ratio is None:
+                    ratio = rho
+                elif abs(rho - ratio) > tol:
+                    return False
+    return True
+
+
+def _pin_branch(ops, mul, bat, survivors):
+    """The :class:`_PinnedBranch` — the tie settled, or left alone."""
+    site_tables = mul.site_tables
+
+    out = _PinnedBranch(survivors=survivors, tie=False, note=None)
+    if len(survivors) != 2:
+        return out
+    per = {}
+    for grp in survivors:
+        per.setdefault(int(grp[0]["orientation"]), []).append(grp)
+    if sorted(per) != [-1, 1] or any(len(v) != 1 for v in per.values()):
+        return out
+    if site_tables and not _one_labelling_apart(ops, mul, bat, per[1][0][0]["normalized"][0],
+                                                per[-1][0][0]["normalized"][0]):
+        return out
+    return replace(out, survivors=[per[1][0]], tie=True, note=(
+        "the two orientation branches both carry H(k) onto itself, factorize on every "
+        "site into (character) x (the group's own internal factor) and reproduce the "
+        "multiplication table, and are one "
+        "representation up to a one-dimensional character on each coupled part, so "
+        "the same labellings and site labels are open on both and nothing "
+        "measures between them; the branch was pinned by convention to +1, "
+        "the intertwiner that carries k -> gk."))
+
 
 
 def _with_multiplicity_spaces(table, chosen, group, assignment):
