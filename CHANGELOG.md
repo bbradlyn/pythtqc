@@ -6,9 +6,23 @@
   operations, a cubic crystal's among them. What they return is unchanged.
 - `hsp_table`, `corep_content`, `characters`, `sewing_matrix` and a representation's
   `covariance` raise `ValueError` where the model the representation was measured on has
-  been edited since, and say to call `realized_group` again. A model with a term that
-  carries a parameter is not checked, and a layer's representation holds a copy of its own,
-  which an edit of the model handed in does not reach.
+  been edited since, and say to call `realized_group` again. A layer's representation holds
+  a copy of its own, and that of a parameterized model the model with the values of its
+  parameters in place, which an edit of the model handed in does not reach.
+- A parameterized model, one whose hoppings or on-site energies are free parameters with
+  their values given as `params=`, is read by every call that takes a model:
+  `realized_group`, `stack_presentation`, `solve_at`, `spinless_presentation`,
+  `symmetrize` and `symmetrize_positions`, a layer and a model read under a declared
+  precision included. Each returns what it returns on `model.with_parameters(...)`, and a
+  record's `model` is the model with the numbers in place. A parameter takes a number: a
+  hopping that acts on spin is written as a function of its parameter that returns the
+  `2×2` block, as the guide's page on the group shows for the Kane–Mele model, and each
+  set of values is one call.
+- `hsp_table`, `corep_content`, `characters`, `sewing_matrix` and a representation's
+  `covariance` take no `params=`: a representation is that of the model at the values it
+  was measured at, and `r.model` is handed on without them. A name that is not a
+  parameter of the model, a parameter given no value and a value that is not a number
+  raise `ValueError` before anything is measured.
 - An `hsp_table`'s `note` is one sentence, and it appears for any set of bands, all of them
   included, one of whose energy multiplets is labelled otherwise under another labelling
   the hoppings leave open.
