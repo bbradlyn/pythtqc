@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.0a3 — the second public version
+
 - On a layer without time-reversal symmetry, where an environment's largest subgroups tie
   and the one the tie rule keeps is not what the other measured, `realized_group` returns
   the cross-check's outcome `"ambiguous"`, as on a layer with time-reversal symmetry, where

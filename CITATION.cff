@@ -16,7 +16,7 @@ authors:
   - family-names: Bradlyn
     given-names: Barry
     affiliation: University of Illinois Urbana-Champaign
-version: 0.1.0a2
+version: 0.1.0a3
 license: GPL-3.0-or-later
 repository-code: "https://github.com/bbradlyn/pythtqc"
 keywords:
