@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- On a layer without time-reversal symmetry, where an environment's largest subgroups tie
+  and the one the tie rule keeps is not what the other measured, `realized_group` returns
+  the cross-check's outcome `"ambiguous"`, as on a layer with time-reversal symmetry, where
+  it raised `InternalError`.
 - `realized_group` and `hsp_table` return sooner, `realized_group` most on a group of many
   operations, a cubic crystal's among them. What they return is unchanged.
 - `hsp_table`, `corep_content`, `characters`, `sewing_matrix` and a representation's

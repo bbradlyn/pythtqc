@@ -46,6 +46,7 @@ from pythtqc import _sitechars
 from pythtqc import ebr as tqe
 from pythtqc import groups as tqg
 from pythtqc import sewing as tqw
+from pythtqc import spin as tqsp
 from pythtqc import srsi as tqr
 from pythtqc import symmetry as tqs
 from pythtqc.refusal import InternalError, Refusal
@@ -509,6 +510,13 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
     contradiction raises.  Reversing the rule's order shows it, the readings
     named and the pair the statement holds for, and leaves the chiral model,
     which has no tie for the rule to settle, as it was.
+
+    A tie no declaration makes is read the same way, on a layer without time
+    reversal: the Kane–Mele layer with Rashba coupling, in its spinless
+    presentation, the rule reversed for its free-standing reading alone, is
+    ``P6 #168`` on a substrate against ``P-6m2 #187`` free-standing, and the
+    outcome is ``"ambiguous"``, the statement holding for ``P-6m2`` and, on the
+    substrate, the threefold with ``P-6m2``'s own three vertical mirrors.
     """
     r = p41_chiral_substrate            # the session's shared record of that reading
     assert not isinstance(r, Refusal), str(r)
@@ -622,6 +630,41 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
     assert ("{" + ", ".join(twofolds) + "} and {" + ", ".join(mirrors) + "}") in w["note"]
     assert ("does not hold for that one; it holds for {" + ", ".join(mirrors)
             + "} free-standing and P3m11' #156.50 on a substrate") in w["note"], w["note"]
+
+    # a layer that breaks time reversal, the rule reversed for its free-standing
+    # reading alone: the two readings keep different members of their ties
+    side = {"free": False}
+    selections = []
+    core = _realized._realized_core
+
+    def one_side(*a, **kw):
+        """The free-standing reading flagged, and each reading's selection kept."""
+        side["free"] = kw.get("free_standing") is None
+        try:
+            got = core(*a, **kw)
+        finally:
+            side["free"] = False
+        selections.append(got)
+        return got
+
+    patch_everywhere(monkeypatch, "_realized_core", one_side)
+    patch_everywhere(monkeypatch, "_tie_ranked", lambda group, subgroups: (
+        ranked(group, subgroups)[::-1] if side["free"] else ranked(group, subgroups)))
+    rashba = tqsp.spinless_presentation(kane_mele(0.0, -1.0, 0.3, 0.25))[0]
+    split = tqg.realized_group(rashba, **SUB)
+    assert not isinstance(split, Refusal), str(split)
+    assert (split.group.number_str, split.group.name) == ("168", "P6")
+    assert split.time_reversal["outcome"] == "measured broken"
+    w = split.cross_check
+    assert w["outcome"] == "ambiguous" and w["agrees"] is None
+    assert (w["free_standing"]["number_str"], w["substrate"]["number_str"]) == ("187", "168")
+    assert ("it holds for P-6m2 #187 free-standing and {E, C3(z), C3^-1(z), m([010]), "
+            "m(x), m([1-10])} on a substrate") in w["note"], w["note"]
+    assert len(selections) == 2
+    for sel in selections:
+        assert len(sel.held) == len(sel.descent) == 1
+        assert all(isinstance(h, frozenset) for h in sel.held), \
+            "one set of operations a descent step"
 
 
 @pytest.mark.slow

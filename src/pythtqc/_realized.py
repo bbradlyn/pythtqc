@@ -2769,12 +2769,12 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                 # them again; and it reads its translations off the cell again,
                 # so it is carried onto the origin of the operations it
                 # identifies again, the one the centres satisfy
-                held = [s for s in group.symmetries if not s.time_reversal]
+                unitary_ops = [s for s in group.symmetries if not s.time_reversal]
                 pairs, lost, extra = _match_operations(
-                    held, [s for s in unitary.symmetries if not s.time_reversal],
+                    unitary_ops, [s for s in unitary.symmetries if not s.time_reversal],
                     tolerances.finder, group.lattice)
                 if not lost and not extra:
-                    unitary = _shared_origin(unitary, held, pairs)
+                    unitary = _shared_origin(unitary, unitary_ops, pairs)
                 contents = _rekey_contents(contents, pairs, {})
                 wider = _rekey_contents(wider, pairs, {})
                 group = _stamp(unitary)
