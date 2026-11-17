@@ -786,6 +786,143 @@ class _Compared:
     unread: object
 
 
+@dataclass(frozen=True, eq=False)
+class _Resolved:
+    """The declarations of a call, resolved before anything is measured.
+
+    Attributes
+    ----------
+    environment : str or None
+        The environment, resolved: ``None`` for a fully periodic model.
+    environment_declared : bool
+        Whether the call declared the environment.
+    extras : tuple
+        The decorations.
+    labels : list of int
+        The species of each orbital.
+    measured : dict
+        The keywords every measurement of the call is handed.
+    spin : ..spin.SpinBasis or None
+        The declared spinor basis, resolved; ``None`` where none is declared.
+    three_d : bool
+        Whether the model is periodic in three directions.
+    tolerances : .._tolerance.Tolerances
+        The tolerances, resolved.
+    """
+
+    environment: object
+    environment_declared: object
+    extras: object
+    labels: object
+    measured: object
+    spin: object
+    three_d: object
+    tolerances: object
+
+
+@dataclass(frozen=True, eq=False)
+class _Selected:
+    """What the measurement settled on.
+
+    Attributes
+    ----------
+    asked : tuple
+        What the rounds measured of the operations combined with time reversal.
+    assignment : ..groups.OrbitalAssignment
+        The orbitals' assignment to the group's Wyckoff orbits.
+    cell : object
+        The cell the group was identified on.
+    cell_typat : list
+        Its species.
+    cross : dict or None
+        The cross-check of a layer's two environments; ``None`` for a fully periodic model.
+    group : ..groups.GroupData
+        The group the measurement settled on.
+    m3 : pythtb.TBModel
+        The model as measured.
+    positions : dict or None
+        The record of the centres' move, where one was made.
+    presented : dict
+        What the slab presentation measured.
+    sel : _Selection
+        The measurement's record.
+    steps : tuple of dict
+        The descent steps.
+    symmetrization : dict or None
+        The record of the projection, where one ran.
+    time_reversal : dict or None
+        The time-reversal verdict.
+    validated : ..groups.ValidatedGroup
+        The measurement of the operations.
+    """
+
+    asked: object
+    assignment: object
+    cell: object
+    cell_typat: object
+    cross: object
+    group: object
+    m3: object
+    positions: object
+    presented: object
+    sel: object
+    steps: object
+    symmetrization: object
+    time_reversal: object
+    validated: object
+
+
+@dataclass(frozen=True, eq=False)
+class _Represented:
+    """The representation built on the group, with what is read once beside it.
+
+    Attributes
+    ----------
+    beyond_grey : dict or None
+        The operations combined with time reversal that hold, where time reversal is broken.
+    rep : SpaceGroupRep
+        The representation, its environment stamped on.
+    sectors : tuple or None
+        The sectors read where the model entered, with what the group's operations do to
+        them.
+    time_reversal : dict or None
+        The time-reversal verdict, its operations combined with time reversal read.
+    """
+
+    beyond_grey: object
+    rep: object
+    sectors: object
+    time_reversal: object
+
+
+@dataclass(frozen=True, eq=False)
+class _Described:
+    """The descent's note and the decoration's parts.
+
+    Attributes
+    ----------
+    bare_3d : bool
+        Whether the model is fully periodic with nothing added to its own point set.
+    base_typat : list
+        The species of the cell before any descent.
+    descent : dict or None
+        The descent; ``None`` where none ran.
+    n_extra : int
+        The number of points added to the model's own.
+    reduction : dict or None
+        The reduction the declared content made to the cell; ``None`` where it made none.
+    shadow_recipe : bool
+        Whether the substrate's shadow species were built.
+    """
+
+    bare_3d: object
+    base_typat: object
+    descent: object
+    n_extra: object
+    reduction: object
+    shadow_recipe: object
+
+
 def _realize(model, *, typat=None, environment=None, cross_check=True,
              decorations=None, dz=DECORATION_DZ,
              c=SLAB_C, nk=6, tol=None, cut=None, window=None,
@@ -818,7 +955,89 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
     stands for a fully periodic model and through :func:`_layer_realized` for a
     layer.
     """
+    res = _call_resolved(model, typat=typat, environment=environment, decorations=decorations, c=c,
+                         nk=nk, tol=tol, cut=cut, window=window, symmetrize=symmetrize,
+                         max_bytes=max_bytes, position_tol=position_tol, precision=precision,
+                         spinor=spinor, spin=spin, descend=descend, symprec=symprec,
+                         selection_only=selection_only, context=context, tolerances=tolerances,
+                         build_kw=build_kw)
+    if not isinstance(res, _Resolved):
+        return res
+    sld = _measured_selection(model, res, typat=typat, cross_check=cross_check,
+                              decorations=decorations, dz=dz, c=c, check=check, n_check=n_check,
+                              seed=seed)
+    if not isinstance(sld, _Selected):
+        return sld
+    rpd = _representation_built(res, sld, selection_only=selection_only, build_kw=build_kw)
+    if not isinstance(rpd, _Represented):
+        return rpd
+    dsc = _descent_said(model, res, sld, rpd)
+    return _realized_record(model, res, sld, rpd, dsc, dz=dz, c=c, n_check=n_check)
 
+
+def _call_resolved(model, *, typat, environment, decorations, c, nk, tol, cut, window, symmetrize,
+                   max_bytes, position_tol, precision, spinor, spin, descend, symprec,
+                   selection_only, context, tolerances, build_kw):
+    """The declarations of a call, resolved before anything is measured.
+
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        As in :func:`_realize`.
+    typat : sequence of int or None
+        As in :func:`_realize`.
+    environment : str or None
+        As in :func:`_realize`.
+    decorations : sequence or None
+        As in :func:`_realize`.
+    c : float
+        As in :func:`_realize`.
+    nk : int
+        As in :func:`_realize`.
+    tol : float or None
+        As in :func:`_realize`.
+    cut : float or None
+        As in :func:`_realize`.
+    window : float or None
+        As in :func:`_realize`.
+    symmetrize : {"auto", True, False}
+        As in :func:`_realize`.
+    max_bytes : float
+        As in :func:`_realize`.
+    position_tol : float or None
+        As in :func:`_realize`.
+    precision : float or None
+        As in :func:`_realize`.
+    spinor : bool or None
+        As in :func:`_realize`.
+    spin : ..spin.SpinBasis, str, dict or None
+        As in :func:`_realize`.
+    descend : bool
+        As in :func:`_realize`.
+    symprec : float
+        As in :func:`_realize`.
+    selection_only : bool
+        As in :func:`_realize`.
+    context : _MeasurementContext or None
+        As in :func:`_realize`.
+    tolerances : .._tolerance.Tolerances or None
+        As in :func:`_realize`.
+    build_kw : dict
+        As in :func:`_realize`.
+
+    Returns
+    -------
+    _Resolved or Refusal
+        The record, or the refusal of a spinor basis split across two centres or of a model
+        periodic in fewer than two directions.
+
+    Raises
+    ------
+    ValueError
+        A malformed argument, or two that contradict each other, before anything is measured.
+    TypeError
+        A keyword the build does not take.
+    """
     if symmetrize not in ("auto", True, False):
         raise ValueError("symmetrize must be \"auto\" (project when an operation is "
                          "measured near-symmetric), True (always project) or False "
@@ -1005,6 +1224,55 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
                     context=context, spin=spin,
                     descend=descend, symmetrize=symmetrize, max_bytes=max_bytes,
                     build_kw=build_kw, returned=not selection_only)
+    return _Resolved(environment=environment, environment_declared=environment_declared,
+                     extras=extras, labels=labels, measured=measured, spin=spin, three_d=three_d,
+                     tolerances=tolerances)
+
+
+def _measured_selection(model, res, *, typat, cross_check, decorations, dz, c, check, n_check,
+                        seed):
+    """What the measurement settled on, for a fully periodic model or a layer.
+
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        As in :func:`_realize`.
+    typat : sequence of int or None
+        As in :func:`_realize`.
+    cross_check : bool
+        As in :func:`_realize`.
+    decorations : sequence or None
+        As in :func:`_realize`.
+    dz : float
+        As in :func:`_realize`.
+    c : float
+        As in :func:`_realize`.
+    check : bool
+        As in :func:`_realize`.
+    n_check : int
+        As in :func:`_realize`.
+    seed : int
+        As in :func:`_realize`.
+    res : _Resolved
+        As :func:`_call_resolved` returns it.
+
+    Returns
+    -------
+    _Selected or Refusal
+        The record, or the refusal the measurement returned.
+
+    Raises
+    ------
+    ValueError
+        A ``typat=`` without one entry per orbital.
+    """
+    environment = res.environment
+    extras = res.extras
+    labels = res.labels
+    measured = res.measured
+    three_d = res.three_d
+    tolerances = res.tolerances
+
     if three_d:
         m3 = model
         if not extras:
@@ -1051,6 +1319,51 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
     steps, positions = sel.descent, sel.positions
     symmetrization = sel.symmetrization
     time_reversal, asked = sel.time_reversal, sel.antiunitary
+    return _Selected(asked=asked, assignment=assignment, cell=cell, cell_typat=cell_typat,
+                     cross=cross, group=group, m3=m3, positions=positions, presented=presented,
+                     sel=sel, steps=steps, symmetrization=symmetrization,
+                     time_reversal=time_reversal, validated=validated)
+
+
+def _representation_built(res, sld, *, selection_only, build_kw):
+    """The representation built on the group the measurement settled on.
+
+    Parameters
+    ----------
+    selection_only : bool
+        As in :func:`_realize`.
+    build_kw : dict
+        As in :func:`_realize`.
+    res : _Resolved
+        As :func:`_call_resolved` returns it.
+    sld : _Selected
+        As :func:`_measured_selection` returns it.
+
+    Returns
+    -------
+    _Represented, _Compared or Refusal
+        The record; the selection with no representation where ``selection_only``; or the
+        refusal of the build, the group named in it.
+
+    Raises
+    ------
+    ..refusal.InternalError
+        A covariance failure of the build beyond the declared tolerance.
+    """
+    environment = res.environment
+    spin = res.spin
+    tolerances = res.tolerances
+    asked = sld.asked
+    assignment = sld.assignment
+    cross = sld.cross
+    group = sld.group
+    m3 = sld.m3
+    positions = sld.positions
+    sel = sld.sel
+    steps = sld.steps
+    symmetrization = sld.symmetrization
+    time_reversal = sld.time_reversal
+    validated = sld.validated
 
     if selection_only:
         # a comparison, whose representation is never built: its operations
@@ -1141,6 +1454,39 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
     if sectors is not None:
         sectors = (sectors, sector_action(sectors, m3, group, assignment, spin, validated,
                                           tol=tolerances.matrix or None))
+    return _Represented(beyond_grey=beyond_grey, rep=rep, sectors=sectors,
+                        time_reversal=time_reversal)
+
+
+def _descent_said(model, res, sld, rpd):
+    """The descent's note and the decoration's parts.
+
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        As in :func:`_realize`.
+    res : _Resolved
+        As :func:`_call_resolved` returns it.
+    sld : _Selected
+        As :func:`_measured_selection` returns it.
+    rpd : _Represented
+        As :func:`_representation_built` returns it.
+
+    Returns
+    -------
+    _Described
+        The descent and the parts of the decoration.
+    """
+    environment = res.environment
+    extras = res.extras
+    labels = res.labels
+    three_d = res.three_d
+    tolerances = res.tolerances
+    group = sld.group
+    sel = sld.sel
+    steps = sld.steps
+    beyond_grey = rpd.beyond_grey
+    time_reversal = rpd.time_reversal
 
     # the DECLARED decoration, which is what this record is about, together with
     # the orbit step 1 added where the declared content reduced the cell: the
@@ -1298,6 +1644,64 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
             + projective
             + precise,
         }
+    return _Described(bare_3d=bare_3d, base_typat=base_typat, descent=descent, n_extra=n_extra,
+                      reduction=reduction, shadow_recipe=shadow_recipe)
+
+
+def _realized_record(model, res, sld, rpd, dsc, *, dz, c, n_check):
+    """The record returned.
+
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        As in :func:`_realize`.
+    dz : float
+        As in :func:`_realize`.
+    c : float
+        As in :func:`_realize`.
+    n_check : int
+        As in :func:`_realize`.
+    res : _Resolved
+        As :func:`_call_resolved` returns it.
+    sld : _Selected
+        As :func:`_measured_selection` returns it.
+    rpd : _Represented
+        As :func:`_representation_built` returns it.
+    dsc : _Described
+        As :func:`_descent_said` returns it.
+
+    Returns
+    -------
+    RealizedGroup
+        As :func:`_realize` returns it.
+    """
+    environment = res.environment
+    environment_declared = res.environment_declared
+    extras = res.extras
+    labels = res.labels
+    three_d = res.three_d
+    tolerances = res.tolerances
+    assignment = sld.assignment
+    cell = sld.cell
+    cell_typat = sld.cell_typat
+    cross = sld.cross
+    group = sld.group
+    m3 = sld.m3
+    positions = sld.positions
+    presented = sld.presented
+    symmetrization = sld.symmetrization
+    validated = sld.validated
+    beyond_grey = rpd.beyond_grey
+    rep = rpd.rep
+    sectors = rpd.sectors
+    time_reversal = rpd.time_reversal
+    bare_3d = dsc.bare_3d
+    base_typat = dsc.base_typat
+    descent = dsc.descent
+    n_extra = dsc.n_extra
+    reduction = dsc.reduction
+    shadow_recipe = dsc.shadow_recipe
+
     return RealizedGroup(
         model=m3, source=model, cell=cell, typat=labels, cell_typat=list(cell_typat),
         group=group, assignment=assignment, validated=validated, rep=rep,
