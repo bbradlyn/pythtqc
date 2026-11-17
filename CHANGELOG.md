@@ -40,8 +40,9 @@
 - The package's name is written pythTQC; it is installed and imported as `pythtqc`, as
   before.
 - `CITATION.cff` asks work that uses the package to cite Hwang et al., arXiv:2601.06293,
-  which carries the stable real-space invariants to photonic crystals, beside the paper
-  they come from and the package itself.
+  which carries the stable real-space invariants to photonic crystals, as its preferred
+  citation, beside the paper they come from and the package itself, by its version and
+  its repository.
 - The script that converts the stable real-space invariants' tables from the paper's TeX
   supplement, and a benchmark of declared content, leave the repository. The shipped tables
   are unchanged but for their provenance, which names the paper and the versions they were
