@@ -786,6 +786,188 @@ def _lifted_scale(group, layout, positions, cperm, classes, ref, blocks, *, base
                             reversal=reversal, reversal_image=reversal_image, reach=reach)
 
 
+@dataclass(frozen=True, eq=False)
+class _Anchor:
+    """The multiplets' permutations, their orbits, the anchor and the blocks.
+
+    Attributes
+    ----------
+    classes : ndarray of int
+        The multiplet orbit of each multiplet.
+    cperm : dict
+        Where each operation carries each multiplet, by position.
+    layout : SiteMultiplets
+        As in :func:`_verdicts_and_choices`.
+    measured_of : dict
+        Each operation's internal block on each multiplet, by index.
+    multiplicity : tuple
+        The orbits of sectors the blocks were built for, each with its candidates.
+    nchan : int
+        The number of multiplets.
+    nclass : int
+        The number of multiplet orbits.
+    positions : list of int
+        The positions of the unitary operations read.
+    ref : int
+        The anchor, orbital 0's multiplet.
+    ref_cls : int
+        The anchor's orbit.
+    reps : dict
+        The multiplet each orbit is read at, the anchor for its own.
+    site_layout : SiteMultiplets
+        Each site's orbitals as one multiplet.
+    syms : list
+        The group's operations, in the group's order.
+    """
+
+    classes: object
+    cperm: object
+    layout: object
+    measured_of: object
+    multiplicity: object
+    nchan: object
+    nclass: object
+    positions: object
+    ref: object
+    ref_cls: object
+    reps: object
+    site_layout: object
+    syms: object
+
+
+@dataclass(frozen=True, eq=False)
+class _OperationsRead:
+    """What each operation's solution space says of the multiplets.
+
+    Attributes
+    ----------
+    bases : dict
+        Each operation's solution space, by index.
+    block_tol : float or None
+        The tolerance the multiplets were measured at.
+    broken : dict
+        The operations the declared multiplets break, by index.
+    carried : dict
+        Each orbit's block across each solution space, ``{ind: {class: array}}``.
+    chan_states : tuple
+        The states of each multiplet.
+    chosen : dict
+        The class scalar the hoppings pin, ``{(ind, class): value}``.
+    free : set
+        The ``(ind, class)`` pairs the hoppings leave open.
+    in_tol : float
+        How far outside the blocks a member may sit and count as inside.
+    lattice : ndarray
+        The group's lattice vectors.
+    rows : list
+        The measured-versus-declared table, filled by the character verdict.
+    seen : dict
+        The classes measured at each operation, ``{ind: set}``.
+    spaces : dict
+        The in-block solution space of each operation the character verdict reads, by
+        position.
+    spread_tol : float
+        The spread within which a ratio counts as pinned.
+    su2 : bool
+        Whether the states carry the spin-1/2 lift.
+    want_of : dict
+        The declaration of each declared multiplet.
+    why : dict
+        One sentence per broken operation, by index.
+    zero : float
+        The size below which a block or a ratio vanishes.
+    """
+
+    bases: object
+    block_tol: object
+    broken: object
+    carried: object
+    chan_states: object
+    chosen: object
+    free: object
+    in_tol: object
+    lattice: object
+    rows: object
+    seen: object
+    spaces: object
+    spread_tol: object
+    su2: object
+    want_of: object
+    why: object
+    zero: object
+
+
+@dataclass(frozen=True, eq=False)
+class _PartsRead:
+    """The coupled parts of the crystal and the part each declaration reads in.
+
+    Attributes
+    ----------
+    free_classes : frozenset of int
+        The orbits free at every operation that was measured.
+    induced_classes : list of frozenset
+        The orbits of each orbit of sectors built by induction.
+    joint_decls : list
+        The declarations read over several parts, or stating part of a site.
+    on_induced : list
+        The declarations on an orbit of sectors built by induction.
+    part_of : dict
+        The coupled part of each orbit.
+    part_of_decl : dict
+        The part each declaration is read in, ``None`` where it is read with others.
+    parts : list of frozenset
+        The coupled parts as sets of orbits, the anchor's first.
+    spoken : set of int
+        The parts some declaration is read in.
+    within : dict
+        The ratio an orbit of a part free of the anchor holds to that part's first, ``{(ind,
+        class): value}``.
+    """
+
+    free_classes: object
+    induced_classes: object
+    joint_decls: object
+    on_induced: object
+    part_of: object
+    part_of_decl: object
+    parts: object
+    spoken: object
+    within: object
+
+
+@dataclass(frozen=True, eq=False)
+class _Scales:
+    """The scale each part's characters are read against.
+
+    Attributes
+    ----------
+    reversal_image : list or None
+        Where time reversal carries each multiplet; ``None`` where it is not read.
+    roots : dict
+        Per part, whether its character may take any unit phase.
+    scales : dict
+        Per part, the multiplet of its scale and the scale's blocks.
+    """
+
+    reversal_image: object
+    roots: object
+    scales: object
+
+
+@dataclass(frozen=True, eq=False)
+class _CharactersRead:
+    """The contents read over several parts, multiplet by multiplet.
+
+    Attributes
+    ----------
+    joint_theta : dict
+        Per declaration, each multiplet's character at each operation, ``{id: {multiplet:
+        {ind: value}}}``.
+    """
+
+    joint_theta: object
+
+
 def _verdicts_and_choices(model, group, assignment, spin, validated, layout, decls,
                           positions, *, classes=None, ref_orb=0,
                           blocks=None, space_tol=IN_SPACE, tol=CHARACTER,
@@ -895,6 +1077,53 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
     enumeration made.  ``spin`` is the declared :class:`..spin.SpinBasis`
     itself, or ``None``.
     """
+    anc = _anchor_read(model, group, assignment, spin, validated, layout, positions,
+                       classes=classes, blocks=blocks, max_candidates=max_candidates)
+    if not isinstance(anc, _Anchor):
+        return anc
+    ops = _operations_read(model, group, assignment, validated, layout, decls, anc,
+                           space_tol=space_tol)
+    prt = _parts_read(decls, anc, ops)
+    scl = _scales_read(model, group, assignment, spin, validated, layout, anc, ops, prt,
+                       reversal=reversal)
+    chv = _characters_read(model, anc, ops, prt, scl, tol=tol)
+    return _verdict_made(model, group, assignment, spin, validated, layout, decls, anc, ops, prt,
+                         scl, chv, ref_orb=ref_orb, space_tol=space_tol, tol=tol,
+                         max_candidates=max_candidates, reversal=reversal, sectors=sectors)
+
+
+def _anchor_read(model, group, assignment, spin, validated, layout, positions, *, classes, blocks,
+                 max_candidates):
+    """The multiplets' permutations, their orbits, the anchor and the blocks.
+
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        As in :func:`_verdicts_and_choices`.
+    group : ..groups.GroupData
+        As in :func:`_verdicts_and_choices`.
+    assignment : ..groups.OrbitalAssignment
+        As in :func:`_verdicts_and_choices`.
+    spin : ..spin.SpinBasis or None
+        As in :func:`_verdicts_and_choices`.
+    validated : ..groups.ValidatedGroup
+        As in :func:`_verdicts_and_choices`.
+    layout : SiteMultiplets
+        As in :func:`_verdicts_and_choices`.
+    positions : sequence of int
+        As in :func:`_verdicts_and_choices`.
+    classes : ndarray of int or None
+        As in :func:`_verdicts_and_choices`.
+    blocks : _MultipletBlocks or None
+        As in :func:`_verdicts_and_choices`.
+    max_candidates : int
+        As in :func:`_verdicts_and_choices`.
+
+    Returns
+    -------
+    _Anchor or Refusal
+        The record, or the refusal the multiplet permutation or the block enumeration made.
+    """
     syms = group.symmetries
     positions = [p for p in positions if not bool(syms[p].time_reversal)]
     cperm = _channel_perms(model, assignment, syms, positions, layout, spin)
@@ -931,6 +1160,47 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
             return got
         measured_of = got
         multiplicity = tuple(got.multiplicity)
+    return _Anchor(classes=classes, cperm=cperm, layout=layout, measured_of=measured_of,
+                   multiplicity=multiplicity, nchan=nchan, nclass=nclass, positions=positions,
+                   ref=ref, ref_cls=ref_cls, reps=reps, site_layout=site_layout, syms=syms)
+
+
+def _operations_read(model, group, assignment, validated, layout, decls, anc, *, space_tol):
+    """The multiplet verdict and the relative scalars, operation by operation.
+
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        As in :func:`_verdicts_and_choices`.
+    group : ..groups.GroupData
+        As in :func:`_verdicts_and_choices`.
+    assignment : ..groups.OrbitalAssignment
+        As in :func:`_verdicts_and_choices`.
+    validated : ..groups.ValidatedGroup
+        As in :func:`_verdicts_and_choices`.
+    layout : SiteMultiplets
+        As in :func:`_verdicts_and_choices`.
+    decls : list
+        As in :func:`_verdicts_and_choices`.
+    space_tol : float
+        As in :func:`_verdicts_and_choices`.
+    anc : _Anchor
+        As :func:`_anchor_read` returns it.
+
+    Returns
+    -------
+    _OperationsRead
+        What each operation's solution space says of the multiplets.
+    """
+    cperm = anc.cperm
+    measured_of = anc.measured_of
+    nchan = anc.nchan
+    nclass = anc.nclass
+    positions = anc.positions
+    ref = anc.ref
+    reps = anc.reps
+    site_layout = anc.site_layout
+    syms = anc.syms
 
     lattice = np.asarray(group.lattice, dtype=float)
     chan_states, su2 = layout._chan_states, layout._spinful
@@ -1020,6 +1290,39 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
                         chosen[(ind, int(cls))] = sig
         if want_of:
             spaces[p] = (V, image, lift, lift_of)
+    return _OperationsRead(bases=bases, block_tol=block_tol, broken=broken, carried=carried,
+                           chan_states=chan_states, chosen=chosen, free=free, in_tol=in_tol,
+                           lattice=lattice, rows=rows, seen=seen, spaces=spaces,
+                           spread_tol=spread_tol, su2=su2, want_of=want_of, why=why, zero=zero)
+
+
+def _parts_read(decls, anc, ops):
+    """The coupled parts of the crystal and the part each declaration reads in.
+
+    Parameters
+    ----------
+    decls : list
+        As in :func:`_verdicts_and_choices`.
+    anc : _Anchor
+        As :func:`_anchor_read` returns it.
+    ops : _OperationsRead
+        As :func:`_operations_read` returns it.
+
+    Returns
+    -------
+    _PartsRead
+        The coupled parts and the declarations' parts.
+    """
+    classes = anc.classes
+    multiplicity = anc.multiplicity
+    nclass = anc.nclass
+    ref_cls = anc.ref_cls
+    carried = ops.carried
+    chosen = ops.chosen
+    free = ops.free
+    seen = ops.seen
+    spread_tol = ops.spread_tol
+    zero = ops.zero
 
     # A class is free where NOTHING measured it: free at every operation whose
     # solution space spoke about it.  That is a decoupled multiplet -- what it
@@ -1065,11 +1368,6 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
     # nothing about it.
     joined = {int(cls): int(cls) for cls in free_classes}
 
-    def _joined(cls):
-        while joined[cls] != cls:
-            cls = joined[cls]
-        return cls
-
     for got in carried.values():
         both = [(int(cls), t) for cls, t in sorted(got.items())
                 if int(cls) in joined and float(np.abs(t).max()) > zero]
@@ -1077,18 +1375,19 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
             sig = complex(np.vdot(ta, tb) / np.vdot(ta, ta))
             if float(np.abs(tb - sig * ta).max()) <= spread_tol * max(
                     float(np.abs(tb).max()), float(np.abs(ta).max()), 1.0):
-                joined[max(_joined(a), _joined(b))] = min(_joined(a), _joined(b))
+                joined[max(_joined(joined, a), _joined(joined, b))] = min(
+                    _joined(joined, a), _joined(joined, b))
     for own in induced_classes:
         if ref_cls in own:
             continue
         first = min(own)
         for cls in own:
-            a, b = _joined(int(first)), _joined(int(cls))
+            a, b = _joined(joined, int(first)), _joined(joined, int(cls))
             if a != b:
                 joined[max(a, b)] = min(a, b)
     apart = {}
     for cls in sorted(joined):
-        apart.setdefault(_joined(cls), set()).add(int(cls))
+        apart.setdefault(_joined(joined, cls), set()).add(int(cls))
     parts = ([frozenset(cls for cls in range(nclass) if cls not in free_classes)]
              + [frozenset(apart[k]) for k in sorted(apart)])
     part_of = {int(cls): i for i, part in enumerate(parts) for cls in part}
@@ -1139,6 +1438,53 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
     spoken = ({i for i in part_of_decl.values() if i is not None}
               | {part_of.get(int(classes[int(c)])) for d in joint_decls for c in d["channels"]})
     spoken = {int(i) for i in spoken if i is not None}
+    return _PartsRead(free_classes=free_classes, induced_classes=induced_classes,
+                      joint_decls=joint_decls, on_induced=on_induced, part_of=part_of,
+                      part_of_decl=part_of_decl, parts=parts, spoken=spoken, within=within)
+
+
+def _scales_read(model, group, assignment, spin, validated, layout, anc, ops, prt, *, reversal):
+    """The scale each part's characters are read against.
+
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        As in :func:`_verdicts_and_choices`.
+    group : ..groups.GroupData
+        As in :func:`_verdicts_and_choices`.
+    assignment : ..groups.OrbitalAssignment
+        As in :func:`_verdicts_and_choices`.
+    spin : ..spin.SpinBasis or None
+        As in :func:`_verdicts_and_choices`.
+    validated : ..groups.ValidatedGroup
+        As in :func:`_verdicts_and_choices`.
+    layout : SiteMultiplets
+        As in :func:`_verdicts_and_choices`.
+    reversal : int or None
+        As in :func:`_verdicts_and_choices`.
+    anc : _Anchor
+        As :func:`_anchor_read` returns it.
+    ops : _OperationsRead
+        As :func:`_operations_read` returns it.
+    prt : _PartsRead
+        As :func:`_parts_read` returns it.
+
+    Returns
+    -------
+    _Scales
+        The scale of each part some declaration is read in.
+    """
+    classes = anc.classes
+    cperm = anc.cperm
+    measured_of = anc.measured_of
+    nchan = anc.nchan
+    positions = anc.positions
+    ref = anc.ref
+    syms = anc.syms
+    bases = ops.bases
+    in_tol = ops.in_tol
+    part_of = prt.part_of
+    spoken = prt.spoken
 
     # THE SCALE each part's characters are read against.  A member of a
     # solution space is a representation matrix times one free complex number,
@@ -1191,45 +1537,49 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
             if scale_of is not None:
                 scales[i] = (lead, scale_of)
                 roots[i] = reversal is None
+    return _Scales(reversal_image=reversal_image, roots=roots, scales=scales)
+
+
+def _characters_read(model, anc, ops, prt, scl, *, tol):
+    """The character verdict for every declared multiplet the operations fix.
+
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        As in :func:`_verdicts_and_choices`.
+    tol : float
+        As in :func:`_verdicts_and_choices`.
+    anc : _Anchor
+        As :func:`_anchor_read` returns it.
+    ops : _OperationsRead
+        As :func:`_operations_read` returns it.
+    prt : _PartsRead
+        As :func:`_parts_read` returns it.
+    scl : _Scales
+        As :func:`_scales_read` returns it.
+
+    Returns
+    -------
+    _CharactersRead
+        The contents read over several parts; the rows are added to ``ops.rows``.
+    """
+    classes = anc.classes
+    positions = anc.positions
+    syms = anc.syms
+    chan_states = ops.chan_states
+    lattice = ops.lattice
+    rows = ops.rows
+    spaces = ops.spaces
+    want_of = ops.want_of
+    zero = ops.zero
+    joint_decls = prt.joint_decls
+    part_of = prt.part_of
+    part_of_decl = prt.part_of_decl
+    scales = scl.scales
 
     # ---- the character verdict, for what was declared -----------------------
-    def _theta(x, V, lift, nu, floor):
-        """Multiplet ``x``'s character against its part's scale ``nu``, or ``None`` where it is free."""
-        cols = np.asarray(chan_states[int(x)], dtype=int)
-        if layout._chan_kind[int(x)] == "measured":
-            # the multiplet's ORBITAL character: the block's trace with the
-            # spinor divided out, atom by atom, which is what the declared
-            # single-valued irrep is a statement about
-            atoms = _atom_blocks(chan_states[int(x)], su2)
-            f = np.asarray([sum(_proportionality(V[j][np.ix_(a, a)], lift)[0]
-                                for a in atoms) for j in range(len(V))])
-        else:
-            f = np.asarray([_proportionality(V[j][np.ix_(cols, cols)], lift)[0]
-                            for j in range(len(V))])
-        theta = complex(np.vdot(nu, f) / np.vdot(nu, nu))
-        gap = float(np.abs(f - theta * nu).max())
-        if gap > spread_tol * max(float(np.abs(f).max()), floor, 1.0):
-            return None                   # free: the hoppings do not measure it
-        return theta
 
     nspin = int(getattr(model, "nspin", 1) or 1)
-
-    def _matrix(d, V, lift, nu, floor):
-        """Declaration ``d``'s orbital matrix against its part's scale ``nu``, or ``None`` where it is free.
-
-        The orbital factor of the block the operation carries its orbitals
-        with, the spinor divided out atom by atom, one row and one column per
-        atom in the order the declaration names them: what declared generator
-        matrices are a statement about.
-        """
-        atoms = _declared_atoms(d, chan_states, su2, nspin)
-        B = np.asarray([[[_proportionality(V[j][np.ix_(a, b)], lift)[0] for b in atoms]
-                         for a in atoms] for j in range(len(V))])
-        M = np.tensordot(np.conj(nu), B, axes=(0, 0)) / np.vdot(nu, nu)
-        gap = float(np.abs(B - nu[:, None, None] * M[None, :, :]).max())
-        if gap > spread_tol * max(float(np.abs(B).max()), floor, 1.0):
-            return None                   # free: the hoppings do not measure it
-        return M
 
     pre, joint_theta = [], {}
     for p in positions:
@@ -1269,7 +1619,7 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
                 i = part_of.get(int(classes[int(x)]))
                 if i not in nus:
                     break                 # no scale in its part at this operation
-                theta = _theta(x, V, lift, *nus[i])
+                theta = _theta(anc, ops, x, V, lift, *nus[i])
                 if theta is None:
                     break
                 got[int(x)] = theta
@@ -1300,7 +1650,7 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
                 # take here, or no multiple of it
                 if any(int(image[int(x)]) != int(x) for x in d["channels"]):
                     continue
-                B = _matrix(d, V, lift, nu, floor)
+                B = _matrix(ops, nspin, d, V, lift, nu, floor)
                 if B is None:
                     continue
                 M = np.asarray(d["matrices"][ind], dtype=complex)
@@ -1317,7 +1667,7 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
             for x in d["channels"]:
                 if int(image[int(x)]) != int(x):
                     break
-                theta = _theta(x, V, lift, nu, floor)
+                theta = _theta(anc, ops, x, V, lift, nu, floor)
                 if theta is None:
                     break
                 thetas.append(theta)
@@ -1334,6 +1684,88 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
             continue
         theta, want = complex(r["measured"]), complex(r["declared"])
         rows.append(_Row(**r, required=None if abs(theta) <= tol else want / theta))
+    return _CharactersRead(joint_theta=joint_theta)
+
+
+def _verdict_made(model, group, assignment, spin, validated, layout, decls, anc, ops, prt, scl,
+                  chv, *, ref_orb, space_tol, tol, max_candidates, reversal, sectors):
+    """The verdict: what each operation asks of each part, with everything it was read from.
+
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        As in :func:`_verdicts_and_choices`.
+    group : ..groups.GroupData
+        As in :func:`_verdicts_and_choices`.
+    assignment : ..groups.OrbitalAssignment
+        As in :func:`_verdicts_and_choices`.
+    spin : ..spin.SpinBasis or None
+        As in :func:`_verdicts_and_choices`.
+    validated : ..groups.ValidatedGroup
+        As in :func:`_verdicts_and_choices`.
+    layout : SiteMultiplets
+        As in :func:`_verdicts_and_choices`.
+    decls : list
+        As in :func:`_verdicts_and_choices`.
+    ref_orb : int
+        As in :func:`_verdicts_and_choices`.
+    space_tol : float
+        As in :func:`_verdicts_and_choices`.
+    tol : float
+        As in :func:`_verdicts_and_choices`.
+    max_candidates : int
+        As in :func:`_verdicts_and_choices`.
+    reversal : int or None
+        As in :func:`_verdicts_and_choices`.
+    sectors : Sectors or None
+        As in :func:`_verdicts_and_choices`.
+    anc : _Anchor
+        As :func:`_anchor_read` returns it.
+    ops : _OperationsRead
+        As :func:`_operations_read` returns it.
+    prt : _PartsRead
+        As :func:`_parts_read` returns it.
+    scl : _Scales
+        As :func:`_scales_read` returns it.
+    chv : _CharactersRead
+        As :func:`_characters_read` returns it.
+
+    Returns
+    -------
+    _Verdict
+        As :func:`_verdicts_and_choices` returns it.
+    """
+    classes = anc.classes
+    cperm = anc.cperm
+    measured_of = anc.measured_of
+    multiplicity = anc.multiplicity
+    nchan = anc.nchan
+    nclass = anc.nclass
+    positions = anc.positions
+    ref = anc.ref
+    syms = anc.syms
+    bases = ops.bases
+    block_tol = ops.block_tol
+    broken = ops.broken
+    chan_states = ops.chan_states
+    chosen = ops.chosen
+    free = ops.free
+    rows = ops.rows
+    seen = ops.seen
+    su2 = ops.su2
+    why = ops.why
+    zero = ops.zero
+    free_classes = prt.free_classes
+    induced_classes = prt.induced_classes
+    joint_decls = prt.joint_decls
+    on_induced = prt.on_induced
+    part_of = prt.part_of
+    parts = prt.parts
+    within = prt.within
+    reversal_image = scl.reversal_image
+    roots = scl.roots
+    joint_theta = chv.joint_theta
+
     # EVERY DECLARATION CONSTRAINS ITS OWN PART'S CHARACTER, wherever it sits:
     # what each operation asks of that character, part by part.  An operation
     # the multiplets break is broken in every part, and one two declarations
@@ -1445,6 +1877,59 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
                     indices=frozenset(int(syms[p].ind) for p in positions),
                     blocks=_MultipletBlocks(measured_of, multiplicity=multiplicity),
                     reversal=reversal_scalars, search=search)
+
+
+def _joined(joined, cls):
+    while joined[cls] != cls:
+        cls = joined[cls]
+    return cls
+
+
+def _theta(anc, ops, x, V, lift, nu, floor):
+    """Multiplet ``x``'s character against its part's scale ``nu``, or ``None`` where it is free."""
+    layout = anc.layout
+    chan_states = ops.chan_states
+    spread_tol = ops.spread_tol
+    su2 = ops.su2
+
+    cols = np.asarray(chan_states[int(x)], dtype=int)
+    if layout._chan_kind[int(x)] == "measured":
+        # the multiplet's ORBITAL character: the block's trace with the
+        # spinor divided out, atom by atom, which is what the declared
+        # single-valued irrep is a statement about
+        atoms = _atom_blocks(chan_states[int(x)], su2)
+        f = np.asarray([sum(_proportionality(V[j][np.ix_(a, a)], lift)[0]
+                            for a in atoms) for j in range(len(V))])
+    else:
+        f = np.asarray([_proportionality(V[j][np.ix_(cols, cols)], lift)[0]
+                        for j in range(len(V))])
+    theta = complex(np.vdot(nu, f) / np.vdot(nu, nu))
+    gap = float(np.abs(f - theta * nu).max())
+    if gap > spread_tol * max(float(np.abs(f).max()), floor, 1.0):
+        return None                   # free: the hoppings do not measure it
+    return theta
+
+
+def _matrix(ops, nspin, d, V, lift, nu, floor):
+    """Declaration ``d``'s orbital matrix against its part's scale ``nu``, or ``None`` where it is free.
+
+    The orbital factor of the block the operation carries its orbitals
+    with, the spinor divided out atom by atom, one row and one column per
+    atom in the order the declaration names them: what declared generator
+    matrices are a statement about.
+    """
+    chan_states = ops.chan_states
+    spread_tol = ops.spread_tol
+    su2 = ops.su2
+
+    atoms = _declared_atoms(d, chan_states, su2, nspin)
+    B = np.asarray([[[_proportionality(V[j][np.ix_(a, b)], lift)[0] for b in atoms]
+                     for a in atoms] for j in range(len(V))])
+    M = np.tensordot(np.conj(nu), B, axes=(0, 0)) / np.vdot(nu, nu)
+    gap = float(np.abs(B - nu[:, None, None] * M[None, :, :]).max())
+    if gap > spread_tol * max(float(np.abs(B).max()), floor, 1.0):
+        return None                   # free: the hoppings do not measure it
+    return M
 
 
 def _declaration_search(model, group, assignment, spin, validated, layout, decls, positions,
