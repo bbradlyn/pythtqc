@@ -225,9 +225,9 @@ for name, rr in phases.items():
     z2w = "".join(str(si.canonical[f"z2w,{i}"]) for i in (1, 2, 3))
     print(f"{name:<7} {rr.group.number_str:<7} {tqc.format_counts(tables[name].counts):<28} "
           f"{str(si.values):<7} {si.order:<6} {si.canonical['z4']:<3} {z2w}")
-#  strong  166.98  -F5F6 + -GM9 + -L5L6 + -T8   (0, 1)  4      3   111
-#  weak    166.98  -F3F4 + -GM9 + -L5L6 + -T8   (1, 0)  2      0   111
-#  dimers  166.98  -F5F6 + -GM9 + -L5L6 + -T9   (0, 0)  1      0   000
+#  strong  166.98  -GM9 + -F5F6 + -L5L6 + -T8   (0, 1)  4      3   111
+#  weak    166.98  -GM9 + -F3F4 + -L5L6 + -T8   (1, 0)  2      0   111
+#  dimers  166.98  -GM9 + -F5F6 + -L5L6 + -T9   (0, 0)  1      0   000
 ```
 
 Each valence pair is now an isolated set, labelled at all four high-symmetry

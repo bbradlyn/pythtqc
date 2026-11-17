@@ -208,7 +208,7 @@ def _band_fibers(model, group, D, syms):
 
     if _spacegroup._lattice_not_descended(group) is not None or not group._tables_ready:
         return ()
-    points = _tables.high_symmetry_points(group)
+    points = _tables._points_in_table_order(group)
     if isinstance(points, Refusal) or not points:
         return ()
     pos_of = {int(s.ind): p for p, s in enumerate(syms)}

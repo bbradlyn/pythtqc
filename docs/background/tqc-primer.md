@@ -137,7 +137,7 @@ print(np.diag(D), np.array_equal(U @ M @ V, D))
 #  [1 1 1 1 1 1 2 4 0 0 0 0] True
 t = tqc.hsp_table(strong.rep, bands=2)           # the valence pair's content
 print(tqc.format_counts(t.counts))
-#  -F5F6 + -GM9 + -L5L6 + -T8
+#  -GM9 + -F5F6 + -L5L6 + -T8
 y = np.array([t.counts.get(label, 0) for label in data["labels_physics_convention"]])
 print(y, U @ y)
 #  [0 0 0 1 0 1 0 1 0 0 1 0] [0 0 1 1 0 0 0 1 0 0 0 0]

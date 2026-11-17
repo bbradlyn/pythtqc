@@ -1512,8 +1512,24 @@ def test_high_symmetry_points_names_the_tabulated_points_out_of_the_plane():
     assert all(np.asarray(k).shape == (2,) for k in hsp.values())
 
     # a fully periodic cell has a k for every tabulated point
-    solid = G.high_symmetry_points(_spacegroup._group_of(cubic(), include_TR=False))
-    assert sorted(solid) == ["GM", "M", "R", "X"] and solid.missing == ()
+    unitary = _spacegroup._group_of(cubic(), include_TR=False)
+    solid = G.high_symmetry_points(unitary)
+    assert list(solid) == ["GM", "M", "R", "X"] and solid.missing == ()
+
+    # the band labels of the lowest-angular-momentum rule are compared point by
+    # point in the tables' own order, GM R M X here, whatever order the points are
+    # listed in
+    from pythtqc import _labelling
+    fibers = _labelling._band_fibers(cubic(), unitary, dict.fromkeys(
+        range(len(unitary.symmetries))), unitary.symmetries)
+    assert [f[0] for f in fibers] == list(_tables._points_in_table_order(unitary)) \
+        == ["GM", "R", "M", "X"]
+
+    # without time reversal the points come in the same order, GM first and then
+    # alphabetically, where the table of P4/mmm lists A, GM, M, Z, R, X
+    broken = G.high_symmetry_points(_spacegroup._group_of(square(spinful=True),
+                                                          include_TR=False))
+    assert list(broken) == ["GM", "M", "X"] and broken.missing == ("A", "R", "Z")
 
 
 # ---------------------------------------------------------------------------

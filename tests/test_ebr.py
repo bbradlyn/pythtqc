@@ -238,7 +238,10 @@ def test_lin3g_P2_is_exactly_the_1b_row_directly_and_as_a_difference(
     assert diff == t2.counts, "P2 = [P6] - [P4]"
     bad = tqe.subtract(t4, t6)
     assert isinstance(bad, Refusal) and bad.gate == "negative_multiplicity"
-    assert bad.context["negative"] == {"-GM6": -1, "-M7": -1, "-X5": -1}
+    assert list(bad.context["negative"].items()) == [("-GM6", -1), ("-M7", -1), ("-X5", -1)]
+    # a content is listed point by point, GM first, and by number at each point
+    assert list(tqe.subtract({"-X5": 1, "-GM10": 1, "-GM2": 2, "-GM11GM9": 1},
+                             {"-GM2": 1})) == ["-GM2", "-GM10", "-GM11GM9", "-X5"]
 
     key, row = _row(group, "@1b", "-E2")
     for content in (t2, diff):
@@ -385,6 +388,7 @@ def test_kane_mele_deep_atomic_limit_lands_on_the_occupied_site():
                                                "-M3M4": 1}
     d = tqe.decompose(table, group, rep=rep, bands=2)
     assert d.verdict == "symmetry-indicated decomposable" and d.unique
+    assert list(d.content) == ["-GM6", "-K4", "-K5", "-M3M4"]
     assert d.positions == (("1b",),), "the weight is at 1b; so is the EBR"
 
 
@@ -920,6 +924,8 @@ def test_the_sigma_h_presentation_without_a_representation_cannot_evaluate_the_i
     hsp = tqg.high_symmetry_points(km_slab_191)
     assert sorted(hsp) == ["GM", "K", "M"]
     rows = tqe.ebr_rows(km_slab_191)
+    assert list(rows["-E1↑G(4)@2c(-6m21',-6m2)"]) == [
+        "-GM9", "-GM11", "-A9", "-A11", "-H7", "-H8", "-K7", "-K8", "-L5", "-L6", "-M5", "-M6"]
     row = rows[sorted(rows)[0]]
     in_plane = {lab: m for lab, m in row.items() if tqe.kpoint_of_label(lab) in hsp}
 
@@ -1571,7 +1577,7 @@ def test_a_layer_whose_own_group_can_answer_never_builds_the_stack():
         assert got, str(got)
         assert (got.group.number_str, got.group.name) == ("143", "P3")
         lowest = tqw.hsp_table(got.rep, bands=1)
-        assert lowest.complete and sorted(lowest.points) == ["GM", "K", "KA", "M"]
+        assert lowest.complete and list(lowest.points) == ["GM", "K", "KA", "M"]
         assert lowest.counts == ({"GM1": 1, "K2": 1, "KA3": 1} if c > 0
                                  else {"GM1": 1, "K3": 1, "KA2": 1})
         none = tqe.decompose(lowest, got.group, rep=got.rep)

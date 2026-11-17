@@ -6,6 +6,13 @@
   and the one the tie rule keeps is not what the other measured, `realized_group` returns
   the cross-check's outcome `"ambiguous"`, as on a layer with time-reversal symmetry, where
   it raised `InternalError`.
+- Every content returned or printed lists its coreps in one order: point by point, Γ first
+  and the other points alphabetically, a partner point `−k` right after its point, and at
+  each point in ascending order of the irreps' numbers, `GM2` before `GM10`. `subtract`
+  returns that order from one run to the next, where its order changed between runs.
+  Every list of points a call returns comes in that order, `high_symmetry_points` and an
+  `hsp_table` among them, which changes their order for a group without time-reversal
+  symmetry. Nothing else returned changes.
 - `realized_group` and `hsp_table` return sooner, `realized_group` most on a group of many
   operations, a cubic crystal's among them. What they return is unchanged.
 - `hsp_table`, `corep_content`, `characters`, `sewing_matrix` and a representation's

@@ -556,7 +556,7 @@ def _orbit_contents(group, rep, blocks):
     if not points_map:
         return [(None, None, points_map) for _rows in blocks]
     read = [({}, [], {}) for _rows in blocks]
-    for name in sorted(points_map):
+    for name in points_map:
         k = points_map[name]
         lg = _tables.little_group(group, k)
         why = None
@@ -714,7 +714,7 @@ def srsi_of_model(realized, *, rep=None) -> "ModelSRSIs | Refusal":
                 "decomposition of a different vector.",
                 context={"orbit": index, "orbitals": orbitals, "kpname": name,
                          "refusal": why, "identified": points,
-                         "refusals": tuple(sorted(refusals))})
+                         "refusals": tuple(sorted(refusals, key=_tables.point_order))})
 
         geometry = [sites[s] for s in orbit]
         letters = {site.letter for site in geometry}
@@ -804,7 +804,7 @@ def srsi_of_model(realized, *, rep=None) -> "ModelSRSIs | Refusal":
         records.append(OrbitSRSIs(
             orbit=index, orbitals=orbitals, sites=tuple(int(s) for s in orbit),
             letter=here.letter, multiplicity=here.multiplicity, n_free=here.n_free,
-            closure=here.closure, content=dict(counts),
+            closure=here.closure, content=_tables.ordered_content(counts),
             points=points, localizations=tuple(localizations), chosen=chosen,
             agree=(len(values) == 1), theta_Z=chosen["theta_Z"],
             theta_Zn=chosen["theta_Zn"],

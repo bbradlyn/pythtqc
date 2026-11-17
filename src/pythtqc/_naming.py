@@ -483,8 +483,8 @@ def _site_irrep_names(group, assignment, site, table) -> tuple:
     the EBR entries at the site's Wyckoff letter in the tables' setting
     (``assignment.wyckoff_tables``): :math:`\Gamma` first, and, where the
     entries at that position leave more than one candidate there, the remaining
-    points in the order :func:`..groups.high_symmetry_points` holds them until
-    one entry is left.  Which positions of a group that can happen at is
+    points in the tables' own order (:func:`.._tables._points_in_table_order`)
+    until one entry is left.  Which positions of a group that can happen at is
     :func:`_gamma_ties`, read from the EBR file with no model in hand, and the
     list is checked against the induction: candidates that survive
     :math:`\Gamma` together must be entries that list holds as sharing a
@@ -523,7 +523,7 @@ def _site_irrep_names(group, assignment, site, table) -> tuple:
     at_letter = _rows_at_letter(rows, letters[int(site)])
     if not at_letter:
         return blank
-    points = _tables.high_symmetry_points(group)
+    points = _tables._points_in_table_order(group)
     if isinstance(points, Refusal):
         return blank
     tied_here = ()
@@ -738,7 +738,7 @@ def _names_by_content(group, assignment, site, table, letter) -> tuple:
     at_letter = _rows_at_letter(rows, str(letter))
     if not at_letter:
         return blank
-    points = _tables.high_symmetry_points(group)
+    points = _tables._points_in_table_order(group)
     if isinstance(points, Refusal):
         return blank
     lift = None

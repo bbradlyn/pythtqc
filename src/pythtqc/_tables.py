@@ -58,6 +58,44 @@ def kpoint_of_label(label: str) -> str:
     return s[:i]
 
 
+_COREP_TOKEN = re.compile(r"([A-Z]+)(\d+)([+-]?)")
+
+
+def point_order(name):
+    """The place of a high-symmetry point in the order every point and content is listed in.
+
+    ``GM`` (Γ) first, then the other points alphabetically by name, a partner
+    point ``−k`` (``KA``) right after its point (``K``).  A vector aligned with
+    a matrix, the elementary band representation basis and its rows, keeps the
+    tables' order.
+    """
+    name = str(name)
+    base = name[:-1] if len(name) > 1 and name.endswith("A") else name
+    return (base != "GM", base, name != base)
+
+
+def corep_order(label):
+    """The place of a corep label in the order every content is listed in.
+
+    By point (:func:`point_order`), then in ascending order of the numbers of
+    the irreps the label names: ``GM2`` before ``GM10``, ``GM1+`` before
+    ``GM1-``, a label pairing two irreps placed by the first it names, and a
+    single-valued corep before a double-valued one of the same number.
+    """
+    s = str(label)
+    double = s.startswith("-")
+    tokens = _COREP_TOKEN.findall(s[1:] if double else s)
+    if not tokens:
+        return ((True, s, False), (), double, s)
+    return (point_order(tokens[0][0]),
+            tuple((int(n), sign == "-") for _point, n, sign in tokens), double, s)
+
+
+def ordered_content(counts) -> dict:
+    """``{corep: multiplicity}`` with its coreps in the order of :func:`corep_order`."""
+    return {lab: counts[lab] for lab in sorted(counts, key=corep_order)}
+
+
 def ebr_rows(group) -> dict | Refusal:
     r"""Each elementary band representation of the group as a symmetry data vector: the coreps it carries at the high-symmetry points.
 
@@ -96,7 +134,8 @@ def ebr_rows(group) -> dict | Refusal:
     out = {}
     labels = data["labels_physics_convention"]
     for (name, wy), col in zip(data["ebrs"], np.asarray(data["matrix"]).T):
-        out[f"{name}@{wy}"] = {lab: int(v) for lab, v in zip(labels, col) if v}
+        out[f"{name}@{wy}"] = ordered_content(
+            {lab: int(v) for lab, v in zip(labels, col) if v})
     return out
 
 
@@ -647,7 +686,7 @@ class HighSymmetryPoints(dict):
 
     def __init__(self, points=(), *, missing=()):
         super().__init__(points)
-        #: The tabulated names out of the periodic plane, in the tables' order.
+        #: The tabulated names out of the periodic plane.
         self.missing = tuple(missing)
 
     def summary(self) -> str:
@@ -669,7 +708,8 @@ def high_symmetry_points(group: GroupData) -> HighSymmetryPoints | Refusal:
     Without time reversal a point and its partner ``−k`` are two points
     wherever no operation carries one onto the other, ``KA`` beside ``K``, and
     both are returned, the partner's irreps the complex conjugates of the
-    point's.
+    point's.  The points are listed Γ first, then alphabetically by name, a
+    partner right after its point.
 
     Parameters
     ----------
@@ -690,6 +730,21 @@ def high_symmetry_points(group: GroupData) -> HighSymmetryPoints | Refusal:
     ``tables_not_ready``
         The group has no transformation to the tables' conventional cell, to
         carry their points into the model's coordinates.
+    """
+    points = _points_in_table_order(group)
+    if isinstance(points, Refusal):
+        return points
+    return HighSymmetryPoints({name: points[name] for name in sorted(points, key=point_order)},
+                              missing=sorted(points.missing, key=point_order))
+
+
+def _points_in_table_order(group: GroupData) -> HighSymmetryPoints | Refusal:
+    """The points :func:`high_symmetry_points` returns, in the tables' own order.
+
+    The order the lowest-angular-momentum rule's band-label key and the naming
+    of a site irrep by its induced content read the points in, and the order
+    in which :func:`..ebr.regular_content` meets the point whose refusal it
+    returns.
     """
     gate = _lattice_not_descended(group)
     if gate is not None:
@@ -716,15 +771,16 @@ def _resolve_kpname(group: GroupData, lg: LittleGroup, kpname, ktol):
         d -= np.round(d)
         if np.abs(d).max() <= ktol:
             return name
+    listed = {n: kmap[n] for n in sorted(kmap, key=point_order)}
     avail = {n: np.round(group.k_from_3d(v[None, :])[0], 6)
-             for n, v in kmap.items() if group.in_plane(v[None, :])}
+             for n, v in listed.items() if group.in_plane(v[None, :])}
     return Refusal(
         "kpoint_not_tabulated",
         f"k = {np.round(lg.k, 6)} is not one of the tabulated high-symmetry points of "
         f"#{group.number_str} in this cell. Tabulated (in this cell's reduced "
         f"coordinates): {avail}. A point in the star of a tabulated one but not the "
         f"tabulated arm carries a conjugate little group and is not transported here.",
-        context={"k": lg.k, "available": avail, "all_points": kmap})
+        context={"k": lg.k, "available": avail, "all_points": listed})
 
 
 def _operations(table) -> tuple:
@@ -1607,8 +1663,10 @@ def identify_from_characters(group: GroupData, k, characters, *, multiplet_dims=
                 value=float(np.abs(total_dims - want).max()), threshold=1e-6,
                 context={"kpname": kpname, "got": total_dims, "expected": want})
 
-    labels = tuple({lab: int(rounded[r, c]) for c, lab in enumerate(label_order)
-                    if rounded[r, c] != 0} for r in range(chars.shape[0]))
+    labels = tuple(ordered_content({lab: int(rounded[r, c])
+                                    for c, lab in enumerate(label_order)
+                                    if rounded[r, c] != 0})
+                   for r in range(chars.shape[0]))
 
     part = np.full(chars.shape[0], -1, dtype=int)
     nxt = 0
@@ -1973,16 +2031,17 @@ def _transport_record(number_str: str, spinor: bool, magnetic: bool) -> dict:
     labels, conj, partner, moved, new_labels, _perm = _ebr_transport(
         number_str, spinor, magnetic)
     reglued = tuple(sorted({_label_kpoint(l) for l, l2 in zip(labels, new_labels)
-                            if l != l2}))
+                            if l != l2}, key=point_order))
     return {
         "name": "physical (translations as e^{-ik.t})",
         "applied": True,
         "changed_labels": moved,
-        "changed_points": tuple(sorted({_label_kpoint(l) for l in moved})),
+        "changed_points": tuple(sorted({_label_kpoint(l) for l in moved},
+                                       key=point_order)),
         "conjugated_points": tuple(sorted(
-            _conjugated_kpoints(number_str, spinor, magnetic))),
+            _conjugated_kpoints(number_str, spinor, magnetic), key=point_order)),
         "divergent_points": tuple(sorted(
-            _divergent_kpoints(number_str, spinor, magnetic))),
+            _divergent_kpoints(number_str, spinor, magnetic), key=point_order)),
         "reglued_points": reglued,
         "conjugation": {l: conj[l] for l in labels},
         "labels_bcs": labels,
@@ -2345,13 +2404,13 @@ def decompose_ebrs(group: GroupData, irrep_counts: dict) -> dict | Refusal:
                             compute_ebr_decomposition, compute_topological_classification_vector)
 
     basis = data["labels_physics_convention"]
-    unused = sorted(set(irrep_counts) - set(basis))
+    unused = sorted(set(irrep_counts) - set(basis), key=corep_order)
     # COMPLETE, or nothing.  `create_symmetry_vector` reads an unmentioned point
     # as zero, and a zero row is a constraint -- the wrong
     # one -- so a vector with a point missing decomposes into the EBRs of a
     # different band set.  A slab is where this bites: the EBR basis of the 3D
     # space group carries k_z = 1/2 points its zone does not have.
-    points = sorted({_label_kpoint(lab) for lab in basis})
+    points = sorted({_label_kpoint(lab) for lab in basis}, key=point_order)
     covered = {_label_kpoint(lab) for lab in irrep_counts}
     missing_points = [p for p in points if p not in covered]
     if missing_points:

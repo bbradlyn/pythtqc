@@ -1131,7 +1131,7 @@ print(sf.summary())
 #    canonical: z2w,3 = 1, z4 = 2, z3m,pi = 1, z3m,0 = 1, z6m,0 = 5, z6m,pi = 5, z12 = 10, the names of the paper that tabulates the stable real-space invariants, Hwang et al. (2026)   (.canonical)
 #    indicator: 1 mod 6, 0 mod 12, of order 6: 6 copies of these bands are in the zero class   (.values, .order)
 #    irreptables: z2w,3 = 1, z4 = 2, z3m,π = 1, z3m,0 = 1, z6m,0 = 5, z6m,π = 5, z12 = 10, the same indicators as the irreptables package names them   (.irreptables_named)
-#    the coreps at the high-symmetry points: -A9 + -GM9 + -H8 + -K8 + -L6 + -M6   (.content)
+#    the coreps at the high-symmetry points: -GM9 + -A9 + -H8 + -K8 + -L6 + -M6   (.content)
 #    A, H and L, at k_z = ½ out of the layer's plane: their coreps measured on the layer's decoupled stack, the layer repeated along its normal with no hopping between copies, in the layer's own group #191.234   (.completion)
 #    the class of the layer's decoupled stack: every component is an invariant of that stack, fixed by the layer's own content   (.two_dimensional)
 ```

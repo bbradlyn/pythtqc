@@ -1028,7 +1028,9 @@ def format_counts(counts) -> str:
     bands at one point (:attr:`CorepContent.counts`) or per multiplet
     (:attr:`CorepContent.labels`), a symmetry data vector (:attr:`HSPTable.counts`),
     an elementary band representation's coreps (:func:`..ebr.ebr_rows`).  The
-    labels are sorted, so one content always prints one line.
+    coreps are written point by point, Γ first and the other points
+    alphabetically, and at each point in ascending order of the irreps'
+    numbers, ``GM2`` before ``GM10``, so one content always prints one line.
 
     Parameters
     ----------
@@ -1042,7 +1044,8 @@ def format_counts(counts) -> str:
         where that is above one.
     """
     return " + ".join(f"{n}×{lab}" if n > 1 else lab
-                      for lab, n in sorted(counts.items()))
+                      for lab, n in sorted(counts.items(),
+                                           key=lambda item: _tables.corep_order(item[0])))
 
 @dataclass(frozen=True)
 class CorepContent:
@@ -1239,6 +1242,7 @@ def _corep_content(rep, k, *, states, bands, degeneracy_tol, label_tol, ktol, kp
     for row in out.labels:
         for lab, v in row.items():
             counts[lab] = counts.get(lab, 0) + int(v)
+    counts = _tables.ordered_content(counts)
     return CorepContent(kpname=out.kpname, k=tab.k, labels=out.labels, counts=counts,
                         partition=out.partition, content=out, table=tab,
                         thresholds=tab.thresholds,
@@ -1563,6 +1567,7 @@ def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
              _labelling_note(rep, block))
     return HSPTable(bands=block, points=dict(points), content=content, partitions=parts,
                     records=records, refusals=refusals, skipped=skipped,
-                    counts=counts, thresholds=thr, complete=not refusals,
+                    counts=_tables.ordered_content(counts), thresholds=thr,
+                    complete=not refusals,
                     group_provenance=str(rep.group.provenance),
                     note="; ".join(n for n in notes if n), rep=rep)

@@ -317,7 +317,7 @@ MODEL_SRSIS = {
 #: The points each orbit's content is identified at: every tabulated point of
 #: a fully periodic crystal's group, and the in-plane ones of a layer's --
 #: ``#156.50``'s ``A``/``H``/``L`` rows have no ``k`` in a monolayer's zone.
-ORBIT_POINTS = {"FKM diamond": ("GM", "L", "W", "X"), "FKM strong": ("F", "GM", "L", "T"),
+ORBIT_POINTS = {"FKM diamond": ("GM", "L", "W", "X"), "FKM strong": ("GM", "F", "L", "T"),
                 "Kane-Mele odd": ("GM", "K", "M")}
 
 #: How many bands each fixture has in total (the identity of § 4 is asserted on

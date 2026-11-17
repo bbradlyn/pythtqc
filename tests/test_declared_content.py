@@ -869,6 +869,8 @@ def test_a_declaration_a_complex_twist_serves_is_served_with_it():
             for key, _labels in choice["others"]] == ["bands"]
     lowest = tqw.hsp_table(out, bands=2)
     assert lowest.content["GM"] == {"-GM5": 1, "-GM8": 1}
+    assert list(lowest.counts) == ["-GM5", "-GM8", "-M6", "-M7", "-X3", "-X4"]
+    assert list(lowest.records["M"].labels[0]) == ["-M6", "-M7"]
     assert lowest.note == tqw._ANOTHER_LABELLING_RELABELS
     assert all(abs(abs(v) - 1.0) < 1e-9 for v in twist.values())
     assert max(out.residuals.values()) < 1e-13 and out.product_residual < 1e-13, \

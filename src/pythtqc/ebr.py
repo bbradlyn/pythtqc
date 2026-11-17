@@ -146,7 +146,8 @@ class Restriction:
         """The coreps left out, a line for each part, with the attribute that holds it."""
         if not self.applied:
             return "every tabulated point is measured, and no corep is left out   (.applied)"
-        points = sorted({kpoint_of_label(label) for label in self.dropped})
+        points = sorted({kpoint_of_label(label) for label in self.dropped},
+                        key=_tables.point_order)
         lines = [f"the coreps at {_text._listed(points)} are not measured, and are left "
                  "out   (.dropped)"]
         copied = {label: rows for label, rows in self.copies.items() if rows}
@@ -325,8 +326,9 @@ class EBRDecomposition:
     def _restriction_lines(self) -> list:
         """What the verdict was read without: points refused or out of the plane, and positions."""
         r, lines = self.restriction, []
-        refused = sorted(self.completeness.get("refused") or ())
-        away = sorted({kpoint_of_label(label) for label in r.dropped} - set(refused))
+        refused = sorted(self.completeness.get("refused") or (), key=_tables.point_order)
+        away = sorted({kpoint_of_label(label) for label in r.dropped} - set(refused),
+                      key=_tables.point_order)
         where = []
         if refused:
             where.append(f"{_text._listed(refused)} refused, and "
@@ -720,7 +722,8 @@ class SymmetryIndicator:
         lines.append("  the coreps at the high-symmetry points: "
                      f"{_sewing.format_counts(self.content)}   (.content)")
         if self.reconstructed:
-            points = sorted({kpoint_of_label(label) for label in self.reconstructed})
+            points = sorted({kpoint_of_label(label) for label in self.reconstructed},
+                            key=_tables.point_order)
             lines.append(f"  the coreps at {_text._listed(points)} are not measured: each "
                          "occurs in every elementary band representation as often as a "
                          "measured one, and takes its multiplicity   (.reconstructed)")
@@ -729,7 +732,8 @@ class SymmetryIndicator:
         stack_named = False
         comp = self.completion
         if comp and comp.get("outcome") == "completed":
-            points = sorted({kpoint_of_label(label) for label in comp["input"]["orphans"]})
+            points = sorted({kpoint_of_label(label) for label in comp["input"]["orphans"]},
+                            key=_tables.point_order)
             lines.append(f"  {_text._listed(points)}, at k_z = ½ out of the layer's plane: "
                          "their coreps measured on the layer's decoupled stack, the layer "
                          "repeated along its normal with no hopping between copies, in the "
@@ -823,7 +827,7 @@ def content_of(content) -> dict | Refusal:
                            context={"label": str(lab)})
         if iv:
             out[str(lab)] = iv
-    return out
+    return _tables.ordered_content(out)
 
 # --------------------------------------------------------------------------
 # the in-plane restriction
@@ -1201,8 +1205,9 @@ def _resolved_points(table, points, *, where):
         return asked
     if set(asked) != set(resolved):
         raise ValueError(
-            f"{where}(): points={sorted(set(asked))} names a different set of k-points "
-            f"than the content resolved, {sorted(set(resolved))}. The table is a "
+            f"{where}(): points={sorted(set(asked), key=_tables.point_order)} names a "
+            "different set of k-points than the content resolved, "
+            f"{sorted(set(resolved), key=_tables.point_order)}. The table is a "
             "measurement and `points=` is an assertion about what the model can be "
             "asked; they disagree, so there is nothing to restrict to.")
     return resolved
@@ -1413,7 +1418,8 @@ def decompose(content, group=None, *, rep=None, points=None, allow_incomplete=Fa
         return Refusal(
             "incomplete_content",
             "the measured content is missing "
-            f"{sorted(refused)}: {refused}. A missing constraint can only make a "
+            f"{sorted(refused, key=_tables.point_order)}: {refused}. A missing "
+            "constraint can only make a "
             "decomposition easier to find, so a partial symmetry data vector is not "
             "decomposed. Read the table's refusals; pass allow_incomplete=True only for "
             "a point whose tables cannot be read rather than one where the physics "
@@ -1428,7 +1434,7 @@ def decompose(content, group=None, *, rep=None, points=None, allow_incomplete=Fa
     labels_all = list(data["labels_physics_convention"])
     ebrs = tuple((str(n), str(w)) for n, w in data["ebrs"])
 
-    unknown = sorted(set(counts) - set(labels_all))
+    unknown = sorted(set(counts) - set(labels_all), key=_tables.corep_order)
     if unknown:
         return Refusal(
             "unknown_label",
@@ -1507,7 +1513,8 @@ def decompose(content, group=None, *, rep=None, points=None, allow_incomplete=Fa
     claim = "exact" if restriction.exact else "necessary-condition"
     note = "every tabulated point in the periodic plane resolved"
     if table is not None and not table.complete:
-        note = (f"points {sorted(refused)} were dropped under allow_incomplete=True, and "
+        note = (f"points {sorted(refused, key=_tables.point_order)} were dropped under "
+                "allow_incomplete=True, and "
                 f"their EBR rows {list(restriction.orphans)} with them")
         if restriction.exact:
             note += (" -- but every dropped row duplicates a retained one, so the verdict "
@@ -1522,7 +1529,7 @@ def decompose(content, group=None, *, rep=None, points=None, allow_incomplete=Fa
 
     return EBRDecomposition(
         verdict="symmetry-indicated decomposable" if decomposable else "none",
-        content=dict(counts), labels=restriction.retained,
+        content=_tables.ordered_content(counts), labels=restriction.retained,
         y=tuple(int(v) for v in y), ebrs=ebrs,
         solutions=solutions, terms=_terms(solutions, ebrs),
         positions=tuple(tuple(sorted(_wyckoff_letter(ebrs[j][1])
@@ -1683,7 +1690,8 @@ def _two_dimensional_reading(group, labels, u, slots, divisors, values, coeffs,
     out = tuple(i for i, lab in enumerate(labels) if kpoint_of_label(lab) not in in_plane)
     if not out:
         return None
-    out_points = tuple(sorted({kpoint_of_label(labels[i]) for i in out}))
+    out_points = tuple(sorted({kpoint_of_label(labels[i]) for i in out},
+                              key=_tables.point_order))
 
     components = tuple(
         {"slot": int(s), "divisor": int(d), "value": int(v),
@@ -1740,9 +1748,9 @@ def _stack_record(table, group, rep, restriction, *, c, environment, note) -> di
                   "size": int(group.size), "dim_k": int(group.dim_k),
                   "periodic_dirs": tuple(int(p) for p in group.periodic_dirs),
                   "vacuum_dirs": tuple(int(p) for p in group.vacuum_dirs),
-                  "points": tuple(sorted(table.points)),
+                  "points": tuple(sorted(table.points, key=_tables.point_order)),
                   "orphans": tuple(restriction.orphans),
-                  "content": dict(table.counts),
+                  "content": _tables.ordered_content(table.counts),
                   "n_represented": len(rep.indices)},
         "stack": {}, "gates": {}, "note": note,
     }
@@ -2015,7 +2023,8 @@ def _stack_in_group(table, group, rep, restriction, *, c, bands, verify, charact
                     + table3.reason, gate=table3.gate)
     if not table3.complete:
         return stop("stack_content",
-                    f"{within} has content missing at {sorted(table3.refusals)}",
+                    f"{within} has content missing at "
+                    f"{sorted(table3.refusals, key=_tables.point_order)}",
                     refusals={k: r.gate for k, r in table3.refusals.items()})
 
     # ---- 4. the characters, where the two presentations meet --------------
@@ -2168,7 +2177,8 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
         refused = {name: r.gate for name, r in (table.refusals or {}).items()}
         return Refusal(
             "incomplete_content",
-            f"the measured content is missing {sorted(refused)}: {refused}. An indicator "
+            f"the measured content is missing {sorted(refused, key=_tables.point_order)}: "
+            f"{refused}. An indicator "
             "reads the whole symmetry data vector, and the class of a vector with a point "
             "missing is the class of a different vector, so this content has no class "
             "here. Read the table's refusals. Completing the missing content from the "
@@ -2183,7 +2193,7 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
         return data
     labels = tuple(str(l) for l in data["labels_physics_convention"])
 
-    unknown = sorted(set(counts) - set(labels))
+    unknown = sorted(set(counts) - set(labels), key=_tables.corep_order)
     if unknown:
         return Refusal(
             "unknown_label",
@@ -2288,7 +2298,8 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
         magnetic_type=mtype, divisors=divisors, values=values,
         structure=_structure(divisors), nontrivial=bool(any(values)), order=int(order),
         y=tuple(int(x) for x in y), y_prime=tuple(int(x) for x in y_prime),
-        labels=labels, slots=slots, content=dict(counts), reconstructed=reconstructed,
+        labels=labels, slots=slots, content=_tables.ordered_content(counts),
+        reconstructed=_tables.ordered_content(reconstructed),
         restriction=restriction, irreptables_named=named,
         irreptables_note=irreptables_note,
         irreptables_convention_touched=touched, two_dimensional=two_d,
@@ -2344,7 +2355,7 @@ def subtract(content_a, content_b) -> dict | Refusal:
             "whose coreps cannot be subtracted label by label.")
 
     out, bad = {}, {}
-    for lab in set(a) | set(b):
+    for lab in sorted(set(a) | set(b), key=_tables.corep_order):
         v = a.get(lab, 0) - b.get(lab, 0)
         if v < 0:
             bad[lab] = v
@@ -2463,7 +2474,7 @@ def regular_content(group, *, points=None) -> dict | Refusal:
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
-    hsp = _tables.high_symmetry_points(group)
+    hsp = _tables._points_in_table_order(group)
     if isinstance(hsp, Refusal):
         return hsp
     wanted = tuple(hsp) if points is None else tuple(str(p) for p in points)
@@ -2496,6 +2507,7 @@ def regular_content(group, *, points=None) -> dict | Refusal:
             out[label] = int(round(m))
             total += round(m) * dim
         bands[name] = total
+    bands = {n: bands[n] for n in sorted(bands, key=_tables.point_order)}
     off = {n: b for n, b in bands.items() if abs(b - n_u) > _INT_TOL}
     if off:
         return Refusal(
@@ -2504,7 +2516,7 @@ def regular_content(group, *, points=None) -> dict | Refusal:
             f"representation at every point: {off}",
             value=float(max(off.values())), threshold=float(n_u),
             context={"bands": bands, "n_unitary": n_u})
-    return out
+    return _tables.ordered_content(out)
 
 def regular_completion(content, group=None, *, bands=None, rep=None, points=None,
                        **kwargs) -> RegularCompletion | Refusal:

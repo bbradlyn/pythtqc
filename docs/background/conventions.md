@@ -366,7 +366,7 @@ energy is `−50`:
 deep = tqc.realized_group(kane_mele(50.0, -1.0, 0.3, 0.25), typat=[0, 1], characters={0: "A1"})
 low = tqc.hsp_table(deep.rep, bands=2)
 print(low.counts, tqc.decompose(low).solution_strings())
-#  {'-GM6': 1, '-K5': 1, '-K4': 1, '-M3M4': 1} ("1 x -E1↑G(2)@1b(3m1',3m)",)
+#  {'-GM6': 1, '-K4': 1, '-K5': 1, '-M3M4': 1} ("1 x -E1↑G(2)@1b(3m1',3m)",)
 convention = tqc.ebr_data(deep.group)["convention"]
 print(convention["name"], convention["changed_points"], convention["conjugation"]["-K5"])
 #  physical (translations as e^{-ik.t}) ('H', 'K') -K6
