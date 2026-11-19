@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- `hsp_table` reads every high-symmetry point, one whose little group holds the identity
+  alone included: there a set of bands carries the point's one irrep once for each band,
+  which the table's `content` and `counts` now hold, `M1` at `M` for Haldane's model with
+  flux in `P3`. The table's field `skipped` is gone, and with it the `"skipped"` entry of
+  a decomposition's `completeness` and of the context of `decompose`'s
+  `incomplete_content`. `decompose` and `symmetry_indicator` return what they returned on
+  such a table, and the same on its `counts` handed on as a mapping, which they refused.
+  A set of bands that cuts a degenerate level at such a point is refused there,
+  `multiplet_split`, as at every other point.
+- `regular_completion` returns the padding of a band set in a group with such a point,
+  which it refused with `not_a_band_structure`; in `P1` without time-reversal symmetry it
+  returns the padding of the bands missing, where it counted the band set's own bands
+  among them.
+- `subtract` and `regular_completion` refuse a table that refused at some point,
+  `incomplete_content`, as `decompose` does, where they read the points refused as holding
+  nothing. `allow_incomplete=` does not lift it.
+- `regular_content` asked at a point out of a layer's plane returns the refusal
+  `out_of_plane`, where it raised `KeyError`.
+
 ## 0.1.0a3 — the second public version
 
 - On a layer without time-reversal symmetry, where an environment's largest subgroups tie

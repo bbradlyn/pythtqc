@@ -43,7 +43,7 @@ from .refusal import InternalError, Refusal
 from ._tolerance import CHARACTERS_TOL, ROUNDING, _INT_TOL, _PRESENTATION_RELATIVE
 from ._text import _moduli, _sum_lines, _times
 from ._tables import (
-    _bands_spanned, _letter_only, _wyckoff_letter, ebr_rows, kpoint_of_label)
+    _letter_only, _wyckoff_letter, ebr_rows, kpoint_of_label)
 from ._matrices import _orb_positions_3d, covariance_gate
 from ._smith import (
     _compatibility, _divisors_of, _filled_content, _smith_system, _structure,
@@ -236,9 +236,8 @@ class EBRDecomposition:
     completeness : dict
         ``claim`` is ``"exact"``, or ``"necessary-condition"`` where coreps
         left out repeat no kept one; ``refused`` names the points left out,
-        ``skipped`` those whose little group is the identity alone, read as the
-        band count, ``source`` whether the content was measured or handed in as
-        counts, and ``note`` says it in words.
+        ``source`` whether the content was measured or handed in as counts, and
+        ``note`` says it in words.
     caveat : WannierCaveat
         What the verdict does not certify.
     n_bands : int or None
@@ -1157,37 +1156,6 @@ def _bands_of(content, bands, *, where):
             "they disagree, so there is nothing to report on.")
     return own if own is not None else asked
 
-def _band_count_rows(group, table, data, block, counts, resolved):
-    """``(counts, resolved)`` with the points a table skipped read as the band count.
-
-    A point whose little group is the identity alone has one irrep, of
-    dimension one, so a band set's content there is its number of bands, and
-    :func:`.sewing.hsp_table` reads no characters at it.  The tables' one row
-    there is each elementary band representation's own band count, which no
-    other point's single row repeats; read as the block's band count it is a
-    row like any other, and the decomposition and the indicator keep it.
-    """
-    skipped = tuple(getattr(table, "skipped", {}) or ()) if table is not None else ()
-    if not skipped or block is None:
-        return counts, resolved
-    labels = list(data["labels_physics_convention"])
-    matrix = np.asarray(data["matrix"], dtype=int)
-    spanned = np.array([_bands_spanned(name) for name, _at in data["ebrs"]], dtype=int)
-    counts = dict(counts)
-    for name in skipped:
-        here = [i for i, label in enumerate(labels) if kpoint_of_label(label) == name]
-        if len(here) != 1 or not np.array_equal(matrix[here[0]], spanned):
-            raise InternalError(
-                f"#{group.number_str}: the little group at {name} is the identity alone, "
-                f"yet the tables' rows there ({[labels[i] for i in here]}) are not one row "
-                "holding each elementary band representation's band count. A point with "
-                "no operation but the identity has one irrep of dimension one; rows that "
-                "say otherwise are not this reading's to reconcile.")
-        counts.setdefault(labels[here[0]], len(block))
-    if resolved is not None:
-        resolved = tuple(resolved) + tuple(name for name in skipped if name not in resolved)
-    return counts, resolved
-
 def _resolved_points(table, points, *, where):
     """Which k-point names the restriction runs over, table and declaration agreed.
 
@@ -1411,7 +1379,6 @@ def decompose(content, group=None, *, rep=None, points=None, allow_incomplete=Fa
 
     table = content if hasattr(content, "counts") else None
     block = _bands_of(content, bands, where="decompose")
-    skipped = dict(getattr(table, "skipped", {}) or {}) if table is not None else {}
     refused = ({name: r.gate for name, r in (table.refusals or {}).items()}
                if table is not None else {})
     if table is not None and not table.complete and not allow_incomplete:
@@ -1425,7 +1392,7 @@ def decompose(content, group=None, *, rep=None, points=None, allow_incomplete=Fa
             "a point whose tables cannot be read rather than one where the physics "
             "failed, and then read the verdict as a necessary condition.",
             value=float(len(refused)), threshold=0.0,
-            context={"refusals": refused, "skipped": tuple(skipped),
+            context={"refusals": refused,
                      "resolved": tuple(getattr(table, "content", {}))})
 
     data = _tables.ebr_data(group)
@@ -1448,10 +1415,8 @@ def decompose(content, group=None, *, rep=None, points=None, allow_incomplete=Fa
     # measurement while keeping its equation would *over*-constrain the problem
     # (the unmeasured multiplicities would be forced to zero), which is the
     # opposite of the weaker claim the override is supposed to buy — so a point
-    # that refused loses its EBR rows too.  A point whose little group is the
-    # identity alone keeps its one row, which holds the band count.
+    # that refused loses its EBR rows too.
     resolved = _resolved_points(table, points, where="decompose")
-    counts, resolved = _band_count_rows(group, table, data, block, counts, resolved)
     exact_needed = table is None or table.complete
     # A LAYER'S OWN BAND REPRESENTATIONS.  A free-standing layer's group has
     # positions off the layer, which carry none of its orbitals: their band
@@ -1543,7 +1508,7 @@ def decompose(content, group=None, *, rep=None, points=None, allow_incomplete=Fa
         site_content=_site_content_record(rep),
         completeness={"source": "HSPTable" if table is not None else "mapping",
                       "complete": bool(getattr(table, "complete", True)),
-                      "claim": claim, "skipped": tuple(skipped),
+                      "claim": claim,
                       "refused": dict(refused), "note": note},
         caveat=WannierCaveat(),
         n_bands=None if block is None else len(block),
@@ -2204,7 +2169,6 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
             context={"unknown": tuple(unknown), "basis": labels})
 
     resolved = _resolved_points(table, points, where="symmetry_indicator")
-    counts, resolved = _band_count_rows(group, table, data, block, counts, resolved)
     restriction = in_plane_restriction(group, points=resolved, require_exact=False)
     if isinstance(restriction, Refusal):
         return restriction
@@ -2311,6 +2275,24 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
         canonical=canonical, canonical_note=canonical_note,
         canonical_tex=canonical_tex, free_standing_group=free)
 
+def _incomplete_table(content):
+    """The ``incomplete_content`` refusal for a table that refused at some point, or ``None``.
+
+    A mapping, and a complete table, return ``None``.
+    """
+    if not hasattr(content, "counts") or getattr(content, "complete", True):
+        return None
+    refused = {name: r.gate for name, r in (content.refusals or {}).items()}
+    names = sorted(refused, key=_tables.point_order)
+    return Refusal(
+        "incomplete_content",
+        f"the table is missing the coreps at {names}: {refused}. Its symmetry data "
+        "vector holds nothing at those points, and a difference taken with it would "
+        "count them as empty. Read each missing point's refusal in the table's "
+        "`refusals`.",
+        value=float(len(refused)), threshold=0.0,
+        context={"refusals": refused, "resolved": tuple(getattr(content, "content", {}))})
+
 def subtract(content_a, content_b) -> dict | Refusal:
     """The content of the bands in one set and not in another: ``a − b`` as a symmetry data vector.
 
@@ -2333,6 +2315,8 @@ def subtract(content_a, content_b) -> dict | Refusal:
 
     Refusals
     --------
+    ``incomplete_content``
+        either content is a table that refused at some point.
     ``negative_multiplicity``
         ``b`` is not contained in ``a``: a difference of two band sets is one
         only where one contains the other.  A signed combination is what
@@ -2340,12 +2324,6 @@ def subtract(content_a, content_b) -> dict | Refusal:
     ``non_integer_multiplicity``
         either content is no count of coreps.
     """
-    a = content_of(content_a)
-    if isinstance(a, Refusal):
-        return a
-    b = content_of(content_b)
-    if isinstance(b, Refusal):
-        return b
     own_a = getattr(content_a, "rep", None) if hasattr(content_a, "counts") else None
     own_b = getattr(content_b, "rep", None) if hasattr(content_b, "counts") else None
     if own_a is not None and own_b is not None and not _same_group(own_a.group, own_b.group):
@@ -2353,6 +2331,16 @@ def subtract(content_a, content_b) -> dict | Refusal:
             f"subtract(): the tables were read in different groups, {own_a.group.name} "
             f"#{own_a.group.number_str} and {own_b.group.name} #{own_b.group.number_str}, "
             "whose coreps cannot be subtracted label by label.")
+    for content in (content_a, content_b):
+        missing = _incomplete_table(content)
+        if missing is not None:
+            return missing
+    a = content_of(content_a)
+    if isinstance(a, Refusal):
+        return a
+    b = content_of(content_b)
+    if isinstance(b, Refusal):
+        return b
 
     out, bad = {}, {}
     for lab in sorted(set(a) | set(b), key=_tables.corep_order):
@@ -2482,6 +2470,14 @@ def regular_content(group, *, points=None) -> dict | Refusal:
     n_u = len(group.u_symmetries)
     out, bands = {}, {}
     for name in wanted:
+        if name in hsp.missing:
+            # A point out of a layer's plane, which its little group refuses
+            refused = _tables.little_group(group, _tables._table_kpoints(group)[name])
+            if not isinstance(refused, Refusal):
+                raise InternalError(
+                    f"#{group.number_str}: {name} is listed as out of the layer's plane, "
+                    "yet its little group was read.")
+            return refused
         k = hsp[name]
         lg = _tables.little_group(group, k)
         if isinstance(lg, Refusal):
@@ -2563,6 +2559,9 @@ def regular_completion(content, group=None, *, bands=None, rep=None, points=None
 
     Refusals
     --------
+    ``incomplete_content``
+        the content is a table that refused at some point.  ``allow_incomplete=``
+        does not lift it.
     ``not_a_regular_multiple``
         the number of bands is no multiple of ``|U|``.
     ``negative_multiplicity``
@@ -2587,6 +2586,9 @@ def regular_completion(content, group=None, *, bands=None, rep=None, points=None
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
+    missing = _incomplete_table(content)
+    if missing is not None:
+        return missing
     target_one = regular_content(group, points=points)
     if isinstance(target_one, Refusal):
         return target_one

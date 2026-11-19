@@ -92,7 +92,7 @@ print(tqc.decompose(all4).solution_strings())
 
 pair = tqc.hsp_table(r.rep, bands=2)                     # the two lowest bands alone
 print(pair)
-#  HSPTable(bands=(0, 1), 3 points resolved, 1 refused, 0 skipped, group=realized)
+#  HSPTable(bands=(0, 1), 3 points resolved, 1 refused, group=realized)
 print(pair.refusals["X"].gate, pair.refusals["X"].context["multiplet"])
 #  multiplet_split (0, 1, 2, 3)
 refused = tqc.symmetry_indicator(pair)

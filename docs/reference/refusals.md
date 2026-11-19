@@ -317,18 +317,18 @@ Returned by `corep_content`, through its identification of the coreps.
 
 #### `incomplete_content`
 
-Returned by `decompose`, `symmetry_indicator`, `completeness_check`, `splitting` and
-`srsi_of_bands`.
+Returned by `decompose`, `symmetry_indicator`, `completeness_check`, `subtract`,
+`regular_completion`, `splitting` and `srsi_of_bands`.
 
 - **What it means.** The symmetry data vector has no label at some high-symmetry point, because
-  the table refused there, and a decomposition or a class of the rest would be a verdict on
-  a different vector.
+  the table refused there, and a decomposition, a class or a difference of the rest would be
+  a verdict on a different vector.
 - **Usual cause.** A set of bands that cuts a multiplet at some point, or another refusal
   recorded in the table at that point.
 - **What to do.** Read the table's refusals, which `context["refusals"]` repeats, and fix
   the set of bands. `decompose` takes `allow_incomplete=True` for a point whose tables
   cannot be read, never for one where the physics refused, and its verdict is then a
-  necessary condition only; `symmetry_indicator` has no such option.
+  necessary condition only; it lifts no other call's refusal.
 
 #### `not_a_band_structure`
 
@@ -669,7 +669,7 @@ Returned by `corep_content` and `corep_table`.
 
 #### `out_of_plane`
 
-Returned by `little_group` and `corep_table`.
+Returned by `little_group`, `corep_table` and `regular_content`.
 
 - **What it means.** The k-point has a component out of a layer's periodic plane, where the
   model has no dispersion.

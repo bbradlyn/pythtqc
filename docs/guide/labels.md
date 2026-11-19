@@ -156,13 +156,13 @@ print(tqc.hsp_table(hal.rep, bands=1).summary())
 #      GM: GM1
 #      K: K2
 #      KA: KA3
-#    M: no operation but the identity, whose one irrep a band set carries once per band   (.skipped)
+#      M: M1
 ```
 
 The tables list the irreps at `K`, and those at `KA` are their complex
 conjugates, named as the tables' band representations name them: `KA3` is the
-conjugate of `K3`. At `M` no characters are read, and a decomposition and an
-indicator read the band count.
+conjugate of `K3`. The little group at `M` holds the identity alone, and a set
+of bands carries its one irrep, `M1`, once for each band.
 
 ## Label an isolated set of bands
 

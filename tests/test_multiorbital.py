@@ -1782,12 +1782,10 @@ def test_the_unitary_build_names_P_and_GM_the_way_the_grey_one_does(
     assert u_table.content["GM"] == {"-GM5": 1, "-GM6": 1, "-GM7": 1, "-GM8": 1}
     assert g_table.content["GM"] == {"-GM5GM7": 1, "-GM6GM8": 1}
 
-    # the spelling invariant as a rule, at every point both presentations reach.
-    # `N` is grey-only here (the unitary build reads no content there, and its
-    # `-N2` row is the orphan `decompose` drops), so the rule runs at GM/M/P/X.
+    # the spelling invariant as a rule, at every point both presentations reach
     u_hsp = tqg.high_symmetry_points(u_group)
     shared = sorted(set(g_table.content) & set(u_table.content))
-    assert shared == ["GM", "M", "P", "X"], (shared, sorted(g_table.content))
+    assert shared == ["GM", "M", "N", "P", "X"], (shared, sorted(g_table.content))
     for point in shared:
         alphabet = set(tqg.corep_table(u_group, u_hsp[point]))
         spelled = {}

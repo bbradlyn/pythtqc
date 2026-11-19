@@ -695,7 +695,7 @@ def test_hsp_table_shape(lin3g_undeclared):
     model, group, _, _, rep = lin3g_undeclared
     table = tqw.hsp_table(rep, bands=6)
     assert isinstance(table, tqw.HSPTable)
-    assert table.complete and table.refusals == {} and table.skipped == {}
+    assert table.complete and table.refusals == {}
     assert set(table.points) == {"GM", "M", "X"}
     assert table.content == {"GM": {"-GM6": 2, "-GM7": 1},
                              "M": {"-M6": 1, "-M7": 2},
@@ -781,8 +781,8 @@ def test_hsp_table_shape(lin3g_undeclared):
         assert tqw.hsp_table(got.rep, bands=1).content == labels
 
 
-def test_hsp_table_skips_a_trivial_little_group():
-    """A point with no unitary little group beyond the identity is *skipped*, not refused."""
+def test_hsp_table_measures_a_point_whose_little_group_is_the_identity_alone():
+    """A point whose little group is the identity alone holds its one irrep once per band."""
     lat = Lattice([[1.0, 0.0, 0.0], [0.31, 1.13, 0.0], [0.17, 0.23, 1.7]],
                   [[0.0, 0.0, 0.0], [0.21, 0.37, 0.43]], periodic_dirs=[0, 1, 2])
     m = TBModel(lat, spinful=False)
@@ -798,9 +798,11 @@ def test_hsp_table_skips_a_trivial_little_group():
                          validated=_measure._validate_group(m, group, nk=4), n_battery=3)
     assert rep, str(rep)
     table = tqw.hsp_table(rep, bands=1)
-    assert table.complete and table.refusals == {} and table.content == {}
-    assert set(table.skipped) == set(table.points)
-    assert all("trivial little group" in why for why in table.skipped.values())
+    assert table.complete and table.refusals == {} and set(table.content) == set(table.points)
+    assert table.counts == {f"{name}1": 1 for name in table.points}
+    rc = tqc.regular_completion(table, bands=2)
+    assert rc and rc.padding == table.counts, "one band of two, completed by one band"
+    assert rc.decomposition.solution_strings() == ("1 x A↑G(1)@1a(1,1)",)
 
 
 def test_the_degeneracy_tolerance_is_an_argument_of_the_table(lin3g_undeclared):

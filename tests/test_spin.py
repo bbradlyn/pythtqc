@@ -221,7 +221,7 @@ NATIVE_COUNTS = {
     "lin3g": {"-GM6": 1, "-GM7": 1, "-M6": 1, "-M7": 1, "-X5": 2},
     "i41": {"-GM5": 1, "-GM6": 1, "-GM7": 1, "-GM8": 1,
             "-M5": 1, "-M6": 1, "-M7": 1, "-M8": 1,
-            "-P3": 2, "-P4": 2, "-X3": 2, "-X4": 2},
+            "-N2": 4, "-P3": 2, "-P4": 2, "-X3": 2, "-X4": 2},
 }
 
 
@@ -632,7 +632,7 @@ def test_the_corep_content_and_the_ebr_verdict_are_the_native_ones(reencoded):
     # are `{} == {}` and the docstring's claim is not measured at all
     assert tabN.complete and not tabN.refusals, f"{name}: {dict(tabN.refusals)}"
     assert dict(tabN.counts) == NATIVE_COUNTS[name], f"{name}"
-    resolved = set(tabN.points) - set(tabN.skipped)
+    resolved = set(tabN.points)
     assert set(tabN.content) == set(tabN.partitions) == resolved and len(resolved) >= 3
     assert all(tabN.content[p] and tabN.partitions[p] for p in resolved)
 

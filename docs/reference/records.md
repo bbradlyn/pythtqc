@@ -962,7 +962,7 @@ each point read off one diagonalization: `hsp_table`.
 
 ```python
 print(t)
-#  HSPTable(bands=(0, 1), 3 points resolved, 0 refused, 0 skipped, group=realized)
+#  HSPTable(bands=(0, 1), 3 points resolved, 0 refused, group=realized)
 print(t.summary())
 #  bands 0-1   (.bands)
 #    their coreps at each high-symmetry point, GM being Γ   (.content)
@@ -986,8 +986,8 @@ returned; which bands are degenerate does not. The points `A`,
 | `points` | every tabulated point in the model's periodic plane, with its coordinates |
 | `content`, `partitions` | per point, the coreps and their multiplicities, and the partition |
 | `counts` | the coreps summed over every point resolved: the symmetry data vector, which `decompose` and `symmetry_indicator` take |
-| `complete` | whether every point that constrains anything resolved; a table that is not complete is refused by the calls that need all of it |
-| `records`, `refusals`, `skipped` | per point, the `CorepContent` read there, the `Refusal` returned there, and the points skipped for carrying no constraint, a little group of the identity alone |
+| `complete` | whether every point resolved; a table that is not complete is refused by the calls that need all of it |
+| `records`, `refusals` | per point, the `CorepContent` read there, and the `Refusal` returned there |
 | `thresholds` | per point, the zero thresholds in force |
 | `note` | where some energy multiplet of these bands, at a point the table labels, is labelled otherwise under another labelling the hoppings leave open, a one-dimensional character on a coupled part of the crystal: a sentence saying so, and that every such labelling keeps which bands are degenerate and the labels of all the bands together; empty otherwise |
 | `group_provenance` | the provenance of the group the labels are read in, as [`GroupData`](#groupdata) gives it: `"realized"` for a group measured on `H`, `"descended"` for one measured after the cell was lowered |
@@ -1049,7 +1049,7 @@ beyond them can survive it.
 | `signed_combinations` | for a `"none"`, the same question with the sign restriction lifted, every coefficient between `−bound` and `bound`: its `solutions` and `terms`, `n_solutions`, zero where there is none within the bound, `truncated` where the list was cut at the cap, and a `note`. A combination found is evidence of fragility; the bound is not rigorous, since signed terms can cancel without limit |
 | `restriction` | the rows a model can measure, a `Restriction`, and on a free-standing layer the positions outside it, whose band representations every solution leaves at zero |
 | `site_content` | the site irrep of each orbital and how it is known, from `rep`; where one is `lowest-l`, a different declared content renames the site irreps in `terms` while `positions` stay |
-| `completeness` | `claim`, `"exact"` or `"necessary-condition"`, and the points skipped or refused that it rests on |
+| `completeness` | `claim`, `"exact"` or `"necessary-condition"`, and the points refused that it rests on |
 | `caveat` | what a decomposition does not certify, a `WannierCaveat`, whose `text` says it in a sentence |
 
 A `Restriction`, whose `summary()` names the rows left out and the measured row

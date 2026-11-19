@@ -1280,10 +1280,6 @@ class HSPTable:
         ``{point: CorepContent}`` at each point resolved.
     refusals : dict
         ``{point: Refusal}`` at each point that refused.
-    skipped : dict
-        ``{point: reason}`` at each point whose little group is the identity
-        alone: a band set carries its one irrep once per band, and a
-        decomposition and an indicator read the band count there.
     thresholds : dict
         ``{point: Thresholds}``, the zero thresholds at each point.
     group_provenance : str
@@ -1308,7 +1304,6 @@ class HSPTable:
     partitions: dict
     records: dict
     refusals: dict
-    skipped: dict
     counts: dict
     thresholds: dict
     complete: bool
@@ -1332,16 +1327,13 @@ class HSPTable:
             lines.append("  refused at " + "; ".join(f"{_listed(names)} ({gate})"
                                                      for gate, names in gates.items())
                          + ", so the content is incomplete   (.refusals)")
-        if self.skipped:
-            lines.append(f"  {_listed(self.skipped)}: no operation but the identity, whose one "
-                         "irrep a band set carries once per band   (.skipped)")
         if self.note:
             lines.append(f"  {self.note}   (.note)")
         return "\n".join(lines)
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
         return (f"HSPTable(bands={self.bands}, {len(self.content)} points resolved, "
-                f"{len(self.refusals)} refused, {len(self.skipped)} skipped, "
+                f"{len(self.refusals)} refused, "
                 f"group={self.group_provenance})")
 
 #: The keys under which a labelling set aside can label a band otherwise: the
@@ -1518,10 +1510,10 @@ def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
     if isinstance(points, Refusal):
         return points
 
-    content, parts, records, refusals, skipped, thr = {}, {}, {}, {}, {}, {}
+    content, parts, records, refusals, thr = {}, {}, {}, {}, {}
     counts: dict = {}
 
-    # Collect the informative points first, then take *one* pass over them: on the
+    # Collect every point whose little group is read, then take *one* pass over them: on the
     # model path that is a single solve_ham over the whole k-list -- the convenient
     # route for "a handful of high-symmetry points", with no container built.
     wanted = []
@@ -1529,9 +1521,6 @@ def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
         lg = _tables.little_group(rep.group, k)
         if isinstance(lg, Refusal):
             refusals[name] = lg
-            continue
-        if len(lg.unitary) <= 1 and not lg.antiunitary:
-            skipped[name] = "trivial little group (identity only): the content is the band count"
             continue
         wanted.append((name, np.asarray(k, dtype=float).reshape(-1)))
 
@@ -1566,7 +1555,7 @@ def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
     notes = (_multiplicity_note(rep, block, per_point.values()),
              _labelling_note(rep, block))
     return HSPTable(bands=block, points=dict(points), content=content, partitions=parts,
-                    records=records, refusals=refusals, skipped=skipped,
+                    records=records, refusals=refusals,
                     counts=_tables.ordered_content(counts), thresholds=thr,
                     complete=not refusals,
                     group_provenance=str(rep.group.provenance),

@@ -518,6 +518,10 @@ def test_a_deliberately_dropped_point_is_refused_and_the_override_downgrades_the
     gated = tqe.decompose(holed, group, rep=rep)
     assert isinstance(gated, Refusal) and gated.gate == "incomplete_content"
     assert gated.context["refusals"] == {"W": "integer_multiplicity"}
+    for out in (tqe.subtract(full, holed),
+                tqe.regular_completion(holed, bands=48, allow_incomplete=True)):
+        assert isinstance(out, Refusal) and out.gate == "incomplete_content"
+        assert out.context["refusals"] == {"W": "integer_multiplicity"}
 
     got = tqe.decompose(holed, group, rep=rep, allow_incomplete=True, bands=4)
     assert got.completeness["claim"] == "necessary-condition"
@@ -1566,9 +1570,10 @@ def test_a_layer_whose_own_group_can_answer_never_builds_the_stack():
 
     # (8) the same in P3, whose Z3 needs KA: Haldane's honeycomb with an offset,
     # read at K's partner -k, which the group carries no operation onto K, and
-    # at M, whose little group is the identity alone and whose row is the band
-    # count.  The lowest band is no atomic limit, the class is -C mod 3 in both
-    # fluxes, and the pair is the two sublattices' s orbitals, exactly
+    # at M, whose little group is the identity alone and whose one irrep a band
+    # set carries once per band.  The lowest band is no atomic limit, the class
+    # is -C mod 3 in both fluxes, and the pair is the two sublattices' s
+    # orbitals, exactly
     from pythtb.models import haldane
 
     for phi, c in ((0.5, 1), (-0.5, -1)):
@@ -1578,13 +1583,21 @@ def test_a_layer_whose_own_group_can_answer_never_builds_the_stack():
         assert (got.group.number_str, got.group.name) == ("143", "P3")
         lowest = tqw.hsp_table(got.rep, bands=1)
         assert lowest.complete and list(lowest.points) == ["GM", "K", "KA", "M"]
-        assert lowest.counts == ({"GM1": 1, "K2": 1, "KA3": 1} if c > 0
-                                 else {"GM1": 1, "K3": 1, "KA2": 1})
+        assert lowest.counts == ({"GM1": 1, "K2": 1, "KA3": 1, "M1": 1} if c > 0
+                                 else {"GM1": 1, "K3": 1, "KA2": 1, "M1": 1})
         none = tqe.decompose(lowest, got.group, rep=got.rep)
         assert none.verdict == "none" and none.restriction.exact
+        assert tqe.decompose(dict(lowest.counts), got.group).y == none.y, \
+            "the table's own vector, handed on as a mapping, reads as the table"
         si = tqe.symmetry_indicator(lowest, got.group, rep=got.rep)
         assert round(_chern(hal)) == c and si.completion is None
         assert (si.structure, si.values) == ("Z3", ((-c) % 3,))
+        assert tqe.symmetry_indicator(dict(lowest.counts), got.group).values == si.values
+        rc = tqe.regular_completion(lowest, bands=3)
+        assert rc and rc.padding["M1"] == 2 and rc.decomposition.solutions == (), \
+            "the two bands that complete a Chern band are no atomic limit either"
+        off = tqe.regular_content(got.group, points=["L"])
+        assert isinstance(off, Refusal) and off.gate == "out_of_plane"
         pair = tqe.decompose(tqw.hsp_table(got.rep, bands=2), got.group, rep=got.rep)
         assert pair.restriction.exact and pair.solution_strings() == (
             "1 x A1↑G(1)@1b(3,3) + 1 x A1↑G(1)@1c(3,3)",)

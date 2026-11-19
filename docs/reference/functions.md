@@ -968,6 +968,8 @@ The content of the bands in one set and not in another: `a − b` as a symmetry 
 
 **Refusals**
 
+- **`incomplete_content`**: either content is a table that refused at some point.
+
 - **`negative_multiplicity`**: `b` is not contained in `a`: a difference of two band sets is one
   only where one contains the other.  A signed combination is what
   `EBRDecomposition.signed_combinations` holds.
@@ -1039,6 +1041,9 @@ The bands that would carry a band set up to whole copies of the regular band rep
   A `Refusal` in its place is falsy and names what stopped the call.
 
 **Refusals**
+
+- **`incomplete_content`**: the content is a table that refused at some point.  `allow_incomplete=`
+  does not lift it.
 
 - **`not_a_regular_multiple`**: the number of bands is no multiple of `|U|`.
 
