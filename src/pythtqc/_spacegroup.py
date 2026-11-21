@@ -1816,6 +1816,20 @@ def _translation_closure(symmetries) -> float:
     return float(worst)
 
 
+def _closure_gate(symmetries) -> float:
+    r"""The closure at or below which a cell's operations close to rounding, in its reduced coordinates.
+
+    :data:`_EXACT_CLOSURE` times the largest row sum of the operations'
+    ``|R|``.  The closure ``t_g + R_g t_h − t_gh`` multiplies the rounding of
+    ``t_h``, and a defect of the positions alike, by the entries of ``R_g``,
+    which on a strongly skewed lattice basis reach hundreds; a row sum is at
+    least 1, and is 1 on a cell whose rotations are signed permutations.
+    """
+    size = max((float(np.abs(np.rint(np.asarray(s.rotation, dtype=float))).sum(axis=1).max())
+                for s in symmetries), default=1.0)
+    return float(_EXACT_CLOSURE) * max(size, 1.0)
+
+
 def _rebuilt_translation(refUC, t_ref, shift, R, t_old) -> np.ndarray:
     r"""``refUC·t_ref + s − R s``, moved by the lattice vector that puts it nearest ``t_old``.
 
@@ -1847,7 +1861,7 @@ def _exact_operations(sg, symprec, tables_ready, lattice) -> tuple | Refusal:
     whose positions were typed rather than computed — this returns
     ``(0.0, 0.0)`` and **changes nothing at all, bit for bit**.  The same is true
     at machine precision where there is nothing to repair from: a cell ``irrep``
-    could not match whose closure is at or below :data:`_EXACT_CLOSURE` is
+    could not match whose closure is at or below :func:`_closure_gate` is
     arithmetic, not noise, and is left alone with the measured number recorded.
 
     Otherwise each translation is rebuilt from the **tabulated** reference-cell
@@ -1890,17 +1904,19 @@ def _exact_operations(sg, symprec, tables_ready, lattice) -> tuple | Refusal:
     before = _translation_closure(sg.symmetries)
     if before == 0.0:
         return 0.0, 0.0
+    gate = _closure_gate(sg.symmetries)
     if not tables_ready:
-        if before <= _EXACT_CLOSURE:
+        if before <= gate:
             # binary floating point, not a defect in the cell: a supercell whose
             # translations are exact thirds cannot close to a bit-exact zero, and
-            # there is nothing here to repair.  See `_EXACT_CLOSURE`.
+            # there is nothing here to repair.  See `_closure_gate`.
             return float(before), 0.0
         return Refusal(
             "operations_not_consistent",
             f"the operations spglib found for this cell do not close: "
             f"max |t_g + A_g t_h - t_gh| = {before:.3g} (reduced, modulo the lattice) "
-            "against 0.0 for a cell built from exact numbers. spglib derives each "
+            f"against {gate:.3g}, the rounding of a cell built from exact numbers with "
+            "rotations of this size. spglib derives each "
             "operation's translation from the atom pairs it maps, so numerically "
             "determined positions give every operation its own share of the noise; "
             "with operations that do not close there is no exactly symmetric "
@@ -1910,7 +1926,7 @@ def _exact_operations(sg, symprec, tables_ready, lattice) -> tuple | Refusal:
             "`irrep` could not match this cell to the BCS standard setting, so there "
             "is no tabulated operation to rebuild from. Hand a cell whose positions "
             "carry less noise, or one irrep can match.",
-            value=float(before), threshold=0.0,
+            value=float(before), threshold=float(gate),
             context={"number_str": str(sg.number_str), "closure": float(before)})
 
     table = _irrep_table(sg.number_str, sg.spinor, sg.magnetic)
@@ -1975,10 +1991,10 @@ def _exact_operations(sg, symprec, tables_ready, lattice) -> tuple | Refusal:
     for s, t_new in zip(sg.symmetries, rebuilt):
         s.translation = t_new                          # the rotations are untouched
     after = _translation_closure(sg.symmetries)
-    if after > 1e-12:
+    if after > gate:
         raise InternalError(                         # pragma: no cover - guard
             f"group #{sg.number_str}: the rebuilt operations still do not close "
-            f"(max |t_g + A_g t_h - t_gh| = {after:.3g} against 1e-12), though every "
+            f"(max |t_g + A_g t_h - t_gh| = {after:.3g} against {gate:.3g}), though every "
             "translation came from a tabulated one through a single origin shift, "
             "which cannot break a closure. This is arithmetic in this package "
             "failing, not a measurement about the model.")

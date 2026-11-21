@@ -77,6 +77,11 @@
 - `realized_group` reads zincblende written on `a1, 6 a1 + a2, 4 a1 + 9 a2 + a3`, where it
   raised `InternalError`, the operations rebuilt from the tabulated ones not closing. Each
   rebuilt translation is formed exactly and rounded once.
+- `realized_group` reads a crystal of two species written on a strongly skewed lattice
+  basis with its sites not told apart by `typat=`, CsCl on
+  `a1, 6 a1 + a2, 4 a1 + 9 a2 + a3` among them, where it refused
+  `operations_not_consistent`. Whether a cell's operations close is judged relative to
+  the size of their rotation matrices in the cell's reduced coordinates.
 
 ## 0.1.0a3 — the second public version
 

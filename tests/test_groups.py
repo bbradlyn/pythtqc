@@ -2265,6 +2265,10 @@ def test_the_anisotropic_square_descends_from_the_cell_the_isotropic_one_allows(
     descends to ``Pmmm1' #47.250``, and the group and the representation built
     on it both say they were lowered from the cell (``"descended"``).  Same
     geometry, different Hamiltonian, different answer.
+
+    So with CsCl, whose two sites read as one species are a body-centered cell:
+    written on a strongly skewed lattice basis it is read as on its cube's
+    edges.
     """
     low = G.realized_group(square(ty=-0.5), environment="free-standing",
                            characters={0: "s"}, cross_check=False)
@@ -2275,6 +2279,28 @@ def test_the_anisotropic_square_descends_from_the_cell_the_isotropic_one_allows(
     assert low.descent["from"]["number_str"] == "123.340"
     assert low.group.provenance == "descended"
     assert low.rep.group.provenance == "descended"
+
+    # the same on a strongly skewed lattice basis.  CsCl written on a1, 6 a1 + a2,
+    # 4 a1 + 9 a2 + a3 and read first with its two sites as one species is a
+    # body-centered cell, whose operations close to the rounding their rotations'
+    # entries, in the hundreds there, multiply; it reads as on its cube's edges
+    def s_cscl(i, j, d):
+        r = round(float(np.linalg.norm(d)), 6)
+        if r == 0.866025 and i != j:
+            return -1.0
+        return {0: -0.3, 1: -0.1}[i] if r == 1.0 and i == j else 0.0
+
+    def read(model):
+        r = G.realized_group(model)
+        assert r, str(r)
+        t = tqc.hsp_table(r.rep, bands=1)
+        return (r.group.name, r.group.number_str, tqc.format_counts(t.counts),
+                [(row.wyckoff, row.irrep) for row in r.rep.characters.orbitals])
+
+    cscl = [[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]]
+    usual = read(by_bond(np.eye(3), cscl, s_cscl))
+    assert usual == ("Pm-3m1'", "221.93", "GM1+ + M4+ + R2- + X1+", [("1a", "A1g"), ("1b", "A1g")])
+    assert read(by_bond(np.eye(3), cscl, s_cscl, rows=[[1, 0, 0], [6, 1, 0], [4, 9, 1]])) == usual
 
 
 @pytest.mark.slow

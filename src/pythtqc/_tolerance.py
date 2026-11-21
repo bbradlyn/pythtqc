@@ -363,10 +363,16 @@ EXACT_TOL = 5e-14
 #: 2592 operations, whose pure translations are exact thirds, measure
 #: ``4.4e-16``.  A genuinely **numerical** cell is five decades away from that —
 #: the displaced Kane-Mele cell measures ``2.0e-8`` — so the two are never
-#: confused.  Of the repair, only the branch that has *no tabulated operations to
-#: repair from* reads this constant: where ``irrep`` matched the cell the repair
-#: rebuilds the translations from the tabulated operations and never consults
-#: it.  :func:`.._descent._shared_origin` reads it too, as the scale below which two
+#: confused.  This is the scale for rotations of order one.  In a cell's own
+#: reduced coordinates the closure of its operations is compared with it times the
+#: largest row sum of their ``|R|`` (:func:`.._spacegroup._closure_gate`): the
+#: closure ``t_g + R_g t_h − t_gh`` multiplies the rounding of a translation, and a
+#: defect of the positions alike, by the entries of ``R_g``, which on a strongly
+#: skewed lattice basis reach hundreds.  Where ``irrep`` matched the cell the
+#: repair rebuilds the translations from the tabulated operations whatever the
+#: closure, and reads this only to check that the rebuilt ones close; where it did
+#: not, a closure within it is left as it is.
+#: :func:`.._descent._shared_origin` reads it too, as the scale below which two
 #: translations of one operation are the same translation.
 _EXACT_CLOSURE = 1e-12
 
