@@ -2532,7 +2532,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
         got = _validate_group(model, group, nk=nk, tol=tolerances.energy,
                               cut=tolerances.cut, window=tolerances.window,
                               max_bytes=max_bytes, context=context,
-                              _floor=tolerances.floor)
+                              assignment=assignment, _floor=tolerances.floor)
         if isinstance(got, Refusal):
             # the detector's memory limit: fired before the measurement settles,
             # so what is named is the cell's group at this point, an upper bound
@@ -2850,10 +2850,8 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                 # that were near-symmetric, not from the ones that were broken --
                 # so the descent is available on exactly the same terms, and the
                 # detector keeps the declared tolerance, because re-measuring at a
-                # *tighter* one asks a different question and can answer it
-                # wrongly: the eigen route's accuracy floor is
-                # `eps*‖H‖ / (smallest level splitting)`, which symmetrization
-                # does not change.  The default-tolerance re-detection is measured
+                # *tighter* one asks a different question.  The default-tolerance
+                # re-detection is measured
                 # all the same and is on `symmetrization.verification`.
                 projected = True
                 continue

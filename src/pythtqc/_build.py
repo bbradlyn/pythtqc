@@ -1136,7 +1136,7 @@ def _represented_operations(model, group, assignment, *, validated, multiplets, 
     ident = _identity_position(group)
 
     if validated is None:
-        validated = _measure._validate_group(model, group)
+        validated = _measure._validate_group(model, group, assignment=assignment)
         if isinstance(validated, Refusal):
             return validated                # the detector's memory limit, as it came
 

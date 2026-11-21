@@ -114,7 +114,12 @@ class _IntertwinerSpace:
     scale : float
         The scale the cut is measured against: ``dim`` is exactly
         ``count(singular_values <= cut * scale)``, and ``singular_values[0] /
-        scale`` is the "how far from a solution" number to read.  When
+        scale`` is the "how far from a solution" number to read.  Where the
+        space is the fit over the whole grid (:attr:`fit` ``"fitted"``),
+        ``singular_values`` holds each member's largest covariance over the
+        grid, ``‖X H(k) − H(Rk) X‖_F`` at unit norm, ascending, and ``scale``
+        the largest ``‖L_k‖``: the members were counted on those, point by
+        point.  When
         :attr:`vacuous` there is no such scale, every singular value being
         rounding noise, and this reads ``max |H|`` over the grid instead.
     tol : float
@@ -169,6 +174,19 @@ class _IntertwinerSpace:
         if a bare basis element won), ``sigma_min`` of the winner and
         ``sigma_min_basis``, the best any bare basis element managed — the
         pair that shows what the search bought.
+    fit : str
+        What the fit over the whole grid among the matrices of the operation's
+        forms (``forms`` of :func:`_find_intertwiners`) settled, where the sift
+        kept no candidate within ``tol``: ``"fitted"``, the space is the fit's;
+        ``"fit not closer"``, the fit's best candidate was not closer and the
+        sift's space is returned; ``"spectra"``, ``"none at the points
+        sifted"`` and ``"none over the grid"``, a proof that no matrix of the
+        forms meets ``tol`` -- two spectra apart by more than ``n·tol`` at a
+        point sifted, the stacked constraint at the points sifted, the count
+        over the grid; ``"not fitted: memory"``, a form's fit would not fit
+        the memory the basis may take and no proof was made.  ``""`` where
+        nothing was asked: no forms given, a candidate within ``tol``, a
+        vacuous space or the stacked route.
     """
 
     dim: int
@@ -190,6 +208,7 @@ class _IntertwinerSpace:
     k_solve: int = -1
     basis_size: tuple = ()
     escalations: tuple = ()
+    fit: str = ""
 
     def __bool__(self) -> bool:
         return self.dim > 0
@@ -722,12 +741,17 @@ def _sift(pair, nk, n, *, cut, floor, delta, stable, max_pairs, probes=_EIGEN_PR
         return {"flat": False, "k_solve": i1, "too_large": int(delta_used)}
     m = int(B.shape[0])
     trace, n_solve = [m], 1
+    # the most two spectra differ at one level, over the points sifted: no
+    # unitary carries one onto the other closer, in the spectral norm
+    spectral = float(np.abs(Ep - E).max())
+    points = [i1]
     s_last, scale_last = None, h
     if m == 0:
         # the spectra do not match at all: no X, unitary or not, intertwines.
         # The single-point constraint's own singular values are the gaps.
         return {"flat": False, "k_solve": i1, "n_solve": 1, "h": h, "basis": B,
                 "trace": tuple(trace), "window": delta_used, "gaps": gaps,
+                "spectral": spectral, "points": tuple(points),
                 "singular_values": np.sort(gaps) * w,
                 "scale": float(gaps[-1] * w) if gaps.size else h,
                 "empty_ratio": None}
@@ -752,6 +776,7 @@ def _sift(pair, nk, n, *, cut, floor, delta, stable, max_pairs, probes=_EIGEN_PR
         if i in done:
             continue
         done.add(i)
+        points.append(i)
         n_solve += 1
         Hs, Hr = pair.at(i)
         # ||L_k||, the operator norm of X -> X H_k - H'_k X on the *whole*
@@ -767,6 +792,7 @@ def _sift(pair, nk, n, *, cut, floor, delta, stable, max_pairs, probes=_EIGEN_PR
         # ||L_k X|| <= cut*||L_k||.
         Es, Er = np.linalg.eigvalsh(Hs), np.linalg.eigvalsh(Hr)
         op = float(max(abs(Er[-1] - Es[0]), abs(Es[-1] - Er[0])))
+        spectral = max(spectral, float(np.abs(Er - Es).max()))
         reduced = False
         if op > _VACUOUS_CUT * h:            # a vanished operator constrains nothing
             s, vecs = _stage_nullspace(B, Hs, Hr)
@@ -777,7 +803,7 @@ def _sift(pair, nk, n, *, cut, floor, delta, stable, max_pairs, probes=_EIGEN_PR
                 return {"flat": False, "k_solve": i1, "n_solve": n_solve, "h": h,
                         "basis": B[:0], "trace": tuple(trace), "window": delta_used,
                         "gaps": gaps, "singular_values": s[::-1].copy(),
-                        "scale": op,
+                        "scale": op, "spectral": spectral, "points": tuple(points),
                         # against the scale the cut was read on, the floor's included
                         "empty_ratio": float(s[-1] / max(op, least_scale)),
                         "near_miss": np.einsum("j,jab->ab", vecs[:, -1].conj(), B)}
@@ -813,7 +839,7 @@ def _sift(pair, nk, n, *, cut, floor, delta, stable, max_pairs, probes=_EIGEN_PR
     return {"flat": False, "k_solve": i1, "n_solve": n_solve, "h": h, "basis": B,
             "trace": tuple(trace), "window": delta_used, "gaps": gaps,
             "singular_values": np.asarray(s_last)[::-1].copy(), "scale": scale,
-            "empty_ratio": None}
+            "spectral": spectral, "points": tuple(points), "empty_ratio": None}
 
 
 def _orthonormal_basis(B, n):
@@ -848,6 +874,159 @@ def _candidates_and_search(basis, dim, n):
                   "picked": pick, "sigma_min": float(sigma_min[pick]),
                   "sigma_min_basis": float(sigma_min[:dim].max())}
     return cands, search
+
+
+def _refit_on_form(pair, form, n, *, cut, floor):
+    r"""The matrices of a form that carry ``H(k)`` onto ``H(Rk)``, fitted over the whole grid.
+
+    ``form`` is the boolean ``(n, n)`` pattern of the entries a matrix of the
+    operation may hold.  The sift fixes its basis at a few points, and a
+    direction it discards at one point -- a singular value small there but not
+    zero, or a pair of levels outside the window -- takes with it the part
+    of a nearly exact solution that lies along it, the solution's own residual
+    at that point divided by that singular value or gap; at the other points
+    that part costs its full size.  Here nothing is discarded: the members of
+    the form minimizing ``Σ_k ‖X H(k) − H(Rk) X‖²_F`` are the eigenvectors of
+    lowest eigenvalue of the Hermitian matrix that sum is, of size ``p``, the
+    number of entries the form allows.  For entries ``(a, b)`` and ``(c, d)``
+
+    .. math::
+
+        G_{ab,cd} = \sum_k \delta_{ac} (H_k^2)_{db} + \delta_{bd} (H'^2_k)_{ac}
+                    - 2 H'_{k,ac} H_{k,db},
+
+    ``H_k`` the source (conjugated for an antiunitary operation) and ``H'_k`` its
+    image, accumulated over the grid's chunks block by block of the form
+    (:func:`_cross_term`), at a cost of ``N_k p²`` and the eigenvectors at
+    ``p³``.
+
+    The eigenvalues of ``G`` are squares, and the smallest are rounding where
+    the cut is read, so they count nothing.  The members are counted as the
+    sift counts them, on each point's own constraint: in ascending order, a
+    member is one where at every point its covariance ``‖X H(k) − H(Rk) X‖_F``,
+    ``X`` of unit norm, is within the sift's cut, ``max(cut·‖L_k‖, sqrt(n)·floor)``,
+    and the count stops at the first that is not.  Returns the members with
+    unit norm, shape ``(count, n, n)``, each member's largest covariance over
+    the grid, and the largest ``‖L_k‖``.
+    """
+    rows, cols, blocks = _form_blocks(form)
+    p = int(rows.size)
+    G = np.zeros((p, p), dtype=complex)
+    sq, sq_rot = np.zeros((n, n), dtype=complex), np.zeros((n, n), dtype=complex)
+    for _, _, Hs, Hr in pair.chunks():
+        sq += np.einsum("kij,kjl->il", Hs, Hs)
+        sq_rot += np.einsum("kij,kjl->il", Hr, Hr)
+        G -= 2.0 * _cross_term(Hs, Hr, blocks, p)
+    G += (rows[:, None] == rows[None, :]) * sq[cols[None, :], cols[:, None]]
+    G += (cols[:, None] == cols[None, :]) * sq_rot[rows[:, None], rows[None, :]]
+    _w, v = np.linalg.eigh((G + G.conj().T) / 2)
+    least = float(np.sqrt(n)) * float(floor)
+    gates, scale = [], 0.0           # the sift's cut at each point, chunk by chunk
+    for _, _, Hs, Hr in pair.chunks():
+        Es, Er = np.linalg.eigvalsh(Hs), np.linalg.eigvalsh(Hr)
+        op = np.maximum(np.abs(Er[:, -1] - Es[:, 0]), np.abs(Es[:, -1] - Er[:, 0]))
+        gates.append(np.maximum(float(cut) * op, least))
+        scale = max(scale, float(op.max()))
+    members, worst = [], []
+    for j in range(p):
+        X = np.zeros((n, n), dtype=complex)
+        X[rows, cols] = v[:, j]
+        held, most = True, 0.0
+        for (_, _, Hs, Hr), gate in zip(pair.chunks(), gates):
+            got = np.linalg.norm(X @ Hs - Hr @ X, axis=(1, 2))
+            most = max(most, float(got.max()))
+            held = held and bool(np.all(got <= gate))
+        if not held:
+            break
+        members.append(X)
+        worst.append(most)
+    return (np.asarray(members, dtype=complex).reshape(len(members), n, n),
+            np.asarray(worst, dtype=float), scale)
+
+
+def _form_blocks(form):
+    """A form's entries, block by block: ``rows``, ``cols`` and each block's ``(rows, cols, start)``.
+
+    A form carries each site's states onto its image's, so its entries fall in
+    rectangular blocks, one per site: the columns of one site share the rows
+    they may reach.  The entries are listed block by block, each block's in
+    row-major order.
+    """
+    form = np.asarray(form, dtype=bool)
+    reach = {}
+    for b in range(form.shape[1]):
+        to = tuple(int(a) for a in np.nonzero(form[:, b])[0])
+        if to:
+            reach.setdefault(to, []).append(b)
+    rows, cols, blocks, start = [], [], [], 0
+    for to, of in reach.items():
+        r, c = np.asarray(to, dtype=int), np.asarray(of, dtype=int)
+        blocks.append((r, c, start))
+        rows.append(np.repeat(r, len(c)))
+        cols.append(np.tile(c, len(r)))
+        start += len(r) * len(c)
+    return np.concatenate(rows), np.concatenate(cols), blocks
+
+
+def _cross_term(Hs, Hr, blocks, p):
+    r"""``Σ_k H'_{k,ac} H_{k,db}`` for every pair of entries ``(a, b)``, ``(c, d)`` of a form.
+
+    Block by block one matrix product over the points: for the blocks
+    ``(R_I, C_I)`` and ``(R_J, C_J)``, ``H'[R_I, R_J]`` and ``H[C_J, C_I]``,
+    each flattened over the points, multiplied.
+    """
+    nk = int(Hs.shape[0])
+    out = np.zeros((p, p), dtype=complex)
+    for rI, cI, sI in blocks:
+        for rJ, cJ, sJ in blocks:
+            A = Hr[:, rI[:, None], rJ[None, :]].reshape(nk, -1)
+            B = Hs[:, cJ[:, None], cI[None, :]].reshape(nk, -1)
+            T = (A.T @ B).reshape(len(rI), len(rJ), len(cJ), len(cI))
+            out[sI:sI + len(rI) * len(cI), sJ:sJ + len(rJ) * len(cJ)] = (
+                T.transpose(0, 3, 1, 2).reshape(len(rI) * len(cI), len(rJ) * len(cJ)))
+    return out
+
+
+def _sifted_constraints(pair, points, n, *, cut, floor):
+    """``(H_src(k), H(Rk), g_k)`` at each point given, ``g_k`` the sift's cut there."""
+    least = float(np.sqrt(n)) * float(floor)
+    out = []
+    for i in points:
+        Hs, Hr = pair.at(int(i))
+        Es, Er = np.linalg.eigvalsh(Hs), np.linalg.eigvalsh(Hr)
+        op = float(max(abs(Er[-1] - Es[0]), abs(Es[-1] - Er[0])))
+        out.append((Hs, Hr, max(float(cut) * op, least)))
+    return out
+
+
+def _form_admits(constraints, form):
+    r"""Whether a matrix of a form can meet the sift's cut at every one of the points given.
+
+    A unitary ``U`` within the covariance gate at a point has
+    ``‖U H(k) − H(Rk) U‖_F = ‖U H(k) U† − H(Rk)‖_F ≤ n·tol``, so ``U/sqrt(n)``,
+    of unit norm, is within ``sqrt(n)·tol`` there, which the sift's cut
+    ``g_k = max(cut·‖L_k‖, sqrt(n)·floor)`` never undercuts.  Such a matrix
+    of the form has ``x† G x ≤ Σ_k g_k²``, ``G`` the Hermitian matrix of
+    :func:`_refit_on_form` summed over the points alone, so a lowest
+    eigenvalue of ``G`` above that bound, by more than the rounding of the
+    eigenvalues, ``p·eps·‖G‖``, is a proof that no matrix of the form meets the
+    gate at those points, nor on any grid that holds them.  It costs ``p²`` a
+    point for the ``p`` entries the form allows, and ``p³`` once.
+    ``constraints`` is :func:`_sifted_constraints`' list.
+    """
+    rows, cols, blocks = _form_blocks(form)
+    p = int(rows.size)
+    bound = float(sum(gate ** 2 for _, _, gate in constraints))
+    Hs = np.stack([c[0] for c in constraints])
+    Hr = np.stack([c[1] for c in constraints])
+    G = -2.0 * _cross_term(Hs, Hr, blocks, p)
+    G += (rows[:, None] == rows[None, :]) * np.einsum(
+        "kij,kjl->il", Hs, Hs)[cols[None, :], cols[:, None]]
+    G += (cols[:, None] == cols[None, :]) * np.einsum(
+        "kij,kjl->il", Hr, Hr)[rows[:, None], rows[None, :]]
+    w = np.linalg.eigvalsh((G + G.conj().T) / 2)
+    rounding = p * np.finfo(float).eps * float(np.abs(w).max())
+    return float(w[0]) - rounding <= bound
 
 
 def _candidate_measures(cands, n, *, full=None, pair=None):
@@ -888,7 +1067,7 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
                        cut=None, solver="eigen", window=None,
                        max_window=_EIGEN_WINDOW_CEIL, max_bytes=512e6,
                        degenerate_max_bytes=None, stable=_SIFT_STABLE, hamiltonians=None,
-                       max_solve_entries=2_000_000,
+                       max_solve_entries=2_000_000, forms=(),
                        _floor=None) -> _IntertwinerSpace | Refusal:
     r"""Every matrix that commutes ``H(k)`` with ``H(Rk)``.
 
@@ -998,6 +1177,18 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
         in entries: a grid that would exceed it is solved on a deterministic
         subset of its own points, and every candidate is then verified against
         the full grid.  Default ``2_000_000``.
+    forms : sequence of ndarray of bool, shape (nstate, nstate), optional
+        The entries a matrix of each operation sharing this action on ``k`` may
+        hold: each site's states carried onto its image's under that
+        operation.  ``solver="eigen"`` only.  Where the sift keeps no candidate
+        within ``tol``, each form that can still meet it -- no proof from the
+        spectra or from the stacked constraint at the points sifted
+        (:func:`_form_admits`) -- is fitted over the whole grid
+        (:func:`_refit_on_form`).  The members of every form whose fit meets
+        ``tol`` are returned together; where none does, the closest fit is
+        returned if the sift kept nothing or it is closer.
+        :attr:`_IntertwinerSpace.fit` says which.  ``()`` (default) fits
+        nothing.
 
     Returns
     -------
@@ -1114,7 +1305,8 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
                              "k_pts supplied here; a shared cache is keyed by its grid")
     rot_grid = src_grid.rotated(k_rot)
 
-    window_used, k_solve, trace, escalated = 0.0, -1, (), ()
+    window_used, k_solve, trace, escalated, spectral, sifted = 0.0, -1, (), (), 0.0, ()
+    fit = ""
 
     if solver == "stacked":
         H, Hr = src_grid.full(), rot_grid.full()
@@ -1225,10 +1417,78 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
             s, scale = np.asarray(rec["singular_values"], float), float(rec["scale"])
             k_solve, window_used = int(rec["k_solve"]), float(rec["window"])
             nk_solve, trace, escalated = int(rec["n_solve"]), rec["trace"], tuple(tried)
+            spectral, sifted = float(rec["spectral"]), tuple(rec["points"])
             break
 
         cands, search = _candidates_and_search(basis, dim, n)
         unitaries, residuals, unitarity = _candidate_measures(cands, n, pair=pair)
+        # Where the sift kept no matrix within the gate, the space fitted over
+        # the whole grid among the matrices of one of the operation's forms:
+        # the sift's basis is fixed at a few points, and what it discarded there
+        # carries a nearly exact solution's residual at those points onto the
+        # others, magnified by the inverse of a small gap.  Each step decides
+        # only where the one before cannot: two spectra at a point sifted apart
+        # by more than `n·tol`, the gate being on the largest entry, prove that
+        # no unitary meets it; the stacked constraint at the points sifted
+        # proves the same for a form, at the cost of those few points; and only
+        # a form that can meet the gate there is fitted over the grid.
+        missed = (not dim and spectral <= n * float(tol)) or (
+            dim and float(residuals.min()) > float(tol))
+        if forms and not vacuous and not dim and not missed:
+            fit = "spectra"
+        elif forms and not vacuous and missed:
+            outcomes, best = set(), None
+            # The proofs below read the sift's cut never below sqrt(n)·tol, the
+            # most a unitary within the gate can miss a point by at unit norm
+            # (‖U H − H'U‖_F ≤ n·tol): with the floor raised to the gate wherever
+            # a smaller one is given, a "none" is a proof whatever cut and floor
+            # the solve was asked at.
+            proof_floor = max(float(floor), float(tol))
+            constraints = _sifted_constraints(pair, sifted, n, cut=cut, floor=proof_floor)
+            # every operation's own form is fitted: two operations sharing
+            # this action on k can both hold, each by a matrix of its own form,
+            # and each is broken only where no matrix of its form meets the gate
+            held = []
+            for form in forms:
+                if 16 * int(np.count_nonzero(form)) ** 2 > ceiling:
+                    outcomes.add("not fitted: memory")
+                    continue
+                if not _form_admits(constraints, form):
+                    outcomes.add("none at the points sifted")
+                    continue
+                members, worst, op_max = _refit_on_form(pair, form, n, cut=cut,
+                                                        floor=proof_floor)
+                if not len(members):
+                    outcomes.add("none over the grid")
+                    continue
+                members = _orthonormal_basis(members, n)
+                got_cands, got_search = _candidates_and_search(members, len(members), n)
+                got = _candidate_measures(got_cands, n, pair=pair)
+                if float(got[1].min()) <= float(tol):
+                    held.append((members, worst, op_max))
+                if best is None or float(got[1].min()) < float(best[4][1].min()):
+                    best = (members, worst, op_max, (got_cands, got_search), got)
+            if held:
+                # the members of every form that meets the gate, one space
+                members = _orthonormal_basis(np.concatenate([h[0] for h in held]), n)
+                dim, basis = len(members), members
+                cands, search = _candidates_and_search(basis, dim, n)
+                unitaries, residuals, unitarity = _candidate_measures(cands, n, pair=pair)
+                s = np.sort(np.concatenate([h[1] for h in held]))
+                scale = max(float(h[2]) for h in held)
+                fit = "fitted"
+            elif best is not None and (not dim or float(best[4][1].min())
+                                       < float(residuals.min())):
+                members, worst, op_max, (cands, search), got = best
+                dim, basis = len(members), members
+                unitaries, residuals, unitarity = got
+                s, scale = np.sort(worst), float(op_max)
+                fit = "fitted"
+            elif best is not None:
+                fit = "fit not closer"
+            else:
+                fit = next(o for o in ("not fitted: memory", "none over the grid",
+                                       "none at the points sifted") if o in outcomes)
 
     return _IntertwinerSpace(dim=dim, basis=basis, unitaries=unitaries,
                              residuals=residuals, unitarity=unitarity,
@@ -1237,4 +1497,4 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
                              antiunitary=bool(antiunitary), vacuous=vacuous,
                              search=search, window=window_used, k_solve=k_solve,
                              basis_size=tuple(int(t) for t in trace),
-                             escalations=escalated)
+                             escalations=escalated, fit=fit)

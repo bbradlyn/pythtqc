@@ -609,6 +609,18 @@ def test_the_cut_finds_the_space_and_the_gate_judges_it(near_symmetry):
     One layer up, the two halves are visible in the refusal itself: with the cut
     raised alone the operation is refused on its residual against the 1e-8 gate
     rather than for having no solution at all.
+
+    And what the gate judges is the best matrix of the operation's form, not
+    the sift's.  The sift fixes its basis at a few points, and what it
+    discards there -- a pair of levels just outside the window, a singular
+    value small at that point but not zero -- carries a near-solution's
+    residual at that point onto the others divided by that gap.  The ``p``
+    crystal at ``3c`` with every term jittered by ``1e-9`` (``max|H| = 0.78``)
+    obeys all 96 operations to about ``1e-9``: read by the sift alone, a third
+    of them miss the gate, at ``1.1e-8`` to ``1.3e-8`` or with no matrix at
+    all; ``realized_group`` fits the space of each over the whole mesh among
+    the matrices carrying each site's states onto its image's, keeps all 96,
+    and those fitted read ``5.8e-10`` to ``1.3e-9``.
     """
     model, group, sym, k, delta = near_symmetry
     action = group._k_action_of(sym)
@@ -640,6 +652,26 @@ def test_the_cut_finds_the_space_and_the_gate_judges_it(near_symmetry):
     assert refused._nullspace_dims[ind] == 1
     assert entry["residual"] == pytest.approx(2.0 * delta, rel=0.1, abs=0.0)
     assert refused._records[ind]["cut"] == 1e-6 and refused._records[ind]["tol"] == 1e-8
+
+    from pythtqc import _tables, models
+    from test_symmetrize import jitter
+
+    rel = 1e-9
+    noisy = jitter(models.cubic_3c_axis_p(), rel=rel)
+    noise = rel * _measure._max_hamiltonian(noisy)
+    got = G.realized_group(noisy)
+    assert (got.group.number_str, len(got.validated.indices)) == ("221.93", 96), \
+        "every operation the model obeys within the gate is kept"
+    sifted = _measure._validate_group(noisy, got.group, nk=6, tol=1e-8)
+    missed = [i for i in sifted.residuals if i not in sifted.indices]
+    assert missed, "the sift alone misses the gate on operations the model obeys"
+    measured = _measure._validate_group(noisy, got.group, nk=6, tol=1e-8,
+                                        assignment=_tables._assign_orbitals(noisy, got.group))
+    assert len(measured.indices) == 96, "with the sites given, none is missed"
+    fitted = [i for i, rec in measured._records.items() if rec["fit"] == "fitted"]
+    assert set(missed) <= set(fitted), "each one the sift missed is fitted"
+    assert max(measured.residuals[i] for i in fitted) < 3.0 * noise, \
+        "over the whole mesh, at the model's own noise"
 
 
 def test_one_solve_per_k_action_class_and_the_record_names_it(monkeypatch):

@@ -615,14 +615,14 @@ def test_a_magnetic_model_is_symmetrized_without_inventing_time_reversal():
 
     # and the symmetrized model IS exactly symmetric under the three it kept --
     # measured against the operators it was built with, and against the stacked
-    # oracle.  The eigen route's own re-detection reads O(1e-8) here and says so
-    # on the record: its accuracy floor is eps*||H||/(smallest level splitting),
-    # and the jitter split this model's spin degeneracy at 1e-7.
+    # oracle.  The re-detection keeps all three too: the jitter split this
+    # model's spin degeneracy at 1e-7, so the sift's matrix for one of them,
+    # read off eigenvectors at a few points, missed the gate by itself, and the
+    # fit over the whole mesh among the operation's site forms meets it.
     assert rec.checks["covariance_residue"] < 1e-12
     again = _measure._validate_group(out.model, out.group, nk=6, solver="stacked")
     assert not again.broken and max(again.residuals.values()) < 1e-13
-    if not rec.verification["near_kept"]:
-        assert "smallest level splitting" in rec.verification["note"]
+    assert rec.verification["near_kept"], rec.verification["note"]
 
 
 # ---------------------------------------------------------------------------

@@ -243,6 +243,44 @@ def aa_bilayer(d=0.15, c=30.0):
     return m
 
 
+def general_bilayer(rel, seed, x=0.13, y=0.27, d=0.1):
+    """Two square sheets at ``±d``, eight ``s`` orbitals each at a general point of ``p4mm``.
+
+    Every term is given a relative noise ``rel`` and then averaged with its image
+    under the mirror of the plane and with its Hermitian partner, so the noise
+    breaks the in-plane operations by about ``rel`` and keeps ``σ_h`` exact.
+    """
+    import itertools
+
+    rng = np.random.default_rng(seed)
+    sheet = sorted({(sx * a % 1.0, sy * b % 1.0) for a, b in ((x, y), (y, x))
+                    for sx in (1, -1) for sy in (1, -1)})
+    pos = [[px, py, z] for z in (d, -d) for px, py in sheet]
+    n, h = len(pos), len(sheet)
+    mirror = [(i + h) % n for i in range(n)]
+    lat = np.diag([1.0, 1.0, 6.0])
+    m = TBModel(Lattice(lat.tolist(), pos, periodic_dirs=[0, 1]))
+    cart = np.asarray(pos) @ lat
+    raw = {}
+    for i, j in itertools.product(range(n), repeat=2):
+        for R in itertools.product(range(-2, 3), repeat=2):
+            dist = np.linalg.norm(cart[j] + np.array([R[0], R[1], 0.0]) - cart[i])
+            if 1e-9 < dist < 1.1:
+                raw[(i, j, R)] = -np.exp(-1.5 * dist) * (1 + rel * rng.standard_normal())
+    m.set_onsite([0.0] * n)
+    done = set()
+    for i, j, R in sorted(raw):
+        neg = (-R[0], -R[1])
+        orbit = {(i, j, R), (j, i, neg), (mirror[i], mirror[j], R), (mirror[j], mirror[i], neg)}
+        if orbit & done:
+            continue
+        done |= orbit
+        amp = float(np.mean([raw[t] for t in orbit]))
+        for p, q, S in {min((p, q, S), (q, p, (-S[0], -S[1]))) for p, q, S in orbit}:
+            m.set_hop(amp, p, q, [S[0], S[1], 0])
+    return m
+
+
 def conjugate_p4mm(t=1.0, delta=0.3):
     """The two-site square cell whose fourfold **fixes** the sites, not swaps them.
 
@@ -1041,7 +1079,18 @@ def test_a_mirror_symmetric_bilayer_keeps_its_sigma_h():
     rows out of the plane measured on the decoupled stack at the two layers'
     heights.  On a substrate every position crosses the layer, and the pair is
     two ``A1`` at ``1a``.
+
+    The mirror keeps both halves of each pair it relates, ``{C4z, S4}`` and
+    ``{C2z, I}`` among them, also where a noise below the tolerance makes the
+    symmetry matrices of some be fitted over the whole mesh: the bilayer of
+    eight ``s`` orbitals a sheet at a general point, its terms given a noise of
+    ``1e-10`` that keeps ``σ_h`` exact, obeys all 32 to ``1.8e-10``, and each
+    member of such a pair is held to a matrix of its own form.
     """
+    noisy = tqg.realized_group(general_bilayer(1e-10, 0))
+    assert (noisy.group.number_str, len(noisy.operations)) == ("123.340", 32)
+    assert noisy.cross_check["outcome"] == "agree"
+
     free = tqg.realized_group(aa_bilayer())
     assert not isinstance(free, Refusal), str(free)
     assert (free.group.number_str, len(free.operations)) == ("123.340", 32)

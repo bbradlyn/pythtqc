@@ -251,7 +251,9 @@ class _MeasurementContext:
       translation's phase is absorbed into the intertwiner ``X``), which is why
       :func:`_validate_group` already shares one solve among the members of a
       class within a single call.  This lifts that same sharing to the whole
-      pipeline.
+      pipeline.  Where the sites are given, the key also holds the forms the
+      class's space may be fitted in, unless its own candidate meets the gate
+      and nothing is fitted.
 
     That the two environments share almost everything is not a coincidence: the
     substrate group is the ``R[2,2] = +1`` subgroup of the free-standing one and
@@ -308,9 +310,15 @@ class _MeasurementContext:
             self.rebuilds += 1
         return self.grid
 
-    def solved(self, key):
-        """The solution space already found for this k-action class, or ``None``."""
-        got = self.spaces.get(key)
+    def solved(self, key, *also):
+        """The solution space already found for this k-action class, or ``None``.
+
+        ``also`` are keys tried first, under which a space that answers for
+        ``key`` as well is kept.
+        """
+        got = next((self.spaces[k] for k in also if k in self.spaces), None)
+        if got is None:
+            got = self.spaces.get(key)
         if got is None:
             self.misses += 1
         else:
@@ -350,7 +358,7 @@ class _MeasurementContext:
 def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=None,
                     k_pts=None, include_antiunitary=True, keep_intertwiners=True,
                     window=None, solver="eigen", max_bytes=None, context=None,
-                    _floor=None) -> ValidatedGroup | Refusal:
+                    assignment=None, _floor=None) -> ValidatedGroup | Refusal:
     """Which operations of a group ``H(k)`` obeys, one residual each.
 
     Returned as :attr:`.._realized.RealizedGroup.validated`; the descent and the
@@ -427,6 +435,14 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
         function's behaviour bit for bit, and what comes back is identical
         either way: the solve is a deterministic function of the model, the
         k-set and ``tol``/``cut``/``window``/``solver``/``max_bytes``.
+    assignment : optional
+        The cell's sites and each operation's permutation of them, as
+        :func:`.._realized.realized_group` reads them.  Given, an operation
+        whose sifted matrices miss ``tol`` is fitted over the whole mesh among
+        the matrices carrying each site's states onto its image's under one of
+        the operations sharing its action on ``k``
+        (:func:`.._detector._find_intertwiners`' ``forms``), and each record's
+        ``fit`` says what that settled.  ``None`` (default) fits nothing.
 
     Returns
     -------
@@ -506,6 +522,24 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
     # itself exactly, so its residual is that of the unit matrix, 0.0, and never
     # the rounding of a member found numerically on a nearly degenerate spectrum
     identity = int(group._symmetries[_identity_position(group)].ind)
+    # the forms of each class's matrices, where the sites are given: for each
+    # of the class's operations, which pose one problem and share its space,
+    # the entries carrying a site's states onto its image's under it
+    forms = {}
+    if assignment is not None:
+        site_state = np.repeat(np.asarray(assignment.site_of_orbital, dtype=int),
+                               int(model.nspin))
+        image_of = np.asarray(assignment.permutations, dtype=int)
+        for position, sym in enumerate(group._symmetries):
+            action = group._k_action_of(sym)
+            if action is None:
+                continue
+            key = (np.round(np.asarray(action(probe), dtype=float), 10).tobytes(),
+                   bool(sym.time_reversal))
+            carried = site_state[:, None] == image_of[position][site_state][None, :]
+            known = forms.setdefault(key, [])
+            if not any(np.array_equal(carried, f) for f in known):
+                known.append(carried)
     for sym in group._symmetries:
         ind = int(sym.ind)
         if sym.time_reversal and not include_antiunitary:
@@ -525,16 +559,24 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
             # environment, which poses the identical in-plane actions.
             # `solved_on` stays THIS group's own first member either way, so the
             # record says which operation of the group that was asked about.
-            space = None if context is None else context.solved(key)
+            # the space depends on the forms it may be fitted in as well, except
+            # where the sift's own candidate meets the gate and none is fitted
+            class_forms = tuple(forms.get(key, ()))
+            cached = key + (b"".join(f.tobytes() for f in class_forms),)
+            space = None if context is None else context.solved(cached, key + (None,))
             if space is None:
                 space = _find_intertwiners(
                     model, action, k_pts, antiunitary=bool(sym.time_reversal), tol=tol,
                     cut=cut, window=window, solver=solver, degenerate_max_bytes=max_bytes,
-                    hamiltonians=grid_H, _floor=_floor)
+                    hamiltonians=grid_H, forms=class_forms, _floor=_floor)
                 if isinstance(space, Refusal):
                     return space            # the detector's memory limit, as it came
                 if context is not None:
-                    context.remember(key, space)
+                    # a space depends on the forms unless nothing was fitted and
+                    # its own candidate meets the gate
+                    alone = (space.fit == "" and space.dim
+                             and float(np.min(space.residuals)) <= float(tol))
+                    context.remember(key + (None,) if alone else cached, space)
             solved_class[key] = (ind, space)
         solved_on, space = solved_class[key]
         dims[ind] = space.dim
@@ -549,7 +591,8 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
                         "tol": float(tol), "cut": float(space.cut),
                         "basis_size": tuple(space.basis_size),
                         "escalations": tuple(space.escalations),
-                        "k_solve": int(space.k_solve), "solved_on": int(solved_on)}
+                        "k_solve": int(space.k_solve), "solved_on": int(solved_on),
+                        "fit": str(space.fit)}
         if space.dim == 0:
             disc.append({"ind": ind, "refuted_by": "no symmetry matrix",
                          "residual": np.inf})

@@ -1407,7 +1407,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
         nk = (int(verify_nk) if verify_nk is not None
               else max(2, int(round(float(validated.n_kpts) ** (1.0 / dim_k)))))
         again = _measure._validate_group(current, group, nk=nk, tol=vtol, keep_intertwiners=False,
-                                        max_bytes=budget)
+                                        max_bytes=budget, assignment=assignment)
         if isinstance(again, Refusal):
             return again                    # the detector's memory limit, as it came
         kept_now = {int(i) for i in again.indices}
@@ -1420,23 +1420,17 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
                              (i for i, c in classes.items() if c == "near")),
             "broken": tuple(int(i) for i in again.broken), "note": ""}
         if not verification["near_kept"]:
-            # The re-detection, which assumes no tensor structure, is a *second
-            # opinion*, and it has its own accuracy floor: the eigen route
-            # parametrizes on eigenvectors, which a level splitting `g` resolves
-            # only to `eps·‖H‖/g`, so a model with near-degenerate levels cannot
-            # be certified to machine precision by that route however symmetric
-            # it is.  The first opinion is `checks["covariance_residue"]`,
-            # measured directly with the operators the average was taken with,
-            # and it is the one that says whether the projection worked.
+            # The re-detection, which reads none of the operators the average
+            # was taken with, is a *second opinion*.  The first opinion is
+            # `checks["covariance_residue"]`, measured directly with those
+            # operators, and it is the one that says whether the projection
+            # worked.
             verification["note"] = (
                 f"measured again, the symmetrized model did not keep every near operation "
                 f"at {vtol:.3g}, while "
                 f"the covariance of the symmetrized model against the operators it was "
-                f"built with measures {checks.get('covariance_residue', float('nan')):.3g}. "
-                "Read off eigenvectors, the symmetry matrices measured again are good only "
-                "to eps*||H||/(smallest level splitting), a floor symmetrization does not "
-                "change, so the covariance against the operators is the measurement that "
-                "says whether the projection worked.")
+                f"built with measures {checks.get('covariance_residue', float('nan')):.3g}, "
+                "the measurement that says whether the projection worked.")
 
     # WHY, where no operation says it: multiplets measured within the declared
     # tolerance only, as the multiplet measurement handed in records it

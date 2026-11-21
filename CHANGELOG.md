@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- `realized_group` keeps an operation the Hamiltonian obeys within the tolerance in force
+  where it read it as broken: an `F23` crystal of `s` orbitals whose hoppings carry a
+  relative noise of `1e-11`, read with no precision declared, returns `F231'`, where it
+  returned `C21'`, and at a noise of `1e-10` `F231'` where it returned `P11'` with no
+  symmetry matrix found for any operation. Where the symmetry matrix found at a few
+  k-points misses the tolerance, or none is found there, and that does not prove the
+  operation broken, the operation is measured again by the matrix carrying each site's
+  orbitals onto its image's that fits best over the whole k-point mesh. What it returns for
+  a model without noise is unchanged.
 - `hsp_table` reads every high-symmetry point, one whose little group holds the identity
   alone included: there a set of bands carries the point's one irrep once for each band,
   which the table's `content` and `counts` now hold, `M1` at `M` for Haldane's model with
