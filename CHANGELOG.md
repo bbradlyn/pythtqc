@@ -52,6 +52,9 @@
   is listed first: at `4i` of `P4/mmm`, where a fourfold rotation carries one site onto
   the other and exchanges `B1` with `B2`, the site that read the other symbol reads the
   orbit's.
+- A tabulated k-point's reduced coordinates are returned in `[0, 1)`: a coordinate that is
+  zero reads `0`, where on some cells, a triclinic one among them, it read `1`. The point
+  is the same one.
 
 ## 0.1.0a3 — the second public version
 

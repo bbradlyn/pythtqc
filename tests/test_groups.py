@@ -1615,6 +1615,16 @@ def test_high_symmetry_points_names_the_tabulated_points_out_of_the_plane():
                                                           include_TR=False))
     assert list(broken) == ["GM", "M", "X"] and broken.missing == ("A", "R", "Z")
 
+    # a reduced coordinate is defined modulo 1 and is returned in [0, 1): on the
+    # centered rectangular layer written on a1 + 2 a2, where carrying the tables' S
+    # onto the cell leaves a zero just below 1, S is at (0, 1/2) and not (1, 1/2)
+    skewed = by_bond(*on_basis([[0.5, 0.7], [-0.5, 0.7]], [[0.0, 0.0]], [[1, 2], [0, 1]]),
+                     lambda i, j, d: -1.0 if abs(float(np.linalg.norm(d)) - 0.74 ** 0.5) < 1e-9
+                     else 0.0, reach=3)
+    carried = G.high_symmetry_points(G.realized_group(skewed).group)
+    assert {name: tuple(np.round(k, 12) + 0.0) for name, k in carried.items()} == {
+        "GM": (0.0, 0.0), "S": (0.0, 0.5), "Y": (0.5, 0.5)}
+
 
 # ---------------------------------------------------------------------------
 # meshes

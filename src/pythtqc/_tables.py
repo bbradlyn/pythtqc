@@ -557,7 +557,10 @@ def _table_kpoints(group: GroupData) -> dict:
 
     The irrep table's points, and, for a group without time reversal, the
     partners ``−k`` its elementary band representations list on their own
-    (:func:`_partner_points`).
+    (:func:`_partner_points`).  A reduced coordinate is defined modulo 1, and
+    each is returned in ``[0, 1)``: snapped to the fraction it is and then
+    reduced, so that a coordinate that is zero reads ``0`` whichever sign
+    rounding gave it, and never ``1``.
     """
     table = _spacegroup._irrep_table(group.number_str, group.spinor, group.magnetic)
     inv = np.linalg.inv(group._refUC.T)
@@ -571,7 +574,7 @@ def _table_kpoints(group: GroupData) -> dict:
         listed[irr.kpname] = np.asarray(irr.k, dtype=float)
         if irr.kpname in partner:                 # its partner -k, next to it
             listed[partner[irr.kpname]] = -listed[irr.kpname]
-    return {name: _snap_rational((inv @ _snap_rational(k)) % 1.0)
+    return {name: _snap_rational((inv @ _snap_rational(k)) % 1.0) % 1.0 + 0.0
             for name, k in listed.items()}
 
 
