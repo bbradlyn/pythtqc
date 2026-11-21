@@ -2270,8 +2270,10 @@ def test_the_anisotropic_square_descends_from_the_cell_the_isotropic_one_allows(
     written on a strongly skewed lattice basis it is read as on its cube's
     edges.  And with hexagonal boron nitride on such a basis, its centers off
     their fractions by the rounding of their conversion and a precision
-    declared: it is read with the group it has on any other basis.  With none
-    declared it is refused ``positions_not_exactly_symmetric``, the group named.
+    declared: it is read with the group it has on any other basis, and so it
+    is with one center displaced within the declared precision, where the
+    Hamiltonian is averaged over the group.  With none declared it is refused
+    ``positions_not_exactly_symmetric``, the group named.
     """
     low = G.realized_group(square(ty=-0.5), environment="free-standing",
                            characters={0: "s"}, cross_check=False)
@@ -2329,6 +2331,20 @@ def test_the_anisotropic_square_descends_from_the_cell_the_isotropic_one_allows(
     assert undeclared.context["group"].number_str == "156.50"
     assert undeclared.value == pytest.approx(2.06e-13, rel=0.01)
     assert "precision=" in undeclared.reason
+
+    # ... and with one center displaced by 1e-9 of the lattice constant and hoppings that
+    # depend on the bond's length, so that the declared precision makes the Hamiltonian
+    # exactly symmetric by averaging it over the group: the Bloch operators on the
+    # average's k-point mesh carry the phases of images that lie tens of zones away
+    def s_bond_length(i, j, d):
+        r = float(np.linalg.norm(d))
+        return -np.exp(-r) if round(r, 6) == 0.57735 and i != j else 0.0
+
+    displaced = by_bond(honeycomb, [[1 / 3 + 1e-9, 2 / 3], [2 / 3, 1 / 3]], s_bond_length,
+                        rows=[[7, 5], [4, 3]])
+    displaced.set_onsite([0.4, -0.4], mode="set")
+    assert read(displaced, precision=1e-8) == (
+        "P3m11'", "156.50", "GM1 + K3 + M1", [("1c", "A1"), ("1b", "A1")])
 
 
 @pytest.mark.slow

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `realized_group` with a declared precision returns the group of a layer written on a
+  strongly skewed lattice basis whose Hamiltonian it makes exactly symmetric:
+  hexagonal boron nitride on `7 a1 + 5 a2, 4 a1 + 3 a2`, one center displaced by `1e-9` of
+  the lattice constant and `precision=1e-8` declared, returns `P3m11'`, where it was
+  refused `rep_not_covariant`. The phases of the symmetry operators at images tens of
+  Brillouin zones away are formed exactly from the stored positions and rounded once,
+  where they missed by up to `1e-12` and left the averaged Hamiltonian with hoppings that
+  break its symmetry at that size.
 - Every set of stable real-space invariants is held by name: `theta_Z` maps each
   integer-valued invariant's name to its value, `theta_Zn` each one valued modulo n to a
   `ModularValue` with `value` and `modulus`, `mo.theta_Zn["theta_5"].value`. A printed

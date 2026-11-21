@@ -8,8 +8,11 @@ dimensional characters of a group and its subgroups.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+import functools
 import inspect
 import itertools
+import math
+from fractions import Fraction
 from typing import Any
 
 import numpy as np
@@ -1120,8 +1123,8 @@ def bloch_operator(model, group, assignment, op, D, k, *, k_out=None, tol=1e-9,
     p = next(i for i, s in enumerate(group._symmetries) if int(s.ind) == int(op.ind))
     site_of = np.asarray(assignment.site_of_orbital, dtype=int)
 
-    # row positions from the operation's action on each row's PREIMAGE orbital
-    row_pos = np.zeros((norb, 3))
+    # each row's phase is read off the image of its PREIMAGE orbital
+    preimage = []
     thresh = max(tol, 1e-12) * max(1.0, float(np.abs(D).max()))
     for b in range(norb):
         block = D[b * nspin:(b + 1) * nspin, :]
@@ -1137,7 +1140,7 @@ def bloch_operator(model, group, assignment, op, D, k, *, k_out=None, tol=1e-9,
                 raise ValueError(f"row block {b} of D has preimages whose images differ by a "
                                  f"non-lattice vector {d}: the site permutation and the matrix "
                                  "disagree")
-        row_pos[b] = base
+        preimage.append(int(cols[0]) // nspin)
         if check:
             a = int(cols[0]) // nspin
             shift = np.asarray(assignment.lattice_shift[p, site_of[a]], dtype=float)
@@ -1149,10 +1152,93 @@ def bloch_operator(model, group, assignment, op, D, k, *, k_out=None, tol=1e-9,
                     "and the representation describe different site permutations")
 
     glob = np.exp(-2j * np.pi * (kp3 @ trans))
-    lam = np.exp(2j * np.pi * (n3 @ row_pos.T))              # (Nk, norb)
+    if n3.any():
+        lam = np.exp(2j * np.pi * _exact_dot(n3, _image_split(rot, trans, pos3, preimage)))
+    else:
+        lam = np.ones((n3.shape[0], norb), dtype=complex)    # k_out = k'
     lam = np.repeat(lam, nspin, axis=1)                      # (Nk, nstate)
     U = glob[:, None, None] * lam[:, :, None] * D[None, :, :]
     return U[0] if squeeze else U
+
+
+def _image_positions(rot, trans, pos3, preimage) -> list:
+    r"""The position ``A·τ_a + t`` of each row's preimage orbital ``a``, as an exact rational.
+
+    The rotation's entries, the translation and the centers are the binary
+    numbers they are stored as, so the position is formed exactly.  In
+    floating point the products ``A·τ_a`` round at the size of the rotation's
+    entries, which reach tens on a strongly skewed lattice basis, and the
+    integer ``k' − k_out`` multiplies that rounding again.
+    """
+    A = [[Fraction(float(x)) for x in row] for row in np.asarray(rot, dtype=float)]
+    t = [Fraction(float(x)) for x in np.asarray(trans, dtype=float)]
+    seen = {}
+    for a in set(preimage):
+        tau = [Fraction(float(x)) for x in pos3[a]]
+        seen[a] = [t[i] + sum(A[i][j] * tau[j] for j in range(len(tau))) for i in range(len(t))]
+    return [seen[a] for a in preimage]
+
+
+#: The power of two :func:`_image_split` splits an exact position at: integers
+#: dotted with multiples of ``2**-26`` give a binary number of at most 53 bits
+#: while the sum of the products' magnitudes stays under ``2**27``.
+_DOT_SPLIT = 2 ** 26
+
+
+def _image_split(rot, trans, pos3, preimage) -> tuple:
+    r"""Each row's image position ``A·τ_a + t``, split for :func:`_exact_dot`.
+
+    The split depends only on the operation, the centers and the preimages, so
+    it is formed once for each and returned again on a repeated call.
+
+    Returns
+    -------
+    tuple of two numpy.ndarray
+        Read-only, each of shape ``(len(preimage), d)``: the multiple of
+        ``2**-26`` at or below each exact position, and the rest.
+    """
+    arrays = tuple((x.tobytes(), x.shape) for x in
+                   (np.ascontiguousarray(y, dtype=float) for y in (rot, trans, pos3)))
+    return _image_split_of(arrays, tuple(int(a) for a in preimage))
+
+
+@functools.lru_cache(maxsize=512)
+def _image_split_of(arrays, preimage) -> tuple:
+    """:func:`_image_split` on the stored bytes and shapes of the rotation, translation and centers."""
+    rot, trans, pos3 = (np.frombuffer(b, dtype=float).reshape(s) for b, s in arrays)
+    positions = _image_positions(rot, trans, pos3, preimage)
+    split = [[Fraction(math.floor(x * _DOT_SPLIT), _DOT_SPLIT) for x in p] for p in positions]
+    hi = np.array([[float(h) for h in p] for p in split])
+    lo = np.array([[float(x - h) for x, h in zip(p, q)] for p, q in zip(positions, split)])
+    hi.flags.writeable = False
+    lo.flags.writeable = False
+    return hi, lo
+
+
+def _exact_dot(n, parts) -> np.ndarray:
+    r"""``n · x`` for integer vectors ``n`` and exact rationals ``x``, formed exactly and rounded once.
+
+    Each ``x`` is split into the multiple of ``2**-26`` at or below it and the
+    rest.  The first part's dot product with ``n`` is exact in floating point;
+    the second part is under ``2**-26``, and its product rounds far below the
+    one rounding of the sum.
+
+    Parameters
+    ----------
+    n : array, shape (Nk, d)
+        Integer vectors, stored as floats.
+    parts : tuple of two numpy.ndarray
+        The two parts of the positions, each of shape ``(norb, d)``, as
+        :func:`_image_split` returns them, ``sum_i |n_i x_i|`` under ``2**27``.
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(Nk, norb)``.
+    """
+    hi, lo = parts
+    n = np.asarray(n, dtype=float)
+    return n @ hi.T + n @ lo.T
 
 
 # --------------------------------------------------------------------------
