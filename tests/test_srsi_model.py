@@ -38,6 +38,7 @@ from pythtqc import groups as tqg
 from pythtqc import sewing as tqw
 from pythtqc import srsi as tqr
 from pythtqc import _spacegroup
+from pythtqc import _tables
 
 import tqc_models as tqm                                            # noqa: F401
 from conftest import FKM_BOND, fkm_regime, km_z2_regime
@@ -49,12 +50,12 @@ _POSITION = re.compile(r"^(\d+)([a-zA-Z])\((.*)\)$")
 
 
 class _Key:
-    """The three fields ``ebr_data`` reads: a group record with no Hamiltonian."""
+    """The three fields ``_tables._ebr_data`` reads: a group record with no Hamiltonian."""
 
     def __init__(self, number_str, spinor, magnetic=True):
         self.number_str = number_str
         self.spinor = bool(spinor)
-        self.magnetic = bool(magnetic)
+        self._magnetic = bool(magnetic)
 
 
 # ---------------------------------------------------------------------------
@@ -137,17 +138,17 @@ def test_wyckoff_tables_reads_the_letters_the_tables_are_keyed_by(
         sites = tqg.wyckoff_sites_tables(group)
         # a gate that is 1e5 tighter than `wyckoff_sites_tables`'s own
         # WYCKOFF_REFERENCE_TOL: machine-exact, not merely within tolerance
-        assert sites and all(site.residual < 1e-9 for site in sites), name
+        assert sites and all(site._residual < 1e-9 for site in sites), name
 
     # the diamond's sites in the tables' setting, and what the other letter
     # would cost: `8b` is a different orbit here, not the same one relabelled
     # (the gate is WYCKOFF_REFERENCE_TOL = 1e-4)
     group = fkm_undistorted.group
-    references = [site.reference for site in tqg.wyckoff_sites_tables(group)]
+    references = [site._reference for site in tqg.wyckoff_sites_tables(group)]
     positions = sorted(tuple(np.round(reference, 6)) for reference in references)
     assert positions == [(0.125, 0.125, 0.125), (0.875, 0.875, 0.875)]
     arms = {position["letter"]: position["arms"]
-            for position in _spacegroup._pyxtal_wyckoff(int(group.sg_number))[0]}
+            for position in _spacegroup._pyxtal_wyckoff(int(group._sg_number))[0]}
     assert _spacegroup._variety_residual(arms["a"], references).max() < 1e-9
     assert _spacegroup._variety_residual(arms["b"], references) == pytest.approx(
         [0.25, 0.25], abs=1e-12)
@@ -173,17 +174,17 @@ def test_the_distorted_orbit_sits_on_the_6c_line_between_3a_and_3b(fkm_strong):
     """
     _model, group, assignment, _validated, rep = fkm_strong
     sites = tqg.wyckoff_sites_tables(group)
-    orbit_sites = [site for site in sites if site.letter not in site.closure]
+    orbit_sites = [site for site in sites if site.wyckoff not in site.slides_onto]
     assert len(orbit_sites) == 2
     for site in orbit_sites:
-        assert (site.letter, site.multiplicity, site.n_free) == ("c", 6, 1)
-        assert site.closure == ("a", "b")
-        assert site.varieties == ("c", "h", "i")
-    assert sorted(round(float(site.reference[2]), 6) for site in orbit_sites) == \
+        assert (site.wyckoff, site.n_free) == ("6c", 1)
+        assert site.slides_onto == ("3a", "3b")
+        assert site._varieties == ("c", "h", "i")
+    assert sorted(round(float(site._reference[2]), 6) for site in orbit_sites) == \
         [0.125, 0.875]
     # the decorating species sits at 3a, which is its own closure
-    decoration = [site for site in sites if site.letter in site.closure]
-    assert [(site.letter, site.closure) for site in decoration] == [("a", ("a",))]
+    decoration = [site for site in sites if site.wyckoff in site.slides_onto]
+    assert [(site.wyckoff, site.slides_onto) for site in decoration] == [("3a", ("3a",))]
     assert assignment.wyckoff_tables == ("c", "c")
 
     table = rep.characters
@@ -232,7 +233,7 @@ def test_pyxtal_is_in_the_tables_setting_for_every_one_of_the_230_space_groups()
 
     offenders, checked, groups = [], 0, 0
     for sg in range(1, 231):
-        data = tqg.ebr_data(_Key(str(sg), False, magnetic=False))
+        data = _tables._ebr_data(_Key(str(sg), False, magnetic=False))
         assert data, (sg, data)
         positions = []
         for _name, position in data["ebrs"]:
@@ -265,7 +266,7 @@ def test_a_drifted_centre_reads_as_the_general_position_rather_than_refusing():
     ``orbit_not_localizable``.  The gate stays as a guard against a ``pyxtal``
     list with no general position; this test is what says it is a guard.
 
-    ``site.residual`` is **not** what says the centre drifted: the general
+    ``site._residual`` is **not** what says the centre drifted: the general
     position's projector is the zero matrix, so the residual is 0.0 for any
     point whatsoever.  What the drift cost is measured against ``8a``'s own
     arms, where the point is 0.18 away in reduced coordinates -- 1.8e3 times the
@@ -280,19 +281,19 @@ def test_a_drifted_centre_reads_as_the_general_position_rather_than_refusing():
     out = tqg.wyckoff_sites_tables(group, [[0.03, 0.11, 0.27]])
     assert out and len(out) == 1, str(out)
     site = out[0]
-    assert (site.letter, site.multiplicity, site.n_free) == ("i", 192, 3)
-    assert site.closure == ("a", "b", "c", "d"), (
+    assert (site.wyckoff, site.n_free) == ("192i", 3)
+    assert site.slides_onto == ("8a", "8b", "16c", "16d"), (
         "every position the tables list EBRs at is on the closure of the general one, "
         "and the general one is not among them")
     assert "wyckoff_unresolved" in tqg.wyckoff_sites_tables.__doc__
     # what drifting cost: the point is no longer on the maximal variety
     arms = {position["letter"]: position["arms"]
-            for position in _spacegroup._pyxtal_wyckoff(int(group.sg_number))[0]}
-    drifted = float(_spacegroup._variety_residual(arms["a"], [site.reference])[0])
+            for position in _spacegroup._pyxtal_wyckoff(int(group._sg_number))[0]}
+    drifted = float(_spacegroup._variety_residual(arms["a"], [site._reference])[0])
     assert drifted > tqg.WYCKOFF_REFERENCE_TOL, drifted
     assert drifted == pytest.approx(0.18, abs=1e-12)
     on_site = _spacegroup._variety_residual(
-        arms["a"], [s.reference for s in tqg.wyckoff_sites_tables(group)])
+        arms["a"], [s._reference for s in tqg.wyckoff_sites_tables(group)])
     assert on_site.max() < 1e-9, on_site
 
 
@@ -446,7 +447,7 @@ def test_the_safety_gate_can_tell_a_setting_problem_from_a_modelling_one(
     ``b`` is exactly the disagreement the gate names.
     """
     _model, group, _assignment, _validated, _rep = lin3g_declared_cross_checked
-    data = tqg.ebr_data(group)
+    data = _tables._ebr_data(group)
     labels = list(data["labels_physics_convention"])
     matrix = np.asarray(data["matrix"], dtype=int)
     points = ("GM", "M", "X")

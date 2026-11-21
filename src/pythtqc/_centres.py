@@ -37,7 +37,7 @@ def _position_defect(model, group, assignment, ops):
     first = {}
     for a in range(int(model.norb)):
         first.setdefault(int(site_of[a]), a)
-    pos_of_ind = {int(s.ind): i for i, s in enumerate(group.symmetries)}
+    pos_of_ind = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     worst = 0.0
     for ind, sym in ops.items():
         p = pos_of_ind[int(ind)]
@@ -159,7 +159,7 @@ def _assigned_sites(model, group, assignment) -> _SiteFrame:
     site one the projection moves -- so that the assignment's permutations and
     lattice shifts are the action :func:`_symmetric_sites` reads.
     """
-    lattice, points, padded = _pad_cell(model, group.vacuum_length, lattice=group.lattice)
+    lattice, points, padded = _pad_cell(model, group._vacuum_length, lattice=group._lattice)
     return _sites_frame(model, lattice, points, padded, assignment.site_orbitals)
 
 

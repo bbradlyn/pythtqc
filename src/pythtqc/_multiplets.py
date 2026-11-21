@@ -72,7 +72,7 @@ def _slot_order(model, group, assignment, atoms, spaces, *, tol=ZERO):
     nspin = int(model.nspin)
     orbit_of = np.asarray(assignment.orbit_of_site, dtype=int)
     perms = np.asarray(assignment.permutations, dtype=int)
-    pos_of_ind = {int(s.ind): i for i, s in enumerate(group.symmetries)}
+    pos_of_ind = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     ref = {}
     for s in range(len(atoms)):
         ref.setdefault(int(orbit_of[s]), s)
@@ -224,7 +224,7 @@ def _site_multiplets(model, group, assignment, spin, validated, declared=None, t
     """
     site_orbs = tuple(tuple(int(o) for o in orbs) for orbs in assignment.site_orbitals)
     atoms = _atoms_of_site(site_orbs, spin)
-    pos_of_ind = {int(s.ind): i for i, s in enumerate(group.symmetries)}
+    pos_of_ind = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     if declared is not None:
         if (isinstance(declared, SiteMultiplets)
                 and tuple(declared._site_orbitals) == site_orbs):
@@ -333,7 +333,7 @@ def _site_multiplets(model, group, assignment, spin, validated, declared=None, t
     glueable = {int(ind) for ind, rec in coarse.items() if rec["realizable"]}
     # the noise floors of the weights and characters read below
     link, agree = noise_floor(ZERO, tol), noise_floor(CHARACTER, tol)
-    syms = group.symmetries
+    syms = group._symmetries
     # the operations a site's own characters are read under: the unitary ones
     # that fix it, among those the multiplets are about
     fixing_of = {int(s): [int(ind) for ind in spaces if int(ind) in glueable
@@ -998,8 +998,8 @@ def _multiplet_blocks(model, group, assignment, spin, validated, layout, positio
     larger than its exact default (:attr:`SiteMultiplets._tol`,
     :func:`.._tolerance.noise_floor`).
     """
-    syms = group.symmetries
-    prod = group.get_product_table(get_diff=False)
+    syms = group._symmetries
+    prod = group._get_product_table(get_diff=False)
     ident = _identity_position(group)
     kept = list(positions)
     eps = getattr(layout, "_tol", None)
@@ -1177,7 +1177,7 @@ def _ansatz_defects(model, group, assignment, validated, positions, *,
     and an operation is realizable when *some* branch measured is, and
     ``orientation`` says which.
 
-    ``positions`` are indices into ``group.symmetries``.  ``S(g)`` on a
+    ``positions`` are indices into ``group._symmetries``.  ``S(g)`` on a
     one-dimensional multiplet is that operation's own lift in pythtb's
     convention (:func:`_lift_of`) — there is no override of the lift, because
     an operation represented by some other SU(2) element is a different
@@ -1222,7 +1222,7 @@ def _ansatz_defects(model, group, assignment, validated, positions, *,
     eps = getattr(layout, "_tol", None)
     if tol is None:
         tol = noise_floor(ANSATZ_GATE, eps)
-    syms = group.symmetries
+    syms = group._symmetries
     positions = list(positions)
     cperm = _channel_perms(model, assignment, syms, positions, layout, spin)
     if isinstance(cperm, Refusal):
@@ -1409,7 +1409,7 @@ def _own_form_spaces(model, group, assignment, validated, positions, *, spin=Non
     with no measured space, or a space past the read-off's own ceiling, is
     absent from both: nothing was measured, and it is read as it stands.
     """
-    syms = group.symmetries
+    syms = group._symmetries
     nstate = int(model.nstate)
     spinful = ((int(model.nspin) == 2 or spin is not None)
                and bool(getattr(group, "spinor", True)))
@@ -1580,7 +1580,7 @@ def _spin_lift_defects(model, group, validated, positions, *, spin=None, tol=Non
     operation passes where either does, as in :func:`_ansatz_defects`; an
     antiunitary operation's lift is its unitary part's times time reversal's
     ``iσ_y``, as :func:`_lift_of` gives it.  ``positions`` index
-    ``group.symmetries``.  The states are paired as pythtb stores a spinful
+    ``group._symmetries``.  The states are paired as pythtb stores a spinful
     model's, ``2·orbital + spin``, or as the declared
     :class:`..spin.SpinBasis` ``spin`` pairs them; a spinless model with no
     declared basis has no spin factor to test, and nothing is returned for it.
@@ -1608,7 +1608,7 @@ def _spin_lift_defects(model, group, validated, positions, *, spin=None, tol=Non
     gate = noise_floor(ANSATZ_GATE, tol)
     singular = noise_floor(SINGULAR, tol)
     npair = int(order.size) // 2
-    syms = group.symmetries
+    syms = group._symmetries
     out = {}
     for p in positions:
         sym = syms[p]

@@ -23,7 +23,7 @@ r = tqc.realized_group(km2, typat=[0, 1],       # typat: the type of each atom -
 model, group, assignment, validated, rep = r
 sites = tqc.wyckoff_sites_tables(group, assignment.site_positions)
 print(f"#{group.number_str} {group.name}, orbitals at Wyckoff "
-      + " and ".join(f"{s.multiplicity}{s.letter}" for s in sites))
+      + " and ".join(s.wyckoff for s in sites))
 #  #156.50 P3m11', orbitals at Wyckoff 1c and 1b
 ```
 

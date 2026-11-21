@@ -7,9 +7,11 @@ group, and a mesh that respects the group.
 from __future__ import annotations
 
 import copy
+from dataclasses import dataclass, field
 from functools import lru_cache
 import itertools
 import re
+from typing import Any
 
 import numpy as np
 
@@ -17,20 +19,22 @@ from . import _sitechars
 from . import _spacegroup
 from .refusal import InternalError, Refusal
 from ._tolerance import (
-    WYCKOFF_REFERENCE_TOL, _CHAR_TOL, _LATTICE_TOL, _PHASE_REAL_TOL, _SU2_TOL)
+    LABEL_TOL, WYCKOFF_REFERENCE_TOL, _CHAR_TOL, _KGRID_KTOL, _LATTICE_TOL,
+    _PHASE_REAL_TOL, _SU2_TOL)
 from ._text import _point_text
 from ._spacegroup import (
-    GroupData, IrrepContent, KGrid, LittleGroup, OrbitalAssignment, SiteReference,
-    _EBRTransportError, _GENERIC_PARAMETER, _centering, _in_tables_cell, _is_reciprocal,
-    _is_translation, _lattice_not_descended, _letters_on_closure, _magnetic_type,
-    _pad_cell, _pyxtal_wyckoff, _reference_operations, _refuse_no_tables,
-    _sites_and_typat, _snap_rational, _variety_residual, _wyckoff_setting_audit,
-    tables_status, wyckoff_positions_spglib)
+    GroupData, IrrepContent, KGrid, LittleGroup, OrbitalAssignment, SiteReference, Term,
+    _EBRTransportError, _GENERIC_PARAMETER, _SiteReading, _centering, _in_tables_cell,
+    _is_reciprocal, _is_translation, _lattice_not_descended, _letters_on_closure,
+    _magnetic_type, _pad_cell, _pyxtal_wyckoff, _reference_operations, _refuse_no_tables,
+    _require_group, _sites_and_typat, _snap_rational, _variety_residual,
+    _wyckoff_positions_spglib, _wyckoff_setting_audit, _written_site_symmetry,
+    tables_status)
 
 __all__ = ["kpoint_of_label", "ebr_rows", "wyckoff_sites_tables", "little_group",
            "HighSymmetryPoints", "high_symmetry_points", "corep_table",
-           "identify_from_characters", "ebr_data", "indicator_group",
-           "decompose_ebrs", "k_grid"]
+           "identify_from_characters", "ebr_data", "EBRData", "EBRConvention",
+           "indicator_group", "decompose_ebrs", "k_grid"]
 
 
 def kpoint_of_label(label: str) -> str:
@@ -114,21 +118,44 @@ def ebr_rows(group) -> dict | Refusal:
     Returns
     -------
     dict or Refusal
-        ``{key: {corep: multiplicity}}``, the zeros dropped, each key an
-        elementary band representation at its Wyckoff position,
-        ``"-E1↑G(2)@1a(6mm1',6mm)"``.  A ``Refusal`` in its place is falsy and
-        names what stopped the call.
+        ``{(irrep, wyckoff): {corep: multiplicity}}``, the zeros dropped, in
+        the order the tables list the elementary band representations: each
+        key the site irrep it is induced from and its Wyckoff position,
+        ``("-E1", "1a")``, so that ``rows["-E1", "1a"]`` is one row.  A
+        ``Refusal`` in its place is falsy and names what stopped the call.
 
     Refusals
     --------
+    A refusal handed in as ``group`` is returned as it is.
+
     ``ebr_tables`` / ``irrep_tables`` / ``ebr_convention``
         no elementary band representations of this group in the tables
         installed, or none that can be read in this package's convention.
+
+    Raises
+    ------
+    TypeError
+        ``group`` is not a group: ``r`` or ``r.rep`` in its place, or
+        anything else.
+    """
+    _require_group("ebr_rows", group)
+    rows = _ebr_rows(group)
+    if isinstance(rows, Refusal):
+        return rows
+    return {(_ebr_irrep(key.split("@", 1)[0]), _wyckoff_letter(key.split("@", 1)[1])): content
+            for key, content in rows.items()}
+
+
+def _ebr_rows(group) -> dict | Refusal:
+    """Each elementary band representation's coreps, keyed by its name and position as the list writes them.
+
+    ``{"-E1↑G(2)@1a(6mm1',6mm)": {corep: multiplicity}}``, the zeros dropped,
+    in the list's order; the refusals of :func:`_ebr_data`.
     """
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
-    data = ebr_data(group)
+    data = _ebr_data(group)
     if isinstance(data, Refusal):
         return data
     out = {}
@@ -137,6 +164,11 @@ def ebr_rows(group) -> dict | Refusal:
         out[f"{name}@{wy}"] = ordered_content(
             {lab: int(v) for lab, v in zip(labels, col) if v})
     return out
+
+
+def _ebr_irrep(name: str) -> str:
+    """``"-E1↑G(2)" → "-E1"``: the site irrep an elementary band representation is induced from."""
+    return str(name).split("↑")[0]
 
 
 def _wyckoff_letter(position: str) -> str:
@@ -158,7 +190,7 @@ def _bands_spanned(name: str) -> int:
 def wyckoff_sites_tables(
         group: GroupData, positions=None, *,
         position_tol: float = WYCKOFF_REFERENCE_TOL) -> tuple | Refusal:
-    """The Wyckoff position of each site, lettered in the tables' setting, the one every table is read with.
+    """The Wyckoff position of each site in the tables' setting, the one every table is read with.
 
     A letter is a table key, and settings disagree about it: the Fu–Kane–Mele
     diamond's orbit is ``8a`` here and ``8b`` in spglib's setting, and a site
@@ -169,22 +201,21 @@ def wyckoff_sites_tables(
     Parameters
     ----------
     group : GroupData
-        The group, ``realized_group(model).group``.  A grey group's positions
-        are those of its unitary subgroup.
+        The group, ``r.group`` of what ``realized_group`` returns.  A grey
+        group's positions are those of its unitary subgroup.
     positions : array, shape (n, 3), optional
         Points in reduced coordinates of the group's three-dimensional cell.
-        Default: the points the group was found on,
-        :attr:`GroupData.site_positions`.
-    position_tol : float, optional
+        Default: the points the group was found on, the model's sites and any
+        species added to its cell.
+    position_tol : float, default 1e-4
         How far a point may sit from a position and lie on it, in reduced
-        coordinates of the tables' conventional cell.  Default
-        :data:`WYCKOFF_REFERENCE_TOL`, ``1e-4``.
+        coordinates of the tables' conventional cell.
 
     Returns
     -------
     tuple of SiteReference or Refusal
-        One per point: its letter and multiplicity, its free parameters, and
-        the positions an orbital confined there can be moved to.  A
+        One per point: its Wyckoff position, ``"8a"``, its free parameters,
+        and the positions an orbital confined there can be moved to.  A
         ``Refusal`` in its place is falsy.
 
     Refusals
@@ -195,20 +226,47 @@ def wyckoff_sites_tables(
         The group has no transformation to the tables' conventional cell.
     ``wyckoff_setting``
         ``pyxtal``'s list of the group's positions is not written in the
-        tables' setting, so no letter would be a table key.
+        tables' setting, so no position would be read in it.
     ``wyckoff_unresolved``
         A point lies on no position within ``position_tol``; the refusal names
         the nearest and its distance.
     ``ebr_tables``, ``irrep_tables``, ``ebr_convention``
-        From :func:`ebr_data`, whose positions the letters are checked
+        From :func:`ebr_data`, whose positions the sites are checked
         against.
+
+    Raises
+    ------
+    TypeError
+        ``group`` is not a group: ``r`` or ``r.rep`` in its place, or
+        anything else.
 
     Examples
     --------
     >>> from pythtb.models import fu_kane_mele                         # doctest: +SKIP
     >>> r = realized_group(fu_kane_mele(1.0, 0.125, [0, 0, 0, 0]))     # doctest: +SKIP
-    >>> [(s.multiplicity, s.letter) for s in wyckoff_sites_tables(r.group)]  # doctest: +SKIP
-    [(8, 'a'), (8, 'a')]
+    >>> [s.wyckoff for s in wyckoff_sites_tables(r.group)]             # doctest: +SKIP
+    ['8a', '8a']
+    """
+    _require_group("wyckoff_sites_tables", group)
+    read = _sites_in_tables_setting(group, positions, position_tol=position_tol)
+    if isinstance(read, Refusal):
+        return read
+    multiplicity = {p["letter"]: int(p["multiplicity"])
+                    for p in _pyxtal_wyckoff(int(group._sg_number))[0]}
+    return tuple(SiteReference(
+        wyckoff=f"{int(s.multiplicity)}{s.letter}",
+        slides_onto=tuple(f"{multiplicity[letter]}{letter}" for letter in s.closure),
+        n_free=s.n_free, position=s.position, _varieties=s.varieties, _index=s.index,
+        _reference=s.reference, _residual=s.residual) for s in read)
+
+
+def _sites_in_tables_setting(group: GroupData, positions=None, *,
+                             position_tol: float = WYCKOFF_REFERENCE_TOL
+                             ) -> tuple | Refusal:
+    """Each point's Wyckoff position in the tables' setting, as the package reads it.
+
+    A :class:`_SiteReading` per point of ``positions`` (default the group's
+    own sites), with the refusals :func:`wyckoff_sites_tables` documents.
     """
     gate = _lattice_not_descended(group)
     if gate is not None:
@@ -219,7 +277,7 @@ def wyckoff_sites_tables(
                        "so there is no refUC/shiftUC to write positions in the "
                        "reference cell with",
                        context={"number_str": group.number_str})
-    data = ebr_data(group)
+    data = _ebr_data(group)
     if isinstance(data, Refusal):
         return data
     ebr_positions = []
@@ -235,7 +293,7 @@ def wyckoff_sites_tables(
 
     audit = group._wyckoff_audit.get("audit")
     if audit is None:
-        audit = _wyckoff_setting_audit(int(group.sg_number),
+        audit = _wyckoff_setting_audit(int(group._sg_number),
                                        _reference_operations(group),
                                        ebr_positions)
         group._wyckoff_audit["audit"] = audit
@@ -243,19 +301,19 @@ def wyckoff_sites_tables(
         bad = audit["offenders"][0]
         return Refusal(
             "wyckoff_setting",
-            f"pyxtal's Wyckoff list for space group {group.sg_number} is not written in "
+            f"pyxtal's Wyckoff list for space group {group._sg_number} is not written in "
             f"the setting #{group.number_str}'s own tables are: position "
             f"{bad['expected'] if bad['reason'] != 'multiplicity' else ''}{bad['letter']} "
             f"fails the {bad['reason']} check (measured {bad['measured']}, expected "
-            f"{bad['expected']}). Every Wyckoff letter this function would return is a "
-            "key into the wrong setting, so none is returned",
+            f"{bad['expected']}). Every Wyckoff position this call would return would be "
+            "read in the wrong setting, so none is returned",
             value=None if bad["measured"] is None else float(bad["measured"]),
             threshold=None if bad["expected"] is None else float(bad["expected"]),
-            context={"number_str": str(group.number_str), "sg": int(group.sg_number),
+            context={"number_str": str(group.number_str), "sg": int(group._sg_number),
                      "offenders": audit["offenders"], "audit": audit})
 
-    pyxtal_positions, _centering = _pyxtal_wyckoff(int(group.sg_number))
-    raw = (np.asarray(group.site_positions, dtype=float) if positions is None
+    pyxtal_positions, _centering = _pyxtal_wyckoff(int(group._sg_number))
+    raw = (np.asarray(group._site_positions, dtype=float) if positions is None
            else np.atleast_2d(np.asarray(positions, dtype=float)))
     reference = _in_tables_cell(group, raw)
 
@@ -272,7 +330,7 @@ def wyckoff_sites_tables(
                 "wyckoff_unresolved",
                 f"the position {np.round(x, 6).tolist()} is "
                 f"{np.round(x_ref, 6).tolist()} in #{group.number_str}'s reference cell "
-                f"and lies on no Wyckoff variety of space group {group.sg_number} there: "
+                f"and lies on no Wyckoff variety of space group {group._sg_number} there: "
                 f"the nearest is {nearest['multiplicity']}{nearest['letter']}, "
                 f"{float(residuals[nearest['letter']][i]):.3g} away in reduced "
                 f"coordinates. A centre that far off every orbit is a modelling defect",
@@ -283,11 +341,11 @@ def wyckoff_sites_tables(
                          "number_str": str(group.number_str)})
         hits.sort(key=lambda p: (p["n_free"], p["multiplicity"], p["letter"]))
         own = hits[0]
-        out.append(SiteReference(
+        out.append(_SiteReading(
             index=i, position=x, reference=x_ref, letter=own["letter"],
             multiplicity=own["multiplicity"], n_free=own["n_free"],
             varieties=tuple(p["letter"] for p in hits),
-            closure=_letters_on_closure(int(group.sg_number), own["letter"], listed,
+            closure=_letters_on_closure(int(group._sg_number), own["letter"], listed,
                                         float(position_tol)),
             residual=float(residuals[own["letter"]][i])))
     return tuple(out)
@@ -349,26 +407,26 @@ def _assign_orbitals(model, group: GroupData, *, typat=None,
     -----
     The orbit structure reported here is *measured* from the group's
     operations.  The letters are read beside it, in both settings: from
-    :func:`wyckoff_positions_spglib` per orbit and from
-    :func:`wyckoff_sites_tables` per site (left empty where the enumeration or
+    :func:`_wyckoff_positions_spglib` per orbit and from
+    :func:`_sites_in_tables_setting` per site (left empty where the enumeration or
     the reference cell was unavailable), with spglib's own per-site letter for
     the sites alone, in the group of the positions, alongside.
     """
-    tol = float(group.symprec if symprec is None else symprec)
-    lat, positions, _ = _pad_cell(model, group.vacuum_length, lattice=group.lattice)
-    if not np.allclose(lat, group.lattice, atol=1e-9):
+    tol = float(group._symprec if symprec is None else symprec)
+    lat, positions, _ = _pad_cell(model, group._vacuum_length, lattice=group._lattice)
+    if not np.allclose(lat, group._lattice, atol=1e-9):
         apart = float(np.abs(np.asarray(lat, dtype=float)
-                             - np.asarray(group.lattice, dtype=float)).max())
+                             - np.asarray(group._lattice, dtype=float)).max())
         raise ValueError(f"the model's cell, its vacuum included, is not the group's, "
                          f"{apart:.3g} apart: the group was built for another cell.")
     pos, site_orbs, species = _sites_and_typat(positions, typat, tol, lat)
     nsite = pos.shape[0]
-    nsym = len(group.symmetries)
+    nsym = len(group._symmetries)
 
     perm = np.full((nsym, nsite), -1, dtype=int)
     shift = np.zeros((nsym, nsite, 3), dtype=int)
     worst = 0.0
-    for g, sym in enumerate(group.symmetries):
+    for g, sym in enumerate(group._symmetries):
         images = pos @ np.asarray(sym.rotation, dtype=float).T + sym.translation
         for i in range(nsite):
             d = pos - images[i]
@@ -407,7 +465,7 @@ def _assign_orbitals(model, group: GroupData, *, typat=None,
             orbit_of[j] = idx
         orbits.append(tuple(members))
 
-    site_sym = tuple(tuple(int(group.symmetries[g].ind) for g in range(nsym) if perm[g, i] == i)
+    site_sym = tuple(tuple(int(group._symmetries[g].ind) for g in range(nsym) if perm[g, i] == i)
                      for i in range(nsite))
 
     # Wyckoff letters: irrep returns ONE representative per position, so a site may
@@ -418,7 +476,7 @@ def _assign_orbitals(model, group: GroupData, *, typat=None,
     supergroup = int(getattr(group, "_lattice_index", 1) or 1) > 1
     letters: list[str] = []
     wy = (Refusal("lattice_not_descended", "") if supergroup
-          else wyckoff_positions_spglib(group))
+          else _wyckoff_positions_spglib(group))
     for orb in orbits:
         if isinstance(wy, Refusal):
             letters.append("")
@@ -444,7 +502,7 @@ def _assign_orbitals(model, group: GroupData, *, typat=None,
     # not depend on it.
     ref_letters: tuple = ()
     if not supergroup:
-        sites_ref = wyckoff_sites_tables(group, pos)
+        sites_ref = _sites_in_tables_setting(group, pos)
         if not isinstance(sites_ref, Refusal):
             ref_letters = tuple(s.letter for s in sites_ref)
 
@@ -465,7 +523,7 @@ def _assign_orbitals(model, group: GroupData, *, typat=None,
     # operations.  The sites of one orbit have conjugate site groups and so one
     # name, which is read once per orbit.
 
-    unitary = {int(s.ind) for s in group.symmetries if not s.time_reversal}
+    unitary = {int(s.ind) for s in group._symmetries if not s.time_reversal}
     orbit_names = [_sitechars.point_group_symbol(
         group, [i for i in site_sym[int(orb[0])] if i in unitary]) for orb in orbits]
     site_names = tuple(orbit_names[int(orbit_of[i])] for i in range(nsite))
@@ -493,23 +551,21 @@ def little_group(group: GroupData, k) -> LittleGroup | Refusal:
     Parameters
     ----------
     group : GroupData
-        The group, ``realized_group(model).group``.
-    k : array, shape (dim_k,)
-        The point, in the model's reduced coordinates.  A layer takes a point
-        of its three-dimensional cell too, where it lies in the plane.
+        The group, ``r.group`` of what ``realized_group`` returns.
+    k : str or array, shape (dim_k,)
+        The point: a tabulated name, ``"X"``, one of those
+        :func:`high_symmetry_points` returns, or its coordinates in the
+        model's reduced coordinates.  A layer takes a point of its
+        three-dimensional cell too, where it lies in the plane.
 
     Returns
     -------
     LittleGroup or Refusal
-        Its unitary operations in index order, the columns a character vector
-        at ``k`` is written in, and those combined with time reversal, which
-        carry no characters; ``summary()`` prints it.  A ``Refusal`` in its
-        place is falsy.
-
-    Raises
-    ------
-    ValueError
-        ``k`` has neither ``dim_k`` components nor three.
+        Its operations, the indices of its unitary operations in index order,
+        the columns a character vector at ``k`` is written in, and those of
+        its operations combined with time reversal, which carry no
+        characters; ``summary()`` prints it.  A ``Refusal`` in its place is
+        falsy.
 
     Refusals
     --------
@@ -517,39 +573,72 @@ def little_group(group: GroupData, k) -> LittleGroup | Refusal:
 
     ``out_of_plane``
         A point with a component along a layer's vacuum, a direction its zone
-        does not have.
+        does not have, or the name of a tabulated point out of the layer's
+        plane.
+    ``tables_not_ready``
+        ``k`` is a name, and the group has no transformation to the tables'
+        conventional cell to carry the tabulated points into the model's.
+
+    Raises
+    ------
+    TypeError
+        ``group`` is not a group: ``r`` or ``r.rep`` in its place, or
+        anything else.
+    ValueError
+        ``k`` is a name the group does not tabulate, or has neither
+        ``dim_k`` components nor three.
+    """
+    _require_group("little_group", group)
+    k = _resolve_kpoint("little_group", group, k)
+    if isinstance(k, Refusal):
+        return k
+    return _little_group(group, k)
+
+
+def _little_group(group: GroupData, k, call: str = "little_group") -> LittleGroup | Refusal:
+    """The little group at coordinates ``k``, as :func:`little_group` documents it.
+
+    ``k`` has ``dim_k`` components, or three for a point of a layer's
+    three-dimensional cell; ``call`` names the public call in the
+    ``ValueError`` raised on any other number.
     """
     gate = _lattice_not_descended(group)
     if gate is not None:
         return gate
     k = np.asarray(k, dtype=float).ravel()
-    if k.size == 3 and group.dim_k != 3:
-        if not group.in_plane(k[None, :]):
+    if k.size == 3 and group._dim_k != 3:
+        if not group._in_plane(k[None, :]):
             return Refusal("out_of_plane",
                            f"k = {np.round(k, 6)} has a component out of the model's periodic "
                            f"plane (periodic directions {group.periodic_dirs}); a slab model "
                            f"has no dispersion there.",
-                           value=float(np.max(np.abs(k[list(group.vacuum_dirs)]))),
+                           value=float(np.max(np.abs(k[list(group._vacuum_dirs)]))),
                            threshold=0.0, context={"k": k, "periodic_dirs": group.periodic_dirs})
         k3 = k
-        k = group.k_from_3d(k3[None, :])[0]
-    elif k.size == group.dim_k:
-        k3 = group.k_to_3d(k[None, :])[0]
+        k = group._k_from_3d(k3[None, :])[0]
+    elif k.size == group._dim_k:
+        k3 = group._k_to_3d(k[None, :])[0]
+    elif group._dim_k == 3:
+        raise ValueError(f"{call}(): k has {k.size} components; pass 3, or a tabulated "
+                         "name.")
     else:
-        raise ValueError(f"k must have {group.dim_k} (or 3) components, got {k.size}")
+        raise ValueError(f"{call}(): k has {k.size} components; pass {group._dim_k}, or 3 "
+                         "for a point of the layer's three-dimensional cell, or a "
+                         "tabulated name.")
 
     uni, anti = [], []
-    for sym in group.symmetries:
+    for sym in group._symmetries:
         G = sym.transform_k(k3) - k3
         if not np.allclose(G, np.round(G), atol=1e-8):
             continue
         (anti if sym.time_reversal else uni).append(sym)
     uni.sort(key=lambda s: s.ind)
     anti.sort(key=lambda s: s.ind)
-    Gs = [np.round(s.transform_k(k3) - k3) for s in uni]
-    return LittleGroup(k=k, k3=k3, unitary=uni, antiunitary=anti,
-                       indices=tuple(int(s.ind) for s in uni),
-                       G=np.array(Gs) if Gs else np.zeros((0, 3)))
+    return LittleGroup(k=k, unitary=tuple(int(s.ind) for s in uni),
+                       antiunitary=tuple(int(s.ind) for s in anti),
+                       G={int(s.ind): np.round(s.transform_k(k3) - k3) for s in uni},
+                       _k3=k3, _unitary_operations=uni, _antiunitary_operations=anti,
+                       _group=group)
 
 
 def _table_kpoints(group: GroupData) -> dict:
@@ -562,9 +651,9 @@ def _table_kpoints(group: GroupData) -> dict:
     reduced, so that a coordinate that is zero reads ``0`` whichever sign
     rounding gave it, and never ``1``.
     """
-    table = _spacegroup._irrep_table(group.number_str, group.spinor, group.magnetic)
+    table = _spacegroup._irrep_table(group.number_str, group.spinor, group._magnetic)
     inv = np.linalg.inv(group._refUC.T)
-    partner = ({} if group.magnetic else
+    partner = ({} if group._magnetic else
                {base: arm for arm, base, _naming
                 in _partner_points(group.number_str, group.spinor)})
     listed: dict[str, np.ndarray] = {}
@@ -676,26 +765,28 @@ class HighSymmetryPoints(dict):
 
     Attributes
     ----------
-    missing : tuple of str
+    out_of_plane : tuple of str
         The tabulated points out of a layer's plane, ``A``, ``H`` and ``L`` of
-        a hexagonal group, which its zone does not have at any mesh: a symmetry data
-        vector read on this mapping alone is partial there.
+        a hexagonal group, which its zone does not have at any mesh: a symmetry
+        data vector read on this mapping alone is partial there.  Empty for a
+        crystal periodic in three directions.
     """
 
-    __slots__ = ("missing",)
+    __slots__ = ("out_of_plane",)
 
-    def __init__(self, points=(), *, missing=()):
+    def __init__(self, points=(), *, out_of_plane=()):
         super().__init__(points)
         #: The tabulated names out of the periodic plane.
-        self.missing = tuple(missing)
+        self.out_of_plane = tuple(out_of_plane)
 
     def summary(self) -> str:
         """The points, a line for each part, with the attribute that holds it."""
         lines = [f"{len(self)} point{'' if len(self) == 1 else 's'}, by name, in the model's "
                  "reduced coordinates   ([name])"]
         lines += [f"    {name} {_point_text(k)}" for name, k in self.items()]
-        if self.missing:
-            lines.append(f"  out of the layer's plane: {', '.join(self.missing)}   (.missing)")
+        if self.out_of_plane:
+            lines.append(f"  out of the layer's plane: {', '.join(self.out_of_plane)}   "
+                         "(.out_of_plane)")
         return "\n".join(lines)
 
 
@@ -714,14 +805,14 @@ def high_symmetry_points(group: GroupData) -> HighSymmetryPoints | Refusal:
     Parameters
     ----------
     group : GroupData
-        The group, ``realized_group(model).group``.
+        The group, ``r.group`` of what ``realized_group`` returns.
 
     Returns
     -------
     HighSymmetryPoints or Refusal
-        ``{name: k}``, each ``k`` with ``dim_k`` components; its ``missing``
-        names the tabulated points out of a layer's plane.  ``summary()``
-        prints it.  A ``Refusal`` in its place is falsy.
+        ``{name: k}``, each ``k`` with ``dim_k`` components; its
+        ``out_of_plane`` names the tabulated points out of a layer's plane.
+        ``summary()`` prints it.  A ``Refusal`` in its place is falsy.
 
     Refusals
     --------
@@ -730,12 +821,24 @@ def high_symmetry_points(group: GroupData) -> HighSymmetryPoints | Refusal:
     ``tables_not_ready``
         The group has no transformation to the tables' conventional cell, to
         carry their points into the model's coordinates.
+
+    Raises
+    ------
+    TypeError
+        ``group`` is not a group: ``r`` or ``r.rep`` in its place, or
+        anything else.
     """
+    _require_group("high_symmetry_points", group)
+    return _high_symmetry_points(group)
+
+
+def _high_symmetry_points(group: GroupData) -> HighSymmetryPoints | Refusal:
+    """The points :func:`high_symmetry_points` returns, Γ first and then by name."""
     points = _points_in_table_order(group)
     if isinstance(points, Refusal):
         return points
     return HighSymmetryPoints({name: points[name] for name in sorted(points, key=point_order)},
-                              missing=sorted(points.missing, key=point_order))
+                              out_of_plane=sorted(points.out_of_plane, key=point_order))
 
 
 def _points_in_table_order(group: GroupData) -> HighSymmetryPoints | Refusal:
@@ -752,13 +855,43 @@ def _points_in_table_order(group: GroupData) -> HighSymmetryPoints | Refusal:
     if not group._tables_ready:
         return Refusal("tables_not_ready", group._setup_note or "irrep tables are not set up "
                        "for this cell", context={"number_str": group.number_str})
-    out, missing = {}, []
+    out, out_of_plane = {}, []
     for name, k3 in _table_kpoints(group).items():
-        if group.in_plane(k3[None, :], atol=1e-9):
-            out[name] = group.k_from_3d(k3[None, :])[0]
+        if group._in_plane(k3[None, :], atol=1e-9):
+            out[name] = group._k_from_3d(k3[None, :])[0]
         else:
-            missing.append(name)
-    return HighSymmetryPoints(out, missing=missing)
+            out_of_plane.append(name)
+    return HighSymmetryPoints(out, out_of_plane=out_of_plane)
+
+
+def _resolve_kpoint(call: str, group: GroupData, k):
+    """The coordinates a call takes a k-point at, from its tabulated name or its coordinates.
+
+    ``k`` that is no ``str`` is returned as it is.  A name of
+    :func:`high_symmetry_points` is returned as its coordinates; the name of a
+    tabulated point out of a layer's plane returns the refusal
+    ``out_of_plane`` :func:`little_group` returns at its three-dimensional
+    coordinates; a refusal of :func:`high_symmetry_points` is returned; any
+    other name raises ``ValueError``, starting with ``call``, listing the
+    names.
+    """
+    if not isinstance(k, str):
+        return k
+    points = _high_symmetry_points(group)
+    if isinstance(points, Refusal):
+        return points
+    if k in points:
+        return points[k]
+    if k in points.out_of_plane:
+        refused = _little_group(group, _table_kpoints(group)[k], call=call)
+        if not isinstance(refused, Refusal):        # pragma: no cover - guard
+            raise InternalError(
+                f"{k} of #{group.number_str} is listed out of the layer's plane, and its "
+                "little group was read as a point of the plane. This is the package "
+                "failing, not a measurement about the model.")
+        return refused
+    raise ValueError(f"{call}(): {group.name} #{group.number_str} has no k-point named "
+                     f"{k!r}; pass one of {', '.join(points)}, or the point's coordinates.")
 
 
 def _same_point(k, tabulated, ktol) -> bool:
@@ -777,11 +910,11 @@ def _resolve_kpname(group: GroupData, lg: LittleGroup, kpname, ktol):
     if kpname is not None:
         return kpname
     for name, k3 in kmap.items():
-        if _same_point(lg.k3, k3, ktol):
+        if _same_point(lg._k3, k3, ktol):
             return name
     listed = {n: kmap[n] for n in sorted(kmap, key=point_order)}
-    avail = {n: np.round(group.k_from_3d(v[None, :])[0], 6)
-             for n, v in listed.items() if group.in_plane(v[None, :])}
+    avail = {n: np.round(group._k_from_3d(v[None, :])[0], 6)
+             for n, v in listed.items() if group._in_plane(v[None, :])}
     return Refusal(
         "kpoint_not_tabulated",
         f"k = {np.round(lg.k, 6)} is not one of the tabulated high-symmetry points of "
@@ -1406,7 +1539,7 @@ def _transported_table(group: GroupData, kpname: str, k3, ktol) -> dict | Refusa
     # A POINT -k THE IRREP TABLE DOES NOT LIST: its little group is the listed
     # point's, and its characters are the listed point's conjugated, each under
     # the partner label the EBR rows give the conjugate (`_partner_points`)
-    if not group.magnetic:
+    if not group._magnetic:
         for arm, base, naming in _partner_points(group.number_str, group.spinor):
             if kpname != arm:
                 continue
@@ -1416,12 +1549,12 @@ def _transported_table(group: GroupData, kpname: str, k3, ktol) -> dict | Refusa
             naming = dict(naming)
             return {naming[label]: {ind: complex(np.conj(c)) for ind, c in row.items()}
                     for label, row in rows.items()}
-    table = _spacegroup._irrep_table(group.number_str, group.spinor, group.magnetic)
+    table = _spacegroup._irrep_table(group.number_str, group.spinor, group._magnetic)
     sg = group._sg
     conjugated = kpname in _conjugated_kpoints(group.number_str, group.spinor,
-                                               group.magnetic)
+                                               group._magnetic)
     naming = dict(_transport_naming(group.number_str, group.spinor,
-                                    group.magnetic)[1])
+                                    group._magnetic)[1])
     k2 = np.round(np.asarray(k3, dtype=float), 5) % 1
     carried = _table_kpoints(group).get(kpname)
     out: dict[str, dict[int, complex]] = {}
@@ -1433,9 +1566,9 @@ def _transported_table(group: GroupData, kpname: str, k3, ktol) -> dict | Refusa
         if not _same_point(k3, carried, ktol):
             return Refusal(
                 "kpoint_not_tabulated",
-                f"the k-point {np.round(group.k_from_3d(np.asarray(k3, dtype=float)[None, :])[0], 6)} "
+                f"the k-point {np.round(group._k_from_3d(np.asarray(k3, dtype=float)[None, :])[0], 6)} "
                 f"is not the tabulated point {kpname} of #{group.number_str}, which is at "
-                f"{np.round(group.k_from_3d(carried[None, :])[0], 6)} in this cell's reduced "
+                f"{np.round(group._k_from_3d(carried[None, :])[0], 6)} in this cell's reduced "
                 f"coordinates.",
                 context={"kpname": kpname, "k": k2,
                          "number_str": str(group.number_str)})
@@ -1465,36 +1598,31 @@ def _transported_table(group: GroupData, kpname: str, k3, ktol) -> dict | Refusa
     return out
 
 
-def corep_table(group: GroupData, k, *, kpname=None, ktol=1e-5) -> dict | Refusal:
+def corep_table(group: GroupData, k) -> dict | Refusal:
     """The character table of the little group at a high-symmetry point: each corep's character on each unitary operation.
 
     The table measured characters are read against, in the package's
     convention for a lattice translation, so characters measured on the model
     compare with it directly; the points where that convention moves a label,
     or changes how time reversal glues the irreps, are named in
-    ``ebr_data(group)["convention"]``.  Operations combined with time reversal
+    ``ebr_data(group).convention``.  Operations combined with time reversal
     carry no characters.
 
     Parameters
     ----------
     group : GroupData
-        The group, ``realized_group(model).group``.
-    k : array, shape (dim_k,)
-        A tabulated point, in the model's reduced coordinates, as
-        :func:`high_symmetry_points` gives it.
-    kpname : str, optional
-        The point's tabulated name, taken as given instead of found from
-        ``k``.
-    ktol : float, optional
-        How far ``k`` may sit from a tabulated point and be it, in reduced
-        reciprocal coordinates.  Default ``1e-5``.
+        The group, ``r.group`` of what ``realized_group`` returns.
+    k : str or array, shape (dim_k,)
+        A tabulated point: its name, ``"X"``, or its coordinates in the
+        model's reduced coordinates, as :func:`high_symmetry_points` gives
+        them.
 
     Returns
     -------
     dict or Refusal
-        ``{corep: {ind: character}}``, one entry per corep of the little group,
-        its character on each unitary operation by index.  A ``Refusal`` in
-        its place is falsy.
+        ``{corep: {index: character}}``, one entry per corep of the little
+        group, its character on each unitary operation by index.  A
+        ``Refusal`` in its place is falsy.
 
     Refusals
     --------
@@ -1503,10 +1631,36 @@ def corep_table(group: GroupData, k, *, kpname=None, ktol=1e-5) -> dict | Refusa
     ``tables_not_ready``
         The group has no transformation to the tables' conventional cell.
     ``out_of_plane``
-        ``k`` has a component along a layer's vacuum.
+        ``k`` has a component along a layer's vacuum, or names a tabulated
+        point out of the layer's plane.
     ``kpoint_not_tabulated``
         ``k`` is no tabulated point in the model's coordinates, or not the
         tabulated member of its star; the refusal lists the tabulated points.
+
+    Raises
+    ------
+    TypeError
+        ``group`` is not a group: ``r`` or ``r.rep`` in its place, or
+        anything else.
+    ValueError
+        ``k`` is a name the group does not tabulate, or has neither
+        ``dim_k`` components nor three.
+    """
+    _require_group("corep_table", group)
+    k = _resolve_kpoint("corep_table", group, k)
+    if isinstance(k, Refusal):
+        return k
+    return _corep_table(group, k, call="corep_table")
+
+
+def _corep_table(group: GroupData, k, *, kpname=None, ktol=1e-5,
+                 call: str = "corep_table") -> dict | Refusal:
+    """The character table :func:`corep_table` returns, at coordinates ``k``.
+
+    ``kpname`` is the point's tabulated name, taken as given instead of found
+    from ``k``; ``ktol`` how far ``k`` may sit from a tabulated point and be
+    it, in reduced reciprocal coordinates; ``call`` names the public call in
+    a ``ValueError`` on the number of ``k``'s components.
     """
     gate = _lattice_not_descended(group)
     if gate is not None:
@@ -1515,17 +1669,17 @@ def corep_table(group: GroupData, k, *, kpname=None, ktol=1e-5) -> dict | Refusa
         return Refusal("tables_not_ready",
                        group._setup_note or "irrep tables are not set up for this cell",
                        context={"number_str": group.number_str})
-    lg = little_group(group, k)
+    lg = _little_group(group, k, call=call)
     if isinstance(lg, Refusal):
         return lg
     name = _resolve_kpname(group, lg, kpname, ktol)
     if isinstance(name, Refusal):
         return name
-    return _transported_table(group, name, lg.k3 % 1.0, ktol)
+    return _transported_table(group, name, lg._k3 % 1.0, ktol)
 
 
 def identify_from_characters(group: GroupData, k, characters, *, multiplet_dims=None,
-                             kpname=None, label_tol=1e-3, ktol=1e-5) -> IrrepContent | Refusal:
+                             label_tol=LABEL_TOL) -> IrrepContent | Refusal:
     r"""The coreps each multiplet carries at a high-symmetry point, from its measured characters.
 
     Each row of characters is expanded over the coreps of the little group,
@@ -1537,28 +1691,23 @@ def identify_from_characters(group: GroupData, k, characters, *, multiplet_dims=
     Parameters
     ----------
     group : GroupData
-        The group the characters were measured in,
-        ``realized_group(model).group``.
-    k : array, shape (dim_k,)
-        A tabulated point, in the model's reduced coordinates, as
-        :func:`high_symmetry_points` gives it.
+        The group the characters were measured in, ``r.group`` of what
+        ``realized_group`` returns.
+    k : str or array, shape (dim_k,)
+        A tabulated point: its name, ``"X"``, or its coordinates in the
+        model's reduced coordinates, as :func:`high_symmetry_points` gives
+        them.
     characters : array, shape (n_multiplets, n_unitary)
         A row per degenerate multiplet and a column per unitary operation of
-        the little group in index order, ``little_group(group, k).indices``:
-        the trace over the multiplet's states of ``rep.sewing_operator(ind,
+        the little group in index order, ``little_group(group, k).unitary``:
+        the trace over the multiplet's states of ``rep.sewing_operator(index,
         k)``, as :func:`..sewing.characters` measures it.
     multiplet_dims : array, shape (n_multiplets,), optional
         Each multiplet's degeneracy, which the coreps found must add up to.
-    kpname : str, optional
-        The point's tabulated name, taken as given instead of found from
-        ``k``.
-    label_tol : float, optional
+    label_tol : float, default 1e-3
         How far a multiplicity may sit from an integer, and two rows'
         characters from each other to share a number in the partition,
-        dimensionless.  Default ``1e-3``.
-    ktol : float, optional
-        How far ``k`` may sit from a tabulated point and be it, in reduced
-        reciprocal coordinates.  Default ``1e-5``.
+        dimensionless.
 
     Returns
     -------
@@ -1568,12 +1717,6 @@ def identify_from_characters(group: GroupData, k, characters, *, multiplet_dims=
         is the statement to quote where a label rests on one; ``summary()``
         prints it.  A ``Refusal`` in its place is falsy.
 
-    Raises
-    ------
-    ValueError
-        ``characters`` has not one column per unitary operation of the little
-        group, or ``multiplet_dims`` not one entry per row.
-
     Refusals
     --------
     A refusal handed in as ``group`` is returned as it is.
@@ -1581,7 +1724,8 @@ def identify_from_characters(group: GroupData, k, characters, *, multiplet_dims=
     ``tables_not_ready``
         The group has no transformation to the tables' conventional cell.
     ``out_of_plane``
-        ``k`` has a component along a layer's vacuum.
+        ``k`` has a component along a layer's vacuum, or names a tabulated
+        point out of the layer's plane.
     ``kpoint_not_tabulated``
         ``k`` is no tabulated point in the model's coordinates, or not the
         tabulated member of its star; the refusal lists the tabulated points.
@@ -1594,6 +1738,37 @@ def identify_from_characters(group: GroupData, k, characters, *, multiplet_dims=
     ``multiplet_dimension``
         The coreps found do not add up to ``multiplet_dims``: the rows were
         grouped into multiplets wrongly.
+
+    Raises
+    ------
+    TypeError
+        ``group`` is not a group: ``r`` or ``r.rep`` in its place, or
+        anything else.
+    ValueError
+        ``k`` is a name the group does not tabulate, or has neither
+        ``dim_k`` components nor three; ``characters`` has not one column per
+        unitary operation of the little group, or ``multiplet_dims`` not one
+        entry per row.
+    """
+    _require_group("identify_from_characters", group)
+    k = _resolve_kpoint("identify_from_characters", group, k)
+    if isinstance(k, Refusal):
+        return k
+    return _identify_from_characters(group, k, characters, multiplet_dims=multiplet_dims,
+                                     label_tol=label_tol,
+                                     call="identify_from_characters")
+
+
+def _identify_from_characters(group: GroupData, k, characters, *, multiplet_dims=None,
+                              kpname=None, label_tol=1e-3, ktol=1e-5,
+                              call: str = "identify_from_characters"
+                              ) -> IrrepContent | Refusal:
+    """The coreps :func:`identify_from_characters` returns, at coordinates ``k``.
+
+    ``kpname`` is the point's tabulated name, taken as given instead of found
+    from ``k``; ``ktol`` how far ``k`` may sit from a tabulated point and be
+    it, in reduced reciprocal coordinates; ``call`` names the public call in
+    a ``ValueError`` on the number of ``k``'s components.
     """
     gate = _lattice_not_descended(group)
     if gate is not None:
@@ -1603,7 +1778,7 @@ def identify_from_characters(group: GroupData, k, characters, *, multiplet_dims=
                        group._setup_note or "irrep tables are not set up for this cell",
                        context={"number_str": group.number_str})
 
-    lg = little_group(group, k)
+    lg = _little_group(group, k, call=call)
     if isinstance(lg, Refusal):
         return lg
 
@@ -1611,35 +1786,35 @@ def identify_from_characters(group: GroupData, k, characters, *, multiplet_dims=
     if chars.shape[1] != len(lg.unitary):
         raise ValueError(
             f"characters must have one column per unitary little-group operation "
-            f"({len(lg.unitary)} at k={np.round(lg.k, 6)}, indices {lg.indices}), "
+            f"({len(lg.unitary)} at k={np.round(lg.k, 6)}, indices {lg.unitary}), "
             f"got {chars.shape[1]}")
 
     kpname = _resolve_kpname(group, lg, kpname, ktol)
     if isinstance(kpname, Refusal):
         return kpname
-    table = corep_table(group, lg.k, kpname=kpname, ktol=ktol)
+    table = _corep_table(group, lg.k, kpname=kpname, ktol=ktol, call=call)
     if isinstance(table, Refusal):
         return table
 
     table_inds = set(next(iter(table.values())).keys())
-    if not set(lg.indices) <= table_inds:
+    if not set(lg.unitary) <= table_inds:
         return Refusal(
             "little_group_mismatch",
             f"the measured little group at {kpname} carries the operation indices "
-            f"{sorted(lg.indices)} but the table lists {sorted(table_inds)}; matching the "
+            f"{sorted(lg.unitary)} but the table lists {sorted(table_inds)}; matching the "
             f"operations to the standard setting did not close, so no label would be meaningful.",
-            context={"ours": sorted(lg.indices), "table": sorted(table_inds), "kpname": kpname})
+            context={"ours": sorted(lg.unitary), "table": sorted(table_inds), "kpname": kpname})
 
     label_order = tuple(table)
     mult = np.zeros((chars.shape[0], len(label_order)), dtype=complex)
     dims = np.zeros(len(label_order))
     # the identity is in every little group; its character is the irrep dimension
-    identity = next((int(s.ind) for s in lg.unitary
+    identity = next((int(s.ind) for s in lg._unitary_operations
                      if np.array_equal(s.rotation, np.eye(3, dtype=int))
                      and np.abs(s.translation - np.round(s.translation)).max() < 1e-8),
-                    min(lg.indices))
+                    min(lg.unitary))
     for c, lab in enumerate(label_order):
-        ir = np.array([table[lab][i] for i in lg.indices], dtype=complex)
+        ir = np.array([table[lab][i] for i in lg.unitary], dtype=complex)
         norm = float((np.abs(ir) ** 2).sum())
         dims[c] = abs(table[lab][identity])
         mult[:, c] = ir @ chars.conj().T / norm
@@ -1656,7 +1831,7 @@ def identify_from_characters(group: GroupData, k, characters, *, multiplet_dims=
             f"not computed in the convention pythtqc.groups documents (its module docstring), or "
             f"a degeneracy was split into several multiplets by numerical noise.",
             value=defect, threshold=float(label_tol),
-            context={"kpname": kpname, "k": lg.k, "indices": lg.indices,
+            context={"kpname": kpname, "k": lg.k, "indices": lg.unitary,
                      "labels": label_order, "multiplicities": mult,
                      "characters": chars, "rows": rows})
 
@@ -1690,7 +1865,7 @@ def identify_from_characters(group: GroupData, k, characters, *, multiplet_dims=
                 part[r2] = nxt
         nxt += 1
 
-    return IrrepContent(kpname=kpname, k=lg.k, indices=lg.indices, labels=labels,
+    return IrrepContent(kpname=kpname, k=lg.k, indices=lg.unitary, labels=labels,
                         multiplicities=mult, label_order=label_order, dims=total_dims,
                         partition=tuple(int(p) for p in part), integrality=defect)
 
@@ -2123,7 +2298,109 @@ def _barred(position: str, improper) -> str:
     return f"{match.group(1)}{match.group(2)}({symbols})"
 
 
-def ebr_data(group: GroupData) -> dict | Refusal:
+@dataclass(frozen=True)
+class EBRConvention:
+    """What the package's convention for a lattice translation moves in a group's elementary band representations.
+
+    What ``ebr_data(group).convention`` holds.  The rows are in the
+    convention ``e^{-ik·t}``, where the tables' own pages write ``e^{+ik·t}``.
+
+    Attributes
+    ----------
+    name : str
+        The convention, ``"physical (translations as e^{-ik.t})"``.
+    changed_points, changed_labels : tuple of str
+        The high-symmetry points at which a row's labels differ from the
+        Bilbao Crystallographic Server's, and the labels that differ.
+    conjugated_points : tuple of str
+        The points at which the little-group characters are the whole
+        characters' conjugates, under the server's name of the row.
+    divergent_points : tuple of str
+        The points at which the server's page tabulates the other member
+        ``-k`` of the star, so that the rows printed are not the server's.
+    reglued_points : tuple of str
+        The points, always in a grey group, at which time reversal glues the
+        irreps into coreps otherwise than the server does.
+    conjugation : dict
+        ``{corep: corep}``, each row's partner under complex conjugation.
+    tr_partner : tuple of int
+        For each column, the column of the complex-conjugate site irrep.
+    corep_names_bcs : tuple of str
+        The server's names of the rows.
+    row_permutation : tuple of int
+        ``P`` with ``y_BCS[j] = y[P[j]]``, which carries a form written in the
+        server's labels onto the rows.
+    note : str
+        A sentence on what the convention changes at each kind of point.
+    """
+
+    name: str
+    changed_points: tuple
+    changed_labels: tuple
+    conjugated_points: tuple
+    divergent_points: tuple
+    reglued_points: tuple
+    conjugation: dict
+    tr_partner: tuple
+    corep_names_bcs: tuple
+    row_permutation: tuple
+    note: str
+    _applied: bool = field(default=True, repr=False)
+
+
+@dataclass(frozen=True)
+class EBRData:
+    """Every elementary band representation of a group, in the package's convention.
+
+    What :func:`ebr_data` returns: a column per elementary band
+    representation, a row per corep at each high-symmetry point of the group,
+    those out of a layer's plane included.
+
+    Attributes
+    ----------
+    ebrs : tuple of Term
+        The columns, in the tables' order, each a term of multiplicity one:
+        the site irrep it is induced from, its Wyckoff position and the
+        position's site-symmetry group, an improper one with its bar.
+    corep_names : tuple of str
+        The rows' coreps, in the labels :func:`identify_from_characters`
+        returns.
+    matrix : ndarray
+        The EBR matrix, a row per corep and a column per elementary band
+        representation.
+    smith : tuple of ndarray
+        The Smith normal form ``(U, D, V)`` of the matrix, ``U @ matrix @ V == D``.
+    convention : EBRConvention
+        What the convention ``e^{-ik·t}`` moves against the Bilbao
+        Crystallographic Server's tables.
+    group : GroupData
+        The group the elementary band representations are read for.
+    """
+
+    ebrs: tuple
+    corep_names: tuple
+    matrix: Any = field(repr=False)
+    smith: tuple = field(repr=False)
+    convention: EBRConvention = field(repr=False)
+    group: Any = field(repr=False)
+    _raw: Any = field(default=None, repr=False, compare=False)
+
+    def __repr__(self) -> str:  # pragma: no cover - convenience only
+        return (f"EBRData({self.group.name} #{self.group.number_str}: {len(self.ebrs)} "
+                f"elementary band representations over {len(self.corep_names)} coreps)")
+
+
+def _ebr_term(name, position) -> Term:
+    """One column of the list, ``("-E1↑G(2)", "1a(4mm1',4mm)")``, as a term of multiplicity one."""
+    position = str(position)
+    inside = position[position.index("(") + 1:position.rindex(")")].split(",")
+    site = _written_site_symmetry(inside[0])
+    unitary = _written_site_symmetry(inside[-1])
+    return Term(multiplicity=1, irrep=_ebr_irrep(name), wyckoff=_wyckoff_letter(position),
+                site_symmetry=site, unitary_site_symmetry=unitary)
+
+
+def ebr_data(group: GroupData) -> EBRData | Refusal:
     """Every elementary band representation of the group: the bands each site irrep at each Wyckoff position induces.
 
     The atomic limits the group has, and the columns a symmetry data vector is
@@ -2138,30 +2415,15 @@ def ebr_data(group: GroupData) -> dict | Refusal:
     Parameters
     ----------
     group : GroupData
-        The group, ``realized_group(model).group``; only its label, its
-        valuedness and whether it is grey are read.
+        The group, ``r.group`` of what ``realized_group`` returns.
 
     Returns
     -------
-    dict or Refusal
-        ``matrix``: the EBR matrix, a row per corep at each high-symmetry
-        point of the group, those out of a layer's plane included, and a
-        column per elementary band representation;
-        ``labels_physics_convention``: the rows' coreps, in the labels
-        :func:`identify_from_characters` returns;
-        ``ebrs``: each column as ``(name, position)``, the position with its
-        site group, an improper one with its bar, ``"3a(-3m1',-3m)"``;
-        ``smith``: the Smith normal form ``(U, D, V)``, ``U·M·V = D``;
-        ``convention``: what the convention moved, by point and by label, with
-        a ``note``: ``changed_points`` and ``changed_labels``,
-        ``conjugated_points``, ``divergent_points``, ``reglued_points``;
-        ``conjugation``, each label's partner, and ``tr_partner``, each
-        column's, the column of the complex-conjugate site irrep;
-        ``labels_bcs``, the server's names of the rows;
-        and ``row_permutation``, ``P`` with ``y_BCS[j] = y[P[j]]``, which
-        re-keys a form written in the server's labels;
-        ``raw``: the tables' own record, carried into this convention.
-        A ``Refusal`` in its place is falsy.
+    EBRData or Refusal
+        The columns as terms, ``.ebrs``; the rows' coreps, ``.corep_names``;
+        the EBR matrix and its Smith normal form, ``.matrix`` and ``.smith``;
+        what the convention moves, ``.convention``; and the group they were
+        read for, ``.group``.  A ``Refusal`` in its place is falsy.
 
     Refusals
     --------
@@ -2176,6 +2438,46 @@ def ebr_data(group: GroupData) -> dict | Refusal:
         An entry of the shipped file with no Wyckoff position, so its row
         cannot be carried into this convention; every known case is a magnetic
         group of type III, outside the groups returned.
+
+    Raises
+    ------
+    TypeError
+        ``group`` is not a group: ``r`` or ``r.rep`` in its place, or
+        anything else.
+    """
+    _require_group("ebr_data", group)
+    data = _ebr_data(group)
+    if isinstance(data, Refusal):
+        return data
+    record = dict(data["convention"])
+    convention = EBRConvention(
+        name=str(record["name"]), changed_points=tuple(record["changed_points"]),
+        changed_labels=tuple(record["changed_labels"]),
+        conjugated_points=tuple(record["conjugated_points"]),
+        divergent_points=tuple(record["divergent_points"]),
+        reglued_points=tuple(record["reglued_points"]),
+        conjugation=dict(record["conjugation"]), tr_partner=tuple(record["tr_partner"]),
+        corep_names_bcs=tuple(record["labels_bcs"]),
+        row_permutation=tuple(record["row_permutation"]), note=str(record["note"]),
+        _applied=bool(record["applied"]))
+    return EBRData(
+        ebrs=tuple(_ebr_term(name, position) for name, position in data["ebrs"]),
+        corep_names=tuple(data["labels_physics_convention"]), matrix=data["matrix"],
+        smith=tuple(data["smith"]), convention=convention, group=group,
+        _raw=data["raw"])
+
+
+def _ebr_data(group) -> dict | Refusal:
+    """The group's elementary band representations as the package reads them, a mapping.
+
+    ``group`` is a :class:`GroupData`, or anything that carries its
+    ``number_str``, ``spinor`` and ``_magnetic`` (the tables' own key), and
+    only those are read.  Keys: ``matrix``; ``labels_physics_convention``,
+    the rows' coreps; ``ebrs``, each column as ``(name, position)``, the
+    position with its site groups, an improper one with its bar,
+    ``"3a(-3m1',-3m)"``; ``smith``, ``(U, D, V)``; ``convention``, the record
+    of :func:`_transport_record`; ``raw``, the tables' own record carried
+    into this convention.  The refusals :func:`ebr_data` documents.
     """
     gate = _lattice_not_descended(group)
     if gate is not None:
@@ -2194,15 +2496,15 @@ def ebr_data(group: GroupData) -> dict | Refusal:
                        context={"number_str": group.number_str, "spinor": group.spinor})
     try:
         raw = _to_physical_convention(raw, group.number_str, group.spinor,
-                                      group.magnetic)
-        record = _transport_record(group.number_str, group.spinor, group.magnetic)
+                                      group._magnetic)
+        record = _transport_record(group.number_str, group.spinor, group._magnetic)
     except _EBRTransportError as exc:
         return Refusal(
             "ebr_convention",
             f"the EBR rows of #{group.number_str} cannot be carried out of BCS's "
             f"e^(+ik.t) convention into this package's physical one: {exc}",
             context={"number_str": group.number_str, "spinor": group.spinor,
-                     "magnetic": group.magnetic, "points": exc.points})
+                     "magnetic": group._magnetic, "points": exc.points})
     except (FileNotFoundError, OSError) as exc:
         return Refusal("irrep_tables",
                        f"irreptables has no irrep table for group #{group.number_str}, "
@@ -2243,7 +2545,7 @@ _SI_NOTES = {
     "grey": (
         "irreptables' named forms for this grey group, as shipped: their "
         "coefficients are keyed by BCS labels and must be re-keyed by "
-        "ebr_data(group)['convention']['row_permutation'] before they are evaluated "
+        "ebr_data(group).convention.row_permutation before they are evaluated "
         "on a returned symmetry data vector (in scope that bites once, the z2 of 220.90). "
         "ebr.symmetry_indicator does that re-keying, and checks the form on the "
         "group's own EBRs, before it reports a value"),
@@ -2284,7 +2586,7 @@ def indicator_group(group: GroupData) -> dict | Refusal:
         with ``withheld`` False is a verdict, no formula named for this group.
         ``note``: the caveat to read either way, that a formula's coefficients
         are keyed by the tables' labels and are re-keyed by
-        ``ebr_data(group)["convention"]["row_permutation"]`` before they are
+        ``ebr_data(group).convention.row_permutation`` before they are
         read on a returned symmetry data vector.  A ``Refusal`` in its place is
         falsy.
 
@@ -2301,7 +2603,7 @@ def indicator_group(group: GroupData) -> dict | Refusal:
     status = tables_status()
     if not status["tables"]:
         return _refuse_no_tables(status)
-    data = ebr_data(group)
+    data = _ebr_data(group)
     divisors = None
     if not isinstance(data, Refusal):
         r = np.asarray(data["smith"][1])
@@ -2311,11 +2613,11 @@ def indicator_group(group: GroupData) -> dict | Refusal:
         divisors = d[d > 1]
 
     if _magnetic_type(group) != "II":
-        note = _SI_NOTES["unaudited_bns" if group.magnetic else "bare_key"]
+        note = _SI_NOTES["unaudited_bns" if group._magnetic else "bare_key"]
         return {"indicators": {}, "orders": {}, "elementary_divisors": divisors,
                 "withheld": True, "reason": note, "note": note}
 
-    si = _spacegroup._indicator_table(group.spinor, group.magnetic)
+    si = _spacegroup._indicator_table(group.spinor, group._magnetic)
     entry = copy.deepcopy(si.get(group.number_str, {}).get("indicators", {}))
     return {"indicators": entry,
             "orders": {k: v["mod"] for k, v in entry.items()},
@@ -2408,7 +2710,7 @@ def decompose_ebrs(group: GroupData, irrep_counts: dict) -> dict | Refusal:
     gate = _lattice_not_descended(group)
     if gate is not None:
         return gate
-    data = ebr_data(group)
+    data = _ebr_data(group)
     if isinstance(data, Refusal):
         return data
     from irrep.ebrs import (ORTOOLS_AVAILABLE, compose_ebr_string,
@@ -2489,40 +2791,32 @@ def decompose_ebrs(group: GroupData, irrep_counts: dict) -> dict | Refusal:
 # meshes
 # --------------------------------------------------------------------------
 
-def k_grid(group: GroupData, n, *, allow_asymmetric=False, ktol=1e-8) -> KGrid | Refusal:
+def k_grid(group: GroupData, n, *, allow_asymmetric=False) -> KGrid | Refusal:
     """A Γ-centred mesh that respects the group, with the high-symmetry points it holds.
 
     A mesh holds only the high-symmetry points it happens to contain: ``Γ``
     always, and the zone boundary only with an even number of divisions.  A
     label read off a mesh at a point it misses is no label, so ``contains``
-    names the points it holds and ``hsp`` gives every tabulated point's
-    coordinates.  The mesh is pythtb's own, ``k`` in ``[0, 1)``, periodic in
-    the gauge a ``WFArray`` reads.
+    names the points it holds, and :func:`high_symmetry_points` gives every
+    tabulated point's coordinates.  The mesh is pythtb's own, ``k`` in
+    ``[0, 1)``, periodic in the gauge a ``WFArray`` reads.
 
     Parameters
     ----------
     group : GroupData
-        The group, ``realized_group(model).group``.
+        The group, ``r.group`` of what ``realized_group`` returns.
     n : int or sequence of int
         The divisions along each periodic direction, or one number for all.
-    allow_asymmetric : bool, optional
-        Return a mesh the group does not carry onto itself, with no
-        irreducible points, instead of refusing it.  Default ``False``.
-    ktol : float, optional
-        How far a mesh point may sit from a tabulated point and be it, in
-        reduced reciprocal coordinates.  Default ``1e-8``.
+    allow_asymmetric : bool, default False
+        Whether a mesh the group does not carry onto itself is returned.
+        With ``allow_asymmetric=True``, it is returned with no irreducible
+        points.
 
     Returns
     -------
     KGrid or Refusal
         The mesh, ready for a ``pythtb.WFArray``, with the tabulated points it
-        holds and those it misses; ``summary()`` prints it.  A ``Refusal`` in
-        its place is falsy.
-
-    Raises
-    ------
-    ValueError
-        ``n`` is a sequence of other than ``dim_k`` numbers.
+        holds; ``summary()`` prints it.  A ``Refusal`` in its place is falsy.
 
     Refusals
     --------
@@ -2532,17 +2826,26 @@ def k_grid(group: GroupData, n, *, allow_asymmetric=False, ktol=1e-8) -> KGrid |
         The group does not carry the mesh onto itself, so a sum over it would
         weigh points unlike their partners; ``allow_asymmetric=True`` returns
         it all the same.
+
+    Raises
+    ------
+    TypeError
+        ``group`` is not a group: ``r`` or ``r.rep`` in its place, or
+        anything else.
+    ValueError
+        ``n`` is a sequence of other than ``dim_k`` numbers.
     """
+    _require_group("k_grid", group)
     gate = _lattice_not_descended(group)
     if gate is not None:
         return gate
     from pythtb import Mesh
     if np.isscalar(n):
-        divs = [int(n)] * group.dim_k
+        divs = [int(n)] * group._dim_k
     else:
         divs = [int(v) for v in n]
-        if len(divs) != group.dim_k:
-            raise ValueError(f"n must be a scalar or have {group.dim_k} entries")
+        if len(divs) != group._dim_k:
+            raise ValueError(f"n must be a scalar or have {group._dim_k} entries")
     grid3 = [1, 1, 1]
     for j, d in enumerate(group.periodic_dirs):
         grid3[d] = divs[j]
@@ -2555,24 +2858,21 @@ def k_grid(group: GroupData, n, *, allow_asymmetric=False, ktol=1e-8) -> KGrid |
                        f"allow_asymmetric=True to override deliberately.",
                        context={"grid": tuple(grid3), "number_str": group.number_str})
 
-    mesh = Mesh(["k"] * group.dim_k)
+    mesh = Mesh(["k"] * group._dim_k)
     mesh.build_grid(tuple(divs), gamma_centered=False, k_endpoints=False)
     points = np.asarray(mesh.flat)
 
     irr = None
     if symmetric:
         irr3 = group._sg.get_irreducible_kpoints_grid(grid3)
-        irr = group.k_from_3d(irr3)
+        irr = group._k_from_3d(irr3)
 
-    hsp = high_symmetry_points(group)
-    contains, missing, hsp_out = {}, [], {}
+    hsp = _high_symmetry_points(group)
+    contains = {}
     if not isinstance(hsp, Refusal):
         for name, kk in hsp.items():
-            hsp_out[name] = kk
-            hit = bool(np.any(np.abs(((points - kk) + 0.5) % 1.0 - 0.5).max(axis=1) <= ktol))
-            contains[name] = hit
-            if not hit:
-                missing.append(name)
+            contains[name] = bool(np.any(
+                np.abs(((points - kk) + 0.5) % 1.0 - 0.5).max(axis=1) <= _KGRID_KTOL))
 
     return KGrid(divisions=tuple(grid3), symmetric=symmetric, mesh=mesh, irreducible=irr,
-                 contains=contains, missing=tuple(missing), hsp=hsp_out)
+                 contains=contains)

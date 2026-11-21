@@ -192,7 +192,7 @@ print(irreps({0: {"C4(z)": -1, "m(x)": +1}}))   # characters on one operation pe
 #  ('-E2', '-E1', '-E', '-E')
 print(irreps({0: {3: 1, 6: 1}}))                # the operations by their index: A1 again
 #  ('-E1', '-E2', '-E', '-E')
-print(tqc.operations(lin.rep)[3].name, tqc.operations(lin.rep)[6].name)
+print(lin.operations[3].name, lin.operations[6].name)
 #  C4(z) m(x)
 ```
 
@@ -307,7 +307,7 @@ operations they name are those of the multiplet's site group, which a row's
 
 ```python
 row = bare.rep.characters.orbitals[0]
-ops = tqc.operations(bare)
+ops = bare.operations
 for i in row.site_group:
     print(i, ops[i].name, ops[i].seitz)
 #  1 E {1|0,0,0}
@@ -328,7 +328,7 @@ representation gives operation `i` on the multiplet is
 pxpy = {"C4(z)": [[0, -1], [1, 0]], "m(x)": [[-1, 0], [0, 1]]}
 for matrices in (pxpy, {**pxpy, "m(x)": [[1, 0], [0, -1]]}):
     rec = tqc.realized_group(pair, characters={(0, 1): matrices})
-    mirror = next(i for i, op in tqc.operations(rec).items() if op.name == "m(x)")
+    mirror = next(i for i, op in rec.operations.items() if op.name == "m(x)")
     print(rec.rep.characters.irreps, rec.rep.characters.orbitals[0].determined_by,
           (np.real(rec.rep.sewing_operator(mirror, [0, 0])) + 0).tolist(),
           tqc.hsp_table(rec.rep, bands=1).counts)

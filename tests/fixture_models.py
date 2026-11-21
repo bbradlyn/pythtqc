@@ -1640,8 +1640,8 @@ P4122 = FixtureMeta(
         "A = (1/2,1/2,1/2) and Z = (0,0,1/2) the tabulated factor system "
         "omega_0(R,S) = e^{2pi i (R^T k - k).t_S} is a fourth root of unity "
         "(max |Im omega_0| = 1.0), so the physical table is the WHOLE-CHARACTER "
-        "CONJUGATE of the tabulated one and ebr_data(group)['convention']"
-        "['conjugated_points'] == ('A', 'Z').  Measured content: valence "
+        "CONJUGATE of the tabulated one and ebr_data(group).convention"
+        ".conjugated_points == ('A', 'Z').  Measured content: valence "
         "{GM1, GM2, GM5} / {A1, A2} / {M1, M2, M5} / {2 R1} / {2 X1, X3, X4} / "
         "{Z1, Z2} = exactly the A^G(4)@4a row, conduction = the A^G(4)@4b row, "
         "and decompose returns 1 x A^G(4) @ 4a (resp. 4b), claim 'exact'.  "
@@ -1705,7 +1705,7 @@ I41 = FixtureMeta(
         "with k.m in {1/4, 3/4}, so the indicators swap between the two "
         "conventions: BCS glues -P3P3 and leaves -P4 alone (which is exactly "
         "the shipped table), the physical convention leaves -P3 alone and "
-        "glues -P4P4.  ebr_data(group)['convention']['reglued_points'] == "
+        "glues -P4P4.  ebr_data(group).convention.reglued_points == "
         "('P',) and the served corep table at P carries labels -P3 (dim 1) "
         "and -P4P4 (dim 2) that BCS's table does not contain.  Measured "
         "valence content: {-GM5GM7, -GM6GM8} / {-M5M7, -M6M8} / {2 -N2N2} / "
@@ -2167,7 +2167,7 @@ def _shell_matrix(rotation_cart, degree):
     from types import SimpleNamespace
 
     from pythtqc import _sitechars
-    stand_in = SimpleNamespace(symmetries=(SimpleNamespace(
+    stand_in = SimpleNamespace(_symmetries=(SimpleNamespace(
         ind=0, rotation_cart=np.asarray(rotation_cart, dtype=float)),))
     return _sitechars.shell_operator(stand_in, 0, int(degree))
 

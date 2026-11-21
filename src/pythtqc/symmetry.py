@@ -35,7 +35,7 @@ from ._tolerance import ANSATZ_GATE, EXACT_TOL
 from ._text import (
     _content_terms, _ebrs_of, _fmt_char, _index_ranges, _orbitals_named, _sum_lines,
     _sum_words)
-from ._seitz import operations
+from ._seitz import _operation_rows
 from ._matrices import (
     NormalizedRep, RepAnchor, SiteMultiplets, bloch_operator, covariance_gate,
     normalize_rep)
@@ -220,8 +220,9 @@ class BandRepresentation:
         its site-symmetry group (``"3m"``).
     terms : tuple
         ``(multiplicity, elementary band representation, position)`` for each
-        term, as :func:`..groups.ebr_data` writes them
-        (``(1, "-E1g↑G(2)", "3a(-3m1',-3m)")``); empty where no sum is returned.
+        term, the band representation and the position with its site groups
+        written as the tables list them (``(1, "-E1g↑G(2)", "3a(-3m1',-3m)")``);
+        empty where no sum is returned.
     alternatives : tuple
         The other sums with the same content and the same stable real-space
         invariants, which nothing here distinguishes from it, each written as
@@ -240,7 +241,7 @@ class BandRepresentation:
     note: str = ""
 
     def spelled(self, terms=None) -> str:
-        """A sum on one line in the labels :func:`..groups.ebr_data` lists, ``"1 x -E1g↑G(2)@3a(-3m1',-3m) + 1 x -E1u↑G(2)@3a(-3m1',-3m)"``, or ``""``.
+        """A sum on one line, written as the tables list it, ``"1 x -E1g↑G(2)@3a(-3m1',-3m) + 1 x -E1u↑G(2)@3a(-3m1',-3m)"``, or ``""``.
 
         :attr:`terms` by default, or one of :attr:`alternatives`.
         """
@@ -773,9 +774,14 @@ class SpaceGroupRep:
         ``rep.operations[5].seitz`` is operation 5's Seitz symbol in the tables'
         setting and ``.name`` its name in the model's frame, one row per key of
         :attr:`matrices`.
+
+        Refusals
+        --------
+        ``tables_not_ready``
+            The group has no conventional setting to write a Seitz symbol in.
         """
 
-        return operations(self)
+        return _operation_rows(self.group, sorted(self.matrices))
 
     @property
     def orbits(self) -> tuple:
@@ -819,7 +825,7 @@ class SpaceGroupRep:
 
     def k_action(self, ind):
         """One operation's action on the model's reduced ``k``, ``k → Rk``, as a function: the image not folded back into the zone."""
-        return self.group.k_action_of(self._operation(ind))
+        return self.group._k_action_of(self._operation(ind))
 
     def transform_k(self, ind, k):
         """The image of ``k`` under one operation, not folded back into the zone."""

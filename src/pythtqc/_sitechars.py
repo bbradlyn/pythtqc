@@ -5,7 +5,7 @@ tables.  The site groups come from
 :attr:`..groups.OrbitalAssignment.site_group` (which
 :func:`.._tables._assign_orbitals` measured from the operations' action on the
 model's own orbital positions), the multiplication comes from
-``GroupData.get_product_table``, and the irreducible characters are computed
+``GroupData._get_product_table``, and the irreducible characters are computed
 from that multiplication by the **class-sum** construction below: arithmetic on
 a measured table.
 
@@ -504,8 +504,8 @@ def _merge_conjugate_pairs(chars, tol=1e-8):
 
 def _class_info(group, cls):
     """Classification of a class, plus its preferred representative."""
-    pos_of = {int(s.ind): i for i, s in enumerate(group.symmetries)}
-    infos = [(ind, classify(group.symmetries[pos_of[int(ind)]])) for ind in cls]
+    pos_of = {int(s.ind): i for i, s in enumerate(group._symmetries)}
+    infos = [(ind, classify(group._symmetries[pos_of[int(ind)]])) for ind in cls]
     # representative: prefer a positive rotation sense, then an axis near +x/+y/+z
     def key(item):
         _, info = item
@@ -694,8 +694,8 @@ def site_group_table(group, indices, antiunitary=(), seed=101) -> SiteGroupTable
         the check is a self-check, not a policy), or when the computed table
         fails its orthogonality self-check.
     """
-    prod, _, _ = group.get_product_table(get_diff=True)
-    pos_of = {int(s.ind): i for i, s in enumerate(group.symmetries)}
+    prod, _, _ = group._get_product_table(get_diff=True)
+    pos_of = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     positions = [pos_of[int(i)] for i in indices]
     T = _local_table(prod, positions)
     if T is None:
@@ -713,11 +713,11 @@ def site_group_table(group, indices, antiunitary=(), seed=101) -> SiteGroupTable
             {"indices": tuple(int(i) for i in indices), "orthogonality": defect})
     chars, merged = _merge_conjugate_pairs(chars) if antiunitary else (chars, (False,) * len(chars))
 
-    lattice = np.asarray(group.lattice, dtype=float)
-    ind_of = [int(group.symmetries[p].ind) for p in positions]
+    lattice = np.asarray(group._lattice, dtype=float)
+    ind_of = [int(group._symmetries[p].ind) for p in positions]
     classes = tuple(tuple(ind_of[g] for g in c) for c in cls_local)
     class_of = {ind_of[g]: cls_of_local[g] for g in range(len(positions))}
-    names = {ind_of[g]: operation_name(group.symmetries[positions[g]], lattice)
+    names = {ind_of[g]: operation_name(group._symmetries[positions[g]], lattice)
              for g in range(len(positions))}
     infos = [_class_info(group, c) for c in classes]
     class_names = tuple((f"{len(c)}" if len(c) > 1 else "") + names[int(rep)]
@@ -797,8 +797,8 @@ def point_group_symbol(group, indices) -> str:
     operations that is not one of the thirty-two — which a measured site group
     never is — reads as its order instead.
     """
-    pos_of = {int(s.ind): i for i, s in enumerate(group.symmetries)}
-    return point_group_of([group.symmetries[pos_of[int(ind)]].rotation_cart
+    pos_of = {int(s.ind): i for i, s in enumerate(group._symmetries)}
+    return point_group_of([group._symmetries[pos_of[int(ind)]].rotation_cart
                            for ind in indices])
 
 
@@ -1193,9 +1193,9 @@ def carries_span(group, ind, source, target, tol=1e-8) -> bool:
         return False
     if any(source[d].shape[0] != target[d].shape[0] for d in source):
         return False
-    pos_of = {int(s.ind): i for i, s in enumerate(group.symmetries)}
+    pos_of = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     R_inv = np.linalg.inv(np.asarray(
-        group.symmetries[pos_of[int(ind)]].rotation_cart, dtype=float))
+        group._symmetries[pos_of[int(ind)]].rotation_cart, dtype=float))
     for degree, B in source.items():
         T = target[degree]
         for row in B:
@@ -1218,9 +1218,9 @@ def span_character(group, table, polys):
 
     Returns ``(chi over the table's classes, dimension)``.
     """
-    pos_of = {int(s.ind): i for i, s in enumerate(group.symmetries)}
+    pos_of = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     mats = {int(ind): np.linalg.inv(np.asarray(
-        group.symmetries[pos_of[int(ind)]].rotation_cart, dtype=float))
+        group._symmetries[pos_of[int(ind)]].rotation_cart, dtype=float))
         for ind in table.indices}
     chi = np.zeros(len(table.classes), dtype=complex)
     rank = 0
@@ -1578,9 +1578,9 @@ def shell_operator(group, ind, degree):
     """
     degree = int(degree)
     scale = np.sqrt(_shell_weights(degree))
-    pos_of = {int(s.ind): i for i, s in enumerate(group.symmetries)}
+    pos_of = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     R_inv = np.linalg.inv(np.asarray(
-        group.symmetries[pos_of[int(ind)]].rotation_cart, dtype=float))
+        group._symmetries[pos_of[int(ind)]].rotation_cart, dtype=float))
     n = len(_monomials(degree))
     M = np.zeros((n, n))
     for j in range(n):
@@ -2017,9 +2017,9 @@ def resolve_spec(group, table, spec, where):
     terms = _sum_terms(spec) or ([(str(spec).strip(), 1)] if corep else None)
     rows = {}
     if terms:
-        pos_of = {int(s.ind): i for i, s in enumerate(group.symmetries)}
+        pos_of = {int(s.ind): i for i, s in enumerate(group._symmetries)}
         rows = _resolve_sum(table, terms, rotations={
-            int(ind): np.asarray(group.symmetries[pos_of[int(ind)]].rotation_cart, dtype=float)
+            int(ind): np.asarray(group._symmetries[pos_of[int(ind)]].rotation_cart, dtype=float)
             for ind in table.indices})
     if rows:
         chi = sum(n * np.asarray(table.characters[p], dtype=complex) for p, n in rows.items())
@@ -2122,8 +2122,8 @@ def generator_matrices(group, table, spec, where) -> dict:
     if not isinstance(spec, dict) or not spec or not all(
             np.ndim(v) == 2 for v in spec.values()):
         return {}
-    pos_of = {int(s.ind): i for i, s in enumerate(group.symmetries)}
-    rotation = {int(i): np.asarray(group.symmetries[pos_of[int(i)]].rotation_cart, dtype=float)
+    pos_of = {int(s.ind): i for i, s in enumerate(group._symmetries)}
+    rotation = {int(i): np.asarray(group._symmetries[pos_of[int(i)]].rotation_cart, dtype=float)
                 for i in table.indices}
     gens = []
     for key, value in spec.items():

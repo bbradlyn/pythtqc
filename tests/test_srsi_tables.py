@@ -78,6 +78,7 @@ from pythtqc.refusal import Refusal
 from pythtqc import _smith
 from pythtqc import _spacegroup
 from pythtqc import _srsitables
+from pythtqc import _tables
 
 import tqc_models as tqm                                            # noqa: F401
 from conftest import OMITTED, patch_everywhere
@@ -429,7 +430,7 @@ def test_pmm2_reproduces_the_paper_s_own_distinguishing_example():
     assert theta(a) == ((Fraction(1),), {2: (0, 0, 0)})
     assert theta(b) == ((Fraction(1),), {2: (1, 0, 0)})
 
-    data = tqg.ebr_data(_srsitables._TableKey(table.number_str, True))
+    data = _tables._ebr_data(_srsitables._TableKey(table.number_str, True))
     matrix = np.asarray(data["matrix"], dtype=int)
     assert (matrix @ np.array(a) == matrix @ np.array(b)).all(), (
         "the two EBRs have the same symmetry-data vector")
@@ -519,7 +520,7 @@ def test_f43c_with_soc_rows_satisfy_the_adiabatic_relation():
     assert general["n_free"] == 3, "the general position: trivial site symmetry"
     assert wyckoffs["c"]["multiplicity"] == 24
     at_c = {label for label, letter
-            in _ebr_keys(tqg.ebr_data(_srsitables._TableKey(table.number_str, True)))
+            in _ebr_keys(_tables._ebr_data(_srsitables._TableKey(table.number_str, True)))
             if letter == "c"}
     assert at_c == {"-1E12E1", "-1E22E2"}, "24c is maximal: irreptables lists its two"
 
@@ -773,9 +774,9 @@ def test_srsi_tables_refuses_a_stale_ebr_basis_and_names_both_lists(
     valuedness = "double" if group.spinor else "single"
     real = _srsitables._document(valuedness)
     doctored = dict(real, groups=dict(real["groups"]))
-    record = dict(doctored["groups"][str(group.sg_number)])
+    record = dict(doctored["groups"][str(group._sg_number)])
     record["ebrs"] = list(reversed(record["ebrs"]))
-    doctored["groups"][str(group.sg_number)] = record
+    doctored["groups"][str(group._sg_number)] = record
     patch_everywhere(monkeypatch, "_document",
                         lambda kind: doctored if kind == valuedness else real)
 
@@ -783,7 +784,7 @@ def test_srsi_tables_refuses_a_stale_ebr_basis_and_names_both_lists(
     assert not out and out.gate == "srsi_ebr_basis", str(out)
     assert "name the wrong EBRs" in out.reason
     assert f"irreptables {out.context['irreptables_version']}" in out.reason
-    installed = _ebr_keys(tqg.ebr_data(group))
+    installed = _ebr_keys(_tables._ebr_data(group))
     assert tuple(out.context["installed"]) == installed
     assert tuple(out.context["expected"]) == tuple(reversed(installed))
     assert set(out.context["expected"]) == set(installed), "only the order is wrong"
@@ -1044,7 +1045,7 @@ def test_the_gate_list_is_measured_against_the_source():
 
     literals = set()
     for source in (inspect.getsource(tqr), inspect.getsource(_srsitables),
-                   inspect.getsource(tqg.wyckoff_sites_tables)):
+                   inspect.getsource(_tables._sites_in_tables_setting)):
         for node in ast.walk(ast.parse(source)):
             if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
                     and node.func.id == "Refusal" and node.args):
@@ -1119,7 +1120,7 @@ def test_the_four_corrected_rows_are_the_derived_ones(sg, name):
         assert total.denominator == 1 and int(total) % modulus == 0, (
             column, total, "the derived row must vanish on every EBR")
 
-    data = tqg.ebr_data(_srsitables._TableKey(table.number_str, False))
+    data = _tables._ebr_data(_srsitables._TableKey(table.number_str, False))
     u, v, d, matrix = _smith._smith_system(data, table.number_str)
     u_inv = _smith._unimodular_inverse(u)
     checked = 0

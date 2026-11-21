@@ -259,7 +259,7 @@ def pxpy_183():
                              characters={(0, 1): "E"})
     assert out, str(out)
     assert out.environment == "substrate"
-    assert len(out.validated.indices) == 24 == out.group.size
+    assert len(out.validated.indices) == 24 == len(out.operations)
     return out
 
 
@@ -371,11 +371,11 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
     assert abs(abs(eta) - 1.0) < 1e-12
     assert np.abs(D - eta * np.eye(4)).max() < 1e-12, "sigma_h can only be a scalar here"
 
-    prod = group.get_product_table(get_diff=False)
-    pos = {int(s.ind): i for i, s in enumerate(group.symmetries)}
+    prod = group._get_product_table(get_diff=False)
+    pos = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     worst, pairs = 0.0, 0
     for ind in rep.indices:
-        c = int(group.symmetries[int(prod[pos[mz], pos[ind]])].ind)
+        c = int(group._symmetries[int(prod[pos[mz], pos[ind]])].ind)
         assert c in rep.matrices
         worst = max(worst, float(np.abs(rep.matrices[c] - eta * rep.matrices[ind]).max()))
         pairs += 1
@@ -600,7 +600,7 @@ def test_pxpy_declares_its_two_dimensional_multiplet_jointly(pxpy_bare):
                               characters={(0, 1): "E'", (2, 3): "E''"})
     assert down, str(down)
     d = down.descent
-    assert d["from"]["number_str"] == "187.210" and down.group.size == 12
+    assert d["from"]["number_str"] == "187.210" and len(down.operations) == 12
     assert d["steps"][0]["refuted_by"] == {"declaration": 12}
     note = d["steps"][0]["declaration"]["note"]
     assert "{E, C3(z), C3^-1(z), C2([2-10]), C2([1-20]), C2(x)}" in note
@@ -639,8 +639,7 @@ def test_pxpy_each_branch_of_the_disconnected_ebr_is_a_difference_not_a_sum(pxpy
         return {lab: v for lab, v in rows[key].items()
                 if v and tqe.kpoint_of_label(lab) in points}
 
-    a1_3c = next(k for k in rows if k.startswith("A1↑G(3)@3c"))
-    a1_1a = next(k for k in rows if k.startswith("A1↑G(1)@1a"))
+    a1_3c, a1_1a = ("A1", "3c"), ("A1", "1a")
     valence = tqw.hsp_table(rep, bands=2)
     assert valence.counts == {"GM5": 1, "K3": 1, "M3": 1, "M4": 1}
     diff = {lab: in_plane(a1_3c).get(lab, 0) - in_plane(a1_1a).get(lab, 0)
@@ -734,7 +733,7 @@ def test_pxpy_declared_content_is_the_hand_derived_induced_character(pxpy_bare):
 
     # `_induced_character` keys its answer by position in `ops`, counting from
     # 1, which for this group is the unitary half's own index order
-    unitary = [s for s in group.symmetries if not s.time_reversal]
+    unitary = [s for s in group._symmetries if not s.time_reversal]
     assert [int(s.ind) for s in unitary] == list(range(1, 25))
     ops = [(s.rotation, s.translation) for s in unitary]
 
@@ -785,7 +784,7 @@ def i213_bundle():
     """``(model, group, assignment, validated, rep)`` for the primitive bcc build."""
     model = tqm.i213_flicker2018()
     group = _spacegroup._group_of(model)
-    assert group and group.sg_number == 199, str(group)
+    assert group and group._sg_number == 199, str(group)
     assignment = _tables._assign_orbitals(model, group)
     assert assignment, str(assignment)
     validated = _measure._validate_group(model, group, nk=4)
@@ -815,7 +814,7 @@ def test_i213_site_permutations_follow_the_measured_action(i213_bundle):
     for p in range(24):
         assert sorted(perms[p].tolist()) == [0, 1, 2, 3], "every image is a permutation"
 
-    pos = {int(s.ind): i for i, s in enumerate(group.symmetries)}
+    pos = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     worst = 0.0
     for ind, U in validated._intertwiners.items():
         support = np.zeros((4, 4), bool)
@@ -835,14 +834,14 @@ def test_i213_site_permutations_follow_the_measured_action(i213_bundle):
 
     # the site symmetry group is exactly the three operations that fix site 0
     # without a shift, i.e. the C_3 about <111> through it
-    fixes = [int(group.symmetries[p].ind) for p in range(24)
+    fixes = [int(group._symmetries[p].ind) for p in range(24)
              if perms[p][0] == 0 and not np.any(shifts[p][0])]
     # EQUALITY, not inclusion: ``fixes`` is defined by the strictly stronger
     # predicate (it adds the zero-shift condition), so one direction holds for
     # any model and the claim the comment makes is the other one -- that no
     # shifted operation is counted as a site symmetry of this site
     assert set(assignment.site_group[0]) == set(fixes)
-    assert len([i for i in fixes if not group.symmetries[pos[i]].time_reversal]) == 3
+    assert len([i for i in fixes if not group._symmetries[pos[i]].time_reversal]) == 3
 
     # the orbit of the sites is what the operations carry them into by any
     # product of them, also where the ones measured to hold do not yet close
@@ -850,8 +849,8 @@ def test_i213_site_permutations_follow_the_measured_action(i213_bundle):
     # the covariance gate can leave them before the descent resolves the closure,
     # carry the four sites into one orbit, and the multiplets' blocks are read
     held = [pos[i] for i in (1, 5, 8)]
-    syms = group.symmetries
-    prod = group.get_product_table(get_diff=False)
+    syms = group._symmetries
+    prod = group._get_product_table(get_diff=False)
     assert any(int(prod[a][b]) not in held for a in held for b in held), "not a group"
     layout = rep.multiplets
     cperm = _multiplets._channel_perms(model, assignment, syms, held, layout, None)
@@ -872,8 +871,8 @@ def test_i213_rep_reproduces_the_nonsymmorphic_factor_system(i213_bundle):
     nonzero translation difference.
     """
     _, group, _, _, rep = i213_bundle
-    prod, tdiff, spf = group.get_product_table(get_diff=True)
-    pos = {int(s.ind): i for i, s in enumerate(group.symmetries)}
+    prod, tdiff, spf = group._get_product_table(get_diff=True)
+    pos = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     per = list(group.periodic_dirs)
     k = np.array([[0.13, -0.27, 0.41]])
     worst, checked = 0.0, 0
@@ -882,7 +881,7 @@ def test_i213_rep_reproduces_the_nonsymmorphic_factor_system(i213_bundle):
             pa, pb = pos[a], pos[b]
             if not np.any(tdiff[pa, pb] != 0):
                 continue
-            c = int(group.symmetries[int(prod[pa, pb])].ind)
+            c = int(group._symmetries[int(prod[pa, pb])].ind)
             kb = rep.transform_k(b, k)
             Ua, Ub, Uc = (rep.bloch_operator(a, kb), rep.bloch_operator(b, k),
                           rep.bloch_operator(c, k))
@@ -912,16 +911,16 @@ def test_i213_operation_naming_in_the_T_family_is_sane(i213_bundle):
     """
     _, group, _, _, rep = i213_bundle
     frame = rep.characters.frame
-    pos = {int(s.ind): i for i, s in enumerate(group.symmetries)}
-    lattice = np.asarray(group.lattice, float)
+    pos = {int(s.ind): i for i, s in enumerate(group._symmetries)}
+    lattice = np.asarray(group._lattice, float)
     axes = {"x": [1, 0, 0], "y": [0, 1, 0], "z": [0, 0, 1]}
 
-    names = {frame[i] for i in frame if not group.symmetries[pos[i]].time_reversal}
+    names = {frame[i] for i in frame if not group._symmetries[pos[i]].time_reversal}
     assert names == {"E", "C2(x)", "C2(y)", "C2(z)",
                      "C3([111])", "C3^-1([111])", "C3([100])", "C3^-1([100])",
                      "C3([010])", "C3^-1([010])", "C3([001])", "C3^-1([001])"}
     assert all(n.endswith("'") for i, n in frame.items()
-               if group.symmetries[pos[i]].time_reversal)
+               if group._symmetries[pos[i]].time_reversal)
     assert len([n for n in frame.values() if n.endswith("'")]) == 12, (
         "half the grey group is antiunitary and every one of them must be "
         "named -- without this count the line above is vacuous on an all-"
@@ -938,7 +937,7 @@ def test_i213_operation_naming_in_the_T_family_is_sane(i213_bundle):
         if not tail:
             continue
         spec = tail.rstrip(")")
-        R = np.asarray(group.symmetries[pos[ind]].rotation_cart, float)
+        R = np.asarray(group._symmetries[pos[ind]].rotation_cart, float)
         if spec in axes:
             v = np.asarray(axes[spec], float)
         else:
@@ -1135,7 +1134,7 @@ def p3121_unitary_bundle():
 
 def _screw_bundle(model, sg_number, include_TR=True):
     group = _spacegroup._group_of(model, include_TR=include_TR)
-    assert group and group.sg_number == sg_number, str(group)
+    assert group and group._sg_number == sg_number, str(group)
     assignment = _tables._assign_orbitals(model, group)
     assert assignment, str(assignment)
     validated = _measure._validate_group(model, group, nk=4)
@@ -1285,14 +1284,15 @@ def test_screw_fixture_content_is_its_own_EBR_row_at_every_point(
                                                 (list(range(occ, model.norb)), rows[1]))):
         table = tqw.hsp_table(rep, bands=bands)
         assert table.complete is True and table.refusals == {}, table.refusals
-        key = next(k for k in all_rows if k.startswith(key_prefix))
+        key = (key_prefix.split("↑")[0], key_prefix.split("@")[1])
+        name = next(k for k in _tables._ebr_rows(group) if k.startswith(key_prefix))
         assert {lab: v for lab, v in all_rows[key].items() if v} == table.counts, key
         for label, spec in pins.items():
             assert table.counts.get(label, 0) == spec[1 + slot], (key, label, table.counts)
 
         got = tqe.decompose(table, group, rep=rep, bands=bands)
         assert got.decomposable and got.unique, str(got)
-        assert got.solution_strings() == (f"1 x {key}",)
+        assert got.solution_strings() == (f"1 x {name}",)
         assert got.positions == ((key_prefix.split("@")[1],),)
         assert got.completeness["claim"] == "exact"
         # all four fixtures of this section are 3D and tabulated at every point,
@@ -1424,7 +1424,8 @@ def test_reglue_atomic_content_is_its_own_EBR_row_at_every_point(
     all_rows = tqe.ebr_rows(group)
     table = tqw.hsp_table(rep, bands=list(range(occ)))
     assert table.complete is True and table.refusals == {}, table.refusals
-    key = next(k for k in all_rows if k.startswith(row))
+    key = (row.split("↑")[0], letter)
+    name = next(k for k in _tables._ebr_rows(group) if k.startswith(row))
     assert {lab: v for lab, v in all_rows[key].items() if v} == table.counts, key
 
     point, pins = pin
@@ -1439,7 +1440,7 @@ def test_reglue_atomic_content_is_its_own_EBR_row_at_every_point(
 
     got = tqe.decompose(table, group, rep=rep, bands=occ)
     assert got.decomposable, str(got)
-    assert f"1 x {key}" in got.solution_strings(), got.solution_strings()
+    assert f"1 x {name}" in got.solution_strings(), got.solution_strings()
     assert (letter,) in got.positions, got.positions
     assert got.completeness["claim"] == "exact"
     # a 3D model tabulated at every point: the restriction never fires (see the
@@ -1491,12 +1492,12 @@ def test_the_reglued_labels_and_the_EBR_transport_need_the_lift(
     want = ((i41_bundle, 4, ("P",), ("-P3P3", "-P4")),
             (p62_bundle, 6, (), ()))
     for bundle, _occ, points, changed in want:
-        transport = tqg.ebr_data(bundle[1])["convention"]
-        assert tuple(transport["reglued_points"]) == points, transport
+        transport = tqg.ebr_data(bundle[1]).convention
+        assert tuple(transport.reglued_points) == points, transport
         # the positive counterpart of #171's negative above: SG 80's P really is
         # one of the 59 ``divergent`` entries, and these are the labels that move
-        assert tuple(transport["divergent_points"]) == points, transport
-        assert tuple(transport["changed_labels"]) == changed, transport
+        assert tuple(transport.divergent_points) == points, transport
+        assert tuple(transport.changed_labels) == changed, transport
 
     # the snapshot: every point of both models, in the unpatched state
     before = {}
@@ -1820,7 +1821,7 @@ def test_the_unitary_build_names_P_and_GM_the_way_the_grey_one_does(
     assert u_rows, str(u_rows)
 
     def _row(rows, prefix):
-        key = next(k for k in rows if k.startswith(prefix))
+        key = (prefix.split("↑")[0], prefix.split("@")[1])
         return {lab: v for lab, v in rows[key].items() if v}
 
     r1, r2 = _row(u_rows, "-1E↑G(2)@4a"), _row(u_rows, "-2E↑G(2)@4a")
@@ -1909,7 +1910,7 @@ def _induced_matrices(model, group, assignment, rep):
     come from outside it.
     """
     nspin, norb = int(model.nspin), int(model.norb)
-    syms = list(group.symmetries)
+    syms = list(group._symmetries)
     pos = {int(s.ind): p for p, s in enumerate(syms)}
     out = {}
     for ind in rep.indices:
@@ -2192,11 +2193,11 @@ def test_the_twist_no_site_group_separates_is_a_genuine_equivalence(i41_soc_bund
     twisted = dataclasses.replace(
         default, matrices={i: chi_B[int(i)] * np.asarray(default.matrices[i])
                            for i in default.indices})
-    pos = {int(s.ind): p for p, s in enumerate(u_group.symmetries)}
-    prod, _tdiff, spf = u_group.get_product_table(get_diff=True)
+    pos = {int(s.ind): p for p, s in enumerate(u_group._symmetries)}
+    prod, _tdiff, spf = u_group._get_product_table(get_diff=True)
     assert float(_matrices._product_table_residual(
         {pos[int(i)]: twisted.matrices[i] for i in twisted.indices},
-        [pos[int(i)] for i in twisted.indices], u_group.symmetries, prod, spf)) < 1e-13
+        [pos[int(i)] for i in twisted.indices], u_group._symmetries, prod, spf)) < 1e-13
 
     for bands in ([0, 1, 2, 3], list(range(12))):
         ta = tqw.hsp_table(default, bands=bands)
@@ -2453,7 +2454,7 @@ def test_the_square_pxpy_doublet_is_measured_against_a_torus_of_a_commutant():
     """
     out = tqg.realized_group(_square_pxpy(), typat=[0, 0], cross_check=False)
     assert out, str(out)
-    assert out.group.number_str == "99.164" and out.group.size == 16
+    assert out.group.number_str == "99.164" and len(out.operations) == 16
     assert len(out.validated.indices) == 16 and out.descent is None
 
     multiplets = out.rep.multiplets
@@ -2472,7 +2473,7 @@ def test_the_square_pxpy_doublet_is_measured_against_a_torus_of_a_commutant():
     assert out.rep.product_residual < 1e-13
     # every operation, the antiunitary ones too, acts on the pair as its rotation
     # acts on (x, y): the tables' E on (p_x, p_y), whatever the reading drew
-    syms = {int(s.ind): s for s in out.group.symmetries}
+    syms = {int(s.ind): s for s in out.group._symmetries}
     for ind, M in out.rep.matrices.items():
         assert np.allclose(M, np.asarray(syms[int(ind)].rotation_cart)[:2, :2], atol=1e-12), ind
 
@@ -2733,7 +2734,7 @@ def test_a_site_s_operations_bind_its_orbitals_and_copies_of_one_irrep_are_one(c
     out = realize(build(), **kwargs)
     assert out, str(out)
     assert out.group.number_str == number and out.descent is None
-    assert len(out.validated.indices) == out.group.size
+    assert len(out.validated.indices) == len(out.operations)
     multiplets = out.rep.multiplets
     assert multiplets.by_site == by_site
     # a multiplet's dimension counts its spinors where the spin is declared in pairs
@@ -2831,7 +2832,7 @@ def _spin_lift_defect(rep):
     order: zero to rounding where every matrix is an orbital factor times the
     operation's own spin lift.
     """
-    syms = {int(s.ind): s for s in rep.group.symmetries}
+    syms = {int(s.ind): s for s in rep.group._symmetries}
     worst = 0.0
     for ind, D in rep.matrices.items():
         if syms[int(ind)].time_reversal:
@@ -2896,7 +2897,7 @@ def test_two_decoupled_sublattices_are_measured_and_the_convention_names_the_res
                                cross_check=False)
     assert split, str(split)
     assert split.group.number_str == "99.164" and split.descent is None
-    assert len(split.validated.indices) == split.group.size == 16
+    assert len(split.validated.indices) == len(split.operations) == 16
     assert split.rep.multiplets.by_site == (((0, 1),), ((2, 3),))
     assert split.rep.characters.irreps == ("E", "E", "E", "E")
     assert all(o.determined_by == "lowest-l" for o in split.rep.characters.orbitals)
@@ -2917,7 +2918,7 @@ def test_two_decoupled_sublattices_are_measured_and_the_convention_names_the_res
                     environment=environment)
                 assert spun, str(spun)
                 assert spun.group.number_str == number
-                assert len(spun.validated.indices) == spun.group.size
+                assert len(spun.validated.indices) == len(spun.operations)
                 assert spun.cross_check["outcome"] == "agree"
                 assert spun.conserved["dim"] == rotations
                 assert [(s["copies"], s["dim"]) for s in spun.conserved["sectors"]] == \

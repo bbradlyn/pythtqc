@@ -186,9 +186,9 @@ def _antiunitary_entry(group, validated, ind) -> dict:
     the half translation of an antiferromagnet's magnetic cell combined with
     time reversal, and never time reversal's own ``E'`` (:func:`_record_name`).
     """
-    sym = next(s for s in group.symmetries if int(s.ind) == int(ind))
+    sym = next(s for s in group._symmetries if int(s.ind) == int(ind))
     return {"ind": int(ind),
-            "name": _record_name(sym, group.lattice),
+            "name": _record_name(sym, group._lattice),
             "of": str(group.number_str),
             "rotation": tuple(tuple(int(round(x)) for x in row)
                               for row in np.asarray(sym.rotation, dtype=float)),
@@ -237,12 +237,12 @@ def _antiunitary_settled(group, validated, refuted, square, kept=None, *,
     measured on.  ``tolerances`` is the record of what the call declared, which
     every reading of a solution space here judges noise against.
     """
-    antiunitary = {int(s.ind): s for s in group.symmetries if s.time_reversal}
+    antiunitary = {int(s.ind): s for s in group._symmetries if s.time_reversal}
     if kept is None:
         asked = set(antiunitary)
     else:
         kept = {int(i) for i in kept}
-        staying = {_operation_key(s)[:2] for s in group.symmetries
+        staying = {_operation_key(s)[:2] for s in group._symmetries
                    if not s.time_reversal and int(s.ind) in kept}
         asked = {i for i, s in antiunitary.items() if _operation_key(s)[:2] not in staying}
     detector = {i for i in antiunitary if i in set(validated.broken)}
@@ -250,7 +250,7 @@ def _antiunitary_settled(group, validated, refuted, square, kept=None, *,
     if square is not None and not square.obeyed:
         detector.add(reversal)
     failed = detector | {i for i in antiunitary if i in set(refuted or ())}
-    at = {int(s.ind): p for p, s in enumerate(group.symmetries)}
+    at = {int(s.ind): p for p, s in enumerate(group._symmetries)}
     ops = {}
     for i in sorted(asked):
         member = None if i in failed else validated._intertwiners.get(i)
@@ -334,7 +334,7 @@ def _time_reversal_measured(group, validated, refuted=None, *, tolerances=EXACT)
     of what the call declared, which every reading of a solution space here
     judges noise against.
     """
-    antiunitary = {int(s.ind): s for s in group.symmetries if s.time_reversal}
+    antiunitary = {int(s.ind): s for s in group._symmetries if s.time_reversal}
     broken = {i for i in validated.broken if i in antiunitary}
     square = (_time_reversal_square(group, validated, tolerances=tolerances)
               if antiunitary else None)
@@ -446,11 +446,11 @@ def _carried_onto(group, asked, symprec) -> tuple:
         Every step keeps a subset of what it measured, so this is the
         package's own bookkeeping failing, not a measurement.
     """
-    unitary = [s for s in group.symmetries if not s.time_reversal]
+    unitary = [s for s in group._symmetries if not s.time_reversal]
     out = []
     for rec in asked:
-        theirs = [s for s in rec.group.symmetries if not s.time_reversal]
-        pairs, lost, _extra = _match_operations(unitary, theirs, symprec, group.lattice)
+        theirs = [s for s in rec.group._symmetries if not s.time_reversal]
+        pairs, lost, _extra = _match_operations(unitary, theirs, symprec, group._lattice)
         if lost:
             raise InternalError(
                 f"the group returned, {group.name} #{group.number_str}, holds "
@@ -532,9 +532,9 @@ def _antiunitary_held(group, matrices, asked, *, tolerances=EXACT) -> _Antiunita
     # its precision: how small a direction of it is none, and how far a unitary
     # read off it may sit outside it
     zero, in_span = tolerances.noise(ZERO), tolerances.noise(IN_SPAN)
-    own = group.symmetries
+    own = group._symmetries
     by_ind = {int(s.ind): s for s in own}
-    found = _minimal_generators(range(len(own)), group.get_product_table(get_diff=False),
+    found = _minimal_generators(range(len(own)), group._get_product_table(get_diff=False),
                                 _identity_position(group))
     # the relation asked of every operation, where no small generating set is
     # found, is the one asked of the generators and more
@@ -543,9 +543,9 @@ def _antiunitary_held(group, matrices, asked, *, tolerances=EXACT) -> _Antiunita
     verdicts, held, cosets = {}, [], {}
     for r, rec in enumerate(asked):
         cell = rec.group
-        syms = cell.symmetries
+        syms = cell._symmetries
         at = {int(s.ind): p for p, s in enumerate(syms)}
-        prod, _tdiff, spf = cell.get_product_table(get_diff=True)
+        prod, _tdiff, spf = cell._get_product_table(get_diff=True)
         ident = _identity_position(cell)
         onto = rec.returned
         inside = {at[i] for i in onto}
@@ -963,7 +963,7 @@ def _descent_frame(cell, group) -> tuple:
     :func:`_pad_cell` returns them, so the cell's own extent along a vacuum
     direction can be read off the same numbers.
     """
-    lat_pad, pos_pad, padded = _pad_cell(cell, group.vacuum_length)
+    lat_pad, pos_pad, padded = _pad_cell(cell, group._vacuum_length)
     lat_cell = np.asarray(cell.lat_vecs, dtype=float)
     scale = np.array([float(np.linalg.norm(lat_pad[d])
                             / max(np.linalg.norm(lat_cell[d]), 1e-30))
@@ -1036,12 +1036,12 @@ def _mirror_partners(group, validated, assignment) -> dict | None:
     undetermined = {int(i) for i in validated.undetermined}
     if not undetermined:
         return {}
-    padded = tuple(int(d) for d in getattr(group, "vacuum_dirs", ()) or ())
+    padded = tuple(int(d) for d in getattr(group, "_vacuum_dirs", ()) or ())
     if len(padded) != 1:
         return None
-    sides = {int(s.ind): _side_preserving(s, padded[0]) for s in group.symmetries}
+    sides = {int(s.ind): _side_preserving(s, padded[0]) for s in group._symmetries}
     perm = np.asarray(assignment.permutations, dtype=int)
-    at = {int(s.ind): p for p, s in enumerate(group.symmetries)}
+    at = {int(s.ind): p for p, s in enumerate(group._symmetries)}
     partners = {}
     for members in validated.k_action_classes:
         pair = [int(i) for i in members if int(i) in undetermined]
@@ -1079,7 +1079,7 @@ def _mirror_sign(group, partners, decls=()) -> dict:
     ``"declaration"`` or ``"lowest-l"``.
     """
 
-    identity = int(group.symmetries[_identity_position(group)].ind)
+    identity = int(group._symmetries[_identity_position(group)].ind)
     mirror = next((f for f, g in partners.items() if g == identity), None)
     if mirror is not None:
         for content in _declared_parts_of(decls or ()):
@@ -1107,7 +1107,7 @@ def _class_members(group, validated, partners=None, sign=1):
     where the class is not read here.
     """
 
-    syms = group.symmetries
+    syms = group._symmetries
     if bool(group.spinor) or any(bool(s.time_reversal) for s in syms):
         return None
     inds = [int(s.ind) for s in syms]
@@ -1148,8 +1148,8 @@ def _class_kept(group, D, positions):
     a phase the table lacks.
     """
 
-    syms = group.symmetries
-    prod, _tdiff, spf = group.get_product_table(get_diff=True)
+    syms = group._symmetries
+    prod, _tdiff, spf = group._get_product_table(get_diff=True)
     pairs = _commuting_pair_phases(D, positions, syms, prod, spf, tol=_CLASS_MARGIN)
     if not pairs:
         return None
@@ -1178,10 +1178,10 @@ def _class_record(group, pairs, kept, ranked, *, rule_group=None, rule_ranked=No
     read with.
     """
 
-    syms = group.symmetries
-    _prod, _tdiff, spf = group.get_product_table(get_diff=True)
+    syms = group._symmetries
+    _prod, _tdiff, spf = group._get_product_table(get_diff=True)
     at = {int(s.ind): p for p, s in enumerate(syms)}
-    lattice = np.asarray(group.lattice, dtype=float)
+    lattice = np.asarray(group._lattice, dtype=float)
 
     def _name(i):
         return _record_name(syms[at[int(i)]], lattice)
@@ -1281,7 +1281,7 @@ def _projective_class_refuted(group, validated, *, assignment=None, decls=()):
     (``horizontal_mirror``).  ``({}, None)`` where the class is the table's, or
     is not read here.
     """
-    if bool(group.spinor) or any(bool(s.time_reversal) for s in group.symmetries):
+    if bool(group.spinor) or any(bool(s.time_reversal) for s in group._symmetries):
         return {}, None
     partners = {}
     if validated.undetermined:
@@ -1338,7 +1338,7 @@ def _free_standing_lift(model, group, free_standing):
         free_standing["group"] = parent
     if isinstance(parent, Refusal):
         return None
-    padded = tuple(int(d) for d in getattr(parent, "vacuum_dirs", ()) or ())
+    padded = tuple(int(d) for d in getattr(parent, "_vacuum_dirs", ()) or ())
     if len(padded) != 1:
         return None
     assignment = _assign_orbitals(model, parent, typat=free_standing["labels"])
@@ -1346,7 +1346,7 @@ def _free_standing_lift(model, group, free_standing):
         return None
     reflect = np.eye(3, dtype=int)
     reflect[padded[0], padded[0]] = -1
-    psyms = parent.symmetries
+    psyms = parent._symmetries
     perm = np.asarray(assignment.permutations, dtype=int)
     still = np.arange(perm.shape[1])
     mirror = next((p for p, s in enumerate(psyms) if not s.time_reversal
@@ -1355,12 +1355,12 @@ def _free_standing_lift(model, group, free_standing):
     if mirror is None:
         return None
     pairs, missing, _extra = _match_operations(
-        [s for s in group.symmetries if not s.time_reversal],
+        [s for s in group._symmetries if not s.time_reversal],
         [s for s in psyms if not s.time_reversal], free_standing["symprec"],
-        group.lattice)
+        group._lattice)
     if missing:
-        by_ind = {int(s.ind): s for s in group.symmetries}
-        lattice = np.asarray(group.lattice, dtype=float)
+        by_ind = {int(s.ind): s for s in group._symmetries}
+        lattice = np.asarray(group._lattice, dtype=float)
         raise InternalError(
             f"{len(missing)} operations of {group.name} #{group.number_str}, read on a "
             "substrate, are not operations of the free-standing cell of the same point "
@@ -1369,7 +1369,7 @@ def _free_standing_lift(model, group, free_standing):
             + ". A substrate only removes operations, so this is the package disagreeing "
             "with itself, not a measurement about the model.")
     at = {int(s.ind): p for p, s in enumerate(psyms)}
-    prod = parent.get_product_table(get_diff=False)
+    prod = parent._get_product_table(get_diff=False)
     of_parent = {}
     for here, there in pairs:
         of_parent[at[int(there)]] = (int(here), False)
@@ -1442,8 +1442,8 @@ def _projective_class_carried(model, group, validated, *, free_standing):
     if members is None:
         return {}, None
     D, positions = members
-    prod, _tdiff, spf = group.get_product_table(get_diff=True)
-    pairs = _commuting_pair_phases(D, positions, group.symmetries, prod, spf,
+    prod, _tdiff, spf = group._get_product_table(get_diff=True)
+    pairs = _commuting_pair_phases(D, positions, group._symmetries, prod, spf,
                                    tol=_CLASS_MARGIN)
     if not pairs:
         # the free-standing pairs are these and their products with the mirror,
@@ -1457,9 +1457,9 @@ def _projective_class_carried(model, group, validated, *, free_standing):
     # its partner's matrix, the sign the even one of the lowest-angular-momentum
     # rule: D(sigma_h g) = D(sigma_h) D(g)
     sign = 1
-    at = {int(s.ind): p for p, s in enumerate(group.symmetries)}
+    at = {int(s.ind): p for p, s in enumerate(group._symmetries)}
     fD = {p: (sign if of[int(s.ind)][1] else 1) * D[at[of[int(s.ind)][0]]]
-          for p, s in enumerate(free.symmetries) if not s.time_reversal}
+          for p, s in enumerate(free._symmetries) if not s.time_reversal}
     got = _class_kept(free, fD, sorted(fD))
     if got is None:                     # pragma: no cover - the pairs above are its pairs too
         raise InternalError(
@@ -1478,7 +1478,7 @@ def _projective_class_carried(model, group, validated, *, free_standing):
     refuted, record = _class_record(group, pairs, frozenset(_here(fkept)), ranked,
                                     rule_group=free, rule_ranked=franked)
     record["read_on"] = {"number_str": str(free.number_str), "name": str(free.name),
-                         "size": int(free.size), "kept": len(fkept)}
+                         "size": int(free._size), "kept": len(fkept)}
     return refuted, record
 
 
@@ -1554,7 +1554,7 @@ def _shared_origin(found, kept, pairs) -> GroupData:
         this is arithmetic in this package failing rather than a measurement.
     """
     by_kept = {int(s.ind): s for s in kept}
-    by_found = {int(s.ind): s for s in found.symmetries}
+    by_found = {int(s.ind): s for s in found._symmetries}
     diffs = []
     for k, f in pairs:
         d = (np.asarray(by_kept[int(k)].translation, dtype=float).reshape(-1)
@@ -1583,7 +1583,7 @@ def _moved_origin(group, delta) -> GroupData:
     """
     delta = np.asarray(delta, dtype=float).reshape(-1)
     moved = []
-    for s in group.symmetries:
+    for s in group._symmetries:
         new = copy.copy(s)
         for cached in ("translation_cart", "is_identity"):
             new.__dict__.pop(cached, None)
@@ -1594,7 +1594,7 @@ def _moved_origin(group, delta) -> GroupData:
     sg = copy.copy(group._sg)
     sg.__dict__.pop("translations_cart", None)
     sg.symmetries, sg.shiftUC = moved, shift
-    return replace(group, symmetries=list(moved), _shiftUC=shift, _sg=sg)
+    return replace(group, _symmetries=list(moved), _shiftUC=shift, _sg=sg)
 
 
 def _orbit_cell(base_cell, base_typat, group, kept, *, points, species, spinor,
@@ -1639,9 +1639,9 @@ def _orbit_cell(base_cell, base_typat, group, kept, *, points, species, spinor,
                         include_TR=bool(include_TR), symprec=symprec)
         if isinstance(got, Refusal):
             return got
-        unitary = [s for s in got.symmetries if not s.time_reversal]
+        unitary = [s for s in got._symmetries if not s.time_reversal]
         pairs, unmatched_kept, unmatched_found = _match_operations(kept, unitary, symprec,
-                                                                   group.lattice)
+                                                                   group._lattice)
         if int(got._lattice_index) <= 1 and not unmatched_kept and not unmatched_found:
             return (_shared_origin(got, kept, pairs), cell, cell_typat, pairs, point,
                     orbit_padded)
@@ -1671,7 +1671,7 @@ def _centres_not_exactly_symmetric(model, group, assignment, *,
     """
 
     delta = float(_position_defect(model, group, assignment,
-                                   {int(s.ind): s for s in group.symmetries}))
+                                   {int(s.ind): s for s in group._symmetries}))
     if not delta > 0.0:
         return None
     max_h = _max_hamiltonian(model)
@@ -1733,7 +1733,7 @@ def _time_reversal_square(group, validated, *, tolerances=EXACT):
     ``member`` (the member of the sign asked, or ``None`` where the space holds
     none).
     """
-    position = next((p for p, s in enumerate(group.symmetries) if s.time_reversal
+    position = next((p for p, s in enumerate(group._symmetries) if s.time_reversal
                      and np.array_equal(np.rint(np.asarray(s.rotation)).astype(int),
                                         np.eye(3, dtype=int))
                      and np.abs(((np.asarray(s.translation, dtype=float) + 0.5) % 1.0)
@@ -1773,12 +1773,12 @@ def _antiunitary_square(group, validated, position, *, asked=None, tolerances=EX
     off, and its solution space holds a member to that precision.
     """
 
-    ind = int(group.symmetries[position].ind)
+    ind = int(group._symmetries[position].ind)
     member = validated._intertwiners.get(ind)
     if ind in set(validated.broken) or member is None:
         return None
     if asked is None:
-        prod, _tdiff, spf = group.get_product_table(get_diff=True)
+        prod, _tdiff, spf = group._get_product_table(get_diff=True)
         if int(prod[position, position]) != _identity_position(group):
             return None                          # no square of its own to read
         asked = int(spf[position, position])
@@ -1932,7 +1932,7 @@ def _ansatz_refuted(model, group, assignment, validated, *, layout, spin,
     shared -= set(skip or ())
     if not shared:
         return {}, {}
-    positions = [i for i, s in enumerate(group.symmetries) if int(s.ind) in shared]
+    positions = [i for i, s in enumerate(group._symmetries) if int(s.ind) in shared]
     got = _ansatz_defects(model, group, assignment, validated, positions,
                           layout=layout, spin=spin, blocks=blocks,
                           max_candidates=max_candidates, orients=(1,))
@@ -2003,7 +2003,7 @@ def _translation_held(model, group, assignment, validated, position, *, spin=Non
 
     nothing = (False, None, float("nan"))
     basis = (getattr(validated, "_bases", None) or {}).get(
-        int(group.symmetries[int(position)].ind))
+        int(group._symmetries[int(position)].ind))
     nstate = int(model.nstate)
     if basis is None:
         return nothing
@@ -2156,13 +2156,13 @@ def _lattice_verdict(model, group, assignment, validated, refuted, tol, k_pts,
     broken = set(validated.broken)
     reason_of = {int(d["ind"]): str(d["refuted_by"]) for d in validated.discrepancies}
     refuted = dict(refuted or {})
-    lattice = np.asarray(group.lattice, dtype=float)
+    lattice = np.asarray(group._lattice, dtype=float)
     ident = np.eye(3, dtype=int)
-    antiunitary = {int(s.ind) for s in group.symmetries if s.time_reversal}
+    antiunitary = {int(s.ind) for s in group._symmetries if s.time_reversal}
     gone = (broken | set(refuted)) - antiunitary
 
     found, pure_inds = [], set()
-    for position, s in enumerate(group.symmetries):
+    for position, s in enumerate(group._symmetries):
         if bool(s.time_reversal):
             continue
         if not np.array_equal(np.rint(np.asarray(s.rotation, dtype=float)).astype(int),
@@ -2171,7 +2171,7 @@ def _lattice_verdict(model, group, assignment, validated, refuted, tol, k_pts,
         t = np.asarray(s.translation, dtype=float).reshape(-1)
         t = t - np.rint(t)
         # zero as the identification read it: no longer than the finder's distance
-        if float(np.linalg.norm(t @ lattice)) <= float(group.symprec):
+        if float(np.linalg.norm(t @ lattice)) <= float(group._symprec):
             continue
         ind = int(s.ind)
         pure_inds.add(ind)
@@ -2257,7 +2257,7 @@ def _supercell_refusal(group, validated, lattice_record) -> Refusal:
     # one the REALIZED translations generate -- not every translation the point
     # set allows, which is what the cell allows and is a different statement
     taus = tuple(lattice_record["realized"])
-    lattice = np.asarray(group.lattice, dtype=float)
+    lattice = np.asarray(group._lattice, dtype=float)
     prim = _primitive_lattice(lattice, taus)
     tau = np.round(np.asarray(taus[0], dtype=float), 6)
     cart = np.round(np.asarray(taus[0], dtype=float) @ lattice, 6)
@@ -2394,16 +2394,16 @@ def _restricted_contents(model, written, group, layout, *, spin, characters) -> 
     """
 
     larger, there = written["group"], written["assignment"]
-    kept_u = {int(s.ind) for s in larger.symmetries if not s.time_reversal}
-    kept_au = {int(s.ind) for s in larger.symmetries if s.time_reversal}
+    kept_u = {int(s.ind) for s in larger._symmetries if not s.time_reversal}
+    kept_au = {int(s.ind) for s in larger._symmetries if s.time_reversal}
     try:
         tables = _site_tables(larger, there, kept_u, kept_au, range(len(there.site_orbitals)))
         decls = _normalize_declaration(characters, model, there, larger, tables, layout,
                                        spin=spin, read_in=written.get("read_in"))
     except _sitechars.DeclarationError:
         return ()
-    theirs = {_operation_key(s): int(s.ind) for s in larger.symmetries}
-    pairs = [(theirs[_operation_key(s)], int(s.ind)) for s in group.symmetries
+    theirs = {_operation_key(s): int(s.ind) for s in larger._symmetries}
+    pairs = [(theirs[_operation_key(s)], int(s.ind)) for s in group._symmetries
              if _operation_key(s) in theirs]
     return _rekey_contents(tuple(d["content"] for d in decls), pairs, {})
 
@@ -2439,14 +2439,14 @@ def _carried_reduction(group, assignment, own, wider):
         _kept, excluded, read_in = own
         excluded, read_in = ({i: rec for i, rec in excluded.items()
                               if not _outside_the_group(rec)}, dict(read_in))
-    lattice = np.asarray(group.lattice, dtype=float)
-    theirs = {_operation_key(s): int(s.ind) for s in wider["group"].symmetries}
+    lattice = np.asarray(group._lattice, dtype=float)
+    theirs = {_operation_key(s): int(s.ind) for s in wider["group"]._symmetries}
     # a site of the larger group's orbits by the one it is here, through an
     # orbital on it: the two groups number their sites each their own way
     there = np.asarray(wider["assignment"].site_of_orbital, dtype=int)
     here = np.asarray(assignment.site_of_orbital, dtype=int)
     site_here = {int(there[o]): int(here[o]) for o in range(len(there))}
-    for sym in group.symmetries:
+    for sym in group._symmetries:
         ind = int(sym.ind)
         rec = wider["excluded"].get(theirs.get(_operation_key(sym)))
         if rec is None or ind in excluded or _outside_the_group(rec):
@@ -2494,7 +2494,7 @@ def _declared_cell(base_cell, base_typat, group, kept, *, spinor, include_TR, sy
         rather than a measurement about the model: a cell reduction, like a
         descent, can only land on a smaller group, never fail.
     """
-    kept_syms = [s for s in group.symmetries
+    kept_syms = [s for s in group._symmetries
                  if int(s.ind) in set(kept) and not s.time_reversal]
     leaks = _descent_closure(group, kept_syms)
     if leaks:                                    # pragma: no cover - defensive
@@ -2507,7 +2507,7 @@ def _declared_cell(base_cell, base_typat, group, kept, *, spinor, include_TR, sy
     species = _DECLARED_SPECIES
     while any(str(t) == species for t in base_typat):   # pragma: no cover - defensive
         species += "_"
-    names = {int(s.ind): _record_name(s, group.lattice) for s in group.symmetries}
+    names = {int(s.ind): _record_name(s, group._lattice) for s in group._symmetries}
 
     def _diagnose(got, unitary, unmatched_kept, unmatched_found, orbit):
         """What the identification of one reduced cell was read as, and why that is a defect."""
@@ -2562,9 +2562,9 @@ def _declared_contents(model, group, assignment, validated, layout, *, spin, cha
     :func:`.._build._build_rep` would return for it.
     """
 
-    kept_u = {int(s.ind) for s in group.symmetries
+    kept_u = {int(s.ind) for s in group._symmetries
               if int(s.ind) in set(validated.indices) and not s.time_reversal}
-    kept_au = {int(s.ind) for s in group.symmetries
+    kept_au = {int(s.ind) for s in group._symmetries
                if int(s.ind) in set(validated.indices) and s.time_reversal}
     try:
         tables = _site_tables(group, assignment, kept_u, kept_au,
@@ -2613,10 +2613,10 @@ def _declared_contents_wider(model, group, assignment, layout, *, spin, characte
     or ``()`` where the words name nothing in either.
     """
 
-    readings = [list(group.symmetries)]
-    padded = tuple(int(d) for d in getattr(group, "vacuum_dirs", ()) or ())
+    readings = [list(group._symmetries)]
+    padded = tuple(int(d) for d in getattr(group, "_vacuum_dirs", ()) or ())
     if len(padded) == 1:
-        readings.append([s for s in group.symmetries
+        readings.append([s for s in group._symmetries
                          if _side_preserving(s, padded[0])])
     for syms in readings:
         kept_u = {int(s.ind) for s in syms if not s.time_reversal}
@@ -2647,7 +2647,7 @@ def _restricts_to(contents, group, assignment) -> bool:
     of the word in that site group at all.
     """
     site_of = np.asarray(assignment.site_of_orbital, dtype=int)
-    unitary = {int(s.ind) for s in group.symmetries if not s.time_reversal}
+    unitary = {int(s.ind) for s in group._symmetries if not s.time_reversal}
     for content in contents:
         site = int(site_of[int(content.orbitals[0])])
         here = {int(i) for i in assignment.site_group[site]} & unitary
@@ -2708,7 +2708,7 @@ def _declaration_refuted(group, validated, *, refuted, verdict, tolerances=EXACT
     ceiling.
     """
 
-    syms = group.symmetries
+    syms = group._symmetries
     standing = set(validated.indices) - set(refuted)
     kept_u = [int(s.ind) for s in syms
               if int(s.ind) in standing and not s.time_reversal]
@@ -2722,10 +2722,10 @@ def _declaration_refuted(group, validated, *, refuted, verdict, tolerances=EXACT
                               matrices=got.matrices)
     if isinstance(sub, Refusal):
         return sub
-    lattice = np.asarray(group.lattice, dtype=float)
+    lattice = np.asarray(group._lattice, dtype=float)
     # the primed partner of a broken unitary operation, through the group's own
     # product table: T * g, with T the pure time reversal
-    prod = group.get_product_table(get_diff=False)
+    prod = group._get_product_table(get_diff=False)
     at = {int(s.ind): i for i, s in enumerate(syms)}
     partner = {}
     t_pos = next((p for p, s in enumerate(syms) if s.time_reversal
@@ -2872,7 +2872,7 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
     test's own multiplet permutation, the declared reading or the block
     enumeration made.
     """
-    syms = group.symmetries
+    syms = group._symmetries
     centred = dict(centres or {})
     own_form = dict(own_form or {})
     # THE OWN FORM of every operation the detector found obeyed, first: a
@@ -2887,7 +2887,7 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
     if any(int(s.ind) in lifted and not s.time_reversal for s in syms):
         lattice = _lattice_verdict(model, group, assignment, validated, lifted,
                                    tolerances.energy,
-                                   _detection_grid(int(group.dim_k), int(nk)),
+                                   _detection_grid(int(group._dim_k), int(nk)),
                                    context=context, spin=spin,
                                    matrix_tol=tolerances.matrix or None)
         refuted = dict(lifted)
@@ -2901,7 +2901,7 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
     # hold their own form: one refuted by it has no matrix to read a block off
     blocks = _multiplet_blocks(
         model, group, assignment, spin, validated, layout,
-        [p for p, s in enumerate(group.symmetries)
+        [p for p, s in enumerate(group._symmetries)
          if int(s.ind) in set(validated.indices) and int(s.ind) not in own_form],
         ref_chan=int(np.asarray(layout._chan_of, dtype=int)[0]),
         max_candidates=max_candidates, sectors=sectors)
@@ -2961,7 +2961,7 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
     # lattice is its translation group and the first descent is the one to it.
     lattice = _lattice_verdict(model, group, assignment, validated, refuted,
                                tolerances.energy,
-                               _detection_grid(int(group.dim_k), int(nk)),
+                               _detection_grid(int(group._dim_k), int(nk)),
                                context=context, spin=spin,
                                matrix_tol=tolerances.matrix or None)
     if lattice and lattice["refuted"]:
@@ -3071,12 +3071,12 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
         the package's identification disagreeing with its own construction.
     """
     refuted = dict(refuted or {})
-    antiunitary = {int(s.ind) for s in group.symmetries if s.time_reversal}
+    antiunitary = {int(s.ind) for s in group._symmetries if s.time_reversal}
     keep = set(validated.indices) - antiunitary - set(refuted)
-    kept = [s for s in group.symmetries
+    kept = [s for s in group._symmetries
             if int(s.ind) in keep and not s.time_reversal]
-    lattice = np.asarray(group.lattice, dtype=float)
-    by_ind = {int(s.ind): s for s in group.symmetries}
+    lattice = np.asarray(group._lattice, dtype=float)
+    by_ind = {int(s.ind): s for s in group._symmetries}
 
     def _name(ind):
         """The operation as the descent's record lists it (:func:`_record_name`)."""
@@ -3212,9 +3212,9 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
     record = {
         "step": int(step),
         "from": {"number_str": str(group.number_str), "name": str(group.name),
-                 "size": int(group.size)},
+                 "size": int(group._size)},
         "to": {"number_str": str(got.number_str), "name": str(got.name),
-               "size": int(got.size)},
+               "size": int(got._size)},
         "dropped": broken, "n_dropped": len(broken),
         # how each verdict was reached: the detector's own reasons, "tensor
         # structure" for the operations it kept and the tensor structure

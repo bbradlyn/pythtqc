@@ -122,11 +122,11 @@ row("hoppings", f"{len(model.hoppings)}, random, to every orbital within one lat
 print("\n2. the group: what the point set allows, and what the hoppings obey")
 r = tqc.realized_group(model)
 group = r.group
-wyckoff = tqc.wyckoff_sites_tables(group, r.assignment.site_positions)   # letter and multiplicity
+wyckoff = tqc.wyckoff_sites_tables(group, r.assignment.site_positions)   # each site's position
 allowed = r.descent["from"]
 row("point set allows", f"#{allowed['number_str']} {allowed['name']}")
 row("realized group", f"#{group.number_str} {group.name}, orbitals at Wyckoff "
-    f"{' and '.join(dict.fromkeys(f'{s.multiplicity}{s.letter}' for s in wyckoff))}")
+    f"{' and '.join(dict.fromkeys(s.wyckoff for s in wyckoff))}")
 
 # The descent names every operation the hoppings break.  The unitary ones are
 # counted here by kind, each kind shown by its first member: C4^-1(z) counts as
@@ -138,7 +138,7 @@ for name in lost:
     kinds.setdefault(kind, []).append(name.replace("^-1", ""))
 census = [names[0] if len(names) == 1 else f"{len(names)} like {names[0]}"
           for names in sorted(kinds.values(), key=len)]
-kept = [op.name for op in r.operations.values() if not op.time_reversal]
+kept = [op.name for op in r.operations.values() if not op.antiunitary]
 row("broken", ", ".join(census) + ",",
     f"each also with time reversal: {len(r.descent['dropped'])} of the {allowed['size']} "
     "coset representatives",
@@ -175,7 +175,7 @@ for pair in r.assignment.site_orbitals:
 # The threefold along [111] carries each site onto the next, and each site's
 # own axis onto the next site's: its matrix sends each site's pair into the
 # pair at one other site, and its rotation part sends one cube axis to another.
-c3 = tqc.operation_index(r, "{3+_111|0,0,0}")
+c3 = tqc.operation_index(r.group, "{3+_111|0,0,0}")
 M3 = np.asarray(r.rep.matrices[c3])
 # an operation's rotation_cartesian is its rotation, a 3 x 3 matrix on Cartesian vectors
 R3 = np.asarray(r.operations[c3].rotation_cartesian, dtype=float)

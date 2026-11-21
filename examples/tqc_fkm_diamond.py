@@ -96,9 +96,9 @@ undistorted = fu_kane_mele(T, SOC, [0.0, 0.0, 0.0, 0.0])     # every bond equal
 
 out = tqc.realized_group(undistorted, characters=DECLARE)
 model, group, assignment, validated, rep = out
-sites = tqc.wyckoff_sites_tables(group, assignment.site_positions)   # letter and multiplicity
+sites = tqc.wyckoff_sites_tables(group, assignment.site_positions)   # each site's Wyckoff position
 row("realized group", f"#{group.number_str} {group.name}, s orbitals at Wyckoff "
-    f"{sites[0].multiplicity}{sites[0].letter}, {model.nstate} bands")
+    f"{sites[0].wyckoff}, {model.nstate} bands")
 
 # the four energies at each high-symmetry point, and the gap at half filling
 hsp = tqc.high_symmetry_points(group)
@@ -130,7 +130,7 @@ r_strong = tqc.realized_group(m_strong, characters=DECLARE)
 _m, g_strong, asg_strong, val_strong, rep_strong = r_strong
 sites_strong = tqc.wyckoff_sites_tables(g_strong, asg_strong.site_positions)
 row("realized group", f"#{g_strong.number_str} {g_strong.name}, orbitals at Wyckoff "
-    f"{sites_strong[0].multiplicity}{sites_strong[0].letter}: the detuned bond lowers",
+    f"{sites_strong[0].wyckoff}: the detuned bond lowers",
     f"{group.name} to {g_strong.name}, with no atom moved")
 
 hsp_strong = tqc.high_symmetry_points(g_strong)
@@ -153,7 +153,7 @@ r_weak = tqc.realized_group(m_weak, characters=DECLARE)
 _m, g_weak, asg_weak, val_weak, rep_weak = r_weak
 sites_weak = tqc.wyckoff_sites_tables(g_weak, asg_weak.site_positions)
 row("realized group", f"#{g_weak.number_str} {g_weak.name}, orbitals at Wyckoff "
-    f"{sites_weak[0].multiplicity}{sites_weak[0].letter}")
+    f"{sites_weak[0].wyckoff}")
 
 hsp_weak = tqc.high_symmetry_points(g_weak)
 gaps_weak = []
@@ -177,7 +177,7 @@ r_dimers = tqc.realized_group(m_dimers, characters=DECLARE)
 _m, g_dimers, asg_dimers, val_dimers, rep_dimers = r_dimers
 sites_dimers = tqc.wyckoff_sites_tables(g_dimers, asg_dimers.site_positions)
 row("realized group", f"#{g_dimers.number_str} {g_dimers.name}, orbitals at Wyckoff "
-    f"{sites_dimers[0].multiplicity}{sites_dimers[0].letter}")
+    f"{sites_dimers[0].wyckoff}")
 
 hsp_dimers = tqc.high_symmetry_points(g_dimers)
 gaps_dimers = []
@@ -199,19 +199,17 @@ print(f"   centred at {dec_dimers.positions[0][0]} on the [111] axis")
 print("\n5. the content at the eight time-reversal-invariant momenta (TRIM)")
 
 # The star of a point is the set of its distinct images under the group:
-# group.symmetries are the group's operations, and group.k_action_of(op) is the
-# action of one of them on the model's reduced k.
+# an operation whose rotation on reduced coordinates is R carries the reduced k
+# to k R^-1, and an antiunitary one to -k R^-1.
 k_actions = []
-for op in g_strong.symmetries:
-    action = g_strong.k_action_of(op)
-    if action is not None:
-        k_actions.append(action)
+for op in tqc.operations(g_strong).values():
+    k_actions.append((-1.0 if op.antiunitary else 1.0) * np.linalg.inv(op.rotation))
 
 stars = {}
 for point in POINTS:
     orbit = set()
     for action in k_actions:
-        q = np.mod(np.asarray(action(hsp_strong[point]), dtype=float).reshape(-1), 1.0)
+        q = np.mod(np.asarray(hsp_strong[point], dtype=float) @ action, 1.0)
         orbit.add(tuple(np.round(np.where(np.abs(q - 1.0) < 1e-9, 0.0, q), 6)))
     stars[point] = len(orbit)
 n_trim = sum(stars.values())

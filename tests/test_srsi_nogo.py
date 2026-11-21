@@ -40,10 +40,10 @@ from fractions import Fraction
 import numpy as np
 import pytest
 
-from pythtqc import groups as tqg
 from pythtqc import sewing as tqw
 from pythtqc import srsi as tqr
 from pythtqc import _srsitables
+from pythtqc import _tables
 
 import tqc_models as tqm                                            # noqa: F401
 from conftest import FKM_BOND, fkm_regime, km_z2_regime
@@ -66,7 +66,7 @@ SAME_CONTENT_PAIRS = (
     (204, "b", ("B1g", "B2g")), (211, "d", ("B2", "B3")), (230, "c", ("B2", "B3")),
 )
 
-#: The ``(n)`` an ``ebr_data`` EBR name ends in -- that EBR's **own** band
+#: The ``(n)`` an ``_tables._ebr_data`` EBR name ends in -- that EBR's **own** band
 #: count, written by the EBR tables beside the name and nowhere in ``Theta``.
 #: Read here rather than through ``srsi._ebr_dimension`` so the band-count form
 #: is checked against a number the package's own arithmetic did not produce.
@@ -157,7 +157,7 @@ def test_the_band_count_is_a_unique_linear_form_in_the_z_srsis_everywhere():
 
     The form is asserted where its right-hand side comes from **outside**
     ``Theta``: on each of the 4731 EBR columns, against the ``(n)`` written into
-    that EBR's own ``ebr_data`` name.  On a *composite* key the same expression
+    that EBR's own ``_tables._ebr_data`` name.  On a *composite* key the same expression
     is how ``_maximal_basis`` computed ``dim`` in the first place, so that line
     restates the construction and is labelled as such.
 
@@ -215,7 +215,7 @@ def test_the_maximal_key_arithmetic_agrees_with_theta(sg211, monkeypatch):
     two read the same stored column, so the loop checks the agreement across
     sources: a mapping key against the same key's EBR column, ``theta(vector)
     == by_sites`` -- the converted record's per-term ``(irrep, wyckoff)`` labels
-    against ``ebr_data``'s own EBR spelling at the same column.  Where the two
+    against ``_tables._ebr_data``'s own EBR spelling at the same column.  Where the two
     spellings differ -- ``A`` in the EBR list for the supplement's ``A1`` at
     ``12d`` -- the mapping takes the EBR list's spelling too and reads the same
     key.
@@ -306,7 +306,7 @@ def test_atomic_realizations_enumerates_every_realization_of_one_symmetry_vector
 def _realizations_over_br(table, y, n_bands):
     """Every ``p >= 0`` with ``BR . p = y`` and ``sum_j dim_j p_j == n_bands``.
 
-    The **band-representation** system, by brute force over ``ebr_data``'s own
+    The **band-representation** system, by brute force over ``_tables._ebr_data``'s own
     integer matrix -- the redundant system ``atomic_realizations`` replaces with
     one equation per Z-SRSI, enumerated here without touching ``Theta`` at all.
     Exhaustive by the same argument the enumeration's own bound uses: with every
@@ -314,7 +314,7 @@ def _realizations_over_br(table, y, n_bands):
     ``n_bands // dim_j``, and the recursion walks all of them.  Returned sorted,
     because a set is what is being compared.
     """
-    data = tqg.ebr_data(_srsitables._TableKey(table.number_str, table.spinor))
+    data = _tables._ebr_data(_srsitables._TableKey(table.number_str, table.spinor))
     matrix = np.asarray(data["matrix"], dtype=int)
     dims = [int(_EBR_BANDS.search(str(name)).group(1))
             for name, _position in data["ebrs"]]
@@ -355,7 +355,7 @@ def test_the_theta_enumeration_is_the_band_representation_enumeration(sg211):
     keys = sg211.maximal_keys
     assert len(keys) == len(sg211.ebrs)
     assert all(key.ebr and key.column == index for index, key in enumerate(keys))
-    data = tqg.ebr_data(_srsitables._TableKey(sg211.number_str, False))
+    data = _tables._ebr_data(_srsitables._TableKey(sg211.number_str, False))
     matrix = np.asarray(data["matrix"], dtype=int)
 
     def theta_z_of(index):
@@ -391,7 +391,7 @@ def test_the_enumeration_bound_is_a_bound_and_not_a_guess(sg211):
     realizations at 12 bands, **four** of them carrying a multiplicity of 2, and
     the brute force over ``BR`` finds the same eleven.
     """
-    data = tqg.ebr_data(_srsitables._TableKey(sg211.number_str, False))
+    data = _tables._ebr_data(_srsitables._TableKey(sg211.number_str, False))
     matrix = np.asarray(data["matrix"], dtype=int)
 
     def doubled(index):

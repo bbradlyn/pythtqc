@@ -102,15 +102,15 @@ def op_keys(symmetries):
 
 def k_action_matrix(group, op):
     """The operation's action on the model's reduced in-plane k, as a matrix."""
-    act = group.k_action_of(op)
+    act = group._k_action_of(op)
     assert act is not None, f"operation #{op.ind} has no in-plane k-action"
-    return np.round(act(np.eye(group.dim_k)), 12)
+    return np.round(act(np.eye(group._dim_k)), 12)
 
 
 def k_action_classes(group):
     """``{k-action: [ind, ...]}`` — operations the detector cannot tell apart."""
     classes = {}
-    for s in group.symmetries:
+    for s in group._symmetries:
         if s.time_reversal:
             continue
         classes.setdefault(tuple(k_action_matrix(group, s).ravel()), []).append(int(s.ind))
@@ -129,9 +129,9 @@ def own_solve(model, group, ind, nk=8, tol=1e-8):
     keep/break decision recomputed test-side from the same rule
     ``_validate_group`` applies (``dim > 0`` and the best residual inside ``tol``).
     """
-    sym = next(s for s in group.symmetries if int(s.ind) == ind)
-    space = _find_intertwiners(model, group.k_action_of(sym),
-                               _measure._detection_grid(int(group.dim_k), nk),
+    sym = next(s for s in group._symmetries if int(s.ind) == ind)
+    space = _find_intertwiners(model, group._k_action_of(sym),
+                               _measure._detection_grid(int(group._dim_k), nk),
                                antiunitary=bool(sym.time_reversal), tol=tol)
     best = float(np.min(space.residuals)) if space.dim else np.inf
     return int(space.dim), bool(space.dim and best <= tol)
@@ -246,12 +246,12 @@ def test_p4232_bare_orbital_cell_is_body_centred_and_is_served_as_a_supergroup(p
     """
     r = _spacegroup._group_of(p4232)
     assert r, str(r)
-    assert (r.number_str, r.name, r.size) == ("229.141", "Im-3m1'", 192)
-    assert sum(1 for s in r.symmetries if not s.time_reversal) == 96
+    assert (r.number_str, r.name, r._size) == ("229.141", "Im-3m1'", 192)
+    assert sum(1 for s in r._symmetries if not s.time_reversal) == 96
     assert r._lattice_index == 2
     assert r._fractional_translations == ((0.5, 0.5, 0.5),)  # the 1/2 1/2 1/2 centring
     assert r._tables_ready is False
-    gate = G.wyckoff_positions_spglib(r)
+    gate = _spacegroup._wyckoff_positions_spglib(r)
     assert isinstance(gate, Refusal) and gate.gate == "lattice_not_descended"
 
 
@@ -280,12 +280,12 @@ def test_p4232_hamiltonian_realizes_exactly_space_group_208(p4232_candidate_grou
     orders of magnitude above the nullspace cut.
     """
     g, v = p4232_candidate_group, p4232_validated
-    assert (g.sg_number, g.name, g.size) == (223, "Pm-3n1'", 96)   # 48 unitary + 48 antiunitary
+    assert (g._sg_number, g.name, g._size) == (223, "Pm-3n1'", 96)   # 48 unitary + 48 antiunitary
     # record echoes, not behaviour: `n_kpts` is `8**dim_k` off `_detection_grid`
     # and `tol` is the argument copied back.  Pinned so a changed default shows up
     assert v.n_kpts == 512 and v.tol == 1e-8      # 8**3, the 3D defaults
 
-    survivors = [s for s in g.symmetries if int(s.ind) in v.indices]
+    survivors = [s for s in g._symmetries if int(s.ind) in v.indices]
     unitary = [s for s in survivors if not s.time_reversal]
     antiunitary = [s for s in survivors if s.time_reversal]
     assert len(unitary) == 24                     # point group O -- the SG 208 content
@@ -307,8 +307,8 @@ def test_p4232_hamiltonian_realizes_exactly_space_group_208(p4232_candidate_grou
     # every inversion-composed candidate dies, and with a proof
     assert len(v.discrepancies) == 48                            # 24 unitary + 24 antiunitary
     assert all(d["refuted_by"] == "no symmetry matrix" for d in v.discrepancies)
-    assert all(round(np.linalg.det(g.symmetries[d["ind"] - 1].rotation)) == -1 for d in v.discrepancies)
-    assert sum(1 for d in v.discrepancies if g.symmetries[d["ind"] - 1].time_reversal) == 24
+    assert all(round(np.linalg.det(g._symmetries[d["ind"] - 1].rotation)) == -1 for d in v.discrepancies)
+    assert sum(1 for d in v.discrepancies if g._symmetries[d["ind"] - 1].time_reversal) == 24
     smallest = [v._records[d["ind"]]["smallest_singular_value"] for d in v.discrepancies]
     # re-measured 2026-09-09 on arm64/OpenBLAS 0.3.33: 0.7822 for all 48 (the
     # spread over them is 1e-15), against the 1e-8 nullspace cut
@@ -334,7 +334,7 @@ def test_kane_mele_hamiltonian_keeps_exactly_the_Pminus6m2_subgroup(km_odd, km_o
     ``slab_sg_number``.
     """
     g, v = km_odd_group, km_odd_validated
-    assert (g.sg_number, g.size) == (191, 24)     # the cell's maximal group
+    assert (g._sg_number, g._size) == (191, 24)     # the cell's maximal group
     assert len(v.indices) == 12 and v.closed
     assert all(d["refuted_by"] == "no symmetry matrix" for d in v.discrepancies)
     # the broken constraints' smallest singular value: 0.0223 for all twelve
@@ -352,10 +352,10 @@ def test_kane_mele_hamiltonian_keeps_exactly_the_Pminus6m2_subgroup(km_odd, km_o
     # the survivors are the P-6m2 operations, matched by rotation and translation;
     # the cell typed apart reads that group, the number the fixture records
     staggered = _spacegroup._group_of(km_odd, include_TR=False, typat=[0, 1])
-    assert (staggered.sg_number, staggered.name, staggered.size) == (187, "P-6m2", 12)
+    assert (staggered._sg_number, staggered.name, staggered._size) == (187, "P-6m2", 12)
     assert tqm.KANE_MELE["odd"].slab_sg_number == 187
-    survivors = [s for s in g.symmetries if int(s.ind) in v.indices]
-    assert op_keys(survivors) == op_keys(staggered.symmetries)
+    survivors = [s for s in g._symmetries if int(s.ind) in v.indices]
+    assert op_keys(survivors) == op_keys(staggered._symmetries)
 
     # C3 survives (both nontrivial powers), and it is what the honeycomb keeps
     rot = [np.rint(s.rotation).astype(int) for s in survivors]
@@ -365,11 +365,11 @@ def test_kane_mele_hamiltonian_keeps_exactly_the_Pminus6m2_subgroup(km_odd, km_o
     assert len(threefold) == 2                    # C3 and C3^2 about z
 
     # mirrors: 3 of the 6 vertical mirrors survive, and sigma_h "survives" (see below)
-    vertical = [s for s in g.symmetries if not s.time_reversal
+    vertical = [s for s in g._symmetries if not s.time_reversal
                 and round(np.linalg.det(s.rotation)) == -1 and round(s.rotation[2, 2]) == 1]
     assert len(vertical) == 6                     # P6/mmm has 6 vertical mirrors
     assert sum(1 for s in vertical if int(s.ind) in v.indices) == 3
-    horizontal = [s for s in g.symmetries if not s.time_reversal
+    horizontal = [s for s in g._symmetries if not s.time_reversal
                   and np.array_equal(np.rint(s.rotation), np.diag([1, 1, -1]))]
     assert len(horizontal) == 1 and int(horizontal[0].ind) in v.indices
 
@@ -444,7 +444,7 @@ def test_lin3g_orbitals_sit_on_the_1a_and_2c_orbits_of_the_slab_group(lin3g, lin
     assert len(asg.site_group[0]) == 32 and len(asg.site_group[1]) == 16
 
     # the letters are the group's own Wyckoff table, not a typed constant
-    letters = {w.letter: w for w in G.wyckoff_positions_spglib(lin3g_group)}
+    letters = {w.letter: w for w in _spacegroup._wyckoff_positions_spglib(lin3g_group)}
     assert letters["a"].n_free == 0 and np.allclose(letters["a"].offset, [0, 0, 0])
     assert letters["f"].n_free == 0 and np.allclose(letters["f"].offset, [0, 0.5, 0])
 
@@ -480,7 +480,7 @@ def test_p4232_orbitals_form_the_two_site_2a_orbit(p4232, p4232_candidate_group)
     assert list(asg.orbit_of_orbital) == [0, 0, 0, 0]
     assert len(asg.site_group[0]) == 48        # 24 unitary (m-3, the 2a site group) x TR
     assert asg.site_symmetry == ("m-3", "m-3")
-    unitary_ind = {int(s.ind) for s in p4232_candidate_group.u_symmetries}
+    unitary_ind = {int(s.ind) for s in p4232_candidate_group._u_symmetries}
     assert len(set(asg.site_group[0]) & unitary_ind) == 24
     # as for lin3g: measured exactly 0.0 (the 2a sites are at 0 and 1/2), asserted
     # as the residual it is
@@ -506,20 +506,20 @@ def test_k_grid_membership_on_the_p4232_cubic_group(p4232_candidate_group):
     assert np.allclose(hsp["R"], [0.5, 0.5, 0.5])
 
     even, odd = G.k_grid(g, 4), G.k_grid(g, 3)
-    assert even.divisions == (4, 4, 4) and len(even.points) == 64
-    assert all(even.contains.values()) and even.missing == ()
+    assert even.divisions == (4, 4, 4) and len(even.kpoints) == 64
+    assert all(even.contains.values())
     assert odd.contains["GM"] is True
-    assert set(odd.missing) == {"X", "M", "R"}
+    assert {name for name, hit in odd.contains.items() if not hit} == {"X", "M", "R"}
     assert len(even.irreducible) == 10 and len(odd.irreducible) == 4   # measured locks
-    _verify_membership(even)
-    _verify_membership(odd)
+    _verify_membership(even, hsp)
+    _verify_membership(odd, hsp)
 
 
-def _verify_membership(grid):
+def _verify_membership(grid, hsp):
     """The ``contains`` record must agree with a direct search of **the pythtb mesh**.
 
     ``k_grid`` returns a pythtb :class:`pythtb.Mesh` (A3r: the mesh currency is
-    pythtb's, not a private point array), and ``grid.points`` is derived from
+    pythtb's, not a private point array), and ``grid.kpoints`` is derived from
     it rather than stored alongside — so the membership ledger is checked
     against the mesh object a caller would actually hand to a ``WFArray``.
     """
@@ -529,20 +529,20 @@ def _verify_membership(grid):
     assert grid.mesh.filled and grid.mesh.is_grid
     dim_k = grid.mesh.dim_k
     # the record's points ARE the mesh's, in the mesh's own flat order
-    assert np.array_equal(grid.points, np.asarray(grid.mesh.flat))
+    assert np.array_equal(grid.kpoints, np.asarray(grid.mesh.flat))
     assert np.array_equal(np.asarray(grid.mesh.get_k_points()).reshape(-1, dim_k),
-                          grid.points)
+                          grid.kpoints)
     # `divisions` keeps the 3-vector including the padded directions (which
     # carry 1); the mesh has one axis per *periodic* direction, so the counts agree
     assert len(grid.mesh.shape_axes) == dim_k
     assert int(np.prod(grid.mesh.shape_axes)) == int(np.prod(grid.divisions))
-    assert grid.points.shape == (int(np.prod(grid.divisions)), dim_k)
+    assert grid.kpoints.shape == (int(np.prod(grid.divisions)), dim_k)
 
-    for name, k in grid.hsp.items():
-        delta = ((grid.points - k) + 0.5) % 1.0 - 0.5
+    assert set(grid.contains) == set(hsp)
+    for name, k in hsp.items():
+        delta = ((grid.kpoints - k) + 0.5) % 1.0 - 0.5
         hit = bool(np.any(np.abs(delta).max(axis=1) < 1e-9))
         assert hit == grid.contains[name], (name, grid.divisions)
-        assert (name in grid.missing) == (not hit)
 
 
 # ---------------------------------------------------------------------------

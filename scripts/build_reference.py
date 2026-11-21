@@ -46,7 +46,7 @@ GROUPS = (
     ("The group",
      "the space group a Hamiltonian has and which operations it obeys, the "
      "orbitals' site orbits, and the operations by index and Seitz symbol",
-     ("realized_group", "operations", "seitz", "operation_index")),
+     ("realized_group", "operations", "operation_index")),
     ("Declaring what the hoppings cannot supply",
      "the spin a spinless model carries in its orbital index",
      ("spin_basis", "spin_operator", "spinless_presentation")),

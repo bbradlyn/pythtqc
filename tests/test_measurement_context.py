@@ -429,7 +429,7 @@ def test_the_identification_memo_answers_a_repeated_cell_once(clean_memo):
     assert (stats["hits"], stats["misses"], stats["stores"]) == (1, 1, 1)
 
     # and the answer is the same answer, not merely the same object
-    assert (again.number_str, again.name, again.size) == ("10.43", "P2/m1'", 8)
+    assert (again.number_str, again.name, again._size) == ("10.43", "P2/m1'", 8)
 
 
 @pytest.mark.slow

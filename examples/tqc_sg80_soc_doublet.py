@@ -115,9 +115,9 @@ atomic = tqm.i41_atomic()
 
 out = tqc.realized_group(atomic, characters=DECLARE)
 model, group, assignment, validated, rep = out
-sites = tqc.wyckoff_sites_tables(group, assignment.site_positions)   # letter and multiplicity
+sites = tqc.wyckoff_sites_tables(group, assignment.site_positions)   # each site's Wyckoff position
 row("realized group", f"#{group.number_str} {group.name}, s orbitals at Wyckoff "
-    f"{' and '.join(dict.fromkeys(f'{s.multiplicity}{s.letter}' for s in sites))}, "
+    f"{' and '.join(dict.fromkeys(s.wyckoff for s in sites))}, "
     f"{model.nstate} bands")
 
 # the operation each character below belongs to, by index, with its name in the
@@ -156,7 +156,7 @@ for label in sorted(page):
 # e^{+ik·t} = e^{-i(-k)·t}, the table printed for P is the table at -P.
 from irreptables.irreps import IrrepTable
 
-table = IrrepTable(group.number_str, group.spinor, magnetic=group.magnetic)
+table = IrrepTable(group.number_str, group.spinor, magnetic=group.magnetic_type == "II")
 shipped = {ir.name: {int(i): complex(c) for i, c in ir.characters.items()}
            for ir in table.irreps if ir.kpname == "P"}
 print(f"   the same table read at -P, the point it is printed for, "
@@ -231,7 +231,7 @@ _m, g62, asg62, val62, rep62 = out62
 sites62 = tqc.wyckoff_sites_tables(g62, asg62.site_positions)
 operations62 = out62.operations
 row("realized group", f"#{g62.number_str} {g62.name}, s orbitals at Wyckoff "
-    f"{' and '.join(dict.fromkeys(f'{s.multiplicity}{s.letter}' for s in sites62))}, "
+    f"{' and '.join(dict.fromkeys(s.wyckoff for s in sites62))}, "
     f"{p62.nstate} bands")
 
 H = tqc.high_symmetry_points(g62)["H"]

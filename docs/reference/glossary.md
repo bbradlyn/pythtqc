@@ -16,8 +16,8 @@ What each thing is called where a call returns it.
 
 | what it is | its name | where |
 |---|---|---|
-| the space group the Hamiltonian obeys | `name`, its Hermann–Mauguin symbol (`"P6/mmm1'"`); `number_str`, the label the tables file it under (`"191.234"`); `sg_number`, the space-group number (`191`) | `r.group`, and `number_str` on every record read in it |
-| an operation | `ind`, its index in the tables' order; `seitz`, its Seitz symbol `{R\|t}` in the tables' conventional setting; `name`, its name in the model's Cartesian frame, `C3(z)` or `m(x)`, primed where it carries time reversal | `r.operations`, `seitz`, `operation_index` |
+| the space group the Hamiltonian obeys | `name`, its Hermann–Mauguin symbol (`"P6/mmm1'"`); `number_str`, the label the tables file it under (`"191.234"`) | `r.group`, and `number_str` on every record read in it |
+| an operation | `index`, its index in the tables' order; `seitz`, its Seitz symbol `{R\|t}` in the tables' conventional setting; `name`, its name in the model's Cartesian frame, `C3(z)` or `m(x)`, primed where it carries time reversal | `r.operations`, `operation_index` |
 | the verdict on each operation | `verdicts`: `"obeyed"`, `"broken"` or `"undetermined"`; `indices`, the operations kept | `r.validated` |
 | the group the cell allowed, and the group the descent arrived at | `descent["from"]` and `descent["to"]` | `r.descent` |
 | what dropped an operation | `refuted_by` | `r.descent["dropped"]` |
@@ -32,7 +32,7 @@ What each thing is called where a call returns it.
 
 | what it is | its name | where |
 |---|---|---|
-| the Wyckoff position | `wyckoff`, multiplicity and letter (`"6c"`); `letter`, the letter alone | `wyckoff` on the atomic-limit table; `letter` on `wyckoff_sites_tables`' positions and the SRSI records |
+| the Wyckoff position | `wyckoff`, multiplicity and letter (`"6c"`); `letter`, the letter alone | `wyckoff` on the atomic-limit table and on `wyckoff_sites_tables`' positions; `letter` on the SRSI records |
 | the Wyckoff letter, in the tables' setting and in spglib's | `wyckoff_tables`, the letter a table is read with; `wyckoff_spglib` and `wyckoff_spglib_dataset`, spglib's standardization, which are information and never a table key | `r.assignment` |
 | the sites the group's operations carry onto one another, all at one Wyckoff position | `orbits` | `r.assignment` |
 | the site-symmetry group | `site_symmetry`, its Hermann–Mauguin symbol (`"-42m"`); `site_group`, the indices of its operations | the atomic-limit table; `r.assignment` |
@@ -58,7 +58,7 @@ What each thing is called where a call returns it.
 | the symmetry data vector of a band set | `counts`; per point, `content` | `hsp_table` |
 | the gap from a set of bands to the nearest band outside it | `isolation`, in the units of `H` | `corep_content` |
 | a high-symmetry point | its name in the tables (`"GM"`, `"K"`) and its coordinates in the model's own reduced cell | `high_symmetry_points`; `points` on an `HSPTable` |
-| tabulated points a layer's zone does not have | `missing` | `high_symmetry_points(group).missing` |
+| tabulated points a layer's zone does not have | `out_of_plane` | `high_symmetry_points(group).out_of_plane` |
 
 ### What the content says
 
@@ -343,8 +343,9 @@ covers in the cell: a point, or a line or plane where it has free parameters.
 An orbital confined to a variety can slide along it, and the variety's closure
 adds the more special positions it meets: the line `6c` of `R-3m`,
 `(0, 0, z)`, closes on `3a` at `z = 0` and on `3b` at `z = 1/2`. A site's
-`closure` names the letters there at which the tables have elementary band
-representations, the positions such an orbital can be moved to.
+`slides_onto`, and an orbit's `closure` in the SRSI records, name the positions
+there at which the tables have elementary band representations, the positions
+such an orbital can be moved to.
 
 **Weak index.** In three dimensions, a component of an indicator class carried
 by the high-symmetry points of one plane of the zone, such as `k_z = ½`: an
@@ -370,7 +371,7 @@ Cartesian length.
 | `symprec` | spglib's tolerance for finding the group from the positions (`realized_group`) | Cartesian length, in the model's units | `1e-5` |
 | `degeneracy_tol` | which bands are one degenerate multiplet, and so the rows of every character table (`characters`, `corep_content`, `hsp_table`, `sewing_matrix`, `multiplets`) | energy | `1e-8` |
 | `label_tol` | how far a fitted corep multiplicity may sit from an integer, and how close two rows' characters must be to share a partition class (`corep_content`, `hsp_table`) | dimensionless | `1e-3` |
-| `ktol` | matching a `k` to a tabulated high-symmetry point (`corep_content`, `hsp_table`, `corep_table`); deciding that a mesh point is one (`k_grid`) | reduced reciprocal coordinates | `1e-5`; `1e-8` in `k_grid` |
+| `ktol` | matching a `k` to a tabulated high-symmetry point (`corep_content`, `hsp_table`) | reduced reciprocal coordinates | `1e-5` |
 | `atol` | whether an operation leaves `k` invariant up to a reciprocal lattice vector (`characters`, `corep_content`, `hsp_table`, `sewing_matrix`) | reduced reciprocal coordinates | `1e-8` |
 | `mesh_tol` | finding a requested `k` among a solved mesh's points (`characters`, `corep_content`, `hsp_table`, `sewing_matrix`) | reduced reciprocal coordinates | `1e-9` |
 
@@ -395,9 +396,7 @@ for call, names in [(tqc.realized_group, "position_tol precision symprec"),
                     (tqc.hsp_table, "degeneracy_tol label_tol ktol atol mesh_tol"),
                     (tqc.characters, "degeneracy_tol atol mesh_tol"),
                     (tqc.sewing_matrix, "degeneracy_tol atol mesh_tol"),
-                    (tqc.multiplets, "degeneracy_tol"),
-                    (tqc.corep_table, "ktol"),
-                    (tqc.k_grid, "ktol")]:
+                    (tqc.multiplets, "degeneracy_tol")]:
     parameters = inspect.signature(call).parameters
     print(f"{call.__name__:<22}", ", ".join(
         f"{n}={'required' if parameters[n].default is required else parameters[n].default}"
@@ -409,8 +408,6 @@ for call, names in [(tqc.realized_group, "position_tol precision symprec"),
 #  characters             degeneracy_tol=1e-08, atol=1e-08, mesh_tol=1e-09
 #  sewing_matrix          degeneracy_tol=1e-08, atol=1e-08, mesh_tol=1e-09
 #  multiplets             degeneracy_tol=1e-08
-#  corep_table            ktol=1e-05
-#  k_grid                 ktol=1e-08
 ```
 
 ## Budgets, meshes and lengths

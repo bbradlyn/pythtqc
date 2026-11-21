@@ -962,7 +962,7 @@ def test_an_orbit_that_permutes_the_frame_reads_each_site_its_own_content(realiz
     """
     out = realized(cubic_3c_axis_p)
     assert out, str(out)
-    assert (out.group.number_str, out.group.size) == ("221.93", 96)
+    assert (out.group.number_str, out.group._size) == ("221.93", 96)
     assert len(out.validated.indices) == 96 and out.descent is None
     rec = out.rep.characters
     assert rec.irreps == ("A2u",) * 3
@@ -979,7 +979,7 @@ def test_an_orbit_that_permutes_the_frame_reads_each_site_its_own_content(realiz
     noisy = tqg.realized_group(jitter(_axis_p_at_2c(), rel=1e-7), precision=1e-6,
                                cross_check=False)
     assert noisy, str(noisy)
-    assert (noisy.group.name, noisy.group.size) == ("P4mm1'", 16)
+    assert (noisy.group.name, noisy.group._size) == ("P4mm1'", 16)
     assert noisy.rep.characters.irreps == ("B1", "B2")
     for row, own, other in ((0, "m(x)", "m(y)"), (1, "m(y)", "m(x)")):
         chi = noisy.rep.characters.orbitals[row].generator_character
@@ -1096,7 +1096,7 @@ def test_the_returned_matrices_are_induced_from_the_returned_content(name, reali
         return U
 
     own = {int(s.ind): np.rint(np.asarray(s.rotation_cart))[np.ix_([1, 2], [1, 2])]
-           for s in bundle.group.symmetries if not s.time_reversal and site_of(s, 0) == 0}
+           for s in bundle.group._symmetries if not s.time_reversal and site_of(s, 0) == 0}
     flip = np.diag([1.0, -1.0])
     for matrices, odd in ((own, ()), ({i: flip @ M @ flip for i, M in own.items()},
                                       ("S4", "m"))):
@@ -1104,8 +1104,8 @@ def test_the_returned_matrices_are_induced_from_the_returned_content(name, reali
         assert declared and declared.group.number_str == "215.71", str(declared)
         assert [o.determined_by for o in declared.rep.characters.orbitals][:2] == \
             ["declaration"] * 2
-        for sym in [s for s in declared.group.symmetries if not s.time_reversal]:
-            kind = tqg.operations(declared)[int(sym.ind)].name.split("(")[0].split("^")[0]
+        for sym in [s for s in declared.group._symmetries if not s.time_reversal]:
+            kind = declared.operations[int(sym.ind)].name.split("(")[0].split("^")[0]
             D = np.asarray(declared.rep.sewing_operator(int(sym.ind), [0.0, 0.0, 0.0]))
             assert np.allclose(D, (-1.0 if kind in odd else 1.0) * p_functions(sym)), kind
 
@@ -1171,8 +1171,8 @@ def test_mirrors_are_named_by_their_normal(lin3g_undeclared):
     """
     _, group, _, _, rep = lin3g_undeclared
     frame = rep.characters.frame
-    lattice = np.asarray(group.lattice, dtype=float)
-    pos = {int(s.ind): s for s in group.symmetries}
+    lattice = np.asarray(group._lattice, dtype=float)
+    pos = {int(s.ind): s for s in group._symmetries}
     assert set(frame) == set(pos) and len(frame) == 16, "the frame names every operation"
 
     checked = []
@@ -1235,18 +1235,18 @@ def test_group_provenance_rides_into_the_character_tables(lin3g_undeclared):
     asserted below, on one model and one served group.
     """
     _, group, _, _, rep = lin3g_undeclared
-    assert group.provenance == "realized" and rep.group.provenance == "realized"
-    assert group.number_str == "99.164" and group.size == 16
+    assert group._provenance == "realized" and rep.group._provenance == "realized"
+    assert group.number_str == "99.164" and group._size == 16
 
     k = tqg.high_symmetry_points(group)["GM"]
     table = tqw.characters(rep, k, bands=6)
     assert isinstance(table, tqw.CharacterTable), str(table)
-    assert table.group_provenance == group.provenance == "realized"
+    assert table.group_provenance == group._provenance == "realized"
 
     hsp = tqw.hsp_table(rep, bands=6)
-    assert hsp.group_provenance == group.provenance == "realized"
+    assert hsp.group_provenance == group._provenance == "realized"
     assert hsp.records, "the realized group resolves its high-symmetry points"
-    assert all(rec.table.group_provenance == group.provenance
+    assert all(rec.table.group_provenance == group._provenance
                for rec in hsp.records.values())
 
     # ... and the other stamp, on the same model and the same served group: the
@@ -1254,9 +1254,9 @@ def test_group_provenance_rides_into_the_character_tables(lin3g_undeclared):
     down = tqg.realized_group(lin3g_undeclared.source, typat=[0, 0, 1, 1],
                               environment="free-standing")
     assert down, str(down)
-    assert down.group.number_str == "99.164" and down.group.size == 16
+    assert down.group.number_str == "99.164" and down.group._size == 16
     assert down.descent["from"]["number_str"] == "123.340"
-    assert down.group.provenance == down.rep.group.provenance == "descended"
+    assert down.group._provenance == down.rep.group._provenance == "descended"
     down_table = tqw.characters(down.rep, k, bands=6)
     assert down_table.group_provenance == "descended"
     assert tqw.hsp_table(down.rep, bands=6).group_provenance == "descended"
@@ -1653,11 +1653,11 @@ def test_every_ebr_column_at_a_fixture_position_comes_from_its_computed_rows(key
     r = _baseline_realized(key, realized)
     assert r, f"{key}: {r}"
     group, assignment = r.group, r.assignment
-    rows = tqe.ebr_rows(group)
+    rows = _tables._ebr_rows(group)
     assert rows, f"{key}: {rows}"
     points = tqg.high_symmetry_points(group)
     assert points, f"{key}: {points}"
-    syms = group.symmetries
+    syms = group._symmetries
     place = {int(s.ind): p for p, s in enumerate(syms)}
     kept = {int(i) for i in r.validated.indices}
     lift = ({int(s.ind): complex(np.trace(np.asarray(s.spinor_rotation)))
@@ -1804,11 +1804,11 @@ def test_the_table_of_site_irrep_names_is_what_inducing_and_matching_gives(sg, l
         assert np.allclose(references[stretch], entry["reference"], atol=1e-6)
         model, typat = _geometry_crystal(sg, letter, q)
         group = _spacegroup._group_of(model, typat=typat, include_TR=True)
-        assert group and int(group.sg_number) == sg and group.name.endswith("1'"), str(group)
+        assert group and int(group._sg_number) == sg and group.name.endswith("1'"), str(group)
         assignment = _tables._assign_orbitals(model, group, typat=typat)
         site = int(assignment.site_of_orbital[0])
         assert assignment.wyckoff_tables[site] == letter
-        anti = {int(s.ind) for s in group.symmetries if s.time_reversal}
+        anti = {int(s.ind) for s in group._symmetries if s.time_reversal}
         table = tqc_sitechars.site_group_table(
             group, tuple(int(i) for i in assignment.site_group[site] if int(i) not in anti),
             antiunitary=tuple(int(i) for i in assignment.site_group[site] if int(i) in anti))

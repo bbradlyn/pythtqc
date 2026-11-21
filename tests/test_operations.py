@@ -3,8 +3,8 @@ r"""The operations by index, and the Seitz symbol each one is written as.
 ``operations`` writes one row per operation: the index every per-operation
 record is keyed on, the Seitz symbol ``{R|t}`` of the tables' conventional
 setting, the Cartesian name a ``characters=`` declaration is written in, and
-the rotation and translation in the model's own reduced coordinates.  ``seitz``
-gives one symbol by index and ``operation_index`` reads a symbol back.
+the rotation and translation in the model's own reduced coordinates.
+``operation_index`` reads a symbol back.
 
 What is checked here, and how each check can fail
 -------------------------------------------------
@@ -39,13 +39,14 @@ eight operations are written out in full, which pins the whole spelling at once
 — the symbols, the directions, the fractions, the separators — against the
 general-position list of ITA's own entry for the group.
 
-**The three ways of naming a group's operations.**  What ``realized_group``
-measured, its group and its representation all read as one table.
+**The lookups take the group.**  Each lookup of the group's tables takes
+``r.group``; handed what ``realized_group`` returns, or its representation, it
+raises ``TypeError`` naming ``r.group``.  A k-point is taken by its tabulated
+name as by its coordinates.
 
 **The verdicts.**  A symbol no operation is written as is refused
 ``unknown_operation`` with the nearest spellings the group does carry; a group
-whose reference setting was never determined is refused ``tables_not_ready``;
-an index the group has no operation for raises.
+whose reference setting was never determined is refused ``tables_not_ready``.
 
 The census
 ----------
@@ -72,6 +73,7 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
+import pythtqc as tqc
 from pythtqc import groups as tqg
 from pythtqc.refusal import Refusal
 from pythtqc import _seitz
@@ -152,10 +154,10 @@ NOT_SHORTEST = (219, 226, 228)
 @pytest.mark.slow
 @pytest.mark.parametrize("key", sorted(CENSUS))
 def test_every_operation_resolves_to_a_symbol_that_names_it_back(realized, key):
-    """Every operation has a symbol, and the symbol has that ``ind``.
+    """Every operation has a symbol, and the symbol has that index.
 
-    On a realized row the operations are the ``ind`` of ``rep.matrices``, on a
-    cell row the group's own.  Parsed back, the symbol carries exactly the
+    The rows are the group's own operations, and on a realized row every one
+    of them is represented.  Parsed back, the symbol carries exactly the
     rotation and the translation ``irrep`` computes for that operation in the
     conventional setting (``rotation_refUC``, ``translation_refUC``), and the
     reverse lookup returns the index it was written from — which it could not
@@ -178,32 +180,31 @@ def test_every_operation_resolves_to_a_symbol_that_names_it_back(realized, key):
     fails here.
     """
     group, rep = census_group(realized, key)
-    named = group if rep is None else rep
-    table = tqg.operations(named)
+    table = tqg.operations(group)
     assert not isinstance(table, Refusal), str(table)
-    listed = (sorted(int(s.ind) for s in group.symmetries) if rep is None
-              else sorted(int(i) for i in rep.matrices))
-    assert [row.ind for row in table.values()] == listed
+    listed = sorted(int(s.ind) for s in group._symmetries)
+    assert [row.index for row in table.values()] == listed
+    if rep is not None:
+        assert sorted(int(i) for i in rep.matrices) == listed
 
     centering = _seitz._centering_of(group)
-    by_ind = {int(s.ind): s for s in group.symmetries}
+    by_ind = {int(s.ind): s for s in group._symmetries}
     for row in table.values():
-        sym = by_ind[row.ind]
+        sym = by_ind[row.index]
         parsed = _seitz._parse_seitz(row.seitz, centering)
-        assert parsed is not None, f"{key} #{row.ind}: {row.seitz!r} does not parse"
+        assert parsed is not None, f"{key} #{row.index}: {row.seitz!r} does not parse"
         wanted, wanted_tr = parsed
         # `_seitz_key` is `rotation_refUC` and `translation_refUC` put in the
         # quantities the symbol is written from; `_matches` compares the two.
         assert _seitz._matches(_seitz._seitz_key(sym, group), bool(sym.time_reversal),
-                            wanted, wanted_tr), f"{key} #{row.ind}: {row.seitz}"
-        assert tqg.operation_index(named, row.seitz) == row.ind, row.seitz
-        assert tqg.seitz(named, row.ind) == row.seitz
+                            wanted, wanted_tr), f"{key} #{row.index}: {row.seitz}"
+        assert tqg.operation_index(group, row.seitz) == row.index, row.seitz
 
     # the sense is the turn the operation makes
-    lattice = np.asarray(group.lattice, dtype=float)
+    lattice = np.asarray(group._lattice, dtype=float)
     refUC = np.asarray(group._refUC, dtype=float)
     seen = set()
-    for sym in group.symmetries:
+    for sym in group._symmetries:
         det, order, axis, sense, _ = _seitz._seitz_key(sym, group)
         if order <= 2:
             continue
@@ -220,11 +221,11 @@ def test_every_operation_resolves_to_a_symbol_that_names_it_back(realized, key):
         assert seen, f"{key} carries no rotation of order above two"
 
     # the translation is the one the tables carry
-    assert group.sg_number not in NOT_SHORTEST, (
-        f"{key} reaches #{group.sg_number}: the outright half below is no longer "
+    assert group._sg_number not in NOT_SHORTEST, (
+        f"{key} reaches #{group._sg_number}: the outright half below is no longer "
         "the claim for it")
     tabulated = _seitz._tabulated_translations(group)
-    for sym in group.symmetries:
+    for sym in group._symmetries:
         rotation = np.asarray(sym.rotation_refUC(refUC), dtype=int)
         # the fall-back would make this test vacuous, so it is ruled out first
         assert (rotation.tobytes(), bool(sym.time_reversal)) in tabulated, (
@@ -262,10 +263,10 @@ def test_the_general_positions_of_pnma_are_written_as_the_tables_write_them(real
     so that the translations carry no representative freedom at all.
     """
     group = record(realized, "pnma").group
-    unitary = [row for row in tqg.operations(group).values() if not row.time_reversal]
+    unitary = [row for row in tqg.operations(group).values() if not row.antiunitary]
     assert tuple(row.seitz for row in unitary) == PNMA_SEITZ
     # the grey partners are the same eight with a prime
-    antiunitary = [row for row in tqg.operations(group).values() if row.time_reversal]
+    antiunitary = [row for row in tqg.operations(group).values() if row.antiunitary]
     assert tuple(row.seitz for row in antiunitary) == tuple(s + "'" for s in PNMA_SEITZ)
 
 
@@ -286,7 +287,7 @@ def test_a_symbol_is_read_as_the_operation_it_names_and_not_as_a_string(realized
     group, _ = census_group(realized, "fkm_diamond")
     threefold = tqg.operation_index(group, "{3+_111|0,0,0}")
     assert threefold == tqg.operation_index(group, "{3-_-1-1-1|0,0,0}")
-    assert tqg.seitz(group, threefold) == "{3+_111|0,0,0}"
+    assert tqg.operations(group)[threefold].seitz == "{3+_111|0,0,0}"
 
     twofold = tqg.operation_index(group, "{2_001|1/4,1/4,0}")
     # the F centring: the same operation, the other three representatives
@@ -323,34 +324,57 @@ def test_a_group_whose_reference_setting_is_unknown_is_refused(realized):
     """``tables_not_ready``: with no ``refUC`` there is no setting to write in."""
     group = record(realized, "km_odd").group
     without = replace(group, _tables_ready=False, _setup_note="no reference cell")
-    for got in (tqg.operations(without), tqg.seitz(without, 1),
-                tqg.operation_index(without, "{1|0,0,0}")):
+    for got in (tqg.operations(without), tqg.operation_index(without, "{1|0,0,0}")):
         assert isinstance(got, Refusal) and got.gate == "tables_not_ready", str(got)
 
 
-def test_an_index_the_group_has_no_operation_for_raises(realized):
-    """An index out of the group is a mistake about the group, not a verdict on it."""
-    out = record(realized, "km_odd")
-    with pytest.raises(KeyError, match="no operation #99"):
-        tqg.seitz(out.group, 99)
-    with pytest.raises(TypeError, match="r.group"):
-        tqg.operations(out.model)
+def test_a_kpoint_is_taken_by_its_tabulated_name(realized):
+    """``"X"`` is the point ``high_symmetry_points(group)["X"]``, and a name the group lacks raises.
+
+    The standard layer ``P4mm1'``: its corep table and its little group at
+    ``"X"`` are those at X's coordinates, field for field, and the little group
+    carries the rows of its own operations; ``"Q"`` names no point and raises
+    ``ValueError`` listing the names; ``"Z"``, tabulated out of the layer's
+    plane, is the refusal ``out_of_plane`` its coordinates meet.
+    """
+    group = record(realized, "lin3g").group
+    hsp = tqg.high_symmetry_points(group)
+    assert tqg.corep_table(group, "X") == tqg.corep_table(group, hsp["X"])
+    named, placed = tqg.little_group(group, "X"), tqg.little_group(group, hsp["X"])
+    assert np.array_equal(named.k, placed.k)
+    assert named.unitary == placed.unitary and named.antiunitary == placed.antiunitary
+    assert named.G.keys() == placed.G.keys() == set(named.unitary)
+    assert all(np.array_equal(named.G[i], placed.G[i]) for i in named.unitary)
+    assert list(named.operations) == sorted(named.unitary + named.antiunitary)
+    assert all(named.operations[i] == tqg.operations(group)[i] for i in named.operations)
+    with pytest.raises(ValueError, match="pass one of GM, M, X, or"):
+        tqg.little_group(group, "Q")
+    assert "Z" in hsp.out_of_plane
+    refused = tqg.corep_table(group, "Z")
+    assert isinstance(refused, Refusal) and refused.gate == "out_of_plane", str(refused)
 
 
-def test_the_measured_record_is_read_as_its_group(realized):
-    """``r``, ``r.group`` and ``r.rep`` are three ways of naming the same operations.
+def test_the_lookups_take_the_group_and_raise_on_anything_else(realized):
+    """Every lookup takes ``r.group``; ``r`` and ``r.rep`` raise ``TypeError`` naming it.
 
-    A reader holding what :func:`realized_group` measured reaches for it first,
-    and on a record every operation of the group is represented, so the three
-    carry one table between them.
+    ``r.operations`` and ``rep.operations`` are the table the group's
+    operations make, every operation of the group being represented.
     """
     out = record(realized, "km_odd")
-    assert len(out.rep.matrices) == out.group.size, "not every operation is represented"
-    rows = tqg.operations(out)
-    assert ([row.seitz for row in rows.values()]
-            == [row.seitz for row in tqg.operations(out.group).values()]
-            == [row.seitz for row in tqg.operations(out.rep).values()])
-    assert tqg.seitz(out, 5) == tqg.seitz(out.group, 5) == "{m_100|0,0,0}"
-    assert tqg.operation_index(out, "{m_100|0,0,0}") == 5
-    # `r.operations` and `rep.operations` are `tqc.operations` read on the record
-    assert out.operations == rows == out.rep.operations
+    group = out.group
+    k = tqg.high_symmetry_points(group)["GM"]
+    calls = {"operations": lambda g: tqg.operations(g),
+             "operation_index": lambda g: tqg.operation_index(g, "{m_100|0,0,0}"),
+             "high_symmetry_points": tqg.high_symmetry_points,
+             "corep_table": lambda g: tqg.corep_table(g, k),
+             "little_group": lambda g: tqg.little_group(g, k),
+             "k_grid": lambda g: tqg.k_grid(g, 4),
+             "wyckoff_sites_tables": tqg.wyckoff_sites_tables,
+             "ebr_rows": tqc.ebr_rows, "ebr_data": tqg.ebr_data}
+    for name, call in calls.items():
+        assert call(group), name
+        for wrong in (out, out.rep, out.model):
+            with pytest.raises(TypeError, match=rf"^{name}\(\): .*r\.group"):
+                call(wrong)
+    assert tqg.operation_index(group, "{m_100|0,0,0}") == 5
+    assert out.operations == tqg.operations(group) == out.rep.operations

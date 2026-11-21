@@ -104,7 +104,7 @@ coordinates; ask for one by its name in `hsp`, never by coordinates typed from
 elsewhere:
 
 ```python
-print({name: k.tolist() for name, k in hsp.items()}, hsp.missing)
+print({name: k.tolist() for name, k in hsp.items()}, hsp.out_of_plane)
 #  {'GM': [0.0, 0.0], 'M': [0.5, 0.5], 'X': [0.0, 0.5]} ('A', 'R', 'Z')
 # X's partner in its star, (1/2, 0), is not the tabulated point
 print(tqc.corep_content(rep, [0.5, 0.0], bands=6).gate)
@@ -133,7 +133,7 @@ a [symmetry indicator](indicators.md) and the
 [stable real-space invariants](srsi.md) read. Each point holds three doublets;
 at `X` all three carry `-X5`, `partition=(0, 0, 0)`. `t.complete` says every
 point resolved, and a decomposition and an indicator refuse a table that did
-not. `hsp.missing` names the tabulated points the zone has no `k` for: a layer
+not. `hsp.out_of_plane` names the tabulated points the zone has no `k` for: a layer
 is labelled in the three-dimensional space group of its slab
 ([a 2D model](layers.md)), and `A`, `R` and `Z` sit at `k_z = ½`. What becomes
 of their rows is read in [atomic limits](atomic-limits.md#how-to-read-it) and
@@ -257,25 +257,25 @@ print(tqc.multiplets(em), tqc.multiplets(em, degeneracy_tol=0.3))
 one's index, its Seitz symbol and its name in the model's axes:
 
 ```python
-print(tqc.operations(r))
+print(r.operations)
 #  P4mm1' #99.164: one operation per coset of the lattice translations; the double group also holds each one's negative
-#   ind  Seitz            name
-#     1  {1|0,0,0}        E
-#     2  {2_001|0,0,0}    C2(z)
-#     3  {4+_001|0,0,0}   C4(z)
-#     4  {4-_001|0,0,0}   C4^-1(z)
-#     5  {m_010|0,0,0}    m(y)
-#     6  {m_100|0,0,0}    m(x)
-#     7  {m_110|0,0,0}    m([110])
-#     8  {m_1-10|0,0,0}   m([1-10])
-#     9  {1|0,0,0}'       E'
-#    10  {2_001|0,0,0}'   C2(z)'
-#    11  {4+_001|0,0,0}'  C4(z)'
-#    12  {4-_001|0,0,0}'  C4^-1(z)'
-#    13  {m_010|0,0,0}'   m(y)'
-#    14  {m_100|0,0,0}'   m(x)'
-#    15  {m_110|0,0,0}'   m([110])'
-#    16  {m_1-10|0,0,0}'  m([1-10])'
+#  index  Seitz            name
+#      1  {1|0,0,0}        E
+#      2  {2_001|0,0,0}    C2(z)
+#      3  {4+_001|0,0,0}   C4(z)
+#      4  {4-_001|0,0,0}   C4^-1(z)
+#      5  {m_010|0,0,0}    m(y)
+#      6  {m_100|0,0,0}    m(x)
+#      7  {m_110|0,0,0}    m([110])
+#      8  {m_1-10|0,0,0}   m([1-10])
+#      9  {1|0,0,0}'       E'
+#     10  {2_001|0,0,0}'   C2(z)'
+#     11  {4+_001|0,0,0}'  C4(z)'
+#     12  {4-_001|0,0,0}'  C4^-1(z)'
+#     13  {m_010|0,0,0}'   m(y)'
+#     14  {m_100|0,0,0}'   m(x)'
+#     15  {m_110|0,0,0}'   m([110])'
+#     16  {m_1-10|0,0,0}'  m([1-10])'
 ```
 
 `g` is found by its Seitz symbol with `operation_index`, which reads either
@@ -287,9 +287,9 @@ rotation in the Cartesian axes the lattice vectors are written in,
 the lowest pair at `M`:
 
 ```python
-c4 = tqc.operation_index(r, "{4+_001|0,0,0}")
+c4 = tqc.operation_index(r.group, "{4+_001|0,0,0}")
 quarter = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
-print(c4, [(op.ind, op.name, op.translation.tolist(), op.time_reversal)
+print(c4, [(op.index, op.name, op.translation.tolist(), op.antiunitary)
            for op in r.operations.values() if np.allclose(op.rotation_cartesian, quarter)])
 #  3 [(3, 'C4(z)', [0.0, 0.0, 0.0], False), (11, "C4(z)'", [0.0, 0.0, 0.0], True)]
 B = tqc.sewing_matrix(rep, c4, hsp["M"], bands=2)
@@ -300,7 +300,7 @@ print(np.round(r.operations[c4].spin_lift, 6) + 0)
 #   [0.      +0.j       0.707107+0.707107j]]
 ```
 
-Two operations share the rotation, `C4(z)` and `C4(z)'`, and `time_reversal`
+Two operations share the rotation, `C4(z)` and `C4(z)'`, and `antiunitary`
 tells apart the second, combined with time reversal. `translation`, in the
 model's reduced coordinates, is the translation that comes with the rotation:
 zero in this symmorphic group, the fractional part of a screw or a glide in

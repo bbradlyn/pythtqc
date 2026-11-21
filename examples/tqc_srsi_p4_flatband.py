@@ -306,11 +306,11 @@ chiral_model.set_hop(T_CHIRAL_B * PAULI_0, 1, 1, [1, 1], mode="add")
 
 realized = tqc.realized_group(chiral_model)
 model, group, assignment, validated, rep = realized
-sites = tqc.wyckoff_sites_tables(group, assignment.site_positions)   # letter and multiplicity
+sites = tqc.wyckoff_sites_tables(group, assignment.site_positions)   # each site's Wyckoff position
 row("chiral pattern", f"t_a = {T_CHIRAL_A} along (1,1) and t_b = {T_CHIRAL_B} along (1,-1) on "
     "the", "x site, the two swapped on the y site")
 row("with the pattern", f"realized group #{group.number_str} {group.name}, orbitals at Wyckoff "
-    f"{sites[0].multiplicity}{sites[0].letter}, where the",
+    f"{sites[0].wyckoff}, where the",
     "paper puts its Kramers pairs, measured from the Hamiltonian with nothing declared")
 
 # ... and the pattern is a deformation of the supplement's model: the two band

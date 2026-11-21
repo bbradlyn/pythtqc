@@ -218,17 +218,17 @@ def test_group_of_serves_the_lattice_supergroup(cubic_supergroup):
     """
     g = cubic_supergroup
     assert not isinstance(g, Refusal), str(g)
-    assert (g.number_str, g.name, g.size) == ("123.340", "P4/mmm1'", 64)
+    assert (g.number_str, g.name, g._size) == ("123.340", "P4/mmm1'", 64)
     assert g._lattice_index == 2
     assert g._fractional_translations == ((0.5, 0.0, 0.0),)
     assert g._tables_ready is False
-    assert g.provenance == "cell"
+    assert g._provenance == "cell"
     assert "supercell" in g._setup_note and "lattice supergroup of index 2" in g._setup_note
     assert "could not match" not in g._setup_note
     assert "lattice supergroup, index 2" in repr(g)
     # the operations are a group: the identified set closes exactly
     assert g._closure_measured == 0.0 and g._closure_repaired == 0.0
-    table = g.get_product_table(get_diff=False)
+    table = g._get_product_table(get_diff=False)
     assert np.asarray(table).shape == (64, 64)
     assert sorted(set(np.asarray(table).ravel().tolist())) == list(range(64))
 
@@ -256,8 +256,8 @@ def test_the_dimerized_chain_descends_to_the_bond_centred_p4mmm(dimerized):
     r = dimerized
     assert not isinstance(r, Refusal), str(r)
     assert (r.group.number_str, r.group.name) == ("123.340", "P4/mmm1'")
-    assert (len(r.validated.indices), r.group.size) == (32, 32)
-    assert r.group.provenance == "descended"
+    assert (len(r.validated.indices), len(r.operations)) == (32, 32)
+    assert r.group._provenance == "descended"
     assert r.group._lattice_index == 1 and r.group._tables_ready is True
     assert r.assignment.wyckoff_tables == ("g", "g")
     assert r.assignment.wyckoff_spglib == ("g",)
@@ -442,7 +442,7 @@ def test_a_translation_obeyed_with_each_sites_orbitals_turned_is_a_supercell():
         assert len(screw.validated.indices) == 32 and screw.descent["steps"][0]["n_dropped"] == 32
         (tau_s,) = screw.descent["lattice"]["operations"]
         assert tau_s["translation"] == (0.0, 0.0, 0.5) and tau_s["refuted_by"] == "tensor structure"
-        partners = [np.rint(np.asarray(s.rotation)).astype(int) for s in screw.group.symmetries
+        partners = [np.rint(np.asarray(s.rotation)).astype(int) for s in screw.group._symmetries
                     if not s.time_reversal and abs(float(s.translation[2]) % 1.0 - 0.5) < 1e-9]
         assert len(partners) == 8 and all(abs(R[0, 1]) == 1 for R in partners), \
             "the screws, diagonal twofolds, S4 and c-glides: every rotation exchanging x and y"
@@ -475,7 +475,7 @@ def test_p4232_both_routes_give_the_same_group_and_letters(route, request):
         r = request.getfixturevalue("p4232_descended")
         assert not isinstance(r, Refusal), str(r)
         group, assignment, validated = r.group, r.assignment, r.validated
-        assert group.provenance == "descended"
+        assert group._provenance == "descended"
         step = r.descent["lattice"]
         assert step["index"] == 2
         assert step["fractional_translations"] == ((0.5, 0.5, 0.5),)
@@ -491,7 +491,7 @@ def test_p4232_both_routes_give_the_same_group_and_letters(route, request):
         _model, group, assignment, validated, _rep = request.getfixturevalue(
             "p4232_decorated")
         assert group._lattice_index == 1
-    assert (group.number_str, group.name, group.size) == ("208.45", "P4_2321'", 48)
+    assert (group.number_str, group.name, group._size) == ("208.45", "P4_2321'", 48)
     assert len(validated.indices) == 48
     assert assignment.wyckoff_tables == ("a", "a")
 
@@ -523,7 +523,7 @@ def test_i213_conventional_cell_is_refused_as_a_supercell():
     """
     g = _spacegroup._group_of(tqc_models.i213_conventional())
     assert not isinstance(g, Refusal), str(g)
-    assert (g.number_str, g.name, g.size) == ("199.13", "I2_131'", 48)
+    assert (g.number_str, g.name, g._size) == ("199.13", "I2_131'", 48)
     assert g._lattice_index == 2 and g._fractional_translations == ((0.5, 0.5, 0.5),)
 
     r = tqg.realized_group(tqc_models.i213_conventional())
@@ -577,8 +577,8 @@ def test_the_square_cells_hamiltonian_breaks_the_centring():
                            cross_check=False)
     assert not isinstance(r, Refusal), str(r)
     assert (r.group.number_str, r.group.name) == ("38.188", "Amm21'")
-    assert (len(r.validated.indices), r.group.size) == (8, 8)
-    assert r.group.provenance == "descended"
+    assert (len(r.validated.indices), len(r.operations)) == (8, 8)
+    assert r.group._provenance == "descended"
     step = r.descent["lattice"]
     assert step["index"] == 2 and step["realized"] == ()
     assert step["operations"][0]["translation"] == (0.5, 0.5, 0.0)
@@ -594,7 +594,7 @@ def test_the_square_cells_hamiltonian_breaks_the_centring():
     assert not isinstance(plain, Refusal), str(plain)
     assert plain.environment == "substrate" and plain.environment_declared is False
     assert (plain.group.number_str, plain.group.name) == ("8.33", "Cm1'")
-    assert (len(plain.validated.indices), plain.group.size) == (4, 4)
+    assert (len(plain.validated.indices), len(plain.operations)) == (4, 4)
     assert plain.descent["from"]["number_str"] == "99.164"
     assert plain.descent["lattice"]["index"] == 2
     assert plain.descent["lattice"]["coset_partners_refuted"] == 13
@@ -666,7 +666,7 @@ def test_the_lifted_fkm_supercells_are_served_as_lattice_supergroups(
     model, typat = _lifted_supercell(sc)
     g = _spacegroup._group_of(model)
     assert not isinstance(g, Refusal), str(g)
-    assert (g.number_str, g.name, g.size) == (*served, size)
+    assert (g.number_str, g.name, g._size) == (*served, size)
     assert g._lattice_index == index
     assert g._tables_ready is False
     if thirds:                        # thirds: 1.1e-16, one ulp, and not zero
@@ -686,7 +686,7 @@ def test_the_lifted_fkm_supercells_are_served_as_lattice_supergroups(
 #: Every entry point that reads a table, called on the group (or representation)
 #: in its first slot.
 _TABLE_CONSUMERS = {
-    "wyckoff_positions_spglib": lambda g: tqg.wyckoff_positions_spglib(g),
+    "wyckoff_positions_spglib": lambda g: _spacegroup._wyckoff_positions_spglib(g),
     "wyckoff_sites_tables": lambda g: tqg.wyckoff_sites_tables(g),
     "high_symmetry_points": lambda g: tqg.high_symmetry_points(g),
     "little_group": lambda g: tqg.little_group(g, [0, 0, 0]),
@@ -782,12 +782,12 @@ def test_the_assignment_is_geometric_on_a_supergroup(cubic_supergroup):
 
     # the translation's own row, against the geometry above
     ident = np.eye(3, dtype=int)
-    rows = [i for i, s in enumerate(cubic_supergroup.symmetries)
+    rows = [i for i, s in enumerate(cubic_supergroup._symmetries)
             if not s.time_reversal
             and np.array_equal(ident, np.rint(np.asarray(s.rotation,
                                                          dtype=float)).astype(int))]
     tau_row, = [i for i in rows
-                if np.allclose(cubic_supergroup.symmetries[i].translation,
+                if np.allclose(cubic_supergroup._symmetries[i].translation,
                                [0.5, 0.0, 0.0], atol=1e-12)]
     id_row, = [i for i in rows if i != tau_row]
     assert a.permutations[tau_row].tolist() == [1, 0]
@@ -826,8 +826,8 @@ def test_the_flat_p41_cell_reaches_the_lattice_descent_and_holds_each_operation_
     r = p41_free_standing
     assert not isinstance(r, Refusal), str(r)
     assert (r.group.number_str, r.group.name) == ("99.164", "P4mm1'")
-    assert (len(r.validated.indices), r.group.size) == (16, 16)
-    assert r.group.provenance == "descended"
+    assert (len(r.validated.indices), len(r.operations)) == (16, 16)
+    assert r.group._provenance == "descended"
     # the s orbitals, assigned by the lowest-angular-momentum rule: A1 of the site group,
     # returned on this spinful model as the corep -E
     assert r.rep.characters.irreps == ("-E", "-E")
@@ -891,7 +891,7 @@ def test_the_substrate_decoration_does_not_hide_the_translation():
     assert int(cell.norb) == 4 and list(cell_typat) == [0, 0, 1, 1]
     g = _spacegroup._group_of(cell, typat=cell_typat)
     assert not isinstance(g, Refusal), str(g)
-    assert (g.number_str, g.name, g.size) == ("25.58", "Pmm21'", 16)
+    assert (g.number_str, g.name, g._size) == ("25.58", "Pmm21'", 16)
     assert g._lattice_index == 2 and g._fractional_translations == ((0.5, 0.0, 0.0),)
 
     r = tqg.realized_group(supercell_square())
@@ -903,7 +903,7 @@ def test_the_substrate_decoration_does_not_hide_the_translation():
     # ... and the bare cell, read free-standing: the same supergroup's refusal
     bare = _spacegroup._group_of(supercell_square(), include_TR=False)
     assert not isinstance(bare, Refusal), str(bare)
-    assert (bare.number_str, bare.size) == ("123", 16)
+    assert (bare.number_str, bare._size) == ("123", 16)
     assert bare._lattice_index == 2 and bare._fractional_translations == ((0.5, 0.0, 0.0),)
     free = tqg.realized_group(supercell_square(), environment="free-standing",
                               cross_check=False)
@@ -917,16 +917,16 @@ def test_the_substrate_decoration_does_not_hide_the_translation():
     m3 = _layers._slab_presentation(tqc_models.kane_mele_z2("odd"))
     bare = _spacegroup._group_of(m3, typat=[0, 1], spinor=True)
     assert not isinstance(bare, Refusal), str(bare)
-    assert (bare.number_str, bare.size) == ("187.210", 24)
+    assert (bare.number_str, bare._size) == ("187.210", 24)
     decorated, decorated_typat = _layers._decorated_cell(m3, [0, 1])
     h = _spacegroup._group_of(decorated, typat=decorated_typat, spinor=True)
     assert not isinstance(h, Refusal), str(h)
-    assert (h.number_str, h.name, h.size) == ("156.50", "P3m11'", 12)
+    assert (h.number_str, h.name, h._size) == ("156.50", "P3m11'", 12)
     assert h._lattice_index == 1 and h._fractional_translations == ()
     assert {int(np.rint(np.asarray(s.rotation, dtype=float)[2, 2]))
-            for s in bare.symmetries} == {1, -1}
+            for s in bare._symmetries} == {1, -1}
     assert {int(np.rint(np.asarray(s.rotation, dtype=float)[2, 2]))
-            for s in h.symmetries} == {1}
+            for s in h._symmetries} == {1}
 
 
 # ---------------------------------------------------------------------------
@@ -986,7 +986,7 @@ def _bare_symmetries_of_the_sign_pattern(sx, sy):
     under which the hopping SIGN PATTERN is invariant as written -- no gauge transformation
     allowed.  Pure combinatorics on the hopping list: nothing from ``pythtqc`` enters.
     Returned as ``{(rotation rows, translation mod 1)}`` in the reduced coordinates of the
-    ``2x2x1`` cell, the currency of ``group.symmetries``."""
+    ``2x2x1`` cell, the currency of ``group._symmetries``."""
     bonds = {}
     for (x, y) in sx:
         bonds[((x, y), (1, 0, 0))] = sx[(x, y)]
@@ -1062,13 +1062,13 @@ def test_magnetic_translations_leave_the_cell_its_bare_subgroup():
     """
     m = pi_flux_2x2()
     g = _spacegroup._group_of(m)
-    assert (g.number_str, g.size, g._lattice_index) == ("123.340", 128, 4)
+    assert (g.number_str, g._size, g._lattice_index) == ("123.340", 128, 4)
     taus = {(0.5, 0.0, 0.0), (0.0, 0.5, 0.0), (0.5, 0.5, 0.0)}
     assert set(g._fractional_translations) == taus
 
     r = tqg.realized_group(m)
     assert r, str(r)
-    assert (r.group.number_str, r.group.name, r.group.size) == ("51.290", "Pmma1'", 16)
+    assert (r.group.number_str, r.group.name, len(r.operations)) == ("51.290", "Pmma1'", 16)
     assert r.group._lattice_index == 1, "the cell's own translations are the lattice"
     d = r.descent
     assert d["from"]["number_str"] == "123.340" and d["to"]["number_str"] == "51.290"
@@ -1087,7 +1087,7 @@ def test_magnetic_translations_leave_the_cell_its_bare_subgroup():
 
     # the oracle: the operations under which the sign pattern is invariant as written
     served = set()
-    for s in r.group.symmetries:
+    for s in r.group._symmetries:
         if s.time_reversal:
             continue
         R = np.rint(np.asarray(s.rotation)).astype(int)
@@ -1100,7 +1100,7 @@ def test_magnetic_translations_leave_the_cell_its_bare_subgroup():
     # the control: the same flux in Landau gauge, where the dressing is a boost
     landau = tqg.realized_group(pi_flux_landau_2x1())
     assert landau, str(landau)
-    assert (landau.group.number_str, landau.group.size) == ("47.250", 16)
+    assert (landau.group.number_str, len(landau.operations)) == ("47.250", 16)
     dl = landau.descent
     assert dl["from"]["number_str"] == "123.340" and dl["steps"][0]["n_dropped"] == 48
     assert dl["steps"][0]["refuted_by"] == {"no symmetry matrix": 32, "tensor structure": 16}

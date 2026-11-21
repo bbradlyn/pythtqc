@@ -704,7 +704,7 @@ def sewing_matrix(rep, operation=None, k=None, *, states=None, bands=None, atol=
     The fourfold rotation on lin3g's lowest pair at ``M``
     (:func:`..models.lin3g`):
 
-    >>> c4 = operation_index(r, "{4+_001|0,0,0}")                   # doctest: +SKIP
+    >>> c4 = operation_index(r.group, "{4+_001|0,0,0}")                   # doctest: +SKIP
     >>> B = sewing_matrix(r.rep, c4, hsp["M"], bands=2)              # doctest: +SKIP
     >>> np.round(B.trace, 6), B.angles / np.pi                      # doctest: +SKIP
     ((-1.414214+0j), array([-0.75,  0.75]))
@@ -975,13 +975,13 @@ def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol,
                          "energies": w[list(m)]})
         rows.append(m)
 
-    lg = _tables.little_group(rep.group, k)
+    lg = _tables._little_group(rep.group, k)
     if isinstance(lg, Refusal):
         return lg
     ours = [int(i) for i in rep.little_group(k, atol=atol)]
     ours_u = tuple(sorted(i for i in ours if not rep._operation(i).time_reversal))
     ours_a = tuple(sorted(i for i in ours if rep._operation(i).time_reversal))
-    not_carried = tuple(sorted(set(lg.indices) - set(ours_u)))
+    not_carried = tuple(sorted(set(lg.unitary) - set(ours_u)))
     if not_carried:
         # every representation a call returns carries the whole group it was
         # built for, so an operation of that group left out is the package
@@ -1015,7 +1015,7 @@ def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol,
         unitarity=unit, commutators=comm, thresholds=thr, spectrum=w,
         degeneracy_tol=float(degeneracy_tol),
         spread=multiplet_spread(w, degeneracy_tol), residual=resid,
-        disagreements=dis, group_provenance=str(rep.group.provenance), _names=names)
+        disagreements=dis, group_provenance=str(rep.group._provenance), _names=names)
 
 # ==========================================================================
 # corep content
@@ -1232,7 +1232,7 @@ def _corep_content(rep, k, *, states, bands, degeneracy_tol, label_tol, ktol, kp
     if isinstance(tab, Refusal):
         return tab
 
-    out = _tables.identify_from_characters(
+    out = _tables._identify_from_characters(
         rep.group, tab.k, tab.characters, multiplet_dims=list(tab.dims),
         kpname=kpname, label_tol=label_tol, ktol=ktol)
     if isinstance(out, Refusal):
@@ -1506,7 +1506,7 @@ def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
         return gate
     if states is not None and hasattr(states, "solve_ham") and states is not rep.model:
         raise ValueError("hsp_table(rep, states=...) must be handed rep.model")
-    points = _tables.high_symmetry_points(rep.group)
+    points = _tables._high_symmetry_points(rep.group)
     if isinstance(points, Refusal):
         return points
 
@@ -1518,7 +1518,7 @@ def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
     # route for "a handful of high-symmetry points", with no container built.
     wanted = []
     for name, k in points.items():
-        lg = _tables.little_group(rep.group, k)
+        lg = _tables._little_group(rep.group, k)
         if isinstance(lg, Refusal):
             refusals[name] = lg
             continue
@@ -1558,5 +1558,5 @@ def hsp_table(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
                     records=records, refusals=refusals,
                     counts=_tables.ordered_content(counts), thresholds=thr,
                     complete=not refusals,
-                    group_provenance=str(rep.group.provenance),
+                    group_provenance=str(rep.group._provenance),
                     note="; ".join(n for n in notes if n), rep=rep)

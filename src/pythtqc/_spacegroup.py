@@ -33,9 +33,8 @@ from ._tolerance import (
     _SAME_TRANSLATION)
 from ._text import _affine_text, _index_ranges, _lattice_vectors, _point_text
 
-__all__ = ["tables_status", "GroupData", "LittleGroup", "WyckoffPosition",
-           "SiteReference", "OrbitalAssignment", "IrrepContent", "KGrid",
-           "wyckoff_positions_spglib"]
+__all__ = ["tables_status", "GroupData", "LittleGroup", "SiteReference",
+           "OrbitalAssignment", "IrrepContent", "KGrid", "Term"]
 
 
 # ITA Wyckoff letters: 'a'..'z' then 'A' (space group 47 has 27 positions).
@@ -232,7 +231,7 @@ def _product_table(sg, *, block_bytes: float = 6.4e7):
     -------
     tuple of ndarray of int
         ``(table, translations, signs)``, as
-        :meth:`GroupData.get_product_table` describes them.
+        :meth:`GroupData._get_product_table` describes them.
 
     Raises
     ------
@@ -320,67 +319,52 @@ _PRODUCT_TABLES: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 class GroupData:
     """A space group, written in the model's own cell.
 
-    The group ``realized_group(model).group`` holds, and the one every table
-    call takes: :func:`.._seitz.operations`, :func:`.._tables.high_symmetry_points`,
-    :func:`.._tables.corep_table`, :func:`.._tables.ebr_data`.  ``summary()`` prints it.
+    The group ``realized_group(model).group`` holds, and the one every lookup
+    takes: :func:`.._seitz.operations`, :func:`.._tables.high_symmetry_points`,
+    :func:`.._tables.corep_table`, :func:`.._tables.ebr_data`.  Its operations
+    are ``r.operations``.  ``summary()`` prints it.
 
     Attributes
     ----------
     name : str
-        The Hermann–Mauguin symbol, ``"P6/mmm1'"``, a trailing ``1'`` marking
-        time reversal adjoined.
+        The Hermann-Mauguin symbol, ``"P6/mmm1'"``, a trailing ``1'`` marking
+        time reversal as one of its operations.
     number_str : str
         The label the tables file the group under, ``"191.234"``.
-    sg_number : int
-        The space-group number, ``191``, with time reversal adjoined or not.
-    spinor, include_TR, magnetic : bool
-        Whether it is the double group, of states with spin one-half; whether
-        time reversal is adjoined; whether it is read in the magnetic tables,
-        as a grey group is.
-    symmetries : list
-        Its operations, one per coset of the lattice translations, in the
-        tables' order: ``irrep``'s record of each, ``.ind`` its index.
-        :func:`.._seitz.operations` writes them out.
-    u_symmetries, au_symmetries : list
-        The unitary operations, and those combined with time reversal.
-    size : int
-        How many operations :attr:`symmetries` lists.
-    lattice : ndarray, shape (3, 3)
-        The three-dimensional cell the group was found on, a row per lattice
-        vector, a layer's with its vacuum.
-    periodic_dirs, vacuum_dirs : tuple of int
-        The axes of :attr:`lattice` that are periodic, and a layer's vacuum.
-    vacuum_length : float
-        The vacuum along a layer's normal, in the model's length units; the
-        group does not depend on it.
-    dim_k, dim_r : int
-        The model's periodic and spatial dimensions.
-    site_positions, site_orbitals, typat : ndarray, tuple, ndarray
-        The points the group was found on, in reduced coordinates of
-        :attr:`lattice`, the orbitals on each and each point's species: the
-        orbitals' sites, and any species added to the cell.
-    symprec : float
-        The symmetry finder's tolerance, a Cartesian length in the model's
-        units.
-    provenance : {"realized", "descended"}
-        Measured on the Hamiltonian, or measured after the cell was lowered,
-        which :attr:`RealizedGroup.descent` records.
+    spinor : bool
+        Whether it is the double group, of states with spin one-half.
+    magnetic_type : str
+        ``"II"`` for a grey group, which holds time reversal itself, and
+        ``"I"`` for a group none of whose operations is combined with time
+        reversal.
+    periodic_dirs : tuple of int
+        The lattice vectors along which the crystal is periodic, ``(0, 1)``
+        for a layer and ``(0, 1, 2)`` for a crystal periodic in three
+        directions.
     """
 
-    sg_number: int
-    number_str: str
     name: str
+    number_str: str
     spinor: bool
-    magnetic: bool
-    include_TR: bool
-    symmetries: list
-    lattice: np.ndarray
-    site_positions: np.ndarray
-    site_orbitals: tuple
-    typat: np.ndarray
+    magnetic_type: str
     periodic_dirs: tuple
-    vacuum_dirs: tuple
-    vacuum_length: float
+    # the space-group number; whether irrep's magnetic tables are read, as for
+    # a grey group; whether time reversal was asked of the symmetry finder
+    _sg_number: int
+    _magnetic: bool
+    _include_TR: bool
+    # irrep's record of each operation, one per coset of the lattice
+    # translations, in the tables' order
+    _symmetries: list
+    # the three-dimensional cell the group was found on, a row per lattice
+    # vector, a layer's with its vacuum; the points it was found on, in its
+    # reduced coordinates, the orbitals on each and each point's species
+    _lattice: np.ndarray
+    _site_positions: np.ndarray
+    _site_orbitals: tuple
+    _typat: np.ndarray
+    _vacuum_dirs: tuple
+    _vacuum_length: float
     # the transformation from the model's cell to the tables' conventional one,
     # as `irrep` determined it, and whether it was found: every table lookup
     # reads it, and one made without it refuses `tables_not_ready`, saying why
@@ -388,11 +372,15 @@ class GroupData:
     _refUC: np.ndarray
     _shiftUC: np.ndarray
     _tables_ready: bool
-    symprec: float
-    dim_k: int
-    dim_r: int
+    # the symmetry finder's distance, in the model's length units, and the
+    # model's periodic and spatial dimensions
+    _symprec: float
+    _dim_k: int
+    _dim_r: int
     _setup_note: str | None = None
-    provenance: str = "cell"
+    # "cell", "realized" or "descended": read off the cell's points, measured on
+    # the Hamiltonian, or measured after the cell was lowered
+    _provenance: str = "cell"
     # how far the operations as spglib found them missed closing into a group,
     # reduced modulo the lattice -- 0.0 for a cell built from exact numbers,
     # rounding for one whose centres a declared precision made exact -- and the
@@ -419,42 +407,32 @@ class GroupData:
 
     # -- delegated to ``irrep`` --------------------------------------------
     @property
-    def u_symmetries(self) -> list:
-        """The unitary operations of :attr:`symmetries`."""
+    def _u_symmetries(self) -> list:
+        """The unitary operations of :attr:`_symmetries`."""
         return self._sg.u_symmetries
 
     @property
-    def au_symmetries(self) -> list:
-        """The operations of :attr:`symmetries` combined with time reversal, none without it."""
+    def _au_symmetries(self) -> list:
+        """The operations of :attr:`_symmetries` combined with time reversal, none without it."""
         return self._sg.au_symmetries
 
     @property
-    def size(self) -> int:
-        """How many operations :attr:`symmetries` lists, one per coset of the lattice translations."""
-        return len(self.symmetries)
+    def _size(self) -> int:
+        """How many operations :attr:`_symmetries` lists, one per coset of the lattice translations."""
+        return len(self._symmetries)
 
     # -- computed here, once for each ``irrep`` object ----------------------
-    def get_product_table(self, get_diff: bool = True):
+    def _get_product_table(self, get_diff: bool = True):
         """The group's multiplication table, with the lattice translation and spin sign of each product.
 
-        These are what a representation of the group reproduces.
-
-        Parameters
-        ----------
-        get_diff : bool, default True
-            Whether to return the translations and the signs beside the table.
-
-        Returns
-        -------
-        tuple of ndarray
-            ``(table, translations, signs)``: ``table[i, j]`` the position in
-            :attr:`symmetries` of the product of the operations at positions
-            ``i`` and ``j``; ``translations[i, j]`` the lattice vector by which
-            that product's translation exceeds the listed operation's; and
-            ``signs[i, j]`` the ``±1`` by which its spin matrix differs from
-            the listed operation's, ``1`` throughout for a spinless group.
-        ndarray
-            The table alone, where ``get_diff`` is False.
+        These are what a representation of the group reproduces.  With
+        ``get_diff`` (default True), ``(table, translations, signs)``:
+        ``table[i, j]`` the position in :attr:`_symmetries` of the product of
+        the operations at positions ``i`` and ``j``; ``translations[i, j]`` the
+        lattice vector by which that product's translation exceeds the listed
+        operation's; and ``signs[i, j]`` the ``±1`` by which its spin matrix
+        differs from the listed operation's, ``1`` throughout for a spinless
+        group.  Without it, the table alone.
         """
         got = _PRODUCT_TABLES.get(self._sg)
         if got is None:
@@ -465,74 +443,47 @@ class GroupData:
         return np.array(got[0])
 
     # -- delegated to ``irrep`` --------------------------------------------
-    def get_inverse_table(self):
-        """The position in :attr:`symmetries` of each operation's inverse.
-
-        Returns
-        -------
-        ndarray of int
-            Entry ``i`` is the position of the inverse of the operation at
-            position ``i``: positions in the list, one less than the indices.
-        """
+    def _get_inverse_table(self):
+        """The position in :attr:`_symmetries` of each operation's inverse, positions one less than the indices."""
         return self._sg.get_inverse_table()
 
     # -- k between the model and the 3D cell -------------------------------
-    def k_to_3d(self, k) -> np.ndarray:
-        """The model's reduced k, as the same points in the three-dimensional cell.
+    def _k_to_3d(self, k) -> np.ndarray:
+        """The model's reduced k, shape ``(dim_k,)`` or ``(n, dim_k)``, as the same points of the three-dimensional cell, shape ``(n, 3)``.
 
         A layer's cell has its vacuum along the layer's normal, so the
         periodic components carry over and the one along the vacuum is zero.
-
-        Parameters
-        ----------
-        k : array_like, shape (dim_k,) or (n, dim_k)
-            Points in the model's reduced coordinates.
-
-        Returns
-        -------
-        ndarray, shape (n, 3)
-            The same points in reduced coordinates of :attr:`lattice`.
         """
         k = np.atleast_2d(np.asarray(k, dtype=float))
         out = np.zeros((k.shape[0], 3))
         out[:, list(self.periodic_dirs)] = k
         return out
 
-    def k_from_3d(self, k3) -> np.ndarray:
+    def _k_from_3d(self, k3) -> np.ndarray:
         """Points of the three-dimensional cell in the model's reduced coordinates, the vacuum's component dropped."""
         k3 = np.atleast_2d(np.asarray(k3, dtype=float))
         return k3[:, list(self.periodic_dirs)]
 
-    def in_plane(self, k3, atol: float = 1e-9) -> bool:
+    def _in_plane(self, k3, atol: float = 1e-9) -> bool:
         """Whether points of the three-dimensional cell lie in a layer's plane, within ``atol``."""
         k3 = np.atleast_2d(np.asarray(k3, dtype=float))
-        if not self.vacuum_dirs:
+        if not self._vacuum_dirs:
             return True
-        return bool(np.all(np.abs(k3[:, list(self.vacuum_dirs)]) <= atol))
+        return bool(np.all(np.abs(k3[:, list(self._vacuum_dirs)]) <= atol))
 
-    def k_action_of(self, op):
-        """One operation's action on the model's reduced k, ``k -> R k``.
+    def _k_action_of(self, op):
+        """One operation's action on the model's reduced k, ``k -> R k``, as a callable.
 
-        The image is left unreduced: ``H(k + G)`` is not ``H(k)`` in pythtb's
-        convention, and an operation carries ``H(k)`` to ``H`` at the image
-        itself.
-
-        Parameters
-        ----------
-        op : irrep.symmetry_operation.SymmetryOperation
-            One operation of :attr:`symmetries`.
-
-        Returns
-        -------
-        callable or None
-            ``k -> R k``, for one point or an array of them; ``None`` for an
-            operation that turns a layer's plane out of itself.
+        ``op`` is one of :attr:`_symmetries`.  The image is left unreduced:
+        ``H(k + G)`` is not ``H(k)`` in pythtb's convention, and an operation
+        carries ``H(k)`` to ``H`` at the image itself.  ``None`` for an
+        operation that turns a layer's plane out of itself.
         """
-        probe = np.eye(self.dim_k)
-        rot = op.transform_k(self.k_to_3d(probe))
-        if not self.in_plane(rot):
+        probe = np.eye(self._dim_k)
+        rot = op.transform_k(self._k_to_3d(probe))
+        if not self._in_plane(rot):
             return None
-        M = self.k_from_3d(rot)  # rows: images of the unit k-vectors
+        M = self._k_from_3d(rot)  # rows: images of the unit k-vectors
 
         def action(k, _M=M):
             return np.atleast_2d(np.asarray(k, dtype=float)) @ _M
@@ -540,14 +491,20 @@ class GroupData:
 
     def summary(self) -> str:
         """The group, a line for each part, with the attribute that holds it."""
-        lines = [f"{self.name} #{self.number_str}   (.name, .number_str)",
-                 "  its operations, one per coset of the lattice translations   (.symmetries)"]
+        lines = [f"{self.name} #{self.number_str}   (.name, .number_str)"]
+        if self.magnetic_type == "II":
+            lines.append("  a grey group, magnetic type II: time reversal is one of its "
+                         "operations   (.magnetic_type)")
+        else:
+            lines.append("  magnetic type I: no operation is combined with time reversal   "
+                         "(.magnetic_type)")
         if self.spinor:
-            lines.append("  the double group also holds each one's negative   (.spinor)")
-        if self.vacuum_dirs:
+            lines.append("  the double group: each operation's negative is in it too   "
+                         "(.spinor)")
+        if self._vacuum_dirs:
             lines.append(f"  a layer: periodic along {_lattice_vectors(self.periodic_dirs)} "
-                         f"lattice vectors, vacuum along {_lattice_vectors(self.vacuum_dirs)}"
-                         "   (.periodic_dirs, .vacuum_dirs)")
+                         f"lattice vectors, vacuum along {_lattice_vectors(self._vacuum_dirs)}"
+                         "   (.periodic_dirs)")
         return "\n".join(lines)
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
@@ -557,43 +514,62 @@ class GroupData:
         else:
             tag = "" if self._tables_ready else " [tables not ready]"
         return (f"GroupData({self.name} #{self.number_str}, "
-                f"spinor={self.spinor}, TR={self.include_TR}, "
-                f"periodic={self.periodic_dirs}, {self.provenance}{tag})")
+                f"spinor={self.spinor}, magnetic_type={self.magnetic_type!r}, "
+                f"periodic_dirs={tuple(self.periodic_dirs)}{tag})")
 
 
 @dataclass(frozen=True)
 class LittleGroup:
     """The operations that leave one k invariant up to a reciprocal lattice vector.
 
-    What :func:`.._tables.little_group` returns; ``summary()`` prints it, and ``len`` is
-    the number of its unitary operations.
+    What :func:`.._tables.little_group` returns; ``summary()`` prints it, and
+    ``len`` is the number of its unitary operations.
 
     Attributes
     ----------
     k : ndarray, shape (dim_k,)
         The point, in the model's reduced coordinates.
-    k3 : ndarray, shape (3,)
-        The same point in the three-dimensional cell.
-    unitary : list
-        Its unitary operations, ``irrep``'s records, in index order: the
-        columns a character vector at ``k`` is written in.
-    antiunitary : list
-        Its operations combined with time reversal, those whose rotation
-        carries ``k`` to ``−k``, in index order; a corep table has no
-        characters for them.
-    indices : tuple of int
-        The indices of :attr:`unitary`.
-    G : ndarray, shape (n_unitary, 3)
-        For each unitary operation, the reciprocal lattice vector ``R⁻ᵀk − k``
-        it moves ``k`` by, in the three-dimensional cell.
+    unitary : tuple of int
+        The indices of its unitary operations, in index order: the columns a
+        character vector at ``k`` is written in.
+    antiunitary : tuple of int
+        The indices of its operations combined with time reversal, those whose
+        rotation carries ``k`` to ``-k``, in index order.  A corep table has
+        no characters for them.
+    G : dict
+        ``{index: G}`` for each unitary operation, the reciprocal lattice
+        vector ``R⁻ᵀk - k`` it moves ``k`` by, three components in reduced
+        coordinates of the three-dimensional cell, a layer's normal included.
     """
 
     k: np.ndarray
-    k3: np.ndarray
-    unitary: list
-    antiunitary: list
-    indices: tuple
-    G: np.ndarray
+    unitary: tuple
+    antiunitary: tuple
+    G: dict
+    # the point in the three-dimensional cell; irrep's records of the unitary
+    # and antiunitary operations, in index order; the group, for `operations`
+    _k3: np.ndarray = field(default=None, repr=False, compare=False)
+    _unitary_operations: list = field(default_factory=list, repr=False, compare=False)
+    _antiunitary_operations: list = field(default_factory=list, repr=False,
+                                          compare=False)
+    _group: Any = field(default=None, repr=False, compare=False)
+
+    @property
+    def operations(self):
+        """Its operations, unitary and antiunitary, by index, as ``r.operations`` writes them.
+
+        Returns
+        -------
+        OperationTable or Refusal
+            A row for each index of :attr:`unitary` and :attr:`antiunitary`.
+
+        Refusals
+        --------
+        ``tables_not_ready``
+            The group has no conventional setting to write a Seitz symbol in.
+        """
+        from ._seitz import _operation_rows
+        return _operation_rows(self._group, tuple(self.unitary) + tuple(self.antiunitary))
 
     def __len__(self) -> int:
         return len(self.unitary)
@@ -601,44 +577,32 @@ class LittleGroup:
     def summary(self) -> str:
         """The little group at one k, a line for each part, with the attribute that holds it."""
         lines = [f"k = {_point_text(self.k)}, in the model's reduced coordinates   (.k)",
-                 f"  its unitary operations, by index: {_index_ranges(self.indices)}   "
-                 "(.unitary, .indices)",
+                 "  its operations, by index and Seitz symbol   (.operations)",
+                 f"  its unitary operations, by index: {_index_ranges(self.unitary)}   "
+                 "(.unitary)",
                  "  the reciprocal lattice vector each of them moves k by   (.G)"]
         if self.antiunitary:
             lines.append("  its operations combined with time reversal, by index: "
-                         + _index_ranges(int(s.ind) for s in self.antiunitary)
-                         + "   (.antiunitary)")
+                         + _index_ranges(self.antiunitary) + "   (.antiunitary)")
         return "\n".join(lines)
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
-        k = ", ".join(f"{float(x):.4g}" for x in np.asarray(self.k, dtype=float).reshape(-1))
-        primed = _index_ranges(int(s.ind) for s in self.antiunitary)
-        return (f"LittleGroup(k = ({k}): unitary operations {_index_ranges(self.indices)}"
+        primed = _index_ranges(self.antiunitary)
+        return (f"LittleGroup(k = {_point_text(self.k)}: unitary operations "
+                f"{_index_ranges(self.unitary)}"
                 + (f"; with time reversal {primed}" if primed else "") + ")")
 
 
 @dataclass(frozen=True)
-class WyckoffPosition:
+class _WyckoffPosition:
     """One Wyckoff position of the group, in the model's own cell, lettered in spglib's setting.
 
-    One entry of what :func:`wyckoff_positions_spglib` returns; ``summary()``
-    prints it.  Its letter is spglib's, and the tables' letter for the position
-    may differ: :func:`.._tables.wyckoff_sites_tables` gives each site's letter in the
-    tables' setting.
-
-    Attributes
-    ----------
-    letter : str
-        Its Wyckoff letter in spglib's setting.
-    expression : str
-        The position as ``irrep`` writes it, its three coordinates in ``x``,
-        ``y`` and ``z``, in the model's reduced coordinates.
-    jacobian, offset : ndarray, shapes (3, 3) and (3,)
-        ``A`` and ``b`` of the map ``A·(x, y, z) + b`` whose image is the
-        position.
-    n_free : int
-        Its free parameters, the rank of ``A``: 0 for a point, 1 a line, 2 a
-        plane, 3 the general position.
+    One entry of what :func:`_wyckoff_positions_spglib` returns: its letter in
+    spglib's setting, which the tables' letter for the position may differ
+    from; ``expression``, the position as ``irrep`` writes it in ``x``, ``y``
+    and ``z``, in the model's reduced coordinates; ``jacobian`` and ``offset``,
+    ``A`` and ``b`` of the map ``A·(x, y, z) + b`` whose image is the
+    position; ``n_free``, the rank of ``A``.
     """
 
     letter: str
@@ -650,18 +614,8 @@ class WyckoffPosition:
     def distance(self, position, metric: np.ndarray) -> float:
         """The Cartesian distance from a point to this position, the nearest lattice translate of it.
 
-        Parameters
-        ----------
-        position : array_like, shape (3,)
-            The point, in reduced coordinates.
-        metric : ndarray, shape (3, 3)
-            The lattice, a row per lattice vector, which turns reduced
-            differences into Cartesian ones.
-
-        Returns
-        -------
-        float
-            The distance, in the lattice's length units.
+        ``position`` is in reduced coordinates and ``metric`` is the lattice, a
+        row per lattice vector; the distance is in the lattice's length units.
         """
         best = np.inf
         A, b = self.jacobian, self.offset
@@ -675,18 +629,6 @@ class WyckoffPosition:
             best = min(best, float(np.linalg.norm(resid @ metric)))
         return best
 
-    def summary(self) -> str:
-        """The position, a line for each part, with the attribute that holds it."""
-        freedom = {0: "a point", 1: "a line, one free parameter",
-                   2: "a plane, two free parameters"}.get(
-            int(self.n_free), "the general position, three free parameters")
-        return "\n".join([
-            f"{_affine_text(self.jacobian, self.offset)}, in the model's cell   "
-            "(.expression, .jacobian, .offset)",
-            f"  spglib's letter {self.letter}, in spglib's setting; the tables' letter for "
-            "the position may differ   (.letter)",
-            f"  {freedom}   (.n_free)"])
-
 
 _NEIGHBOUR_SHIFTS = np.array([[i, j, k] for i in (-1, 0, 1)
                               for j in (-1, 0, 1) for k in (-1, 0, 1)], dtype=float)
@@ -696,39 +638,61 @@ _NEIGHBOUR_SHIFTS = np.array([[i, j, k] for i in (-1, 0, 1)
 class SiteReference:
     """One site's Wyckoff position in the tables' setting, the one every table is read with.
 
-    One entry of what :func:`.._tables.wyckoff_sites_tables` returns, which prints its
-    position, its free parameters and its closure in a line.
+    One entry of what :func:`.._tables.wyckoff_sites_tables` returns, which
+    prints its position, its free parameters and the positions it slides onto
+    in a line.
 
     Attributes
     ----------
-    index : int
-        The site's place in the list handed in, by default
-        :attr:`GroupData.site_positions`.
-    position : ndarray, shape (3,)
-        The site as handed in, in reduced coordinates of the model's
-        three-dimensional cell.
-    reference : ndarray, shape (3,)
-        The same point in the tables' conventional cell, reduced into
-        ``[0, 1)``.
-    letter, multiplicity : str and int
+    wyckoff : str
         The most special Wyckoff position whose variety holds the point, the
-        fewest free parameters and then the smallest multiplicity, and its
-        multiplicity in the conventional cell: ``8`` for ``8a``.
+        fewest free parameters and then the smallest multiplicity, written
+        with its multiplicity in the conventional cell, ``"8a"``.
+    slides_onto : tuple of str
+        The positions on the closure of the site's variety at which the
+        tables induce elementary band representations, where an orbital
+        confined to the variety can be moved: ``("3a", "3b")`` for the line
+        ``6c``, ``(0, 0, z)``, of ``R-3m``.
     n_free : int
         Its free parameters: 0 a point, 1 a line, 2 a plane, 3 the general
         position.  A polar group's positions are lines at best, ``P4mm``'s
         ``1a`` being ``(0, 0, z)``.
-    varieties : tuple of str
-        The letter of every position whose variety holds the point, most
-        special first.
-    closure : tuple of str
-        The letters on the closure of the site's variety at which the tables
-        induce elementary band representations, where an orbital confined to
-        the variety can be moved: ``('a', 'b')`` for the line ``6c``,
-        ``(0, 0, z)``, of ``R-3m``.
-    residual : float
-        How far the point sits from its variety, in reduced coordinates of the
-        conventional cell.
+    position : ndarray, shape (3,)
+        The site as handed in, in reduced coordinates of the model's
+        three-dimensional cell.
+    """
+
+    wyckoff: str
+    slides_onto: tuple
+    n_free: int
+    position: np.ndarray
+    # the letter of every position whose variety holds the point, most special
+    # first; the site's place in the list handed in; the point in the tables'
+    # conventional cell, reduced into [0, 1); how far it sits from its variety
+    _varieties: tuple = field(default=(), repr=False, compare=False)
+    _index: int = field(default=0, repr=False, compare=False)
+    _reference: np.ndarray = field(default=None, repr=False, compare=False)
+    _residual: float = field(default=0.0, repr=False, compare=False)
+
+    def __repr__(self) -> str:  # pragma: no cover - convenience only
+        return (f"SiteReference({self.wyckoff}, n_free={self.n_free}, "
+                f"slides_onto {self.slides_onto})")
+
+
+@dataclass(frozen=True)
+class _SiteReading:
+    """One site's Wyckoff position in the tables' setting, as the package reads it.
+
+    What :func:`.._tables._sites_in_tables_setting` returns per point:
+    ``index``, its place in the list handed in; ``position`` and
+    ``reference``, the point in the model's three-dimensional cell and in the
+    tables' conventional cell, reduced into ``[0, 1)``; ``letter`` and
+    ``multiplicity`` of the most special position whose variety holds it;
+    ``n_free``; ``varieties``, the letters of every position whose variety
+    holds it, most special first; ``closure``, the letters on the closure of
+    its variety at which the tables induce elementary band representations;
+    ``residual``, how far it sits from its variety in reduced coordinates of
+    the conventional cell.
     """
 
     index: int
@@ -740,10 +704,6 @@ class SiteReference:
     varieties: tuple
     closure: tuple
     residual: float
-
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
-        return (f"SiteReference({self.multiplicity}{self.letter}, "
-                f"n_free={self.n_free}, closure {self.closure})")
 
 
 @dataclass(frozen=True)
@@ -923,14 +883,9 @@ class KGrid:
         that is not symmetric.
     contains : dict
         ``{name: bool}``, whether the mesh holds each tabulated high-symmetry
-        point.
-    missing : tuple of str
-        The tabulated points it does not hold, as an odd mesh misses the zone
-        boundary; a scan reaches one with its coordinates, from :attr:`hsp`,
-        added.
-    hsp : dict
-        ``{name: k}``, every tabulated point of the zone in the model's
-        reduced coordinates.
+        point.  An odd mesh misses the zone boundary, and
+        :func:`.._tables.high_symmetry_points` gives the coordinates of a
+        point it misses.
     """
 
     divisions: tuple
@@ -938,39 +893,86 @@ class KGrid:
     mesh: Any
     irreducible: np.ndarray | None
     contains: dict
-    missing: tuple
-    hsp: dict
 
     @property
-    def points(self) -> np.ndarray:
+    def kpoints(self) -> np.ndarray:
         """The mesh's points, ``(n, dim_k)``, in the model's reduced coordinates."""
         return np.asarray(self.mesh.flat)
 
     def summary(self) -> str:
         """The mesh, a line for each part, with the attribute that holds it."""
         sampled = [str(name) for name, hit in self.contains.items() if hit]
+        missed = [str(name) for name, hit in self.contains.items() if not hit]
         lines = [f"{'x'.join(str(int(d)) for d in self.divisions)} mesh, "
                  + ("symmetric" if self.symmetric else "not symmetric") + " under the group   "
                  "(.divisions, .symmetric)",
-                 "  pythtb's own mesh, ready for a WFArray   (.mesh, .points)"]
+                 "  pythtb's own mesh, ready for a WFArray   (.mesh, .kpoints)"]
         if self.irreducible is not None:
             lines.append(f"  its irreducible points, {len(self.irreducible)} of "
-                         f"{len(self.points)}: the group carries them onto all the others   "
+                         f"{len(self.kpoints)}: the group carries them onto all the others   "
                          "(.irreducible)")
         lines.append("  the high-symmetry points on it: " + (", ".join(sampled) or "none")
-                     + "   (.contains, .hsp)")
-        if self.missing:
-            lines.append("  the high-symmetry points it misses: "
-                         + ", ".join(str(m) for m in self.missing) + "   (.missing)")
+                     + "   (.contains)")
+        if missed:
+            lines.append("  the high-symmetry points it misses: " + ", ".join(missed)
+                         + "   (.contains)")
         return "\n".join(lines)
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
         sampled = [str(name) for name, hit in self.contains.items() if hit]
+        missed = [str(name) for name, hit in self.contains.items() if not hit]
         return (f"KGrid({'x'.join(str(int(d)) for d in self.divisions)} mesh, "
                 f"{'symmetric' if self.symmetric else 'not symmetric'}; samples "
                 + (", ".join(sampled) if sampled else "no high-symmetry point")
-                + (f"; misses {', '.join(str(m) for m in self.missing)}"
-                   if self.missing else "") + ")")
+                + (f"; misses {', '.join(missed)}" if missed else "") + ")")
+
+
+@dataclass(frozen=True)
+class Term:
+    """One term of a sum of site irreps: a whole number of copies of a site irrep at a Wyckoff position.
+
+    Two sums of terms are equal where their terms are.  The columns of
+    :func:`.._tables.ebr_data` are terms of multiplicity one, each an
+    elementary band representation.
+
+    Attributes
+    ----------
+    multiplicity : int
+        How many copies, never zero; negative only in a signed combination.
+    irrep : str
+        The site irrep, as the tables of elementary band representations name
+        it, ``"-E1"``.
+    wyckoff : str
+        The Wyckoff position, with its multiplicity in the conventional cell,
+        ``"1a"``.
+    site_symmetry : str
+        The site-symmetry group of the position in the group returned,
+        ``"4mm1'"`` in a grey group and ``"3"`` in a group without time
+        reversal.
+    unitary_site_symmetry : str
+        Its unitary part, ``"4mm"``.
+    """
+
+    multiplicity: int
+    irrep: str
+    wyckoff: str
+    site_symmetry: str
+    unitary_site_symmetry: str
+
+
+def _written_site_symmetry(name: str) -> str:
+    """A site-symmetry group's name from the list of elementary band representations, with its cubic bar.
+
+    ``name`` is the name after :func:`.._tables._barred` has put back the bar
+    of an improper site group.  The list writes the cubic ``m3`` and ``m3m``
+    where the space groups' names write ``m-3`` and ``m-3m``; a leading ``m3``
+    is rewritten ``m-3``, ``m31'`` as ``m-31'``, and every other name is
+    returned as it is.
+    """
+    name = str(name)
+    if name.startswith("m3"):
+        return "m-3" + name[2:]
+    return name
 
 
 # --------------------------------------------------------------------------
@@ -1008,7 +1010,7 @@ def _pad_cell(model, vacuum_length: float, *, lattice=None):
     one layer whose centres differ along the normal by noise are given vacua
     apart by as much.  So a model read **against a group** is set in the group's
     own lattice
-    (``lattice``, :attr:`GroupData.lattice`): each of its non-periodic vectors
+    (``lattice``, :attr:`GroupData._lattice`): each of its non-periodic vectors
     scaled to that lattice's length along it, the model then read in the frame
     the group was identified in.
 
@@ -1522,7 +1524,10 @@ def _magnetic_type(group) -> str:
     ``1.1 P1`` (I); ``±z`` on ``(0,0)`` and ``(½,½)`` of a square cell →
     ``127.397 P_C4/mbm`` (IV, the antiunitary ``{1|(½,½,0)}·T``).
     """
-    au = list(getattr(group, "au_symmetries", ()) or ())
+    au = getattr(group, "_au_symmetries", None)
+    if au is None:
+        au = getattr(group, "au_symmetries", ())
+    au = list(au or ())
     if not au:
         return "I"
     anti_translation = False
@@ -1562,7 +1567,10 @@ def _magnetic_scope_refusal(group) -> Refusal | None:
         return None
     number_str = str(getattr(group, "number_str", "?"))
     name = str(getattr(group, "name", "?"))
-    au = list(getattr(group, "au_symmetries", ()) or ())
+    au = getattr(group, "_au_symmetries", None)
+    if au is None:
+        au = getattr(group, "au_symmetries", ())
+    au = list(au or ())
     kind = ("it carries antiunitary operations but no anti-translation and not "
             "time reversal itself" if mtype == "III" else
             "its antiunitary operations include an anti-translation {1|t}.T with t "
@@ -1572,7 +1580,7 @@ def _magnetic_scope_refusal(group) -> Refusal | None:
         f"#{number_str} ({name}) is a magnetic group of type {mtype}: {kind}. This "
         "package is validated over magnetic types I and II only -- the 230 space "
         "groups as unitary groups, and the 230 grey groups with time reversal "
-        "adjoined (`include_TR=True`). Beyond them data are missing as well as "
+        "adjoined. Beyond them data are missing as well as "
         "conventions: for types III and IV irreptables ships the elementary band "
         "representations and the characters of the unitary part's irreps at the "
         "maximal k-points, but not the corep type at a k-point -- how the "
@@ -1682,6 +1690,27 @@ def _primitive_lattice(lattice, translations, *, max_den=64) -> dict:
                                for row in basis @ lattice),
             "index": int(round(1.0 / abs(float(np.linalg.det(basis))))),
             "denominator": int(den)}
+
+
+def _require_group(call: str, obj) -> None:
+    """Raise ``TypeError`` unless ``obj`` is a group, ``r.group``, or a refusal.
+
+    ``call`` is the public call's name, which the message starts with.  A
+    refusal passes, so that the call returns it as it is; what
+    :func:`.._realized.realized_group` returns and a representation each get
+    a message of their own, since each holds the group.
+    """
+    if isinstance(obj, (GroupData, Refusal)):
+        return
+    from ._realized import RealizedGroup
+    from .symmetry import SpaceGroupRep
+    if isinstance(obj, RealizedGroup):
+        raise TypeError(f"{call}(): got what realized_group returns; pass its group, "
+                        "r.group.")
+    if isinstance(obj, SpaceGroupRep):
+        raise TypeError(f"{call}(): got a representation; pass the group, r.group.")
+    raise TypeError(f"{call}(): got a {type(obj).__name__}; pass a group, r.group of "
+                    "what realized_group returns.")
 
 
 def _lattice_not_descended(group) -> Refusal | None:
@@ -2316,7 +2345,7 @@ def _group_of(model, *, spinor=None, include_TR=True, symprec=DEFAULT_FINDER, ty
 
     Read from the lattice and the orbital positions alone, so what comes back
     is an upper bound on the group a Hamiltonian on this cell can obey, stamped
-    :attr:`GroupData.provenance` ``= "cell"``.  ``typat`` labels orbital
+    :attr:`GroupData._provenance` ``= "cell"``.  ``typat`` labels orbital
     classes, ``include_TR=True`` asks the cell as a grey group — a point set
     says nothing about a Hamiltonian's time reversal — ``spinor`` follows
     ``model.nspin``, and ``symprec`` and ``vacuum_length`` are the finder's
@@ -2423,7 +2452,7 @@ def _group_of(model, *, spinor=None, include_TR=True, symprec=DEFAULT_FINDER, ty
     # after a descent re-identifies a subgroup that turns out to be the cell
     # again, and again for the other environment.  A hit returns the
     # object the first call built, memos and all, which is also what makes the
-    # product table (`GroupData.get_product_table`) a once-per-cell cost.
+    # product table (`GroupData._get_product_table`) a once-per-cell cost.
     memo_key = _identification_key(
         lattice, site_pos, site_orbs, species, vacuum_dirs, vacuum_length, symprec,
         spinor, include_TR, magmom, model.periodic_dirs,
@@ -2513,16 +2542,17 @@ def _group_of(model, *, spinor=None, include_TR=True, symprec=DEFAULT_FINDER, ty
         sg_number = -1
 
     out = GroupData(
-        sg_number=sg_number, number_str=number_str,
-        name=str(sg.name), spinor=bool(sg.spinor), magnetic=bool(sg.magnetic),
-        include_TR=bool(include_TR), symmetries=list(sg.symmetries),
-        lattice=lattice, site_positions=site_pos, site_orbitals=site_orbs,
-        typat=species, periodic_dirs=tuple(int(d) for d in model.periodic_dirs),
-        vacuum_dirs=vacuum_dirs, vacuum_length=float(vacuum_length),
+        _sg_number=sg_number, number_str=number_str,
+        name=str(sg.name), spinor=bool(sg.spinor), magnetic_type=_magnetic_type(sg),
+        _magnetic=bool(sg.magnetic),
+        _include_TR=bool(include_TR), _symmetries=list(sg.symmetries),
+        _lattice=lattice, _site_positions=site_pos, _site_orbitals=site_orbs,
+        _typat=species, periodic_dirs=tuple(int(d) for d in model.periodic_dirs),
+        _vacuum_dirs=vacuum_dirs, _vacuum_length=float(vacuum_length),
         _refUC=np.array(sg.refUC, dtype=float), _shiftUC=np.array(sg.shiftUC, dtype=float),
-        _tables_ready=tables_ready, symprec=float(symprec),
-        dim_k=int(model.lattice.dim_k), dim_r=int(model.lattice.dim_r),
-        _setup_note=note, provenance="cell", _spin_frame=spin_frame, _sg=sg,
+        _tables_ready=tables_ready, _symprec=float(symprec),
+        _dim_k=int(model.lattice.dim_k), _dim_r=int(model.lattice.dim_r),
+        _setup_note=note, _provenance="cell", _spin_frame=spin_frame, _sg=sg,
         _closure_measured=float(closure_measured),
         _closure_repaired=float(closure_repaired),
         _lattice_index=len(translations) + 1,
@@ -2539,35 +2569,16 @@ def _group_of(model, *, spinor=None, include_TR=True, symprec=DEFAULT_FINDER, ty
 # Wyckoff data and orbital assignment
 # --------------------------------------------------------------------------
 
-def wyckoff_positions_spglib(group: GroupData) -> tuple | Refusal:
+def _wyckoff_positions_spglib(group: GroupData) -> tuple | Refusal:
     """Every Wyckoff position of the group, in the model's own cell, lettered in spglib's setting.
 
-    Each position is a map ``A·(x, y, z) + b`` that a site can be tested
-    against.  Its letter is spglib's, and the tables' letter for the position
-    may differ: :func:`.._tables.wyckoff_sites_tables` gives each site's letter in the
-    tables' setting, and the orbits of
-    ``realized_group(model).assignment`` are read off the group's own
-    operations.
-
-    Parameters
-    ----------
-    group : GroupData
-        The group, ``realized_group(model).group``; its cell and its sites are
-        read, at spglib's own tolerance.
-
-    Returns
-    -------
-    tuple of WyckoffPosition or Refusal
-        The general position first and ``a`` last; ``summary()`` prints each.
-        A ``Refusal`` in its place is falsy.
-
-    Refusals
-    --------
-    A refusal handed in as ``group`` is returned as it is.
-
-    ``wyckoff_enumeration``
-        ``pyxtal`` and spglib disagree about the group, and no list of its
-        positions is made.
+    Each is a :class:`_WyckoffPosition`, a map ``A·(x, y, z) + b`` that a site
+    can be tested against, the general position first and ``a`` last; its
+    letter is spglib's, which the tables' letter for the position may differ
+    from (:func:`.._tables.wyckoff_sites_tables` gives the tables').  The
+    group's cell and sites are read at spglib's own tolerance.  A refusal
+    handed in is returned as it is; ``wyckoff_enumeration`` where ``pyxtal``
+    and spglib disagree about the group.
     """
     import sympy
     from irrep.spacegroup import SpaceGroup as _SG
@@ -2575,7 +2586,7 @@ def wyckoff_positions_spglib(group: GroupData) -> tuple | Refusal:
     gate = _lattice_not_descended(group)
     if gate is not None:
         return gate
-    cell = (group.lattice, group.site_positions, np.asarray(group.typat, dtype=int))
+    cell = (group._lattice, group._site_positions, np.asarray(group._typat, dtype=int))
     try:
         exprs = _SG.wyckoff_positions(cell)
     except Exception as exc:  # pragma: no cover - pyxtal/spglib disagreement
@@ -2597,7 +2608,7 @@ def wyckoff_positions_spglib(group: GroupData) -> tuple | Refusal:
         A[np.abs(A) < 1e-12] = 0.0
         b[np.abs(b) < 1e-12] = 0.0
         letter = _WYCKOFF_LETTERS[n - 1 - i] if n - 1 - i < len(_WYCKOFF_LETTERS) else "?"
-        out.append(WyckoffPosition(letter=letter, expression=s, offset=b, jacobian=A,
+        out.append(_WyckoffPosition(letter=letter, expression=s, offset=b, jacobian=A,
                                    n_free=int(np.linalg.matrix_rank(A, tol=1e-9))))
     return tuple(out)
 
@@ -2623,7 +2634,7 @@ def _pyxtal_wyckoff(sg: int) -> tuple:
     (``(0,0,0), (0,½,½), (½,0,½), (½,½,0)`` for an ``F`` lattice).
 
     ``pyxtal`` is already this package's Wyckoff source —
-    :func:`wyckoff_positions_spglib` reaches it through
+    :func:`_wyckoff_positions_spglib` reaches it through
     ``irrep.spacegroup.SpaceGroup.wyckoff_positions`` — but *there* it
     is composed with spglib's transformation into the calculation cell.  Here it
     is read raw, in its own conventional setting, which is the setting the
@@ -2633,7 +2644,7 @@ def _pyxtal_wyckoff(sg: int) -> tuple:
     position the EBR list names against the group's *own* operations.
 
     The class is taken off ``irrep.spacegroup``, which is where
-    :func:`wyckoff_positions_spglib` already reaches it: ``irrep`` pins
+    :func:`_wyckoff_positions_spglib` already reaches it: ``irrep`` pins
     ``pyxtal==1.1.1`` exactly, so this adds no dependency — it uses ``irrep``'s
     own binding of the one it already has.
     """
@@ -2719,7 +2730,7 @@ def _reference_operations(group: GroupData) -> tuple:
     shift = np.asarray(group._shiftUC, dtype=float)
     inv = np.linalg.inv(refUC)
     out = []
-    for sym in group.symmetries:
+    for sym in group._symmetries:
         if bool(sym.time_reversal):
             continue
         R = np.asarray(sym.rotation, dtype=float)

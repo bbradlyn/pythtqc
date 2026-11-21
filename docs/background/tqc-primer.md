@@ -129,8 +129,8 @@ from pythtb.models import fu_kane_mele
 strong = tqc.realized_group(fu_kane_mele(1.0, 0.125, [0.4, 0.0, 0.0, 0.0]),
                             characters={0: "s"})  # the diamond, one bond detuned
 data = tqc.ebr_data(strong.group)                # every EBR of the group
-M = np.array(data["matrix"])                     # a row per corep, a column per EBR
-U, D, V = (np.array(f) for f in data["smith"])   # U @ M @ V == D, diagonal
+M = np.array(data.matrix)                        # a row per corep, a column per EBR
+U, D, V = (np.array(f) for f in data.smith)      # U @ M @ V == D, diagonal
 print(strong.group.name, M.shape, np.linalg.matrix_rank(M))
 #  R-3m1' (12, 12) 8
 print(np.diag(D), np.array_equal(U @ M @ V, D))
@@ -138,7 +138,7 @@ print(np.diag(D), np.array_equal(U @ M @ V, D))
 t = tqc.hsp_table(strong.rep, bands=2)           # the valence pair's content
 print(tqc.format_counts(t.counts))
 #  -GM9 + -F5F6 + -L5L6 + -T8
-y = np.array([t.counts.get(label, 0) for label in data["labels_physics_convention"]])
+y = np.array([t.counts.get(label, 0) for label in data.corep_names])
 print(y, U @ y)
 #  [0 0 0 1 0 1 0 1 0 0 1 0] [0 0 1 1 0 0 0 1 0 0 0 0]
 print(tqc.symmetry_indicator(t).values)

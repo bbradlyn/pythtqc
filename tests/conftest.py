@@ -229,7 +229,7 @@ def p4232_descended():
     ``realized_group(tqc_models.p4232_cano2018())``.  The ``2a``
     orbitals alone are a body-centred point set, ``Im-3m1' #229.141``; the
     Hamiltonian breaks the centring translation, and the record descends to the
-    48 operations it obeys (``group.provenance == "descended"``).  Each site's
+    48 operations it obeys (``group._provenance == "descended"``).  Each site's
     ``(d_z2, d_x2-y2)`` pair is one two-dimensional multiplet.
     """
     out = realized_once(tqc_models.p4232_cano2018)
@@ -261,7 +261,7 @@ def p4232_decorated():
     decorated = TBModel(Lattice(np.eye(3), cell["positions"].tolist(),
                                 periodic_dirs=[0, 1, 2]), spinful=False)
     group = _spacegroup._group_of(decorated, typat=cell["typat"].tolist())
-    assert group and group.sg_number == 208, str(group)
+    assert group and group._sg_number == 208, str(group)
     assignment = _tables._assign_orbitals(model, group)
     validated = _measure._validate_group(model, group, nk=5)
     rep = _build._build_rep(model, group, assignment, validated=validated, n_battery=4)
@@ -418,16 +418,16 @@ def grey_numbers():
 
 @pytest.fixture(scope="session")
 def every_table():
-    """``[(SRSITables, ebr_data), ...]`` for every tabulated system, both valuednesses.
+    """``[(SRSITables, _ebr_data), ...]`` for every tabulated system, both valuednesses.
 
     One pass over the 434 systems, shared by every sweep over the SRSI tables.
     Each EBR list is fetched by the table's own grey BNS number and valuedness
     (``srsi._TableKey``), with no measured group; a space group with no table
     refuses ``srsi_table_absent``.
     """
-    import pythtqc.groups as _tqg
     import pythtqc.srsi as _tqr
     from pythtqc import _srsitables
+    from pythtqc import _tables
 
     out = []
     for sg in range(1, 231):
@@ -436,7 +436,7 @@ def every_table():
             if not table:
                 assert table.gate == "srsi_table_absent", (sg, spinor, table.gate)
                 continue
-            data = _tqg.ebr_data(_srsitables._TableKey(table.number_str, spinor))
+            data = _tables._ebr_data(_srsitables._TableKey(table.number_str, spinor))
             assert data, f"#{table.number_str}: {data}"
             out.append((table, data))
     return out

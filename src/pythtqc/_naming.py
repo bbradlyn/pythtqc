@@ -22,7 +22,7 @@ from . import _spacegroup
 from . import _tables
 from .refusal import InternalError, Refusal
 from ._tolerance import CHARACTER, _INT_TOL, _TABLE_MATRIX_TOL
-from ._tables import _letter_only, ebr_rows, kpoint_of_label
+from ._tables import _ebr_rows, _letter_only, kpoint_of_label
 from ._matrices import _primed_partners
 
 
@@ -248,9 +248,9 @@ def _unitary_frame(group):
     ``|P|^2`` times per site and an element of a numpy array is an object to
     build, while an element of a list is one to read.
     """
-    prod, _, _ = group.get_product_table(get_diff=True)
+    prod, _, _ = group._get_product_table(get_diff=True)
     prod = np.asarray(prod, dtype=int).tolist()
-    syms = group.symmetries
+    syms = group._symmetries
     pos_of = {int(s.ind): p for p, s in enumerate(syms)}
     unitary = [p for p, s in enumerate(syms) if not s.time_reversal]
     ident = next(p for p in unitary
@@ -341,11 +341,11 @@ def _induction_plan(group, assignment, site, fixers, *, k=None, kpname=None):
         if isinstance(point, Refusal):
             return None
         kpname = kpname or "GM"
-    table = _tables.corep_table(group, point, kpname=kpname)
+    table = _tables._corep_table(group, point, kpname=kpname)
     if isinstance(table, Refusal):
         return None
     unitary, inverse, prod, pos_of = _unitary_frame(group)
-    syms = group.symmetries
+    syms = group._symmetries
     held = {pos_of[i] for i in fixer_inds}
     weights: dict = {}
     if k is None:
@@ -358,7 +358,7 @@ def _induction_plan(group, assignment, site, fixers, *, k=None, kpname=None):
                     row[ind] = row.get(ind, 0.0) + 1.0 / len(held)
             weights[int(i)] = row
         return table, weights
-    k3 = np.asarray(group.k_to_3d(np.asarray(k, dtype=float)[None, :])[0], dtype=float)
+    k3 = np.asarray(group._k_to_3d(np.asarray(k, dtype=float)[None, :])[0], dtype=float)
     perm = np.asarray(assignment.permutations, dtype=int)
     shift = np.asarray(assignment.lattice_shift, dtype=float)
     orbit = sorted({int(perm[p, int(site)]) for p in unitary})
@@ -440,7 +440,7 @@ def _induced_content(group, assignment, site, chi, *, k=None, kpname=None,
 
 def _gamma_point(group):
     """The tabulated :math:`\\Gamma` in the model's own reduced coordinates."""
-    points = _tables.high_symmetry_points(group)
+    points = _tables._high_symmetry_points(group)
     if isinstance(points, Refusal):
         return points
     return points["GM"]
@@ -474,9 +474,9 @@ def _gamma_ties(group) -> dict | Refusal:
     Refusals
     --------
     ``"ebr_tables"``, ``"irrep_tables"``, ``"ebr_convention"``, ``"lattice_not_descended"``
-        propagated from :func:`ebr_rows`.
+        propagated from :func:`.._tables._ebr_rows`.
     """
-    rows = ebr_rows(group)
+    rows = _ebr_rows(group)
     if isinstance(rows, Refusal):
         return rows
     return _gamma_ties_of(rows)
@@ -539,7 +539,7 @@ def _site_irrep_names(group, assignment, site, table) -> tuple:
     letters = tuple(assignment.wyckoff_tables or ())
     if int(site) >= len(letters) or not letters[int(site)]:
         return blank
-    rows = ebr_rows(group)
+    rows = _ebr_rows(group)
     if isinstance(rows, Refusal):
         return blank
     at_letter = _rows_at_letter(rows, letters[int(site)])
@@ -555,7 +555,7 @@ def _site_irrep_names(group, assignment, site, table) -> tuple:
     lift = None
     if group.spinor:
         lift = {int(s.ind): complex(np.trace(np.asarray(s.spinor_rotation)))
-                for s in group.symmetries}
+                for s in group._symmetries}
     order = ["GM"] + [name for name in points if name != "GM"]
     plans: dict = {}
     characters = [{int(i): (table.character_on(row, int(i))
@@ -761,10 +761,10 @@ def _names_by_content(group, assignment, site, table, letter) -> tuple:
     # no name for the row.  So the naming declines, rather than spelling the
     # sum.  (:func:`_induction_plan` makes the same check away from Gamma.)
     fixers = {int(i) for i in assignment.site_group[int(site)]}
-    unitary = {int(s.ind) for s in group.symmetries if not s.time_reversal}
+    unitary = {int(s.ind) for s in group._symmetries if not s.time_reversal}
     if fixers & unitary != {int(i) for i in table.indices}:
         return blank
-    rows = ebr_rows(group)
+    rows = _ebr_rows(group)
     if isinstance(rows, Refusal):
         return blank
     at_letter = _rows_at_letter(rows, str(letter))
@@ -776,7 +776,7 @@ def _names_by_content(group, assignment, site, table, letter) -> tuple:
     lift = None
     if group.spinor:
         lift = {int(s.ind): complex(np.trace(np.asarray(s.spinor_rotation)))
-                for s in group.symmetries}
+                for s in group._symmetries}
     order = ["GM"] + [name for name in points if name != "GM"]
     plans: dict = {}
     out = []
@@ -821,7 +821,7 @@ def _induced_bands(group, assignment, site, chi) -> int:
         return 0
     table, _weights = plan
     content = _induced_content(group, assignment, int(site), chi, plan=plan)
-    ident = next((int(s.ind) for s in group.symmetries
+    ident = next((int(s.ind) for s in group._symmetries
                   if not s.time_reversal
                   and np.array_equal(np.asarray(s.rotation), np.eye(3, dtype=int))
                   and np.allclose(np.asarray(s.translation) % 1.0, 0.0, atol=1e-8)), None)
@@ -864,7 +864,7 @@ def _site_corep_labels(group, assignment, site, table) -> tuple:
     own = _point_group_names(group, table)
     labels = tuple(name or mine for name, mine in zip(names, own))
     lift = {int(s.ind): complex(np.trace(np.asarray(s.spinor_rotation)))
-            for s in group.symmetries}
+            for s in group._symmetries}
     carried: dict = {}
     for row, label in enumerate(labels):
         chi = tuple(table.character_on(row, int(i)) * lift[int(i)] for i in table.indices)
@@ -1004,7 +1004,7 @@ def _tabulated_operations(number_str: str, magnetic: bool) -> tuple:
     ``R`` is the integer matrix the table writes the operation in (its lattice
     basis), ``O`` the Cartesian matrix in the frame of the table's own SU(2)
     matrix ``S``.  The unitary operations come first and the antiunitary ones
-    after them, in the table's own order: the order :attr:`..groups.GroupData.symmetries`
+    after them, in the table's own order: the order :attr:`..groups.GroupData._symmetries`
     is indexed in, so operation ``ind`` is entry ``ind - 1``.
     """
     return _operations_of(_spacegroup._irrep_table(number_str, True, magnetic))
@@ -1399,8 +1399,8 @@ def _point_group_reading(group, table, *, double):
         references = _origin_coreps(_spacegroup._magnetic_type(group) == "II").get(symbol, ())
     else:
         references = _origin_irreps(bool(getattr(table, "antiunitary", ()))).get(symbol, ())
-    tabulated = _tabulated_operations(str(group.number_str), bool(group.magnetic))
-    if not references or len(tabulated) != len(group.symmetries):
+    tabulated = _tabulated_operations(str(group.number_str), bool(group._magnetic))
+    if not references or len(tabulated) != len(group._symmetries):
         return None
     here = [tabulated[int(ind) - 1] for ind in table.indices]
     target = [(R, O) for R, O, _S in here]
@@ -1414,8 +1414,8 @@ def _point_group_reading(group, table, *, double):
                     _conjugators([(R, O) for R, O, _S in references[0][1]], target)]
     if not readings or any(reading is None for reading in readings):
         return None
-    pos_of = {int(s.ind): i for i, s in enumerate(group.symmetries)}
-    lift = ([complex(np.trace(np.asarray(group.symmetries[pos_of[int(ind)]].spinor_rotation)))
+    pos_of = {int(s.ind): i for i, s in enumerate(group._symmetries)}
+    lift = ([complex(np.trace(np.asarray(group._symmetries[pos_of[int(ind)]].spinor_rotation)))
              for ind in table.indices] if double else [1.0] * len(table.indices))
     out = []
     for row in range(len(table.labels)):

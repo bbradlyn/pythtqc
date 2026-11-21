@@ -224,8 +224,8 @@ def _agreement(model, group, k):
     u_floor = 1000.0 * int(model.nstate) * _ULP
     floor = u_floor * _max_H(model, k)
     n_ops, n_measured, worst_e, worst_s = 0, 0, None, None
-    for sym in group.symmetries:
-        action = group.k_action_of(sym)
+    for sym in group._symmetries:
+        action = group._k_action_of(sym)
         if action is None:
             continue
         n_ops += 1
@@ -384,7 +384,7 @@ def _axis_swapping(group):
     The rotations are integer matrices in the reduced basis, so ``R[0, 0] == 0``
     is exactly "``a1`` is not carried onto ``±a1``" — no tolerance to choose.
     """
-    return {int(sym.ind) for sym in group.symmetries
+    return {int(sym.ind) for sym in group._symmetries
             if int(np.asarray(sym.rotation)[0, 0]) == 0}
 
 
@@ -431,8 +431,8 @@ def near_symmetry():
                                   abs=1000.0 * _ULP * _max_H(model, k)), \
         f"the perturbation's own size over the grid: {delta:.6e}"
     swapped = _axis_swapping(group)
-    assert len(swapped) == 16 and len(group.symmetries) == 32
-    broken = next(sym for sym in group.symmetries if int(sym.ind) in swapped)
+    assert len(swapped) == 16 and len(group._symmetries) == 32
+    broken = next(sym for sym in group._symmetries if int(sym.ind) in swapped)
     return model, group, broken, k, delta
 
 
@@ -498,7 +498,7 @@ def test_a_raised_tol_moves_the_window_with_it(near_symmetry):
     splitting reads as a gap (measured: two, in both bases).
     """
     model, group, sym, k, delta = near_symmetry
-    action = group.k_action_of(sym)
+    action = group._k_action_of(sym)
     tr = bool(sym.time_reversal)
 
     for turned in (False, True):
@@ -557,7 +557,7 @@ def test_validate_group_forwards_the_one_declared_tolerance(near_symmetry):
     swapped = _axis_swapping(group)
 
     strict = _measure._validate_group(model, group, k_pts=k, tol=1e-8)
-    assert set(strict.indices) == {int(s.ind) for s in group.symmetries} - swapped, \
+    assert set(strict.indices) == {int(s.ind) for s in group._symmetries} - swapped, \
         "the perturbed bond's geometry names the refusals, one for one"
     assert ind not in strict.indices, "refused at machine tolerance"
     reason = next(d["refuted_by"] for d in strict.discrepancies if d["ind"] == ind)
@@ -611,7 +611,7 @@ def test_the_cut_finds_the_space_and_the_gate_judges_it(near_symmetry):
     rather than for having no solution at all.
     """
     model, group, sym, k, delta = near_symmetry
-    action = group.k_action_of(sym)
+    action = group._k_action_of(sym)
     tr = bool(sym.time_reversal)
     ind = int(sym.ind)
 
@@ -632,7 +632,7 @@ def test_the_cut_finds_the_space_and_the_gate_judges_it(near_symmetry):
     assert raised_gate.escalations == (1e-2,), "starting one decade wider than before"
 
     refused = _measure._validate_group(model, group, k_pts=k, tol=1e-8, cut=1e-6)
-    assert set(refused.indices) == {int(s.ind) for s in group.symmetries} \
+    assert set(refused.indices) == {int(s.ind) for s in group._symmetries} \
         - _axis_swapping(group), "the gate still names the same survivors"
     entry = next(d for d in refused.discrepancies if d["ind"] == ind)
     assert entry["refuted_by"] == "covariance", \
@@ -672,13 +672,13 @@ def test_one_solve_per_k_action_class_and_the_record_names_it(monkeypatch):
 
     patch_everywhere(monkeypatch, "_find_intertwiners", counted)
     validated = _measure._validate_group(layer, group, nk=4)
-    assert len(validated.indices) == 48 == group.size
+    assert len(validated.indices) == 48 == group._size
     assert len(calls) == 24 == len(validated.k_action_classes), \
         f"{len(calls)} solves for 48 operations in 24 k-action classes"
 
-    k = _mesh(4, int(group.dim_k))
+    k = _mesh(4, int(group._dim_k))
     floor = 1000.0 * int(layer.nstate) * _ULP * _max_H(layer, k)
-    by_ind = {int(s.ind): s for s in group.symmetries}
+    by_ind = {int(s.ind): s for s in group._symmetries}
     n_independent = 0
     for members in validated.k_action_classes:
         solved_on = validated._records[members[0]]["solved_on"]
@@ -687,7 +687,7 @@ def test_one_solve_per_k_action_class_and_the_record_names_it(monkeypatch):
             if i == solved_on:
                 continue
             sym = by_ind[i]
-            space = _detector._find_intertwiners(layer, group.k_action_of(sym), k,
+            space = _detector._find_intertwiners(layer, group._k_action_of(sym), k,
                                          antiunitary=bool(sym.time_reversal), tol=1e-8)
             n_independent += 1
             assert space.dim == validated._records[solved_on]["dim"], (
@@ -1009,8 +1009,8 @@ def test_the_grid_is_the_models_own_bloch_sum_bit_for_bit():
     k = _mesh(6, 2)
     shared = _detector._GridHamiltonians(model, k)
     group = _spacegroup._group_of(model)
-    for sym in list(group.symmetries)[:4]:
-        _detector._find_intertwiners(model, group.k_action_of(sym), k,
+    for sym in list(group._symmetries)[:4]:
+        _detector._find_intertwiners(model, group._k_action_of(sym), k,
                              antiunitary=bool(sym.time_reversal), hamiltonians=shared)
     assert shared.n_evaluated == len(k), "the source grid is evaluated once, not once per op"
     assert shared.rotated(-k)._sum() is shared._sum(), "a rotated grid shares the blocks"

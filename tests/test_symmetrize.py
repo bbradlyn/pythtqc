@@ -496,8 +496,8 @@ def test_symmetrization_recovers_the_clean_answer_on_every_presentation(name, re
              else realized(build, **kw))
     assert clean, str(clean)
     assert clean.symmetrization is None
-    assert (clean.group.number_str, clean.group.size,
-            clean.group.provenance) == served[name]
+    assert (clean.group.number_str, len(clean.operations),
+            clean.group._provenance) == served[name]
 
     jit = jitter(model)
     tol = TOL_FACTOR * JITTER * _max_H(model)
@@ -514,8 +514,8 @@ def test_symmetrization_recovers_the_clean_answer_on_every_presentation(name, re
 
     # the same group by the same route: the jitter moved neither the answer nor
     # how it was reached
-    assert (out.group.number_str, out.group.size,
-            out.group.provenance) == served[name]
+    assert (out.group.number_str, len(out.operations),
+            out.group._provenance) == served[name]
     assert out.group.number_str == clean.group.number_str
     assert (out.descent is None) == (clean.descent is None)
     if clean.descent is not None:
@@ -593,7 +593,7 @@ def test_a_magnetic_model_is_symmetrized_without_inventing_time_reversal():
     out = _realized._realize(jit, typat=[0, 1], decorations=_CHIRAL_C3, tol=tol,
                              characters={0: "A1"}, cross_check=False)
     assert out, str(out)
-    assert out.group.number_str == "143" and not out.group.include_TR
+    assert out.group.number_str == "143" and out.group.magnetic_type == "I"
     assert out.time_reversal["outcome"] == "measured broken"
     rec = out.symmetrization
     assert rec is not None and len(rec.operations) == 3
@@ -659,9 +659,9 @@ def test_a_genuine_distortion_is_descended_to_and_never_symmetrized_away(lin3g):
                              characters=["s", "dx2-y2", "s", "s"], cross_check=False)
     assert out, str(out)
     assert out.symmetrization is None, "broken is not near: nothing was projected"
-    assert (out.group.number_str, out.group.name, out.group.size) == ("25.58",
+    assert (out.group.number_str, out.group.name, len(out.operations)) == ("25.58",
                                                                      "Pmm21'", 8)
-    assert out.group.provenance == "descended"
+    assert out.group._provenance == "descended"
     assert out.descent["from"]["number_str"] == "123.340"
     assert out.descent["from"]["name"] == "P4/mmm1'"
     assert out.descent["from"]["size"] == 32
@@ -689,16 +689,16 @@ def test_symmetrize_refuses_an_operation_that_is_broken_rather_than_near(lin3g):
     m3, group, asg, val = _pipeline(bad, [0, 0, 1, 1], tol=1e-6)
     assert len(val.indices) == 8
     forced = dataclasses.replace(
-        val, indices=tuple(int(s.ind) for s in group.symmetries))
+        val, indices=tuple(int(s.ind) for s in group._symmetries))
     got = _symmetrize(m3, group, asg, forced, tol=1e-6,
                       characters=["s", "dx2-y2", "s", "s"])
     assert not got and got.gate == "symmetrize_broken_operation"
     # the eight by NAME, not by `_validate_group`'s own list of them: the 4-fold
     # axis, the two diagonal mirrors and their time-reversed partners, which is
     # exactly what a 1e-2 distortion of one hopping kills
-    lat = np.asarray(group.lattice, dtype=float)
+    lat = np.asarray(group._lattice, dtype=float)
     assert {_sitechars.operation_name(s, lat) + ("'" if s.time_reversal else "")
-            for s in group.symmetries
+            for s in group._symmetries
             if int(s.ind) in got.context["broken"]} == {
         "C4(z)", "C4^-1(z)", "m([110])", "m([1-10])",
         "C4(z)'", "C4^-1(z)'", "m([110])'", "m([1-10])'"}
@@ -907,7 +907,7 @@ def test_a_multiplet_site_symmetrizes_through_the_representation_nearest_its_blo
     decorated = TBModel(Lattice(np.eye(3), cell["positions"].tolist(),
                                 periodic_dirs=[0, 1, 2]), spinful=False)
     group = _spacegroup._group_of(decorated, typat=cell["typat"].tolist())
-    assert group and group.sg_number == 208, str(group)
+    assert group and group._sg_number == 208, str(group)
 
     jit = jitter(p4232)
     tol = TOL_FACTOR * JITTER * _max_H(p4232)
@@ -1176,12 +1176,12 @@ def test_a_declared_position_tol_snaps_the_centres_before_anything_else(
     assert out.symmetrization is None
     assert set(_classify_operations(out.validated, 1e-8).values()) == {"exact"}
     assert max(out.validated.residuals[i] for i in out.validated.indices) < EXACT_GATE
-    assert len(out.validated.indices) == out.group.size == 12
+    assert len(out.validated.indices) == len(out.operations) == 12
 
     # the physics is the clean model's, exactly -- the same group by the same
     # route, descent record and all
     assert out.group.number_str == clean.group.number_str == "156.50"
-    assert out.group.provenance == clean.group.provenance == "descended"
+    assert out.group._provenance == clean.group._provenance == "descended"
     assert out.descent["from"]["number_str"] == "187.210"
     assert out.descent["from"] == clean.descent["from"]
     assert len(out.descent["dropped"]) == len(clean.descent["dropped"]) == 12
@@ -1232,7 +1232,7 @@ def test_a_declared_position_tol_snaps_the_centres_before_anything_else(
         head.context["tol"] / (2 * np.pi * head.context["max_h"]))
     assert head.context["tol"] == 1e-8
     assert head.context["group"].number_str == "187.210"
-    assert head.context["group"].size == 24
+    assert head.context["group"]._size == 24
     assert head.reason.startswith("the orbital centres miss the cell's own symmetry")
     assert "precision=" in head.reason and "position_tol=" in head.reason
     assert "positions" not in head.context, "none was declared, so none was made"
@@ -1288,9 +1288,9 @@ def test_the_position_pass_runs_before_the_hopping_projection(km_odd,
     assert "centres moved" in repr(out) and "symmetrized (defect" in repr(out)
 
     assert out.group.number_str == clean.group.number_str == "156.50"
-    assert out.group.provenance == clean.group.provenance == "descended"
+    assert out.group._provenance == clean.group._provenance == "descended"
     assert out.descent["from"] == clean.descent["from"]
-    assert out.group.size == len(rec.classes) == 12
+    assert len(out.operations) == len(rec.classes) == 12
     assert out.rep._choice == clean.rep._choice
     assert max(float(np.abs(out.rep.matrices[i] - clean.rep.matrices[i]).max())
                for i in clean.rep.indices) == 0.0
@@ -1522,11 +1522,11 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
     # back.  Measured 0.5 ulp of a reduced coordinate (1.1e-16): the rebuilt
     # translations come through spglib's own origin shift, which the noisy
     # positions put off a dyadic value
-    assert _spacegroup._translation_closure(group.symmetries) <= _FEW_ULP
+    assert _spacegroup._translation_closure(group._symmetries) <= _FEW_ULP
     # the rotations were not touched: the same integer matrices as the exact cell
-    rots = sorted(np.asarray(s.rotation, dtype=int).tobytes() for s in group.symmetries)
+    rots = sorted(np.asarray(s.rotation, dtype=int).tobytes() for s in group._symmetries)
     assert rots == sorted(np.asarray(s.rotation, dtype=int).tobytes()
-                          for s in clean.group.symmetries)
+                          for s in clean.group._symmetries)
     # a representation built by hand on the displaced centres, at a declared
     # tolerance: built, and its orbits read no content, each saying why
     m3, cell_group, asg, val = _pipeline(displaced, [0, 1], tol=1e-6)
@@ -1557,7 +1557,7 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
     assert 0.0 < out.positions["spectrum_residual"] < 1e-13
     assert out.symmetrization is None
     assert max(out.validated.residuals[i] for i in out.validated.indices) < EXACT_GATE
-    assert len(out.validated.indices) == out.group.size == 12
+    assert len(out.validated.indices) == len(out.operations) == 12
     assert out.rep._choice == clean.rep._choice
     assert max(float(np.abs(out.rep.matrices[i] - clean.rep.matrices[i]).max())
                for i in clean.rep.indices) == 0.0
@@ -1687,11 +1687,11 @@ def test_a_cell_built_from_exact_numbers_closes_exactly_and_is_untouched(name):
     if exact[name]:
         assert group._closure_measured == 0.0
         assert group._closure_repaired == 0.0, "nothing was touched"
-        assert _spacegroup._translation_closure(group.symmetries) == 0.0
+        assert _spacegroup._translation_closure(group._symmetries) == 0.0
     else:
         assert group._closure_measured <= _FEW_ULP
         assert group._closure_repaired <= _FEW_ULP, "the repair moved nothing past roundoff"
-        assert _spacegroup._translation_closure(group.symmetries) <= _FEW_ULP
+        assert _spacegroup._translation_closure(group._symmetries) <= _FEW_ULP
         # alpha-quartz: Si at 3a and O at 6c of P3_121, its screw axis's thirds
         # rebuilt from the tables' own translations
         positions, _centering = _spacegroup._pyxtal_wyckoff(152)

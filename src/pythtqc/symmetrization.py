@@ -351,7 +351,7 @@ def _divisions(group, syms, R_box):
 
     probe = np.eye(dim_k)
     for s in syms:
-        image = np.asarray(group.k_action_of(s)(probe), dtype=float)   # rows: images of e_b
+        image = np.asarray(group._k_action_of(s)(probe), dtype=float)   # rows: images of e_b
         for b in range(dim_k):
             for a in range(dim_k):
                 if a != b and abs(image[b, a]) > 0.5:
@@ -579,7 +579,7 @@ def _projection_operators(model, group, assignment, validated, *, tol, build_kw)
     taken with them (:func:`_symmetrized`).
     """
     mu = _bloch.onsite_mean(model)
-    probe = np.random.default_rng(1729).uniform(-0.5, 0.5, size=(8, int(group.dim_k)))
+    probe = np.random.default_rng(1729).uniform(-0.5, 0.5, size=(8, int(group._dim_k)))
     scale = _bloch.magnitude(_bloch.hamiltonian(model, probe), mu)
     return _provisional_rep(model, group, assignment, validated, tol=tol, scale=scale,
                             build_kw=build_kw)
@@ -748,7 +748,7 @@ def _average_on_grid(model, group, assignment, ops, D, kpts, divisions, *,
     acc = np.zeros_like(H)
     step = _slice_points(work, _POINT_MATRICES * 16.0 * float(H.shape[-1]) ** 2, n_points)
     for ind, sym in ops.items():
-        kp = group.k_action_of(sym)(kpts)
+        kp = group._k_action_of(sym)(kpts)
         mm = np.rint(kp * n)
         if np.abs(kp * n - mm).max() > 1e-7:      # pragma: no cover - guarded by design
             raise ValueError(
@@ -806,7 +806,7 @@ def _average_at(model, group, assignment, ops, D, k, *, bloch_tol, apart=None,
     acc = np.zeros_like(H)
     residue = 0.0
     for ind, sym in ops.items():
-        kout = group.k_action_of(sym)(k)
+        kout = group._k_action_of(sym)(k)
         Hrot = np.asarray(evaluate(kout))
         U = bloch_operator(model, group, assignment, sym, D[ind], k, k_out=kout,
                            tol=bloch_tol)
@@ -1127,8 +1127,8 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
                          spin=_resolve_spin(build_kw.get("spin"), model),
                          site_of=assignment.site_of_orbital)
     per = tuple(int(d) for d in group.periodic_dirs)
-    dim_k = int(group.dim_k)
-    syms_by_ind = {int(s.ind): s for s in group.symmetries}
+    dim_k = int(group._dim_k)
+    syms_by_ind = {int(s.ind): s for s in group._symmetries}
 
     # ---- 1. the classification, and the one thing that is refused ----------
     # against the exact gate of THIS model and operation set, measured once: the
@@ -1531,7 +1531,7 @@ def _symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=Non
 
     model = _bloch.bound(model, params)
     frame = _centres._assigned_sites(model, group, assignment)
-    syms = group.symmetries
+    syms = group._symmetries
     unitary = [k for k, s in enumerate(syms) if not s.time_reversal]
     rotations = np.array([np.asarray(syms[k].rotation, dtype=float) for k in unitary])
     perm = np.asarray(assignment.permutations, dtype=int)[unitary]

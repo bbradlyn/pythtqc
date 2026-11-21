@@ -161,7 +161,7 @@ class RealizedGroup:
             a choice, and the atomic-limit table's ``determined_by`` says
             whether a declaration or the lowest-angular-momentum rule made it.
         """
-        ident = next((int(s.ind) for s in self.group.symmetries
+        ident = next((int(s.ind) for s in self.group._symmetries
                       if not s.time_reversal
                       and np.array_equal(np.rint(np.asarray(s.rotation)).astype(int),
                                          np.eye(3, dtype=int))
@@ -200,7 +200,7 @@ class RealizedGroup:
     @property
     def operations(self) -> OperationTable:
         """Every operation of :attr:`group` by index, with its Seitz symbol and name: ``r.operations[5].seitz``."""
-        return operations(self)
+        return operations(self.group)
 
     @property
     def bundle(self) -> tuple:
@@ -1954,7 +1954,7 @@ def _layer_realized(model, *, environment, cross_check, typat, decorations, extr
         **{k: build_kw[k] for k in ("multiplets", "n_battery", "characters")
            if k in build_kw})
     returned_head = {"number_str": str(group.number_str), "name": str(group.name),
-                     "size": int(group.size)}
+                     "size": int(group._size)}
     if isinstance(other, Refusal):
         refusal = {"gate": str(other.gate), "reason": other.reason,
                    "environment": other_environment}
@@ -2130,10 +2130,10 @@ def _environment_candidates(rec) -> tuple:
     causes = {}
     for b in step["dropped"]:
         causes.setdefault(int(b["ind"]), set()).add(str(b["refuted_by"]))
-    by_ind = {int(s.ind): s for s in parent.symmetries}
-    lattice = np.asarray(parent.lattice, dtype=float)
-    partner = ({_operation_key(s)[:2]: s for s in parent.symmetries if s.time_reversal}
-               if any(bool(s.time_reversal) for s in group.symmetries) else {})
+    by_ind = {int(s.ind): s for s in parent._symmetries}
+    lattice = np.asarray(parent._lattice, dtype=float)
+    partner = ({_operation_key(s)[:2]: s for s in parent._symmetries if s.time_reversal}
+               if any(bool(s.time_reversal) for s in group._symmetries) else {})
     seen = {frozenset(kept)}
     for cause, ranked in (("tie", (step.get("tie") or {}).get("tied", ())),
                           ("declaration", (step.get("declaration") or {}).get("tied", ())),
@@ -2161,9 +2161,9 @@ def _environment_candidates(rec) -> tuple:
                                  if _operation_key(s)[:2] in partner]
                 label = "{" + ", ".join(_record_name(s, lattice) for s in unitary) + "}"
                 out.append((label, SimpleNamespace(
-                    symmetries=tuple(ops), lattice=parent.lattice,
-                    vacuum_dirs=parent.vacuum_dirs, number_str="", name=label,
-                    size=len(ops))))
+                    _symmetries=tuple(ops), _lattice=parent._lattice,
+                    _vacuum_dirs=parent._vacuum_dirs, number_str="", name=label,
+                    _size=len(ops))))
     return tuple(out)
 
 
@@ -2352,7 +2352,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
     # this record measured it: the outer stamp wins, and it is applied *here* so
     # that everything downstream -- the assignment, the detector, and above all
     # `rep.group`, which is what `characters()` echoes -- carries it.
-    group = replace(group, provenance="realized")
+    group = replace(group, _provenance="realized")
 
     # The cell as described, kept for the whole call: every descent below
     # rebuilds from THIS cell plus one generic orbit, never from a previous
@@ -2367,7 +2367,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
 
     def _stamp(g):
         """The provenance of a group returned from here: descended, or realized."""
-        return replace(g, provenance="descended" if steps else "realized")
+        return replace(g, _provenance="descended" if steps else "realized")
 
     positions = symmetrization = validated = None
 
@@ -2451,16 +2451,16 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                 if excluded:
                     made = _declared_cell(base_cell, base_typat, group, kept,
                                           spinor=bool(spinor),
-                                          include_TR=bool(group.include_TR),
+                                          include_TR=bool(group._include_TR),
                                           symprec=tolerances.finder)
                     if isinstance(made, Refusal):
                         return _refused(made)
                     lowered, cell, cell_typat, pairs, point, orbit, species = made
                     reduction = {
                         "from": {"number_str": str(group.number_str),
-                                 "name": str(group.name), "size": int(group.size)},
+                                 "name": str(group.name), "size": int(group._size)},
                         "to": {"number_str": str(lowered.number_str),
-                               "name": str(lowered.name), "size": int(lowered.size)},
+                               "name": str(lowered.name), "size": int(lowered._size)},
                         "excluded": tuple(excluded[i] for i in sorted(excluded)),
                         "n_excluded": len(excluded),
                         "kept": tuple(sorted(int(i) for i in kept)),
@@ -2469,7 +2469,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                         "species": species, "pairs": pairs}
                     # a cell reduction, not a descent: the group returned is the
                     # declared crystal's own cell, identified once
-                    group = replace(lowered, provenance="realized")
+                    group = replace(lowered, _provenance="realized")
                     base_cell, base_typat = cell, list(cell_typat)
                     # anything already resolved follows the cell, through this
                     # identification's own pairing, exactly as it follows a
@@ -2648,7 +2648,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
         # to lower, so it does not start one: time reversal is its own
         # measurement, made on the group this settles to.  It is recorded
         # whenever a descent does run.
-        antiunitary = {int(s.ind) for s in group.symmetries if s.time_reversal}
+        antiunitary = {int(s.ind) for s in group._symmetries if s.time_reversal}
         if any(i not in antiunitary for i in set(validated.broken) | set(refuted)):
             # The *unitary* part is what the cell's own claim rests on: a cell
             # that allows operations the Hamiltonian breaks is the wrong cell, so
@@ -2656,7 +2656,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
             # and only that group is ever returned.
             got = _descend_once(base_cell, base_typat, group, validated,
                                 spinor=bool(spinor),
-                                include_TR=bool(group.include_TR),
+                                include_TR=bool(group._include_TR),
                                 symprec=tolerances.finder, step=len(steps) + 1,
                                 refuted=refuted, lattice_record=lattice,
                                 declaration=declaration, projective=projective,
@@ -2725,10 +2725,10 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                 # them again; and it reads its translations off the cell again,
                 # so it is carried onto the origin of the operations it
                 # identifies again, the one the centres satisfy
-                unitary_ops = [s for s in group.symmetries if not s.time_reversal]
+                unitary_ops = [s for s in group._symmetries if not s.time_reversal]
                 pairs, lost, extra = _match_operations(
-                    unitary_ops, [s for s in unitary.symmetries if not s.time_reversal],
-                    tolerances.finder, group.lattice)
+                    unitary_ops, [s for s in unitary._symmetries if not s.time_reversal],
+                    tolerances.finder, group._lattice)
                 if not lost and not extra:
                     unitary = _shared_origin(unitary, unitary_ops, pairs)
                 contents = _rekey_contents(contents, pairs, {})
@@ -2743,7 +2743,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
             reversal_head = False
             time_reversal["number_str"] = str(group.number_str)
             time_reversal["name"] = str(group.name)
-            time_reversal["size"] = int(group.size)
+            time_reversal["size"] = int(group._size)
 
         # The symmetrizing pass, on the signal that licenses it: a measurement
         # that holds within the DECLARED tolerance but not exactly.  Either an
@@ -3166,7 +3166,7 @@ def _centres_carried(group, frame, perm, shift, rotations, ind_of_row,
     a note, empty where nothing is refuted.
     """
     p = float(tolerances.centre)
-    syms = group.symmetries
+    syms = group._symmetries
     every = frozenset(int(s.ind) for s in syms)
     row_of = {int(i): r for r, i in enumerate(ind_of_row)}
     own = frame.own
@@ -3183,7 +3183,7 @@ def _centres_carried(group, frame, perm, shift, rotations, ind_of_row,
                                refuted={}, tied=(), note="")
     # the primed partner of each unitary operation, through the group's own
     # product table: T * g, with T the pure time reversal, which moves no centre
-    prod = group.get_product_table(get_diff=False)
+    prod = group._get_product_table(get_diff=False)
     at = {int(s.ind): i for i, s in enumerate(syms)}
     ind_of = [int(s.ind) for s in syms]
     unitary = [int(s.ind) for s in syms if not s.time_reversal]
@@ -3214,7 +3214,7 @@ def _centres_carried(group, frame, perm, shift, rotations, ind_of_row,
                 return out
             out.add(x)
 
-    lattice = np.asarray(group.lattice, dtype=float)
+    lattice = np.asarray(group._lattice, dtype=float)
 
     def name(i):
         return _record_name(syms[at[int(i)]], lattice)
@@ -3294,7 +3294,7 @@ def _position_pass(model, group, tolerances, labels, read):
     frame = read.frame
     source = read.source
     extras = tuple(read.extras)
-    syms = group.symmetries
+    syms = group._symmetries
     unitary = [k for k, s in enumerate(syms) if not s.time_reversal]
     rotations = np.array([np.asarray(syms[k].rotation, dtype=float) for k in unitary])
     translations = np.array([np.asarray(syms[k].translation, dtype=float).reshape(-1)
@@ -3357,7 +3357,7 @@ def _position_pass(model, group, tolerances, labels, read):
     read_in = _shared_origin(group, [SimpleNamespace(ind=ind_of_row[r],
                                                      translation=final_trans[r])
                                      for r in rows], pairs)
-    _lat, at_group, _pad = _pad_cell(moved, group.vacuum_length, lattice=group.lattice)
+    _lat, at_group, _pad = _pad_cell(moved, group._vacuum_length, lattice=group._lattice)
     move_sites = [int(s) for s in frame.moving]
     first = int(frame.site_orbs[move_sites[0]][0])
 
@@ -3374,7 +3374,7 @@ def _position_pass(model, group, tolerances, labels, read):
     asg = _assign_orbitals(moved, on, typat=labels)
     if isinstance(asg, Refusal):
         return asg
-    on_trans = np.array([np.asarray(read_in.symmetries[k].translation, dtype=float).reshape(-1)
+    on_trans = np.array([np.asarray(read_in._symmetries[k].translation, dtype=float).reshape(-1)
                          for k in unitary])
     every = list(range(len(unitary)))
     offset = (0.0 - np.asarray(delta) * frame.scale)[:dim_r] if in_frame else np.zeros(dim_r)
@@ -3558,7 +3558,7 @@ def _cell_group_not_realized(group, validated, three_d, refuted=None) -> Refusal
              "carry")
     return Refusal(
         "cell_group_not_realized",
-        f"the Hamiltonian obeys {n_obeyed} of the {group.size} operations the cell "
+        f"the Hamiltonian obeys {n_obeyed} of the {group._size} operations the cell "
         f"allows ({group.number_str} {group.name}), {_PER_COSET}"
         + (f" and {_DOUBLE_GROUP}" if group.spinor else "")
         + f"; {n_broken} are broken, {by}."
@@ -3597,7 +3597,7 @@ def _cell_group_not_realized(group, validated, three_d, refuted=None) -> Refusal
         "`context['validated']` holds each operation's measurement and residual.",
         value=float(n_broken), threshold=0.0,
         context={"group": group, "validated": validated,
-                 "number_str": group.number_str, "size": int(group.size),
+                 "number_str": group.number_str, "size": int(group._size),
                  "n_obeyed": int(n_obeyed),
                  "broken": tuple(validated.broken) + tuple(
                      i for i in sorted(refuted) if i not in set(validated.broken)),

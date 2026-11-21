@@ -173,9 +173,9 @@ def test_the_distorted_diamond_descends_to_the_group_it_obeys(fkm_phases):
         assert {b["name"] for b in d["dropped"]} >= {
             "{C4(z)|1/4,1/4,1/4}", "{m(x)|1/4,1/4,1/4}", "S4(z)", "{C4(z)|1/4,1/4,1/4}'"}
         assert d["cell"]["generic_point"] == _descent._DESCENT_POINT   # all three directions
-        assert len(down.validated.indices) == down.group.size == 24
+        assert len(down.validated.indices) == len(down.operations) == 24
         assert not down.validated.broken
-        assert down.group.provenance == down.rep.group.provenance == "descended"
+        assert down.group._provenance == down.rep.group._provenance == "descended"
         assert ("descended from #227.129 (72 of 96 coset representatives of the lattice "
                 "translations broken") in repr(down)
         # the orbit is on the CELL; the model is the one that was handed in
@@ -205,9 +205,9 @@ def test_the_descent_and_the_decoration_agree_on_the_strong_and_weak_phases(fkm_
     classes = {}
     for name, (down, told) in fkm_phases.items():
         assert told.descent is None, f"{name}: the decorated cell is already right"
-        assert told.group.provenance == "realized"
-        assert (told.group.number_str, told.group.sg_number) == ("166.98", 166)
-        assert len(told.validated.indices) == told.group.size == 24
+        assert told.group._provenance == "realized"
+        assert (told.group.number_str, told.group._sg_number) == ("166.98", 166)
+        assert len(told.validated.indices) == len(told.operations) == 24
         assert told.model is told.source, "no re-presentation: only the cell changed"
         assert told.cell is not told.model and told.cell.norb == told.model.norb + 1
         assert told.cell_typat == [0, 0, "bond"] and told.typat == [0, 0]
@@ -215,8 +215,8 @@ def test_the_descent_and_the_decoration_agree_on_the_strong_and_weak_phases(fkm_
         assert told.decoration["dz"] is None, "the substrate recipe never ran"
         assert told.decoration["recipe"] == "caller-supplied decoration"
         assert told.presentation["c"] is None
-        assert (down.group.number_str, down.group.name, down.group.size) == \
-               (told.group.number_str, told.group.name, told.group.size)
+        assert (down.group.number_str, down.group.name, len(down.operations)) == \
+               (told.group.number_str, told.group.name, len(told.operations))
         assert down.assignment.wyckoff_spglib == told.assignment.wyckoff_spglib
         assert down.assignment.wyckoff_tables == told.assignment.wyckoff_tables
         assert tuple(down.validated.indices) == tuple(told.validated.indices)
@@ -317,8 +317,8 @@ def test_the_chiral_pattern_descends_the_square_lattice_to_p4(p41_routes):
     assert tau["refuted_by"] == "tensor structure"
     assert tau["residual"] == pytest.approx(1.0, abs=1e-9)
 
-    assert len(chiral.validated.indices) == chiral.group.size == 8
-    assert chiral.group.provenance == "descended"
+    assert len(chiral.validated.indices) == len(chiral.operations) == 8
+    assert chiral.group._provenance == "descended"
     assert chiral.time_reversal["outcome"] == "kept"
     assert chiral.time_reversal["n_obeyed"] == chiral.time_reversal["n_antiunitary"] == 4
     assert chiral.assignment.wyckoff_spglib == ("c",)
@@ -340,7 +340,7 @@ def test_the_chiral_pattern_descends_the_square_lattice_to_p4(p41_routes):
 
     # the decoration route: the same group, no descent, and the same model SRSIs
     assert told.group.number_str == "75.2"
-    assert told.descent is None and told.group.provenance == "realized"
+    assert told.descent is None and told.group._provenance == "realized"
     assert told.assignment.wyckoff_spglib == chiral.assignment.wyckoff_spglib == ("c",)
     m, told_m = tqr.srsi_of_model(chiral), tqr.srsi_of_model(told)
     assert m and told_m, str(m if not m else told_m)
@@ -388,10 +388,10 @@ def test_a_fixture_that_obeys_its_cell_group_is_untouched(realized, build, serve
     r = realized(build)
     assert r, str(r)
     assert r.descent is None
-    assert (r.group.number_str, r.group.size) == served
-    assert r.group.provenance == r.rep.group.provenance == "realized"
+    assert (r.group.number_str, len(r.operations)) == served
+    assert r.group._provenance == r.rep.group._provenance == "realized"
     assert r.group._lattice_index == 1 and r.group._tables_ready
-    assert len(r.validated.indices) == r.group.size
+    assert len(r.validated.indices) == len(r.operations)
     assert not r.validated.broken
     assert "descended from #" not in repr(r)
     # the cell IS the model's own point set: nothing was added to it, by a
@@ -480,10 +480,10 @@ def test_a_flat_fixture_reaches_the_same_group_by_the_layer_descent(
             if b["refuted_by"] == "closure"} == closure_names
 
     # the served answer, unchanged: this is what the decoration used to supply
-    assert (r.group.number_str, r.group.name, r.group.size) == served
-    assert r.group.provenance == r.rep.group.provenance == "descended"
-    assert len(r.validated.indices) == r.group.size
-    assert not r.validated.broken and len(r.rep.indices) == r.group.size
+    assert (r.group.number_str, r.group.name, len(r.operations)) == served
+    assert r.group._provenance == r.rep.group._provenance == "descended"
+    assert len(r.validated.indices) == len(r.operations)
+    assert not r.validated.broken and len(r.rep.indices) == len(r.operations)
     assert r.rep.characters.irreps == labels
     assert r.assignment.wyckoff_spglib == letters
     assert f"descended from #{parent[0]}" in repr(r)
@@ -493,7 +493,7 @@ def test_a_flat_fixture_reaches_the_same_group_by_the_layer_descent(
     assert r.decoration["n_atoms"] == 0
     assert {str(t) for t in r.cell_typat[len(r.typat):]} == {"descent"}
     assert int(r.cell.norb) == r.model.norb + len(d["cell"]["orbit"])
-    assert len(d["cell"]["orbit"]) == r.group.size // 2, "one point per kept unitary operation"
+    assert len(d["cell"]["orbit"]) == len(r.operations) // 2, "one point per kept unitary operation"
 
     # ... and the two readings of the model agree on which group it is
     assert r.cross_check["agrees"] is True
@@ -566,9 +566,9 @@ def test_the_operation_matcher_pairs_one_to_one_in_both_directions():
     """
     group = _spacegroup._group_of(anisotropic_stack())
     assert not isinstance(group, Refusal), str(group)
-    unitary = [s for s in group.symmetries if not s.time_reversal]
+    unitary = [s for s in group._symmetries if not s.time_reversal]
     four = unitary[:4]
-    lattice = group.lattice
+    lattice = group._lattice
 
     pairs, missing, extra = _descent._match_operations(four, four, 1e-5, lattice)
     assert len(pairs) == 4 and not missing and not extra
@@ -687,13 +687,13 @@ def test_the_slab_mirror_is_refuted_by_tensor_structure_and_the_cell_descends(
     cell, cell_typat = _layers._decorated_cell(m3, [0, 0], environment="free-standing")
     parent = _spacegroup._group_of(cell, typat=cell_typat, spinor=True)
     rot = {int(s.ind): int(np.rint(np.asarray(s.rotation, dtype=float)[2, 2]))
-           for s in parent.symmetries}
+           for s in parent._symmetries}
     assert {rot[b["ind"]] for b in d["dropped"]} == {-1}
     assert {rot[i] for i in d["steps"][0]["kept"]} == {1}
     assert len(d["cell"]["orbit"]) == 12, "one point per kept unitary operation"
 
     # ... and only that group is served
-    assert len(down.validated.indices) == down.group.size == 24
+    assert len(down.validated.indices) == len(down.operations) == 24
     assert not down.validated.broken and len(down.rep.indices) == 24
     # one intertwiner per operation, against the two the Rashba-free layer has:
     # the second solution there is s_z, and the Rashba term is what takes it
@@ -701,7 +701,7 @@ def test_the_slab_mirror_is_refuted_by_tensor_structure_and_the_cell_descends(
     # identity and 1 more" at rashba = 0, s_z, and "0 more" at rashba = 0.25)
     assert set(down.validated._nullspace_dims.values()) == {1}
     assert len(down.validated._nullspace_dims) == 24
-    assert down.group.provenance == down.rep.group.provenance == "descended"
+    assert down.group._provenance == down.rep.group._provenance == "descended"
     assert ("descended from #191.234 (24 of 48 coset representatives of the lattice "
             "translations broken") in repr(down)
     assert int(down.cell.norb) == 14 and set(down.cell_typat[2:]) == {"descent"}
@@ -722,7 +722,7 @@ def test_the_slab_mirror_is_refuted_by_tensor_structure_and_the_cell_descends(
             assert r, str(r)
             assert r.rep.multiplets.dims == ((2,), (2,)), "each site's pair is one multiplet"
             d = r.descent
-            assert (r.group.number_str, r.group.name, r.group.size) == (*want, 24)
+            assert (r.group.number_str, r.group.name, len(r.operations)) == (*want, 24)
             assert d["from"]["number_str"] == "191.234" and d["iterations"] == 1
             assert d["steps"][0]["refuted_by"] == {"tensor structure": 24}
             assert {b["name"] for b in d["dropped"]} == refuted | {n + "'" for n in refuted}
@@ -770,7 +770,7 @@ def test_the_ansatz_defects_of_an_exact_model_are_at_machine_level(realized):
     cases.append((m3, group, asg, val, set(val.undetermined)))
 
     for model, group, asg, val, inds in cases:
-        positions = [i for i, s in enumerate(group.symmetries) if int(s.ind) in inds]
+        positions = [i for i, s in enumerate(group._symmetries) if int(s.ind) in inds]
         got = _multiplets._ansatz_defects(model, group, asg, val, positions)
         assert not isinstance(got, Refusal), str(got)
         assert set(got) == inds

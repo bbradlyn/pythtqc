@@ -246,7 +246,7 @@ def snapshot(r, occ):
     """Every served field of one ``realized_group`` answer, as the file holds it."""
     out = {
         "number_str": str(r.group.number_str), "name": str(r.group.name),
-        "size": int(r.group.size), "kept": len(r.validated.indices),
+        "size": len(r.group._symmetries), "kept": len(r.validated.indices),
         "labels": list(r.rep.characters.irreps),
         "product_residual": float(r.rep.product_residual),
         "time_reversal": r.time_reversal.get("outcome"),
@@ -489,7 +489,7 @@ def _induced_record(r):
     """``D(g)`` against ``λ(g)·S(g)`` on every represented unitary operation."""
     devs, lam = [], []
     mats = getattr(r.rep, "matrices", {}) or {}
-    for sym in r.group.symmetries:
+    for sym in r.group._symmetries:
         if sym.time_reversal or int(sym.ind) not in mats:
             continue
         D = np.asarray(mats[int(sym.ind)], dtype=complex)

@@ -436,10 +436,10 @@ def _raise_unformed(group, unformed, n_cand, gate, *, spinful):
     declared: only then is a spin rotation asked of them, and named.
     """
 
-    syms = {int(s.ind): s for s in group.symmetries}
+    syms = {int(s.ind): s for s in group._symmetries}
 
     def _named(ind):
-        return (f"{_record_name(syms[ind], group.lattice)} "
+        return (f"{_record_name(syms[ind], group._lattice)} "
                 f"(#{ind}, its {unformed[ind]['own_form']})")
 
     named = ", ".join(_named(ind) for ind in sorted(unformed))
@@ -1102,7 +1102,7 @@ def _represented_operations(model, group, assignment, *, validated, multiplets, 
             f"(`spinful=True`) if the half-integer content is the electron's own.",
             context={"nspin": nspin, "spinful": bool(getattr(model, "spinful", nspin == 2)),
                      "number_str": str(group.number_str), "spinor": bool(group.spinor),
-                     "include_TR": bool(getattr(group, "include_TR", False))})
+                     "include_TR": bool(getattr(group, "_include_TR", False))})
 
     # The mirror of it, and this one is not a deferred feature but an invalid
     # ask: ``nspin == 2`` always means double-valued tables, at every level.  A
@@ -1126,13 +1126,13 @@ def _represented_operations(model, group, assignment, *, validated, multiplets, 
     # asks before anything is identified, here on the sites handed in.
     if spin is not None:
         split = _spin_pair_split(spin, assignment.site_orbitals,
-                                 assignment.site_positions, group.lattice)
+                                 assignment.site_positions, group._lattice)
         if split is not None:
             return split
 
-    syms = group.symmetries
+    syms = group._symmetries
     pos_of_ind = {int(s.ind): i for i, s in enumerate(syms)}
-    prod, tdiff, spf = group.get_product_table(get_diff=True)
+    prod, tdiff, spf = group._get_product_table(get_diff=True)
     ident = _identity_position(group)
 
     if validated is None:
@@ -1166,7 +1166,7 @@ def _represented_operations(model, group, assignment, *, validated, multiplets, 
     # it to move, and the detector cannot refute it, its in-plane k-action
     # duplicating an in-plane partner's
     kept = [p for p in cand
-            if include_vacuum_ops or not _moves_padded(syms[p], group.vacuum_dirs)]
+            if include_vacuum_ops or not _moves_padded(syms[p], group._vacuum_dirs)]
     # an operation to be represented none of whose matrices has its own form
     # is represented by none: its matrices are another operation's, and the
     # operations handed to the build are the ones measured to hold in their
@@ -1584,7 +1584,7 @@ def _candidate_battery(model, group, ops, mul, meas, *, k_pts, n_battery, seed, 
                               _phase_rounding(bloch, group, [syms[p] for p in kept], k_pts))
     Hrot, kact = {}, {}
     for p in kept:
-        act = group.k_action_of(syms[p])
+        act = group._k_action_of(syms[p])
         kact[p] = act
         Hrot[p] = np.asarray(bloch(act(k_pts)))
 
@@ -1988,8 +1988,8 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
         if pair is not None:
             a, b, c = pair
 
-            name_a = _record_name(syms[a], group.lattice)
-            name_b = _record_name(syms[b], group.lattice)
+            name_a = _record_name(syms[a], group._lattice)
+            name_b = _record_name(syms[b], group._lattice)
             Sa = np.asarray(syms[a].spinor_rotation, dtype=complex)
             Sb = np.asarray(syms[b].spinor_rotation, dtype=complex)
             half, _res = _proportionality(Sa @ Sb,
@@ -3050,12 +3050,12 @@ def _exact_gate(model, group, validated, build_kw=None) -> float:
     def _given(name):
         return kw[name] if name in kw else _BUILD_DEFAULTS[name]
 
-    syms = {int(s.ind): s for s in group.symmetries}
+    syms = {int(s.ind): s for s in group._symmetries}
     ops = _given("operations")
     indices = [int(i) for i in (validated.indices if ops is None else ops)]
     padded = bool(_given("include_vacuum_ops"))
     kept = [syms[i] for i in indices
-            if padded or not _moves_padded(syms[i], group.vacuum_dirs)]
+            if padded or not _moves_padded(syms[i], group._vacuum_dirs)]
     k_pts = _covariance_battery(group, _given("k_pts"), _given("n_battery"), _given("seed"))
     bloch = _bloch.evaluator(model)
     H = np.asarray(bloch(k_pts))

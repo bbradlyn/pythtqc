@@ -318,7 +318,7 @@ class SiteKey:
         Whether the position is maximal, and whether the key induces an
         elementary band representation.
     column : int or None
-        That representation's column in ``ebr_data(group)["ebrs"]``.
+        That representation's column in ``ebr_data(group).ebrs``.
     ebr_label : str or None
         That list's spelling of the irrep where it differs, ``A`` for the paper's
         ``A_1`` at a ``222`` site; :meth:`SRSITables.theta` takes either spelling,
@@ -406,7 +406,7 @@ class SRSITables:
         :math:`\mathbb{Z}`-valued one.
     ebrs : tuple
         ``(site irrep, Wyckoff letter)`` of each elementary band representation, in
-        the order of ``ebr_data(group)["ebrs"]``: the columns.
+        the order of ``ebr_data(group).ebrs``: the columns.
     theta_on_columns : tuple of tuple of int
         :math:`\Theta` on those columns: ``theta_on_columns[i][j]`` is the
         coefficient of column ``j`` in :math:`\theta_{i+1}`.
@@ -988,11 +988,11 @@ def srsi_tables(group_or_number, *, spinor=None) -> SRSITables | Refusal:
             "is returned grey exactly where the Hamiltonian obeys time reversal, and "
             "for a model that breaks it no SRSI tables exist",
             context={"number_str": str(group.number_str), "magnetic_type": mtype})
-    table = _table_of_number(int(group.sg_number), bool(group.spinor))
+    table = _table_of_number(int(group._sg_number), bool(group.spinor))
     if not table:
         return table
 
-    data = _tables.ebr_data(group)
+    data = _tables._ebr_data(group)
     if not data:
         return data
     installed = tuple(_ebr_key(name, position) for name, position in data["ebrs"])
@@ -1369,7 +1369,7 @@ def _canonical_gate(number_str: str, spinor: bool) -> dict:
     tables = _table_of_number(int(str(number_str).split(".")[0]), bool(spinor))
     if not tables:
         return {"available": False, "gate": tables.gate, "reason": tables.reason}
-    data = _tables.ebr_data(_TableKey(number_str, spinor))
+    data = _tables._ebr_data(_TableKey(number_str, spinor))
     if not data:
         return {"available": False, "gate": data.gate, "reason": data.reason}
     u, v, d, matrix = _smith._smith_system(data, str(number_str))
@@ -1592,7 +1592,7 @@ class MaximalKey:
     ebr : bool
         Whether it induces an elementary band representation.
     column, ebr_name, ebr_label : int, str, str or None
-        That representation's column and name in ``ebr_data(group)["ebrs"]``, and
+        That representation's column and name in ``ebr_data(group).ebrs``, and
         that list's spelling of the irrep where it differs.
     """
 
@@ -1616,10 +1616,10 @@ class MaximalKey:
 
 
 class _TableKey:
-    """The three fields :func:`..groups.ebr_data` reads, from a table's own record.
+    """The three fields :func:`.._tables._ebr_data` reads, from a table's own record.
 
     The SRSI tables are keyed by a grey BNS number and a valuedness, which is
-    exactly what :func:`..groups.ebr_data` needs to return the columns the
+    exactly what :func:`.._tables._ebr_data` needs to return the columns the
     conversion resolved against -- so a table in hand can fetch its own EBR list
     without a measured ``GroupData``, which is what
     :attr:`SRSITables.maximal_keys` and a sweep over all 230 space groups both
@@ -1629,7 +1629,7 @@ class _TableKey:
     def __init__(self, number_str, spinor):
         self.number_str = str(number_str)
         self.spinor = bool(spinor)
-        self.magnetic = True
+        self._magnetic = True
 
 
 def _ebr_dimension(name) -> int:
@@ -1703,7 +1703,7 @@ def _maximal_basis(sg: int, spinor: bool) -> tuple:
     tables = _table_of_number(int(sg), bool(spinor))
     if not tables:                            # pragma: no cover - gated above
         raise ValueError(f"space group {sg} has no shipped SRSI table: {tables}")
-    data = _tables.ebr_data(_TableKey(tables.number_str, spinor))
+    data = _tables._ebr_data(_TableKey(tables.number_str, spinor))
     if not data:                              # pragma: no cover - install-dependent
         raise InternalError(
             f"#{tables.number_str}: the EBR list this table's columns index into "

@@ -312,10 +312,10 @@ def test_the_VG_fold_is_what_makes_the_boundary_points_identifiable(lin3g_undecl
             hamiltonian_at(model, k), tqw.multiplet_separation(evals))
         lg = tqg.little_group(group, k)
         rows = tqw.multiplets(evals)
-        raw = np.zeros((len(rows), len(lg.indices)), dtype=complex)
+        raw = np.zeros((len(rows), len(lg.unitary)), dtype=complex)
         folded = np.zeros_like(raw)
         shift = 0.0
-        for c, ind in enumerate(lg.indices):
+        for c, ind in enumerate(lg.unitary):
             D = rep.matrices[int(ind)]
             U = rep.sewing_operator(int(ind), k)
             shift = max(shift, float(np.abs(U - D).max()))
@@ -703,15 +703,15 @@ def test_hsp_table_shape(lin3g_undeclared):
     assert table.partitions == {"GM": (0, 1, 0), "M": (0, 1, 1), "X": (0, 0, 0)}
     assert table.counts == {"-GM6": 2, "-GM7": 1, "-M6": 1, "-M7": 2, "-X5": 3}
     # the aggregated counts are exactly what decompose_ebrs takes
-    assert set(table.counts) <= set(tqg.ebr_data(group)["labels_physics_convention"])
+    assert set(table.counts) <= set(tqg.ebr_data(group).corep_names)
 
     # the character tables: the adapter's column order, antiunitary ops never
     for name, k in tqg.high_symmetry_points(group).items():
         lg = tqg.little_group(group, k)
         chars = tqw.characters(rep, k, bands=6)
-        assert chars.columns == tuple(lg.indices)
+        assert chars.columns == tuple(lg.unitary)
         assert chars.columns == tuple(sorted(chars.columns))
-        assert chars.antiunitary == tuple(sorted(int(s.ind) for s in lg.antiunitary))
+        assert chars.antiunitary == tuple(sorted(lg.antiunitary))
         assert not set(chars.columns) & set(chars.antiunitary)
         assert chars.characters.shape == (len(chars.multiplets), len(chars.columns))
         assert np.allclose(chars.characters[:, 0], chars.dims), \
@@ -792,7 +792,7 @@ def test_hsp_table_measures_a_point_whose_little_group_is_the_identity_alone():
     m.set_hop(-0.15, 1, 1, [0, 0, 1])
     m.set_hop(0.07, 0, 1, [1, 1, 0])
     group = _spacegroup._group_of(m, include_TR=False, typat=[0, 1])
-    assert group and group.sg_number == 1
+    assert group and group._sg_number == 1
     assignment = _tables._assign_orbitals(m, group, typat=[0, 1])
     rep = _build._build_rep(m, group, assignment,
                          validated=_measure._validate_group(m, group, nk=4), n_battery=3)

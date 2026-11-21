@@ -118,9 +118,9 @@ print("\nA. the layer in the plane, declared free-standing")
 
 out_a = tqc.realized_group(layer, characters={0: "s"}, environment="free-standing")
 model_a, g_a, asg_a, val_a, rep_a = out_a
-sites_a = tqc.wyckoff_sites_tables(g_a, asg_a.site_positions)   # letter, multiplicity
+sites_a = tqc.wyckoff_sites_tables(g_a, asg_a.site_positions)   # each site's Wyckoff position
 row("realized group", f"#{g_a.number_str} {g_a.name}, {model_a.nstate} bands, "
-    f"orbitals at Wyckoff {sites_a[0].multiplicity}{sites_a[0].letter}")
+    f"orbitals at Wyckoff {sites_a[0].wyckoff}")
 row("site irrep", f"{rep_a.characters.irreps[0]}, of the declared s orbital")
 
 table_a = tqc.hsp_table(rep_a, bands=2)          # the content of bands 0 and 1
@@ -152,7 +152,7 @@ _mf, g191, asg191, val191, rep191 = full
 sites_b = tqc.wyckoff_sites_tables(g191, asg191.site_positions)
 mz = rep191.characters.orbitals[0].generator_character["m(z)"].real
 row("realized group", f"#{g191.number_str} {g191.name}, orbitals at Wyckoff "
-    f"{sites_b[0].multiplicity}{sites_b[0].letter}")
+    f"{sites_b[0].wyckoff}")
 row("site irrep", f"{rep191.characters.irreps[0]}, of the declared p_z, odd under the "
     f"mirror: m(z) = {mz:+.0f}")
 
@@ -176,9 +176,9 @@ p_sq = "+E" if np.allclose(P.spin_lift @ P.spin_lift, np.eye(2), atol=1e-9) else
 c_sq = "+E" if np.allclose(C2.spin_lift @ C2.spin_lift, np.eye(2), atol=1e-9) else "Ebar"
 h_sq = "+E" if np.allclose(SH.spin_lift @ SH.spin_lift, np.eye(2), atol=1e-9) else "Ebar"
 squares = h_sq if h_sq == c_sq else f"{h_sq} and {c_sq}"
-# group.symmetries are the group's operations in the tables' order, and the
-# assignment's permutations[k] the site each site is carried to by the k-th of them
-position = [int(s.ind) for s in g191.symmetries].index(p_ind)
+# full.operations lists the group's operations in the tables' order, and the
+# assignment's permutations[k] is the site each site is carried to by the k-th of them
+position = list(full.operations).index(p_ind)
 perm_p = np.asarray(asg191.permutations[position]).tolist()
 row("inversion", "r to -r, the product of the mirror m(z) and the rotation C2z,",
     "taking " + listed(f"site {i} to {j}" for i, j in enumerate(perm_p)))
@@ -190,13 +190,13 @@ row("spinor squares", f"{p_sq} for the inversion, so eigenvalues +-1; {squares} 
 broken = kane_mele(DELTA, T, SOC, RASHBA_BROKEN)
 down = tqc.realized_group(broken, environment="free-standing", characters={0: "pz"})
 _mb, g_down, _ab, _vb, rep_down = down
-r22_full = sorted({int(np.rint(np.asarray(s.rotation)[2, 2])) for s in g191.symmetries})
-r22_down = sorted({int(np.rint(np.asarray(s.rotation)[2, 2]))
-                   for s in g_down.symmetries})
+r22_full = sorted({int(op.rotation[2, 2]) for op in full.operations.values()})
+r22_down = sorted({int(op.rotation[2, 2]) for op in down.operations.values()})
 table_down = tqc.hsp_table(rep_down, bands=2)
 si_down = tqc.symmetry_indicator(table_down)
 row(f"rashba = {RASHBA_BROKEN}", f"#{g_down.number_str} {g_down.name}, a subgroup of "
-    f"index {g191.size // g_down.size};", f"{indicator(si_down)[0]}: {indicator(si_down)[1]}")
+    f"index {len(full.operations) // len(down.operations)};",
+    f"{indicator(si_down)[0]}: {indicator(si_down)[1]}")
 row("operations' R_zz", f"{listed(f'{v:+d}' for v in r22_full)} at rashba = {RASHBA:g}, "
     f"only {listed(f'{v:+d}' for v in r22_down)} at rashba = {RASHBA_BROKEN}:",
     "the mirror and every operation composed with it are gone")
@@ -233,7 +233,7 @@ _ms, g_stack, asg_stack, val_stack, rep_stack = piled
 sites_c = tqc.wyckoff_sites_tables(g_stack, asg_stack.site_positions)
 hsp_stack = tqc.high_symmetry_points(g_stack)
 row("realized group", f"#{g_stack.number_str} {g_stack.name}, orbitals at Wyckoff "
-    f"{sites_c[0].multiplicity}{sites_c[0].letter}, k-points "
+    f"{sites_c[0].wyckoff}, k-points "
     + " ".join(sorted(hsp_stack)))
 
 six = tqc.hsp_table(rep_stack, bands=2)      # all six points, measured directly
@@ -273,7 +273,7 @@ row("out of the plane", f"{listed(only)} read only the coreps at k_z = 1/2,",
 table_all = tqc.hsp_table(rep_stack, bands=4)
 whole = tqc.symmetry_indicator(table_all)
 row("all 4 bands", "the band representation of the orbitals at "
-    f"{sites_c[0].multiplicity}{sites_c[0].letter}, an atomic limit")
+    f"{sites_c[0].wyckoff}, an atomic limit")
 row(indicator(whole)[0], f"{indicator(whole)[1]}, every named indicator "
     + ", ".join(str(v) for v in sorted(set(whole.irreptables_named.values()))))
 print(f"   the stack and the plane with p_z have one class, {values(si_c.values)}; "

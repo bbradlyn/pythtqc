@@ -324,7 +324,7 @@ def read_sectors(model, group, assignment, spin, validated, *, tol=None):
     ``None`` is returned where the space is not held, or is past the read-off's
     own ceiling.
     """
-    syms = group.symmetries
+    syms = group._symmetries
     ident = _matrices._identity_position(group)
     basis = (getattr(validated, "_bases", None) or {}).get(int(syms[ident].ind))
     if basis is None:
@@ -443,7 +443,7 @@ def sector_action(reading, model, group, assignment, spin, validated, *, tol=Non
     states.  An operation the detector kept no solution space for, or none of
     whose members acts within sites, is absent.
     """
-    syms = group.symmetries
+    syms = group._symmetries
     pos_of = {int(s.ind): p for p, s in enumerate(syms)}
     _atoms, order, su2 = _atoms_of(model, spin)
     spaces, _layout, _mixing = _matrices._site_spaces(model, group, assignment, spin,
@@ -623,8 +623,8 @@ class SectorSearch:
     def __init__(self, reading, action, group, assignment, decls, positions, *,
                  reversal=None, tol=CHARACTER, max_candidates=2 ** 20):
         self.reading, self.group, self.assignment = reading, group, assignment
-        self.syms = group.symmetries
-        self.prod, _tdiff, self.spf = group.get_product_table(get_diff=True)
+        self.syms = group._symmetries
+        self.prod, _tdiff, self.spf = group._get_product_table(get_diff=True)
         self.ident = _matrices._identity_position(group)
         self.pos_of = {int(s.ind): p for p, s in enumerate(self.syms)}
         self.unitary = sorted(int(p) for p in positions)
@@ -1334,8 +1334,8 @@ class InducedOrbit:
     def __init__(self, reading, action, group, layout, kept, cperm, sectors, *,
                  reference=None, tol=None, max_candidates=2 ** 20, shared=None, bases=None):
         self.reading, self.group, self.layout, self.cperm = reading, group, layout, cperm
-        self.syms = group.symmetries
-        self.prod, _tdiff, self.spf = group.get_product_table(get_diff=True)
+        self.syms = group._symmetries
+        self.prod, _tdiff, self.spf = group._get_product_table(get_diff=True)
         self.ident = _matrices._identity_position(group)
         self.tol = tol
         self.kept = sorted(int(p) for p in kept)
@@ -1872,7 +1872,7 @@ def crossed(reading, layout, group, kept, cperm, *, tol=None):
     nothing couples, one multiplet holding both of its sectors -- crosses none.
     ``tol`` is the declared tolerance the sectors were read at.
     """
-    syms = group.symmetries
+    syms = group._symmetries
     u_pos = [int(p) for p in kept if not syms[int(p)].time_reversal]
     classes, _n = _matrices._channel_classes(cperm, u_pos, layout._nchan)
     by_class = {}
@@ -1922,7 +1922,7 @@ def sector_orbits(reading, action, group, layout, kept, *, tol=None):
     none is a set of its own.  ``None`` where an operation of ``kept`` has no
     reading on the sectors.
     """
-    pos_of = {int(s.ind): p for p, s in enumerate(group.symmetries)}
+    pos_of = {int(s.ind): p for p, s in enumerate(group._symmetries)}
     images = {pos_of[int(i)]: tuple(int(j) for j in got)
               for i, got in action.images.items() if int(i) in pos_of}
     if any(int(p) not in images for p in kept):
@@ -2009,12 +2009,12 @@ def induced_orbits(reading, action, group, layout, kept, cperm, *, reference=Non
     if found is None:
         return []
     orbits, together = found
-    pos_of = {int(s.ind): p for p, s in enumerate(group.symmetries)}
+    pos_of = {int(s.ind): p for p, s in enumerate(group._symmetries)}
     images = {pos_of[int(i)]: tuple(int(j) for j in got)
               for i, got in action.images.items() if int(i) in pos_of}
-    prod = group.get_product_table(get_diff=True)[0]
+    prod = group._get_product_table(get_diff=True)[0]
     ident = _matrices._identity_position(group)
-    u_pos = [int(p) for p in kept if not group.symmetries[int(p)].time_reversal]
+    u_pos = [int(p) for p in kept if not group._symmetries[int(p)].time_reversal]
     out = []
     alone = set()
     for roots, shared in together:

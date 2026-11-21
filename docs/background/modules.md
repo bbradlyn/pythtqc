@@ -92,7 +92,7 @@ flowchart TD
         g_sites["wyckoff_sites_tables(r.group, positions)"] --> g_sites_out[["SiteReference, one per site: its Wyckoff position in the tables' setting"]]
         g_ct["corep_table(r.group, k)"] --> g_ct_out(["the character table of the little group at k"])
         g_ed["ebr_data(r.group)"] --> g_ed_out(["every elementary band representation of the group"])
-        g_seitz["seitz(r.group, ind), operation_index(r.group, symbol)"] --> g_seitz_out(["an operation's Seitz symbol from its index, and its index from the symbol"])
+        g_seitz["operation_index(r.group, symbol)"] --> g_seitz_out(["an operation's index from its Seitz symbol"])
     end
 ```
 

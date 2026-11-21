@@ -138,13 +138,13 @@ print(rh.time_reversal["outcome"])
 #  measured broken
 print(rh.operations)
 #  P6 #168: one operation per coset of the lattice translations
-#   ind  Seitz           name
-#     1  {1|0,0,0}       E
-#     2  {3+_001|0,0,0}  C3(z)
-#     3  {3-_001|0,0,0}  C3^-1(z)
-#     4  {2_001|0,0,0}   C2(z)
-#     5  {6-_001|0,0,0}  C6^-1(z)
-#     6  {6+_001|0,0,0}  C6(z)
+#  index  Seitz           name
+#      1  {1|0,0,0}       E
+#      2  {3+_001|0,0,0}  C3(z)
+#      3  {3-_001|0,0,0}  C3^-1(z)
+#      4  {2_001|0,0,0}   C2(z)
+#      5  {6-_001|0,0,0}  C6^-1(z)
+#      6  {6+_001|0,0,0}  C6(z)
 ```
 
 The hoppings break half the cell's operations: the six mirrors, and the six

@@ -66,6 +66,7 @@ from pythtqc import InternalError
 from pythtqc import _smith
 from pythtqc import _spacegroup
 from pythtqc import _srsitables
+from pythtqc import _tables
 
 import tqc_models as tqm                                            # noqa: F401
 from conftest import FKM_BOND, OMITTED, fkm_regime, grey_numbers, patch_everywhere
@@ -260,7 +261,7 @@ def test_the_thirteen_omitted_space_groups_have_no_class_to_speak():
     for sg in OMITTED:
         for spinor in (False, True):
             assert not tqr.srsi_tables(sg, spinor=spinor)
-            data = tqg.ebr_data(_srsitables._TableKey(grey[sg], spinor))
+            data = _tables._ebr_data(_srsitables._TableKey(grey[sg], spinor))
             assert data, (sg, spinor, data)
             assert _smith._divisors_of(data, grey[sg]) == (), (sg, spinor)
             seen += 1
@@ -811,7 +812,7 @@ def test_a_table_that_cannot_be_matched_to_the_cell_is_an_internal_error(
     patch_everywhere(monkeypatch, "_translation_closure", lambda symmetries: 1e-8)
 
     with pytest.raises(InternalError) as exc:
-        _spacegroup._exact_operations(group._sg, 1e-5, True, group.lattice)
+        _spacegroup._exact_operations(group._sg, 1e-5, True, group._lattice)
     text = str(exc.value)
     assert "no operation-by-operation matching" in text, text
     assert "not about the model" in text, text

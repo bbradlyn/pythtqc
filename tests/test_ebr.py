@@ -110,12 +110,12 @@ def km191_realized(realized):
     return out
 
 
-def _row(group, needle, name=None):
-    """The EBR row whose key contains ``needle`` (and ``name``), from irreptables."""
+def _row(group, wyckoff, irrep=None):
+    """The EBR row at ``wyckoff`` (of ``irrep``), from irreptables."""
     rows = tqe.ebr_rows(group)
     assert rows, str(rows)
-    keys = [k for k in rows if needle in k and (name is None or name in k)]
-    assert len(keys) == 1, f"{needle}/{name} matched {keys}"
+    keys = [k for k in rows if k[1] == wyckoff and (irrep is None or k[0] == irrep)]
+    assert len(keys) == 1, f"{wyckoff}/{irrep} matched {keys}"
     return keys[0], rows[keys[0]]
 
 
@@ -232,7 +232,7 @@ def test_lin3g_P2_is_exactly_the_1b_row_directly_and_as_a_difference(
     t4 = tqw.hsp_table(rep, bands=list(P4))
     t2 = tqw.hsp_table(rep, bands=list(P2))
     assert t2.counts == {"-GM6": 1, "-M7": 1, "-X5": 1}       # measured, phase A3
-    assert t4.counts == _in_plane(group, _row(group, "@2c")[1]), "P4 is the 2c row"
+    assert t4.counts == _in_plane(group, _row(group, "2c")[1]), "P4 is the 2c row"
 
     diff = tqe.subtract(t6, t4)
     assert diff == t2.counts, "P2 = [P6] - [P4]"
@@ -243,7 +243,7 @@ def test_lin3g_P2_is_exactly_the_1b_row_directly_and_as_a_difference(
     assert list(tqe.subtract({"-X5": 1, "-GM10": 1, "-GM2": 2, "-GM11GM9": 1},
                              {"-GM2": 1})) == ["-GM2", "-GM10", "-GM11GM9", "-X5"]
 
-    key, row = _row(group, "@1b", "-E2")
+    key, row = _row(group, "1b", "-E2")
     for content in (t2, diff):
         d = tqe.decompose(content, group, rep=rep, bands=list(P2))
         assert d.verdict == "symmetry-indicated decomposable" and d.unique
@@ -279,7 +279,7 @@ def test_lin3g_P2_and_Q2_sum_to_the_1a_pair_but_neither_half_is_one(
             in d.solution_strings())
     assert ("1a", "1a") in d.positions
 
-    a_rows = [_in_plane(group, v) for k, v in tqe.ebr_rows(group).items() if "@1a" in k]
+    a_rows = [_in_plane(group, v) for k, v in tqe.ebr_rows(group).items() if k[1] == "1a"]
     assert p2 not in a_rows and q2 not in a_rows, "neither half alone is a 1a EBR"
     for half in (p2, q2):
         got = tqe.decompose(half, group, rep=rep, bands=2)
@@ -314,7 +314,7 @@ def test_lin3g_regular_completion_to_eight_bands(lin3g_declared_cross_checked):
     assert rc.decomposition.unique
     assert rc.decomposition.terms == (((1, "-E1↑G(2)", "1b(4mm1',4mm)"),),)
 
-    _, e2_1a = _row(group, "@1a", "-E2")
+    _, e2_1a = _row(group, "1a", "-E2")
     seed = _in_plane(group, e2_1a)
     assert seed == {"-GM6": 1, "-M6": 1, "-X5": 1}
 
@@ -593,7 +593,7 @@ def test_kpoint_of_label_parses_every_label_of_every_fixture_group(
         data = tqg.ebr_data(group)
         assert data, str(data)
         in_plane = set(tqg.high_symmetry_points(group))
-        names = {tqe.kpoint_of_label(lab) for lab in data["labels_physics_convention"]}
+        names = {tqe.kpoint_of_label(lab) for lab in data.corep_names}
         assert names >= in_plane, (group.number_str, names, in_plane)
 
 
@@ -700,7 +700,7 @@ def test_the_shipped_smith_basis_is_the_convention_and_a_de_novo_snf_verifies_it
 
     # the hand-rolled Smith normal form is exact and unimodular, on a matrix
     # whose divisors are not all 1
-    matrix = [[int(x) for x in row] for row in np.asarray(tqg.ebr_data(group)["matrix"])]
+    matrix = [[int(x) for x in row] for row in np.asarray(tqg.ebr_data(group).matrix)]
     u0, d0, v0 = _smith._snf(matrix)
     assert _smith._matmul(_smith._matmul(u0, matrix), v0) == d0
     assert abs(round(np.linalg.det(np.array(u0, dtype=float)))) == 1
@@ -716,7 +716,7 @@ def test_the_shipped_smith_basis_is_the_convention_and_a_de_novo_snf_verifies_it
     # refusing.
     from pythtqc import InternalError
 
-    real = tqg.ebr_data(group)
+    real = _tables._ebr_data(group)
     u_bad, r_bad = np.array(real["smith"][0], dtype=int), np.array(real["smith"][1],
                                                                   dtype=int)
     u_bad[0] *= 2
@@ -726,7 +726,7 @@ def test_the_shipped_smith_basis_is_the_convention_and_a_de_novo_snf_verifies_it
                         [[int(x) for x in row]
                          for row in np.asarray(real["smith"][2], dtype=int)])
             == [[int(x) for x in row] for row in r_bad]), "check (i) still passes"
-    patch_everywhere(monkeypatch, "ebr_data", lambda g: doctored)
+    patch_everywhere(monkeypatch, "_ebr_data", lambda g: doctored)
     with pytest.raises(InternalError) as excinfo:
         tqe.symmetry_indicator(tqw.hsp_table(rep, bands=2), group, rep=rep)
     assert "elementary divisors" in str(excinfo.value)
@@ -928,9 +928,9 @@ def test_the_sigma_h_presentation_without_a_representation_cannot_evaluate_the_i
     hsp = tqg.high_symmetry_points(km_slab_191)
     assert sorted(hsp) == ["GM", "K", "M"]
     rows = tqe.ebr_rows(km_slab_191)
-    assert list(rows["-E1↑G(4)@2c(-6m21',-6m2)"]) == [
+    assert list(rows["-E1", "2c"]) == [
         "-GM9", "-GM11", "-A9", "-A11", "-H7", "-H8", "-K7", "-K8", "-L5", "-L6", "-M5", "-M6"]
-    row = rows[sorted(rows)[0]]
+    row = rows["-E1g", "1a"]
     in_plane = {lab: m for lab, m in row.items() if tqe.kpoint_of_label(lab) in hsp}
 
     out = tqe.symmetry_indicator(in_plane, km_slab_191)
@@ -1118,8 +1118,8 @@ def test_a_pure_2D_layer_reaches_the_layer_class_by_measuring_its_own_stack(
 
     layer = km191_realized
     assert layer.environment == "substrate"
-    assert layer.group.number_str == "183.186" and layer.group.dim_k == 2
-    assert len(layer.validated.indices) == 24 == layer.group.size
+    assert layer.group.number_str == "183.186" and layer.group._dim_k == 2
+    assert len(layer.validated.indices) == 24 == layer.group._size
     content = tqw.hsp_table(layer.rep, bands=2)
     assert content.complete and sorted(content.points) == ["GM", "K", "M"]
     assert dict(content.counts) == {"-GM9": 1, "-K6": 1, "-M5": 1}, "#183's own language"
@@ -1236,7 +1236,7 @@ def test_the_declared_slab_reaches_the_same_class_through_the_layer_route(monkey
 
     from_cell = _spacegroup._group_of(hand)
     assert from_cell.number_str == "191.234", "the cell says it before anything is built"
-    assert from_cell.dim_k == 2 and from_cell.vacuum_dirs == (2,)
+    assert from_cell._dim_k == 2 and from_cell._vacuum_dirs == (2,)
 
     slab = tqg.realized_group(hand, cross_check=False, characters={0: "s"})
     assert slab, str(slab)
@@ -1499,7 +1499,7 @@ def test_a_layer_whose_own_group_can_answer_never_builds_the_stack():
     # (1)-(2) the cell allows more than the Hamiltonian obeys, and which half
     # is refuted is the physics: mirrors die, rotations live
     bare = _spacegroup._group_of(_qwz(1.0), include_TR=False, spinor=False)
-    assert bare.number_str == "123" and bare.name == "P4/mmm" and bare.size == 16
+    assert bare.number_str == "123" and bare.name == "P4/mmm" and bare._size == 16
     bare_v = _measure._validate_group(_layers._slab_presentation(_qwz(1.0)), bare, nk=8)
     assert len(bare_v.indices) == 8 and len(bare_v.broken) == 8 and bare_v.closed
     assert len(bare_v.undetermined) == 8, \
@@ -1510,8 +1510,8 @@ def test_a_layer_whose_own_group_can_answer_never_builds_the_stack():
     # (3) the group the Hamiltonian realizes, reached in one call: the grey
     # group was asked, every antiunitary operation of it was refuted, and the
     # cell was re-identified as P4 -- unitary, four of four
-    assert group.number_str == "75" and group.name == "P4" and group.size == 4
-    assert tqe._magnetic_type(group) == "I" and not group.include_TR
+    assert group.number_str == "75" and group.name == "P4" and group._size == 4
+    assert tqe._magnetic_type(group) == "I" and group.magnetic_type == "I"
     assert len(validated.indices) == 4 and validated.broken == ()
     assert len(rep.indices) == 4 and rep._search["n_survivors"] == 1
     tr = realized.time_reversal
@@ -1538,7 +1538,7 @@ def test_a_layer_whose_own_group_can_answer_never_builds_the_stack():
     assert all(restriction.copies[l] for l in restriction.dropped)
 
     # (5) ... and this group has an indicator to read
-    assert _smith._divisors_of(tqg.ebr_data(group), group.number_str) == (4,)
+    assert _smith._divisors_of(_tables._ebr_data(group), group.number_str) == (4,)
 
     # (6) so the class is served in the group that was handed in, and no stack
     # was ever built
@@ -1672,13 +1672,13 @@ def test_the_indicator_refuses_on_physics_and_raises_on_a_broken_convention(
                                             include_TR=False)) == "I"
 
     # --- and the convention failure raises ---------------------------------
-    real = tqg.ebr_data(group)
+    real = _tables._ebr_data(group)
     broken = dict(real)
     u, r, v = real["smith"]
     bad = np.array(u, dtype=int)
     bad[0] *= 2
     broken["smith"] = (bad, r, v)
-    patch_everywhere(monkeypatch, "ebr_data", lambda g: broken)
+    patch_everywhere(monkeypatch, "_ebr_data", lambda g: broken)
     with pytest.raises(InternalError) as excinfo:
         tqe.symmetry_indicator(table, group)
     assert "Smith" in str(excinfo.value)
@@ -1713,8 +1713,8 @@ def test_named_indicator_forms_are_transported_before_they_are_read():
                           encoding="utf-8"))
 
     # the one in-scope form the transport moves, asked of the module
-    g220 = types.SimpleNamespace(number_str="220.90", spinor=True, magnetic=True)
-    data = tqg.ebr_data(g220)
+    g220 = types.SimpleNamespace(number_str="220.90", spinor=True, _magnetic=True)
+    data = _tables._ebr_data(g220)
     assert isinstance(data, dict), str(data)
     matrix = [[int(x) for x in row]
               for row in np.asarray(data["matrix"], dtype=int)]

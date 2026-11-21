@@ -37,7 +37,7 @@ __all__ = ["RepAnchor", "NormalizedRep", "normalize_rep", "bloch_operator",
 #
 #   * nothing group-specific is typed here — orders, required powers, spinor
 #     factors and translation differences all come from
-#     ``GroupData.get_product_table(get_diff=True)``, site permutations and
+#     ``GroupData._get_product_table(get_diff=True)``, site permutations and
 #     their integer lattice shifts from ``_tables._assign_orbitals``;
 #   * discrete rep choices are *searched*, never assumed, and a non-unique or
 #     empty search is returned as a ``Refusal``, never swallowed;
@@ -45,9 +45,9 @@ __all__ = ["RepAnchor", "NormalizedRep", "normalize_rep", "bloch_operator",
 
 
 def _identity_position(group) -> int:
-    """Index (into ``group.symmetries``) of the identity operation."""
+    """Index (into ``group._symmetries``) of the identity operation."""
     eye = np.eye(3, dtype=int)
-    for p, sym in enumerate(group.symmetries):
+    for p, sym in enumerate(group._symmetries):
         if (not sym.time_reversal and np.all(np.asarray(sym.rotation, dtype=int) == eye)
                 and np.allclose(np.asarray(sym.translation) % 1.0, 0.0, atol=1e-8)):
             return p
@@ -73,10 +73,10 @@ def _order_and_zeta(group, p, prod=None, spf=None):
     zeta : int
     """
     if prod is None or spf is None:
-        prod, _, spf = group.get_product_table(get_diff=True)
+        prod, _, spf = group._get_product_table(get_diff=True)
     ident = _identity_position(group)
     q, n, zeta = p, 1, 1
-    limit = len(group.symmetries) + 1
+    limit = len(group._symmetries) + 1
     while q != ident:
         zeta *= int(spf[p, q])
         q = int(prod[p, q])
@@ -382,7 +382,7 @@ def _rephased(D, positions, group, prod, spf, *, tol=1e-6):
     if not gens:
         return {int(ident): np.eye(np.asarray(D[int(ident)]).shape[0], dtype=complex)}
     words, parent = _bfs_words(gens, prod, ident, positions)
-    syms = group.symmetries
+    syms = group._symmetries
     records = []
     for gp in gens:
         rec = normalize_rep(D[gp], syms[gp], group, tol=tol, prod=prod, spf=spf)
@@ -690,7 +690,7 @@ def normalize_rep(D, op, group, *, spinful=None, anchor=None, tol=1e-9,
     if spinful is not None and bool(spinful) != bool(group.spinor):
         raise ValueError(f"spinful={spinful} contradicts group.spinor={group.spinor}")
 
-    pos = {int(s.ind): i for i, s in enumerate(group.symmetries)}
+    pos = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     if int(op.ind) not in pos:
         raise ValueError(f"operation .ind={op.ind} is not one of this group's")
     p = pos[int(op.ind)]
@@ -703,7 +703,7 @@ def normalize_rep(D, op, group, *, spinful=None, anchor=None, tol=1e-9,
     polar_shift = float(np.abs(D - U).max())
 
     if prod is None or spf is None:
-        prod, _, spf = group.get_product_table(get_diff=True)
+        prod, _, spf = group._get_product_table(get_diff=True)
     n, zeta = _order_and_zeta(group, p, prod=prod, spf=spf)
     p_exp = _phase_exponent(n, anti)
 
@@ -857,7 +857,7 @@ def _settled(Dsearch, *, group, gens, words, parent, kept, prod, spf, ident, nst
     canonical norm, and ``None`` otherwise; ``defect`` is the composition defect
     the matrices were read with.
     """
-    syms = group.symmetries
+    syms = group._symmetries
     anchors = list(gens) + ([T_pos] if T_pos is not None else [])
     defect = _composition_defect(Dsearch, anchors, kept, syms, prod)
     if _COMPOSITION_GATE < defect <= reach:
@@ -913,7 +913,7 @@ def _table_phases(Dn, normalization, DT_n, *, group, gens, words, parent, positi
     with the roots it found multiplied in, or ``None`` where it found none or
     none but the ones already taken.
     """
-    syms = group.symmetries
+    syms = group._symmetries
     offers = []
     for gp in gens:
         r = normalization[int(syms[gp].ind)]
@@ -963,7 +963,7 @@ def _settle_unit(Dsearch, *, group, tree, kept, u_pos, prod, anchor_of, reach,
     unitary ones.  ``roots`` is ``(found, matrices)`` where no root makes the
     matrices multiply, and ``None`` otherwise.
     """
-    syms, spf = group.symmetries, tree["spf"]
+    syms, spf = group._symmetries, tree["spf"]
     bad, D, norm, anchor_T, DT_n, defect = _settled(
         Dsearch, group=group, kept=kept, prod=prod, anchor_of=anchor_of, reach=reach, **tree)
     if bad is not None:
@@ -990,8 +990,8 @@ def _orb_positions_3d(model, group):
     literally the one the group was identified in — a second implementation of
     it would be a second convention.
     """
-    _lat, pos3, _padded = _spacegroup._pad_cell(model, group.vacuum_length,
-                                            lattice=group.lattice)
+    _lat, pos3, _padded = _spacegroup._pad_cell(model, group._vacuum_length,
+                                            lattice=group._lattice)
     return np.asarray(pos3, dtype=float)
 
 
@@ -1019,7 +1019,7 @@ def _translation_phase(group, op, k):
         The phase, shape ``(Nk,)``, and ``(1,)`` for a single ``k``.
     """
     k_arr = np.atleast_2d(np.asarray(k, dtype=float))
-    k3 = group.k_to_3d(k_arr)
+    k3 = group._k_to_3d(k_arr)
     kp3 = np.asarray(op.transform_k(k3), dtype=float)
     trans = np.asarray(op.translation, dtype=float)
     return np.exp(-2j * np.pi * (kp3 @ trans))
@@ -1091,18 +1091,18 @@ def bloch_operator(model, group, assignment, op, D, k, *, k_out=None, tol=1e-9,
     k_arr = np.asarray(k, dtype=float)
     squeeze = (k_arr.ndim == 1)
     k_arr = np.atleast_2d(k_arr)
-    if k_arr.shape[1] != group.dim_k:
-        raise ValueError(f"k must have {group.dim_k} components, got {k_arr.shape[1]}")
+    if k_arr.shape[1] != group._dim_k:
+        raise ValueError(f"k must have {group._dim_k} components, got {k_arr.shape[1]}")
 
-    k3 = group.k_to_3d(k_arr)
+    k3 = group._k_to_3d(k_arr)
     kp3 = np.asarray(op.transform_k(k3), dtype=float)
-    if not group.in_plane(kp3):
+    if not group._in_plane(kp3):
         raise ValueError(f"operation #{op.ind} moves in-plane k out of the periodic plane; "
                          "it has no Bloch operator on this model's k-space")
     if k_out is None:
         kout3 = kp3
     else:
-        kout3 = group.k_to_3d(np.atleast_2d(np.asarray(k_out, dtype=float)))
+        kout3 = group._k_to_3d(np.atleast_2d(np.asarray(k_out, dtype=float)))
         if kout3.shape[0] == 1 and kp3.shape[0] > 1:
             kout3 = np.repeat(kout3, kp3.shape[0], axis=0)
     n3 = kp3 - kout3
@@ -1117,7 +1117,7 @@ def bloch_operator(model, group, assignment, op, D, k, *, k_out=None, tol=1e-9,
     pos3 = _orb_positions_3d(model, group)
     rot = np.asarray(op.rotation, dtype=float)
     trans = np.asarray(op.translation, dtype=float)
-    p = next(i for i, s in enumerate(group.symmetries) if int(s.ind) == int(op.ind))
+    p = next(i for i, s in enumerate(group._symmetries) if int(s.ind) == int(op.ind))
     site_of = np.asarray(assignment.site_of_orbital, dtype=int)
 
     # row positions from the operation's action on each row's PREIMAGE orbital
@@ -1791,7 +1791,7 @@ def _site_spaces(model, group, assignment, spin, validated, *, tol=None):
     site_layout = _multiplets_of(model, assignment, spin,
                              tuple((tuple(orbs),) for orbs in site_orbs), tol=tol)
     bases = (getattr(validated, "_bases", None) or {}) if validated is not None else {}
-    pos_of_ind = {int(s.ind): i for i, s in enumerate(group.symmetries)}
+    pos_of_ind = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     spaces, mixing = {}, {}
     for ind in (validated.indices if validated is not None else ()):
         ind = int(ind)
@@ -2204,21 +2204,21 @@ def _characters_of_subgroup(group, subset, *, roots=False, tol=1e-9):
     Returns a list of ``{ind: chi(g)}``, empty when the set is not a subgroup
     or has no generating set small enough to enumerate over.
     """
-    prod = group.get_product_table(get_diff=False)
-    pos_of = {int(s.ind): i for i, s in enumerate(group.symmetries)}
+    prod = group._get_product_table(get_diff=False)
+    pos_of = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     ident = _identity_position(group)
     positions = sorted({pos_of[int(i)] for i in subset if int(i) in pos_of})
     if ident not in positions:
         return []
     if len(positions) == 1:
-        return [{int(group.symmetries[ident].ind): 1.0 + 0.0j}]
+        return [{int(group._symmetries[ident].ind): 1.0 + 0.0j}]
     gens = _minimal_generators(positions, prod, ident)
     if not gens:
         return []
     words, parent = _bfs_words(gens, prod, ident, positions)
     if set(words) != set(positions):      # pragma: no cover - a closed set is reached
         return []
-    ind_of = {p: int(group.symmetries[p].ind) for p in positions}
+    ind_of = {p: int(group._symmetries[p].ind) for p in positions}
     if roots:
         values = [[_root_of_unity(k, _order_of(prod, ident, g))
                    for k in range(_order_of(prod, ident, g))] for g in gens]
@@ -2262,8 +2262,8 @@ def _primed_partners(group, names):
     the unitary site group decides.  Empty where no pure time reversal is
     represented.
     """
-    syms = group.symmetries
-    prod = group.get_product_table(get_diff=False)
+    syms = group._symmetries
+    prod = group._get_product_table(get_diff=False)
     at = {int(s.ind): p for p, s in enumerate(syms)}
     t_pos = next((p for p, s in enumerate(syms) if s.time_reversal
                   and np.array_equal(np.rint(np.asarray(s.rotation)).astype(int),
@@ -2366,9 +2366,9 @@ def _phase_rounding(bloch, group, operations, k_pts) -> float:
     """
     images = 0.0
     for op in operations:
-        act = group.k_action_of(op)
+        act = group._k_action_of(op)
         if act is not None:
-            images = max(images, bloch.phase_rounding(k_pts, act(np.eye(group.dim_k))))
+            images = max(images, bloch.phase_rounding(k_pts, act(np.eye(group._dim_k))))
     return bloch.phase_rounding(k_pts) + images
 
 
@@ -2376,7 +2376,7 @@ def _covariance_battery(group, k_pts, n_battery, seed):
     """The k-points the covariance gate is measured at: random generic ones unless given."""
     if k_pts is None:
         rng = np.random.default_rng(int(seed))
-        k_pts = rng.uniform(-0.5, 0.5, size=(int(n_battery), group.dim_k))
+        k_pts = rng.uniform(-0.5, 0.5, size=(int(n_battery), group._dim_k))
     return np.atleast_2d(np.asarray(k_pts, dtype=float))
 
 

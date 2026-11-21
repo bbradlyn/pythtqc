@@ -99,10 +99,10 @@ def atomic_limits(d):
 print("\n1. the model, its two site orbits and all eight bands")
 r = tqc.realized_group(lin3g(), typat=TYPAT, characters=DECLARE)
 model, group, assignment, validated, rep = r
-sites = tqc.wyckoff_sites_tables(group, assignment.site_positions)   # letter and multiplicity
+sites = tqc.wyckoff_sites_tables(group, assignment.site_positions)   # each site's Wyckoff position
 letters = []
 for site in sites:
-    label = f"{site.multiplicity}{site.letter}"
+    label = site.wyckoff
     if label not in letters:
         letters.append(label)
 row("realized group", f"#{group.number_str} {group.name}, orbitals at Wyckoff "

@@ -486,7 +486,7 @@ Returned by `realized_group`, `ebr_data`, `ebr_rows`, `decompose`, `symmetry_ind
 
 #### `tables_not_ready`
 
-Returned by `operations`, `seitz`, `operation_index`, `high_symmetry_points`,
+Returned by `operations`, `operation_index`, `high_symmetry_points`, `little_group`,
 `corep_table`, `corep_content`, `hsp_table`, `wyckoff_sites_tables`,
 `in_plane_restriction` and `srsi_of_model`.
 
@@ -560,7 +560,8 @@ Returned by `pythtqc.srsi.name_correspondence`.
 
 #### `wyckoff_enumeration`
 
-Returned by `pythtqc.groups.wyckoff_positions_spglib`.
+Returned by no call: where the enumeration fails, the orbital's letter in spglib's setting,
+`wyckoff_spglib` on `r.assignment`, is left empty.
 
 - **What it means.** The Wyckoff positions of the group could not be enumerated; the reason
   quotes `irrep`'s own message.
@@ -646,7 +647,8 @@ Returned by `corep_content` and `corep_table`.
 
 #### `out_of_plane`
 
-Returned by `little_group`, `corep_table` and `regular_content`.
+Returned by `little_group`, `corep_table`, `pythtqc.groups.identify_from_characters` and
+`regular_content`.
 
 - **What it means.** The k-point has a component out of a layer's periodic plane, where the
   model has no dispersion.
@@ -849,7 +851,7 @@ Returned by `wyckoff_sites_tables`, `srsi_of_model` and `splitting`.
 
 - **What it means.** The list of Wyckoff positions read is not written in the setting the
   tables are, or an orbit's geometry and its measured content name different Wyckoff
-  positions. Every letter returned would be a key into the wrong setting, so none is.
+  positions. Every Wyckoff position returned would be read in the wrong setting, so none is.
 - **What to do.** Report it.
 
 ## Two checks no returned group reaches

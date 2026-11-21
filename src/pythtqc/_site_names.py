@@ -214,7 +214,7 @@ def carry_to_own_site(group, letter, position, indices):
     """
     if not getattr(group, "_tables_ready", False):
         return None
-    sg = int(group.sg_number)
+    sg = int(group._sg_number)
     x_ref = _spacegroup._in_tables_cell(group, position)[0]
     found = _carry(sg, str(letter), tuple(round(float(v), 12) for v in x_ref))
     if found is None:
@@ -226,7 +226,7 @@ def carry_to_own_site(group, letter, position, indices):
     inv = np.linalg.inv(refUC)
     shift = np.asarray(group._shiftUC, dtype=float)
     own = refUC @ np.asarray(_stretches(sg, str(letter))[stretch]) + shift
-    by_ind = {int(s.ind): s for s in group.symmetries}
+    by_ind = {int(s.ind): s for s in group._symmetries}
     carried = []
     for ind in indices:
         h = by_ind.get(int(ind))
@@ -235,7 +235,7 @@ def carry_to_own_site(group, letter, position, indices):
         R_ref = np.rint(inv @ np.asarray(h.rotation, dtype=float) @ refUC).astype(int)
         R_c = refUC @ (R_g @ R_ref @ R_g_inv) @ inv
         best, defect = None, np.inf
-        for s in group.symmetries:
+        for s in group._symmetries:
             if bool(s.time_reversal) != bool(h.time_reversal):
                 continue
             if np.abs(np.asarray(s.rotation, dtype=float) - R_c).max() > _INT_TOL:
@@ -261,7 +261,7 @@ def _keyed_rows(group, table, carried):
     """
     refUC = np.asarray(group._refUC, dtype=float)
     inv = np.linalg.inv(refUC)
-    by_ind = {int(s.ind): s for s in group.symmetries}
+    by_ind = {int(s.ind): s for s in group._symmetries}
     rotation_of = {}
     for ind, c in zip(table.indices, carried):
         R = inv @ np.asarray(by_ind[int(c)].rotation, dtype=float) @ refUC
@@ -299,7 +299,7 @@ def table_names(group, assignment, site, table) -> tuple:
     if document is None or int(site) >= len(letters) or not letters[int(site)]:
         return blank
     letter = letters[int(site)]
-    entries = document.get("groups", {}).get(str(int(group.sg_number)), {}).get(letter)
+    entries = document.get("groups", {}).get(str(int(group._sg_number)), {}).get(letter)
     if not entries:
         return blank
     indices = tuple(int(i) for i in table.indices)
@@ -323,7 +323,7 @@ def _holds(group, letter) -> bool:
     document = _document()
     if document is None or not letter:
         return False
-    return bool(document.get("groups", {}).get(str(int(group.sg_number)), {}).get(letter))
+    return bool(document.get("groups", {}).get(str(int(group._sg_number)), {}).get(letter))
 
 
 def _name_by_invariants(group, assignment, site, table, row, *, context=None) -> tuple:
@@ -358,8 +358,8 @@ def _name_by_invariants(group, assignment, site, table, row, *, context=None) ->
     ctx = {} if context is None else context
     if "tables" not in ctx:
         ctx["tables"] = srsi_tables(group)
-        ctx["data"] = _tables.ebr_data(group)
-        ctx["sites"] = _tables.wyckoff_sites_tables(group, assignment.site_positions)
+        ctx["data"] = _tables._ebr_data(group)
+        ctx["sites"] = _tables._sites_in_tables_setting(group, assignment.site_positions)
         ctx["points"] = _tables._points_in_table_order(group)
         ctx["plans"] = {}
     tables, data, sites, points = ctx["tables"], ctx["data"], ctx["sites"], ctx["points"]
@@ -373,7 +373,7 @@ def _name_by_invariants(group, assignment, site, table, row, *, context=None) ->
     lift = None
     if group.spinor:
         lift = {int(s.ind): complex(np.trace(np.asarray(s.spinor_rotation)))
-                for s in group.symmetries}
+                for s in group._symmetries}
     chi = {int(i): table.character_on(row, int(i)) * (1.0 if lift is None else lift[int(i)])
            for i in table.indices}
     counts, read = {}, []

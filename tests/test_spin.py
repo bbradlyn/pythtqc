@@ -514,7 +514,7 @@ def test_the_declared_build_is_the_native_one_under_the_permutation(reencoded):
 
     # the same crystal, read before any matrix is built
     assert group.number_str == gN.number_str, f"{name}/{layout}"
-    assert group.name == gN.name and int(group.size) == int(gN.size)
+    assert group.name == gN.name and int(group._size) == int(gN._size)
     assert bool(group.spinor) is True
     assert tuple(validated.indices) == tuple(valN.indices)
     assert tuple(validated.broken) == tuple(valN.broken)
@@ -839,7 +839,7 @@ def two_spinors_per_site():
     assert assignment.site_orbitals == ((0, 1, 2, 3), (4, 5, 6, 7))
     assert assignment.orbits == ((0, 1),), "the two sites are one orbit"
     validated = _measure._validate_group(flat, group, nk=4)
-    assert len(validated.indices) == 48 == group.size
+    assert len(validated.indices) == 48 == group._size
     return model, flat, group, assignment, validated
 
 
@@ -1029,7 +1029,7 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     with pytest.warns(MagneticScopeWarning):
         spinless = tqg.realized_group(flat_r)
     assert spinless, str(spinless)
-    assert (spinless.group.name, spinless.group.number_str, spinless.group.size) == (
+    assert (spinless.group.name, spinless.group.number_str, spinless.group._size) == (
         "R-3m", "166", 12)
     reversal = spinless.time_reversal
     assert reversal["outcome"] == "measured broken" and reversal["grey_number_str"] == "166.98"
@@ -1052,7 +1052,7 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
         "partners)")
     native = tqg.realized_group(flat_r, spin="interleaved")
     assert native, str(native)
-    assert (native.group.number_str, native.group.size) == ("166.98", 24)
+    assert (native.group.number_str, native.group._size) == ("166.98", 24)
     assert native.time_reversal["outcome"] == "kept"
     assert native.time_reversal["square"] == pytest.approx({"asked": -1, "measured": -1.0},
                                                            abs=1e-12)
@@ -1062,7 +1062,7 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     with pytest.warns(MagneticScopeWarning):
         out = tqg.realized_group(flat_p)
     assert out, str(out)
-    assert (out.group.name, out.group.number_str, out.group.size) == ("P4/m", "83", 8)
+    assert (out.group.name, out.group.number_str, out.group._size) == ("P4/m", "83", 8)
     assert len(out.validated.indices) == 8 and out.group.spinor is False
     reversal = out.time_reversal
     assert reversal["outcome"] == "measured broken" and reversal["grey_number_str"] == "123.340"
@@ -1152,7 +1152,7 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     with pytest.warns(MagneticScopeWarning):
         tie = tqg.realized_group(flat_o)
     assert tie, str(tie)
-    assert (tie.group.name, tie.group.number_str, tie.group.size) == ("P2/m", "10", 4)
+    assert (tie.group.name, tie.group.number_str, tie.group._size) == ("P2/m", "10", 4)
     step = tie.descent["steps"][0]["projective"]
     parent = _spacegroup._group_of(flat_o, include_TR=False, spinor=False)
     assert parent.number_str == "47" and tie.descent["from"]["number_str"] == "47"
@@ -1226,7 +1226,7 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     layer = tqsp.spinless_presentation(kane_mele(0.0, -1.0, 0.3, 0.25))[0]
     free = tqg.realized_group(layer, environment="free-standing", cross_check=False)
     assert free, str(free)
-    assert (free.group.name, free.group.number_str, free.group.size) == ("P6/m", "175", 12)
+    assert (free.group.name, free.group.number_str, free.group._size) == ("P6/m", "175", 12)
     d = free.descent
     assert (d["from"]["number_str"], d["dropped_by"]) == ("191", {"projective class": 12})
     assert sorted(b["name"] for b in d["dropped"]) == sorted(
@@ -1339,7 +1339,7 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     with pytest.warns(MagneticScopeWarning):
         spin_free = tqg.realized_group(zeeman)
     assert spin_free, str(spin_free)
-    assert (spin_free.group.number_str, spin_free.group.size) == ("80", 4)
+    assert (spin_free.group.number_str, spin_free.group._size) == ("80", 4)
     reversal = spin_free.time_reversal
     assert reversal["outcome"] == "measured broken" and reversal["square"]["asked"] == -1
     assert reversal["square"]["measured"] == pytest.approx(1.0, abs=1e-12)
@@ -1438,7 +1438,7 @@ def test_a_declared_pair_reads_the_native_content_and_site_irrep(km_flat):
                              environment="substrate")
     assert got, f"{basis.kind}: {got}"
     # the native spinful model's own record, read on a substrate
-    assert got.group.number_str == "156.50" and got.group.size == 12
+    assert got.group.number_str == "156.50" and got.group._size == 12
     tab = tqw.hsp_table(got.rep, bands=2)
     assert tab.complete
     assert dict(tab.counts) == {"-GM6": 1, "-K5": 1, "-K6": 1, "-M3M4": 1}
@@ -1562,7 +1562,7 @@ def test_the_padded_slab_operations_are_represented_too():
     flat, basis = tqsp.spinless_presentation(km, order="interleaved")
     slab = _layers._slab_presentation(flat)
     group = _spacegroup._group_of(slab, spinor=True)
-    assert group and group.number_str == "191.234" and group.size == 48
+    assert group and group.number_str == "191.234" and group._size == 48
     assignment = _tables._assign_orbitals(slab, group)
     validated = _measure._validate_group(slab, group, nk=4)
     assert len(validated.indices) == 48
@@ -1741,7 +1741,7 @@ def test_the_transcription_in_pythtbs_convention_is_labelled_s_in_its_own_group(
     turned = spin_blocks_turned(kane_mele(0.0, -1.0, 0.3, 0.25), w)
     read = tqg.realized_group(turned, precision=1e-5)
     assert read, str(read)
-    assert (read.group.name, read.group.number_str, read.group.size) == (
+    assert (read.group.name, read.group.number_str, read.group._size) == (
         "P6mm1'", "183.186", 24)
     assert read.descent is None and read.rep.characters.irreps == ("-E1", "-E1")
     rec = read.symmetrization

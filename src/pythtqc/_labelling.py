@@ -214,10 +214,10 @@ def _band_fibers(model, group, D, syms):
     pos_of = {int(s.ind): p for p, s in enumerate(syms)}
     wanted = []
     for name, k in points.items():
-        lg = _tables.little_group(group, k)
+        lg = _tables._little_group(group, k)
         if isinstance(lg, Refusal) or len(lg.unitary) <= 1:
             continue
-        if any(int(i) not in pos_of or pos_of[int(i)] not in D for i in lg.indices):
+        if any(int(i) not in pos_of or pos_of[int(i)] not in D for i in lg.unitary):
             continue
         wanted.append((str(name), np.asarray(k, dtype=float).reshape(-1), lg))
     if not wanted:
@@ -246,9 +246,9 @@ def _band_share(model, group, assignment, D, syms, fibers, states):
     st = np.asarray(states, dtype=int)
     out = []
     for _name, k, lg, rows, V in fibers:
-        chars = np.zeros((len(rows), len(lg.indices)), dtype=complex)
+        chars = np.zeros((len(rows), len(lg.unitary)), dtype=complex)
         try:
-            for col, ind in enumerate(lg.indices):
+            for col, ind in enumerate(lg.unitary):
                 p = pos_of[int(ind)]
                 U = bloch_operator(model, group, assignment, syms[p], D[p], k,
                                    k_out=k)[np.ix_(st, st)]
@@ -285,18 +285,18 @@ class _BandKey:
     def _labels(self, i, option):
 
         _name, k, lg, rows, _V = self.fibers()[i]
-        total = np.zeros((len(rows), len(lg.indices)), dtype=complex)
+        total = np.zeros((len(rows), len(lg.unitary)), dtype=complex)
         for q in range(self.n_parts):
             got = self.share(q, option if q == self.part else self.held(q))[i]
             if got is None:
                 return None
             total = total + got
-        found = _tables.identify_from_characters(self.group, k, total,
+        found = _tables._identify_from_characters(self.group, k, total,
                                                  multiplet_dims=[len(m) for m in rows])
         if isinstance(found, Refusal):
             return None
         if i not in self.orders:
-            tab = _tables.corep_table(self.group, k, kpname=found.kpname)
+            tab = _tables._corep_table(self.group, k, kpname=found.kpname)
             self.orders[i] = () if isinstance(tab, Refusal) else tuple(tab)
         return tuple(tuple(-int(row.get(label, 0)) for label in self.orders[i])
                      for row in found.labels)
@@ -330,7 +330,7 @@ class _BandKey:
                 total = got if total is None else total + got
             if total is None:
                 continue
-            found = _tables.identify_from_characters(self.group, k, total,
+            found = _tables._identify_from_characters(self.group, k, total,
                                                      multiplet_dims=[len(m) for m in rows])
             if isinstance(found, Refusal):
                 continue
@@ -457,7 +457,7 @@ def _held_sets(sectors, layout, model, group, assignment, spin, validated):
     shares = []
     held = _sectors.held_sectors(sectors, layout, tol=sectors.tol)
     if not sectors.su2 and any(len(h) > 1 for h in held):
-        syms = group.symmetries
+        syms = group._symmetries
         kept = [p for p, s in enumerate(syms) if int(s.ind) in set(validated.indices)]
         action = _sectors.sector_action(sectors, model, group, assignment, spin, validated,
                                         tol=sectors.tol)
@@ -832,7 +832,7 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
             return base
         out = []
         for (_name, _k, lg, _rows, _V), chars in zip(_fibers(), base):
-            f = np.asarray([complex(opt["chi"].get(int(i), 1.0)) for i in lg.indices],
+            f = np.asarray([complex(opt["chi"].get(int(i), 1.0)) for i in lg.unitary],
                            dtype=complex)
             out.append(None if chars is None else chars * f[None, :])
         return out
@@ -1179,7 +1179,7 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
     :meth:`AtomicLimitTable.summary`.
     """
     chan_of, chan_orbs = layout._chan_of, layout._chan_orbs
-    lattice = np.asarray(group.lattice, dtype=float)
+    lattice = np.asarray(group._lattice, dtype=float)
     ind_of = {p: int(syms[p].ind) for p in kept}
     names = {ind_of[p]: _sitechars.operation_name(syms[p], lattice)
                         + ("'" if syms[p].time_reversal else "") for p in kept}
@@ -1370,7 +1370,7 @@ def _wyckoff_sites(group, assignment):
 
     if not tuple(getattr(assignment, "wyckoff_tables", ()) or ()):
         return {}
-    sites = _tables.wyckoff_sites_tables(group, assignment.site_positions)
+    sites = _tables._sites_in_tables_setting(group, assignment.site_positions)
     if isinstance(sites, Refusal):
         return {}
     return dict(enumerate(sites))

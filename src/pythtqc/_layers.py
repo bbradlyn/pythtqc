@@ -479,7 +479,7 @@ def _layer_on_stack(group, assignment, stack) -> tuple:
         built from the layer's own lattice and orbitals, so either is a defect
         here.
     """
-    old = np.asarray(group.lattice, dtype=float)
+    old = np.asarray(group._lattice, dtype=float)
     new = np.asarray(stack.lat_vecs, dtype=float)
     # reduced coordinates of the layer's cell, to Cartesian, to the stack's
     carry = np.linalg.solve(new.T, old.T)
@@ -499,7 +499,7 @@ def _layer_on_stack(group, assignment, stack) -> tuple:
             "onto the stack. The stack is built from the layer's own lattice, so "
             "this is a defect here, not a property of the model.")
     inverse = np.linalg.inv(carry)
-    padded = [int(d) for d in group.vacuum_dirs]
+    padded = [int(d) for d in group._vacuum_dirs]
 
     def _miss(x):
         x = np.asarray(x, dtype=float)
@@ -521,7 +521,7 @@ def _layer_on_stack(group, assignment, stack) -> tuple:
         return y
 
     moved, worst = [], 0.0
-    for sym in group.symmetries:
+    for sym in group._symmetries:
         rotation = carry @ np.asarray(sym.rotation, dtype=float) @ inverse
         own = _centred(np.asarray(sym.translation, dtype=float))
         translation = carry @ own
@@ -537,7 +537,7 @@ def _layer_on_stack(group, assignment, stack) -> tuple:
         new_sym.translation = translation
         new_sym.real_lattice = new
         moved.append(new_sym)
-    sites = _placed(group.site_positions)
+    sites = _placed(group._site_positions)
     placed_sites = (None if assignment.site_positions is None
                     else _placed(assignment.site_positions))
     if placed_sites is None:
@@ -564,8 +564,8 @@ def _layer_on_stack(group, assignment, stack) -> tuple:
         sg.__dict__.pop(cached, None)
     sg.real_lattice, sg.symmetries, sg.positions = new, moved, sites
     sg.refUC, sg.shiftUC = ref, shift
-    on_stack = replace(group, symmetries=list(moved), lattice=new, site_positions=sites,
-                       periodic_dirs=(0, 1, 2), vacuum_dirs=(), dim_k=3, dim_r=3,
+    on_stack = replace(group, _symmetries=list(moved), _lattice=new, _site_positions=sites,
+                       periodic_dirs=(0, 1, 2), _vacuum_dirs=(), _dim_k=3, _dim_r=3,
                        _refUC=ref, _shiftUC=shift, _sg=sg)
     placed = replace(assignment, lattice_shift=np.rint(shifts).astype(int),
                      site_positions=placed_sites)
@@ -708,13 +708,13 @@ def _environment_record(free_group, sub_group) -> dict:
     Returns the record; ``agrees`` is ``False`` on any failure and ``None``
     where the two cells cannot be compared at all (no single vacuum direction).
     """
-    lp = tuple(int(d) for d in free_group.vacuum_dirs)
-    wp = tuple(int(d) for d in sub_group.vacuum_dirs)
+    lp = tuple(int(d) for d in free_group._vacuum_dirs)
+    wp = tuple(int(d) for d in sub_group._vacuum_dirs)
     head = {"free_standing": {"number_str": str(free_group.number_str),
                               "name": str(free_group.name),
-                              "size": int(free_group.size)},
+                              "size": int(free_group._size)},
             "substrate": {"number_str": str(sub_group.number_str),
-                          "name": str(sub_group.name), "size": int(sub_group.size)}}
+                          "name": str(sub_group.name), "size": int(sub_group._size)}}
     if len(lp) != 1 or lp != wp:
         return dict(head, agrees=None, outcome=None, rows=(), missing=(), extra=(),
                     flipping=(), unmapped=(),
@@ -723,11 +723,11 @@ def _environment_record(free_group, sub_group) -> dict:
                           "preserve the layer's side is not defined and the two "
                           "environments were not compared"))
     padded = int(lp[0])
-    free_lat = np.asarray(free_group.lattice, dtype=float)
-    sub_lat = np.asarray(sub_group.lattice, dtype=float)
+    free_lat = np.asarray(free_group._lattice, dtype=float)
+    sub_lat = np.asarray(sub_group._lattice, dtype=float)
 
     unmapped, expected = [], {}
-    for s in free_group.symmetries:
+    for s in free_group._symmetries:
         side = _side_preserving(s, padded)
         if side is None:
             unmapped.append({"group": "free-standing", "ind": int(s.ind),
@@ -736,7 +736,7 @@ def _environment_record(free_group, sub_group) -> dict:
             expected[_operation_key(s)] = s
 
     got, flipping = {}, []
-    for s in sub_group.symmetries:
+    for s in sub_group._symmetries:
         side = _side_preserving(s, padded)
         if side is None:
             unmapped.append({"group": "substrate", "ind": int(s.ind),

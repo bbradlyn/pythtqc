@@ -77,13 +77,13 @@ def _descent_closure(group, kept) -> tuple:
     when the set closes.  The product is taken modulo lattice translations,
     through the group's own product table.
     """
-    prod = group.get_product_table(get_diff=False)
-    at = {int(s.ind): i for i, s in enumerate(group.symmetries)}
+    prod = group._get_product_table(get_diff=False)
+    at = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     keep = {int(s.ind) for s in kept}
     leaks = []
     for a in sorted(keep):
         for b in sorted(keep):
-            c = int(group.symmetries[int(prod[at[a], at[b]])].ind)
+            c = int(group._symmetries[int(prod[at[a], at[b]])].ind)
             if c not in keep:
                 leaks.append((a, b, c))
     return tuple(leaks)
@@ -99,10 +99,10 @@ def _closes(group, kept) -> bool:
     keep = {int(i) for i in kept}
     if not keep:
         return False
-    at = {int(s.ind): p for p, s in enumerate(group.symmetries)}
+    at = {int(s.ind): p for p, s in enumerate(group._symmetries)}
     rows = np.array(sorted(at[i] for i in keep), dtype=int)
-    prod = np.asarray(group.get_product_table(get_diff=False), dtype=int)
-    inside = np.zeros(len(group.symmetries), dtype=bool)
+    prod = np.asarray(group._get_product_table(get_diff=False), dtype=int)
+    inside = np.zeros(len(group._symmetries), dtype=bool)
     inside[rows] = True
     return bool(inside[prod[np.ix_(rows, rows)]].all())
 
@@ -132,8 +132,8 @@ def _subgroups_inside(group, kept, avoid=None) -> set:
     key = (keep, frozenset(frozenset(int(i) for i in pair) for pair in (avoid or ())))
     if memo is not None and key in memo:
         return set(memo[key])
-    prod = group.get_product_table(get_diff=False).tolist()
-    ind_of = [int(s.ind) for s in group.symmetries]
+    prod = group._get_product_table(get_diff=False).tolist()
+    ind_of = [int(s.ind) for s in group._symmetries]
     at = {ind: p for p, ind in enumerate(ind_of)}
     # a set of operations as one bit for each position in the group's list
     keep_mask = 0
@@ -259,7 +259,7 @@ def _setting_axes(group) -> dict:
     """
     ref = getattr(group, "_refUC", None)
     out = {}
-    for sym in group.symmetries:
+    for sym in group._symmetries:
         if bool(sym.time_reversal):
             continue
         rotation = (sym.rotation_refUC(np.asarray(ref, dtype=float)) if ref is not None
@@ -317,11 +317,11 @@ def _layer_sides(group) -> dict:
     side, a substrate's group among them: the tie rule's first key then has
     nothing to count.
     """
-    padded = tuple(int(d) for d in getattr(group, "vacuum_dirs", ()) or ())
+    padded = tuple(int(d) for d in getattr(group, "_vacuum_dirs", ()) or ())
     if len(padded) != 1:
         return {}
     sides = {int(s.ind): _side_preserving(s, padded[0]) is True
-             for s in group.symmetries if not s.time_reversal}
+             for s in group._symmetries if not s.time_reversal}
     return {} if all(sides.values()) else sides
 
 

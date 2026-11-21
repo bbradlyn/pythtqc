@@ -382,9 +382,9 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
 
 def _cyclic(group, ind):
     """The operations one unitary operation generates, by ``.ind``."""
-    prod = group.get_product_table(get_diff=False)
-    at = {int(s.ind): p for p, s in enumerate(group.symmetries)}
-    ind_of = [int(s.ind) for s in group.symmetries]
+    prod = group._get_product_table(get_diff=False)
+    at = {int(s.ind): p for p, s in enumerate(group._symmetries)}
+    ind_of = [int(s.ind) for s in group._symmetries]
     out, x = {int(ind)}, int(ind)
     while True:
         x = ind_of[int(prod[at[int(ind)], at[x]])]
@@ -483,8 +483,8 @@ def _declaration_breaks(group, assignment, decls, verdict, *, standing, subgroup
     the group read — are computed here when they are not handed in.
     """
 
-    lattice = np.asarray(group.lattice, dtype=float)
-    by_ind = {int(s.ind): s for s in group.symmetries}
+    lattice = np.asarray(group._lattice, dtype=float)
+    by_ind = {int(s.ind): s for s in group._symmetries}
     standing = sorted({int(i) for i in standing})
     # each operation as the refusal lists it, and as the frame a declaration is
     # written in names it: a site's own operations by their rotations alone
@@ -650,8 +650,8 @@ def _multiplet_scale(group, layout, positions, cperm, classes, ref, blocks, *,
     no group, a block is missing, or the blocks settle into no representation
     of the operations: nothing is measured on this scale then.
     """
-    syms = group.symmetries
-    prod, _tdiff, spf = group.get_product_table(get_diff=True)
+    syms = group._symmetries
+    prod, _tdiff, spf = group._get_product_table(get_diff=True)
     ident = _identity_position(group)
     u_pos = sorted({int(p) for p in positions})
     if ident not in u_pos or set(_closure(u_pos, prod, ident)) != set(u_pos):
@@ -740,8 +740,8 @@ def _lifted_scale(group, layout, positions, cperm, classes, ref, blocks, *, base
     ``None`` where the lift is a representation of the operations or the
     orbit's blocks settle into none, and the settled blocks otherwise.
     """
-    syms = group.symmetries
-    prod, _tdiff, spf = group.get_product_table(get_diff=True)
+    syms = group._symmetries
+    prod, _tdiff, spf = group._get_product_table(get_diff=True)
     ident = _identity_position(group)
     u_pos = sorted({int(p) for p in positions})
     if reversal is not None and reversal_image is None:
@@ -1123,7 +1123,7 @@ def _anchor_read(model, group, assignment, spin, validated, layout, positions, *
     _Anchor or Refusal
         The record, or the refusal the multiplet permutation or the block enumeration made.
     """
-    syms = group.symmetries
+    syms = group._symmetries
     positions = [p for p in positions if not bool(syms[p].time_reversal)]
     cperm = _channel_perms(model, assignment, syms, positions, layout, spin)
     if isinstance(cperm, Refusal):
@@ -1201,7 +1201,7 @@ def _operations_read(model, group, assignment, validated, layout, decls, anc, *,
     site_layout = anc.site_layout
     syms = anc.syms
 
-    lattice = np.asarray(group.lattice, dtype=float)
+    lattice = np.asarray(group._lattice, dtype=float)
     chan_states, su2 = layout._chan_states, layout._spinful
     want_of = {int(c): d for d in decls for c in d["channels"]}
     bases = getattr(validated, "_bases", None) or {}
@@ -1951,7 +1951,7 @@ def _declaration_search(model, group, assignment, spin, validated, layout, decls
     action = _sectors.sector_action(carried, model, group, assignment, spin, validated, tol=eps)
     pure = None
     if reversal is not None:
-        sym = group.symmetries[int(reversal)]
+        sym = group._symmetries[int(reversal)]
         if (np.array_equal(np.rint(np.asarray(sym.rotation)).astype(int), np.eye(3, dtype=int))
                 and np.allclose(np.asarray(sym.translation) % 1.0, 0.0, atol=ZERO)):
             pure = int(reversal)
@@ -2251,8 +2251,8 @@ def _declared_site_contents(model, group, assignment, characters, *, spin=None):
     entries, atom_of, _atom_orbs = _declaration_entries(
         characters, model, assignment, spin=spin)
     site_of = np.asarray(assignment.site_of_orbital, dtype=int)
-    kept_u = {int(s.ind) for s in group.symmetries if not s.time_reversal}
-    kept_au = {int(s.ind) for s in group.symmetries if s.time_reversal}
+    kept_u = {int(s.ind) for s in group._symmetries if not s.time_reversal}
+    kept_au = {int(s.ind) for s in group._symmetries if s.time_reversal}
     tables = _site_tables(group, assignment, kept_u, kept_au,
                           sorted({int(site_of[a]) for orbs, _s, _j in entries
                                   for a in orbs}))
@@ -2386,9 +2386,9 @@ def _content_compatible(group, assignment, contents):
     **all** operations, and ``{ind: {"reason", "note", "orbitals", "sites"}}``
     for the rest.
     """
-    syms = group.symmetries
+    syms = group._symmetries
     at = {int(s.ind): p for p, s in enumerate(syms)}
-    prod = group.get_product_table(get_diff=False)
+    prod = group._get_product_table(get_diff=False)
     perm = np.asarray(assignment.permutations, dtype=int)
     unitary = [int(s.ind) for s in syms if not s.time_reversal]
     spans = {s: _sitechars.span_basis(rec["polys"]) if rec["polys"] else None
@@ -2492,9 +2492,9 @@ def _outside_the_group(rec) -> bool:
 def _excluded_named(group, ind, rec, *, said=""):
     """One step 1 exclusion given its operation's ``ind``, ``name`` and the ``note`` saying it in words."""
 
-    sym = next(s for s in group.symmetries if int(s.ind) == int(ind))
+    sym = next(s for s in group._symmetries if int(s.ind) == int(ind))
     rec["ind"] = int(ind)
-    rec["name"] = _record_name(sym, group.lattice)
+    rec["name"] = _record_name(sym, group._lattice)
     rec["note"] = (f"#{int(ind)} {rec['name']}: {rec['reason']} (site "
                    + (f"{rec['sites'][0]}" if rec["sites"][0] == rec["sites"][1]
                       else f"{rec['sites'][0]} -> site {rec['sites'][1]}")
@@ -2535,7 +2535,7 @@ def _largest_compatible_group(group, assignment, declared, excluded):
     operations, and ``excluded`` with the operations left out added.
     """
 
-    syms = group.symmetries
+    syms = group._symmetries
     compatible = [s for s in syms if not s.time_reversal and int(s.ind) not in excluded]
     if _descent_closure(group, compatible):
         _group, dropped, tied = _resolve_closure(group, [int(s.ind) for s in compatible])
@@ -2544,7 +2544,7 @@ def _largest_compatible_group(group, assignment, declared, excluded):
         site_of = np.asarray(assignment.site_of_orbital, dtype=int)
         named = sorted({int(o) for o in declared})
         sites = sorted({int(site_of[o]) for o in named})
-        lattice = np.asarray(group.lattice, dtype=float)
+        lattice = np.asarray(group._lattice, dtype=float)
 
         def _set(inds):
             return "{" + ", ".join(_record_name(syms[at[int(i)]], lattice) for i in inds) + "}"

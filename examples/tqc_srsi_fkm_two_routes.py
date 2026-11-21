@@ -95,7 +95,7 @@ r_strong = tqc.realized_group(m_strong, characters=DECLARE)
 _m, g_strong, asg_strong, val_strong, rep_strong = r_strong
 sites = tqc.wyckoff_sites_tables(g_strong, asg_strong.site_positions)
 row("realized group", f"#{g_strong.number_str} {g_strong.name}, s orbitals at Wyckoff "
-    f"{sites[0].multiplicity}{sites[0].letter}")
+    f"{sites[0].wyckoff}")
 
 t2_strong = tqc.hsp_table(rep_strong, bands=2)               # the valence bands
 row("valence content", fmt(t2_strong.counts))
@@ -153,7 +153,7 @@ t2_weak = tqc.hsp_table(rep_weak, bands=2)
 b_weak = tqc.srsi_of_bands(t2_weak)
 si_weak = tqc.symmetry_indicator(t2_weak)
 row("weak,   realized", f"#{g_weak.number_str} {g_weak.name}, orbitals at Wyckoff "
-    f"{sites_weak[0].multiplicity}{sites_weak[0].letter}")
+    f"{sites_weak[0].wyckoff}")
 row("weak,   valence", fmt(t2_weak.counts))
 
 m_dimers = fu_kane_mele(T, SOC, [0.0, -1.0, -1.0, -1.0])     # three bonds cut
@@ -165,7 +165,7 @@ t2_dimers = tqc.hsp_table(rep_dimers, bands=2)
 b_dimers = tqc.srsi_of_bands(t2_dimers)
 si_dimers = tqc.symmetry_indicator(t2_dimers)
 row("dimers, realized", f"#{g_dimers.number_str} {g_dimers.name}, orbitals at Wyckoff "
-    f"{sites_dimers[0].multiplicity}{sites_dimers[0].letter}")
+    f"{sites_dimers[0].wyckoff}")
 row("dimers, valence", fmt(t2_dimers.counts))
 
 # one line per phase: the class on the left, the invariants on the right

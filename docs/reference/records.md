@@ -507,38 +507,28 @@ call takes. Its `summary()` reads it part by part:
 
 ```python
 print(group)
-#  GroupData(P6mm1' #183.186, spinor=True, TR=True, periodic=(0, 1), realized)
+#  GroupData(P6mm1' #183.186, spinor=True, magnetic_type='II', periodic_dirs=(0, 1))
 print(group.summary())
 #  P6mm1' #183.186   (.name, .number_str)
-#    its operations, one per coset of the lattice translations   (.symmetries)
-#    the double group also holds each one's negative   (.spinor)
-#    a layer: periodic along the first two lattice vectors, vacuum along the third   (.periodic_dirs, .vacuum_dirs)
-print(group.name, group.number_str, group.sg_number, group.size, group.spinor, group.provenance)
-#  P6mm1' 183.186 183 24 True realized
+#    a grey group, magnetic type II: time reversal is one of its operations   (.magnetic_type)
+#    the double group: each operation's negative is in it too   (.spinor)
+#    a layer: periodic along the first two lattice vectors, vacuum along the third   (.periodic_dirs)
+print(group.name, group.number_str, group.magnetic_type, len(r.operations), group.spinor)
+#  P6mm1' 183.186 II 24 True
 ```
-
-The first printout adds two things the summary does not print: time reversal
-adjoined (`TR`), and the group measured on a Hamiltonian (`realized`).
 
 | field | what it holds |
 |---|---|
-| `name`, `number_str`, `sg_number` | the Hermann–Mauguin symbol, the label the tables file the group under (`"183.186"`), and the space-group number (`183`) |
-| `size` | how many operations `symmetries` lists, one per coset of the lattice translations, each standing for itself and its negative where the group is the double group |
-| `spinor`, `include_TR`, `magnetic` | whether the group is the double group, whether time reversal is adjoined, and whether it is read in the magnetic tables, which a grey group is |
-| `provenance` | `"realized"`, measured on a Hamiltonian, or `"descended"`, measured after the cell was lowered |
-| `symmetries`, `u_symmetries`, `au_symmetries` | the operations themselves, as `irrep` records them, in the tables' order; the unitary ones; the antiunitary ones |
-| `lattice`, `periodic_dirs`, `vacuum_dirs`, `vacuum_length`, `dim_k`, `dim_r` | the three-dimensional cell the group was found on, rows the lattice vectors; which of its axes are periodic and which are a layer's vacuum, and the vacuum's length; the model's own periodic and spatial dimensions |
-| `site_positions`, `site_orbitals`, `typat` | the distinct sites in reduced coordinates, the orbitals on each, and each site's species |
-| `symprec` | the symmetry finder's tolerance, a Cartesian length |
+| `name`, `number_str` | the Hermann–Mauguin symbol, and the label the tables file the group under (`"183.186"`) |
+| `spinor` | whether the group is the double group |
+| `magnetic_type` | `"II"` for a grey group, time reversal one of its operations; `"I"` where no operation is combined with time reversal |
+| `periodic_dirs` | which axes of the three-dimensional cell the group was found on are periodic; a layer's third is its vacuum |
 
-Its methods are the group's own arithmetic: `get_product_table()` and
-`get_inverse_table()`, its multiplication table and inverses; `k_action_of(op)`,
-an operation's action on the model's reduced `k`; and `k_to_3d`, `k_from_3d` and
-`in_plane`, which carry `k` between a layer and its slab.
+Its operations, one per coset of the lattice translations, are `r.operations`.
 
 ## `OperationTable` and `Operation`
 
-The operations of a group, by index: `r.operations`, `tqc.operations(...)`, and
+The operations of a group, by index: `r.operations`, `tqc.operations(group)`, and
 `rep.operations` for the ones a representation carries. A mapping from each
 operation's index to its `Operation`, which prints as the whole correspondence
 under a line saying what its rows are, as its `summary()` returns it; an
@@ -547,22 +537,22 @@ under a line saying what its rows are, as its `summary()` returns it; an
 ```python
 print(broken.operations)
 #  P3 #143: one operation per coset of the lattice translations; the double group also holds each one's negative
-#   ind  Seitz           name
-#     1  {1|0,0,0}       E
-#     2  {3+_001|0,0,0}  C3(z)
-#     3  {3-_001|0,0,0}  C3^-1(z)
+#  index  Seitz           name
+#      1  {1|0,0,0}       E
+#      2  {3+_001|0,0,0}  C3(z)
+#      3  {3-_001|0,0,0}  C3^-1(z)
 op = r.operations[2]
-print(op.ind, op.seitz, op.name, op.time_reversal)
+print(op.index, op.seitz, op.name, op.antiunitary)
 #  2 {3+_001|0,0,0} C3(z) False
 print(r.operations[14].summary())
-#  operation 14: {3+_001|0,0,0}' in the tables' setting, C3(z)' in the model's frame   (.ind, .seitz, .name)
+#  operation 14: {3+_001|0,0,0}' in the tables' setting, C3(z)' in the model's frame   (.index, .seitz, .name)
 #    its rotation and translation in the model's reduced coordinates   (.rotation, .translation)
 #    its rotation in the model's Cartesian axes   (.rotation_cartesian)
 #    its matrix on the spin, spin along the z of those axes   (.spin_lift)
-#    combined with time reversal, which the ' marks   (.time_reversal)
+#    combined with time reversal, which the ' marks   (.antiunitary)
 ```
 
-An `Operation` holds `ind`, its index in the tables' order, which every
+An `Operation` holds `index`, its index in the tables' order, which every
 per-operation record is keyed on; `seitz`, its Seitz symbol `{R|t}` in the
 tables' conventional setting; `name`, the same operation in the model's own
 Cartesian frame, the frame `characters=` is written in, an axis along none of
@@ -571,7 +561,7 @@ its x, y, z named by its direction in the lattice vectors; `rotation` and
 rotation in the Cartesian axes the model's lattice vectors are written in, a
 layer's normal as z; `spin_lift`, its SU(2) matrix on the model's spin, with
 its axis in those same axes and spin along their z, `None` where the states
-carry no spin; and `time_reversal`, whether it is antiunitary, which both
+carry no spin; and `antiunitary`, whether it is combined with time reversal, which both
 spellings mark with a trailing `'`. How the symbols and names are spelled is in
 [the conventions](../background/conventions.md#operations-a-seitz-symbol-and-a-cartesian-name).
 
@@ -966,7 +956,7 @@ print(t.summary())
 #      K: -K6
 #      M: -M5
 #    another labelling the hoppings leave open keeps every site irrep and labels some energy multiplets of these bands differently; it keeps which bands are degenerate and the labels of all the model's bands together   (.note)
-print(t.complete, t.counts, hsp.missing)
+print(t.complete, t.counts, hsp.out_of_plane)
 #  True {'-GM9': 1, '-K6': 1, '-M5': 1} ('A', 'H', 'L')
 ```
 
@@ -1470,11 +1460,10 @@ line ending with the attribute that holds that part, as the records above do.
 | record | returned by | what it is |
 |---|---|---|
 | `SewingMatrix` | `sewing_matrix` | the matrix of one operation in the basis of a set of bands at an invariant `k`, `B(g,k) = V† U(g;k) V`: its `matrix`, `trace`, `eigenvalues` and `angles`, and its checks |
-| `KGrid` | `k_grid` | a mesh, as pythtb's own `Mesh` (`mesh`), with which high-symmetry points it samples (`contains`, `missing`) and the coordinates of every tabulated point (`hsp`) |
+| `KGrid` | `k_grid` | a mesh, as pythtb's own `Mesh` (`mesh`), with which high-symmetry points it samples (`contains`) |
 | `LittleGroup` | `little_group` | the operations that leave a `k` invariant up to a reciprocal lattice vector, unitary and antiunitary, and for each unitary one that vector, `G` |
-| `HighSymmetryPoints` | `high_symmetry_points` | each tabulated point's coordinates in the model's own reduced cell, a mapping by name, with `missing`, the points out of a layer's plane |
-| `SiteReference` | `wyckoff_sites_tables` | one site's Wyckoff position in the tables' setting: its `letter`, `multiplicity`, `reference` coordinates, `varieties`, and `closure`, the letters an orbital confined to its variety can be moved to |
-| `WyckoffPosition` | `groups.wyckoff_positions_spglib` | one Wyckoff position in spglib's standardization, whose letter is not a table key |
+| `HighSymmetryPoints` | `high_symmetry_points` | each tabulated point's coordinates in the model's own reduced cell, a mapping by name, with `out_of_plane`, the points out of a layer's plane |
+| `SiteReference` | `wyckoff_sites_tables` | one site's Wyckoff position in the tables' setting: its `wyckoff`, multiplicity and letter (`"8a"`), and `slides_onto`, the positions an orbital confined to its variety can be moved to |
 | `IrrepContent` | `groups.identify_from_characters`, and `CorepContent.content` | the identification of measured characters: each row's multiplicities before rounding, and how far they sat from integers |
 | `SpinBasis` | `spin_basis`, `spinless_presentation` | which orbitals of a spinless model are the up and down partners of one spinor Wannier function: `kind` and `pairs` |
 | `Symmetrization` | `RealizedGroup.symmetrization` | how far a near-symmetric model was moved onto its symmetric part ([above](#every-field)) |

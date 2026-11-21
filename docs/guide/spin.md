@@ -71,7 +71,7 @@ its block on orbital 0's two states is the orbital character, `+1` for `A1`,
 times the lift:
 
 ```python
-names = tqc.operations(native)
+names = tqc.operations(native.group)
 for ind in (2, 5, 7):                           # C3(z), m(x), and time reversal
     print(names[ind].name)
     print(np.round(native.rep.matrices[ind][:2, :2], 3) + 0)

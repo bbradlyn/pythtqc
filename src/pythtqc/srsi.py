@@ -230,7 +230,7 @@ def srsi_of_bands(content, group=None, *, rep=None, points=None,
                                  bands=block)
     if not si:
         return si
-    data = _tables.ebr_data(group)
+    data = _tables._ebr_data(group)
     if not data:
         return data
     u, v, d, matrix = _smith._smith_system(data, group.number_str)
@@ -552,20 +552,20 @@ def _orbit_contents(group, rep, blocks):
     then the refusal itself.
     """
     blocks = [list(rows) for rows in blocks]
-    points_map = _tables.high_symmetry_points(group)
+    points_map = _tables._high_symmetry_points(group)
     if not points_map:
         return [(None, None, points_map) for _rows in blocks]
     read = [({}, [], {}) for _rows in blocks]
     for name in points_map:
         k = points_map[name]
-        lg = _tables.little_group(group, k)
+        lg = _tables._little_group(group, k)
         why = None
         if isinstance(lg, Refusal):
             why = lg
         elif len(lg.unitary) <= 1:
             why = "trivial little group: no content to identify"
         operators = []
-        for sym in (() if why is not None else lg.unitary):
+        for sym in (() if why is not None else lg._unitary_operations):
             operator = rep.sewing_operator(int(sym.ind), k)
             if isinstance(operator, Refusal):
                 why = operator
@@ -578,7 +578,7 @@ def _orbit_contents(group, rep, blocks):
         for rows, (counts, points, refusals) in zip(blocks, read):
             chars = [complex(np.trace(operator[np.ix_(rows, rows)]))
                      for operator in operators]
-            got = _tables.identify_from_characters(group, k, [chars],
+            got = _tables._identify_from_characters(group, k, [chars],
                                                    multiplet_dims=[len(rows)])
             if isinstance(got, Refusal):
                 refusals[name] = got
@@ -679,10 +679,10 @@ def srsi_of_model(realized, *, rep=None) -> "ModelSRSIs | Refusal":
     tables = srsi_tables(group)
     if not tables:
         return tables
-    data = _tables.ebr_data(group)
+    data = _tables._ebr_data(group)
     if not data:
         return data
-    sites = _tables.wyckoff_sites_tables(group, assignment.site_positions)
+    sites = _tables._sites_in_tables_setting(group, assignment.site_positions)
     if isinstance(sites, Refusal):
         return sites
     # a free-standing layer's orbitals are moved within the layer only: the
@@ -895,12 +895,12 @@ def _band_representations(rep) -> tuple:
     if characters is None:
         return ()
     represented = {int(i) for i in rep.indices}
-    if any(int(s.ind) not in represented for s in group.symmetries if not s.time_reversal):
+    if any(int(s.ind) not in represented for s in group._symmetries if not s.time_reversal):
         return ()
-    sites = _tables.wyckoff_sites_tables(group, assignment.site_positions)
+    sites = _tables._sites_in_tables_setting(group, assignment.site_positions)
     if isinstance(sites, Refusal):
         return ()
-    data = _tables.ebr_data(group)
+    data = _tables._ebr_data(group)
     if isinstance(data, Refusal):
         return ()
     ebrs = tuple((str(name), str(position)) for name, position in data["ebrs"])
@@ -936,7 +936,7 @@ def _band_representations(rep) -> tuple:
                       "wyckoff": f"{int(here.multiplicity)}{here.letter}",
                       "site_symmetry": symmetry_of_site.get(int(orbit[0]), "")}
 
-    ops = {int(s.ind): s for s in group.symmetries if int(s.ind) in represented}
+    ops = {int(s.ind): s for s in group._symmetries if int(s.ind) in represented}
     miss = float(_position_defect(model, group, assignment, ops))
     if miss > _BLOCH_TOL:
         note = ("no sum of elementary band representations, the symmetry content could not "
@@ -981,7 +981,7 @@ def _band_representations(rep) -> tuple:
             listed = frozenset(_tables._letter_only(position) for _name, position in ebrs)
             through = []
             for variety in here.varieties:
-                for letter in _spacegroup._letters_on_closure(int(group.sg_number),
+                for letter in _spacegroup._letters_on_closure(int(group._sg_number),
                                                           str(variety), listed):
                     if letter not in letters + through and letter not in off_layer:
                         through.append(letter)
@@ -1125,7 +1125,7 @@ class StablePair:
         The two site irreps, and the Wyckoff letter.
     names, columns : tuple
         Their elementary band representations' names and columns in
-        ``ebr_data(group)["ebrs"]``.
+        ``ebr_data(group).ebrs``.
     symmetry_vector : tuple of int
         The content both induce.
     theta_Z, theta_Zn : tuple, dict
@@ -1442,7 +1442,7 @@ def _stable_pairs(sg: int, spinor: bool) -> tuple:
     tables = _table_of_number(int(sg), bool(spinor))
     if not tables:                            # pragma: no cover - gated above
         return ()
-    data = _tables.ebr_data(_TableKey(tables.number_str, spinor))
+    data = _tables._ebr_data(_TableKey(tables.number_str, spinor))
     if not data:                              # pragma: no cover - install-dependent
         return ()
     matrix = np.asarray(data["matrix"], dtype=int)

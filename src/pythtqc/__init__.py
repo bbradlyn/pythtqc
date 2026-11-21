@@ -48,10 +48,10 @@ from .ebr import (CompletenessReport, EBRDecomposition, RegularCompletion, Restr
                   symmetry_indicator)
 from .groups import (GroupData, HighSymmetryPoints, IrrepContent, KGrid, LittleGroup,
                      Operation, OperationTable, OrbitalAssignment, RealizedGroup,
-                     SiteReference, ValidatedGroup, WyckoffPosition,
+                     SiteReference, ValidatedGroup,
                      corep_table, ebr_data, high_symmetry_points, k_grid,
                      little_group, operation_index, operations, realized_group,
-                     seitz, stack_presentation, tables_status,
+                     stack_presentation, tables_status,
                      wyckoff_sites_tables)
 from .refusal import InternalError, MagneticScopeWarning, Refusal, RefusalError
 from .sewing import (CharacterTable, CorepContent, HSPTable, SewingMatrix, characters,
@@ -72,10 +72,10 @@ __all__ = [
     "Refusal", "RefusalError", "MagneticScopeWarning",
     "GroupData", "HighSymmetryPoints", "IrrepContent", "KGrid", "LittleGroup",
     "Operation", "OperationTable", "OrbitalAssignment",
-    "ValidatedGroup", "WyckoffPosition", "RealizedGroup",
+    "ValidatedGroup", "RealizedGroup",
     "SiteReference", "wyckoff_sites_tables",
     "tables_status",
-    "operations", "seitz", "operation_index",
+    "operations", "operation_index",
     "little_group",
     "high_symmetry_points", "corep_table", "ebr_data",
     "k_grid",

@@ -870,7 +870,7 @@ def in_plane_restriction(group, *, points=None, require_exact=True,
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
-    data = _tables.ebr_data(group)
+    data = _tables._ebr_data(group)
     if isinstance(data, Refusal):
         return data
     labels = list(data["labels_physics_convention"])
@@ -881,7 +881,7 @@ def in_plane_restriction(group, *, points=None, require_exact=True,
         matrix = matrix[:, list(_layer["columns"])]
 
     if points is None:
-        hsp = _tables.high_symmetry_points(group)
+        hsp = _tables._high_symmetry_points(group)
         if isinstance(hsp, Refusal):
             return hsp
         points = tuple(hsp)
@@ -902,9 +902,9 @@ def in_plane_restriction(group, *, points=None, require_exact=True,
     # and keep the positions within it within it.  That is a statement about
     # the whole plane, so it is checked where every point of it was compared
     if _layer is not None and missing:
-        hsp = _tables.high_symmetry_points(group)
+        hsp = _tables._high_symmetry_points(group)
         whole = not isinstance(hsp, Refusal) and set(hsp) <= set(points)
-        off_plane = set(hsp.missing) if whole else set()
+        off_plane = set(hsp.out_of_plane) if whole else set()
         unrepeated = [label for label in missing if kpoint_of_label(label) in off_plane]
         if unrepeated:
             raise InternalError(
@@ -961,13 +961,13 @@ def _layer_reading(group, data, rep=None):
     letters cannot be read in the group's cell: every position is then kept,
     and the rows say whether the plane suffices.
     """
-    padded = tuple(int(d) for d in (getattr(group, "vacuum_dirs", ()) or ()))
-    if int(getattr(group, "dim_k", 3)) >= 3 or len(padded) != 1:
+    padded = tuple(int(d) for d in (getattr(group, "_vacuum_dirs", ()) or ()))
+    if int(getattr(group, "_dim_k", 3)) >= 3 or len(padded) != 1:
         return None
-    if isinstance(_tables.wyckoff_sites_tables(group), Refusal):
+    if isinstance(_tables._sites_in_tables_setting(group), Refusal):
         return None              # the letters are keys only once the settings agree
     normal_dir = padded[0]
-    lattice = np.asarray(group.lattice, dtype=float)
+    lattice = np.asarray(group._lattice, dtype=float)
     plane = [d for d in range(3) if d != normal_dir]
     normal = np.cross(lattice[plane[0]], lattice[plane[1]])
     scale = float(lattice[normal_dir] @ normal) / float(np.linalg.norm(normal))
@@ -981,13 +981,13 @@ def _layer_reading(group, data, rep=None):
 
         where = _orb_positions_3d(model, group)
     else:
-        where = np.asarray(group.site_positions, dtype=float)
+        where = np.asarray(group._site_positions, dtype=float)
     own = [height(z) for z in np.atleast_2d(where)[:, normal_dir]]
     lowest, highest = min(own), max(own)
-    margin = float(group.symprec)
+    margin = float(group._symprec)
     refuc = np.asarray(group._refUC, dtype=float)
     shift = np.asarray(group._shiftUC, dtype=float)
-    arms_of = {p["letter"]: p["arms"] for p in _spacegroup._pyxtal_wyckoff(int(group.sg_number))[0]}
+    arms_of = {p["letter"]: p["arms"] for p in _spacegroup._pyxtal_wyckoff(int(group._sg_number))[0]}
     columns, outside = [], {}
     for j, (_name, position) in enumerate(data["ebrs"]):
         arms = arms_of[_letter_only(position)]
@@ -1017,12 +1017,12 @@ def _same_group(a, b) -> bool:
     """
     if a is b:
         return True
-    if ((str(a.number_str), bool(a.spinor), bool(a.magnetic))
-            != (str(b.number_str), bool(b.spinor), bool(b.magnetic))):
+    if ((str(a.number_str), bool(a.spinor), bool(a._magnetic))
+            != (str(b.number_str), bool(b.spinor), bool(b._magnetic))):
         return False
-    if len(a.symmetries) != len(b.symmetries):
+    if len(a._symmetries) != len(b._symmetries):
         return False
-    if not np.allclose(np.asarray(a.lattice, dtype=float), np.asarray(b.lattice, dtype=float)):
+    if not np.allclose(np.asarray(a._lattice, dtype=float), np.asarray(b._lattice, dtype=float)):
         return False
 
     def keyed(symmetries):
@@ -1034,7 +1034,7 @@ def _same_group(a, b) -> bool:
             out.add((rot, tuple(int(x) for x in np.round(trans / ROUNDING))))
         return out
 
-    return keyed(a.symmetries) == keyed(b.symmetries)
+    return keyed(a._symmetries) == keyed(b._symmetries)
 
 def _same_rep(a, b) -> bool:
     """Whether two representations are one: the same group, the same operations and the same matrices."""
@@ -1395,7 +1395,7 @@ def decompose(content, group=None, *, rep=None, points=None, allow_incomplete=Fa
             context={"refusals": refused,
                      "resolved": tuple(getattr(table, "content", {}))})
 
-    data = _tables.ebr_data(group)
+    data = _tables._ebr_data(group)
     if isinstance(data, Refusal):
         return data
     labels_all = list(data["labels_physics_convention"])
@@ -1559,7 +1559,7 @@ def _named_forms(group, data, matrix, y, magnetic_type):
             "no named form is returned for a unitary group. The Smith-form indicator "
             "above is unaffected: it is computed from this group's own EBR matrix"), {}
     try:
-        entry = _spacegroup._indicator_table(group.spinor, group.magnetic).get(
+        entry = _spacegroup._indicator_table(group.spinor, group._magnetic).get(
             str(group.number_str), {})
         forms = dict(entry.get("indicators", {}))
     except Exception as exc:                   # pragma: no cover - table defect
@@ -1638,15 +1638,15 @@ def _two_dimensional_reading(group, labels, u, slots, divisors, values, coeffs,
     if not divisors:
         return None                            # no class to misread
     if plane is None:
-        if int(getattr(group, "dim_k", 3)) >= 3:
+        if int(getattr(group, "_dim_k", 3)) >= 3:
             return None                        # a fully periodic model
-        hsp = _tables.high_symmetry_points(group)
+        hsp = _tables._high_symmetry_points(group)
         if isinstance(hsp, Refusal):
             return None
         in_plane = set(hsp)
-        dim_k = int(group.dim_k)
+        dim_k = int(group._dim_k)
         periodic = tuple(int(p) for p in group.periodic_dirs)
-        padded = tuple(int(p) for p in group.vacuum_dirs)
+        padded = tuple(int(p) for p in group._vacuum_dirs)
         presentation = "SLAB"
     else:
         in_plane = set(plane["points"])
@@ -1710,9 +1710,9 @@ def _stack_record(table, group, rep, restriction, *, c, environment, note) -> di
         "stopped_at": None, "stop_reason": None, "stack_period": float(c),
         "stack_extent": None, "environment": environment,
         "input": {"number_str": str(group.number_str), "name": str(group.name),
-                  "size": int(group.size), "dim_k": int(group.dim_k),
+                  "size": int(group._size), "dim_k": int(group._dim_k),
                   "periodic_dirs": tuple(int(p) for p in group.periodic_dirs),
-                  "vacuum_dirs": tuple(int(p) for p in group.vacuum_dirs),
+                  "vacuum_dirs": tuple(int(p) for p in group._vacuum_dirs),
                   "points": tuple(sorted(table.points, key=_tables.point_order)),
                   "orphans": tuple(restriction.orphans),
                   "content": _tables.ordered_content(table.counts),
@@ -1852,7 +1852,7 @@ def _stack_reading(group, g3, indicator3, data3):
     group's own, split by whether their k lies in the layer's plane, and no
     name is carried across.
     """
-    hsp3 = _tables.high_symmetry_points(g3)
+    hsp3 = _tables._high_symmetry_points(g3)
     in_plane = () if isinstance(hsp3, Refusal) else tuple(
         n for n, k in hsp3.items()
         if abs(float(np.asarray(k, dtype=float).reshape(-1)[2])
@@ -1865,9 +1865,9 @@ def _stack_reading(group, g3, indicator3, data3):
     return _two_dimensional_reading(
         g3, indicator3.labels, u3, indicator3.slots, indicator3.divisors,
         indicator3.values, coeffs3,
-        plane={"points": in_plane, "dim_k": int(group.dim_k),
+        plane={"points": in_plane, "dim_k": int(group._dim_k),
                "periodic_dirs": tuple(int(p) for p in group.periodic_dirs),
-               "vacuum_dirs": tuple(int(p) for p in group.vacuum_dirs),
+               "vacuum_dirs": tuple(int(p) for p in group._vacuum_dirs),
                "presentation": "decoupled-STACK"})
 
 def _stack_in_group(table, group, rep, restriction, *, c, bands, verify, characters_tol):
@@ -1943,7 +1943,7 @@ def _stack_in_group(table, group, rep, restriction, *, c, bands, verify, charact
 
     # ---- 2. the layer's group and matrices, on the stack ----------------
     represented = {int(i) for i in rep.indices}
-    unrepresented = tuple(sorted(int(s.ind) for s in group.symmetries
+    unrepresented = tuple(sorted(int(s.ind) for s in group._symmetries
                                  if int(s.ind) not in represented))
     if unrepresented:
         return stop("representation",
@@ -1952,7 +1952,7 @@ def _stack_in_group(table, group, rep, restriction, *, c, bands, verify, charact
                     "so the decoupled stack's rows at k_z = ½ cannot be read in that group",
                     unrepresented=unrepresented)
     g3, asg3 = _layers._layer_on_stack(group, rep.assignment, stack)
-    by_ind = {int(s.ind): s for s in g3.symmetries}
+    by_ind = {int(s.ind): s for s in g3._symmetries}
     rng = np.random.default_rng(20241004)
     battery = rng.uniform(-0.5, 0.5, size=(8, 3))
     battery[:len(_KZ_PROBE), 2] = _KZ_PROBE
@@ -1974,9 +1974,9 @@ def _stack_in_group(table, group, rep, restriction, *, c, bands, verify, charact
         defect("representation", float(worst_d),
                "the layer's own matrices do not carry the stack's H(k, k_z) onto itself")
     rep3 = replace(rep3, residuals=residuals)
-    typat = tuple(int(group.typat[int(s)]) for s in rep.assignment.site_of_orbital)
+    typat = tuple(int(group._typat[int(s)]) for s in rep.assignment.site_of_orbital)
     record["stack"] = {"number_str": str(g3.number_str), "name": str(g3.name),
-                       "size": int(g3.size), "dim_k": int(g3.dim_k),
+                       "size": int(g3._size), "dim_k": int(g3._dim_k),
                        "periodic_dirs": tuple(int(p) for p in g3.periodic_dirs),
                        "typat": typat}
 
@@ -2024,7 +2024,7 @@ def _stack_in_group(table, group, rep, restriction, *, c, bands, verify, charact
     if isinstance(indicator3, Refusal):
         return stop("stack_indicator", f"{within} has no class there: "
                     + indicator3.reason, gate=indicator3.gate)
-    data3 = _tables.ebr_data(g3)
+    data3 = _tables._ebr_data(g3)
     record["stack"]["divisors"] = _divisors_of(data3, g3.number_str)
     record["outcome"] = "completed"
     return replace(indicator3, completion=record,
@@ -2153,7 +2153,7 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
             context={"refusals": refused, "resolved": tuple(getattr(table, "content", {})),
                      "completion": "stable-rsi"})
 
-    data = _tables.ebr_data(group)
+    data = _tables._ebr_data(group)
     if isinstance(data, Refusal):
         return data
     labels = tuple(str(l) for l in data["labels_physics_convention"])
@@ -2182,7 +2182,7 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
     # what the layer obeys, so the class is completed in the layer's own group,
     # and only where rows at k_z = ½ repeat no in-plane row.
     completion = None
-    if (int(getattr(group, "dim_k", 3)) < 3 and points is None and rep is not None
+    if (int(getattr(group, "_dim_k", 3)) < 3 and points is None and rep is not None
             and table is not None and restriction.orphans):
         stacked, completion = _stack_in_group(
             table, group, rep, restriction, c=stack_period, bands=block,
@@ -2252,11 +2252,11 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
     verdict = ("trivial indicator group" if not divisors
                else ("indicated nontrivial" if any(values) else "indicator zero"))
     provenance = (getattr(table, "group_provenance", None)
-                  or str(getattr(group, "provenance", "cell")))
+                  or str(getattr(group, "_provenance", "cell")))
     # the free-standing layer's group, as `realized_group` measured it beside a
     # substrate's, named where it is larger than the group the class lives in
     free = getattr(rep, "free_standing_group", None) if rep is not None else None
-    free = dict(free) if free and int(free["size"]) > int(group.size) else None
+    free = dict(free) if free and int(free["size"]) > int(group._size) else None
     return SymmetryIndicator(
         verdict=verdict, number_str=str(group.number_str), group_name=str(group.name),
         magnetic_type=mtype, divisors=divisors, values=values,
@@ -2467,29 +2467,29 @@ def regular_content(group, *, points=None) -> dict | Refusal:
         return hsp
     wanted = tuple(hsp) if points is None else tuple(str(p) for p in points)
 
-    n_u = len(group.u_symmetries)
+    n_u = len(group._u_symmetries)
     out, bands = {}, {}
     for name in wanted:
-        if name in hsp.missing:
+        if name in hsp.out_of_plane:
             # A point out of a layer's plane, which its little group refuses
-            refused = _tables.little_group(group, _tables._table_kpoints(group)[name])
+            refused = _tables._little_group(group, _tables._table_kpoints(group)[name])
             if not isinstance(refused, Refusal):
                 raise InternalError(
                     f"#{group.number_str}: {name} is listed as out of the layer's plane, "
                     "yet its little group was read.")
             return refused
         k = hsp[name]
-        lg = _tables.little_group(group, k)
+        lg = _tables._little_group(group, k)
         if isinstance(lg, Refusal):
             return lg
-        table = _tables.corep_table(group, k)
+        table = _tables._corep_table(group, k)
         if isinstance(table, Refusal):
             return table
-        ident = min(lg.indices)
+        ident = min(lg.unitary)
         total = 0.0
         for label, char in table.items():
             dim = abs(complex(char[ident]))
-            norm = sum(abs(complex(char[i])) ** 2 for i in lg.indices)
+            norm = sum(abs(complex(char[i])) ** 2 for i in lg.unitary)
             m = n_u * dim / norm
             if abs(m - round(m)) > _INT_TOL:
                 return Refusal(
@@ -2499,7 +2499,7 @@ def regular_content(group, *, points=None) -> dict | Refusal:
                     "group disagree about this corep.",
                     value=float(m), threshold=float(_INT_TOL),
                     context={"kpname": name, "label": label, "n_unitary": n_u,
-                             "little_group": len(lg.indices)})
+                             "little_group": len(lg.unitary)})
             out[label] = int(round(m))
             total += round(m) * dim
         bands[name] = total
@@ -2593,7 +2593,7 @@ def regular_completion(content, group=None, *, bands=None, rep=None, points=None
     if isinstance(target_one, Refusal):
         return target_one
 
-    n_u = len(group.u_symmetries)
+    n_u = len(group._u_symmetries)
     n_bands = len(_as_block(bands, None))
     if n_bands % n_u:
         return Refusal(

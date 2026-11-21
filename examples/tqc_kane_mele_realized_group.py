@@ -144,8 +144,8 @@ m1 = kane_mele(1.0, T, SOC, 0.25)
 
 out1 = tqc.realized_group(m1, typat=TYPAT, characters=DECLARE)
 model1, g1, asg1, val1, rep1 = out1
-sites1 = tqc.wyckoff_sites_tables(g1, asg1.site_positions)   # letter and multiplicity
-seats1 = list(dict.fromkeys(f"{s.multiplicity}{s.letter}" for s in sites1))
+sites1 = tqc.wyckoff_sites_tables(g1, asg1.site_positions)   # each site's Wyckoff position
+seats1 = list(dict.fromkeys(s.wyckoff for s in sites1))
 row("realized group", f"#{g1.number_str} {g1.name}, orbitals at Wyckoff "
     f"{' and '.join(seats1)}, {model1.nstate} bands")
 
@@ -180,7 +180,7 @@ m2 = kane_mele(2.5, T, SOC, 0.25)          # delta past the K-point gap closing
 out2 = tqc.realized_group(m2, typat=TYPAT, characters=DECLARE)
 _m, g2, asg2, val2, rep2 = out2
 sites2 = tqc.wyckoff_sites_tables(g2, asg2.site_positions)
-seats2 = list(dict.fromkeys(f"{s.multiplicity}{s.letter}" for s in sites2))
+seats2 = list(dict.fromkeys(s.wyckoff for s in sites2))
 row("realized group", f"#{g2.number_str} {g2.name}, orbitals at Wyckoff "
     f"{' and '.join(seats2)}")
 
@@ -208,7 +208,7 @@ m3 = kane_mele(0.0, T, SOC, 0.0)           # no staggering, no Rashba
 out3 = tqc.realized_group(m3, characters=DECLARE)     # one species: delta = 0
 _m, g3, asg3, val3, rep3 = out3
 sites3 = tqc.wyckoff_sites_tables(g3, asg3.site_positions)
-seats3 = list(dict.fromkeys(f"{s.multiplicity}{s.letter}" for s in sites3))
+seats3 = list(dict.fromkeys(s.wyckoff for s in sites3))
 row("realized group", f"#{g3.number_str} {g3.name}, orbitals at Wyckoff "
     f"{' and '.join(seats3)}")
 
@@ -235,7 +235,7 @@ m4 = kane_mele(0.0, T, SOC, 0.25)          # the same crystal, Rashba turned on
 out4 = tqc.realized_group(m4, characters=DECLARE)
 _m, g4, asg4, val4, rep4 = out4
 sites4 = tqc.wyckoff_sites_tables(g4, asg4.site_positions)
-seats4 = list(dict.fromkeys(f"{s.multiplicity}{s.letter}" for s in sites4))
+seats4 = list(dict.fromkeys(s.wyckoff for s in sites4))
 row("realized group", f"#{g4.number_str} {g4.name}, orbitals at Wyckoff "
     f"{' and '.join(seats4)}")
 
@@ -359,8 +359,8 @@ light = sites_deep[int(asg_deep.site_of_orbital[int(np.argmin(weight))])]
 row("bands 0 and 1", by_point(t_deep))
 limits(d_deep)
 row("orbital weight", f"{100 * weight.max():.2f} % on the orbital at Wyckoff "
-    f"{heavy.multiplicity}{heavy.letter}, {100 * weight.min():.2f} % on the one at "
-    f"{light.multiplicity}{light.letter}")
+    f"{heavy.wyckoff}, {100 * weight.min():.2f} % on the one at "
+    f"{light.wyckoff}")
 print("   the atomic limit of bands 0 and 1 sits on the orbital that carries their weight")
 
 ########### 8. the bands along GM-K-M-GM ###########

@@ -16,9 +16,9 @@ from . import _sitechars
 from .refusal import InternalError, Refusal
 from ._tolerance import _LATTICE_TOL
 from ._text import _SEITZ_DENOMINATOR, _index_ranges
-from ._spacegroup import GroupData, _CENTERINGS, _lattice_not_descended
+from ._spacegroup import GroupData, _CENTERINGS, _lattice_not_descended, _require_group
 
-__all__ = ["Operation", "OperationTable", "operations", "seitz", "operation_index"]
+__all__ = ["Operation", "OperationTable", "operations", "operation_index"]
 
 
 # --------------------------------------------------------------------------
@@ -102,7 +102,7 @@ def _rotation_sense(sym, group, axis) -> int:
 
     info = _sitechars.classify(sym)
     direction = ((np.asarray(group._refUC, dtype=float) @ np.asarray(axis, dtype=float))
-                 @ np.asarray(group.lattice, dtype=float))
+                 @ np.asarray(group._lattice, dtype=float))
     return int(info["sense"]) * (1 if float(direction @ info["axis"]) >= 0 else -1)
 
 
@@ -354,15 +354,15 @@ def _matches(key, time_reversal, wanted, wanted_tr) -> bool:
 class Operation:
     """One operation of a group: its index, its Seitz symbol in the tables' setting, and its name in the model's frame.
 
-    One row of an :class:`OperationTable`, ``r.operations[ind]``;
+    One row of an :class:`OperationTable`, ``r.operations[index]``;
     ``summary()`` prints it.
 
     Attributes
     ----------
-    ind : int
+    index : int
         Its index in the tables' order, the key every per-operation record is
-        written on: ``rep.matrices``, ``validated.verdicts``, the entries of a
-        descent.
+        written on: ``rep.matrices``, the verdicts of the measurement, the
+        entries of a descent.
     seitz : str
         Its Seitz symbol ``{R|t}`` in the tables' conventional setting,
         ``{-4+_001|0,0,1/2}``, with a trailing ``'`` where it is combined with
@@ -375,6 +375,9 @@ class Operation:
     rotation, translation : ndarray, shapes (3, 3) and (3,)
         Its rotation, integer, and its translation, in the model's reduced
         coordinates.
+    antiunitary : bool
+        Whether it is combined with time reversal, as half of a grey group's
+        operations are.
     rotation_cartesian : ndarray, shape (3, 3)
         Its rotation in the Cartesian axes the lattice vectors are written in,
         a layer's normal as ``z``.
@@ -382,32 +385,29 @@ class Operation:
         Its matrix on the spin, ``e^{−iθ n̂·σ/2}`` with ``n̂`` in those axes
         and the spin along their ``z``, an improper operation's that of its
         proper part; ``None`` in a group of states without spin.
-    time_reversal : bool
-        Whether it is combined with time reversal, as half of a grey group's
-        operations are.
     """
 
-    ind: int
+    index: int
     seitz: str
     name: str
     rotation: np.ndarray
     translation: np.ndarray
-    time_reversal: bool
+    antiunitary: bool
     rotation_cartesian: np.ndarray | None = None
     spin_lift: np.ndarray | None = None
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, Operation):
             return NotImplemented
-        return (self.ind == other.ind and self.seitz == other.seitz
-                and self.name == other.name and self.time_reversal == other.time_reversal
+        return (self.index == other.index and self.seitz == other.seitz
+                and self.name == other.name and self.antiunitary == other.antiunitary
                 and np.array_equal(self.rotation, other.rotation)
                 and np.array_equal(self.translation, other.translation))
 
     def summary(self) -> str:
         """The operation, a line for each part, with the attribute that holds it."""
-        lines = [f"operation {int(self.ind)}: {self.seitz} in the tables' setting, "
-                 f"{self.name} in the model's frame   (.ind, .seitz, .name)",
+        lines = [f"operation {int(self.index)}: {self.seitz} in the tables' setting, "
+                 f"{self.name} in the model's frame   (.index, .seitz, .name)",
                  "  its rotation and translation in the model's reduced coordinates   "
                  "(.rotation, .translation)"]
         if self.rotation_cartesian is not None:
@@ -415,8 +415,8 @@ class Operation:
         if self.spin_lift is not None:
             lines.append("  its matrix on the spin, spin along the z of those axes   "
                          "(.spin_lift)")
-        if self.time_reversal:
-            lines.append("  combined with time reversal, which the ' marks   (.time_reversal)")
+        if self.antiunitary:
+            lines.append("  combined with time reversal, which the ' marks   (.antiunitary)")
         return "\n".join(lines)
 
 
@@ -431,13 +431,13 @@ class OperationTable(dict):
     Attributes
     ----------
     name, number_str : str
-        The group's Hermann–Mauguin symbol, and the label the tables file it
+        The group's Hermann-Mauguin symbol, and the label the tables file it
         under.
     """
 
     def __init__(self, rows=(), *, name="", number_str=""):
-        super().__init__((row.ind, row) for row in rows)
-        #: The Hermann–Mauguin symbol of the group these operations belong to.
+        super().__init__((row.index, row) for row in rows)
+        #: The Hermann-Mauguin symbol of the group these operations belong to.
         self.name = str(name)
         #: The label the tables file that group under, ``"191.234"``.
         self.number_str = str(number_str)
@@ -457,35 +457,27 @@ class OperationTable(dict):
                 "translations"
                 + ("; the double group also holds each one's negative"
                    if any(row.spin_lift is not None for row in rows) else ""))
-        lines = [head, f"{'ind':>4}  {'Seitz':<{width}}  name"]
-        lines += [f"{row.ind:>4}  {row.seitz:<{width}}  {row.name}" for row in rows]
+        lines = [head, f"{'index':>5}  {'Seitz':<{width}}  name"]
+        lines += [f"{row.index:>5}  {row.seitz:<{width}}  {row.name}" for row in rows]
         return "\n".join(lines)
 
 
-def _operation_argument(group_or_rep) -> tuple:
-    """The group one of the accepted records is about, and the indices it names."""
-    if isinstance(group_or_rep, Refusal):
-        return group_or_rep, ()
-    if isinstance(group_or_rep, GroupData):
-        return group_or_rep, tuple(int(s.ind) for s in group_or_rep.symmetries)
-    group = getattr(group_or_rep, "group", None)
-    if isinstance(group, GroupData):
-        matrices = getattr(group_or_rep, "matrices", None)
-        if isinstance(matrices, dict):
-            # a representation: the operations it holds matrices for
-            return group, tuple(sorted(int(i) for i in matrices))
-        # a realized group: every operation of its group
-        return group, tuple(int(s.ind) for s in group.symmetries)
-    raise TypeError(
-        "operations are read off a measured record, a group or a representation "
-        f"of one, and {type(group_or_rep).__name__} is none of those. From "
-        "`r = realized_group(model)` the group is `r.group` and the representation "
-        "`r.rep`, and `r` itself is read as its group.")
+def _operation_rows(group, indices=None) -> OperationTable | Refusal:
+    """The rows of a group's operations, those of ``indices`` or every one.
 
-
-def _operation_rows(group_or_rep) -> OperationTable | Refusal:
-    """Every operation the argument names, as rows."""
-    group, indices = _operation_argument(group_or_rep)
+    ``group`` is a :class:`GroupData` or a refusal, which is returned as it is;
+    ``indices`` the operations' indices, in any order, every operation of the
+    group where ``None``.  The rows are in index order.  Refuses
+    ``lattice_not_descended`` on a lattice supergroup and ``tables_not_ready``
+    where the group has no conventional setting.
+    """
+    if isinstance(group, Refusal):
+        return group
+    if not isinstance(group, GroupData):
+        raise InternalError(                         # pragma: no cover - guard
+            f"the operations' rows are read off a group, and a "
+            f"{type(group).__name__} is none. This is the package failing, not a "
+            "measurement about the model.")
     gate = _lattice_not_descended(group)
     if gate is not None:
         return gate
@@ -493,36 +485,36 @@ def _operation_rows(group_or_rep) -> OperationTable | Refusal:
         return Refusal("tables_not_ready", group._setup_note or "irrep tables are not set "
                        "up for this cell", context={"number_str": group.number_str})
 
-    lattice = np.asarray(group.lattice, dtype=float)
+    lattice = np.asarray(group._lattice, dtype=float)
     tabulated = _tabulated_translations(group)
-    wanted = set(indices)
+    wanted = (None if indices is None else {int(i) for i in indices})
     rows = []
-    for sym in group.symmetries:
-        if int(sym.ind) not in wanted:
+    for sym in group._symmetries:
+        if wanted is not None and int(sym.ind) not in wanted:
             continue
         prime = "'" if sym.time_reversal else ""
         key = _seitz_key(sym, group)
         rows.append(Operation(
-            ind=int(sym.ind),
+            index=int(sym.ind),
             seitz=_seitz_text(key, bool(sym.time_reversal),
                               _written_translation(sym, group, tabulated, key[4])),
             name=_sitechars.operation_name(sym, lattice) + prime,
             rotation=np.rint(np.asarray(sym.rotation, dtype=float)).astype(int),
             translation=np.asarray(sym.translation, dtype=float).copy(),
-            time_reversal=bool(sym.time_reversal),
+            antiunitary=bool(sym.time_reversal),
             rotation_cartesian=np.asarray(sym.rotation_cart, dtype=float).copy(),
             spin_lift=(np.asarray(sym.spinor_rotation, dtype=complex).copy()
                        if group.spinor else None)))
-    rows.sort(key=lambda row: row.ind)
+    rows.sort(key=lambda row: row.index)
     return OperationTable(rows, name=group.name, number_str=group.number_str)
 
 
-def operations(group_or_rep) -> OperationTable | Refusal:
+def operations(group) -> OperationTable | Refusal:
     """Every operation of a group by its index, with its Seitz symbol and its name in the model's frame.
 
     The index is the key every per-operation record is written on:
-    ``rep.matrices``, ``validated.verdicts``, the entries of a descent.  The
-    Seitz symbol ``{R|t}`` is the one the tables and the Bilbao
+    ``rep.matrices``, the verdicts of the measurement, the entries of a
+    descent.  The Seitz symbol ``{R|t}`` is the one the tables and the Bilbao
     Crystallographic Server print, in their conventional setting, with an
     underscore before the axis and a minus sign for an overbar: ``-4+_001`` is
     ``4̄⁺₀₀₁``.  The name is the same operation in the model's Cartesian frame,
@@ -530,76 +522,35 @@ def operations(group_or_rep) -> OperationTable | Refusal:
 
     Parameters
     ----------
-    group_or_rep : RealizedGroup, GroupData or SpaceGroupRep
-        A group, every operation of which is a row, or a representation, whose
-        rows are the operations it represents.  ``r``, ``r.group`` and
-        ``r.rep`` may each be handed in, and ``r.operations`` is the same
-        table.
+    group : GroupData
+        The group, ``r.group`` of what ``realized_group`` returns.
 
     Returns
     -------
     OperationTable or Refusal
-        ``table[ind]`` is one :class:`Operation`, with its ``seitz``, its
-        ``name``, its matrices and whether it carries time reversal;
-        ``print(table)`` lists them all.  A ``Refusal`` in its place is falsy.
+        ``table[index]`` is one :class:`Operation`, with its ``seitz``, its
+        ``name``, its matrices and whether it is antiunitary;
+        ``print(table)`` lists them all.  ``r.operations`` is the same table.
+        A ``Refusal`` in its place is falsy.
+
+    Refusals
+    --------
+    A refusal handed in as ``group`` is returned as it is.
+
+    ``tables_not_ready``
+        The group has no conventional setting to write a Seitz symbol in.
 
     Raises
     ------
     TypeError
-        The argument is no group, representation or record of one.
-
-    Refusals
-    --------
-    A refusal handed in as ``group_or_rep`` is returned as it is.
-
-    ``tables_not_ready``
-        The group has no conventional setting to write a Seitz symbol in.
+        ``group`` is not a group: ``r`` or ``r.rep`` in its place, or
+        anything else.
     """
-    return _operation_rows(group_or_rep)
+    _require_group("operations", group)
+    return _operation_rows(group)
 
 
-def seitz(group_or_rep, ind) -> str | Refusal:
-    """The Seitz symbol of one operation, by its index: the one :func:`operations` writes in its row.
-
-    Parameters
-    ----------
-    group_or_rep : RealizedGroup, GroupData or SpaceGroupRep
-        The group, or a representation of it.
-    ind : int
-        The operation's index.
-
-    Returns
-    -------
-    str or Refusal
-        The symbol, ``{3+_001|0,0,0}``.  A ``Refusal`` in its place is falsy.
-
-    Raises
-    ------
-    KeyError
-        No operation of the group, or of the representation handed in, has
-        that index.
-    TypeError
-        The argument is no group, representation or record of one.
-
-    Refusals
-    --------
-    A refusal handed in as ``group_or_rep`` is returned as it is.
-
-    ``tables_not_ready``
-        The group has no conventional setting to write a Seitz symbol in.
-    """
-    rows = _operation_rows(group_or_rep)
-    if isinstance(rows, Refusal):
-        return rows
-    if int(ind) in rows:
-        return rows[int(ind)].seitz
-    carried = list(rows)
-    shown = ", ".join(str(i) for i in carried[:12]) + (", ..." if len(carried) > 12 else "")
-    raise KeyError(f"no operation #{int(ind)} in {rows.name} #{rows.number_str}; "
-                   f"the {len(carried)} indices carried here are {shown}")
-
-
-def operation_index(group_or_rep, seitz) -> int | Refusal:
+def operation_index(group, seitz) -> int | Refusal:
     """The index of the operation a Seitz symbol names.
 
     A rotation written about either direction of its axis, ``4+`` about
@@ -610,9 +561,8 @@ def operation_index(group_or_rep, seitz) -> int | Refusal:
 
     Parameters
     ----------
-    group_or_rep : RealizedGroup, GroupData or SpaceGroupRep
-        The group, or a representation of it, whose own operations are then
-        the ones searched.
+    group : GroupData
+        The group, ``r.group`` of what ``realized_group`` returns.
     seitz : str
         A Seitz symbol ``{R|t}``, with a trailing ``'`` for an operation
         combined with time reversal.
@@ -622,32 +572,30 @@ def operation_index(group_or_rep, seitz) -> int | Refusal:
     int or Refusal
         The operation's index.  A ``Refusal`` in its place is falsy.
 
-    Raises
-    ------
-    TypeError
-        The argument is no group, representation or record of one.
-
     Refusals
     --------
-    A refusal handed in as ``group_or_rep`` is returned as it is.
+    A refusal handed in as ``group`` is returned as it is.
 
     ``tables_not_ready``
         The group has no conventional setting to read a Seitz symbol in.
     ``unknown_operation``
         No operation of the group is written so; the refusal names the nearest
         spellings it carries.
+
+    Raises
+    ------
+    TypeError
+        ``group`` is not a group: ``r`` or ``r.rep`` in its place, or
+        anything else.
     """
-    rows = _operation_rows(group_or_rep)
+    _require_group("operation_index", group)
+    rows = _operation_rows(group)
     if isinstance(rows, Refusal):
         return rows
-    group, _ = _operation_argument(group_or_rep)
     parsed = _parse_seitz(seitz, _centering_of(group))
     if parsed is not None:
         wanted, wanted_tr = parsed
-        kept = {row.ind for row in rows.values()}
-        for sym in group.symmetries:
-            if int(sym.ind) not in kept:
-                continue
+        for sym in group._symmetries:
             if _matches(_seitz_key(sym, group), bool(sym.time_reversal),
                         wanted, wanted_tr):
                 return int(sym.ind)
@@ -661,7 +609,7 @@ def operation_index(group_or_rep, seitz) -> int | Refusal:
         "`4`, `6`, `-3`, `-4` or `-6`, a `+` or `-` for the sense of a rotation of "
         "order above two, the direction of the axis after an underscore, then the "
         "translation as three fractions -- `{-4+_001|0,0,1/2}` -- with a trailing "
-        "`'` where the operation is antiunitary. `operations(group_or_rep)` prints "
-        "every symbol this group carries against the index it is keyed on.",
+        "`'` where the operation is antiunitary. `operations(group)` prints every "
+        "symbol this group carries against its index.",
         context={"number_str": str(rows.number_str), "seitz": str(seitz),
                  "nearest": tuple(near), "carried": tuple(carried)})

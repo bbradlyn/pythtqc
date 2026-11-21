@@ -320,15 +320,15 @@ def test_the_product_table_gate_kills_what_covariance_cannot_see():
 def test_lin3g_reps_reproduce_the_product_table_with_spinor_factors(lin3g_rep):
     """Spinful group #1: ``D(g1) o D(g2) = spf(g1,g2) D(g1 g2)`` to machine precision."""
     group, assignment, validated, rep = lin3g_rep
-    prod, tdiff, spf = group.get_product_table(get_diff=True)
-    pos = {int(s.ind): i for i, s in enumerate(group.symmetries)}
+    prod, tdiff, spf = group._get_product_table(get_diff=True)
+    pos = {int(s.ind): i for i, s in enumerate(group._symmetries)}
 
     assert set(np.unique(spf)) == {-1, 1}, "a spinful group must have both spinor factors"
     worst, seen = 0.0, set()
     for a in rep.indices:
         for b in rep.indices:
             pa, pb = pos[a], pos[b]
-            c = int(group.symmetries[int(prod[pa, pb])].ind)
+            c = int(group._symmetries[int(prod[pa, pb])].ind)
             assert c in rep.matrices, "the represented set is not closed"
             lhs = _matrices._compose(rep.matrices[a], bool(rep._operation(a).time_reversal),
                                rep.matrices[b])
@@ -492,9 +492,9 @@ def _snap(measured):
 
 def _relative_character(child_rep, child_group, parent_rep, parent_group):
     """``({ind: ±1}, block defect, snapping defect)`` — ``D_child = chi·D_parent``."""
-    parent = {_op_key(s): int(s.ind) for s in parent_group.symmetries}
+    parent = {_op_key(s): int(s.ind) for s in parent_group._symmetries}
     rho, defect = {}, 0.0
-    for s in child_group.symmetries:
+    for s in child_group._symmetries:
         ind = int(s.ind)
         if ind not in child_rep.matrices:
             continue
@@ -510,11 +510,11 @@ def _is_linear_character(rho, group):
     """``chi(g)chi(h) = chi(gh)`` on every composable pair, and every value ±1."""
     if any(abs(abs(v) - 1.0) > 1e-9 for v in rho.values()):
         return False
-    prod = group.get_product_table(get_diff=False)
-    pos = {int(s.ind): p for p, s in enumerate(group.symmetries)}
+    prod = group._get_product_table(get_diff=False)
+    pos = {int(s.ind): p for p, s in enumerate(group._symmetries)}
     for a, va in rho.items():
         for b, vb in rho.items():
-            c = int(group.symmetries[int(prod[pos[a], pos[b]])].ind)
+            c = int(group._symmetries[int(prod[pos[a], pos[b]])].ind)
             if c in rho and abs(va * vb - rho[c]) > 1e-9:
                 return False
     return True
@@ -522,9 +522,9 @@ def _is_linear_character(rho, group):
 
 def _deviation(child_rep, child_group, parent_rep, parent_group, rho):
     """``max_g ‖D_child(g) − rho(g) D_parent(g)‖``, the sign included."""
-    parent = {_op_key(s): int(s.ind) for s in parent_group.symmetries}
+    parent = {_op_key(s): int(s.ind) for s in parent_group._symmetries}
     worst = 0.0
-    for s in child_group.symmetries:
+    for s in child_group._symmetries:
         ind = int(s.ind)
         if ind not in child_rep.matrices:
             continue
@@ -599,9 +599,9 @@ def test_a_weakly_broken_4mm_model_restricts_to_its_parent_on_the_pinned_branch(
     assert defect <= 1e-15, "every block is a multiple of the parent's, not merely close"
     assert off <= 1e-15, "and the multiple is a sign, to machine precision"
     assert _is_linear_character(rho, child.group), "and the signs are a character"
-    named = {_sitechars.operation_name(s, child.group.lattice)
+    named = {_sitechars.operation_name(s, child.group._lattice)
              + ("'" if s.time_reversal else ""): rho[int(s.ind)]
-             for s in child.group.symmetries if int(s.ind) in rho}
+             for s in child.group._symmetries if int(s.ind) in rho}
     assert named == {"E": 1.0, "C2(z)": 1.0, "m(y)": 1.0, "m(x)": 1.0,
                      "E'": 1.0, "C2(z)'": 1.0, "m(y)'": 1.0, "m(x)'": 1.0}, \
         "the child IS the parent's restriction: both are the induced representation " \
@@ -703,7 +703,7 @@ def _induced_rep(model, group, assignment, indices):
     perms = np.asarray(assignment.permutations, dtype=int)
     norb = int(model.norb)
     out = {}
-    for pos, sym in enumerate(group.symmetries):
+    for pos, sym in enumerate(group._symmetries):
         ind = int(sym.ind)
         if ind not in indices:
             continue
@@ -850,18 +850,18 @@ def test_a_pure_ebr_is_the_induced_representation_in_the_tables_convention(
     assert off <= 1e-15, "and the multiple is a sign, to machine precision"
     assert _is_linear_character(lam, got.group)
 
-    named = {_sitechars.operation_name(s, got.group.lattice): lam[int(s.ind)]
-             for s in got.group.symmetries
+    named = {_sitechars.operation_name(s, got.group._lattice): lam[int(s.ind)]
+             for s in got.group._symmetries
              if int(s.ind) in lam and not s.time_reversal}
     expect = {"E": 1.0, "C2(z)": 1.0, "m(y)": 1.0, "m(x)": 1.0}
     assert named == expect, "the served representation IS the induced one, no character"
     # and the primed coset agrees -- counted first, or the loop would pass
     # vacuously if the antiunitary operations ever dropped out of ``lam``
-    primed = [s for s in got.group.symmetries if int(s.ind) in lam and s.time_reversal]
+    primed = [s for s in got.group._symmetries if int(s.ind) in lam and s.time_reversal]
     assert len(primed) == len(named) == len(expect), \
         "the primed coset reached lam: its 4 operations"
     for s in primed:
-        assert lam[int(s.ind)] == expect[_sitechars.operation_name(s, got.group.lattice)]
+        assert lam[int(s.ind)] == expect[_sitechars.operation_name(s, got.group._lattice)]
 
     worst = max(float(np.abs(np.asarray(rep.matrices[ind]) - lam[ind] * Dind).max())
                 for ind, Dind in induced.items())
@@ -883,8 +883,8 @@ def test_a_pure_ebr_is_the_induced_representation_in_the_tables_convention(
         # Ind(B2), the old matrices, which is what shows the default moved and
         # the declaration still does
         b2 = {"E": 1.0, "C2(z)": -1.0, "m(y)": -1.0, "m(x)": 1.0}
-        b2_of = {int(s.ind): b2[_sitechars.operation_name(s, got.group.lattice)]
-                 for s in got.group.symmetries if int(s.ind) in induced}
+        b2_of = {int(s.ind): b2[_sitechars.operation_name(s, got.group._lattice)]
+                 for s in got.group._symmetries if int(s.ind) in induced}
         declared = _build._build_rep(
             rep.model, got.group, got.assignment, validated=got.validated,
             characters={0: "B2"})
@@ -959,7 +959,7 @@ def test_a_spinful_s_orbital_off_the_mirror_planes_is_the_tables_induced_represe
     site_orbs = got.assignment.site_orbitals
     ref_site = int(np.asarray(got.assignment.site_of_orbital)[ref])
     checked, moved, worst = 0, 0, 0.0
-    for pos, s in enumerate(got.group.symmetries):
+    for pos, s in enumerate(got.group._symmetries):
         ind = int(s.ind)
         if s.time_reversal or ind not in rep.matrices:
             continue
@@ -978,7 +978,7 @@ def test_a_spinful_s_orbital_off_the_mirror_planes_is_the_tables_induced_represe
     def total(names):
         out = {}
         for n in names:
-            key = next(k for k in ebr if k.startswith(n))
+            key = (n.split("↑")[0], n.split("@")[1])
             for lab, v in ebr[key].items():
                 if int(v):
                     out[str(lab)] = out.get(str(lab), 0) + int(v)
@@ -1150,7 +1150,7 @@ def test_bloch_covariance_battery_on_a_permuted_wyckoff_orbit(inline_rep):
     assert rep.multiplets.dims == ((1,), (1,), (1,))
 
     # the orbit really is permuted, with a nonzero integer lattice shift
-    pos = {int(s.ind): i for i, s in enumerate(group.symmetries)}
+    pos = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     c4 = rep._generators[0]
     perm = assignment.permutations[pos[c4]]
     assert perm.tolist() != list(range(len(perm))), "C4 must move the 2c sites"
@@ -1253,8 +1253,7 @@ def test_sewing_operators_commute_with_H_at_high_symmetry_points(lin3g_rep):
     assert little, f"{name} has an empty little group"
     reference = tqg.little_group(group, k)
     assert reference, str(reference)
-    ref_inds = {int(o.ind) for o in reference.unitary} | {int(o.ind) for o in
-                                                          reference.antiunitary}
+    ref_inds = set(reference.unitary) | set(reference.antiunitary)
     assert set(little) <= ref_inds, "our little group must be inside the adapter's"
 
     Hk = np.asarray(model.hamiltonian(k_pts=np.array([k]), flatten_spin_axis=True))[0]
@@ -1408,7 +1407,7 @@ def test_the_positivity_tie_is_what_left_the_unitary_gauge_free(i41_soc_unitary)
     # where no table lift stands behind the reference: the table itself chooses
     flat, _basis = tqspin.spinless_presentation(tqc_models.r3m_s_6c())
     trig = _spacegroup._group_of(flat, spinor=False, include_TR=False)
-    assert (trig.number_str, trig.size, trig.spinor) == ("166", 12, False), str(trig)
+    assert (trig.number_str, trig._size, trig.spinor) == ("166", 12, False), str(trig)
     _trig, _tassign, tvalid, srep = _rep_bundle(flat, group=trig, nk=4)
     assert len(tvalid.indices) == 12 and srep, str(srep)
     assert srep.antiunitary_operator[0] is None and srep.multiplets.dims == ((2,), (2,)), \
@@ -1615,7 +1614,7 @@ def test_the_skipped_reference_block_is_a_branch_covariance_has_already_killed()
     assert rep and rep.antiunitary_operator[0] is None, str(rep)
 
     gen = int(rep._generators[0])
-    p = next(i for i, s in enumerate(group.symmetries) if int(s.ind) == gen)
+    p = next(i for i, s in enumerate(group._symmetries) if int(s.ind) == gen)
     cperm = _matrices._orbital_permutation(assignment, p, model)
     ref = int(rep._reference["multiplet"])
     img = int(cperm[ref])

@@ -299,6 +299,10 @@ CHARACTERS_TOL = 1e-6
 #: statement about a band block.
 LABEL_TOL = 1e-3
 
+#: How far a point of a mesh may sit from a tabulated high-symmetry point and
+#: be it, in reduced reciprocal coordinates: rounding of the mesh's fractions.
+_KGRID_KTOL = 1e-8
+
 #: Default tolerance for locating a requested ``k`` among a ``WFArray``'s mesh
 #: points, in reduced reciprocal coordinates.  A miss is a refusal, never a
 #: fresh solve.

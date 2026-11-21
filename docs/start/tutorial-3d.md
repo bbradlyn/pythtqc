@@ -140,7 +140,7 @@ print(d["from"]["name"], "->", d["to"]["name"], d["dropped_by"],
 #  Fd-3m1' -> R-3m1' {'hoppings': 72} ['no symmetry matrix']
 for op in rs.operations.values():
     if not op.seitz.endswith("'"):                       # those without time reversal
-        print(f"{op.ind:>2}  {op.seitz:<16}  {op.name}")
+        print(f"{op.index:>2}  {op.seitz:<16}  {op.name}")
 #   1  {1|0,0,0}         E
 #   2  {3+_001|0,0,0}    C3([111])
 #   3  {3-_001|0,0,0}    C3^-1([111])
@@ -254,7 +254,7 @@ pair there, has the trace `2ξ`.
 ```python
 trim = [np.array(n) / 2 for n in itertools.product((0, 1), repeat=3)]   # the eight TRIM
 for name, rr in phases.items():
-    inversion = tqc.operation_index(rr.rep, "{-1|0,0,0}")
+    inversion = tqc.operation_index(rr.group, "{-1|0,0,0}")
     parity = [round(tqc.sewing_matrix(rr.rep, inversion, k, bands=2).trace.real / 2)
               for k in trim]                             # +1 or -1 for the one Kramers pair
     nu0 = int(np.prod(parity) < 0)
@@ -315,7 +315,7 @@ for name, rr in phases.items():
 #  weak    none                             proof  0 signed    0 solutions
 #  dimers  symmetry-indicated decomposable  -      -           1 solution: 1 x -E1u↑G(2)@3a(-3m1',-3m)
 centre = tqc.wyckoff_sites_tables(phases["dimers"].group, [[0.125, 0.125, 0.125]])
-print("the centre of the [111] bond:", [f"{s.multiplicity}{s.letter}" for s in centre])
+print("the centre of the [111] bond:", [s.wyckoff for s in centre])
 #  the centre of the [111] bond: ['3a']
 ```
 

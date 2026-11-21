@@ -24,7 +24,6 @@ The functions fall into six groups:
 
 - [`realized_group`](#realized_group) — The space group obeyed by H, obtained by descent from the space group of the lattice of occupied sites.
 - [`operations`](#operations) — Every operation of a group by its index, with its Seitz symbol and its name in the model's frame.
-- [`seitz`](#seitz) — The Seitz symbol of one operation, by its index: the one [`operations`](#operations) writes in its row.
 - [`operation_index`](#operation_index) — The index of the operation a Seitz symbol names.
 
 ### `realized_group`
@@ -169,66 +168,39 @@ Once the group is found, a refusal names it and carries it in
 ### `operations`
 
 ```text
-operations(group_or_rep)
+operations(group)
 ```
 
 Every operation of a group by its index, with its Seitz symbol and its name in the model's frame.
 
 **Parameters**
 
-- **`group_or_rep`** (`RealizedGroup, GroupData or SpaceGroupRep`): A group, every operation of which is a row, or a representation, whose
-  rows are the operations it represents.  `r`, `r.group` and
-  `r.rep` may each be handed in, and `r.operations` is the same
-  table.
+- **`group`** (`GroupData`): The group, `r.group` of what `realized_group` returns.
 
 **Returns**
 
-- `OperationTable or Refusal`: `table[ind]` is one `Operation`, with its `seitz`, its
-  `name`, its matrices and whether it carries time reversal;
-  `print(table)` lists them all.  A `Refusal` in its place is falsy.
+- `OperationTable or Refusal`: `table[index]` is one `Operation`, with its `seitz`, its
+  `name`, its matrices and whether it is antiunitary;
+  `print(table)` lists them all.  `r.operations` is the same table.
+  A `Refusal` in its place is falsy.
 
 **Refusals**
 
-A refusal handed in as `group_or_rep` is returned as it is.
-
-- **`tables_not_ready`**: The group has no conventional setting to write a Seitz symbol in.
-
-### `seitz`
-
-```text
-seitz(group_or_rep, ind)
-```
-
-The Seitz symbol of one operation, by its index: the one [`operations`](#operations) writes in its row.
-
-**Parameters**
-
-- **`group_or_rep`** (`RealizedGroup, GroupData or SpaceGroupRep`): The group, or a representation of it.
-
-- **`ind`** (`int`): The operation's index.
-
-**Returns**
-
-- `str or Refusal`: The symbol, `{3+_001|0,0,0}`.  A `Refusal` in its place is falsy.
-
-**Refusals**
-
-A refusal handed in as `group_or_rep` is returned as it is.
+A refusal handed in as `group` is returned as it is.
 
 - **`tables_not_ready`**: The group has no conventional setting to write a Seitz symbol in.
 
 ### `operation_index`
 
 ```text
-operation_index(group_or_rep, seitz)
+operation_index(group, seitz)
 ```
 
 The index of the operation a Seitz symbol names.
 
 **Parameters**
 
-- **`group_or_rep`** (`RealizedGroup, GroupData or SpaceGroupRep`): The group, or a representation of it, whose own operations are then
-  the ones searched.
+- **`group`** (`GroupData`): The group, `r.group` of what `realized_group` returns.
 
 - **`seitz`** (`str`): A Seitz symbol `{R|t}`, with a trailing `'` for an operation
   combined with time reversal.
@@ -239,7 +211,7 @@ The index of the operation a Seitz symbol names.
 
 **Refusals**
 
-A refusal handed in as `group_or_rep` is returned as it is.
+A refusal handed in as `group` is returned as it is.
 
 - **`tables_not_ready`**: The group has no conventional setting to read a Seitz symbol in.
 
@@ -333,7 +305,7 @@ The same crystal as a `wannier90` spinor import delivers it: `2N` orbitals, the 
 - [`high_symmetry_points`](#high_symmetry_points) — The tabulated high-symmetry points, in the model's own reduced coordinates.
 - [`little_group`](#little_group) — The operations that leave `k` invariant up to a reciprocal lattice vector.
 - [`corep_table`](#corep_table) — The character table of the little group at a high-symmetry point: each corep's character on each unitary operation.
-- [`wyckoff_sites_tables`](#wyckoff_sites_tables) — The Wyckoff position of each site, lettered in the tables' setting, the one every table is read with.
+- [`wyckoff_sites_tables`](#wyckoff_sites_tables) — The Wyckoff position of each site in the tables' setting, the one every table is read with.
 - [`k_grid`](#k_grid) — A Γ-centred mesh that respects the group, with the high-symmetry points it holds.
 - [`ebr_data`](#ebr_data) — Every elementary band representation of the group: the bands each site irrep at each Wyckoff position induces.
 - [`tables_status`](#tables_status) — Whether irrep's character tables are in place, and `ortools` installed.
@@ -348,13 +320,13 @@ The tabulated high-symmetry points, in the model's own reduced coordinates.
 
 **Parameters**
 
-- **`group`** (`GroupData`): The group, `realized_group(model).group`.
+- **`group`** (`GroupData`): The group, `r.group` of what `realized_group` returns.
 
 **Returns**
 
-- `HighSymmetryPoints or Refusal`: `{name: k}`, each `k` with `dim_k` components; its `missing`
-  names the tabulated points out of a layer's plane.  `summary()`
-  prints it.  A `Refusal` in its place is falsy.
+- `HighSymmetryPoints or Refusal`: `{name: k}`, each `k` with `dim_k` components; its
+  `out_of_plane` names the tabulated points out of a layer's plane.
+  `summary()` prints it.  A `Refusal` in its place is falsy.
 
 **Refusals**
 
@@ -373,51 +345,53 @@ The operations that leave `k` invariant up to a reciprocal lattice vector.
 
 **Parameters**
 
-- **`group`** (`GroupData`): The group, `realized_group(model).group`.
+- **`group`** (`GroupData`): The group, `r.group` of what `realized_group` returns.
 
-- **`k`** (`array, shape (dim_k,)`): The point, in the model's reduced coordinates.  A layer takes a point
-  of its three-dimensional cell too, where it lies in the plane.
+- **`k`** (`str or array, shape (dim_k,)`): The point: a tabulated name, `"X"`, one of those
+  [`high_symmetry_points`](#high_symmetry_points) returns, or its coordinates in the
+  model's reduced coordinates.  A layer takes a point of its
+  three-dimensional cell too, where it lies in the plane.
 
 **Returns**
 
-- `LittleGroup or Refusal`: Its unitary operations in index order, the columns a character vector
-  at `k` is written in, and those combined with time reversal, which
-  carry no characters; `summary()` prints it.  A `Refusal` in its
-  place is falsy.
+- `LittleGroup or Refusal`: Its operations, the indices of its unitary operations in index order,
+  the columns a character vector at `k` is written in, and those of
+  its operations combined with time reversal, which carry no
+  characters; `summary()` prints it.  A `Refusal` in its place is
+  falsy.
 
 **Refusals**
 
 A refusal handed in as `group` is returned as it is.
 
 - **`out_of_plane`**: A point with a component along a layer's vacuum, a direction its zone
-  does not have.
+  does not have, or the name of a tabulated point out of the layer's
+  plane.
+
+- **`tables_not_ready`**: `k` is a name, and the group has no transformation to the tables'
+  conventional cell to carry the tabulated points into the model's.
 
 ### `corep_table`
 
 ```text
-corep_table(group, k, *, kpname=None, ktol=1e-05)
+corep_table(group, k)
 ```
 
 The character table of the little group at a high-symmetry point: each corep's character on each unitary operation.
 
 **Parameters**
 
-- **`group`** (`GroupData`): The group, `realized_group(model).group`.
+- **`group`** (`GroupData`): The group, `r.group` of what `realized_group` returns.
 
-- **`k`** (`array, shape (dim_k,)`): A tabulated point, in the model's reduced coordinates, as
-  [`high_symmetry_points`](#high_symmetry_points) gives it.
-
-- **`kpname`** (`str, optional`): The point's tabulated name, taken as given instead of found from
-  `k`.
-
-- **`ktol`** (`float, optional`): How far `k` may sit from a tabulated point and be it, in reduced
-  reciprocal coordinates.  Default `1e-5`.
+- **`k`** (`str or array, shape (dim_k,)`): A tabulated point: its name, `"X"`, or its coordinates in the
+  model's reduced coordinates, as [`high_symmetry_points`](#high_symmetry_points) gives
+  them.
 
 **Returns**
 
-- `dict or Refusal`: `{corep: {ind: character}}`, one entry per corep of the little group,
-  its character on each unitary operation by index.  A `Refusal` in
-  its place is falsy.
+- `dict or Refusal`: `{corep: {index: character}}`, one entry per corep of the little
+  group, its character on each unitary operation by index.  A
+  `Refusal` in its place is falsy.
 
 **Refusals**
 
@@ -425,7 +399,8 @@ A refusal handed in as `group` is returned as it is.
 
 - **`tables_not_ready`**: The group has no transformation to the tables' conventional cell.
 
-- **`out_of_plane`**: `k` has a component along a layer's vacuum.
+- **`out_of_plane`**: `k` has a component along a layer's vacuum, or names a tabulated
+  point out of the layer's plane.
 
 - **`kpoint_not_tabulated`**: `k` is no tabulated point in the model's coordinates, or not the
   tabulated member of its star; the refusal lists the tabulated points.
@@ -436,25 +411,24 @@ A refusal handed in as `group` is returned as it is.
 wyckoff_sites_tables(group, positions=None, *, position_tol=0.0001)
 ```
 
-The Wyckoff position of each site, lettered in the tables' setting, the one every table is read with.
+The Wyckoff position of each site in the tables' setting, the one every table is read with.
 
 **Parameters**
 
-- **`group`** (`GroupData`): The group, `realized_group(model).group`.  A grey group's positions
-  are those of its unitary subgroup.
+- **`group`** (`GroupData`): The group, `r.group` of what `realized_group` returns.  A grey
+  group's positions are those of its unitary subgroup.
 
 - **`positions`** (`array, shape (n, 3), optional`): Points in reduced coordinates of the group's three-dimensional cell.
-  Default: the points the group was found on,
-  `GroupData.site_positions`.
+  Default: the points the group was found on, the model's sites and any
+  species added to its cell.
 
-- **`position_tol`** (`float, optional`): How far a point may sit from a position and lie on it, in reduced
-  coordinates of the tables' conventional cell.  Default
-  `WYCKOFF_REFERENCE_TOL`, `1e-4`.
+- **`position_tol`** (`float, default 1e-4`): How far a point may sit from a position and lie on it, in reduced
+  coordinates of the tables' conventional cell.
 
 **Returns**
 
-- `tuple of SiteReference or Refusal`: One per point: its letter and multiplicity, its free parameters, and
-  the positions an orbital confined there can be moved to.  A
+- `tuple of SiteReference or Refusal`: One per point: its Wyckoff position, `"8a"`, its free parameters,
+  and the positions an orbital confined there can be moved to.  A
   `Refusal` in its place is falsy.
 
 **Refusals**
@@ -464,39 +438,36 @@ A refusal handed in as `group` is returned as it is.
 - **`tables_not_ready`**: The group has no transformation to the tables' conventional cell.
 
 - **`wyckoff_setting`**: `pyxtal`'s list of the group's positions is not written in the
-  tables' setting, so no letter would be a table key.
+  tables' setting, so no position would be read in it.
 
 - **`wyckoff_unresolved`**: A point lies on no position within `position_tol`; the refusal names
   the nearest and its distance.
 
-- **`ebr_tables`, `irrep_tables`, `ebr_convention`**: From [`ebr_data`](#ebr_data), whose positions the letters are checked
+- **`ebr_tables`, `irrep_tables`, `ebr_convention`**: From [`ebr_data`](#ebr_data), whose positions the sites are checked
   against.
 
 ### `k_grid`
 
 ```text
-k_grid(group, n, *, allow_asymmetric=False, ktol=1e-08)
+k_grid(group, n, *, allow_asymmetric=False)
 ```
 
 A Γ-centred mesh that respects the group, with the high-symmetry points it holds.
 
 **Parameters**
 
-- **`group`** (`GroupData`): The group, `realized_group(model).group`.
+- **`group`** (`GroupData`): The group, `r.group` of what `realized_group` returns.
 
 - **`n`** (`int or sequence of int`): The divisions along each periodic direction, or one number for all.
 
-- **`allow_asymmetric`** (`bool, optional`): Return a mesh the group does not carry onto itself, with no
-  irreducible points, instead of refusing it.  Default `False`.
-
-- **`ktol`** (`float, optional`): How far a mesh point may sit from a tabulated point and be it, in
-  reduced reciprocal coordinates.  Default `1e-8`.
+- **`allow_asymmetric`** (`bool, default False`): Whether a mesh the group does not carry onto itself is returned.
+  With `allow_asymmetric=True`, it is returned with no irreducible
+  points.
 
 **Returns**
 
 - `KGrid or Refusal`: The mesh, ready for a `pythtb.WFArray`, with the tabulated points it
-  holds and those it misses; `summary()` prints it.  A `Refusal` in
-  its place is falsy.
+  holds; `summary()` prints it.  A `Refusal` in its place is falsy.
 
 **Refusals**
 
@@ -516,29 +487,14 @@ Every elementary band representation of the group: the bands each site irrep at 
 
 **Parameters**
 
-- **`group`** (`GroupData`): The group, `realized_group(model).group`; only its label, its
-  valuedness and whether it is grey are read.
+- **`group`** (`GroupData`): The group, `r.group` of what `realized_group` returns.
 
 **Returns**
 
-- `dict or Refusal`: `matrix`: the EBR matrix, a row per corep at each high-symmetry
-  point of the group, those out of a layer's plane included, and a
-  column per elementary band representation;
-  `labels_physics_convention`: the rows' coreps, in the labels
-  `identify_from_characters` returns;
-  `ebrs`: each column as `(name, position)`, the position with its
-  site group, an improper one with its bar, `"3a(-3m1',-3m)"`;
-  `smith`: the Smith normal form `(U, D, V)`, `U·M·V = D`;
-  `convention`: what the convention moved, by point and by label, with
-  a `note`: `changed_points` and `changed_labels`,
-  `conjugated_points`, `divergent_points`, `reglued_points`;
-  `conjugation`, each label's partner, and `tr_partner`, each
-  column's, the column of the complex-conjugate site irrep;
-  `labels_bcs`, the server's names of the rows;
-  and `row_permutation`, `P` with `y_BCS[j] = y[P[j]]`, which
-  re-keys a form written in the server's labels;
-  `raw`: the tables' own record, carried into this convention.
-  A `Refusal` in its place is falsy.
+- `EBRData or Refusal`: The columns as terms, `.ebrs`; the rows' coreps, `.corep_names`;
+  the EBR matrix and its Smith normal form, `.matrix` and `.smith`;
+  what the convention moves, `.convention`; and the group they were
+  read for, `.group`.  A `Refusal` in its place is falsy.
 
 **Refusals**
 
@@ -1056,12 +1012,15 @@ Each elementary band representation of the group as a symmetry data vector: the 
 
 **Returns**
 
-- `dict or Refusal`: `{key: {corep: multiplicity}}`, the zeros dropped, each key an
-  elementary band representation at its Wyckoff position,
-  `"-E1↑G(2)@1a(6mm1',6mm)"`.  A `Refusal` in its place is falsy and
-  names what stopped the call.
+- `dict or Refusal`: `{(irrep, wyckoff): {corep: multiplicity}}`, the zeros dropped, in
+  the order the tables list the elementary band representations: each
+  key the site irrep it is induced from and its Wyckoff position,
+  `("-E1", "1a")`, so that `rows["-E1", "1a"]` is one row.  A
+  `Refusal` in its place is falsy and names what stopped the call.
 
 **Refusals**
+
+A refusal handed in as `group` is returned as it is.
 
 - **`ebr_tables` / `irrep_tables` / `ebr_convention`**: no elementary band representations of this group in the tables
   installed, or none that can be read in this package's convention.

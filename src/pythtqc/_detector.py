@@ -918,7 +918,7 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
         first Brillouin zone**: in convention I ``H(k + G) ≠ H(k)``, and the
         covariance identity holds for the unwrapped image.  For an ``irrep``
         operation use ``op.transform_k`` on the 3D reduced k and restrict to
-        the periodic components (``groups.GroupData.k_action_of`` does this).
+        the periodic components (``groups.GroupData._k_action_of`` does this).
     k_pts : array, shape (Nk, dim_k)
         Where the constraint is imposed.  Generic points carry the most
         information; a Γ-centred ``n**dim_k`` mesh with ``n = 8`` is the

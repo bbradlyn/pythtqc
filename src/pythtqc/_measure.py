@@ -482,7 +482,7 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
     discrepancy list names the eight that fail and their residuals.
     """
     if k_pts is None:
-        k_pts = _detection_grid(int(group.dim_k), int(nk))
+        k_pts = _detection_grid(int(group._dim_k), int(nk))
     k_pts = np.atleast_2d(np.asarray(k_pts, dtype=float))
 
     # One evaluation of H on the detection grid for the whole group: H(k) does
@@ -501,16 +501,16 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
 
     keep, disc, residuals, dims, intertwiners = [], [], {}, {}, {}
     actions, solved_class, records, bases = {}, {}, {}, {}
-    probe = np.eye(group.dim_k)
+    probe = np.eye(group._dim_k)
     # the identity, whose member is the unit matrix: it carries every H(k) onto
     # itself exactly, so its residual is that of the unit matrix, 0.0, and never
     # the rounding of a member found numerically on a nearly degenerate spectrum
-    identity = int(group.symmetries[_identity_position(group)].ind)
-    for sym in group.symmetries:
+    identity = int(group._symmetries[_identity_position(group)].ind)
+    for sym in group._symmetries:
         ind = int(sym.ind)
         if sym.time_reversal and not include_antiunitary:
             continue
-        action = group.k_action_of(sym)
+        action = group._k_action_of(sym)
         if action is None:
             disc.append({"ind": ind, "refuted_by": "out of plane", "residual": np.inf})
             continue
@@ -570,13 +570,13 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
 
     closed = True
     if keep:
-        prod = group.get_product_table(get_diff=False)
-        pos = {int(s.ind): i for i, s in enumerate(group.symmetries)}
+        prod = group._get_product_table(get_diff=False)
+        pos = {int(s.ind): i for i, s in enumerate(group._symmetries)}
         kept = set(keep)
         for a in keep:
             for b in keep:
                 c = int(prod[pos[a], pos[b]])
-                if int(group.symmetries[c].ind) not in kept:
+                if int(group._symmetries[c].ind) not in kept:
                     closed = False
                     break
             if not closed:
@@ -617,22 +617,22 @@ def _grid_covariance(model, group, *, nk, context=None):
 
     Returns the measure :func:`.._multiplets._own_form_spaces` hands a
     candidate to: called with an operation's position in
-    ``group.symmetries`` and a matrix, it returns
+    ``group._symmetries`` and a matrix, it returns
     ``max_k ‖U H(k)^(*) U† − H(Rk)‖`` for ``U`` the unitary nearest that matrix,
     over the detection grid the detector solved on -- the same grid, read off
     the call's measurement context where it holds it, and the same number the
     detector certifies each of its own candidates by.
     """
 
-    k_pts = _detection_grid(int(group.dim_k), int(nk))
+    k_pts = _detection_grid(int(group._dim_k), int(nk))
     grid = None if context is None else context.grid_for(model, k_pts)
     if grid is None:
         grid = _GridHamiltonians(model, k_pts)
-    syms = group.symmetries
+    syms = group._symmetries
 
     def residual(position, candidate):
         sym = syms[int(position)]
-        act = _as_k_action(group.k_action_of(sym), int(group.dim_k))
+        act = _as_k_action(group._k_action_of(sym), int(group._dim_k))
         pair = _ConstraintPair(grid, grid.rotated(np.asarray(act(grid.k_pts), dtype=float)),
                                bool(sym.time_reversal))
         _unitaries, got, _unitarity = _candidate_measures(
@@ -677,7 +677,7 @@ def _own_form_read(model, group, assignment, spin, validated, *, tolerances, cov
     """
 
     kept = set(validated.indices)
-    positions = [p for p, s in enumerate(group.symmetries) if int(s.ind) in kept]
+    positions = [p for p, s in enumerate(group._symmetries) if int(s.ind) in kept]
     spaces, records = _own_form_spaces(model, group, assignment, validated, positions,
                                        spin=spin, tol=tolerances.matrix or None,
                                        covariance=covariance)
@@ -724,7 +724,7 @@ def _own_form_once(model, group, assignment, spin, validated, *, tol=None):
     """
     if getattr(validated, "_own_form", None) is not None:
         return validated
-    dim = max(int(group.dim_k), 1)
+    dim = max(int(group._dim_k), 1)
     side = max(2, int(round(float(max(int(validated.n_kpts), 1)) ** (1.0 / dim))))
     covariance = _grid_covariance(model, group, nk=side)
     tolerances = replace(EXACT, matrix=float(tol or 0.0))

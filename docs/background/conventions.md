@@ -22,21 +22,21 @@ from pythtqc import models
 
 km = kane_mele(1.0, -1.0, 0.3, 0.25)            # delta, t, soc, rashba
 r = tqc.realized_group(km, typat=[0, 1], characters={0: "A1"})
-print(tqc.operations(r))
+print(r.operations)
 #  P3m11' #156.50: one operation per coset of the lattice translations; the double group also holds each one's negative
-#   ind  Seitz            name
-#     1  {1|0,0,0}        E
-#     2  {3+_001|0,0,0}   C3(z)
-#     3  {3-_001|0,0,0}   C3^-1(z)
-#     4  {m_110|0,0,0}    m([010])
-#     5  {m_100|0,0,0}    m(x)
-#     6  {m_010|0,0,0}    m([1-10])
-#     7  {1|0,0,0}'       E'
-#     8  {3+_001|0,0,0}'  C3(z)'
-#     9  {3-_001|0,0,0}'  C3^-1(z)'
-#    10  {m_110|0,0,0}'   m([010])'
-#    11  {m_100|0,0,0}'   m(x)'
-#    12  {m_010|0,0,0}'   m([1-10])'
+#  index  Seitz            name
+#      1  {1|0,0,0}        E
+#      2  {3+_001|0,0,0}   C3(z)
+#      3  {3-_001|0,0,0}   C3^-1(z)
+#      4  {m_110|0,0,0}    m([010])
+#      5  {m_100|0,0,0}    m(x)
+#      6  {m_010|0,0,0}    m([1-10])
+#      7  {1|0,0,0}'       E'
+#      8  {3+_001|0,0,0}'  C3(z)'
+#      9  {3-_001|0,0,0}'  C3^-1(z)'
+#     10  {m_110|0,0,0}'   m([010])'
+#     11  {m_100|0,0,0}'   m(x)'
+#     12  {m_010|0,0,0}'   m([1-10])'
 ```
 
 ## Operations: a Seitz symbol and a Cartesian name
@@ -79,7 +79,7 @@ honeycomb holds both kinds a sixfold axis has:
 
 ```python
 gr = tqc.realized_group(graphene(0.0, -1.0), environment="free-standing")   # spinless
-ops = tqc.operations(gr)
+ops = gr.operations
 for ind in (13, 14, 15, 16, 17, 18):
     print(ind, ops[ind].seitz, ops[ind].name)
 #  13 {-1|0,0,0} i
@@ -97,30 +97,30 @@ improper rotation after its rotation–reflection instead, the turn that,
 combined with the mirror perpendicular to the axis, makes the operation, so
 that `-3+_001` is the Schoenflies `S6⁵` and `-6+_001` the Schoenflies `S3⁵`.
 
-The lookups go both ways: `tqc.seitz(group, ind)` returns one symbol, and
-`tqc.operation_index(group, symbol)` the index of the operation a symbol
+The lookups go both ways: `r.operations[ind].seitz` is one symbol, and
+`tqc.operation_index(r.group, symbol)` the index of the operation a symbol
 names, whichever representative of the translation and whichever of the two
 spellings of the axis is written. In `I4_1` the fourfold axis is a screw:
 
 ```python
 soc = tqc.realized_group(models.i41_soc("generic", lam=0.4), characters={0: "s"})
-print(tqc.operations(soc))
+print(soc.operations)
 #  I4_11' #80.30: one operation per coset of the lattice translations; the double group also holds each one's negative
-#   ind  Seitz                name
-#     1  {1|0,0,0}            E
-#     2  {2_001|0,0,0}        C2(z)
-#     3  {4+_001|0,1/2,1/4}   C4(z)
-#     4  {4-_001|0,1/2,1/4}   C4^-1(z)
-#     5  {1|0,0,0}'           E'
-#     6  {2_001|0,0,0}'       C2(z)'
-#     7  {4+_001|0,1/2,1/4}'  C4(z)'
-#     8  {4-_001|0,1/2,1/4}'  C4^-1(z)'
+#  index  Seitz                name
+#      1  {1|0,0,0}            E
+#      2  {2_001|0,0,0}        C2(z)
+#      3  {4+_001|0,1/2,1/4}   C4(z)
+#      4  {4-_001|0,1/2,1/4}   C4^-1(z)
+#      5  {1|0,0,0}'           E'
+#      6  {2_001|0,0,0}'       C2(z)'
+#      7  {4+_001|0,1/2,1/4}'  C4(z)'
+#      8  {4-_001|0,1/2,1/4}'  C4^-1(z)'
 for symbol in ("{4+_001|0,1/2,1/4}", "{4+_001|1/2,0,3/4}", "{4-_00-1|0,1/2,1/4}"):
-    print(symbol, tqc.operation_index(soc, symbol))
+    print(symbol, tqc.operation_index(soc.group, symbol))
 #  {4+_001|0,1/2,1/4} 3
 #  {4+_001|1/2,0,3/4} 3
 #  {4-_00-1|0,1/2,1/4} 3
-missing = tqc.operation_index(soc, "{4+_001|0,0,1/4}")
+missing = tqc.operation_index(soc.group, "{4+_001|0,0,1/4}")
 print(missing.gate, missing.context["nearest"])
 #  unknown_operation ('{4+_001|0,1/2,1/4}', "{4+_001|0,1/2,1/4}'", '{4-_001|0,1/2,1/4}')
 ```
@@ -304,8 +304,8 @@ print(d.solution_strings())
 #  ("1 x -E1↑G(2)@1a(3m1',3m)",)
 print(gr.rep.characters.band_representations[0].spelled())
 #  1 x A1'↑G(2)@2c(-6m21',-6m2)
-print([key for key in tqc.ebr_rows(gr.group) if key.startswith("A1'")])
-#  ["A1'↑G(2)@2c(-6m21',-6m2)", "A1''↑G(2)@2c(-6m21',-6m2)", "A1'↑G(2)@2d(-6m21',-6m2)", "A1''↑G(2)@2d(-6m21',-6m2)"]
+print([key for key in tqc.ebr_rows(gr.group) if key[0].startswith("A1'")])
+#  [("A1'", '2c'), ("A1''", '2c'), ("A1'", '2d'), ("A1''", '2d')]
 ```
 
 Read `1 x -E1↑G(2)@1a(3m1',3m)` left to right:
@@ -335,8 +335,8 @@ bar: `6m2` for the `-6m2` at `2c` of `P6/mmm`, `3m` for the `-3m` at `3a` of
 `R-3m`. pythTQC names each site group from the operations that fix the
 position and writes the bar back, so graphene's position reads `2c (-6m2)` in
 every summary and `2c(-6m21',-6m2)` in every key pythTQC returns: a
-decomposition's, an orbit's localization, the atomic-limit table's band
-representations', `ebr_rows`' and `ebr_data`'s.
+decomposition's, an orbit's localization and the atomic-limit table's band
+representations'.
 
 ## Reading across to BCS
 
@@ -369,8 +369,8 @@ deep = tqc.realized_group(kane_mele(50.0, -1.0, 0.3, 0.25), typat=[0, 1], charac
 low = tqc.hsp_table(deep.rep, bands=2)
 print(low.counts, tqc.decompose(low).solution_strings())
 #  {'-GM6': 1, '-K4': 1, '-K5': 1, '-M3M4': 1} ("1 x -E1↑G(2)@1b(3m1',3m)",)
-convention = tqc.ebr_data(deep.group)["convention"]
-print(convention["name"], convention["changed_points"], convention["conjugation"]["-K5"])
+convention = tqc.ebr_data(deep.group).convention
+print(convention.name, convention.changed_points, convention.conjugation["-K5"])
 #  physical (translations as e^{-ik.t}) ('H', 'K') -K6
 ```
 
@@ -419,18 +419,18 @@ for multiplet in ([0], [1, 2]):
 #  [0] [[1.+0.j 0.-1.j]]
 #  [1, 2] [[2.+0.j 0.+2.j]]
 lg = tqc.little_group(soc.group, P)                # the operations that fix P
-print([soc.operations[op.ind].name for op in lg.unitary],
-      [soc.operations[op.ind].name for op in lg.antiunitary])
+print([lg.operations[i].name for i in lg.unitary],
+      [lg.operations[i].name for i in lg.antiunitary])
 #  ['E', 'C2(z)'] ["C4(z)'", "C4^-1(z)'"]
-print(soc.group.spinor, soc.group.magnetic)        # which of the tables are read
-#  True True
+print(soc.group.spinor, soc.group.magnetic_type)   # which of the tables are read
+#  True II
 for label, row in tqc.corep_table(soc.group, P).items():
     print(label, np.round(list(row.values()), 6) + 0)
 #  -P4P4 [2.+0.j 0.+2.j]
 #  -P3 [1.+0.j 0.-1.j]
-convention = tqc.ebr_data(soc.group)["convention"]
-print(convention["conjugated_points"], convention["divergent_points"], convention["reglued_points"],
-      convention["changed_labels"])
+convention = tqc.ebr_data(soc.group).convention
+print(convention.conjugated_points, convention.divergent_points, convention.reglued_points,
+      convention.changed_labels)
 #  ('M', 'P') ('P',) ('P',) ('-P3P3', '-P4')
 ```
 
@@ -442,7 +442,8 @@ irreps cannot be held together by anything unitary, so the antiunitary
 operation pairs `-P4` with itself: the doublet is `-P4P4`, its characters
 twice `-P4`'s. `corep_table` is the page returned here, each corep of the
 little group with its characters by operation index, read from the
-double-valued (`spinor`) magnetic (`magnetic`) tables a grey group takes; its
+double-valued (`spinor`) magnetic tables a grey group, of magnetic type
+`II` (`magnetic_type`), takes; its
 two rows are the characters measured above. The server's page doubles the
 other irrep, and `-P3P3` and `-P4` are the names it carries at `P` that the
 page returned here does not. The two
@@ -451,7 +452,7 @@ pages are complex conjugates of each other: they describe the two star members
 [`examples/tqc_sg80_soc_doublet.py`](../../examples/tqc_sg80_soc_doublet.py)
 runs this measurement whole.
 
-`ebr_data(group)["convention"]` records, group by group, what the convention
+`ebr_data(group).convention` records, group by group, what the convention
 moved. At `changed_points` a label moved. At `conjugated_points` the
 characters returned are the conjugates of the server's, under the server's name
 of the row that comes out, so the server's table is still the one printed there

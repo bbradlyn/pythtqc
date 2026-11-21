@@ -67,8 +67,8 @@ _FEW_ULP = 8 * _ULP                 # a few ulp: libm's sin(pi) residue, a canon
 
 def _names(group, inds=None):
     """The unitary operations of ``group`` by name, in the generator frame."""
-    return sorted(_sitechars.operation_name(s, group.lattice)
-                  for s in group.symmetries
+    return sorted(_sitechars.operation_name(s, group._lattice)
+                  for s in group._symmetries
                   if not s.time_reversal and (inds is None or int(s.ind) in set(inds)))
 
 
@@ -350,7 +350,7 @@ def test_a_flat_model_defaults_to_the_substrate_and_a_slab_to_free_standing():
     assert not isinstance(flat, Refusal), str(flat)
     assert flat.environment == "substrate"
     assert flat.environment_declared is False
-    assert (flat.group.number_str, flat.group.size) == ("183.186", 24)
+    assert (flat.group.number_str, len(flat.operations)) == ("183.186", 24)
     assert len(flat.validated.indices) == 24
     w = flat.cross_check
     assert (w["outcome"], w["agrees"], w["free_standing"]) == ("not compared", None, None)
@@ -362,7 +362,7 @@ def test_a_flat_model_defaults_to_the_substrate_and_a_slab_to_free_standing():
     assert not isinstance(slab, Refusal), str(slab)
     assert slab.environment == "free-standing"
     assert slab.environment_declared is False
-    assert (slab.group.number_str, slab.group.size) == ("164.86", 24)
+    assert (slab.group.number_str, len(slab.operations)) == ("164.86", 24)
 
 
 def test_what_the_call_refuses_before_anything_is_measured():
@@ -440,9 +440,9 @@ def test_a_free_standing_kane_mele_reads_its_whole_layer_group(km_inversion_free
     """
     r = km_inversion_free_standing
     assert not isinstance(r, Refusal), str(r)
-    assert (r.group.number_str, r.group.name, r.group.size) == ("191.234", "P6/mmm1'", 48)
+    assert (r.group.number_str, r.group.name, len(r.operations)) == ("191.234", "P6/mmm1'", 48)
     assert len(r.validated.indices) == 48
-    assert r.group.provenance == "realized"
+    assert r.group._provenance == "realized"
     assert r.environment == "free-standing" and r.environment_declared is True
     assert "; free-standing" in repr(r)
     assert "(the default)" not in repr(r), "this one was declared"
@@ -520,7 +520,7 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
     """
     r = p41_chiral_substrate            # the session's shared record of that reading
     assert not isinstance(r, Refusal), str(r)
-    assert (r.group.number_str, r.group.name, r.group.size) == ("75.2", "P41'", 8)
+    assert (r.group.number_str, r.group.name, len(r.operations)) == ("75.2", "P41'", 8)
     assert len(r.validated.indices) == 8
     assert r.environment == "substrate"
     assert r.descent["from"]["number_str"] == "99.164"
@@ -543,7 +543,7 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
     exact = tqc_models.p41_flat_band(chiral=True)
     fitted = tqg.realized_group(jittered(exact, 1e-5), precision=1e-4)
     assert not isinstance(fitted, Refusal), str(fitted)
-    assert (fitted.group.number_str, fitted.group.size) == ("75.2", 8)
+    assert (fitted.group.number_str, len(fitted.operations)) == ("75.2", 8)
     assert fitted.rep.characters.irreps == r.rep.characters.irreps
     assert (tqw.hsp_table(fitted.rep, bands=2).counts
             == tqw.hsp_table(r.rep, bands=2).counts)
@@ -556,7 +556,7 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
     free = tqg.realized_group(tqc_models.p41_flat_band(chiral=True), cross_check=False,
                               **FREE)
     assert not isinstance(free, Refusal), str(free)
-    assert (free.group.number_str, free.group.size) == ("75.2", 8)
+    assert (free.group.number_str, len(free.operations)) == ("75.2", 8)
     assert free.rep.characters.irreps == r.rep.characters.irreps
     step = free.descent["steps"][0]
     assert step["refuted_by"] == {"no symmetry matrix": 32, "tensor structure": 24}
@@ -571,7 +571,7 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
     twofolds = ("E", "C3(z)", "C3^-1(z)", "C2([2-10])", "C2([1-20])", "C2(x)")
     hc = tqg.realized_group(pxpy_centred(), characters=declared, **FREE)
     assert not isinstance(hc, Refusal), str(hc)
-    assert (hc.group.number_str, hc.group.name, hc.group.size) == ("156.50", "P3m11'", 12)
+    assert (hc.group.number_str, hc.group.name, len(hc.operations)) == ("156.50", "P3m11'", 12)
     assert hc.decoration["declared"]["to"]["number_str"] == "187.210"
     d = hc.descent
     assert d["from"]["number_str"] == "187.210" and d["dropped_by"]["declaration"] == 12
@@ -737,11 +737,11 @@ def test_the_subgroup_enumeration_is_complete_on_a_group_it_can_be_checked_again
     group = _spacegroup._group_of(cell, typat=typ)
     assert not isinstance(group, Refusal), str(group)
     assert (group.number_str, group.name) == ("99.164", "P4mm1'")
-    unit = [int(s.ind) for s in group.symmetries if not s.time_reversal]
+    unit = [int(s.ind) for s in group._symmetries if not s.time_reversal]
     assert len(unit) == 8
-    prod = group.get_product_table(get_diff=False)
-    at = {int(s.ind): i for i, s in enumerate(group.symmetries)}
-    ind_of = [int(s.ind) for s in group.symmetries]
+    prod = group._get_product_table(get_diff=False)
+    at = {int(s.ind): i for i, s in enumerate(group._symmetries)}
+    ind_of = [int(s.ind) for s in group._symmetries]
 
     def closed(sub):
         sub = set(sub)
@@ -785,7 +785,7 @@ def test_a_flat_spinless_layer_keeps_sigma_h_and_the_declaration_names_it():
     """
     r = tqg.realized_group(square_layer(), characters={0: "pz"}, cross_check=False, **FREE)
     assert not isinstance(r, Refusal), str(r)
-    assert (r.group.number_str, r.group.size) == ("123.340", 32)
+    assert (r.group.number_str, len(r.operations)) == ("123.340", 32)
     assert len(r.validated.indices) == 32
     assert list(r.rep.characters.irreps) == ["A2u"]
     chars = r.rep.characters.orbitals[0].generator_character
@@ -848,7 +848,7 @@ def test_a_spinless_layers_sigma_h_is_never_broken_by_the_hoppings(mix, conserve
         assert sorted(both.restriction.outside_layer) == ["1b", "1d", "2e"]
     r = tqg.realized_group(square_s_pz(mix), **FREE)
     assert not isinstance(r, Refusal), str(r)
-    assert (r.group.number_str, r.group.size) == ("123.340", 32)
+    assert (r.group.number_str, len(r.operations)) == ("123.340", 32)
     assert len(r.validated.indices) == 32 and r.descent is None
     assert list(r.rep.characters.irreps) == ["A1g", "A1g"]
     chars = [o.generator_character["m(z)"] for o in r.rep.characters.orbitals]
@@ -905,7 +905,7 @@ def test_a_buckled_honeycomb_is_read_from_its_real_geometry():
     """
     r = tqg.realized_group(buckled(kane_mele(0.0, -1.0, 0.3, 0.0)), cross_check=False)
     assert not isinstance(r, Refusal), str(r)
-    assert (r.group.number_str, r.group.name, r.group.size) == ("164.86", "P-3m11'", 24)
+    assert (r.group.number_str, r.group.name, len(r.operations)) == ("164.86", "P-3m11'", 24)
     assert len(r.validated.indices) == 24 and r.descent is None
     assert r.environment == "free-standing" and r.environment_declared is False
     assert _names(r.group) == ["C2([010])", "C2([1-10])", "C2(x)", "C3(z)", "C3^-1(z)",
@@ -949,7 +949,7 @@ def test_a_buckled_honeycomb_is_read_from_its_real_geometry():
     src = rewritten(layer, lat[2] + 0.3 * lat[0] + 0.2 * lat[1])
     t = tqg.realized_group(src, cross_check=False)
     assert not isinstance(t, Refusal), str(t)
-    assert (t.group.number_str, t.group.size) == ("164.86", 24) and t.descent is None
+    assert (t.group.number_str, len(t.operations)) == ("164.86", 24) and t.descent is None
     assert _names(t.group) == _names(r.group)
     assert labels(t, 2) == labels(r, 2)
     assert indicator(t, 2).values == (1, 0)
@@ -1003,7 +1003,7 @@ def test_the_buckled_honeycomb_on_a_substrate_is_p3m1():
     """
     r = tqg.realized_group(buckled(kane_mele(0.0, -1.0, 0.3, 0.0)), **SUB)
     assert not isinstance(r, Refusal), str(r)
-    assert (r.group.number_str, r.group.name, r.group.size) == ("156.50", "P3m11'", 12)
+    assert (r.group.number_str, r.group.name, len(r.operations)) == ("156.50", "P3m11'", 12)
     assert len(r.validated.indices) == 12
     assert r.descent is None, "nothing was allowed that the geometry does not have"
     assert r.environment_declared is True
@@ -1044,7 +1044,7 @@ def test_a_mirror_symmetric_bilayer_keeps_its_sigma_h():
     """
     free = tqg.realized_group(aa_bilayer())
     assert not isinstance(free, Refusal), str(free)
-    assert (free.group.number_str, free.group.size) == ("123.340", 32)
+    assert (free.group.number_str, len(free.operations)) == ("123.340", 32)
     assert len(free.validated.indices) == 32 and free.descent is None
     assert free.environment == "free-standing"
     assert free.cross_check["outcome"] == "agree"
@@ -1067,7 +1067,7 @@ def test_a_mirror_symmetric_bilayer_keeps_its_sigma_h():
 
     sub = tqg.realized_group(aa_bilayer(), **SUB)
     assert not isinstance(sub, Refusal), str(sub)
-    assert (sub.group.number_str, sub.group.size) == ("99.164", 16)
+    assert (sub.group.number_str, len(sub.operations)) == ("99.164", 16)
     assert len(sub.validated.indices) == 16
     assert sub.assignment.site_orbitals == ((0,), (1,)), "the two layers stay two sites"
     assert sub.assignment.wyckoff_spglib == ("a", "a")
@@ -1099,14 +1099,14 @@ def test_the_translation_conjugate_p4mm_is_the_one_the_hamiltonian_realizes(p41_
     exact in the model's own frame before anything is named.
     """
     def _tau(group, name):
-        sym = next(s for s in group.symmetries
+        sym = next(s for s in group._symmetries
                    if not s.time_reversal
-                   and _sitechars.operation_name(s, group.lattice) == name)
+                   and _sitechars.operation_name(s, group._lattice) == name)
         return tuple(round(float(x), 6) for x in np.asarray(sym.translation).reshape(-1))
 
     conj = tqg.realized_group(conjugate_p4mm(), cross_check=False, **SUB)
     assert not isinstance(conj, Refusal), str(conj)
-    assert (conj.group.number_str, conj.group.size) == ("99.164", 16)
+    assert (conj.group.number_str, len(conj.operations)) == ("99.164", 16)
     assert len(conj.validated.indices) == 16
     assert _tau(conj.group, "C4(z)") == (0.5, 0.5, 0.0)
     assert conj.assignment.wyckoff_tables == ("b", "a")
@@ -1151,7 +1151,7 @@ def test_the_record_names_the_side_flippers_and_the_error_reads_them():
     """
     group = _spacegroup._group_of(_layers._slab_presentation(tqc_models.kane_mele_inversion()))
     assert not isinstance(group, Refusal), str(group)
-    assert (group.sg_number, group.number_str, group.size) == (191, "191.234", 48)
+    assert (group._sg_number, group.number_str, group._size) == (191, "191.234", 48)
     record = _layers._environment_record(group, group)
     assert record["agrees"] is False and record["outcome"] is None
     assert len(record["flipping"]) == 24
@@ -1246,7 +1246,7 @@ def test_realized_group_itself_raises_when_the_two_environments_disagree(monkeyp
              ("not compared", None, "183.186"), [""] * 6)):
         one = tqg.realized_group(p_shell_honeycomb(), characters=spelling, **env)
         assert not isinstance(one, Refusal), f"{spelling}: {one}"
-        assert (one.group.number_str, len(one.validated.indices)) == (number, one.group.size)
+        assert (one.group.number_str, len(one.validated.indices)) == (number, len(one.operations))
         assert one.descent is None and (one.decoration or {}).get("declared") is None, \
             "one species: nothing excluded from the cell, nothing broken"
         assert one.rep.multiplets.by_site == (((0,), (1, 2)), ((3,), (4, 5)))
@@ -1377,7 +1377,7 @@ def test_the_opposite_axis_transcription_reads_its_own_layer_group():
     """
     r = tqg.realized_group(raw_axis(tqc_models.p41_flat_band()), **FREE)
     assert not isinstance(r, Refusal), str(r)
-    assert (r.group.number_str, r.group.name, r.group.size) == ("115.284", "P-4m21'", 16)
+    assert (r.group.number_str, r.group.name, len(r.operations)) == ("115.284", "P-4m21'", 16)
     assert len(r.validated.indices) == 16
     assert _names(r.group) == ["C2([1-10])", "C2([110])", "C2(z)", "E",
                                "S4(z)", "S4^-1(z)", "m(x)", "m(y)"]
@@ -1439,7 +1439,7 @@ def test_the_opposite_axis_transcription_on_a_substrate_is_the_axial_mm2():
     full = tqg.realized_group(raw, cross_check=False, **SUB)
     assert not isinstance(full, Refusal), str(full)
     g = full.group
-    assert (g.number_str, g.name, g.size) == ("25.58", "Pmm21'", 8)
+    assert (g.number_str, g.name, g._size) == ("25.58", "Pmm21'", 8)
     assert len(full.validated.indices) == 8
     assert _names(g) == ["C2(z)", "E", "m(x)", "m(y)"]
     assert full.descent["from"]["number_str"] == "99.164"
@@ -1490,7 +1490,7 @@ def test_the_opposite_axis_transcription_on_a_substrate_is_the_axial_mm2():
 
     turned = tqg.realized_group(spin_blocks_turned(crystal, u))
     assert turned, str(turned)
-    assert (turned.group.number_str, turned.group.name, turned.group.size) == (
+    assert (turned.group.number_str, turned.group.name, len(turned.operations)) == (
         "2.5", "P-11'", 4)
     assert _names(turned.group) == ["E", "i"]
     assert turned.descent["from"]["number_str"] == "166.98"
@@ -1566,7 +1566,7 @@ def test_the_decoration_record_names_the_base_and_the_extras_on_top():
 
     on_top = tqg.realized_group(conjugate_p4mm(), decorations=cap, cross_check=False, **SUB)
     assert not isinstance(on_top, Refusal), str(on_top)
-    assert (on_top.group.number_str, on_top.group.size) == ("99.164", 16)
+    assert (on_top.group.number_str, len(on_top.operations)) == ("99.164", 16)
     assert on_top.decoration["dz"] == tqg.DECORATION_DZ, "the shadow recipe ran"
     assert on_top.decoration["n_atoms"] == 3, "a shadow under each site, and the cap"
     assert on_top.decoration["typat"] == (1, 1, "cap")
@@ -1575,7 +1575,7 @@ def test_the_decoration_record_names_the_base_and_the_extras_on_top():
 
     alone = tqg.realized_group(conjugate_p4mm(), decorations=cap, cross_check=False, **FREE)
     assert not isinstance(alone, Refusal), str(alone)
-    assert (alone.group.number_str, alone.group.size) == ("99.164", 16)
+    assert (alone.group.number_str, len(alone.operations)) == ("99.164", 16)
     assert alone.decoration["dz"] is None, "nothing was put under the layer"
     assert alone.decoration["n_atoms"] == 1 and alone.decoration["typat"] == ("cap",)
     assert alone.decoration["recipe"] == "caller-supplied decoration"

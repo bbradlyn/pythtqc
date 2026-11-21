@@ -111,9 +111,9 @@ m199 = tqm.i213_flicker2018()
 
 out199 = tqc.realized_group(m199, characters=DECLARE)
 _m, g199, asg199, val199, rep199 = out199
-sites199 = tqc.wyckoff_sites_tables(g199, asg199.site_positions)   # letter and multiplicity
+sites199 = tqc.wyckoff_sites_tables(g199, asg199.site_positions)   # each site's Wyckoff position
 row("realized group", f"#{g199.number_str} {g199.name}, s orbitals at Wyckoff "
-    f"{' and '.join(dict.fromkeys(f'{s.multiplicity}{s.letter}' for s in sites199))}, "
+    f"{' and '.join(dict.fromkeys(s.wyckoff for s in sites199))}, "
     f"{m199.nstate} bands")
 
 # one diagonalization per high-symmetry point: corep_content reads the
@@ -170,7 +170,7 @@ out208 = tqc.realized_group(m208, decorations=field)
 _m, g208, asg208, val208, rep208 = out208
 sites208 = tqc.wyckoff_sites_tables(g208, asg208.site_positions)
 row("realized group", f"#{g208.number_str} {g208.name}, orbitals at Wyckoff "
-    f"{' and '.join(dict.fromkeys(f'{s.multiplicity}{s.letter}' for s in sites208))}, "
+    f"{' and '.join(dict.fromkeys(s.wyckoff for s in sites208))}, "
     f"{m208.nstate} bands")
 row("crystal field", f"{len(field)} atoms that carry no orbital, the paper's own device")
 

@@ -82,6 +82,47 @@
   `a1, 6 a1 + a2, 4 a1 + 9 a2 + a3` among them, where it refused
   `operations_not_consistent`. Whether a cell's operations close is judged relative to
   the size of their rotation matrices in the cell's reduced coordinates.
+- The group `r.group` holds `name`, `number_str`, `spinor`, `periodic_dirs` and
+  `magnetic_type`, `"II"` for a grey group and `"I"` for a group without time-reversal
+  symmetry. Its other fields are no longer public: `sg_number`, `size`, `include_TR`,
+  `magnetic`, `vacuum_dirs`, `symmetries`, `lattice`, `provenance` and the methods on k
+  among them. Its operations are `r.operations`. Its repr writes `magnetic_type=` and
+  `periodic_dirs=`, and its summary has a line for its magnetic type in place of the one
+  for its operations.
+- `operations`, `operation_index`, `high_symmetry_points`, `little_group`, `corep_table`,
+  `identify_from_characters`, `k_grid`, `wyckoff_sites_tables`, `ebr_rows` and `ebr_data`
+  take the group, `r.group`. Handed what `realized_group` returns, its representation or
+  anything else, each raises `TypeError` naming `r.group`, where some read `r` or
+  `r.rep` as the group and the others raised `AttributeError`.
+- `seitz` is gone: `r.operations[i].seitz` is the symbol it returned.
+- A row of `r.operations` names its index `index` and whether it is combined with time
+  reversal `antiunitary`, where it named them `ind` and `time_reversal`. The table prints
+  its first column under `index`.
+- `little_group`, `corep_table` and `identify_from_characters` take a k-point by its
+  tabulated name, `little_group(r.group, "X")`, as by its coordinates, and return the same
+  for both. A name the group does not tabulate raises `ValueError` listing the names, and
+  the name of a point out of a layer's plane returns the refusal `out_of_plane`.
+  `corep_table` and `identify_from_characters` no longer take `kpname=` or `ktol=`, nor
+  `k_grid` `ktol=`.
+- What `little_group` returns holds its operations, `operations`, and the indices of its
+  unitary and antiunitary operations, `unitary` and `antiunitary`, where `unitary` and
+  `antiunitary` held irrep's records and `indices` the unitary indices. Its `G` is keyed by
+  index. Its repr writes `k` as its summary does, `(1/3, 2/3)`.
+- What `high_symmetry_points` returns names the tabulated points out of a layer's plane
+  `out_of_plane`, where it named them `missing`. What `k_grid` returns holds its points as
+  `kpoints`, where it held them as `points`, and no longer holds `hsp` or `missing`:
+  `contains` says which tabulated points it holds.
+- A row of `wyckoff_sites_tables` holds its Wyckoff position as `wyckoff`, `"1a"`, and the
+  positions it slides onto as `slides_onto`, `("1a",)`, where it held `letter`,
+  `multiplicity` and the letters `closure`. `wyckoff_positions_spglib` and
+  `WyckoffPosition` are no longer exported.
+- `ebr_rows` is keyed by the site irrep and the Wyckoff position, `rows["-E1", "1a"]`,
+  where it was keyed by the band representation's full label. Each row is unchanged.
+- `ebr_data` returns a record, `EBRData`, where it returned a mapping: its columns `ebrs`
+  are `Term` rows, each a site irrep at a Wyckoff position with its site-symmetry group;
+  `corep_names` are the rows' coreps, and `matrix`, `smith` and `convention` are as
+  before, the convention an `EBRConvention` whose `corep_names_bcs` are the Bilbao
+  Crystallographic Server's names of the rows. Every value is unchanged.
 
 ## 0.1.0a3 — the second public version
 
