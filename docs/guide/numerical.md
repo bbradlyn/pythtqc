@@ -206,9 +206,9 @@ that group's positions before any hopping is read:
 below = tqc.realized_group(moved, characters={0: "A1"}, position_tol=1e-9)
 print(repr(below))
 #  RealizedGroup(P21' #3.2; descended from P6mm1' #183.186 (20 of 24 coset representatives of the lattice translations broken by the centers; these are the single-valued group's, each standing for itself and its negative in the double group); on a substrate (the default), the free-standing group P21' #3.2 agrees)
-print(f"{below.numerical.positions.move:.1e} asked of a centre by the whole group, "
+print(f"{below.numerical.positions.move:.1e} asked of a center by the whole group, "
       f"{below.numerical.positions.carried} of its coset representatives carry them")
-#  5.0e-09 asked of a centre by the whole group, 4 of its coset representatives carry them
+#  5.0e-09 asked of a center by the whole group, 4 of its coset representatives carry them
 print(tqc.hsp_table(below, bands=2).symmetry_data)
 #  {'-GM3GM4': 1, '-A3A4': 1, '-B3B4': 1, '-Y3Y4': 1}
 ```

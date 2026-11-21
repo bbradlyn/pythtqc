@@ -1958,7 +1958,7 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
             f"{int_spectrum[0]:.3g} against {internal_tol:.3g}. These matrices commute with H "
             f"the way the group says, but they are not the matrices of *these* operations — "
             f"nothing here has a site character to be read off it, so no orbital could be "
-            f"declared or labelled.{read_hint}{spin_hint}",
+            f"declared or labeled.{read_hint}{spin_hint}",
             value=float(int_spectrum[0]), threshold=float(internal_tol),
             context={"n_candidates": int(search["n_candidates"]), "multiplets": layout,
                      "indices": tuple(int(syms[p].ind) for p in kept),
@@ -2044,7 +2044,7 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
             "" if branches != [-1, 1] or len(survivors) != 2 else
             " The two are the two orientation branches, which is the one tie this "
             "function settles by convention when it can — but only when both return "
-            "the same site labels under the same labelling, and these "
+            "the same site labels under the same labeling, and these "
             "do not, so the choice is a genuine second representation rather than a "
             "gauge.")
         return Refusal(
@@ -2203,10 +2203,10 @@ def _returned_representation(model, group, assignment, ops, mul, meas, bat, acc,
     worst_ind = max(residuals, key=residuals.get) if residuals else None
     if worst_ind is not None and residuals[worst_ind] > tol:
         raise InternalError(
-            f"the representation of {group.name} #{group.number_str} with its labelling in "
+            f"the representation of {group.name} #{group.number_str} with its labeling in "
             f"it does not carry H(k) onto itself within the tolerance its candidates met: "
             f"{residuals[worst_ind]:.3g} against {tol:.3g}, on operation {worst_ind}. Every "
-            "labelling chosen among is a "
+            "labeling chosen among is a "
             "representation the hoppings leave open, a symmetry of the Hamiltonian; one "
             "that is not is a defect in this package, not a tolerance to loosen.")
 
@@ -2934,7 +2934,7 @@ def _pin_branch(ops, mul, bat, survivors):
         "site into (character) x (the group's own internal factor) and reproduce the "
         "multiplication table, and are one "
         "representation up to a one-dimensional character on each coupled part, so "
-        "the same labellings and site labels are open on both and nothing "
+        "the same labelings and site labels are open on both and nothing "
         "measures between them; the branch was pinned by convention to +1, "
         "the intertwiner that carries k -> gk."))
 

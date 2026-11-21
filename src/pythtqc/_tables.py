@@ -333,7 +333,7 @@ def _sites_in_tables_setting(group: GroupData, positions=None, *,
                 f"and lies on no Wyckoff variety of space group {group._sg_number} there: "
                 f"the nearest is {nearest['multiplicity']}{nearest['letter']}, "
                 f"{float(residuals[nearest['letter']][i]):.3g} away in reduced "
-                f"coordinates. A centre that far off every orbit is a modelling defect",
+                f"coordinates. A center that far off every orbit is a modeling defect",
                 value=float(residuals[nearest["letter"]][i]),
                 threshold=float(position_tol),
                 context={"site": i, "position": x, "reference": x_ref,
@@ -444,7 +444,7 @@ def _assign_orbitals(model, group: GroupData, *, typat=None,
                     f"(rotation {sym.rotation.tolist()}, translation "
                     f"{np.round(sym.translation, 6).tolist()}): the nearest orbital of the same "
                     f"class is {float(np.min(dist_masked)):.6g} away. A misplaced orbital is a "
-                    f"modelling bug, not something to symmetrize away.",
+                    f"modeling bug, not something to symmetrize away.",
                     value=float(np.min(dist_masked)), threshold=tol,
                     context={"site": i, "orbitals": list(orbs), "operation_ind": int(sym.ind),
                              "position": pos[i], "image": images[i] % 1.0,
@@ -1883,7 +1883,8 @@ def _identify_from_characters(group: GroupData, k, characters, *, multiplet_dims
     return CorepIdentification(kpoint=kpname, k=lg.k, indices=lg.unitary, labels=labels,
                                multiplicities=mult, label_order=label_order,
                                dims=total_dims, integrality=defect,
-                               _partition=tuple(int(p) for p in part))
+                               _partition=tuple(int(p) for p in part),
+                               _kind="irreps" if _magnetic_type(group) == "I" else "coreps")
 
 
 def _label_kpoint(label: str) -> str:
@@ -2402,8 +2403,9 @@ class EBRData:
     _raw: Any = field(default=None, repr=False, compare=False)
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
+        kind = "irreps" if getattr(self.group, "magnetic_type", None) == "I" else "coreps"
         return (f"EBRData({self.group.name} #{self.group.number_str}: {len(self.ebrs)} "
-                f"elementary band representations over {len(self.corep_names)} coreps)")
+                f"elementary band representations over {len(self.corep_names)} {kind})")
 
 
 def _ebr_term(name, position) -> Term:
@@ -2861,7 +2863,8 @@ def k_grid(group: GroupData, n, *, allow_asymmetric=False) -> KGrid | Refusal:
     else:
         divs = [int(v) for v in n]
         if len(divs) != group._dim_k:
-            raise ValueError(f"n must be a scalar or have {group._dim_k} entries")
+            raise ValueError(f"k_grid(): n has {len(divs)} entries; pass one number, or "
+                             f"{group._dim_k}, one for each periodic direction.")
     grid3 = [1, 1, 1]
     for j, d in enumerate(group.periodic_dirs):
         grid3[d] = divs[j]

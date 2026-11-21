@@ -13,7 +13,7 @@
 #    and its atomic limits
 # 3. delta_t = -0.4 on the same bond: the same four measurements
 # 4. three bonds cut -- decoupled dimers along [111]: the same four measurements
-# 5. the content at the eight time-reversal-invariant momenta
+# 5. the coreps at the eight time-reversal-invariant momenta
 # 6. the symmetry-indicator class of the three phases in {BS}/{AI}
 # 7. the bands along GM-T-F-L-GM, and the figure written out
 
@@ -194,11 +194,11 @@ row("valence content", fmt(t2_dimers.symmetry_data))
 dec_dimers = tqc.decompose(t2_dimers)
 row(*atomic_limits(dec_dimers))
 print("   the valence bands are the antibonding pair of each dimer's two s orbitals,")
-print(f"   centred at {min(t.wyckoff for t in dec_dimers.candidate_sums[0])} on the [111] axis")
+print(f"   centered at {min(t.wyckoff for t in dec_dimers.candidate_sums[0])} on the [111] axis")
 
-########### 5. the content at the eight TRIM ###########
+########### 5. the coreps at the eight TRIM ###########
 
-print("\n5. the content at the eight time-reversal-invariant momenta (TRIM)")
+print("\n5. the coreps at the eight time-reversal-invariant momenta (TRIM)")
 
 # The star of a point is the set of its distinct images under the group:
 # an operation whose rotation on reduced coordinates is R carries the reduced k
@@ -222,13 +222,13 @@ row("k-orbits", ", ".join(f"{p} ({stars[p]})" for p in POINTS)
 changed_strong = sorted(p for p in POINTS
                         if coreps_of(t2_strong, p) != coreps_of(t2_dimers, p))
 n_strong = sum(stars[p] for p in changed_strong)
-row("strong vs dimers", f"the content changes at {' and '.join(changed_strong)}, "
+row("strong vs dimers", f"the coreps change at {' and '.join(changed_strong)}, "
     f"{n_strong} of the {n_trim} TRIM")
 
 changed_weak = sorted(p for p in POINTS
                       if coreps_of(t2_weak, p) != coreps_of(t2_dimers, p))
 n_weak = sum(stars[p] for p in changed_weak)
-row("weak vs dimers", f"the content changes at {' and '.join(changed_weak)}, "
+row("weak vs dimers", f"the coreps change at {' and '.join(changed_weak)}, "
     f"{n_weak} of the {n_trim} TRIM")
 
 print(f"   #{g_strong.number_str} has inversion, so nu_0 is the parity product over "
@@ -344,8 +344,8 @@ axes[2].set_title("dimers: three bonds cut\n"
                   f"{si_dimers.values} in {si_dimers.indicator_group}", fontsize=10)
 
 fig.suptitle("Fu-Kane-Mele on diamond, one bond detuned along [111]: the four "
-             "bands along GM-T-F-L-GM, the valence pair in blue with its corep "
-             "content at each node.", fontsize=10)
+             "bands along GM-T-F-L-GM, the valence pair in blue with its coreps "
+             "at each node.", fontsize=10)
 fig.tight_layout(pad=0.5, rect=(0, 0, 1, 0.93))
 # save_figure writes the PDF without its creation date, so a rerun gives the same file
 save_figure(fig, os.path.join(OUTDIR, "fkm_diamond_phases.pdf"))

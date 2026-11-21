@@ -275,7 +275,7 @@ for sg in range(1, 231):
 total = counts["single"] + counts["double"]
 row("the list", f"{total} splittings of an elementary band representation into",
     f"others, {counts['single']} single-valued and {counts['double']} double-valued")
-row("the paper's flag", f"{flagged} of them, where the Z_n-valued invariants of the parts do not",
+row("the paper's flag", f"{flagged} of them, where the invariants valued modulo n of the parts do not",
     "add up to the whole's; recomputed from the invariants printed",
     f"beside it, the flag agrees on {reproduced} of {total}")
 row("the criterion", "the parent as all the bands, its first child as the valence bands,",
@@ -293,7 +293,7 @@ for number, irrep, wyckoff, children, verdict, npairs in exceptions:
 n_no_zn = sum(1 for entry in unflagged if entry[4] == "not nsit, no Z_n invariant")
 if unflagged:
     row("the unflagged", f"{len(unflagged)} splittings, {n_no_zn} of them in groups with no "
-        "Z_n-valued invariant")
+        "invariant valued modulo n")
     print(f"      {'group':<10}{'parent':<11}{'first child':<13}{'rest':<13}"
           f"{'nsit':<28}consistent pairs")
     for number, irrep, wyckoff, children, verdict, npairs in unflagged:
@@ -336,7 +336,7 @@ row("by the members", *wrapped([f"{v} of {' and '.join(k)}" for k, v
                                 in sorted(by_members.items(), key=lambda kv: -kv[1])]))
 row("space groups", *wrapped([str(sg) for sg in groups]))
 if found:
-    print("   both members of each pair carry the same SRSIs, Z-valued and Z_n-valued, so")
+    print("   both members of each pair carry the same SRSIs, those in Z and those modulo n, so")
     print("   whichever one a decomposition picks, no invariant changes")
 
 ########### 6. the figure ###########
@@ -346,13 +346,13 @@ fig, axes = plt.subplots(1, 2, figsize=(13.0, 4.6))
 
 labels = []
 values = []
-colours = []
+colors = []
 for key in sorted(tally, key=lambda k: (not k[0], k[1], READINGS.index(k[2]))):
     labels.append(f"{'flagged' if key[0] else 'unflagged'}, {key[1]}\n{key[2]}")
     values.append(tally[key])
-    colours.append("tab:red" if key[2] == "nsit"
+    colors.append("tab:red" if key[2] == "nsit"
                    else ("tab:blue" if key[2] == "not nsit, pairs add up" else "0.6"))
-axes[0].barh(range(len(values)), values, color=colours)
+axes[0].barh(range(len(values)), values, color=colors)
 axes[0].set_yticks(range(len(values)))
 axes[0].set_yticklabels(labels, fontsize=8)
 axes[0].invert_yaxis()

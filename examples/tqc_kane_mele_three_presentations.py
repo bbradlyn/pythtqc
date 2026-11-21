@@ -348,7 +348,7 @@ axes[1].set_title(f"the periodic stack at $k_z = 1/2$ (dashed)\nover $k_z = 0$ (
 
 fig.suptitle("One Kane-Mele monolayer, presented as a layer in the plane and as a "
              "periodic decoupled stack.  The class in {BS}/{AI} is a property of the "
-             "crystal, not of the presentation; the labels are measured corep content.",
+             "crystal, not of the presentation; the labels are measured coreps.",
              fontsize=10)
 fig.tight_layout(pad=0.5, rect=(0, 0, 1, 0.93))
 # save_figure writes the PDF without its creation date, so a rerun gives the same file

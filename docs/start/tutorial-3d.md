@@ -311,9 +311,9 @@ for name, rr in phases.items():
 #  strong  not decomposable  proof  0 signed    0 sums
 #  weak    not decomposable  proof  0 signed    0 sums
 #  dimers  decomposable      -      -           1 sum: -E1u at 3a (-3m1')
-centre = tqc.wyckoff_sites_tables(phases["dimers"].group, [[0.125, 0.125, 0.125]])
-print("the centre of the [111] bond:", [s.wyckoff for s in centre])
-#  the centre of the [111] bond: ['3a']
+center = tqc.wyckoff_sites_tables(phases["dimers"].group, [[0.125, 0.125, 0.125]])
+print("the center of the [111] bond:", [s.wyckoff for s in center])
+#  the center of the [111] bond: ['3a']
 ```
 
 The strong phase is not decomposable, with the certificate `proof`: the multiplicities

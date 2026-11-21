@@ -45,7 +45,7 @@ PAGE = ROOT / "docs" / "reference" / "functions.md"
 GROUPS = (
     ("The group",
      "the space group a Hamiltonian has and which operations it obeys, the "
-     "orbitals' site orbits, and the operations by index and Seitz symbol",
+     "orbitals' Wyckoff orbits, and the operations by index and Seitz symbol",
      ("realized_group", "operations", "operation_index")),
     ("Declaring what the hoppings cannot supply",
      "the spin a spinless model carries in its orbital index",
@@ -55,9 +55,9 @@ GROUPS = (
      "and elementary band representations, in the model's own cell",
      ("high_symmetry_points", "little_group", "corep_table", "wyckoff_sites_tables",
       "k_grid", "ebr_data", "tables_status")),
-    ("Labelling the bands",
-     "the states at one k-point, and the sewing matrices, characters and corep "
-     "content of a set of bands, at one high-symmetry point or at all of them",
+    ("Labeling the bands",
+     "the states at one k-point, and the sewing matrices, characters and coreps "
+     "of a set of bands, at one high-symmetry point or at all of them",
      ("solve_at", "sewing_matrix", "characters", "coreps_at", "hsp_table",
       "format_coreps", "multiplets")),
     ("Atomic limits",

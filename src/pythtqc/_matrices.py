@@ -695,7 +695,7 @@ def normalize_rep(D, op, group, *, spinful=None, anchor=None, tol=1e-9,
 
     pos = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     if int(op.ind) not in pos:
-        raise ValueError(f"operation .ind={op.ind} is not one of this group's")
+        raise ValueError(f"operation index={op.ind} is not one of this group's")
     p = pos[int(op.ind)]
     anti = bool(op.time_reversal)
 
@@ -1095,7 +1095,8 @@ def bloch_operator(model, group, assignment, op, D, k, *, k_out=None, tol=1e-9,
     squeeze = (k_arr.ndim == 1)
     k_arr = np.atleast_2d(k_arr)
     if k_arr.shape[1] != group._dim_k:
-        raise ValueError(f"k must have {group._dim_k} components, got {k_arr.shape[1]}")
+        raise ValueError(f"bloch_operator(): k has {k_arr.shape[1]} components; pass "
+                         f"{group._dim_k}, one for each periodic direction.")
 
     k3 = group._k_to_3d(k_arr)
     kp3 = np.asarray(op.transform_k(k3), dtype=float)
@@ -1424,15 +1425,15 @@ def _spin_pair_split(spin, site_orbitals, site_positions, lattice):
             f"on different sites: orbital {int(up)} on site {su} at "
             f"{np.round(pos[su], 6).tolist()} and orbital {int(dn)} on site {sd} at "
             f"{np.round(pos[sd], 6).tolist()} (reduced), {dist:.6g} apart. The two spin "
-            f"states of one Wannier function share its centre, so this pair is not one "
+            f"states of one Wannier function share its center, so this pair is not one "
             f"spinor orbital, and it means one of two things. Either the pairing is "
-            f"mislabelled: re-read the layout (`order=\"blocked\"` and "
+            f"mislabeled: re-read the layout (`order=\"blocked\"` and "
             f"`order=\"interleaved\"` differ by exactly this) or pass the `pairs=` the "
             f"wannier90 file has. Or these orbitals each carry one spin state with no "
-            f"partner at their own centre, a magnetic configuration outside this "
-            f"package's present scope. Two centres apart only by the numerical noise of a "
+            f"partner at their own center, a magnetic configuration outside this "
+            f"package's present scope. Two centers apart only by the numerical noise of a "
             f"fitted model are neither: a declared precision (`precision=`) reads two "
-            f"centres closer than it as one.",
+            f"centers closer than it as one.",
             value=dist, threshold=0.0,
             context={"pair": int(c), "orbitals": (int(up), int(dn)),
                      "sites": (su, sd),

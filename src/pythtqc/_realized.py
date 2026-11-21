@@ -2275,7 +2275,7 @@ def _call_resolved(model, *, typat, environment, decorations, c, nk, tol, cut, w
             raise ValueError(
                 "position_tol must be a positive number or None, got "
                 f"{position_tol!r}. It is the declared tolerance for the orbital "
-                "centres -- absolute, in reduced coordinates -- and None means the "
+                "centers -- absolute, in reduced coordinates -- and None means the "
                 "position defect is neither measured nor removed.")
     # the memory budget, read here as grammar: the hopping projection's at its
     # peak, and the ceiling of the detector's own on an exactly degenerate spectrum
@@ -3299,7 +3299,7 @@ def _environment_ties(records) -> tuple:
                      "order, " + " and ".join("{" + ", ".join(r) + "}" for r in names)),
                     ("centers", (step.get("centers") or {}).get("tied", ()),
                      "more than one subgroup of the largest order carries the orbital "
-                     "centres within the declared precision"),
+                     "centers within the declared precision"),
                     ("projective class", (step.get("projective") or {}).get("tied", ()),
                      "the states carry an ordinary representation on more than one "
                      "subgroup of the largest order")):
@@ -4328,13 +4328,13 @@ def _moved_note(move, offset, in_frame, delta, p, resid,
     shift = float(np.abs(np.asarray(offset)).max(initial=0.0))
     moved_any = bool(move) or bool(in_frame and shift)
     if not moved_any and in_frame:
-        return ("the centres sit exactly where the operations put them, in the model's own "
+        return ("the centers sit exactly where the operations put them, in the model's own "
                 "frame: nothing was moved.")
-    said = (f"the centres were moved onto the positions {where}, none by more than "
+    said = (f"the centers were moved onto the positions {where}, none by more than "
             f"{move:.3g} (reduced), the origin fitted to them" if move else
-            "the centres sit where the operations put them, the origin fitted to them")
+            "the centers sit where the operations put them, the origin fitted to them")
     if in_frame and shift:
-        said += (f", and every centre was shifted together by at most {shift:.3g}, within "
+        said += (f", and every center was shifted together by at most {shift:.3g}, within "
                  "the declared precision, which writes them exactly in the model's own "
                  "frame, every operation's translation a rational of the cell")
     elif in_frame:
@@ -4445,16 +4445,16 @@ def _centres_carried(group, frame, perm, shift, rotations, ind_of_row,
             continue
         own_move = move(cyclic(u))
         if not within(own_move, p):
-            note = (f"the centres miss it by {own_move:.3g} (reduced): carrying them onto one "
-                    f"another under it would move a centre that far, beyond the declared "
+            note = (f"the centers miss it by {own_move:.3g} (reduced): carrying them onto one "
+                    f"another under it would move a center that far, beyond the declared "
                     f"precision {p:.3g}")
         elif u in tied_in:
-            note = (f"it carries the centres within the declared precision {p:.3g} on its "
+            note = (f"it carries the centers within the declared precision {p:.3g} on its "
                     f"own (a move of {own_move:.3g}), and so do the largest groups that hold "
                     f"it, but they tie with the one the tie rule keeps, {kept_names}, which "
                     "does not hold it")
         else:
-            note = (f"it carries the centres within the declared precision {p:.3g} on its "
+            note = (f"it carries the centers within the declared precision {p:.3g} on its "
                     f"own (a move of {own_move:.3g}), but no group holding it and the "
                     f"operations kept, {kept_names}, carries them within it")
         rec = {"ind": int(u), "refuted_by": "centers", "miss": own_move, "precision": p,
@@ -4462,10 +4462,10 @@ def _centres_carried(group, frame, perm, shift, rotations, ind_of_row,
         refuted[int(u)] = rec
         if u in partner:
             refuted[int(partner[u])] = dict(rec, ind=int(partner[u]), note=(
-                f"the primed copy of #{int(u)} {name(u)}, which the centres are not "
-                "carried by: time reversal moves no centre, so the two stand or fall "
+                f"the primed copy of #{int(u)} {name(u)}, which the centers are not "
+                "carried by: time reversal moves no center, so the two stand or fall "
                 "together"))
-    note = (f"the orbital centres are not carried by the operations of "
+    note = (f"the orbital centers are not carried by the operations of "
             f"{group.name} #{group.number_str} within the declared precision {p:.3g}: "
             f"moving them onto its positions would move one by {whole:.3g}. The largest "
             f"group of its operations that carries them within it is {kept_names}, "
@@ -4524,7 +4524,7 @@ def _position_pass(model, group, tolerances, labels, read):
         return Refusal(
             "positions_not_nearly_symmetric",
             f"the operations of {group.name} #{group.number_str} do not carry the orbital "
-            "centres onto one another at the symmetry finder's distance: no set of positions "
+            "centers onto one another at the symmetry finder's distance: no set of positions "
             "near them is one this group carries, so moving them would substitute a crystal "
             "the model does not have. Identify the group the positions carry "
             "(`typat=`, `decorations=`).",
@@ -4538,7 +4538,7 @@ def _position_pass(model, group, tolerances, labels, read):
     if not closure <= _EXACT_CLOSURE:          # pragma: no cover - a group acts as a group
         raise InternalError(
             f"the {len(rows)} operations of {group.name} #{group.number_str} that carry the "
-            "orbital centres do not carry the positions projected onto them, missing by "
+            "orbital centers do not carry the positions projected onto them, missing by "
             f"{closure:.3g}: their action on the sites is a group's by construction, so this "
             "is arithmetic in this package failing, not a measurement about the model.")
     own = frame.own
@@ -4548,10 +4548,10 @@ def _position_pass(model, group, tolerances, labels, read):
     if not within(worst, p):
         return Refusal(
             "positions_not_nearly_symmetric",
-            f"an orbital centre would have to move {worst:.3g} (reduced) onto the positions "
+            f"an orbital center would have to move {worst:.3g} (reduced) onto the positions "
             f"the largest group of {group.name} #{group.number_str}'s operations puts it at, "
             f"against the declared precision {p:.3g}: the orbitals at one site are further "
-            "apart than the declaration allows. That is a different set of centres, "
+            "apart than the declaration allows. That is a different set of centers, "
             "beyond a numerical defect. Identify the group the positions carry "
             "(`typat=`, `decorations=`).",
             value=worst, threshold=p, context={"group": group})
@@ -4671,13 +4671,13 @@ def _quote_position_defect(refusal, positions, symmetrization) -> Refusal:
         # measurement of their own", and the message is the only consequence.
         defect = float(symmetrization._operators["position_defect"])
         note = (
-            f"No precision was declared for the centres, and the hopping projection "
-            f"measured this model's centres to miss the group's own action by "
+            f"No precision was declared for the centers, and the hopping projection "
+            f"measured this model's centers to miss the group's own action by "
             f"{defect:.3g} (reduced) -- which in convention I costs H(k) a covariance "
             "residual of order 2*pi*delta*max|H| whatever the hoppings do, so a "
             "projection of the hoppings cannot remove it and this refusal may be "
             "entirely that defect. Declare it: `realized_group(..., precision=)` "
-            "measures the centres first and moves them, within the declaration, onto "
+            "measures the centers first and moves them, within the declaration, onto "
             "the positions the group puts them at -- a k-dependent gauge "
             "transformation, so the spectrum is untouched.")
     else:
@@ -4771,7 +4771,7 @@ def _cell_group_not_realized(group, validated, three_d, refuted=None) -> Refusal
              "`decorations=` where a distortion lowered the symmetry: a bond "
              "distortion moves no atom, so no symmetry finder can see it in the "
              "point set, and one non-orbital species where the distortion is "
-             "centred is how the cell is told about it"
+             "centered is how the cell is told about it"
              if three_d else
              "`typat=` for sublattices that are chemically inequivalent, or "
              "`decorations=` for a crystal field the flat point set does not "

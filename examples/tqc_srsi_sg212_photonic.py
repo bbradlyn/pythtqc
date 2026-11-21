@@ -207,8 +207,8 @@ plt.close(fig)
 print("\n3. the symmetry data vector of all 8 bands, and of the elementary band "
       "representation of E at 4a")
 ebrs = tqc.ebr_rows(r.group)
-print("all 8 bands:       ", tqc.format_coreps(table.symmetry_data))
-print("E↑G(8)@4a(321',32):", tqc.format_coreps(ebrs["E", "4a"]))
+print("all 8 bands:    ", tqc.format_coreps(table.symmetry_data))
+print("E at 4a (321'): ", tqc.format_coreps(ebrs["E", "4a"]))
 
 ########### 4. the auxiliary bands ###########
 
@@ -218,8 +218,8 @@ print("E↑G(8)@4a(321',32):", tqc.format_coreps(ebrs["E", "4a"]))
 # Their GM1 corresponds to the longitudinal subspace of the GM4 triplet at zero.
 # The physical bands, all 8 less the auxiliary 4, carry GM4 - GM1 at Γ.
 print("\n4. the auxiliary bands: the elementary band representation induced from A1 at either 4a or 4b")
-print("A1↑G(4)@4a(321',32):", tqc.format_coreps(ebrs["A1", "4a"]))
-print("A1↑G(4)@4b(321',32):", tqc.format_coreps(ebrs["A1", "4b"]))
+print("A1 at 4a (321'):", tqc.format_coreps(ebrs["A1", "4a"]))
+print("A1 at 4b (321'):", tqc.format_coreps(ebrs["A1", "4b"]))
 
 ########### 5. the stable real-space invariants ###########
 

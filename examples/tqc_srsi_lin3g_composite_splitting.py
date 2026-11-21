@@ -119,9 +119,9 @@ def counts(terms):
     return out
 
 
-########### 1. the model, its two orbits and all eight bands ###########
+########### 1. the model, its two Wyckoff orbits and all eight bands ###########
 
-print("\n1. the model, its two site orbits and all eight bands")
+print("\n1. the model, its two Wyckoff orbits and all eight bands")
 r = tqc.realized_group(lin3g(), typat=TYPAT, characters=DECLARE)
 model, group = r.model, r.group
 letters = []                       # each Wyckoff orbit's position, in the model's order
@@ -170,7 +170,7 @@ row("bands 4 and 5", fmt(p2.symmetry_data))
 row(*atomic_limits(d2))
 
 b2 = tqc.srsi_of_bands(p2)
-row("srsi_of_bands", f"Z-valued {values(b2.theta_Z.values())}, and no Z_n-valued invariants")
+row("srsi_of_bands", f"Z-valued {values(b2.theta_Z.values())}, and no invariants valued modulo n")
 
 # the group's elementary band representations, in the order of its list
 EBRS = [(e.irrep, e.wyckoff) for e in tqc.ebr_data(group).ebrs]
@@ -197,9 +197,9 @@ row("the atomic limit", f"{signed_sum(counts(d2.candidate_sums[0]))}, "
     f"{moduli(column.theta_Zn)}")
 row("a signed sum", f"{signed_sum(b2.numerical.p)}, Z-valued {values(solved.theta_Z.values())}, "
     f"{moduli(solved.theta_Zn)}")
-print("   the Z-valued invariants agree and the Z2-valued ones differ: the Z_n-valued")
-print("   invariants are not functions of the content, so a band set has them only through")
-print("   a set of orbitals known to carry it, the model's own or an atomic limit")
+print("   the Z-valued invariants agree and the Z2-valued ones differ: the invariants valued")
+print("   modulo n are not functions of the symmetry data vector, so a band set has them only")
+print("   through a set of orbitals known to carry it, the model's own or an atomic limit")
 
 ########### 3. the gap between bands 5 and 6 ###########
 

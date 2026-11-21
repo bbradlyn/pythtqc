@@ -649,7 +649,7 @@ def test_orbital_off_every_wyckoff_orbit_refuses():
     assert not r and isinstance(r, Refusal)
     assert r.gate == "wyckoff_orbit"
     assert r.value == pytest.approx(0.12, abs=1e-9)       # 2 * 0.06, the C4-image mismatch
-    assert "modelling bug" in r.reason
+    assert "modeling bug" in r.reason
     assert set(r.context) >= {"site", "orbitals", "operation_ind", "position"}
 
 

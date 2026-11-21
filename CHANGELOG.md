@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- The refusals' reasons, the errors' messages and the summaries are spelled the American
+  way, "the orbital centers", "labeling", "modeling", and name the symmetry data vector
+  where they said "the content". The reason a refusal gives for centers a little off
+  their symmetric positions reads `the orbital centers miss the cell's own symmetry by
+  ...`. What every call returns is unchanged.
+- The summaries of what `coreps_at` returns, of its `numerical` record and of the
+  identification `identify_from_characters` returns print "irreps" where the group has no
+  time-reversal symmetry, as every other summary does, and the repr of what `ebr_data`
+  returns counts the group's irreps there.
+- `k_grid` given a sequence of divisions of the wrong length, and
+  `pythtqc.symmetry.bloch_operator` given a k-point with the wrong number of components,
+  raise `ValueError` beginning with the call's name and saying what to pass.
+- A term of every sum, in a candidate sum, an atomic realization, a Wyckoff orbit's band
+  representation or the columns of `ebr_data`, is a `Term` row: `multiplicity`, `irrep`,
+  `wyckoff`, `site_symmetry` and `unitary_site_symmetry`, the site symmetry written with
+  its `1'` in a group with time-reversal symmetry, `1a (4mm1')`.
+- `subtract` names its two parameters `symmetry_data_a` and `symmetry_data_b`; every call
+  passes them by position, as before.
 - `realized_group` with a declared precision returns the group of a layer written on a
   strongly skewed lattice basis whose Hamiltonian it makes exactly symmetric:
   hexagonal boron nitride on `7 a1 + 5 a2, 4 a1 + 3 a2`, one center displaced by `1e-9` of
@@ -205,7 +223,7 @@
   the causes of a descent. `r.environment` is a record for a layer, `kind`, `declared`,
   `cross_check` and `presentation`, and `None` for a crystal periodic in three directions.
   `repr(r)` names a second group by its name and number, `descended from Fd-3m1' #227.129`.
-- `hsp_table`, `corep_content`, `characters` and `sewing_matrix` take what
+- `hsp_table`, `coreps_at`, `characters` and `sewing_matrix` take what
   `realized_group` returns, `hsp_table(r, bands=6)`, and raise `TypeError` on `r.rep`.
   `srsi_of_model` and `splitting` take it alone, and raise `TypeError` on a tuple of its
   parts, where they took one.
@@ -231,11 +249,12 @@
   a model without noise is unchanged.
 - `hsp_table` reads every high-symmetry point, one whose little group holds the identity
   alone included: there a set of bands carries the point's one irrep once for each band,
-  which the table's `content` and `counts` now hold, `M1` at `M` for Haldane's model with
+  which the table's symmetry data vector now holds, `M1` at `M` for Haldane's model with
   flux in `P3`. The table's field `skipped` is gone, and with it the `"skipped"` entry of
   a decomposition's `completeness` and of the context of `decompose`'s
   `incomplete_content`. `decompose` and `symmetry_indicator` return what they returned on
-  such a table, and the same on its `counts` handed on as a mapping, which they refused.
+  such a table, and the same on its symmetry data vector handed on as a mapping, which they
+  refused.
   A set of bands that cuts a degenerate level at such a point is refused there,
   `multiplet_split`, as at every other point.
 - `regular_completion` returns the padding of a band set in a group with such a point,

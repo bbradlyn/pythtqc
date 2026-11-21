@@ -508,7 +508,8 @@ class RegularCompletion:
                  f"representation of a site group induces: {self.bands_per_copy} bands at every "
                  f"k{'' if self.copies == 1 else ' each'}   (.copies, .bands_per_copy)"]
         if not self.padding:
-            lines.append("  nothing is missing: the bands carry that content already   (.padding)")
+            lines.append(f"  nothing is missing: the bands carry those {_kind(self._group)} already"
+                         "   (.padding)")
             return "\n".join(lines)
         lines.append(f"  the {_kind(self._group)} the missing bands carry: "
                      f"{_sewing.format_coreps(self.padding)}   (.padding)")
@@ -537,7 +538,7 @@ INDICATOR_CONVENTION = (
     "u, v -- use the historical e^(+ik.t), whose labels at k are those of the physical "
     "representations at -k; groups.ebr_data undoes that swap on the rows and on u "
     "and v together, so the linear form u.y is the same functional here as there, "
-    "read on relabelled coordinates. The indicator group is therefore convention-"
+    "read on relabeled coordinates. The indicator group is therefore convention-"
     "invariant by Smith equivalence, and so is every indicator value: measured over "
     "the 379 unitary and grey systems with a nontrivial indicator group, the two "
     "computations agree exactly -- the automorphism relating them is the identity, "
@@ -1466,8 +1467,8 @@ def _restriction(group, points=None, *, require_exact=True, layer=None) -> Restr
             "restriction_not_exact",
             f"the EBR rows {missing} cannot be measured by this model (their k-points "
             f"are out of the periodic plane) and duplicate no retained row, so they "
-            f"impose independent constraints, and in-plane data alone reach no verdict "
-            f"for group #{group.number_str}.",
+            f"impose independent constraints, which the {_kind(group)} measured in the plane "
+            f"do not fix in group #{group.number_str}.",
             value=float(len(missing)), threshold=0.0,
             context={"missing": tuple(missing), "retained": tuple(labels[j] for j in keep),
                      "points": points, "number_str": group.number_str})
@@ -1780,14 +1781,6 @@ def decompose(symmetry_data, realized=None, *, allow_incomplete=False,
                          cap=cap, signed_combinations=signed_combinations)
 
 
-def _decompose(symmetry_data, group, *, rep=None, allow_incomplete=False,
-               cap=DEFAULT_ENUMERATION_CAP, signed_combinations=True):
-    """What :func:`decompose` returns for a vector read in ``group``, with the site irreps and heights of ``rep`` where it is given; a table is read in what it carries."""
-    return _decompose_in(_source_of(symmetry_data, group, rep), symmetry_data,
-                         allow_incomplete=allow_incomplete, cap=cap,
-                         signed_combinations=signed_combinations)
-
-
 def _decompose_in(source, symmetry_data, *, allow_incomplete=False,
                   cap=DEFAULT_ENUMERATION_CAP,
                   signed_combinations=True) -> EBRDecomposition | Refusal:
@@ -1806,7 +1799,7 @@ def _decompose_in(source, symmetry_data, *, allow_incomplete=False,
     if table is not None and not table.complete and not allow_incomplete:
         return Refusal(
             "incomplete_content",
-            "the measured content is missing "
+            "the symmetry data vector is missing "
             f"{sorted(refused, key=_tables.point_order)}: {refused}. A missing "
             "constraint can only make a "
             "decomposition easier to find, so a partial symmetry data vector is not "
@@ -2028,7 +2021,7 @@ def _named_forms(group, data, matrix, y, magnetic_type):
         total = sum(c * int(m) for c, m in zip(moved, y))
         if abs(total - round(total)) > 1e-9:
             return None, (), (f"the shipped form {name!r} does not take an integer value "
-                              f"on this content ({total})"), {}
+                              f"on this symmetry data vector ({total})"), {}
         values[str(name)] = int(round(total)) % mod
         coeffs[str(name)] = tuple(moved)
     return values, tuple(touched), ("irreptables' named formulas, re-keyed by the row "
@@ -2103,11 +2096,11 @@ def _two_dimensional_reading(group, labels, u, slots, divisors, values, coeffs,
         f"The layer's class is read in #{group.number_str}, the three-dimensional space "
         f"group of its {cell} (the model's periodic directions {periodic}, its normal "
         f"along {padded}), whose EBR basis has rows at {', '.join(out_points)}, at "
-        "k_z = ½, k-points the layer's plane does not contain. The layer's H(k) has no "
-        "k_z, so this is the class of the layer's decoupled stack -- the layer repeated "
-        "along its normal with no hopping between copies -- whose rows at k_z = ½ repeat "
+        "k_z = 1/2, k-points the layer's plane does not contain. The layer's H(k) has no "
+        "k_z, so this is the class of the layer's decoupled stack, the layer repeated "
+        "along its normal with no hopping between copies, whose rows at k_z = 1/2 repeat "
         "the in-plane ones: every component is an invariant of that stack, fixed by the "
-        "layer's own content.")
+        "layer's own symmetry data vector.")
     return TwoDimensionalReading(
         applied=True, dim_k=int(dim_k), periodic_dirs=tuple(periodic),
         vacuum_dirs=tuple(padded), presentation=presentation,
@@ -2339,7 +2332,7 @@ def _stack_in_group(table, group, rep, restriction, *, c, characters_tol):
         table, group, rep, restriction, c=c,
         environment=(None if getattr(rep, "_environment", None) is None
                      else str(rep._environment)),
-        note=("the layer's plane has no coordinate for the k-points at k_z = ½, where its "
+        note=("the layer's plane has no coordinate for the k-points at k_z = 1/2, where its "
               "group's EBR basis has rows that repeat no in-plane row. The same layer "
               "repeated along its normal with no hopping between copies, each orbital at "
               "its own height, is a crystal whose bands do not depend on k_z, its "
@@ -2384,7 +2377,7 @@ def _stack_in_group(table, group, rep, restriction, *, c, characters_tol):
         return stop("representation",
                     "the representation handed in has no matrix for operations "
                     f"{_text._runs(unrepresented)} of {group.name} #{group.number_str}, "
-                    "so the decoupled stack's rows at k_z = ½ cannot be read in that group",
+                    "so the decoupled stack's rows at k_z = 1/2 cannot be read in that group",
                     unrepresented=unrepresented)
     g3, asg3 = _layers._layer_on_stack(group, rep._assignment, stack)
     by_ind = {int(s.ind): s for s in g3._symmetries}
@@ -2592,13 +2585,11 @@ def _indicator_in(source, symmetry_data) -> SymmetryIndicator | Refusal:
         refused = {name: r.gate for name, r in (table.refusals or {}).items()}
         return Refusal(
             "incomplete_content",
-            f"the measured content is missing {sorted(refused, key=_tables.point_order)}: "
-            f"{refused}. An indicator "
+            f"the symmetry data vector is missing "
+            f"{sorted(refused, key=_tables.point_order)}: {refused}. An indicator "
             "reads the whole symmetry data vector, and the class of a vector with a point "
-            "missing is the class of a different vector, so this content has no class "
-            "here. Read the table's refusals. Completing the missing content from the "
-            "stable real-space invariants is future work, and there is no "
-            "`allow_incomplete` here.",
+            "missing is the class of a different vector, so these bands have no class "
+            "here. Read each missing point's refusal in the table's `refusals`.",
             value=float(len(refused)), threshold=0.0,
             context={"refusals": refused, "resolved": tuple(table.multiplets),
                      "completion": "stable-rsi"})
@@ -2655,7 +2646,8 @@ def _indicator_in(source, symmetry_data) -> SymmetryIndicator | Refusal:
     if restriction.orphans:
         reason = (
             (f"the EBR rows {list(restriction.orphans)} of #{group.number_str} sit at "
-             "k-points this content does not cover, out of a 2D model's periodic plane "
+             "k-points this symmetry data vector does not cover, out of a 2D model's "
+             "periodic plane "
              "or carrying no information, and they duplicate no row it does cover, so "
              "the symmetry data vector cannot be completed and the indicator has no value "
              "here. The decoupled stack of the layer, the crystal on which those rows are "
@@ -2827,8 +2819,8 @@ def subtract(symmetry_data_a, symmetry_data_b) -> dict | Refusal:
     if bad:
         return Refusal(
             "negative_multiplicity",
-            f"the difference has negative multiplicities {bad}; the second content is "
-            "not contained in the first, so their difference is not a band set. A "
+            f"the difference has negative multiplicities {bad}; the second symmetry data "
+            "vector is not contained in the first, so their difference is not a band set. A "
             "signed EBR combination is still meaningful (it is what fragility means) "
             "but it is not a symmetry data vector and cannot be decomposed as one.",
             value=float(min(bad.values())), threshold=0.0,

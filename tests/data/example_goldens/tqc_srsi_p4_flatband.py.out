@@ -55,14 +55,14 @@ Bands are counted from 0, as pythtb counts them.
 
 6. the k_x-directed Wilson loop W of each pair, as a function of k_y
    mesh             : 81 x 121, k_y from 0 to 1 inclusive
-   bands 0 and 1    : the two centres meet at k_y = 0.0, 0.25, 0.5, 0.75, 1.0,
+   bands 0 and 1    : the two centers meet at k_y = 0.0, 0.25, 0.5, 0.75, 1.0,
                       where tr W / 2 = -1.0, 1.0, -1.0, 1.0, -1.0,
                       and each branch winds by ±2
-   bands 2 and 3    : both centres at zero at every k_y, largest |phi / 2pi| 0.000000,
+   bands 2 and 3    : both centers at zero at every k_y, largest |phi / 2pi| 0.000000,
                       and the loop does not wind
    only bands 0 and 1 wind: they carry the obstruction section 5 diagnoses
 
-7. the Z2 model: the same group, the same verdict, and both loops winding
+7. the Z2 model: the same group, nsit again, and both loops winding
    as transcribed   : realized group #99.164 P4mm1'
    with the pattern : realized group #75.2 P41'
    degenerate pairs : bands 0 and 1, and bands 2 and 3, over the 41x41 mesh: largest
@@ -71,13 +71,13 @@ Bands are counted from 0, as pythtb counts them.
    Z-valued         : all 4 bands (1, 1, 0), the valence bands (1, 0, 0)
    mod 2            : all 4 bands (0, 1)
    splitting        : bands 0 and 1 against bands 2 and 3:
-                      nsit: the two sides of the gap cannot both be atomic insulators
-   consistent pairs : none: no valence and conduction realization have Z_n-valued
-                      invariants adding up to those of all 4 bands
-   bands 0 and 1    : the two centres meet at k_y = 0.0, 0.5, 1.0,
+                      nsit
+   consistent pairs : none: no valence and conduction realization have invariants
+                      valued modulo n adding up to those of all 4 bands
+   bands 0 and 1    : the two centers meet at k_y = 0.0, 0.5, 1.0,
                       where tr W / 2 = 1.0, -1.0, 1.0,
                       and each branch winds by ±1
-   bands 2 and 3    : the two centres meet at k_y = 0.0, 0.5, 1.0,
+   bands 2 and 3    : the two centers meet at k_y = 0.0, 0.5, 1.0,
                       where tr W / 2 = -1.0, 1.0, -1.0,
                       and each branch winds by ±1
    both pairs wind here, and in the flat-band model only bands 0 and 1 do: the

@@ -115,9 +115,9 @@ lattice = np.asarray(si.lat_vecs)
 together = np.asarray(r.numerical.positions.offset)                    # the shift of all of them
 moved = np.asarray(r.model.orb_vecs) - np.asarray(si.orb_vecs)
 own = np.linalg.norm((moved - together) @ lattice, axis=1)
-print(f"largest move of a centre: {own.max():.1e} Å, then all of them together by "
+print(f"largest move of a center: {own.max():.1e} Å, then all of them together by "
       f"{np.linalg.norm(together @ lattice):.1e} Å; symprec raised to {r.numerical.precision.symprec:.1e} Å")
-#  largest move of a centre: 2.8e-05 Å, then all of them together by 3.9e-05 Å; symprec raised to 3.8e-03 Å
+#  largest move of a center: 2.8e-05 Å, then all of them together by 3.9e-05 Å; symprec raised to 3.8e-03 Å
 ```
 
 The centres sat up to 2.8e-5 Å from the positions diamond's operations require

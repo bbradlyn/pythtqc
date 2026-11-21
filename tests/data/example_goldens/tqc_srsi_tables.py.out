@@ -40,7 +40,7 @@ https://doi.org/10.1038/s41467-026-74844-w, read with no model.
 4. the splittings the symmetry indicators allow, re-asked with a full enumeration
    the list         : 211 splittings of an elementary band representation into
                       others, 9 single-valued and 202 double-valued
-   the paper's flag : 203 of them, where the Z_n-valued invariants of the parts do not
+   the paper's flag : 203 of them, where the invariants valued modulo n of the parts do not
                       add up to the whole's; recomputed from the invariants printed
                       beside it, the flag agrees on 211 of 211
    the criterion    : the parent as all the bands, its first child as the valence bands,
@@ -54,7 +54,7 @@ https://doi.org/10.1038/s41467-026-74844-w, read with no model.
    the headline     : 202 of the 203 flagged splittings stay nsit
    the exception    : #209.49, parent (-1F2F)_c, first child (-F)_a, rest (-F)_b,
                       2 consistent pairs
-   the unflagged    : 8 splittings, 3 of them in groups with no Z_n-valued invariant
+   the unflagged    : 8 splittings, 3 of them in groups with no invariant valued modulo n
       group     parent     first child  rest         nsit                        consistent pairs
       #202.23   (-1F2F)_c  (-1Fg2Fg)_a  (-1Fu2Fu)_a  not nsit, pairs add up      1
       #202.23   (-1F2F)_c  (-1Fg2Fg)_b  (-1Fu2Fu)_b  not nsit, pairs add up      1
@@ -76,7 +76,7 @@ https://doi.org/10.1038/s41467-026-74844-w, read with no model.
                       3 of B2g and B3g, 1 of B1u and B2u, 1 of B1g and B2g
    space groups     : 90, 97, 100, 101, 102, 105, 107, 108, 109, 113, 117, 120, 127,
                       128, 130, 133, 135, 137, 138, 140, 142, 197, 201, 204, 211, 230
-   both members of each pair carry the same SRSIs, Z-valued and Z_n-valued, so
+   both members of each pair carry the same SRSIs, those in Z and those modulo n, so
    whichever one a decomposition picks, no invariant changes
 
 6. the figure: the criterion on the splittings, and the pairs by site symmetry

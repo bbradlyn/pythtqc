@@ -2,8 +2,9 @@
 
 A :class:`Refusal` is a verdict about the physics: the check that stopped a
 call, and what it measured there.  It is returned, never raised, and it is
-falsy; some values are falsy too, an empty set of pairs or an empty content,
-so ``isinstance(out, Refusal)`` is the test::
+falsy; some values are falsy too, an empty symmetry data vector or a
+splitting's ``consistent_pairs`` when there are none, so
+``isinstance(out, Refusal)`` is the test::
 
     r = tqc.realized_group(model)
     if isinstance(r, tqc.Refusal):

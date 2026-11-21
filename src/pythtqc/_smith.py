@@ -198,7 +198,7 @@ def _compatibility(data, number_str, labels, y):
         return (u, v, d, matrix), y_prime, None
     return (u, v, d, matrix), y_prime, Refusal(
         "not_a_band_structure",
-        f"the content violates {len(off)} of #{number_str}'s compatibility "
+        f"the symmetry data vector violates {len(off)} of #{number_str}'s compatibility "
         f"relations: the Smith coordinates {[(i, int(v2)) for i, _l, v2 in off]} must "
         "vanish for any band structure of this group and do not. These multiplicities "
         "are those of no set of bands separated from the rest at every k-point, as when "
@@ -262,7 +262,7 @@ def _verify_smith(number_str, matrix, u, v, d, y, slots, divisors, values,
         order0 = int(np.lcm(order0, int(step)))
     if order0 != order or bool(any(values0)) != bool(any(values)):
         raise InternalError(
-            f"{where}: the de-novo computation puts this content in a class of order "
+            f"{where}: the de-novo computation puts this symmetry data vector in a class of order "
             f"{order0} against the shipped basis's {order}. The order of a class is "
             "basis-independent, so the two Smith bases are not identifying the same "
             "quotient.")

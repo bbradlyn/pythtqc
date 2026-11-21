@@ -2,7 +2,7 @@ Lin et al., Nat. Commun. 15, 550 (2024), SM Sec. 3G: eight bands from four
 spinful orbitals, and the no-go criterion on two gaps of the one Hamiltonian.
 Bands are counted from 0, as pythtb counts them.
 
-1. the model, its two site orbits and all eight bands
+1. the model, its two Wyckoff orbits and all eight bands
    realized group   : #99.164 P4mm1', orbitals at Wyckoff 1a and 2c, 8 bands
    the 1a orbit     : -GM6 + -GM7 + -M6 + -M7 + 2x-X5
    the 2c orbit     : -GM6 + -GM7 + -M6 + -M7 + 2x-X5
@@ -25,12 +25,12 @@ Bands are counted from 0, as pythtb counts them.
 2. bands 4 and 5: the Z2-valued invariants come from the orbitals, not the bands
    bands 4 and 5    : -GM6 + -M7 + -X5
    atomic limit     : -E2 at 1b (4mm1')
-   srsi_of_bands    : Z-valued (0, 0, 1), and no Z_n-valued invariants
+   srsi_of_bands    : Z-valued (0, 0, 1), and no invariants valued modulo n
    the atomic limit : 1 (-E2)_b, Z-valued (0, 0, 1), mod 2 (1, 0)
    a signed sum     : 1 (-E1)_a + 1 (-E2)_a - 1 (-E1)_b, Z-valued (0, 0, 1), mod 2 (0, 0)
-   the Z-valued invariants agree and the Z2-valued ones differ: the Z_n-valued
-   invariants are not functions of the content, so a band set has them only through
-   a set of orbitals known to carry it, the model's own or an atomic limit
+   the Z-valued invariants agree and the Z2-valued ones differ: the invariants valued
+   modulo n are not functions of the symmetry data vector, so a band set has them only
+   through a set of orbitals known to carry it, the model's own or an atomic limit
 
 3. splitting(r, bands=6): the six occupied bands against the two above them
    P4mm1' #99.164, double-valued: nsit, no realization of the valence bands and of the conduction bands adding up to the whole model's invariants valued modulo n   (.group, .nsit)

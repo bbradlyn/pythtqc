@@ -582,7 +582,7 @@ def test_pxpy_declares_its_two_dimensional_multiplet_jointly(pxpy_bare):
     # of them, and nothing about the model is consulted to say it.
     as_s = rebuild({(0, 1): "s"})
     assert not as_s and as_s.gate == "ambiguous_multiplet"
-    assert "the joint form names the content its orbitals hold together" in as_s.reason
+    assert "the joint form names the site irreps its orbitals hold together" in as_s.reason
     assert "1-dimensional against the 2 orbitals named" in as_s.reason
     assert as_s.context["orbitals"] == (0, 1) and as_s.context["dim"] == 1
 

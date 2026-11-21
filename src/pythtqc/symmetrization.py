@@ -397,7 +397,7 @@ class Symmetrization:
                          "nothing to correct   (.exact)")
         moved = float((self._operators or {}).get("position_defect", 0.0))
         if moved > EXACT_GATE:
-            lines.append(f"  the orbital centres miss the group's own positions by {moved:.3g}, "
+            lines.append(f"  the orbital centers miss the group's own positions by {moved:.3g}, "
                          "which no projection of the hoppings removes")
         k_identity = self.checks.k_identity
         lines.append("  the hopping list returned is the group average to "
@@ -409,7 +409,8 @@ class Symmetrization:
                      f"{v.worst_residual:.3g}   (.verification)" if v is not None else
                      "  not measured again   (.verification)")
         if self.near or v is not None:
-            lines.append(f"  the operations counted are {_counted_as(self._spinful)}")
+            lines.append(f"  the operations counted are {_counted_as(self._spinful)}"
+                         "   (.near, .verification)")
         return "\n".join(lines)
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
@@ -781,7 +782,7 @@ def _with_centres(model, orb, *, check=True, n_check=_bloch.CHECK_K,
             worst = float(np.abs(orb - np.asarray(model.orb_vecs, dtype=float)).max(
                 initial=0.0))
             raise InternalError(
-                f"moving the centres, by at most {worst:.3g} (reduced), changed the "
+                f"moving the centers, by at most {worst:.3g} (reduced), changed the "
                 f"spectrum: max_k |E_new - E_old| = {resid:.3g} on a scale of "
                 f"{scale:.3g}, over {n_check} random k. In convention I that move is the "
                 "k-dependent gauge transformation Lambda(k) = diag(e^{-2 pi i k.Delta}), "
@@ -1332,13 +1333,13 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
     if pos_defect > _BLOCH_TOL:
         return Refusal(
             "positions_not_exactly_symmetric",
-            f"the orbital centres miss the operations handed in by {pos_defect:.3g} "
+            f"the orbital centers miss the operations handed in by {pos_defect:.3g} "
             f"(reduced), against the {_BLOCH_TOL:.0e} to which the operators of the "
-            "projection carry each centre onto its image. Averaged with operators that "
-            "miss the centres, the Hamiltonian is not projected onto its symmetric part: "
+            "projection carry each center onto its image. Averaged with operators that "
+            "miss the centers, the Hamiltonian is not projected onto its symmetric part: "
             "each hopping is carried to a lattice vector that is not one, and no "
-            "projection of the hoppings reaches a defect in the centres. Declare this "
-            "model's precision, `realized_group(..., precision=)`, which moves centres "
+            "projection of the hoppings reaches a defect in the centers. Declare this "
+            "model's precision, `realized_group(..., precision=)`, which moves centers "
             "within it onto the group's own positions before anything is projected.",
             value=pos_defect, threshold=_BLOCH_TOL,
             context={"position_defect": pos_defect, "bloch_tol": _BLOCH_TOL})
@@ -1384,11 +1385,11 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
     # number worth quoting -- it gates nothing (the defect is reduced-coordinate,
     # and this number is in the units of H).
     pos_note = ("" if pos_defect <= EXACT_GATE else (
-        f" This model's own centres miss the group's action by {pos_defect:.3g} "
+        f" This model's own centers miss the group's action by {pos_defect:.3g} "
         "(reduced), and in convention I that alone costs H(k) a covariance residual "
         "of order 2*pi*delta*max|H| whatever the hoppings do. A projection of the "
         "hoppings cannot remove that. Declare this model's precision, "
-        "`realized_group(..., precision=)`, which moves the centres onto the group's "
+        "`realized_group(..., precision=)`, which moves the centers onto the group's "
         "own positions before anything is projected, a k-dependent gauge that leaves "
         "the spectrum untouched."))
 
@@ -1744,9 +1745,9 @@ def _symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=Non
     if not within(worst, max_move):
         return Refusal(
             "positions_not_nearly_symmetric",
-            f"an orbital centre would have to move {worst:.3g} (reduced) onto the nearest "
+            f"an orbital center would have to move {worst:.3g} (reduced) onto the nearest "
             f"positions the group carries, against max_move = {float(max_move):.3g}. That "
-            "is a different set of centres, beyond a numerical defect: moving them would "
+            "is a different set of centers, beyond a numerical defect: moving them would "
             "substitute a crystal the model does not have. Identify the group the "
             "positions carry (`typat=`, `decorations=`), or raise `max_move` where that "
             "displacement is meant.",

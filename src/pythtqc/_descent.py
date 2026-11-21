@@ -1680,9 +1680,9 @@ def _centres_not_exactly_symmetric(model, group, assignment, *,
         return None
     return Refusal(
         "positions_not_exactly_symmetric",
-        f"the orbital centres miss the cell's own symmetry by {delta:.3g} (reduced): "
+        f"the orbital centers miss the cell's own symmetry by {delta:.3g} (reduced): "
         "declare this model's precision -- `realized_group(..., precision=)`, or "
-        "`position_tol=` for the centres alone -- and centres within it are moved onto "
+        "`position_tol=` for the centers alone -- and centers within it are moved onto "
         "the positions the group puts them at, a k-dependent gauge transformation "
         "that leaves the spectrum untouched. Undeclared, that defect alone costs H(k) a "
         f"covariance residual of order 2*pi*delta*max|H| = {estimate:.3g}, above the "
@@ -3334,7 +3334,7 @@ def _descent_clauses(counts) -> tuple:
     if d_cen or d_closure or d_tie or d_tr or d_proj:
         said = []
         if d_cen:
-            said.append(f"the orbital centres are not carried by {d_cen} of them within "
+            said.append(f"the orbital centers are not carried by {d_cen} of them within "
                         "the declared precision")
         if d_hop:
             said.append(f"the Hamiltonian broke {d_hop} {'more' if said else 'of them'} "
@@ -3361,7 +3361,7 @@ def _descent_clauses(counts) -> tuple:
     if d_cen or d_closure or d_tie or d_proj:
         kept_as = []
         if d_cen:
-            kept_as.append("that carry the orbital centres within the declared precision")
+            kept_as.append("that carry the orbital centers within the declared precision")
         if d_hop or d_closure or d_tie:
             kept_as.append("that the Hamiltonian obeys")
         if d_decl:

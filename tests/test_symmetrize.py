@@ -1270,7 +1270,7 @@ def test_a_declared_position_tol_snaps_the_centres_before_anything_else(
     assert head.context["tol"] == 1e-8
     assert head.context["group"].number_str == "187.210"
     assert head.context["group"]._size == 24
-    assert head.reason.startswith("the orbital centres miss the cell's own symmetry")
+    assert head.reason.startswith("the orbital centers miss the cell's own symmetry")
     assert "precision=" in head.reason and "position_tol=" in head.reason
     assert "positions" not in head.context, "none was declared, so none was made"
 
@@ -1438,7 +1438,7 @@ def test_centres_too_far_from_symmetric_break_the_operations_they_miss(km_odd):
     assert any("beyond the declared precision" in b.note for b in got.descent.dropped
                if b.refuted_by == "centers")
     assert ("so the cell was lowered to the largest group of its operations that carry the "
-            "orbital centres within the declared precision and that the Hamiltonian obeys"
+            "orbital centers within the declared precision and that the Hamiltonian obeys"
             ) in got.descent.note, "the note says what dropped the twenty"
     pos = got.numerical.positions
     assert pos.adjusted is True and pos.position_tol == 1e-6

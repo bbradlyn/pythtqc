@@ -34,12 +34,12 @@ occupied, one of the four nearest-neighbour bonds detuned along [111].
    valence content  : -GM9 + -F5F6 + -L5L6 + -T9
    atomic limit     : -E1u at 3a (-3m1')
    the valence bands are the antibonding pair of each dimer's two s orbitals,
-   centred at 3a on the [111] axis
+   centered at 3a on the [111] axis
 
-5. the content at the eight time-reversal-invariant momenta (TRIM)
+5. the coreps at the eight time-reversal-invariant momenta (TRIM)
    k-orbits         : GM (1), T (1), F (3), L (3), covering the cell's 8 TRIM
-   strong vs dimers : the content changes at T, 1 of the 8 TRIM
-   weak vs dimers   : the content changes at F and T, 4 of the 8 TRIM
+   strong vs dimers : the coreps change at T, 1 of the 8 TRIM
+   weak vs dimers   : the coreps change at F and T, 4 of the 8 TRIM
    #166.98 has inversion, so nu_0 is the parity product over these eight points
 
 6. the symmetry-indicator class in {BS}/{AI}

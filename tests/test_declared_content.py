@@ -1507,7 +1507,7 @@ def test_a_joint_shorthand_of_the_wrong_dimension_suggests_a_valid_spelling():
     """
     out = tqg.realized_group(_rect_pair(), characters={(0, 1): "px"})
     assert not out and out.gate == "ambiguous_multiplet", str(out)
-    assert "the joint form names the content its orbitals hold together" in out.reason
+    assert "the joint form names the site irreps its orbitals hold together" in out.reason
     assert "1-dimensional against the 2 orbitals named" in out.reason
     assert "{0: 'B1', 1: 'B1'}" in out.reason
     assert tqg.realized_group(_rect_pair(), cross_check=False,

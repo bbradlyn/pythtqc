@@ -985,7 +985,7 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
             if int(ref_chan) in chans:     # pragma: no cover - the verdict rules it out
                 raise InternalError(
                     "the declared orbital content was found covariant on this group, and no "
-                    "labelling of the crystal carries every declared multiplet in its declared "
+                    "labeling of the crystal carries every declared multiplet in its declared "
                     "irrep on the built matrices. The verdict and the build are two readings of "
                     "one measurement and have to agree; the two disagreeing is a defect in this "
                     "package, not a tolerance to loosen.")

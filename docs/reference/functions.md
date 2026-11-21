@@ -13,10 +13,10 @@ Each entry's **Refusals** are the checks at which that call can refuse.
 
 The functions fall into six groups:
 
-- [The group](#the-group) — the space group a Hamiltonian has and which operations it obeys, the orbitals' site orbits, and the operations by index and Seitz symbol.
+- [The group](#the-group) — the space group a Hamiltonian has and which operations it obeys, the orbitals' Wyckoff orbits, and the operations by index and Seitz symbol.
 - [Declaring what the hoppings cannot supply](#declaring-what-the-hoppings-cannot-supply) — the spin a spinless model carries in its orbital index.
 - [Group data in this cell's coordinates](#group-data-in-this-cells-coordinates) — the tables' k-points, little groups, character tables, Wyckoff positions and elementary band representations, in the model's own cell.
-- [Labelling the bands](#labelling-the-bands) — the states at one k-point, and the sewing matrices, characters and corep content of a set of bands, at one high-symmetry point or at all of them.
+- [Labeling the bands](#labeling-the-bands) — the states at one k-point, and the sewing matrices, characters and coreps of a set of bands, at one high-symmetry point or at all of them.
 - [Atomic limits](#atomic-limits) — whether a symmetry data vector is a sum of elementary band representations, and the counting beside it.
 - [Stable invariants](#stable-invariants) — the symmetry-indicator class of a band set, and its stable real-space invariants, from the bands or from the orbitals.
 
@@ -527,7 +527,7 @@ Whether irrep's character tables are in place, and `ortools` installed.
   installed; `irrep_version` and `irreptables_version`: the versions
   installed, `None` where a package is absent.
 
-## Labelling the bands
+## Labeling the bands
 
 - [`solve_at`](#solve_at) — The energies and eigenvectors at one k, from one diagonalization.
 - [`sewing_matrix`](#sewing_matrix) — The matrix of one operation on a set of bands, at a k-point the operation leaves invariant: the sewing matrix `B(g,k)_mn = <u_m(k)|U(g;k)|u_n(k)>`.

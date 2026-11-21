@@ -1624,7 +1624,7 @@ def test_the_indicator_refuses_on_physics_and_raises_on_a_broken_convention(
         refusals={"T": Refusal("integer_multiplicity", "synthetic", value=0.5)})
     out = tqe.symmetry_indicator(holed)
     assert isinstance(out, Refusal) and out.gate == "incomplete_content"
-    assert "no class here" in out.reason and "stable real-space invariants" in out.reason
+    assert "no class here" in out.reason and "`refusals`" in out.reason
     assert out.context["completion"] == "stable-rsi"
     assert "A5" not in out.reason, "the refusal names physics, not a build plan"
 

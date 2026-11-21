@@ -475,7 +475,7 @@ measured multiplet:
 
 ```python
 print(tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1], characters={(0, 1): "A1"}))
-#  Refusal[ambiguous_multiplet]: The group identified is P4mm1' #99.164, every operation of it obeyed; its representation was not built: orbitals (0, 1): the joint form names the content its orbitals hold together, and 'A1' is 1-dimensional against the 2 orbitals named, so it is not what they hold jointly; {0: 'A1', 1: 'A1'} is the spelling for 2 separate A1 orbitals.
+#  Refusal[ambiguous_multiplet]: The group identified is P4mm1' #99.164, every operation of it obeyed; its representation was not built: orbitals (0, 1): the joint form names the site irreps its orbitals hold together, and 'A1' is 1-dimensional against the 2 orbitals named, so it is not what they hold jointly; {0: 'A1', 1: 'A1'} is the spelling for 2 separate A1 orbitals.
 #      context: declared_irrep, dim, group, multiplet, multiplets, orbitals, site
 ```
 

@@ -17,7 +17,8 @@ spin-orbit coupling and without, shipped with the package; the thirteen groups
 whose one invariant is the band count have none.
 
 - :func:`srsi_tables`, the tables of one group, whose ``theta`` evaluates them
-  on a configuration in hand;
+  on a configuration in hand and whose ``stably_equivalent`` holds the pairs of
+  site irreps no invariant tells apart;
 - :func:`srsi_of_bands`, the integer-valued invariants of a band set, from its
   symmetry data vector, and :func:`srsi_of_model`, both kinds, from a model's
   orbitals, a row for each Wyckoff orbit;
@@ -507,7 +508,7 @@ def _orbit_contents(group, rep, blocks):
         if isinstance(lg, Refusal):
             why = lg
         elif len(lg.unitary) <= 1:
-            why = "trivial little group: no content to identify"
+            why = "trivial little group: no corep to identify"
         operators = []
         for sym in (() if why is not None else lg._unitary_operations):
             operator = rep.sewing_operator(int(sym.ind), k)
@@ -895,8 +896,8 @@ def _band_representations(rep) -> tuple:
     ops = {int(s.ind): s for s in group._symmetries if int(s.ind) in represented}
     miss = float(_position_defect(model, group, assignment, ops))
     if miss > _BLOCH_TOL:
-        note = ("no sum of elementary band representations, the symmetry content could not "
-                "be identified: the orbital centres miss "
+        note = ("no sum of elementary band representations, the symmetry data vector could "
+                "not be identified: the orbital centers miss "
                 f"the operations by {miss:.3g} (reduced), more than the {_BLOCH_TOL:.0e} the "
                 "Bloch operators carry them to; move them onto the group's positions first, "
                 "with realized_group's precision=")
@@ -912,7 +913,7 @@ def _band_representations(rep) -> tuple:
             name, why = (("", refusals) if counts is None else sorted(hard.items())[0])
             out.append(_OrbitBandRepresentation(
                 **where, terms=(),
-                note="no sum of elementary band representations, the symmetry content "
+                note="no sum of elementary band representations, the symmetry data vector "
                      "could not be identified"
                      + (f" at {name}" if name else "") + f": {getattr(why, 'reason', why)}"))
             continue
@@ -976,9 +977,9 @@ def _band_representations(rep) -> tuple:
             out.append(_OrbitBandRepresentation(
                 **where, terms=(),
                 note=("no sum of elementary band representations carries the symmetry "
-                      "content" if not every else
+                      "data vector" if not every else
                       f"{len(every)} sums of elementary band representations carry the "
-                      "symmetry content, and nothing read here says which is induced")))
+                      "symmetry data vector, and nothing read here says which is induced")))
             continue
         terms = tuple(
             tuple((int(m), name, position)

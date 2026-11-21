@@ -38,7 +38,7 @@
 #    classes: what momentum space says about the splitting
 # 5. splitting(realized, bands=2): bands 0 and 1 against bands 2 and 3
 # 6. the k_x-directed Wilson loop of each pair as a function of k_y
-# 7. the Z2 model: the same group, the same verdict, and both loops winding
+# 7. the Z2 model: the same group, nsit again, and both loops winding
 # 8. the two spectra, the two Wilson loops, and the figure written out
 
 # Author: the pythTQC examples
@@ -155,7 +155,7 @@ def indicator_class(si):
 
 def wilson_row(label, ky, trace, winding):
     """Where the two Wilson-loop centres of a pair meet, tr W / 2 there, and the winding."""
-    row(label, f"the two centres meet at k_y = {numbers(ky)},",
+    row(label, f"the two centers meet at k_y = {numbers(ky)},",
         f"where tr W / 2 = {numbers(trace)},",
         "and the loop does not wind" if int(round(winding)) == 0
         else f"and each branch winds by ±{int(round(winding))}")
@@ -426,14 +426,14 @@ cos_upper = np.real(np.trace(w_upper, axis1=1, axis2=2)) / 2.0
 psi_upper = np.arccos(np.clip(cos_upper, -1.0, 1.0))
 winding_upper = float(np.abs(np.diff(psi_upper)).sum() / (2 * np.pi))
 centre_upper = float(np.abs(phases_upper).max())
-row("bands 2 and 3", f"both centres at zero at every k_y, largest |phi / 2pi| {centre_upper:.6f},",
+row("bands 2 and 3", f"both centers at zero at every k_y, largest |phi / 2pi| {centre_upper:.6f},",
     "and the loop does not wind" if int(round(winding_upper)) == 0
     else f"and each branch winds by ±{int(round(winding_upper))}")
 print("   only bands 0 and 1 wind: they carry the obstruction section 5 diagnoses")
 
 ########### 7. the Z2 model ###########
 
-print("\n7. the Z2 model: the same group, the same verdict, and both loops winding")
+print("\n7. the Z2 model: the same group, nsit again, and both loops winding")
 z2_wide = tqc.realized_group(z2_model)
 
 z2_chiral = TBModel(lattice, spinful=True)
@@ -462,14 +462,13 @@ row("Z-valued", f"all 4 bands {values(z2_srsi.theta_Z.values())}, the valence ba
     f"{values(split_z2.valence.theta_Z.values())}")
 row(f"mod {modulus}", f"all 4 bands {values(mod_n(z2_srsi.theta_Zn, modulus))}")
 row("splitting", "bands 0 and 1 against bands 2 and 3:",
-    "nsit: the two sides of the gap cannot both be atomic insulators" if split_z2.nsit
-    else "not nsit")
+    "nsit" if split_z2.nsit else "not nsit")
 if split_z2.consistent_pairs:
     row("consistent pairs", f"{len(split_z2.consistent_pairs)}, each a valence and a conduction "
-        "realization whose", "Z_n-valued invariants add up to those of all 4 bands")
+        "realization whose", "invariants valued modulo n add up to those of all 4 bands")
 else:
-    row("consistent pairs", "none: no valence and conduction realization have Z_n-valued",
-        "invariants adding up to those of all 4 bands")
+    row("consistent pairs", "none: no valence and conduction realization have invariants",
+        "valued modulo n adding up to those of all 4 bands")
 
 wf_z2 = WFArray(lattice, mesh, spinful=True)
 wf_z2.solve_model(z2_chiral)

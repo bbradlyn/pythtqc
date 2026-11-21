@@ -272,7 +272,7 @@ def _slab_presentation(model, *, c=SLAB_C, check=True, n_check=_bloch.CHECK_K,
             raise InternalError(
                 "the 3D presentation is not bit-identical to the 2D model: "
                 f"max|H3(k) - H2(k)| = {worst:.3g} over {n_check} random k. The "
-                "presentation is a relabelling of the same Hamiltonian and changes "
+                "presentation is a relabeling of the same Hamiltonian and changes "
                 "nothing, so this is the package disagreeing with itself, not a "
                 "property of the model.")
         record["residual"] = worst

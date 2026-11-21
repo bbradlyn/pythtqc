@@ -595,9 +595,9 @@ def _joint_reason(joint, ind):
         orbs = tuple(int(o) for o in d["orbitals"])
         if d.get("partial"):
             return (f"orbitals {orbs} are declared {said}, part of what their site holds, "
-                    "and no labelling the hoppings leave open puts it inside the site's "
+                    "and no labeling the hoppings leave open puts it inside the site's "
                     "content on a group holding this operation and those kept")
-        return (f"orbitals {orbs} are declared {said} together, and no labelling the "
+        return (f"orbitals {orbs} are declared {said} together, and no labeling the "
                 "hoppings leave open carries that content on a group holding this "
                 "operation and those kept")
     return None
@@ -2068,7 +2068,7 @@ def _needs_per_operation(rows, req, raw, why, *, tol=CHARACTER, roots=False):
                         f"hoppings carry them with {_stated(first, 'measured')}, a "
                         f"ratio of {_fmt_char(need)} that is not a sign: an antiunitary "
                         "operation of the group leaves only a sign between two "
-                        "labellings of one crystal")
+                        "labelings of one crystal")
         else:
             req[ind] = complex(round(float(np.real(need))))
     return req, raw, why
@@ -2756,7 +2756,7 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
                                               table, paired=paired))
             raise _sitechars.DeclarationError(
                 "ambiguous_multiplet",
-                f"{where}: the joint form names the content its {noun}s hold together, and "
+                f"{where}: the joint form names the site irreps its {noun}s hold together, and "
                 f"{label!r} {wide} against the {n} {noun}{'' if n == 1 else 's'} named, "
                 "so it is not what they hold jointly" + fix,
                 {"orbitals": orbs, "site": site, "declared_irrep": label, "dim": dim,
@@ -3210,7 +3210,7 @@ def _name_the_mismatch(failed, measured, still_free, decls, site_tables, tol=1e-
             f", not the declared {wanted or 'character'}"
             + (f"; relative character {rel_label}." if rel_label else
                "; the ratio measured/declared is not a character of this site group either, "
-               "so no other labelling accommodates it."))
+               "so no other labeling accommodates it."))
     return "\n".join(lines), {"measured_irrep": measured_irrep,
                               "relative_character": rel_label,
                               "declared_irreps": tuple(

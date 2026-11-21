@@ -170,7 +170,7 @@ def atomic_model(lattice, ops, orbits, onsites, seeds, spinful=False):
     One orbital per site, the on-site energies given, and the seed hoppings closed
     under ``ops`` by :func:`closed_bonds`.  ``spinful=True`` carries the same
     spin-independent hoppings on both spin states: the band representation is the
-    spinless one times spin ½, induced from the double-valued site
+    spinless one times spin 1/2, induced from the double-valued site
     representation, and every level is doubly degenerate.
 
     Parameters
@@ -1305,7 +1305,7 @@ def _cubic_3c_p_model(orbitals, ops, seed, angle=0.0):
 def cubic_3c_axis_p(seed=11):
     """One ``p`` orbital per ``3c`` site of a simple cubic cell, along that site's own fourfold axis.
 
-    ``p_x`` at ``(0,½,½)``, ``p_y`` at ``(½,0,½)`` and ``p_z`` at ``(½,½,0)``, with a
+    ``p_x`` at ``(0,1/2,1/2)``, ``p_y`` at ``(1/2,0,1/2)`` and ``p_z`` at ``(1/2,1/2,0)``, with a
     random real hopping between every two orbitals within one lattice constant,
     averaged over the rotations of ``O``, the orbitals carried as the vectors
     they are.  An operation carrying one site onto another carries its ``p`` onto
@@ -1332,8 +1332,8 @@ def cubic_3c_axis_p(seed=11):
 def cubic_3c_perp_doublet(angle=0.0, seed=7):
     """The ``p`` pair perpendicular to each ``3c`` site's own axis, in a simple cubic cell: a composite band representation.
 
-    ``(p_y, p_z)`` at ``(0,½,½)``, ``(p_x, p_z)`` at ``(½,0,½)`` and ``(p_x, p_y)``
-    at ``(½,½,0)``, with a random real hopping between every two orbitals within
+    ``(p_y, p_z)`` at ``(0,1/2,1/2)``, ``(p_x, p_z)`` at ``(1/2,0,1/2)`` and ``(p_x, p_y)``
+    at ``(1/2,1/2,0)``, with a random real hopping between every two orbitals within
     one lattice constant, averaged over the operations of ``T_d``.  The three
     sites allow ``Pm-3m1'``; the hoppings obey ``T_d`` and no more, and the
     Hamiltonian obeys ``P-43m1'`` (#215.71), whose site group at ``3c`` is

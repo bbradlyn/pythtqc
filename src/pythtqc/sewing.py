@@ -1364,7 +1364,8 @@ class CorepsAtNumerical:
         """The thresholds and the identification, each under a line naming its field."""
         lines = [f"the zero thresholds at {self.identification.kpoint}   (.thresholds)"]
         lines += ["  " + line for line in self.thresholds.summary().splitlines()]
-        lines.append("the coreps read off the characters   (.identification)")
+        lines.append(f"the {self.identification._kind} read off the characters   "
+                     "(.identification)")
         lines += ["  " + line for line in self.identification.summary().splitlines()]
         return "\n".join(lines)
 

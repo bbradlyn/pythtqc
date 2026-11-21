@@ -21,7 +21,7 @@ calls read the group it returns:
   group's elementary band representations, its indicator group, and a symmetry data
   vector written in its elementary band representations;
 * :func:`stack_presentation`: a layer repeated along its normal with no hopping
-  between the copies, the three-dimensional crystal its rows at ``k_z = ½`` are
+  between the copies, the three-dimensional crystal its rows at ``k_z = 1/2`` are
   measured on;
 * :func:`tables_status`: whether the tables are installed.
 

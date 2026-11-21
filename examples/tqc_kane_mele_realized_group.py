@@ -482,8 +482,8 @@ axes[3].set_title(f"delta = 0, rashba = 0.25\n#{g4.number_str} {g4.name}\n"
                   fontsize=9.5)
 
 fig.suptitle("Kane-Mele on the honeycomb: the four bands along GM-K-M-GM, the valence "
-             "pair in blue and the conduction pair in red, with the measured corep "
-             "content at each node.", fontsize=10)
+             "pair in blue and the conduction pair in red, with the measured coreps "
+             "at each node.", fontsize=10)
 fig.tight_layout(pad=0.5, rect=(0, 0, 1, 0.955))
 # save_figure writes the PDF without its creation date, so a rerun gives the same file
 save_figure(fig, os.path.join(OUTDIR, "km_bands_and_coreps.pdf"))

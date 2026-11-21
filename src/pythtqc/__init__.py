@@ -4,9 +4,9 @@ From a model's own Hamiltonian, pythTQC measures:
 
 1. the space group it obeys, each orbital's Wyckoff position and site irrep,
    and the model's representation of the group: ``realized_group(model)``;
-2. the corep content of its bands at every high-symmetry point:
-   ``hsp_table(r, bands=n)``;
-3. whether that content could be an atomic limit: ``decompose``;
+2. the coreps its bands carry at every high-symmetry point, their symmetry
+   data vector: ``hsp_table(r, bands=n)``;
+3. whether that vector could be an atomic limit: ``decompose``;
 4. its symmetry-indicator class and its stable real-space invariants:
    ``symmetry_indicator``, ``srsi_of_bands``, ``srsi_of_model``, and whether a
    gapped splitting of its bands can be two atomic insulators: ``splitting``.
@@ -22,9 +22,9 @@ A first call::
 
 A call that cannot complete returns a ``Refusal`` in its place, which prints
 the check that stopped it and what it measured there.  A refusal is falsy, and
-so are some values, an empty set of pairs or an empty content:
-``isinstance(out, tqc.Refusal)`` is the test.  The package's own measurements
-disagreeing raise ``InternalError``.
+so are some values, an empty symmetry data vector or a splitting's
+``consistent_pairs`` when there are none: ``isinstance(out, tqc.Refusal)`` is
+the test.  The package's own measurements disagreeing raise ``InternalError``.
 
 The space-group data is irrep's, from the package ``irreptables``;
 ``tables_status()`` says whether it loaded.  The documentation is the
@@ -34,8 +34,8 @@ at ``docs/README.md``.
 The modules: ``groups``, the space group and its tables; ``symmetry``, the
 model's representation of the group; ``sewing``, sewing matrices and band
 labels; ``ebr``, decompositions and symmetry indicators; ``srsi``, stable
-real-space invariants; ``symmetrization``, models symmetric only to a declared
-precision; ``spin``, spinor bases and their spin operator; ``models``,
+real-space invariants; ``symmetrization``, the record of a model made exactly
+symmetric under a declared precision; ``spin``, spinor bases and their spin operator; ``models``,
 reference crystals; ``refusal``, ``Refusal`` and ``InternalError``; ``utils``,
 figures for the examples.
 """

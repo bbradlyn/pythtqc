@@ -796,9 +796,9 @@ def test_a_pair_split_across_two_sites_refuses(km_flat):
     assert out.threshold == 0.0
     assert out.context["pair"] == 0 and out.context["orbitals"] == (0, 2)
     assert out.context["sites"] == (0, 1)
-    assert "different sites" in out.reason and "share its centre" in out.reason
-    assert "mislabelled" in out.reason and "magnetic configuration" in out.reason
-    assert "(`precision=`) reads two centres closer than it as one" in out.reason
+    assert "different sites" in out.reason and "share its center" in out.reason
+    assert "mislabeled" in out.reason and "magnetic configuration" in out.reason
+    assert "(`precision=`) reads two centers closer than it as one" in out.reason
     for spin, typat in ((split, None), ("blocked", None), ("blocked", [0, 0, 1, 1])):
         got = tqg.realized_group(flat, spin=spin, typat=typat)
         assert isinstance(got, Refusal) and got.gate == "spin_pair_split", str(got)

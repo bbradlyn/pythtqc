@@ -32,7 +32,7 @@ What each thing is called where a call returns it.
 
 | what it is | its name | where |
 |---|---|---|
-| the Wyckoff position | `wyckoff`, multiplicity and letter (`"6c"`); `letter`, the letter alone | `wyckoff` on the atomic-limit table and on `wyckoff_sites_tables`' positions; `letter` on the SRSI records |
+| the Wyckoff position | `wyckoff`, multiplicity and letter (`"6c"`) | `wyckoff` on the atomic-limit table, on `wyckoff_sites_tables`' positions and on the SRSI records |
 | the sites the group's operations carry onto one another, all at one Wyckoff position | a Wyckoff orbit: a row, its `orbitals`, and its sites' positions as `numerical.positions` | the atomic-limit table, `r.wyckoff_orbits` |
 | the site-symmetry group | `site_symmetry`, its Hermann–Mauguin symbol (`"-42m1'"`); `unitary_site_symmetry`, without time reversal (`"-42m"`) | the atomic-limit table |
 | the orbital function | `declared`, the word a declaration wrote, spelled as `characters=` takes it; `None` on a row nothing was declared for | the atomic-limit table |

@@ -187,7 +187,7 @@ row("degeneracies", f"{' + '.join(str(len(b)) for b in mult)}, level gaps "
 
 ########### 4. each level labelled from one diagonalization ###########
 
-print("\n4. the three levels, each labelled from that one diagonalization")
+print("\n4. the three levels, each labeled from that one diagonalization")
 labels, chis = [], []
 for multiplet in mult:
     out_b = tqc.coreps_at(r_soc, P_soc, states=states, bands=list(multiplet))
@@ -220,7 +220,7 @@ table_soc = tqc.hsp_table(r_soc, bands=[0, 1, 2, 3])   # the content at every po
 d = tqc.decompose(table_soc)
 row("valence content", fmt(table_soc.symmetry_data))
 row(*atomic_limits(d))
-print(f"   {label_mid} belongs to a labelling of the whole set, not a choice made at P")
+print(f"   {label_mid} belongs to a labeling of the whole set, not a choice made at P")
 
 ########### 6. the control: P6_2 at H ###########
 

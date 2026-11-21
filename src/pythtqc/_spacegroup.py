@@ -34,7 +34,7 @@ from ._tolerance import (
 from ._text import _affine_text, _index_ranges, _lattice_vectors, _point_text
 
 __all__ = ["tables_status", "GroupData", "LittleGroup", "SiteReference",
-           "OrbitalAssignment", "CorepIdentification", "KGrid", "Term"]
+           "CorepIdentification", "KGrid", "Term"]
 
 
 # ITA Wyckoff letters: 'a'..'z' then 'A' (space group 47 has 27 positions).
@@ -854,17 +854,20 @@ class CorepIdentification:
     # first appearance: two share a number when their characters agree within
     # the label tolerance
     _partition: tuple = field(default=(), repr=False)
+    # what the summary calls the labels: "irreps" in a group with no time
+    # reversal, "coreps" otherwise
+    _kind: str = field(default="coreps", repr=False, compare=False)
 
     def summary(self) -> str:
         """The coreps at one k, a line for each part, with the attribute that holds it."""
         lines = [f"{self.kpoint} {_point_text(self.k)}, in the model's reduced coordinates   "
                  "(.kpoint, .k)",
-                 "  each multiplet's coreps, and its dimension   (.labels, .dims)"]
+                 f"  each multiplet's {self._kind}, and its dimension   (.labels, .dims)"]
         for row, (labels, dim) in enumerate(zip(self.labels, np.asarray(self.dims).reshape(-1))):
             content = " + ".join((f"{int(m)}x{label}" if int(m) > 1 else str(label))
                                  for label, m in labels.items())
             lines.append(f"    multiplet {row}, dimension {int(round(float(dim)))}: "
-                         f"{content or 'no corep'}")
+                         f"{content or 'no ' + self._kind[:-1]}")
         lines += [f"  the little group's unitary operations, the characters' columns, by "
                   f"index: {_index_ranges(self.indices)}   (.indices)",
                   f"  the multiplicities before rounding, at most {float(self.integrality):.2g} "
@@ -1424,9 +1427,9 @@ def _canonical_spinor_signs(sg, *, tol=1e-3):
             if cocycle > tol:
                 raise InternalError(
                     f"{where}: the shipped SU(2) matrices do not close as a lift set — "
-                    f"S(g)S(h) is not ±S(gh) at operations {at} (½·tr sits {cocycle:.3g} "
+                    f"S(g)S(h) is not ±S(gh) at operations {at} (half the trace sits {cocycle:.3g} "
                     f"from ±1, against a tolerance of {tol:.3g}). There is then no "
-                    f"tabulated ℤ₂ factor system to write this group's lifts against, and "
+                    f"tabulated Z2 factor system to write this group's lifts against, and "
                     f"the coboundary equation δc = ω_ours/ω_table has no right-hand side.")
             return {"frame": name, "correction": correction, "spin_transf": spin,
                     "signs": tuple(signs), "defect": defect, "cocycle": cocycle,
