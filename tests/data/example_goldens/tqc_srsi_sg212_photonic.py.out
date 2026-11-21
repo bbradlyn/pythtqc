@@ -11,7 +11,7 @@ P4_3321' #212.60   (.group)
 bands 0-7 at GM (Γ): GM3 + GM4 + GM5   (.table.bands, .kpname, .counts)
   by degenerate multiplet, from the lowest   (.labels)
     bands 0-2 at -6.4: GM5, class 0
-    bands 3-5 at -1.388e-15: GM4, class 1
+    bands 3-5 at 0: GM4, class 1
     bands 6-7 at 4.8: GM3, class 2
   multiplets of one class carry the same characters, under any labelling of the orbitals   (.partition)
 bands 0-7 at M: M1M4 + M2M3 + 2×M5   (.table.bands, .kpname, .counts)

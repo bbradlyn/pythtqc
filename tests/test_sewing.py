@@ -75,6 +75,7 @@ the decorated cell and the model share one padded lattice, which
 ``groups._assign_orbitals`` requires.
 """
 
+import dataclasses
 import re
 
 import numpy as np
@@ -854,6 +855,14 @@ def test_the_degeneracy_tolerance_is_an_argument_of_the_table(lin3g_undeclared):
     # spread is now the *same size* as the separation, not orders below it
     assert coarse.spread == pytest.approx(3.9751, abs=1e-3)
     assert coarse.thresholds.separation == pytest.approx(8.0501, abs=1e-3)
+
+    # the summaries print each multiplet's energy at the resolution it was grouped at:
+    # a level at rounding of zero is at 0
+    content = tqw.corep_content(undeclared, k, states=(evals, evecs), bands=(0, 1, 2, 3))
+    at_zero = dataclasses.replace(content.table, energies=np.array([-1.388e-15, 1.0]))
+    assert dataclasses.replace(content, table=at_zero).summary().splitlines()[2].startswith(
+        "    bands 0-1 at 0: ")
+    assert re.search(r"energy +0 +1   \(\.energies\)", at_zero.summary())
 
 
 def test_the_band_set_is_one_keyword_and_the_record_reports_its_bands(lin3g_undeclared):

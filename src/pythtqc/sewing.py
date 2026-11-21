@@ -195,6 +195,12 @@ def disagreements(thresholds: Thresholds, readouts: Mapping[str, Any]) -> tuple:
 # the multiplet analysis — small functions over pythtb's energy arrays
 # ==========================================================================
 
+def _resolved(energies, degeneracy_tol):
+    """Energies at the resolution the multiplets were grouped at: each rounded to the nearest multiple of ``degeneracy_tol``."""
+    tol = float(degeneracy_tol)
+    e = np.asarray(energies, dtype=float)
+    return (np.round(e / tol) * tol if tol > 0.0 else e) + 0.0
+
 def _clusters(values, degeneracy_tol):
     """Group a sorted 1-D array into clusters of width at most ``degeneracy_tol``.
 
@@ -866,7 +872,8 @@ class CharacterTable:
             lines.append("  the trace of each unitary operation of the little group, by index, "
                          "over each degenerate multiplet   (.characters, .columns)")
             rows = [("bands", [_runs(m) for m in self.multiplets], "   (.multiplets)"),
-                    ("energy", [f"{e:.4g}" for e in self.energies + 0.0], "   (.energies)")]
+                    ("energy", [f"{e:.4g}" for e in _resolved(self.energies, self.degeneracy_tol)],
+                     "   (.energies)")]
             rows += [(f"{int(ind):>3}  {self._names.get(int(ind), '')}",
                       [_character_text(z) for z in self.characters[:, c]], "")
                      for c, ind in enumerate(self.columns)]
@@ -1154,7 +1161,8 @@ class CorepContent:
             lines += [f"    band{'s' if len(bands) > 1 else ''} {_runs(bands)} at {energy:.4g}: "
                       f"{format_counts(labels)}, class {cls}"
                       for bands, energy, labels, cls in zip(
-                          self.table.multiplets, self.table.energies + 0.0, self.labels,
+                          self.table.multiplets,
+                          _resolved(self.table.energies, self.table.degeneracy_tol), self.labels,
                           self.partition)]
             lines.append("  multiplets of one class carry the same characters, under any "
                          "labelling of the orbitals   (.partition)")

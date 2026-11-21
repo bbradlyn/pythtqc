@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The summaries of a character table and of the coreps at a point print each multiplet's
+  energy at the resolution its bands were grouped at, the table's `degeneracy_tol`: a
+  level at the rounding of zero prints `at 0`, where it printed `at -1.388e-15`.
 - What `realized_group` returns is read by name and does not unpack: `r.model`, `r.group`,
   `r.rep`, and `r.bundle` is gone. Its top level holds `group`, `operations`,
   `wyckoff_orbits`, `descent`, `time_reversal`, `beyond_grey`, `conserved`, `environment`,
