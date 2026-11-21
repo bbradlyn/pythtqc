@@ -26,8 +26,8 @@ from ._tolerance import (
 from ._text import _counted_as, _index_ranges, _orbitals_named
 from ._detector import _GridHamiltonians, _budget_that_runs, _size
 from ._matrices import (
-    SiteMultiplets, _BLOCH_TOL, _default_of, _resolve_spin, bloch_operator,
-    covariance_gate)
+    SiteMultiplets, _BLOCH_TOL, _default_of, _nearest_representation, _resolve_spin,
+    bloch_operator, covariance_gate)
 from ._grammar import _declaration_grammar
 from ._centres import _position_defect
 from ._build import _build_rep, _exact_gate
@@ -583,6 +583,28 @@ def _projection_operators(model, group, assignment, validated, *, tol, build_kw)
     scale = _bloch.magnitude(_bloch.hamiltonian(model, probe), mu)
     return _provisional_rep(model, group, assignment, validated, tol=tol, scale=scale,
                             build_kw=build_kw)
+
+def _exact_representation(group, D):
+    r"""``D``, keyed by operation, made an exact representation of the group.
+
+    The group average is a projection only when its matrices compose by the
+    group's table: then ``Σ_g U(g) H U(g)†`` is carried onto itself by every
+    operation, and pulling the average back at any ``k`` gives the same matrix
+    as pushing it forward on a grid.  Matrices read off a near-symmetric
+    model's own multiplet blocks carry its noise and compose only to it, and
+    averaged with them ``H`` is moved by that noise onto no symmetric
+    Hamiltonian at all.  So the average is taken with the exact representation
+    nearest them (:func:`.._matrices._nearest_representation`), which leaves
+    matrices that already compose to rounding exactly as they are, and moves
+    the others by the composition defect they had and no more.
+    """
+    position = {int(s.ind): p for p, s in enumerate(group._symmetries)}
+    prod = group._get_product_table(get_diff=False)
+    by_position = {position[i]: m for i, m in D.items()}
+    nearest = _nearest_representation(by_position, list(by_position), group._symmetries, prod)
+    if nearest is None:
+        return D
+    return {i: nearest[position[i]] for i in D}
 
 def _with_centres(model, orb, *, check=True, n_check=_bloch.CHECK_K,
                   seed=_bloch.CHECK_SEED):
@@ -1189,7 +1211,8 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
     anchored = {int(i): float(v) for i, v in rep.residuals.items()}
     classes = _classify_operations(validated, tol, exact_gate=exact_gate, anchored=anchored)
     indices = tuple(int(i) for i in rep.indices)
-    D = {int(i): np.asarray(rep.matrices[int(i)]) for i in indices}
+    D = _exact_representation(group, {int(i): np.asarray(rep.matrices[int(i)])
+                                      for i in indices})
     bloch_tol = _BLOCH_TOL
     # THE PARTS OF THE CRYSTAL READ APART, where several were: what H holds
     # between them is below the declared precision, and the average leaves it out;

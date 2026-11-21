@@ -83,6 +83,7 @@ from pythtqc import _measure
 from pythtqc import _realized
 from pythtqc import _spacegroup
 from pythtqc import _tables
+from pythtqc.models import cubic_3c_perp_doublet
 
 import tqc_models
 from conftest import FKM_BOND, fkm_regime, km_z2_regime, patch_everywhere
@@ -937,6 +938,16 @@ def test_a_multiplet_site_symmetrizes_through_the_representation_nearest_its_blo
         assert spinless.symmetrization is not None
         assert spinless.symmetrization.operators["composition"] > 1e-9
         assert spinless.rep.product_residual < 1e-13
+
+    # blocks that compose to better than the canonical norm needs, and still
+    # only to the model's noise, are made exact for the average as well: each
+    # 3c site's p pair, jittered at 1e-10, composes to 6e-10
+    cubic = tqg.realized_group(jitter(cubic_3c_perp_doublet(), rel=1e-10))
+    assert cubic, str(cubic)
+    assert cubic.group.name == "P-43m1'"
+    assert 1e-10 < cubic.symmetrization.operators["composition"] < 1e-9
+    assert cubic.symmetrization.checks["k_identity"] < 1e-13
+    assert cubic.symmetrization.checks["covariance_residue"] < 1e-13
 
 
 def _thick_slab(shifts=None):

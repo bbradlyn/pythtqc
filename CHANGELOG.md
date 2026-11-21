@@ -69,6 +69,11 @@
   operations measured to hold do not close into a group, as a numerical model's
   operations near its tolerance can: the largest group they contain, as for any such
   model.
+- `realized_group` returns the group of a model whose hoppings carry a relative noise near
+  `1e-10`, no precision declared, where it raised `InternalError`: `P-43m1'` for
+  `cubic_3c_perp_doublet` so perturbed. Its Hamiltonian is averaged over the group with
+  the exact representation nearest the matrices read off its multiplets, which carry its
+  noise.
 - `realized_group` builds the representation of a crystal written on a strongly skewed
   lattice basis, where it refused `rep_not_covariant` though every operation held: the
   square lattice with one `s` orbital on `5 a1 + 8 a2, 3 a1 + 5 a2` among them. The
