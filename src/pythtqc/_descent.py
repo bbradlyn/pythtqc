@@ -1877,11 +1877,18 @@ def _ansatz_refuted(model, group, assignment, validated, *, layout, spin,
     per-operation verdict the descent below can act on where ``_build_rep``'s
     own covariance gate (a *global* "no candidate closes") cannot.
 
-    Applied **exactly to the operations the detector declares undetermined** —
-    nowhere else.  Where every k-action class is a singleton (every fully
-    periodic model on its primitive cell, and every 2D model on a substrate)
-    this runs on nothing and costs nothing: a singleton class carries the
-    detector's own ``"obeyed"`` verdict, and its own form is the whole question.
+    Applied to the operations the detector declares undetermined, and, where
+    the multiplets are stated by ``site_multiplets=`` rather than measured, to
+    the ones it found obeyed as well.  Measured multiplets are the finest
+    partition every kept operation's space has a block-form member on, so an
+    obeyed operation carries them by construction; stated ones it carries only
+    where it does not mix them -- a square's fourfold does mix ``p_x`` and
+    ``p_y`` stated as two singlets, and is no symmetry of the crystal stated.
+    Where every k-action class is a singleton (every fully periodic model on
+    its primitive cell, and every 2D model on a substrate) and nothing is
+    stated, this runs on nothing and costs nothing: a singleton class carries
+    the detector's own ``"obeyed"`` verdict, and its own form is the whole
+    question.
 
     **One lift per operation, and it is the tables' own.**  An operation is never
     represented through its ``σ_h`` partner's lift: representing ``g``
@@ -1916,7 +1923,13 @@ def _ansatz_refuted(model, group, assignment, validated, *, layout, spin,
     (``rep_search_too_large``, where ``blocks`` was not already built for it).
     """
 
-    shared = set(validated.undetermined) - set(skip or ())
+    shared = set(validated.undetermined)
+    if layout is not None and layout.determined_by == "declaration":
+        # stated multiplets are asked of every operation the detector kept:
+        # measured ones are carried by each of them by construction, stated
+        # ones only where the operation does not mix them
+        shared |= set(validated.obeyed)
+    shared -= set(skip or ())
     if not shared:
         return {}, {}
     positions = [i for i, s in enumerate(group.symmetries) if int(s.ind) in shared]

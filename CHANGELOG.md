@@ -60,6 +60,11 @@
   were refused `kpoint_not_tabulated`, their coordinates having been compared after
   rounding. A k-point is the tabulated one where it differs from it by a reciprocal
   lattice vector of the cell as written.
+- `realized_group` given `site_multiplets=` that separates orbitals a symmetry of the
+  hoppings mixes returns the group that keeps them separate: `p_x` and `p_y` on the
+  fourfold site of a square lattice, stated as two multiplets, give `Pmm21'` on a
+  substrate and `Pmmm1'` free-standing or stacked into a crystal, where it raised
+  `InternalError`.
 
 ## 0.1.0a3 — the second public version
 

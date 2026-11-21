@@ -2471,6 +2471,19 @@ def test_the_square_pxpy_doublet_is_measured_against_a_torus_of_a_commutant():
         ["declaration"] * 2
     assert _same_matrices(out.rep, declared.rep, atol=0.0)
 
+    # ... while the pair stated as two singlets is a crystal whose site does not
+    # mix them: the fourfold axis and the diagonal mirrors are no symmetry of it,
+    # and the group descends to the one that keeps p_x and p_y apart, Pmm2 on a
+    # substrate and Pmmm free-standing, the two readings of the layer agreeing
+    stated = [[(0,), (1,)]]
+    split = tqg.realized_group(_square_pxpy(), typat=[0, 0], site_multiplets=stated)
+    assert split, str(split)
+    assert split.group.number_str == "25.58" and split.descent is not None
+    assert split.rep.multiplets.by_site == (((0,), (1,)),)
+    free = tqg.realized_group(_square_pxpy(), typat=[0, 0], site_multiplets=stated,
+                              environment="free-standing", cross_check=False)
+    assert free and free.group.number_str == "47.250", str(free)
+
 
 def _decoupled_pair():
     """Two orbitals at one ``4mm`` site with identical isotropic hoppings, coupled to nothing."""
