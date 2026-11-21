@@ -20,6 +20,7 @@ import math
 import os
 import string
 from typing import Any
+import warnings
 import weakref
 
 import irrep.spacegroup_irreps  # noqa: F401
@@ -2014,6 +2015,135 @@ def _identification_memo_clear() -> None:
 _SETTING_SEEDS = (0, 1, 2, 3)
 
 
+@lru_cache(maxsize=None)
+def _grey_symbols() -> dict:
+    """The number and symbol ``irrep`` gives each grey group, keyed by its space group.
+
+    Returns ``{n: (number_str, name)}`` for the 230 space groups, ``number_str``
+    the BNS number of the grey group of space group ``n`` (``"99.164"``) and
+    ``name`` its symbol (``"P4mm1'"``).  The grey groups are the magnetic
+    space groups of type II in spglib's numbering, and each is read from the
+    line of ``irrep``'s ``data/msg_numbers.data`` that ``from_cell`` reads for
+    that number.  Raises :class:`InternalError` where the two do not give one
+    grey group to each space group.
+    """
+    import spglib
+    from irrep import spacegroup as irrep_spacegroup
+
+    path = os.path.join(os.path.dirname(irrep_spacegroup.__file__), "data", "msg_numbers.data")
+    with open(path, encoding="utf-8") as handle:
+        lines = handle.readlines()
+    symbols = {}
+    with warnings.catch_warnings():
+        # spglib warns once per call about its own error handling
+        warnings.simplefilter("ignore", DeprecationWarning)
+        types = [spglib.get_magnetic_spacegroup_type(u) for u in range(1, 1652)]
+    for uni_number, entry in enumerate(types, start=1):
+        if isinstance(entry, dict):                   # spglib before 2.5
+            kind, number = entry["type"], entry["number"]
+        else:
+            kind, number = entry.type, entry.number
+        if int(kind) == 2:
+            number_str, name = lines[uni_number].strip().split(" ")
+            symbols[int(number)] = (number_str, name)
+    if sorted(symbols) != list(range(1, 231)) or any(
+            s.split(".")[0] != str(n) for n, (s, _name) in symbols.items()):
+        raise InternalError(
+            "the grey groups of spglib's magnetic space-group types and the numbers "
+            "irrep reads for them are not one grey group for each of the 230 space "
+            "groups. This is the installed spglib and irrep disagreeing, not a "
+            "measurement about the model.")
+    return symbols
+
+
+#: What ``SpaceGroup.from_cell`` raises, as a ``ValueError``, when spglib's
+#: magnetic routine returns no dataset for the cell.
+_NO_MAGNETIC_DATASET = "No magnetic space group could be detected!"
+
+
+def _irrep_group(**kwargs):
+    r"""``irrep``'s identification of a cell, as ``SpaceGroupIrreps.from_cell`` reads it.
+
+    ``kwargs`` are ``from_cell``'s, and ``from_cell`` is asked first with them
+    as they are: a cell it reads is returned as it reads it.  On some cells,
+    most of them written on a lattice basis that is not reduced, spglib's
+    magnetic routine returns no dataset and ``from_cell`` raises ``ValueError`` with
+    :data:`_NO_MAGNETIC_DATASET`, before it builds anything.  On that error
+    alone, for a cell asked with ``include_TR=True`` and no nonzero
+    ``magmom``, the group is the grey group of the cell's space group, built
+    from spglib's ordinary dataset as ``from_cell`` builds it from the magnetic
+    one: each operation once alone and then with time reversal, spglib's
+    transformation to the standard setting and origin shift with each entry
+    within rounding of zero set to zero, the number and symbol from
+    :func:`_grey_symbols`, then ``set_irreptables`` with ``from_cell``'s
+    arguments.
+
+    Returns the ``SpaceGroupIrreps``.  Every other error of ``from_cell``
+    propagates unchanged, that one too for a cell with a nonzero moment or
+    asked without time reversal.  Raises :class:`InternalError` where the
+    ordinary dataset is empty too.
+    """
+    from irrep.spacegroup_irreps import SpaceGroupIrreps
+
+    try:
+        return SpaceGroupIrreps.from_cell(**kwargs)
+    except ValueError as exc:
+        magmom = kwargs.get("magmom")
+        if (str(exc) != _NO_MAGNETIC_DATASET or not kwargs.get("include_TR", True)
+                or (magmom is not None and np.any(np.asarray(magmom, dtype=float)))):
+            raise
+
+    # spglib's magnetic routine returned nothing for a cell with no moments:
+    # its group is the grey group of the space group the ordinary routine reads.
+    import spglib
+
+    tables = dict(kwargs)
+    lattice = np.array(tables.pop("real_lattice"), dtype=float)
+    positions = np.array(tables.pop("positions"), dtype=float)
+    typat = np.array(tables.pop("typat"), dtype=int)
+    spinor = tables.pop("spinor")
+    symprec = tables.pop("symprec")
+    for name in ("include_TR", "magmom"):
+        tables.pop(name, None)
+
+    dataset = spglib.get_symmetry_dataset((lattice, positions, typat),
+                                          symprec=symprec, angle_tolerance=-1)
+    if dataset is None:
+        raise InternalError(
+            f"spglib found no space group for a cell of {len(positions)} sites at "
+            f"the symmetry finder's tolerance {symprec:g}. Every crystal has one, P1 "
+            f"at the least: this is the symmetry finder failing, not a measurement "
+            f"about the model.")
+    if isinstance(dataset, dict):                     # spglib before 2.5
+        fields = (dataset["rotations"], dataset["translations"], dataset["number"],
+                  dataset["transformation_matrix"], dataset["origin_shift"])
+    else:
+        fields = (dataset.rotations, dataset.translations, dataset.number,
+                  dataset.transformation_matrix, dataset.origin_shift)
+    rotations, translations, number, ref_uc, shift_uc = fields
+    # An entry of the transformation or the origin shift within rounding of
+    # zero is set to zero: its sign would otherwise carry a tabulated point of
+    # a layer's plane, k_z = 0, to k_z = 1 in the model's cell.  spglib returns
+    # such an entry as 1e-16 or so, and as 1e-14 on a strongly skewed basis; the
+    # entries that are not zero are simple fractions.
+    ref_uc, shift_uc = (np.where(np.abs(x) <= _EXACT_CLOSURE, 0.0, x)
+                        for x in (np.asarray(ref_uc, dtype=float),
+                                  np.asarray(shift_uc, dtype=float)))
+    number_str, name = _grey_symbols()[int(number)]
+    count = len(rotations)
+    sg = SpaceGroupIrreps(
+        Lattice=lattice, spinor=spinor,
+        rotations=np.repeat(np.asarray(rotations), 2, axis=0),
+        translations=np.repeat(np.asarray(translations, dtype=float), 2, axis=0),
+        time_reversals=[False, True] * count, translation_mod1=True,
+        number_str=number_str, name=name, spinor_rotations=None,
+        refUC=ref_uc, shiftUC=shift_uc, magnetic=True, positions=positions,
+        typat=typat, alat=None, magmom=np.zeros((len(positions), 3), dtype=float),
+        verbosity=0)
+    sg.set_irreptables(verbosity=0, **tables)
+    return sg
+
+
 def _setting_search(kwargs) -> tuple:
     r"""``irrep``'s identification with the tables' setting, seeded and asked again.
 
@@ -2025,14 +2155,17 @@ def _setting_search(kwargs) -> tuple:
     point -- fails the same way from every seed, and is not asked again.  The
     state the call arrived with is restored afterwards, whatever happened, so
     that nothing outside this identification sees a draw it made.  ``kwargs``
-    are ``from_cell``'s own.
+    are ``from_cell``'s own.  Each search is asked through :func:`_irrep_group`,
+    which asks ``from_cell`` itself and, only where spglib's magnetic routine
+    returns nothing, builds the grey group from spglib's ordinary dataset.
+    ``from_cell`` raises that error before it draws anything, so the build is
+    made from the same seeded state.
 
     Returns ``(sg, None, n)`` from the first search that succeeds, or
     ``(None, error, n)`` with the ``RuntimeError`` the last one raised; ``n``
-    is how many searches ran.
+    is how many searches ran.  An :class:`InternalError` is raised, not
+    caught.
     """
-    from irrep.spacegroup_irreps import SpaceGroupIrreps
-
     state = np.random.get_state()
     error, asked = None, 0
     try:
@@ -2041,7 +2174,9 @@ def _setting_search(kwargs) -> tuple:
             fresh = np.random.get_state()
             asked += 1
             try:
-                return SpaceGroupIrreps.from_cell(search_cell=True, **kwargs), None, asked
+                return _irrep_group(search_cell=True, **kwargs), None, asked
+            except InternalError:
+                raise
             except RuntimeError as exc:
                 error = exc
             now = np.random.get_state()
@@ -2216,8 +2351,6 @@ def _group_of(model, *, spinor=None, include_TR=True, symprec=DEFAULT_FINDER, ty
     if not status["tables"]:
         return _refuse_no_tables(status)
 
-    from irrep.spacegroup_irreps import SpaceGroupIrreps
-
     if spinor is None:
         spinor = int(model.nspin) == 2
 
@@ -2276,7 +2409,7 @@ def _group_of(model, *, spinor=None, include_TR=True, symprec=DEFAULT_FINDER, ty
     sg, failure, asked = _setting_search(kwargs)
     tables_ready = sg is not None
     if sg is None:
-        sg = SpaceGroupIrreps.from_cell(search_cell=False, **kwargs)
+        sg = _irrep_group(search_cell=False, **kwargs)
         note = ("irrep could not match this cell to the BCS standard setting"
                 + (f" in {asked} searches from fixed seeds" if asked > 1 else "")
                 + f", so irrep tables are unavailable for it: {failure}")
@@ -2292,7 +2425,7 @@ def _group_of(model, *, spinor=None, include_TR=True, symprec=DEFAULT_FINDER, ty
     translations = _pure_translations(sg.symmetries, symprec, lattice)
     if translations:
         if tables_ready:
-            sg = SpaceGroupIrreps.from_cell(search_cell=False, **kwargs)
+            sg = _irrep_group(search_cell=False, **kwargs)
             translations = _pure_translations(sg.symmetries, symprec, lattice)
             tables_ready = False
         note = (

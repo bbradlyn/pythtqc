@@ -31,6 +31,7 @@ from conftest import patch_everywhere
 from pythtb import Lattice, TBModel
 from pythtb.models import graphene
 
+import pythtqc as tqc
 from pythtqc import groups as G
 from pythtqc import InternalError
 from pythtqc.models import i213_flicker2018
@@ -145,6 +146,35 @@ def bilayer_slab(dz=0.3):
     m.set_hop(-0.5, 1, 1, [1, 0, 0])
     m.set_hop(-0.5, 1, 1, [0, 1, 0])
     return m
+
+
+def by_bond(vectors, positions, hop, reach=2):
+    """One orbital at each site, the hopping from orbital ``i`` to ``j`` a function of the bond alone.
+
+    ``hop(i, j, d)`` is the amplitude for the Cartesian bond ``d``, so the model
+    is the same crystal on whichever lattice basis ``vectors`` are written in.
+    """
+    vectors, positions = np.asarray(vectors, float), np.asarray(positions, float)
+    dim = len(vectors)
+    m = TBModel(lattice=Lattice(vectors.tolist(), positions.tolist(),
+                                periodic_dirs=list(range(dim))))
+    m.set_onsite([0.0] * len(positions))
+    cells = np.array(np.meshgrid(*[range(-reach, reach + 1)] * dim, indexing="ij"))
+    for i in range(len(positions)):
+        for j in range(i, len(positions)):
+            for R in cells.reshape(dim, -1).T:
+                if i == j and tuple(R) <= (0,) * dim:
+                    continue
+                t = hop(i, j, (positions[j] + R - positions[i]) @ vectors)
+                if t:
+                    m.set_hop(t, i, j, R.tolist())
+    return m
+
+
+def on_basis(vectors, positions, rows):
+    """The same lattice and sites written on the basis whose vectors are ``rows`` @ ``vectors``."""
+    rows = np.asarray(rows, float)
+    return rows @ np.asarray(vectors, float), (np.asarray(positions, float) @ np.linalg.inv(rows)) % 1.0
 
 
 def rhombohedral(spinful=True, theta_deg=50.0):
@@ -339,14 +369,68 @@ def test_the_wyckoff_match_gate_is_a_position_tolerance():
 # (f) slab padding independence
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("build", [lambda: graphene(0.0, -1.0), bilayer_slab])
-def test_slab_group_is_independent_of_the_padding_length(build):
-    a = _spacegroup._group_of(build(), include_TR=False, vacuum_length=20.0)
-    b = _spacegroup._group_of(build(), include_TR=False, vacuum_length=40.0)
-    assert a and b
-    assert (a.number_str, a.name, a.size) == (b.number_str, b.name, b.size)
-    # and the padding really did change the cell
-    assert not np.allclose(a.lattice, b.lattice)
+def test_the_group_is_independent_of_how_the_cell_is_written():
+    """Neither the vacuum a layer is padded with nor the lattice basis changes what is read.
+
+    The padding: the honeycomb and a slab two layers thick, read with 20 and
+    with 40 of vacuum.  The basis: a crystal written on ``a1 + a2`` in place of
+    ``a1``, a basis that is not reduced, is read with the group, the Wyckoff
+    positions, the site irreps and the corep multiplicities of its bands that
+    it has on the reduced one.  Four crystals: the square lattice with one
+    ``s`` orbital, compared with itself on ``a1, a2``; the square lattice with
+    ``p_x`` at ``(1/2, 0)`` and ``p_y`` at ``(0, 1/2)``, declared; the
+    face-centered cubic lattice with one ``s`` orbital on its primitive cell's
+    ``a1 + a2 + a3, a2, a3``; and the centered rectangular lattice with one
+    ``s`` orbital on ``a1 + 2 a2, a2``, a layer whose points S and Y stay in
+    its plane.
+    """
+    for build in (lambda: graphene(0.0, -1.0), bilayer_slab):
+        a = _spacegroup._group_of(build(), include_TR=False, vacuum_length=20.0)
+        b = _spacegroup._group_of(build(), include_TR=False, vacuum_length=40.0)
+        assert a and b
+        assert (a.number_str, a.name, a.size) == (b.number_str, b.name, b.size)
+        # and the padding really did change the cell
+        assert not np.allclose(a.lattice, b.lattice)
+
+    def read(model, bands, **kw):
+        r = G.realized_group(model, **kw)
+        assert r, str(r)
+        t = tqc.hsp_table(r.rep, bands=bands)
+        return (r.group.name, r.group.number_str, tqc.format_counts(t.counts),
+                [(row.wyckoff, row.irrep) for row in r.rep.characters.orbitals])
+
+    def s_square(i, j, d):
+        return {1.0: -1.0, 1.414214: -0.3}.get(round(float(np.linalg.norm(d)), 6), 0.0)
+
+    def p_square(i, j, d):          # Slater-Koster, orbital 0 p_x and orbital 1 p_y
+        r = float(np.linalg.norm(d))
+        if r > 1.0 + 1e-9:
+            return 0.0
+        vs, vp = (1.0, -0.4) if r > 0.9 else (0.6, -0.2)
+        return (vs - vp) * (d[i] / r) * (d[j] / r) + (vp if i == j else 0.0)
+
+    def s_fcc(i, j, d):
+        return {0.707107: -1.0, 1.0: -0.2}.get(round(float(np.linalg.norm(d)), 6), 0.0)
+
+    square_vectors, skew = [[1.0, 0.0], [0.0, 1.0]], [[1, 1], [0, 1]]
+    reduced = read(by_bond(square_vectors, [[0.0, 0.0]], s_square), 1)
+    assert reduced == ("P4mm1'", "99.164", "GM1 + M1 + X1", [("1a", "A1")])
+    assert read(by_bond(*on_basis(square_vectors, [[0.0, 0.0]], skew), s_square), 1) == reduced
+
+    pair = by_bond(*on_basis(square_vectors, [[0.5, 0.0], [0.0, 0.5]], skew), p_square)
+    assert read(pair, 2, characters={0: "px", 1: "py"}) == (
+        "P4mm1'", "99.164", "GM5 + M1 + M2 + X1 + X4", [("2c", "B1"), ("2c", "B2")])
+
+    fcc = 0.5 * np.array([[0.0, 1.0, 1.0], [1.0, 0.0, 1.0], [1.0, 1.0, 0.0]])
+    cubic_s = by_bond(*on_basis(fcc, [[0.0, 0.0, 0.0]], [[1, 1, 1], [0, 1, 0], [0, 0, 1]]), s_fcc)
+    assert read(cubic_s, 1) == ("Fm-3m1'", "225.117", "GM1+ + L1+ + W1 + X1+", [("4a", "A1g")])
+
+    def s_rhombic(i, j, d):
+        return {0.860233: -1.0, 1.0: -0.3}.get(round(float(np.linalg.norm(d)), 6), 0.0)
+
+    rhombic = [[0.5, 0.7], [-0.5, 0.7]]
+    layer = by_bond(*on_basis(rhombic, [[0.0, 0.0]], [[1, 2], [0, 1]]), s_rhombic, reach=3)
+    assert read(layer, 1) == ("Cmm21'", "35.166", "GM1 + S1 + Y1", [("2a", "A1")])
 
 
 @pytest.mark.slow

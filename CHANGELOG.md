@@ -20,6 +20,10 @@
   nothing. `allow_incomplete=` does not lift it.
 - `regular_content` asked at a point out of a layer's plane returns the refusal
   `out_of_plane`, where it raised `KeyError`.
+- `realized_group` reads a crystal where it raised `ValueError`, "No magnetic space group
+  could be detected!". Most such crystals are written on a lattice basis that is not
+  reduced, the square lattice on `a1 + a2, a2` among them. What it returns for every
+  other crystal is unchanged.
 
 ## 0.1.0a3 — the second public version
 
