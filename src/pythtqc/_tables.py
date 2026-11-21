@@ -761,15 +761,23 @@ def _points_in_table_order(group: GroupData) -> HighSymmetryPoints | Refusal:
     return HighSymmetryPoints(out, missing=missing)
 
 
+def _same_point(k, tabulated, ktol) -> bool:
+    """Whether two sets of reduced coordinates name one k-point of the cell as it is written.
+
+    They do where they differ by a reciprocal lattice vector of that cell, a
+    vector of integers, each coordinate to within ``ktol``.
+    """
+    d = np.asarray(k, dtype=float) - np.asarray(tabulated, dtype=float)
+    return bool(np.abs(d - np.round(d)).max() <= ktol)
+
+
 def _resolve_kpname(group: GroupData, lg: LittleGroup, kpname, ktol):
     """The tabulated label of the model's k, or a Refusal listing the options."""
     kmap = _table_kpoints(group)
     if kpname is not None:
         return kpname
     for name, k3 in kmap.items():
-        d = lg.k3 % 1.0 - k3
-        d -= np.round(d)
-        if np.abs(d).max() <= ktol:
+        if _same_point(lg.k3, k3, ktol):
             return name
     listed = {n: kmap[n] for n in sorted(kmap, key=point_order)}
     avail = {n: np.round(group.k_from_3d(v[None, :])[0], 6)
@@ -1273,7 +1281,7 @@ def _divergent_kpoints(number_str: str, spinor: bool, magnetic: bool) -> frozens
     return frozenset(out)
 
 
-def _transported_table(group: GroupData, kpname: str, k3) -> dict | Refusal:
+def _transported_table(group: GroupData, kpname: str, k3, ktol) -> dict | Refusal:
     r"""``{label: {ind: character}}`` on **this cell's** coset representatives.
 
     ``SpaceGroupIrreps.get_irreps_from_table`` re-implemented, with the
@@ -1402,7 +1410,7 @@ def _transported_table(group: GroupData, kpname: str, k3) -> dict | Refusal:
         for arm, base, naming in _partner_points(group.number_str, group.spinor):
             if kpname != arm:
                 continue
-            rows = _transported_table(group, base, (-np.asarray(k3, dtype=float)) % 1.0)
+            rows = _transported_table(group, base, (-np.asarray(k3, dtype=float)) % 1.0, ktol)
             if isinstance(rows, Refusal):
                 return rows
             naming = dict(naming)
@@ -1415,17 +1423,20 @@ def _transported_table(group: GroupData, kpname: str, k3) -> dict | Refusal:
     naming = dict(_transport_naming(group.number_str, group.spinor,
                                     group.magnetic)[1])
     k2 = np.round(np.asarray(k3, dtype=float), 5) % 1
+    carried = _table_kpoints(group).get(kpname)
     out: dict[str, dict[int, complex]] = {}
     for irr in table.irreps:
         if irr.kpname != kpname:
             continue
         k_ref = np.asarray(irr.k, dtype=float)
-        k1 = np.round(np.linalg.inv(group._refUC.T).dot(k_ref), 5) % 1
-        if not np.allclose(k1, k2):
+        # the point as the tables hold it, carried exactly into the cell as written
+        if not _same_point(k3, carried, ktol):
             return Refusal(
                 "kpoint_not_tabulated",
-                f"the kpoint {k2} does not correspond to the point {kpname} "
-                f"({np.round(k_ref, 3)} in refUC / {k1} in primUC) in the table",
+                f"the k-point {np.round(group.k_from_3d(np.asarray(k3, dtype=float)[None, :])[0], 6)} "
+                f"is not the tabulated point {kpname} of #{group.number_str}, which is at "
+                f"{np.round(group.k_from_3d(carried[None, :])[0], 6)} in this cell's reduced "
+                f"coordinates.",
                 context={"kpname": kpname, "k": k2,
                          "number_str": str(group.number_str)})
         row: dict[int, complex] = {}
@@ -1510,7 +1521,7 @@ def corep_table(group: GroupData, k, *, kpname=None, ktol=1e-5) -> dict | Refusa
     name = _resolve_kpname(group, lg, kpname, ktol)
     if isinstance(name, Refusal):
         return name
-    return _transported_table(group, name, lg.k3 % 1.0)
+    return _transported_table(group, name, lg.k3 % 1.0, ktol)
 
 
 def identify_from_characters(group: GroupData, k, characters, *, multiplet_dims=None,

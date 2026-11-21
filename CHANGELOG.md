@@ -55,6 +55,11 @@
 - A tabulated k-point's reduced coordinates are returned in `[0, 1)`: a coordinate that is
   zero reads `0`, where on some cells, a triclinic one among them, it read `1`. The point
   is the same one.
+- A set of bands is read at every tabulated point of a crystal written on a strongly skewed
+  lattice basis: on the hexagonal lattice written on `a1 + 10 a2, a2, a3`, `K` and `H`
+  were refused `kpoint_not_tabulated`, their coordinates having been compared after
+  rounding. A k-point is the tabulated one where it differs from it by a reciprocal
+  lattice vector of the cell as written.
 
 ## 0.1.0a3 — the second public version
 

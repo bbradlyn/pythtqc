@@ -376,13 +376,14 @@ def test_the_group_is_independent_of_how_the_cell_is_written():
     with 40 of vacuum.  The basis: a crystal written on ``a1 + a2`` in place of
     ``a1``, a basis that is not reduced, is read with the group, the Wyckoff
     positions, the site irreps and the corep multiplicities of its bands that
-    it has on the reduced one.  Four crystals: the square lattice with one
+    it has on the reduced one.  Five crystals: the square lattice with one
     ``s`` orbital, compared with itself on ``a1, a2``; the square lattice with
     ``p_x`` at ``(1/2, 0)`` and ``p_y`` at ``(0, 1/2)``, declared; the
     face-centered cubic lattice with one ``s`` orbital on its primitive cell's
-    ``a1 + a2 + a3, a2, a3``; and the centered rectangular lattice with one
+    ``a1 + a2 + a3, a2, a3``; the centered rectangular lattice with one
     ``s`` orbital on ``a1 + 2 a2, a2``, a layer whose points S and Y stay in
-    its plane.
+    its plane; and the hexagonal lattice with one ``s`` orbital on
+    ``a1 + 10 a2, a2, a3``, whose K is found at its coordinates in that cell.
     """
     for build in (lambda: graphene(0.0, -1.0), bilayer_slab):
         a = _spacegroup._group_of(build(), include_TR=False, vacuum_length=20.0)
@@ -431,6 +432,17 @@ def test_the_group_is_independent_of_how_the_cell_is_written():
     rhombic = [[0.5, 0.7], [-0.5, 0.7]]
     layer = by_bond(*on_basis(rhombic, [[0.0, 0.0]], [[1, 2], [0, 1]]), s_rhombic, reach=3)
     assert read(layer, 1) == ("Cmm21'", "35.166", "GM1 + S1 + Y1", [("2a", "A1")])
+
+    # a strongly skewed basis: K of the hexagonal lattice on a1 + 10 a2 sits at (2/3, 1/3, 0)
+    # of that cell, 1/3 + 10/3 modulo 1, and is read as K
+    def s_hexagonal(i, j, d):
+        return {1.0: -1.0, 1.6: -0.4}.get(round(float(np.linalg.norm(d)), 6), 0.0)
+
+    hexagonal = [[1.0, 0.0, 0.0], [-0.5, 0.75 ** 0.5, 0.0], [0.0, 0.0, 1.6]]
+    far = by_bond(*on_basis(hexagonal, [[0.0, 0.0, 0.0]], [[1, 10, 0], [0, 1, 0], [0, 0, 1]]),
+                  s_hexagonal, reach=11)
+    assert read(far, 1) == ("P6/mmm1'", "191.234", "GM1+ + A1+ + H1 + K1 + L1+ + M1+",
+                            [("1a", "A1g")])
 
 
 @pytest.mark.slow
@@ -3496,7 +3508,7 @@ def test_the_sweeps_served_rows_are_what_transported_table_serves():
         assert (int(sum(abs(p - 1) > 1e-9 for p in phi)), len(inds)) == (
             n_phase, n_ops), (number_str, kp, phi)
 
-        served = _tables._transported_table(group, kp, np.round(k, 5) % 1)
+        served = _tables._transported_table(group, kp, np.round(k, 5) % 1, 1e-5)
         local = _served_named(table, kp, irreps, kp in conjugated, c)
         assert sorted(served) == sorted(local), (number_str, kp,
                                                  sorted(served), sorted(local))
