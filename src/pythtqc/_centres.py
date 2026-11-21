@@ -331,9 +331,15 @@ def _moves_of(frame, x) -> np.ndarray:
 
     A point moves from where it is to the position of the site it is on,
     modulo the lattice: two orbitals of one site written on the two sides of a
-    cell edge are one site, and a whole lattice vector is no move.  A move at
-    rounding is none, and the shadows the projection does not move stay at
-    zero.
+    cell edge are one site, and a whole lattice vector is no move.  Where every
+    move is at rounding the centers are already where the operations put them,
+    and none moves.  Otherwise a move is rounding where it is at the rounding
+    of the largest, which the projection carries into every coordinate; every
+    other move is made, however small: the operations tie the sites'
+    coordinates together, through rotations whose entries are large on a
+    strongly skewed lattice basis, so one coordinate left where it was leaves
+    the set off the positions they carry onto one another.  The shadows the
+    projection does not move stay at zero.
     """
     pts = frame.points
     out = np.zeros_like(pts)
@@ -341,7 +347,8 @@ def _moves_of(frame, x) -> np.ndarray:
         for o in frame.site_orbs[int(s)]:
             d = x[k] - pts[int(o)]
             out[int(o)] = (d - np.rint(d)) * frame.scale
-    out[np.abs(out) <= ROUNDING] = 0.0
+    largest = float(np.abs(out).max(initial=0.0))
+    out[np.abs(out) <= (ROUNDING if largest <= ROUNDING else ROUNDING * largest)] = 0.0
     return out
 
 

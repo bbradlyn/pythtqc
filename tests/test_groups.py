@@ -2265,7 +2265,9 @@ def test_the_anisotropic_square_descends_from_the_cell_the_isotropic_one_allows(
 
     So with CsCl, whose two sites read as one species are a body-centered cell:
     written on a strongly skewed lattice basis it is read as on its cube's
-    edges.
+    edges.  And with hexagonal boron nitride on such a basis, its centers off
+    their fractions by the rounding of their conversion and a precision
+    declared: it is read with the group it has on any other basis.
     """
     low = G.realized_group(square(ty=-0.5), environment="free-standing",
                            characters={0: "s"}, cross_check=False)
@@ -2287,8 +2289,8 @@ def test_the_anisotropic_square_descends_from_the_cell_the_isotropic_one_allows(
             return -1.0
         return {0: -0.3, 1: -0.1}[i] if r == 1.0 and i == j else 0.0
 
-    def read(model):
-        r = G.realized_group(model)
+    def read(model, **kw):
+        r = G.realized_group(model, **kw)
         assert r, str(r)
         t = tqc.hsp_table(r.rep, bands=1)
         return (r.group.name, r.group.number_str, tqc.format_counts(t.counts),
@@ -2298,6 +2300,23 @@ def test_the_anisotropic_square_descends_from_the_cell_the_isotropic_one_allows(
     usual = read(by_bond(np.eye(3), cscl, s_cscl))
     assert usual == ("Pm-3m1'", "221.93", "GM1+ + M4+ + R2- + X1+", [("1a", "A1g"), ("1b", "A1g")])
     assert read(by_bond(np.eye(3), cscl, s_cscl, rows=[[1, 0, 0], [6, 1, 0], [4, 9, 1]])) == usual
+
+    # hexagonal boron nitride on 7 a1 + 5 a2, 4 a1 + 3 a2, its centers as a conversion in
+    # floating point writes them, a coordinate at 1 - 8e-15 written as 0: with a precision
+    # declared the centers are moved onto the positions the operations carry onto one
+    # another, every coordinate of the move made, and the layer is read as with exact centers
+    def s_boron_nitride(i, j, d):
+        r = round(float(np.linalg.norm(d)), 6)
+        if r == 0.57735 and i != j:
+            return -1.0
+        return {0: -0.2, 1: -0.1}[i] if r == 1.0 and i == j else 0.0
+
+    honeycomb = [[1.0, 0.0], [-0.5, 0.75 ** 0.5]]
+    written, centers = on_basis(honeycomb, [[1 / 3, 2 / 3], [2 / 3, 1 / 3]], [[7, 5], [4, 3]])
+    centers[centers > 1.0 - 1e-12] = 0.0
+    boron_nitride = by_bond(written, centers, s_boron_nitride, reach=8)
+    assert read(boron_nitride, precision=1e-12) == (
+        "P3m11'", "156.50", "GM1 + K3 + M1", [("1c", "A1"), ("1b", "A1")])
 
 
 @pytest.mark.slow

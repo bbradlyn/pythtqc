@@ -87,6 +87,12 @@
   `a1, 6 a1 + a2, 4 a1 + 9 a2 + a3` among them, where it refused
   `operations_not_consistent`. Whether a cell's operations close is judged relative to
   the size of their rotation matrices in the cell's reduced coordinates.
+- `realized_group` with a precision declared reads a crystal written on a strongly skewed
+  lattice basis whose centers are off their fractions by the rounding of their
+  conversion, hexagonal boron nitride on `7 a1 + 5 a2, 4 a1 + 3 a2` among them, where it
+  refused `rep_not_covariant`. The centers are moved onto the positions the operations
+  carry onto one another by every coordinate of the move, where a coordinate whose move
+  was the size of rounding was left where it was.
 - The group `r.group` holds `name`, `number_str`, `spinor`, `periodic_dirs` and
   `magnetic_type`, `"II"` for a grey group and `"I"` for a group without time-reversal
   symmetry. Its other fields are no longer public: `sg_number`, `size`, `include_TR`,
