@@ -1,4 +1,4 @@
-"""The grammar of ``characters=`` and ``multiplets=``, read where a call starts
+"""The grammar of ``characters=`` and ``site_multiplets=``, read where a call starts
 and before anything is measured: a malformed declaration raises ``ValueError``
 naming the spelling it expected.
 """
@@ -43,7 +43,7 @@ def _value_key(value):
 
 
 # ---- the grammar of a declaration ---------------------------------------------
-# `characters=` and `multiplets=` are read as grammar once, where a call starts
+# `characters=` and `site_multiplets=` are read as grammar once, where a call starts
 # and before anything is measured, and a malformed one raises `ValueError`
 # stating the argument's grammar.  Which words name something at a site is
 # read later, in the site group the measurement reaches.
@@ -55,9 +55,9 @@ _CHARACTERS_GRAMMAR = (
     "to a word or to a mapping from operations to characters, or to matrices on "
     "those orbitals")
 
-#: ``multiplets=`` in one sentence, which every error about its grammar opens with.
+#: ``site_multiplets=`` in one sentence, which every error about its grammar opens with.
 _MULTIPLETS_GRAMMAR = (
-    "`multiplets=` is one list per site of the multiplets it holds, each written as "
+    "`site_multiplets=` is one list per site of the multiplets it holds, each written as "
     "its orbitals, such as [[(0, 1)], [(2,)]], or the SiteMultiplets a representation "
     "carries")
 
@@ -105,10 +105,10 @@ def _matrix_value(value):
 
 def _declaration_grammar(norb, *, characters=None, multiplets=None, spin=None,
                          site_of=None):
-    r"""Raise ``ValueError`` where ``characters=`` or ``multiplets=`` is malformed.
+    r"""Raise ``ValueError`` where ``characters=`` or ``site_multiplets=`` is malformed.
 
     The grammar of the two declarations, read where :func:`.._build._build_rep`,
-    :func:`..groups.realized_group` and :func:`..symmetrization.symmetrize`
+    :func:`..groups.realized_group` and :func:`..symmetrization._symmetrize`
     start, before anything is measured.  ``characters=`` is a list with one
     entry per orbital, each a word, a mapping from operations to characters or
     ``None``, or a mapping from an orbital, or from several orbitals of one
@@ -118,7 +118,7 @@ def _declaration_grammar(norb, *, characters=None, multiplets=None, spin=None,
     square matrix of finite numbers, as wide as the Wannier functions its
     orbitals are, and gives every operation one or the other, and the two
     orbitals of a declared spin pair, the up and down states of one Wannier
-    function, are given one word.  ``multiplets=`` is one list per site of the
+    function, are given one word.  ``site_multiplets=`` is one list per site of the
     multiplets it holds, each named by its orbitals, or a
     :class:`SiteMultiplets`: the multiplets hold every orbital once, each the
     orbitals of one site, and each holds both states of a declared spin pair.
@@ -131,7 +131,7 @@ def _declaration_grammar(norb, *, characters=None, multiplets=None, spin=None,
     :class:`.._sitechars.DeclaredContent` is a content already read, carried
     from one group to the next, and passes.
 
-    Returns the multiplets ``multiplets=`` states, every site's in one
+    Returns the multiplets ``site_multiplets=`` states, every site's in one
     sequence, or ``None`` where it states none.
     """
     pairs = () if spin is None else tuple((int(u), int(d)) for u, d in spin.pairs)
@@ -249,7 +249,7 @@ def _characters_grammar(characters, norb, pairs, site_of=None) -> None:
 
 
 def _multiplets_grammar(multiplets, norb, pairs, site_of) -> tuple:
-    """The grammar of ``multiplets=``, the second half of :func:`_declaration_grammar`.
+    """The grammar of ``site_multiplets=``, the second half of :func:`_declaration_grammar`.
 
     Returns the multiplets it states, every site's in one sequence.
     """
@@ -313,7 +313,7 @@ def _multiplets_grammar(multiplets, norb, pairs, site_of) -> tuple:
 def _per_site_spelling(stated, norb, site_of) -> str:
     """The one-list-per-site spelling of multiplets written as one flat list, or ``""``.
 
-    ``[(0,), (1,)]`` lists multiplets where ``multiplets=`` lists sites; where
+    ``[(0,), (1,)]`` lists multiplets where ``site_multiplets=`` lists sites; where
     every entry is a multiplet of orbitals of this model, the same multiplets
     are offered one list per site, by ``site_of`` where the sites are read.
     """

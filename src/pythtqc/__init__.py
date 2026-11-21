@@ -62,8 +62,7 @@ from .srsi import (BandSRSIs, ModelSRSIs, Realizations, SRSITables, Splitting,
                    StablePair, atomic_realizations, nsit_criterion, splitting, srsi_of,
                    srsi_of_bands, srsi_of_columns, srsi_of_model, srsi_tables,
                    stably_equivalent_pairs)
-from .symmetrization import (Symmetrization, classify_operations, symmetrize,
-                             symmetrize_positions)
+from .symmetrization import Symmetrization
 from .symmetry import (AtomicLimitRow, AtomicLimitTable, BandRepresentation, SiteMultiplets,
                        MultiplicitySpace, SpaceGroupRep)
 
@@ -89,8 +88,7 @@ __all__ = [
     "SRSITables", "BandSRSIs", "ModelSRSIs", "Splitting", "Realizations", "StablePair",
     "srsi_tables", "srsi_of", "srsi_of_columns", "srsi_of_bands", "srsi_of_model",
     "splitting", "nsit_criterion", "atomic_realizations", "stably_equivalent_pairs",
-    "symmetrize", "Symmetrization", "classify_operations",
-    "symmetrize_positions",
+    "Symmetrization",
     "multiplets",
     "solve_at", "format_counts",
     "SewingMatrix", "CharacterTable", "CorepContent", "HSPTable",

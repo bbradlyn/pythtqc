@@ -64,7 +64,7 @@ Returned by `realized_group`.
 
 #### `positions_not_exactly_symmetric`
 
-Returned by `realized_group` and `symmetrize`.
+Returned by `realized_group`.
 
 - **What it means.** The orbital centres miss the cell's own operations by a defect `δ`,
   in reduced coordinates, that alone costs `H(k)` a covariance residual of order
@@ -72,8 +72,7 @@ Returned by `realized_group` and `symmetrize`.
   read off the geometry as much as off the hoppings. Nothing is built. It is the other
   case in which the group question is refused, and the reason names the cell's group as
   an upper bound. Centres missed by less, where an operation reads near-symmetric, are
-  refused the same way by the projection of the hoppings, by `symmetrize` itself and
-  through `realized_group`: the projection's operators carry each centre onto its image
+  refused the same way by the projection of the hoppings: the projection's operators carry each centre onto its image
   to `1e-9`, and no projection of the hoppings reaches a defect in the centres.
 - **Usual cause.** A numerical model, such as a wannier90 import, asked with no precision
   declared.
@@ -88,35 +87,22 @@ Returned by `realized_group` and `symmetrize`.
 
 #### `cell_group_not_realized`
 
-Returned by `realized_group` with `descend=False`.
+Returned by `realized_group`.
 
-- **What it means.** The Hamiltonian breaks operations the cell allows, so the cell's
-  group, the upper bound the positions set, is not its group. The reason counts the
-  operations obeyed and broken and says what broke each: no symmetry matrix at all, which
-  is a proof; the tensor structure an operation's matrix must have; or, for spinor states
-  held in a spinless model's orbital index, two commuting operations whose matrices
-  anticommute there.
-- **Usual cause.** `descend=False`, which asks for the upper bound, on a Hamiltonian with
-  less symmetry than its cell.
-- **What to do.** Leave `descend` at its default, and the cell is lowered to a group of
-  the operations that hold; or read `context["validated"]`, the verdict and residual on
-  every operation, and `context["broken"]`.
+- **What it means.** An operation combined with time reversal that held before a
+  numerical model's Hamiltonian was projected onto its symmetric part is broken after it,
+  so the group the projection was made in is not the projected Hamiltonian's group.
+- **Usual cause.** A model obeying an operation combined with time reversal only within
+  its declared precision.
+- **What to do.** Read `context["validated"]`, each operation's measurement and residual,
+  and `context["broken"]`.
 
 #### `declaration_breaks_group`
 
-Returned by `realized_group` with `descend=False`.
-
-- **What it means.** The declared orbital content is not covariant under some operations
-  of the group. A declaration states what the orbitals are, so this is a crystal with
-  less symmetry than the group.
-- **Usual cause.** `characters=` stating content the hoppings do not carry under every
-  operation, such as both of `lin3g`'s orbitals at `1a` declared `s`, which the positions
-  allow and the Hamiltonian does not.
-- **What to do.** Let the group descend: `realized_group` at its default returns the
-  subgroup the content is covariant on, each broken operation under
-  `refuted_by = "declaration"`. `context["subgroup"]` names that subgroup and
-  `context["broken"]` the operations broken, with why
-  ([a declaration that lowers the group](../guide/orbitals.md#a-declaration-that-lowers-the-group)).
+Returned by no public call: `realized_group` lowers the group to the subgroup the
+declared content is covariant on, each broken operation under
+`refuted_by = "declaration"`
+([a declaration that lowers the group](../guide/orbitals.md#a-declaration-that-lowers-the-group)).
 
 #### `wyckoff_orbit`
 
@@ -174,33 +160,23 @@ for the centres, or where they cannot be read as a symmetric set at all.
 
 #### `positions_not_nearly_symmetric`
 
-Returned by `symmetrize_positions`.
+Returned by `realized_group`.
 
-- **What it means.** An orbital centre would have to move farther than the bound onto the
-  nearest positions the group carries exactly, the origin fitted to the centres:
-  `max_move`, `1e-5` in reduced coordinates by default.
-  Centres that far off are a different set of points.
-  `realized_group` does not refuse such centres under a declared precision: the
-  operations that would move one further than the declaration are broken by the centres,
-  and the group descends to the largest group of its operations that carries them. It
-  refuses only orbitals read as one site that sit further apart than the declaration,
-  which no group of operations brings together.
+- **What it means.** Under a declared precision, the orbital centres cannot be moved onto
+  positions the group carries: its operations do not carry them onto one another at the
+  symmetry finder's distance, or orbitals read as one site sit further apart than the
+  declaration, which no group of operations brings together. Centres that far off are a
+  different set of points. Other centres off by more than the declaration are not refused:
+  the operations that would move one further than the declaration are broken by the
+  centres, and the group descends to the largest group of its operations that carries them.
 - **Usual cause.** A group the centres do not have, or a displacement beyond the noise.
-- **What to do.** Identify the group the centres carry (`typat=`, `decorations=`), or raise
-  `max_move` where the displacement is one that can be defended.
+- **What to do.** Identify the group the centres carry (`typat=`, `decorations=`).
 
 #### `symmetrize_broken_operation`
 
-Returned by `symmetrize`.
-
-- **What it means.** An operation handed to the projection is broken at the declared `tol`:
-  averaging over it would impose a symmetry the model does not have.
-- **Usual cause.** A record of operations measured at a looser tolerance than the one
-  `symmetrize` is given; `realized_group` averages only over the operations it kept.
-- **What to do.** Hand `symmetrize` a record measured at the same `tol`. A defect that is
-  numerical wants a larger `tol`, read against `max|H|`; otherwise the operation is broken
-  and the group is smaller
-  ([a broken operation](../guide/numerical.md#a-broken-operation-is-never-symmetrized-into)).
+Returned by no public call: `realized_group` averages only over the operations it kept
+at the declared precision
+([a broken operation](../guide/numerical.md#a-broken-operation-is-never-symmetrized-into)).
 
 ### Spin
 
@@ -297,8 +273,9 @@ Returned by `corep_content`.
 - **Usual cause.** A degeneracy split into several multiplets by numerical noise beyond
   `degeneracy_tol`: a two-dimensional corep split in two reads exactly 0.5. Levels merged
   into one multiplet never refuse; they are labelled as a sum of coreps.
-- **What to do.** On a numerical model, symmetrize it or set `degeneracy_tol`, an energy, to
-  the noise its degeneracies carry; `context["rows"]` names the multiplets at fault and
+- **What to do.** On a numerical model, declare its precision to `realized_group`
+  (`precision=`), which moves `H` onto its symmetric part, or set `degeneracy_tol`, an
+  energy, to the noise its degeneracies carry; `context["rows"]` names the multiplets at fault and
   `context["multiplicities"]` the fitted numbers.
 
 #### `multiplet_dimension`
@@ -439,7 +416,7 @@ Returned by `stack_presentation`.
 
 #### `rep_search_too_large`
 
-Returned by `realized_group` and `symmetrize`.
+Returned by `realized_group`.
 
 - **What it means.** The representation's discrete choices, which the measurement does not
   fix, had to be enumerated, and there were more than `max_candidates` of them: a limit on
@@ -455,7 +432,7 @@ Returned by `realized_group` and `symmetrize`.
 
 #### `detector_too_large`
 
-Returned by `realized_group` and `symmetrize`.
+Returned by `realized_group`.
 
 - **What it means.** Measuring an operation at one k-point needs more memory than the
   budget allows, because the spectrum's exactly degenerate pairs alone exceed it: a limit
@@ -469,7 +446,7 @@ Returned by `realized_group` and `symmetrize`.
 
 #### `projection_too_large`
 
-Returned by `realized_group` and `symmetrize`.
+Returned by `realized_group`.
 
 - **What it means.** The projection onto the group-invariant part needs more memory at its
   peak than `max_bytes` allows. Its grid is set by the hoppings' range, and a coarser grid
@@ -766,10 +743,6 @@ Returned by `realized_group`.
   identified the group, it is the package's check on itself: the operations were measured
   to hold, and no representation of them was built.
 - **What to do.** Report it, with the model and the call.
-- **Known cases.** One is known from `realized_group`, with a way past it. With
-  `symmetrize=False`, operations obeyed only within the declared tolerance meet the exact
-  check unprojected: leave `symmetrize` at its default
-  ([numerical models](../guide/numerical.md#then-symmetrize)).
 
 #### `rep_internal_factor`
 
@@ -779,7 +752,7 @@ Returned by `realized_group`.
   but on none of them does a site's block take the form a representation of these
   operations has, a character times the group's own factor for the operation, its spin
   rotation where there is spin: they are some other operations' matrices.
-- **What to do.** Where the multiplets were stated (`multiplets=`), the statement;
+- **What to do.** Where the multiplets were stated (`site_multiplets=`), the statement;
   otherwise report it.
 
 #### `rep_not_multiplicative`
@@ -798,7 +771,7 @@ Returned by `realized_group`.
 
 #### `rep_not_unique`
 
-Returned by `realized_group` and `symmetrize`.
+Returned by `realized_group`.
 
 - **What it means.** More than one distinct representation passes every check, so the
   choice the measurement should fix is not fixed: the k-points the candidates are tested at
@@ -853,7 +826,7 @@ Returned by `realized_group`, through a declaration.
 
 #### `symmetrize_defect_exceeds_tol`
 
-Returned by `symmetrize` and `realized_group`.
+Returned by `realized_group`.
 
 - **What it means.** The group average moved `H` by more than the declared `tol`. Over
   operations obeyed within `tol` the move is of the order of their residuals, so a larger
@@ -864,11 +837,11 @@ Returned by `symmetrize` and `realized_group`.
 
 #### `symmetrize_range_not_closed`
 
-Returned by `symmetrize` and `realized_group`.
+Returned by `realized_group`.
 
 - **What it means.** The symmetrized hopping list has weight outside the range the group can
   carry a hopping to, so the transform back to hoppings aliased.
-- **What to do.** In `symmetrize`, a larger `k_grid=`; from `realized_group`, report it.
+- **What to do.** Report it with the model and the call.
 
 #### `wyckoff_setting`
 

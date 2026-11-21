@@ -720,7 +720,7 @@ class SpaceGroupRep:
     # found, read off the detector's solution space or enumerated, what each of
     # the three gates measured on them and which one each failed, the block
     # phases read off, and how far the blocks accepted were from composing by
-    # the group's table ("composition", which `symmetrize` reads)
+    # the group's table ("composition", which the projection reads)
     _search: dict
     # which orbit of multiplets each multiplet belongs to, as the build indexes them
     _classes: np.ndarray

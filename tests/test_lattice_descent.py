@@ -32,6 +32,7 @@ from pythtqc import groups as tqg
 from pythtqc import sewing as tqsew
 from pythtqc.refusal import Refusal
 from pythtqc import _layers
+from pythtqc import _realized
 from pythtqc import _spacegroup
 from pythtqc import _tables
 
@@ -299,71 +300,24 @@ def test_the_tables_served_are_the_descended_groups(dimerized):
 
 
 @pytest.mark.slow
-def test_symmetrizing_the_dimerized_chain_changes_nothing_it_can_reach(dimerized):
-    """``symmetrize=True`` still descends, and the projection that ran moved 1.3e-15.
+def test_a_declared_position_tol_moves_nothing_on_the_dimerized_chain(dimerized):
+    """A declared ``position_tol`` moves nothing, and not on account of the translation.
 
-    The projection onto the group-invariant part provably never sees the
-    supergroup — the lattice descent is the *first* iteration of ``_settle``, and
-    symmetrization runs after it — so what it projects onto is the descended
-    group, of which this Hamiltonian is already exactly invariant.  The residual
-    is the projection's own arithmetic (a sum-and-divide over 32 operations), not
-    a change to the model: measured ``max_k |H_sym(k) − H(k)| = 1.3e-15`` over 6
-    random k, against ``max|H| = 3.9``.
-
-    A projection that never ran would give ``0.0`` and satisfy that bound just as
-    well, so the half of the claim that says it *did* run is asserted on the
-    record the mechanism writes: ``symmetrization`` is not ``None``, the model
-    handed back is a new object, and all 32 classes read ``"exact"`` — which is
-    what makes ``symmetrize=True`` the only thing that can have forced the pass,
-    since nothing here is merely *near*.  The projection's own defect,
-    1.78e-15 = 2 ulp of ``max|H|``, is pinned beside the residual.
-
-    A declared ``position_tol`` moves nothing either, and not on account of the
-    translation: the position pass runs before the detector, ahead of the
-    lattice descent, against the supergroup's operations -- and spglib *found*
-    those in the point set, so the geometry obeys every one of them exactly and
-    the position defect is zero.  That is why the pass can keep running first
-    without being reordered.
+    The position pass runs before the detector, ahead of the lattice descent,
+    against the supergroup's operations -- and spglib *found* those in the point
+    set, so the geometry obeys every one of them exactly and the position defect
+    is zero.  That is why the pass can keep running first without being
+    reordered.
     """
     m = cubic_2x1x1(1.0, 0.5)
-    r = tqg.realized_group(m, symmetrize=True, position_tol=1e-6)
+    r = tqg.realized_group(m, position_tol=1e-6)
     assert not isinstance(r, Refusal), str(r)
     assert (r.group.number_str, len(r.validated.indices)) == ("123.340", 32)
     assert r.descent["lattice"]["index"] == 2
     assert r.positions["defect"] == pytest.approx(0.0, abs=1e-15)
     assert r.positions["max_move"] == pytest.approx(0.0, abs=1e-15)
-
-    # the projection ran: `symmetrize=True` forced it, nothing was near
-    assert r.symmetrization is not None
-    assert r.model is not m
-    assert set(r.symmetrization.classes.values()) == {"exact"}
-    assert len(r.symmetrization.classes) == 32
-
-    k = np.random.default_rng(7).uniform(-0.5, 0.5, size=(6, 3))
-    before = np.asarray(m.hamiltonian(k_pts=k, flatten_spin_axis=True))
-    after = np.asarray(r.model.hamiltonian(k_pts=k, flatten_spin_axis=True))
-    scale = float(np.abs(before).max())                      # max|H|, measured 3.9
-    assert float(r.symmetrization.defect) <= _FEW_ULP * scale        # 1.78e-15
-    assert float(np.abs(after - before).max()) <= _FEW_ULP * scale   # 1.33e-15
+    assert r.symmetrization is None
     assert dimerized.group.number_str == r.group.number_str
-
-
-@pytest.mark.slow
-def test_descend_false_refuses_and_names_the_translation():
-    """``cell_group_not_realized`` — the upper bound, with ``τ`` named in it.
-
-    Asked of the two-site square, whose centred point set repeats under
-    ``τ = (½,½,0)``, in its default reading on a substrate: 28 of the 32
-    operations the cell allows are broken, and the message says which of them is
-    the pure translation and that the descent's first step would be the lattice
-    descent.
-    """
-    r = tqg.realized_group(square_two_orbitals(), descend=False, cross_check=False)
-    assert isinstance(r, Refusal) and not r
-    assert r.gate == "cell_group_not_realized"
-    assert r.value == 28.0 and r.context["size"] == 32
-    assert "pure translation [0.5, 0.5, 0.0]" in r.reason
-    assert "lattice supergroup of index 2" in r.reason
 
 
 @pytest.mark.slow
@@ -442,7 +396,7 @@ def test_a_translation_obeyed_with_each_sites_orbitals_turned_is_a_supercell():
         (tau,) = r.context["lattice"]["operations"]
         assert tau["refuted_by"] is None
     # above the direct residual the permutation itself is obeyed
-    obeyed = tqg.realized_group(twisted_p_chain(delta, t_sigma, t_pi), tol=1e-4)
+    obeyed = _realized._realize(twisted_p_chain(delta, t_sigma, t_pi), tol=1e-4)
     assert isinstance(obeyed, Refusal) and obeyed.gate == "supercell", str(obeyed)
     assert obeyed.context["lattice"]["operations"][0]["residual"] == pytest.approx(
         2 * (t_sigma + t_pi) * delta, rel=1e-6, abs=0)
@@ -450,7 +404,7 @@ def test_a_translation_obeyed_with_each_sites_orbitals_turned_is_a_supercell():
     assert "change of basis" not in obeyed.reason
 
     # control 1: a genuine weak dimerization is broken in every basis
-    dimer = tqg.realized_group(cubic_2x1x1(10.0, 10.0 + 8e-5), tol=1e-4)
+    dimer = _realized._realize(cubic_2x1x1(10.0, 10.0 + 8e-5), tol=1e-4)
     assert dimer and (dimer.group.number_str, len(dimer.validated.indices)) == ("123.340", 32)
     (tau_d,) = dimer.descent["lattice"]["operations"]
     assert tau_d["refuted_by"] == "tensor structure" and tau_d["scaled"] == pytest.approx(1.0, abs=1e-9)

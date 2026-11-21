@@ -121,9 +121,6 @@ print(repr(stated))
 the same orbital content are one species. Both state what the crystal is and
 are never checked against the Hamiltonian
 ([a declaration defines the crystal](../background/measurement.md#a-declaration-defines-the-crystal)).
-`descend=False` asks for the cell's own group instead, and refuses
-`cell_group_not_realized` where the Hamiltonian breaks any of it, carrying the
-verdict on every operation.
 
 ## Time reversal is measured
 
@@ -179,15 +176,7 @@ measured in the cell's own group, `P6mm1'`, the last group that asks them, and
 named by their index there. Once the group has settled they are read against
 `P6`: each holds where the matrices measured make a representation of the
 magnetic group it generates with `P6`
-([every field of the record](../reference/records.md#every-field)). The cell's
-own verdicts, which `descend=False` carries, list the same twelve:
-
-```python
-cell = tqc.realized_group(hal, descend=False)
-held = cell.context["validated"].operations
-print(cell.gate, len(held), [op.name for op in held.values() if op.time_reversal])
-#  cell_group_not_realized 12 ["m([010])'", "m(x)'", "m([1-10])'", "m([2-10])'", "m(y)'", "m([110])'"]
-```
+([every field of the record](../reference/records.md#every-field)).
 
 An operation combined with time reversal whose unitary part is not in the
 cell's group at all, as where a declaration has made two sites different, is
@@ -331,10 +320,6 @@ is a verdict on a question asked after the group, a practical limit, a grammar
 error in a declaration or one of the package's checks on itself, and it names
 the group it was reached in and carries it in `context["group"]`:
 
-- [`cell_group_not_realized`](../reference/refusals.md#cell_group_not_realized)
-  and [`declaration_breaks_group`](../reference/refusals.md#declaration_breaks_group),
-  asked for with `descend=False`: the Hamiltonian, or the declared content,
-  breaks operations the cell allows;
 - [`rep_search_too_large`](../reference/refusals.md#rep_search_too_large),
   [`detector_too_large`](../reference/refusals.md#detector_too_large) and
   [`projection_too_large`](../reference/refusals.md#projection_too_large),

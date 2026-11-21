@@ -1833,7 +1833,7 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
                 f"{ncls}, times {len(orients)} orientation branch(es) -- against "
                 f"max_candidates = {max_candidates:,}. At the few milliseconds a "
                 f"candidate costs that is hours, so it is refused rather than run."
-                f"{hint} A `multiplets=` stating a multi-orbital site as one multiplet "
+                f"{hint} A `site_multiplets=` stating a multi-orbital site as one multiplet "
                 f"cuts the class count sharply, and `realized_group(..., "
                 f"max_candidates=...)` with a larger ceiling runs the enumeration if it "
                 f"is worth waiting for.",
@@ -1922,18 +1922,13 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
         declared = float(getattr(validated, "tol", tol))
         if declared > tol and spectrum[0] <= declared:
             near_hint = (
-                f" The operations were measured at a declared tol = {declared:.3g}, above "
-                f"the {tol:.3g} the representation is held to, and the best candidate's "
-                f"{spectrum[0]:.3g} lies between the two: these "
-                f"operations are near-symmetric -- obeyed within what was declared and not "
-                f"to machine precision, or on parts of the crystal the measurement reads "
-                f"apart that the hoppings couple only below it -- as a numerical "
-                f"(wannier90) Hamiltonian gives. The route is to project H onto its "
-                f"group-invariant part and build the representation on the symmetrized "
-                f"model: `pythtqc.symmetrize` (in module "
-                f"`pythtqc.symmetrization`), or "
-                f"`realized_group(..., tol={declared:.3g})`, whose default "
-                f"`symmetrize=\"auto\"` does it for you.")
+                f" The operations were measured at the declared tolerance {declared:.3g}, "
+                f"above the {tol:.3g} the representation is held to, and the best "
+                f"candidate's {spectrum[0]:.3g} lies between the two: these operations are "
+                f"near-symmetric, obeyed within the declaration and not to machine "
+                f"precision, or on parts of the crystal the measurement reads apart that "
+                f"the hoppings couple only below it, as a numerical (wannier90) "
+                f"Hamiltonian gives.")
         return Refusal(
             "rep_not_covariant",
             f"none of the {len(records)} candidate representations ({len(distinct)} distinct) "
@@ -1944,7 +1939,7 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
             f"structure is too narrow for the multiplets it was given — "
             f"a site whose orbitals mix under its site-symmetry group is one multiplet, "
             f"which is what the measured multiplets read off the solution spaces and "
-            f"what a `multiplets=` states.{read_hint}{near_hint}{spin_hint}",
+            f"what a `site_multiplets=` states.{read_hint}{near_hint}{spin_hint}",
             value=float(spectrum[0]), threshold=float(tol),
             context={"n_candidates": int(search["n_candidates"]), "multiplets": layout,
                      "indices": tuple(int(syms[p].ind) for p in kept),
@@ -3041,7 +3036,7 @@ def _exact_gate(model, group, validated, build_kw=None) -> float:
     which ``operations=``, ``include_vacuum_ops=``, ``k_pts=``, ``n_battery=``
     and ``seed=`` bear on the gate.
     A detection record carries neither ``N`` nor ``max|H|``, so
-    :func:`..groups.realized_group` and :func:`..symmetrization.symmetrize`
+    :func:`..groups.realized_group` and :func:`..symmetrization._symmetrized`
     measure the gate here and classify operations against it.
     """
     kw = dict(build_kw or {})

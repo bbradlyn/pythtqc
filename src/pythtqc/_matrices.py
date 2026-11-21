@@ -1443,7 +1443,7 @@ class SiteMultiplets:
         partition is unique.
     determined_by : str
         ``"hamiltonian"``, read off the Hamiltonian, or ``"declaration"``,
-        stated by ``multiplets=`` to :func:`..groups.realized_group`.
+        stated by ``site_multiplets=`` to :func:`..groups.realized_group`.
     """
 
     by_site: tuple
@@ -1508,7 +1508,7 @@ class SiteMultiplets:
             lines.append(f"  {_orbitals_named(entry['orbitals'])}: {entry['note']}, "
                          f"{_orbitals_named(entry['chosen'])}   (.accidental)")
         lines.append(("  read off the Hamiltonian" if self.determined_by == "hamiltonian"
-                      else "  stated by multiplets=") + "   (.determined_by)")
+                      else "  stated by site_multiplets=") + "   (.determined_by)")
         return "\n".join(lines)
 
 

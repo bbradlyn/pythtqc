@@ -82,7 +82,7 @@ What each thing is called where a call returns it.
 |---|---|---|
 | the model's own relative precision | `precision`, and the tolerances it derives | the `precision=` argument; `r.precision` |
 | how far the orbital centres miss the group's own action, and their correction | `defect`, `adjusted`, `max_move`, `offset`, `frame` | `r.positions` |
-| an operation measured against a declared tolerance | `"exact"`, `"near"` or `"broken"` | `classify_operations`; `r.symmetrization.classes`, which holds the first two |
+| an operation measured against a declared tolerance | `"exact"`, `"near"` or `"broken"` | `r.symmetrization.classes`, which holds the first two |
 | how far the symmetrization moved `H` | `defect`, in the units of `H`; `defect_relative` | `r.symmetrization` |
 
 ### A refusal
@@ -363,39 +363,34 @@ Cartesian length.
 | name | what it checks, and where | unit | default |
 |---|---|---|---|
 | `precision` | the model's own relative precision, one fact about its numbers, from which `tol = 10 × precision × max\|H\|`, `position_tol = precision`, `cut = tol / max\|H\|` and `window` from `cut` are derived, and `symprec` raised where the declared noise in the positions would defeat the symmetry finder (`realized_group`) | dimensionless | `None` |
-| `tol` | the covariance check `max_k ‖U H(k) U† − H(Rk)‖`, which separates an operation the Hamiltonian obeys from one it breaks (`realized_group`); the declared tolerance a near-symmetric operation is read against (`symmetrize`, `classify_operations`) | energy, in the units of `H` | `realized_group`'s `None` is `1e-8` unless `precision` derives one; `symmetrize` and `classify_operations` require it |
+| `tol` | the covariance check `max_k ‖U H(k) U† − H(Rk)‖`, which separates an operation the Hamiltonian obeys from one it breaks, and the declared tolerance a near-symmetric operation is read against (`realized_group`) | energy, in the units of `H` | `1e-8`, unless `precision` derives one |
 | `cut` | the nullspace cut `s ≤ cut · s_max`, never stricter than `s ≤ √n · cut` read in the units of `H` for `n` states (`√n · tol` under `precision`), which decides what the measurement finds before any check applies (`realized_group`) | dimensionless, relative to the largest singular value | `tol`; `tol / max\|H\|` under `precision` |
 | `window` | the matching window inside which two eigenvectors are paired at the first `k` (`realized_group`) | dimensionless, relative to `max\|H − μ\|`, `μ` the mean on-site energy | `clip(10·sqrt(tol), 1e-3, 0.3)`; `clip(10·sqrt(cut), 1e-3, 0.3)` under `precision` |
 | `position_tol` | how far an orbital centre may miss where the group puts it, about the origin that fits the centres, and still be moved onto it, and how far a shift of every centre together may reach and still be removed, so that the centres are written in the model's own frame (`realized_group`); a variety's width (`wyckoff_sites_tables`) | reduced coordinates of the cell | `None`; `1e-4` in `wyckoff_sites_tables` |
-| `max_move` | how far a centre may move and still be the same orbital, a shift of every centre together not counted, and how far that shift may reach and still be removed (`symmetrize_positions`) | reduced coordinates | `1e-5` |
 | `symprec` | spglib's tolerance for finding the group from the positions (`realized_group`) | Cartesian length, in the model's units | `1e-5` |
 | `degeneracy_tol` | which bands are one degenerate multiplet, and so the rows of every character table (`characters`, `corep_content`, `hsp_table`, `sewing_matrix`, `multiplets`) | energy | `1e-8` |
 | `label_tol` | how far a fitted corep multiplicity may sit from an integer, and how close two rows' characters must be to share a partition class (`corep_content`, `hsp_table`) | dimensionless | `1e-3` |
 | `ktol` | matching a `k` to a tabulated high-symmetry point (`corep_content`, `hsp_table`, `corep_table`); deciding that a mesh point is one (`k_grid`) | reduced reciprocal coordinates | `1e-5`; `1e-8` in `k_grid` |
 | `atol` | whether an operation leaves `k` invariant up to a reciprocal lattice vector (`characters`, `corep_content`, `hsp_table`, `sewing_matrix`) | reduced reciprocal coordinates | `1e-8` |
 | `mesh_tol` | finding a requested `k` among a solved mesh's points (`characters`, `corep_content`, `hsp_table`, `sewing_matrix`) | reduced reciprocal coordinates | `1e-9` |
-| `exact_gate` | the boundary between an exact operation and a near one (`classify_operations`); `realized_group` and `symmetrize` pass the model's own, the covariance check's tolerance below | energy | `5e-14`, the least that tolerance is |
 
 The covariance check's tolerance a representation is built at is an energy, as
 `tol` is: the larger of `5e-14` and `|G|·N·ε·max|H|`, the rounding a
 representation of `|G|` operations on `N` states carries, which is the exact
-class of [numerical models](../guide/numerical.md). No `tol` or `precision`
+class of [numerical models](../guide/numerical.md). No `precision`
 handed to `realized_group` moves it, since those set the tolerance of the
 measurement's check. Rounding never refuses a valid model; a miss above the
 check's tolerance is a real one.
 
-Every default above is the signature's own, and these lines print them:
+Every default of a keyword above is the signature's own, and these lines print them:
 
 ```python
 import inspect
 import pythtqc as tqc
 
 required = inspect.Parameter.empty
-for call, names in [(tqc.realized_group, "tol cut window position_tol precision symprec"),
-                    (tqc.symmetrize, "tol"),
-                    (tqc.classify_operations, "tol exact_gate"),
+for call, names in [(tqc.realized_group, "position_tol precision symprec"),
                     (tqc.wyckoff_sites_tables, "position_tol"),
-                    (tqc.symmetrize_positions, "max_move"),
                     (tqc.corep_content, "degeneracy_tol label_tol ktol atol mesh_tol"),
                     (tqc.hsp_table, "degeneracy_tol label_tol ktol atol mesh_tol"),
                     (tqc.characters, "degeneracy_tol atol mesh_tol"),
@@ -407,11 +402,8 @@ for call, names in [(tqc.realized_group, "tol cut window position_tol precision 
     print(f"{call.__name__:<22}", ", ".join(
         f"{n}={'required' if parameters[n].default is required else parameters[n].default}"
         for n in names.split()))
-#  realized_group         tol=None, cut=None, window=None, position_tol=None, precision=None, symprec=1e-05
-#  symmetrize             tol=required
-#  classify_operations    tol=required, exact_gate=5e-14
+#  realized_group         position_tol=None, precision=None, symprec=1e-05
 #  wyckoff_sites_tables   position_tol=0.0001
-#  symmetrize_positions   max_move=1e-05
 #  corep_content          degeneracy_tol=1e-08, label_tol=0.001, ktol=1e-05, atol=1e-08, mesh_tol=1e-09
 #  hsp_table              degeneracy_tol=1e-08, label_tol=0.001, ktol=1e-05, atol=1e-08, mesh_tol=1e-09
 #  characters             degeneracy_tol=1e-08, atol=1e-08, mesh_tol=1e-09
@@ -428,29 +420,25 @@ that no verdict depends on.
 
 | name | what it sets, and where | unit | default |
 |---|---|---|---|
-| `max_bytes` | the memory the symmetrizing projection may take at its peak, and the ceiling the measurement's own budget is raised to on exactly degenerate levels (`realized_group`, `symmetrize`) | bytes | `1e9` |
-| `max_candidates` | the largest search for a representation's discrete choices that is run rather than refused (`realized_group`, `symmetrize`) | candidates | `2**20` |
+| `max_bytes` | the memory the symmetrizing projection may take at its peak, and the ceiling the measurement's own budget is raised to on exactly degenerate levels (`realized_group`) | bytes | `1e9` |
+| `max_candidates` | the largest search for a representation's discrete choices that is run rather than refused (`realized_group`) | candidates | `2**20` |
 | `cap` | how many solutions an enumeration lists before it says it was cut (`decompose`); how many realizations it may hold, past which it refuses (`atomic_realizations`) | solutions | `200`; `256` |
 | `nk` | divisions of the measurement's mesh per periodic direction (`realized_group`) | divisions | `6` |
-| `dz` | how far under each site the substrate sits (`realized_group`) | reduced coordinate of the non-periodic lattice vector | `0.05` |
-| `c` | the slab's lattice constant (`realized_group`); the vacuum between the stack's copies, its period the layer's extent along its normal plus this (`stack_presentation`) | the model's length units | `30.0`; `8.0` |
+| `c` | the vacuum between the stack's copies, its period the layer's extent along its normal plus this (`stack_presentation`) | the model's length units | `8.0` |
 | `stack_period` | the vacuum between the copies of the decoupled stack a layer's indicator is completed on, its period the layer's extent along its normal plus this (`symmetry_indicator`) | the model's length units | `8.0` |
 
-No verdict depends on `dz`, `c` or `stack_period`: no hopping crosses the
-vacuum or the stack's gap, and any depth under a layer removes the same
-operations. The defaults, as the signatures hold them:
+No verdict depends on `c` or `stack_period`: no hopping crosses the
+vacuum between a stack's copies. The defaults, as the signatures hold them:
 
 ```python
-for call, names in [(tqc.realized_group, "max_bytes max_candidates nk dz c"),
-                    (tqc.symmetrize, "max_bytes max_candidates"),
+for call, names in [(tqc.realized_group, "max_bytes max_candidates nk"),
                     (tqc.decompose, "cap"),
                     (tqc.atomic_realizations, "cap"),
                     (tqc.stack_presentation, "c"),
                     (tqc.symmetry_indicator, "stack_period")]:
     parameters = inspect.signature(call).parameters
     print(f"{call.__name__:<22}", ", ".join(f"{n}={parameters[n].default}" for n in names.split()))
-#  realized_group         max_bytes=1000000000.0, max_candidates=1048576, nk=6, dz=0.05, c=30.0
-#  symmetrize             max_bytes=1000000000.0, max_candidates=1048576
+#  realized_group         max_bytes=1000000000.0, max_candidates=1048576, nk=6
 #  decompose              cap=200
 #  atomic_realizations    cap=256
 #  stack_presentation     c=8.0

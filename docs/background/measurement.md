@@ -56,7 +56,7 @@ A space that is not empty must still hold a matrix of the form an operation
 has, a permutation of the sites times each site's own matrix and, with spin,
 the operation's own spin rotation; and that matrix `U` must pass the
 covariance check, `max_k ‖U H(k) U† − H(Rk)‖` at most `tol`, an energy in the
-units of `H`, `1e-8` unless `tol=` or `precision=` declares another
+units of `H`, `1e-8` unless a declared `precision=` derives another
 ([the glossary](../reference/glossary.md#tolerances)). Each operation that fails
 is recorded with what refuted it
 ([the records reference](../reference/records.md)).
@@ -68,8 +68,7 @@ operations measured to hold and identified again, still with time reversal
 adjoined, which is then measured on that group (below). The descent repeats until
 every operation left holds, and only the group it ends at is returned, its
 Wyckoff letters and site symmetries its own, in the tables' setting. The cell's
-group, an upper bound, is never returned unmeasured: `descend=False` asks for
-it, and refuses `cell_group_not_realized` where the Hamiltonian breaks any of it. Every
+group, an upper bound, is never returned unmeasured. Every
 tight-binding Hamiltonian is symmetric under some space group, `P1` at the
 least, so a descent always ends at one.
 

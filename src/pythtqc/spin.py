@@ -56,8 +56,7 @@ class SpinBasis:
     r"""Which orbitals of a spinless model are the spin up and down states of one Wannier function.
 
     :func:`spin_basis` and :func:`spinless_presentation` return it;
-    ``spin=`` on :func:`..groups.realized_group` and
-    :func:`..symmetrization.symmetrize` takes it, as does
+    ``spin=`` on :func:`..groups.realized_group` takes it, as does
     :func:`spin_operator`; and the representation carries it as
     :attr:`..symmetry.SpaceGroupRep.spin`.  ``sb.summary()`` prints the pairs.
 

@@ -11,7 +11,7 @@ A call that cannot complete returns a `Refusal` in place of its record: a
 falsy record that names the check that stopped it and what was measured there.
 Each entry's **Refusals** are the checks at which that call can refuse.
 
-The functions fall into seven groups:
+The functions fall into six groups:
 
 - [The group](#the-group) — the space group a Hamiltonian has and which operations it obeys, the orbitals' site orbits, and the operations by index and Seitz symbol.
 - [Declaring what the hoppings cannot supply](#declaring-what-the-hoppings-cannot-supply) — the spin a spinless model carries in its orbital index.
@@ -19,7 +19,6 @@ The functions fall into seven groups:
 - [Labelling the bands](#labelling-the-bands) — the states at one k-point, and the sewing matrices, characters and corep content of a set of bands, at one high-symmetry point or at all of them.
 - [Atomic limits](#atomic-limits) — whether a symmetry data vector is a sum of elementary band representations, and the counting beside it.
 - [Stable invariants](#stable-invariants) — the symmetry-indicator class of a band set, and its stable real-space invariants, from the bands or from the orbitals.
-- [Numerical and `wannier90` models](#numerical-and-wannier90-models) — a model symmetric only to its own precision: its orbital centres moved onto the nearest positions the group carries, its hoppings onto the group's own average, and each operation classified.
 
 ## The group
 
@@ -32,10 +31,9 @@ The functions fall into seven groups:
 
 ```text
 realized_group(
-    model, *, typat=None, environment=None, cross_check=True, decorations=None, dz=0.05,
-    c=30.0, nk=6, tol=None, cut=None, window=None, symmetrize='auto',
+    model, *, typat=None, environment=None, cross_check=True, decorations=None, nk=6,
     max_bytes=1000000000.0, position_tol=None, precision=None, spinor=None, spin=None,
-    descend=True, symprec=1e-05, params=None, characters=None, multiplets=None,
+    symprec=1e-05, params=None, characters=None, site_multiplets=None,
     max_candidates=1048576
 )
 ```
@@ -73,8 +71,9 @@ The space group obeyed by H, obtained by descent from the space group of the lat
   crystal field the orbital positions do not show.
 
 - **`precision`** (`float, optional`): For a numerical model such as a wannier90 import, the relative
-  precision of its numbers.  It sets the tolerances below; centres and
-  hoppings symmetric within it are made exactly symmetric.
+  precision of its numbers: a positive number.  Centers and hoppings
+  symmetric within it are made exactly symmetric; left out, the model is
+  read as exact.
 
 - **`spin`** (`str, mapping or SpinBasis, optional`): For a spinless model whose orbital index carries spin, as a wannier90
   import's does: which two orbitals are the spin states of one Wannier
@@ -84,26 +83,16 @@ The space group obeyed by H, obtained by descent from the space group of the lat
 - **`spinor`** (`bool, optional`): Whether the states carry spin one-half.  Default: from the model, and
   `True` with `spin`.
 
-- **`descend`** (`bool, optional`): `False` returns the group of the lattice of occupied sites itself, and
-  refuses `cell_group_not_realized` where H does not obey it.  Default
-  `True`.
-
-- **`symmetrize`** (`{"auto", True, False}, optional`): For operations or multiplets that hold only within the tolerance:
-  `"auto"` (default) projects H onto its symmetric part where there are
-  any, `True` always, `False` never, and such a model is then refused.
-
-- **`tol`, `cut`, `window`, `position_tol`, `symprec`** (`float, optional`): The tolerances `precision` sets, one by one: `tol` absolute, in the
-  units of H; `cut` and `window` relative; `position_tol` in reduced
-  coordinates; `symprec` Cartesian, default `1e-5`.  Left out, each
-  is exact.
+- **`position_tol`, `symprec`** (`float, optional`): `position_tol`: how far an orbital center may miss the position its
+  group puts it at and still be moved onto it, in reduced coordinates,
+  for a model whose centers alone are imprecise; left out, it is exact,
+  and `precision` sets it.  `symprec`: the symmetry finder's
+  tolerance, a Cartesian length, default `1e-5`.
 
 - **`nk`** (`int, optional`): k-points per periodic direction of the grid the operations are measured
   on.  Default 6.
 
-- **`dz`, `c`** (`float, optional`): A layer's presentation: the depth of the substrate's shadow sites and
-  the height of the slab's cell.  Neither changes the group.
-
-- **`multiplets`** (`list or SiteMultiplets, optional`): Each site's multiplets, stated instead of measured: one list per site,
+- **`site_multiplets`** (`list or SiteMultiplets, optional`): Each site's multiplets, stated instead of measured: one list per site,
   each multiplet written as its orbitals.
 
 - **`max_candidates`, `max_bytes`** (`int and float, optional`): Limits on the search for the representation (default `2**20`
@@ -153,14 +142,14 @@ Once the group is found, a refusal names it and carries it in
 - **`operations_not_nearly_consistent` / `operations_not_consistent`**: the operations found on a numerical cell do not close; `precision`
   makes the centres exact first.
 
-- **`cell_group_not_realized` / `declaration_breaks_group`**: with `descend=False`, operations broken by the hoppings or by the
-  declared content.
+- **`cell_group_not_realized`**: an operation combined with time reversal that held before a numerical
+  model's Hamiltonian was projected and is broken after it.
 
 - **`unknown_label` / `ambiguous_multiplet`**: a declared word the site does not name, or a flat list that cannot say
   which orbitals form one multiplet.
 
-- **`rep_not_covariant`**: with `symmetrize=False`, operations that hold only within the
-  tolerance.
+- **`rep_not_covariant`**: operations that hold within the declared precision and that no
+  representation carries within the exact check.
 
 - **`rep_internal_factor` / `rep_not_multiplicative`**: no candidate representation carries the group's phases, or multiplies
   as the group does.
@@ -174,7 +163,8 @@ Once the group is found, a refusal names it and carries it in
 - **`rep_search_too_large` / `projection_too_large` / `detector_too_large`**: past `max_candidates` or `max_bytes`; the reason gives the value
   that runs it.
 
-- **`symmetrize_broken_operation` / `symmetrize_defect_exceeds_tol` / `symmetrize_range_not_closed`**: the symmetric projection's own ([`symmetrize`](#symmetrize)).
+- **`symmetrize_defect_exceeds_tol` / `symmetrize_range_not_closed`**: the projection of the Hamiltonian onto its symmetric part, under a
+  declared precision.
 
 ### `operations`
 
@@ -1515,155 +1505,3 @@ Site irreps at one maximal Wyckoff position that no stable real-space invariant 
 **Refusals**
 
 - **`srsi_data`, `srsi_scope`, `srsi_table_absent`, `srsi_ebr_basis`**: from [`srsi_tables`](#srsi_tables): the group has no tables.
-
-## Numerical and `wannier90` models
-
-- [`symmetrize_positions`](#symmetrize_positions) — The model with its orbital centres moved onto the nearest positions its group carries, every band where it was.
-- [`symmetrize`](#symmetrize) — The model nearest a near-symmetric one that obeys its group exactly, and how far it moved.
-- [`classify_operations`](#classify_operations) — Each operation's class against a declared tolerance: `"exact"`, `"near"` or `"broken"`.
-
-### `symmetrize_positions`
-
-```text
-symmetrize_positions(model, group, assignment, *, max_move=1e-05, params=None)
-```
-
-The model with its orbital centres moved onto the nearest positions its group carries, every band where it was.
-
-**Parameters**
-
-- **`model`** (`pythtb.TBModel`): The model whose centres are moved.
-
-- **`group`, `assignment`** (`GroupData, OrbitalAssignment`): `r.group` and `r.assignment` of a call on this model.  A group read
-  off the noisy centres themselves is written about an origin their noise
-  placed: identify the moved model again before reading it in a group.
-
-- **`max_move`** (`float, optional`): How far a centre may move and still be the same orbital, in reduced
-  coordinates, a shift of all of them together not counted; and how far
-  that shift may reach and still be removed.  Default `1e-5`.
-
-- **`params`** (`dict, optional`): The scalar value of each parameter of the model, keyed by name:
-  `{"lam": 0.3}`.
-
-**Returns**
-
-- `(pythtb.TBModel, dict) or Refusal`: The model with its centres moved and its parameters evaluated at
-  `params`, and the record of the move:
-  `defect_before` and `defect_after`, how far the centres miss the
-  group's action before and after, in reduced coordinates;
-  `max_move`, the largest move of one centre; `offset`, the shift of
-  them all together, each centre returned being the one handed in plus
-  its own move plus `offset`; `frame`, `"model"` where they are
-  written in the model's own frame and `"fitted"` where they stay about
-  the origin fitted to them; `spectrum_residual`, how far the spectrum
-  moved over `n_check` random `k`, `0` where no centre moved; and
-  `n_moved`.  A `Refusal` in its place is falsy.
-
-**Refusals**
-
-- **`positions_not_nearly_symmetric`**: a centre would have to move further than `max_move`: the positions
-  are a different set of centres, and the group they carry is the one to
-  identify.
-
-### `symmetrize`
-
-```text
-symmetrize(
-    model, group, assignment, validated, *, tol, k_grid=None, params=None, max_passes=3,
-    verify=True, verify_nk=None, verify_tol=None, max_bytes=1000000000.0,
-    characters=None, multiplets=None, spin=None, max_candidates=1048576
-)
-```
-
-The model nearest a near-symmetric one that obeys its group exactly, and how far it moved.
-
-**Parameters**
-
-- **`model`** (`pythtb.TBModel`): The model the operations were measured on, `r.model`: for a layer,
-  its slab presentation.
-
-- **`group`, `assignment`, `validated`** (`GroupData, OrbitalAssignment, ValidatedGroup`): `r.group`, `r.assignment` and `r.validated` of a call measured at
-  `tol`, `realized_group(model, tol=..., symmetrize=False)`.
-
-- **`tol`** (`float`): The declared tolerance, in the units of `H`, the one `validated` was
-  measured at; for numbers good to a relative `ε`, about
-  `10·ε·max|H|`.  Required.
-
-- **`characters`, `multiplets`, `spin`** (`optional`): The declarations, as [`realized_group`](#realized_group) takes them.  The
-  average does not depend on `characters=`, which the representation it
-  is taken with carries.
-
-- **`k_grid`** (`int, optional`): Divisions of the grid in every periodic direction.  Default: the
-  smallest grid on which the hopping list comes back exactly, set by the
-  hoppings' range; a coarser one raises.
-
-- **`max_passes`** (`int, optional`): The most averaging passes.  Default 3: one is exact, and another runs
-  only while `H` still moves.
-
-- **`verify`, `verify_nk`, `verify_tol`** (`optional`): Measure the operations again on the model returned (default `True`),
-  on a mesh of `verify_nk` divisions (default: the one `validated`
-  used), at `verify_tol` (default `1e-8`).
-
-- **`max_bytes`** (`float, optional`): The memory the average may take at its peak, in bytes.  Default `1e9`.
-
-- **`max_candidates`** (`int, optional`): The largest search for the representation's discrete choices that is
-  run.  Default `2**20`.
-
-- **`params`** (`dict, optional`): The scalar value of each parameter of the model, keyed by name:
-  `{"lam": 0.3}`.
-
-**Returns**
-
-- `(pythtb.TBModel, Symmetrization) or Refusal`: The symmetrized model, its parameters evaluated at `params`, and the
-  record of the average: `rec.summary()`;
-  `rec.defect`, how far `H` moved, in its units; `rec.near`, the
-  operations obeyed only within `tol`; `rec.verification`, the
-  operations measured again on the model returned.  A `Refusal` in its
-  place is falsy and names what stopped the call.
-
-**Refusals**
-
-- **`symmetrize_broken_operation`**: an operation beyond `tol`, which the model does not obey.
-
-- **`symmetrize_defect_exceeds_tol`**: the average moved `H` further than `tol`.
-
-- **`symmetrize_range_not_closed`**: the average reaches beyond the hoppings' range on the grid; a larger
-  `k_grid` runs it.
-
-- **`positions_not_exactly_symmetric`**: the orbital centres miss the operations; [`symmetrize_positions`](#symmetrize_positions),
-  or a declared precision, moves them first.
-
-- **`projection_too_large` / `detector_too_large`**: past `max_bytes`; the reason gives the value that runs it.
-
-A refusal of the representation's own build, `rep_not_unique` among them,
-is returned as it is.
-
-### `classify_operations`
-
-```text
-classify_operations(validated, tol, *, exact_gate=5e-14, anchored=None)
-```
-
-Each operation's class against a declared tolerance: `"exact"`, `"near"` or `"broken"`.
-
-**Parameters**
-
-- **`validated`** (`ValidatedGroup`): The operations a call measured to hold, `r.validated`, measured at
-  `tol`: `realized_group(model, tol=..., symmetrize=False)`.
-
-- **`tol`** (`float`): The declared tolerance, in the units of `H`: the one `validated`
-  was measured at.
-
-- **`exact_gate`** (`float, optional`): Rounding, in the units of `H`: the covariance of the model's own
-  representation, which `symmetry.covariance_gate` gives and
-  [`symmetrize`](#symmetrize) passes.  Default `EXACT_GATE`, `5e-14`, the
-  least it is.
-
-- **`anchored`** (`dict, optional`): `{ind: residual}`, each operation's covariance in the representation
-  the projection is built with, `rep.residuals`.  An operation it holds
-  is classified at the larger of that and its measured residual, which a
-  basis turned inside a site, by less than `tol`, makes near.
-
-**Returns**
-
-- `dict`: `{ind: class}` for each operation `validated` kept.

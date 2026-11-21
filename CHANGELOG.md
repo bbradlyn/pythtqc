@@ -24,6 +24,22 @@
   could be detected!". Most such crystals are written on a lattice basis that is not
   reduced, the square lattice on `a1 + a2, a2` among them. What it returns for every
   other crystal is unchanged.
+- `realized_group` takes each site's stated multiplets as `site_multiplets=`, where it
+  took `multiplets=`. The multiplets stated are read as before, and
+  `SiteMultiplets.summary()` ends `stated by site_multiplets=`.
+- `realized_group` takes `precision=` as the one declaration of a numerical model's
+  precision, beside `position_tol=` for a model whose orbital centers alone are imprecise
+  and `symprec=`. It no longer takes `tol=`, `cut=` or `window=`, which a declared
+  precision sets, nor `dz=` or `c=`, the depth of a substrate's shadow sites and the
+  height of a layer's slab cell, which stay at `0.05` and `30.0`.
+- `realized_group` returns the group the Hamiltonian obeys, and projects the Hamiltonian
+  onto its symmetric part where a declared precision calls for it. It no longer takes
+  `descend=`, which asked for the group of the cell and refused where the Hamiltonian
+  broke any of it, or `symmetrize=`. What it returns on a call without them is unchanged.
+- `symmetrize`, `symmetrize_positions` and `classify_operations` are no longer exported:
+  `realized_group(model, precision=...)` moves the orbital centers, projects the
+  Hamiltonian and classifies each operation itself, and returns the projection's record
+  on `r.symmetrization`.
 
 ## 0.1.0a3 — the second public version
 

@@ -576,8 +576,7 @@ def test_the_square_doublet_declared_s_and_d_keeps_the_fourfold():
     pair's representations are read through their characters, and the rows
     say the matrices are not carried; where the diagonal neighbours couple
     it, the fourfold and the mirrors are broken by the declaration and the
-    crystal is ``P21'``, the pair declared one multiplet at a time there, or,
-    asked not to descend, refused ``declaration_breaks_group``.  Matrices are
+    crystal is ``P21'``, the pair declared one multiplet at a time there.  Matrices are
     read in the group the layer's environment and its hoppings leave: one on
     ``m(z)`` is refused ``unknown_label`` on a substrate and read
     free-standing, where it says whether the pair is ``Eu`` or ``Eg``; and
@@ -683,9 +682,6 @@ def test_the_square_doublet_declared_s_and_d_keeps_the_fourfold():
     note = next(b["note"] for b in coupled.descent["dropped"] if b["name"] == "C4(z)")
     assert "no multiple of it" in note, note
     assert [o.determined_by for o in coupled.rep.characters.orbitals] == ["declaration"] * 2
-    refused = tqg.realized_group(_square_pxpy(diagonal=0.2), cross_check=False,
-                                 characters=rotating, descend=False)
-    assert not refused and refused.gate == "declaration_breaks_group"
     # ... in the group the layer's environment and its hoppings leave: m(z) is an
     # operation free-standing alone, and C4(z) none where the hoppings break it
     flat = {(0, 1): {**pxpy, "m(z)": [[1, 0], [0, 1]]}}
@@ -713,17 +709,16 @@ def test_the_square_doublet_declared_s_and_d_keeps_the_fourfold():
     # the 3m site of R3m, its p shell turned inside it by 1e-8
     shell, kw = tqm.r3m_p_shell(angle=1e-8), {"decorations": tqm.R3M_SHADOW}
     said = {0: "A1", (1, 2): "A1 + A2"}
-    for symmetrize in ("auto", False):
-        turned = tqg.realized_group(shell, characters=said, symmetrize=symmetrize, **kw)
-        assert turned, str(turned)
-        assert (turned.group.name, turned.group.number_str, turned.group.size) == (
-            "Cm1'", "8.33", 4)
-        assert turned.descent["from"]["number_str"] == "160.66"
-        assert turned.descent["steps"][0]["refuted_by"] == {"declaration": 8}
-        assert turned.rep.multiplets.by_site == (((0, 1, 2),),)
-        assert turned.rep.characters.irreps == ("A'' + 2xA'",) * 3
-        assert turned.symmetrization is None, "the model's own blocks are exact"
-        assert max(turned.rep.residuals.values()) < 1e-13
+    turned = tqg.realized_group(shell, characters=said, **kw)
+    assert turned, str(turned)
+    assert (turned.group.name, turned.group.number_str, turned.group.size) == (
+        "Cm1'", "8.33", 4)
+    assert turned.descent["from"]["number_str"] == "160.66"
+    assert turned.descent["steps"][0]["refuted_by"] == {"declaration": 8}
+    assert turned.rep.multiplets.by_site == (((0, 1, 2),),)
+    assert turned.rep.characters.irreps == ("A'' + 2xA'",) * 3
+    assert turned.symmetrization is None, "the model's own blocks are exact"
+    assert max(turned.rep.residuals.values()) < 1e-13
 
 
 @pytest.mark.slow
@@ -1467,21 +1462,21 @@ def test_a_declared_function_whose_orbit_is_the_multiplet_reduces_nothing(realiz
                for i in bare.rep.indices) == 0.0
 
 
-def test_descend_false_does_not_turn_off_a_cell_reduction():
-    """``descend=False`` asks for the group the **cell** allows — reduction and all.
+def test_a_declaration_descends_from_the_cell_its_reduction_left():
+    """The descent starts from the group the **cell** allows — reduction and all.
 
-    A step 1 reduction is not a descent: it says which operations the declared
-    crystal has, which is a question about the cell, and ``descend=False`` is
-    the instruction not to lower a group the *Hamiltonian* breaks.  So the
-    reduced cell is still the cell, and the refusal that follows names the
-    subgroup of **it** the hoppings leave.
+    A reduction of the cell is not a descent: it says which operations the
+    declared crystal has, which is a question about the cell.  So the reduced
+    cell is still the cell, and the descent that follows starts from it and
+    lowers it to the subgroup the hoppings leave.
     """
-    out = tqg.realized_group(_km(), characters={0: "A1", 1: "A2"}, descend=False)
-    assert not out and out.gate == "declaration_breaks_group", str(out)
-    assert out.context["number_str"] == "156.50", \
+    out = tqg.realized_group(_km(), characters={0: "A1", 1: "A2"})
+    assert out, str(out)
+    assert out.descent["from"]["number_str"] == "156.50", \
         "the cell the declaration left, not the one no `typat` allows"
-    assert out.context["subgroup"] == (1, 2, 3, 7, 8, 9), "the six operations of P31'"
-    assert "descend=False" in out.reason
+    assert out.descent["dropped_by"] == {"declaration": 6}
+    assert out.group.number_str == "143.2" and len(out.validated.indices) == 6, \
+        "the six operations of P31'"
 
 
 @pytest.mark.slow

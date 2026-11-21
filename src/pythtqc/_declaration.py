@@ -469,9 +469,8 @@ def _declaration_breaks(group, assignment, decls, verdict, *, standing, subgroup
     (:func:`_verdicts_and_choices` and
     :func:`_covariant_subgroup`, which is also what
     :func:`..groups.realized_group` descends on).  This writes it down for the
-    two calls that do not lower the group — :func:`.._build._build_rep`, handed a fixed
-    group, and :func:`..groups.realized_group` told ``descend=False``, which
-    ``not_lowered`` says in one sentence: which operations the declared content
+    call that does not lower the group, :func:`.._build._build_rep` handed a fixed
+    group, ``not_lowered`` being its sentence on why: which operations the declared content
     is not covariant under, which subgroup it **is** covariant on, the maximal
     readings where several tie, that subgroup the first of them by the tie rule,
     and in irrep names what the failing declaration measured.

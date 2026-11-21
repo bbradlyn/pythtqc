@@ -71,11 +71,6 @@ GROUPS = (
      ("symmetry_indicator", "stack_presentation", "srsi_tables", "srsi_of",
       "srsi_of_columns", "srsi_of_bands", "srsi_of_model", "splitting",
       "nsit_criterion", "atomic_realizations", "stably_equivalent_pairs")),
-    ("Numerical and `wannier90` models",
-     "a model symmetric only to its own precision: its orbital centres moved onto "
-     "the nearest positions the group carries, its hoppings onto the group's own "
-     "average, and each operation classified",
-     ("symmetrize_positions", "symmetrize", "classify_operations")),
 )
 
 #: the docstring sections the page carries, after the summary paragraph
@@ -98,7 +93,7 @@ A call that cannot complete returns a `Refusal` in place of its record: a
 falsy record that names the check that stopped it and what was measured there.
 Each entry's **Refusals** are the checks at which that call can refuse.
 
-The functions fall into seven groups:
+The functions fall into six groups:
 """
 
 

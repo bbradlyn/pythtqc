@@ -98,17 +98,25 @@ Every refusal is one of four kinds, and the kind says where the fix lies;
 2. **A practical limit.** A search, an enumeration or a memory budget would pass its
    ceiling, or the installation lacks the tables a question needs. The reason names the
    number, or the data, that runs it, and the same call with that number does. Below, the
-   projection `symmetrize=True` forces on an exact model, given a budget set small on
-   purpose:
+   projection a declared precision calls for on a copy of `km` with every hopping off by
+   about `1e-7`, given a budget set small on purpose:
 
    ```python
-   limit = tqc.realized_group(km, typat=[0, 1], characters={0: "A1"}, symmetrize=True,
+   import numpy as np
+   from pythtb import TBModel
+   rng = np.random.default_rng(7)
+   noisy = TBModel(km.lattice, spinful=True)          # km with every hopping off by ~1e-7
+   noisy.set_onsite(km.onsite, mode="set")
+   for h in km.hoppings:
+       noisy.set_hop(h["amplitude"] * (1 + 1e-7 * rng.normal()), h["from_orbital"],
+                     h["to_orbital"], h.get("lattice_vector", [0, 0]), mode="add")
+   limit = tqc.realized_group(noisy, typat=[0, 1], characters={0: "A1"}, precision=1e-7,
                               max_bytes=1e4)
    print(limit.gate, limit.context["group"].name, f"{limit.value:.3g} against {limit.threshold:.3g}")
    #  projection_too_large P3m11' 3.01e+04 against 1e+04
-   print(repr(tqc.realized_group(km, typat=[0, 1], characters={0: "A1"}, symmetrize=True,
+   print(repr(tqc.realized_group(noisy, typat=[0, 1], characters={0: "A1"}, precision=1e-7,
                                  max_bytes=1e5)))
-   #  RealizedGroup(P3m11' #156.50; symmetrized (defect 1.35e-15); on a substrate (the default), the free-standing group #156.50 agrees)
+   #  RealizedGroup(P3m11' #156.50; precision 1e-07 declared -> tol 2.97e-06 (cut 1e-06, window 0.01), position_tol 1e-07 (measured max|H| 2.969); symmetrized (defect 1.09e-07); on a substrate (the default), the free-standing group #156.50 agrees)
    ```
 
    The projection needs `3.01e4` bytes against the `1e4` allowed; its reason names the
@@ -164,15 +172,15 @@ except tqc.RefusalError as error:
 ## What is not a refusal
 
 - **A malformed argument** raises `ValueError` before anything about the physics is
-  measured: here a precision given beside a tolerance it derives. A keyword a call does
+  measured: here a precision that is not a positive number. A keyword a call does
   not take raises `TypeError`, as in any Python call.
 
   ```python
   try:
-      tqc.realized_group(km, precision=1e-6, tol=1e-5)
+      tqc.realized_group(km, precision=0)
   except ValueError as error:
-      print(str(error).split(":")[0])
-  #  precision=1e-06 and tol declare the same thing twice
+      print(str(error).split(".")[0])
+  #  realized_group(): precision must be a positive number, got 0
   ```
 
 - **The package disagreeing with itself** raises `InternalError`: two measurements of one

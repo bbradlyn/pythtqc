@@ -1,14 +1,13 @@
 r"""A model symmetric only to its declared precision, made exactly symmetric.
 
 A Hamiltonian fitted to a calculation, such as a ``wannier90`` import, obeys its
-group only to the precision of its own numbers.  :func:`symmetrize_positions`
-moves its orbital centres onto the positions the group carries, a gauge
-transformation that moves no band; :func:`symmetrize` projects its hoppings
-onto their group-invariant part, which moves ``H`` by no more than the declared
-tolerance; and :func:`classify_operations` says which operations are obeyed to
-rounding and which only within that tolerance.
-``realized_group(model, precision=...)`` runs both, the centres first, and
-returns their records on ``.positions`` and ``.symmetrization``.
+group only to the precision of its own numbers.
+``realized_group(model, precision=...)`` moves its orbital centers onto the
+positions the group carries and projects its hoppings onto their
+group-invariant part, which moves ``H`` by no more than the declared
+tolerance; :class:`Symmetrization` is the record of the projection, returned
+on ``r.symmetrization``.  An operation obeyed to rounding, :data:`EXACT_GATE`,
+is exact, and one obeyed only within the declared tolerance is near.
 """
 
 from __future__ import annotations
@@ -33,8 +32,7 @@ from ._grammar import _declaration_grammar
 from ._centres import _position_defect
 from ._build import _build_rep, _exact_gate
 
-__all__ = ["Symmetrization", "symmetrize", "symmetrize_positions",
-           "classify_operations", "EXACT_GATE"]
+__all__ = ["Symmetrization", "EXACT_GATE"]
 
 #: The least covariance an operation obeyed exactly is held to, ``5e-14`` in the
 #: units of ``H``.  A model's own boundary between exact and near is
@@ -51,25 +49,25 @@ _INTERNAL_GATE = float(_default_of(_build_rep, "internal_tol"))
 # the classification: exact / near / broken, per operation
 # --------------------------------------------------------------------------
 
-def classify_operations(validated, tol, *, exact_gate=EXACT_GATE, anchored=None) -> dict:
+def _classify_operations(validated, tol, *, exact_gate=EXACT_GATE, anchored=None) -> dict:
     """Each operation's class against a declared tolerance: ``"exact"``, ``"near"`` or ``"broken"``.
 
     Exact is obeyed to rounding, ``exact_gate``; near is obeyed within ``tol``
-    and not to rounding, which licenses :func:`symmetrize`; broken is beyond
-    ``tol``, and nothing is symmetrized into it.
+    and not to rounding, which licenses the projection (:func:`_symmetrize`);
+    broken is beyond ``tol``, and nothing is symmetrized into it.
 
     Parameters
     ----------
     validated : ..groups.ValidatedGroup
         The operations a call measured to hold, ``r.validated``, measured at
-        ``tol``: ``realized_group(model, tol=..., symmetrize=False)``.
+        ``tol``.
     tol : float
         The declared tolerance, in the units of ``H``: the one ``validated``
         was measured at.
     exact_gate : float, optional
         Rounding, in the units of ``H``: the covariance of the model's own
         representation, which :func:`..symmetry.covariance_gate` gives and
-        :func:`symmetrize` passes.  Default :data:`EXACT_GATE`, ``5e-14``, the
+        :func:`_symmetrize` passes.  Default :data:`EXACT_GATE`, ``5e-14``, the
         least it is.
     anchored : dict, optional
         ``{ind: residual}``, each operation's covariance in the representation
@@ -84,7 +82,7 @@ def classify_operations(validated, tol, *, exact_gate=EXACT_GATE, anchored=None)
 
     Examples
     --------
-    >>> classify_operations(r.validated, 1e-6)             # doctest: +SKIP
+    >>> _classify_operations(r.validated, 1e-6)            # doctest: +SKIP
     {1: 'exact', 2: 'near', 5: 'near', ...}
     """
     tol = float(tol)
@@ -117,9 +115,9 @@ def _residual_read(validated, anchored, ind, *, missing):
 class Symmetrization:
     """How far a near-symmetric model was moved onto its symmetric part, and why.
 
-    :func:`symmetrize` returns it beside the model it made, and
-    :func:`..groups.realized_group` on ``r.symmetrization``, where ``r.model``
-    is that model.  ``rec.summary()`` prints it.
+    ``realized_group(model, precision=...)`` returns it on
+    ``r.symmetrization`` where it projects the Hamiltonian, and ``r.model`` is
+    then the model it made.  ``rec.summary()`` prints it.
 
     Attributes
     ----------
@@ -136,7 +134,7 @@ class Symmetrization:
         ``exact_gate`` is exact, and one obeyed only within ``tol`` is near.
     classes, residuals : dict
         ``{ind: "exact" or "near"}`` for each operation, and the residual each
-        was classified at (:func:`classify_operations`).
+        was classified at.
     multiplets : dict
         Where the multiplets each site's orbitals form hold only within the
         declared precision, as an orbital frame turned by less than it leaves
@@ -401,7 +399,7 @@ _POINT_MATRICES = 6.0
 def _memory_budget(max_bytes) -> float:
     """``max_bytes`` read as a number of bytes; anything else is a malformed call.
 
-    Read before anything is measured -- by :func:`symmetrize` beside ``tol``,
+    Read before anything is measured -- by :func:`_symmetrize` beside ``tol``,
     and by :func:`..groups.realized_group` before the cell is identified -- so
     that a budget that is not a number of bytes never reaches a verdict.
     """
@@ -422,7 +420,7 @@ def _memory_budget(max_bytes) -> float:
 def _search_ceiling(max_candidates) -> int:
     """``max_candidates`` read as a whole number of candidates; anything else is a malformed call.
 
-    Read before anything is measured -- by :func:`symmetrize` and by
+    Read before anything is measured -- by :func:`_symmetrize` and by
     :func:`..groups.realized_group` -- so that a ceiling that is not a count
     never reaches a search.
     """
@@ -462,8 +460,7 @@ def _projection_too_large(n_bytes, budget, *, divisions, least, n_states, R_max,
         "shell more, alike along directions the group's operations mix -- would alias the "
         "transform back to a hopping list, so the projection is not run on one. This is a "
         "limit on memory, not a statement about the model: "
-        f"`realized_group(..., max_bytes={runs})` runs it, as does "
-        f"`symmetrize(..., max_bytes={runs})` by hand.",
+        f"`realized_group(..., max_bytes={runs})` runs it.",
         value=float(n_bytes), threshold=float(budget),
         context={"n_bytes": float(n_bytes), "max_bytes": float(budget),
                  "k_grid": tuple(counts), "n_points": n_points,
@@ -578,8 +575,8 @@ def _projection_operators(model, group, assignment, validated, *, tol, build_kw)
     :func:`_provisional_rep` at the scale the projection reads, ``max|H|`` about
     the mean on-site energy on a fixed probe of eight k-points.  Whether an
     operation is near is read on its matrices' covariance as well as on the
-    detector's residual (:func:`classify_operations`), and the average is
-    taken with them (:func:`symmetrize`).
+    detector's residual (:func:`_classify_operations`), and the average is
+    taken with them (:func:`_symmetrized`).
     """
     mu = _bloch.onsite_mean(model)
     probe = np.random.default_rng(1729).uniform(-0.5, 0.5, size=(8, int(group.dim_k)))
@@ -648,7 +645,7 @@ def _same_part(parts, model):
             part_of[int(o) * nspin:(int(o) + 1) * nspin] = i
     if (part_of < 0).any():
         raise InternalError(
-            f"symmetrize: the coupled parts handed in leave states "
+            f"realized_group(): the coupled parts handed in leave states "
             f"{np.flatnonzero(part_of < 0).tolist()} in none of them; the parts of a crystal "
             "cover every orbital.")
     return part_of[:, None] == part_of[None, :]
@@ -755,10 +752,10 @@ def _average_on_grid(model, group, assignment, ops, D, kpts, divisions, *,
         mm = np.rint(kp * n)
         if np.abs(kp * n - mm).max() > 1e-7:      # pragma: no cover - guarded by design
             raise ValueError(
-                f"symmetrize: operation #{ind} does not carry the "
+                f"_symmetrize(): operation #{ind} does not carry the "
                 f"{' x '.join(str(c) for c in counts)} grid onto itself, so the average "
                 "would not be over one grid. This cannot happen with the divisions "
-                "symmetrize derives, alike along every pair of directions an operation "
+                "the projection derives, alike along every pair of directions an operation "
                 "mixes, and says the grid was overridden with one the group does not "
                 "preserve.")
         mm = mm.astype(int) % np.asarray(counts, dtype=int)
@@ -1009,10 +1006,10 @@ def _to_model(model, ons, amps, ii, jj, Rfull):
 # the entry point
 # --------------------------------------------------------------------------
 
-def symmetrize(model, group, assignment, validated, *, tol, k_grid=None, params=None,
-               max_passes=3, verify=True, verify_nk=None, verify_tol=None,
-               max_bytes=1e9, characters=None, multiplets=None, spin=None,
-               max_candidates=2 ** 20):
+def _symmetrize(model, group, assignment, validated, *, tol, k_grid=None, params=None,
+                max_passes=3, verify=True, verify_nk=None, verify_tol=None,
+                max_bytes=1e9, characters=None, site_multiplets=None, spin=None,
+                max_candidates=2 ** 20):
     r"""The model nearest a near-symmetric one that obeys its group exactly, and how far it moved.
 
     ``H`` is averaged over the group's operations, those combined with time
@@ -1030,12 +1027,12 @@ def symmetrize(model, group, assignment, validated, *, tol, k_grid=None, params=
         its slab presentation.
     group, assignment, validated : GroupData, OrbitalAssignment, ValidatedGroup
         ``r.group``, ``r.assignment`` and ``r.validated`` of a call measured at
-        ``tol``, ``realized_group(model, tol=..., symmetrize=False)``.
+        ``tol``.
     tol : float
         The declared tolerance, in the units of ``H``, the one ``validated`` was
         measured at; for numbers good to a relative ``ε``, about
         ``10·ε·max|H|``.  Required.
-    characters, multiplets, spin : optional
+    characters, site_multiplets, spin : optional
         The declarations, as :func:`..groups.realized_group` takes them.  The
         average does not depend on ``characters=``, which the representation it
         is taken with carries.
@@ -1090,36 +1087,25 @@ def symmetrize(model, group, assignment, validated, *, tol, k_grid=None, params=
         the average reaches beyond the hoppings' range on the grid; a larger
         ``k_grid`` runs it.
     ``positions_not_exactly_symmetric``
-        the orbital centres miss the operations; :func:`symmetrize_positions`,
+        the orbital centers miss the operations; :func:`_symmetrize_positions`,
         or a declared precision, moves them first.
     ``projection_too_large`` / ``detector_too_large``
         past ``max_bytes``; the reason gives the value that runs it.
 
     A refusal of the representation's own build, ``rep_not_unique`` among them,
     is returned as it is.
-
-    Examples
-    --------
-    The average by hand, on a crystal whose operations were measured at the
-    tolerance declared:
-
-    >>> r = realized_group(model, tol=1e-5, symmetrize=False)       # doctest: +SKIP
-    >>> sym, rec = symmetrize(r.model, r.group, r.assignment, r.validated,
-    ...                       tol=1e-5)                              # doctest: +SKIP
-    >>> rec.verification["broken"]                                  # doctest: +SKIP
-    ()
     """
     model = _bloch.bound(model, params)
     return _symmetrized(model, group, assignment, validated, tol=tol, k_grid=k_grid,
                         max_passes=max_passes, verify=verify,
                         verify_nk=verify_nk, verify_tol=verify_tol, max_bytes=max_bytes,
-                        characters=characters, multiplets=multiplets, spin=spin,
+                        characters=characters, multiplets=site_multiplets, spin=spin,
                         max_candidates=max_candidates)
 
 def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
                  max_passes=3, verify=True, verify_nk=None, verify_tol=None,
                  max_bytes=1e9, _parts=None, _held=None, **build_kw):
-    """The pass :func:`symmetrize` runs, every keyword of its provisional build passed by name.
+    """The pass :func:`_symmetrize` runs, every keyword of its provisional build passed by name.
 
     :func:`..groups.realized_group` calls it on its own records, handing in the
     parts of the crystal and the identical copies it read apart (``_parts``,
@@ -1128,7 +1114,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
 
     tol = float(tol)
     if not np.isfinite(tol) or tol <= 0.0:
-        raise ValueError(f"symmetrize: tol must be a positive number, got {tol!r}. It is "
+        raise ValueError(f"_symmetrize(): tol must be a positive number, got {tol!r}. It is "
                          "the declared tolerance the operations were measured at, in the "
                          "units of H.")
     budget = _memory_budget(max_bytes)
@@ -1148,7 +1134,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
     # against the exact gate of THIS model and operation set, measured once: the
     # detection record carries neither the number of states nor max|H|
     exact_gate = _exact_gate(model, group, validated, build_kw)
-    classes = classify_operations(validated, tol, exact_gate=exact_gate)
+    classes = _classify_operations(validated, tol, exact_gate=exact_gate)
     broken = sorted(i for i, c in classes.items() if c == "broken")
     if broken:
         worst = max(float(validated.residuals.get(i, np.inf)) for i in broken)
@@ -1187,8 +1173,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
             "each hopping is carried to a lattice vector that is not one, and no "
             "projection of the hoppings reaches a defect in the centres. Declare this "
             "model's precision, `realized_group(..., precision=)`, which moves centres "
-            "within it onto the group's own positions before anything is projected, or "
-            "move them first with `symmetrize_positions`.",
+            "within it onto the group's own positions before anything is projected.",
             value=pos_defect, threshold=_BLOCH_TOL,
             context={"position_defect": pos_defect, "bloch_tol": _BLOCH_TOL})
 
@@ -1202,7 +1187,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
     # site is exact to the detector and near to the matrix the tables' spin lift
     # and the multiplets anchor, which is the matrix the average is taken with
     anchored = {int(i): float(v) for i, v in rep.residuals.items()}
-    classes = classify_operations(validated, tol, exact_gate=exact_gate, anchored=anchored)
+    classes = _classify_operations(validated, tol, exact_gate=exact_gate, anchored=anchored)
     indices = tuple(int(i) for i in rep.indices)
     D = {int(i): np.asarray(rep.matrices[int(i)]) for i in indices}
     bloch_tol = _BLOCH_TOL
@@ -1228,8 +1213,8 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
         "of order 2*pi*delta*max|H| whatever the hoppings do. A projection of the "
         "hoppings cannot remove that. Declare this model's precision, "
         "`realized_group(..., precision=)`, which moves the centres onto the group's "
-        "own positions before anything is projected -- a k-dependent gauge, so the "
-        "spectrum is untouched -- or move them first with `symmetrize_positions`."))
+        "own positions before anything is projected, a k-dependent gauge that leaves "
+        "the spectrum untouched."))
 
     # ---- 3. the transform grid --------------------------------------------
     # one division count per periodic direction, twice the reach the group
@@ -1243,7 +1228,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
         divisions = (int(k_grid),) * dim_k
         if int(k_grid) < int(need.max()):
             raise ValueError(
-                f"symmetrize: k_grid = {int(k_grid)} is too coarse for this model. Its "
+                f"_symmetrize(): k_grid = {int(k_grid)} is too coarse for this model. Its "
                 f"hoppings reach R_max = {R_max.tolist()} and the group action carries "
                 f"them out to R_box = {R_box.tolist()}, so the inverse transform aliases "
                 f"below {[int(c) for c in need]} divisions along the periodic directions "
@@ -1306,7 +1291,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
                 f"inverse transform on a {' x '.join(str(c) for c in divisions)} grid is "
                 "exact only while the hoppings fit inside that box, so this says the box "
                 "is wrong and the transform aliased -- the hopping list would not be the "
-                "symmetrized Hamiltonian. Raise `k_grid`." + pos_note,
+                "symmetrized Hamiltonian. Report it with the model and the call." + pos_note,
                 value=out_box, threshold=float(gate),
                 context={"R_max": R_max.tolist(), "R_box": R_box.tolist(),
                          "k_grid": tuple(divisions), "pass": int(passes),
@@ -1338,7 +1323,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
             # this is the rebuild's own arithmetic going wrong, not a statement
             # about the model, and it raises.
             raise InternalError(
-                f"symmetrize: the rebuilt hopping list does not reproduce the symmetrized "
+                f"realized_group(): the rebuilt hopping list does not reproduce the symmetrized "
                 f"Hamiltonian off the transform grid: max_k |H_new(k) - H_sym(k)| = "
                 f"{checks['k_identity']:.3g} on {k_random.shape[0]} random k, against "
                 f"{gate * max(scale, 1.0):.3g}, while the largest coefficient outside the "
@@ -1472,7 +1457,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
 # the other half of the model: the orbital centres
 # --------------------------------------------------------------------------
 
-def symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=None):
+def _symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=None):
     r"""The model with its orbital centres moved onto the nearest positions its group carries, every band where it was.
 
     Centres that miss the group's own action by ``δ``, in reduced coordinates,
@@ -1539,7 +1524,7 @@ def symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=None
     of the exact model:
 
     >>> r = realized_group(kane_mele(0.0, -1.0, 0.3, 0.25), characters={0: "A1"})  # doctest: +SKIP
-    >>> fixed, rec = symmetrize_positions(moved, r.group, r.assignment)  # doctest: +SKIP
+    >>> fixed, rec = _symmetrize_positions(moved, r.group, r.assignment)  # doctest: +SKIP
     >>> f"{rec['defect_before']:.1e} -> {rec['defect_after']:.1e}", rec["frame"]  # doctest: +SKIP
     ('2.0e-08 -> 1.1e-16', 'model')
     """

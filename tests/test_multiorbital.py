@@ -2947,4 +2947,4 @@ def test_a_stated_layout_that_is_not_a_partition_is_a_grammar_error(monkeypatch)
     patch_everywhere(monkeypatch, "_group_of", measured)
     for bad, says in malformed:
         with pytest.raises(ValueError, match=re.escape(says)):
-            tqg.realized_group(model, typat=[0, 0, 1, 1], multiplets=bad)
+            tqg.realized_group(model, typat=[0, 0, 1, 1], site_multiplets=bad)

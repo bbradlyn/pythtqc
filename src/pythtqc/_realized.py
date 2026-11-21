@@ -35,7 +35,6 @@ from ._centres import (
 from .symmetry import _content_by_position
 from ._sectors import read_sectors, sector_action
 from ._multiplets import _site_multiplets
-from ._declaration import _declaration_breaks
 from ._layers import (
     DECORATION_DZ, SLAB_C, _decorated_cell, _environment_record,
     _is_presented_as_a_slab, _raise_environment_contradiction, _slab_presentation)
@@ -45,8 +44,8 @@ from ._measure import (
     _own_form_read, _validate_group)
 from ._build import _BUILD_KEYWORDS, _build_rep, _exact_gate
 from .symmetrization import (
-    EXACT_GATE, _held_off, _memory_budget, _parts_coupling, _projection_operators,
-    _search_ceiling, _symmetrized as _symmetrize, _with_centres, classify_operations)
+    EXACT_GATE, _classify_operations, _held_off, _memory_budget, _parts_coupling,
+    _projection_operators, _search_ceiling, _symmetrized, _with_centres)
 from ._descent import (
     _DROPPED_BY_WORDS, _antiunitary_settled, _beyond_grey, _carried_onto,
     _carried_reduction, _centres_not_exactly_symmetric, _declared_cell,
@@ -395,12 +394,10 @@ class RealizedGroup:
 
 
 def realized_group(model, *, typat=None, environment=None, cross_check=True,
-                   decorations=None, dz=DECORATION_DZ,
-                   c=SLAB_C, nk=6, tol=None, cut=None, window=None,
-                   symmetrize="auto", max_bytes=1e9, position_tol=None,
-                   precision=None, spinor=None, spin=None, descend=True,
+                   decorations=None, nk=6, max_bytes=1e9, position_tol=None,
+                   precision=None, spinor=None, spin=None,
                    symprec=DEFAULT_FINDER, params=None,
-                   characters=None, multiplets=None, max_candidates=2 ** 20):
+                   characters=None, site_multiplets=None, max_candidates=2 ** 20):
     r"""The space group obeyed by H, obtained by descent from the space group of the lattice of occupied sites.
 
     The call also places each orbital on its Wyckoff position and builds the
@@ -438,8 +435,9 @@ def realized_group(model, *, typat=None, environment=None, cross_check=True,
         crystal field the orbital positions do not show.
     precision : float, optional
         For a numerical model such as a wannier90 import, the relative
-        precision of its numbers.  It sets the tolerances below; centres and
-        hoppings symmetric within it are made exactly symmetric.
+        precision of its numbers: a positive number.  Centers and hoppings
+        symmetric within it are made exactly symmetric; left out, the model is
+        read as exact.
     spin : str, mapping or SpinBasis, optional
         For a spinless model whose orbital index carries spin, as a wannier90
         import's does: which two orbitals are the spin states of one Wannier
@@ -448,26 +446,16 @@ def realized_group(model, *, typat=None, environment=None, cross_check=True,
     spinor : bool, optional
         Whether the states carry spin one-half.  Default: from the model, and
         ``True`` with ``spin``.
-    descend : bool, optional
-        ``False`` returns the group of the lattice of occupied sites itself, and
-        refuses ``cell_group_not_realized`` where H does not obey it.  Default
-        ``True``.
-    symmetrize : {"auto", True, False}, optional
-        For operations or multiplets that hold only within the tolerance:
-        ``"auto"`` (default) projects H onto its symmetric part where there are
-        any, ``True`` always, ``False`` never, and such a model is then refused.
-    tol, cut, window, position_tol, symprec : float, optional
-        The tolerances ``precision`` sets, one by one: ``tol`` absolute, in the
-        units of H; ``cut`` and ``window`` relative; ``position_tol`` in reduced
-        coordinates; ``symprec`` Cartesian, default ``1e-5``.  Left out, each
-        is exact.
+    position_tol, symprec : float, optional
+        ``position_tol``: how far an orbital center may miss the position its
+        group puts it at and still be moved onto it, in reduced coordinates,
+        for a model whose centers alone are imprecise; left out, it is exact,
+        and ``precision`` sets it.  ``symprec``: the symmetry finder's
+        tolerance, a Cartesian length, default ``1e-5``.
     nk : int, optional
         k-points per periodic direction of the grid the operations are measured
         on.  Default 6.
-    dz, c : float, optional
-        A layer's presentation: the depth of the substrate's shadow sites and
-        the height of the slab's cell.  Neither changes the group.
-    multiplets : list or SiteMultiplets, optional
+    site_multiplets : list or SiteMultiplets, optional
         Each site's multiplets, stated instead of measured: one list per site,
         each multiplet written as its orbitals.
     max_candidates, max_bytes : int and float, optional
@@ -534,15 +522,15 @@ def realized_group(model, *, typat=None, environment=None, cross_check=True,
     ``operations_not_nearly_consistent`` / ``operations_not_consistent``
         the operations found on a numerical cell do not close; ``precision``
         makes the centres exact first.
-    ``cell_group_not_realized`` / ``declaration_breaks_group``
-        with ``descend=False``, operations broken by the hoppings or by the
-        declared content.
+    ``cell_group_not_realized``
+        an operation combined with time reversal that held before a numerical
+        model's Hamiltonian was projected and is broken after it.
     ``unknown_label`` / ``ambiguous_multiplet``
         a declared word the site does not name, or a flat list that cannot say
         which orbitals form one multiplet.
     ``rep_not_covariant``
-        with ``symmetrize=False``, operations that hold only within the
-        tolerance.
+        operations that hold within the declared precision and that no
+        representation carries within the exact check.
     ``rep_internal_factor`` / ``rep_not_multiplicative``
         no candidate representation carries the group's phases, or multiplies
         as the group does.
@@ -555,9 +543,9 @@ def realized_group(model, *, typat=None, environment=None, cross_check=True,
     ``rep_search_too_large`` / ``projection_too_large`` / ``detector_too_large``
         past ``max_candidates`` or ``max_bytes``; the reason gives the value
         that runs it.
-    ``symmetrize_broken_operation`` / ``symmetrize_defect_exceeds_tol`` /
-    ``symmetrize_range_not_closed``
-        the symmetric projection's own (:func:`..symmetrization.symmetrize`).
+    ``symmetrize_defect_exceeds_tol`` / ``symmetrize_range_not_closed``
+        the projection of the Hamiltonian onto its symmetric part, under a
+        declared precision.
 
     Examples
     --------
@@ -573,12 +561,11 @@ def realized_group(model, *, typat=None, environment=None, cross_check=True,
     """
     bound = _bloch.bound(model, params)
     got = _realize(bound, typat=typat, environment=environment,
-                   cross_check=cross_check, decorations=decorations, dz=dz, c=c,
-                   nk=nk, tol=tol, cut=cut, window=window,
-                   symmetrize=symmetrize, max_bytes=max_bytes, position_tol=position_tol,
-                   precision=precision, spinor=spinor, spin=spin, descend=descend,
+                   cross_check=cross_check, decorations=decorations,
+                   nk=nk, max_bytes=max_bytes, position_tol=position_tol,
+                   precision=precision, spinor=spinor, spin=spin,
                    symprec=symprec, selection_only=False, context=None,
-                   characters=characters, multiplets=multiplets,
+                   characters=characters, multiplets=site_multiplets,
                    max_candidates=max_candidates)
     # `source` is the model exactly as it was handed in, its parameters still free
     if bound is not model and isinstance(got, RealizedGroup):
@@ -641,8 +628,7 @@ def _raise_not_covariant(rep, group, validated, steps, *, where=""):
         f"reaches {float(rep.value):.4g} against {float(rep.threshold):.3g}. "
         "Every operation of the group was measured to hold, each by a matrix of its "
         "own form, so a representation of them that misses is the package "
-        "disagreeing with itself: a defect to report, not a tolerance to loosen. "
-        "`realized_group(..., descend=False)` shows the group the cell allows.")
+        "disagreeing with itself: a defect to report, not a tolerance to loosen.")
 
 
 def _named_refusal(rep, group, validated=None) -> Refusal:
@@ -926,13 +912,18 @@ class _Described:
 def _realize(model, *, typat=None, environment=None, cross_check=True,
              decorations=None, dz=DECORATION_DZ,
              c=SLAB_C, nk=6, tol=None, cut=None, window=None,
-             symmetrize="auto", max_bytes=1e9, position_tol=None,
-             precision=None, spinor=None, spin=None, descend=True,
+             max_bytes=1e9, position_tol=None,
+             precision=None, spinor=None, spin=None,
              symprec=DEFAULT_FINDER, check=True, n_check=_bloch.CHECK_K,
              seed=_bloch.CHECK_SEED,
              selection_only=False, context=None, tolerances=None, **build_kw):
     """The whole pipeline, with the knobs the public signature does not carry.
 
+    ``dz`` and ``c`` are a layer's presentation, the depth of the substrate's
+    shadow sites and the height of the slab's cell, neither of which changes
+    the group; ``tol`` (absolute, in the units of H), ``cut`` and ``window``
+    (the detector's relative numbers) are tolerances declared one by one, with
+    no ``precision``, and a declared ``precision`` sets all three itself.
     ``selection_only`` stops after the descent and returns the selection record
     alone (:func:`_realized_selection`); ``context`` is the
     :class:`_MeasurementContext` to measure in, ``None`` asking for a fresh one;
@@ -942,9 +933,11 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
     then not read.  ``build_kw`` is handed to the build of the representation,
     :func:`.._build._build_rep`, and to the measurement before it where a
     keyword is read there: the declarations ``characters`` and ``multiplets``
-    and the ceiling ``max_candidates``, which :func:`realized_group` takes by
-    name, and every other keyword of the build.  :func:`realized_group` is the
-    same call with the first three at their defaults, and carries the
+    (``site_multiplets`` of :func:`realized_group`) and the ceiling
+    ``max_candidates``, and every other keyword of the build.
+    :func:`realized_group` is the same call with ``dz``, ``c``, ``tol``,
+    ``cut``, ``window``, ``check``, ``n_check``, ``seed``, ``selection_only``,
+    ``context`` and ``tolerances`` at their defaults, and carries the
     documentation of every keyword it takes.
 
     What stands here is the declarations and the record they end in: the
@@ -956,9 +949,9 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
     layer.
     """
     res = _call_resolved(model, typat=typat, environment=environment, decorations=decorations, c=c,
-                         nk=nk, tol=tol, cut=cut, window=window, symmetrize=symmetrize,
+                         nk=nk, tol=tol, cut=cut, window=window,
                          max_bytes=max_bytes, position_tol=position_tol, precision=precision,
-                         spinor=spinor, spin=spin, descend=descend, symprec=symprec,
+                         spinor=spinor, spin=spin, symprec=symprec,
                          selection_only=selection_only, context=context, tolerances=tolerances,
                          build_kw=build_kw)
     if not isinstance(res, _Resolved):
@@ -975,8 +968,8 @@ def _realize(model, *, typat=None, environment=None, cross_check=True,
     return _realized_record(model, res, sld, rpd, dsc, dz=dz, c=c, n_check=n_check)
 
 
-def _call_resolved(model, *, typat, environment, decorations, c, nk, tol, cut, window, symmetrize,
-                   max_bytes, position_tol, precision, spinor, spin, descend, symprec,
+def _call_resolved(model, *, typat, environment, decorations, c, nk, tol, cut, window,
+                   max_bytes, position_tol, precision, spinor, spin, symprec,
                    selection_only, context, tolerances, build_kw):
     """The declarations of a call, resolved before anything is measured.
 
@@ -1000,8 +993,6 @@ def _call_resolved(model, *, typat, environment, decorations, c, nk, tol, cut, w
         As in :func:`_realize`.
     window : float or None
         As in :func:`_realize`.
-    symmetrize : {"auto", True, False}
-        As in :func:`_realize`.
     max_bytes : float
         As in :func:`_realize`.
     position_tol : float or None
@@ -1011,8 +1002,6 @@ def _call_resolved(model, *, typat, environment, decorations, c, nk, tol, cut, w
     spinor : bool or None
         As in :func:`_realize`.
     spin : ..spin.SpinBasis, str, dict or None
-        As in :func:`_realize`.
-    descend : bool
         As in :func:`_realize`.
     symprec : float
         As in :func:`_realize`.
@@ -1038,11 +1027,7 @@ def _call_resolved(model, *, typat, environment, decorations, c, nk, tol, cut, w
     TypeError
         A keyword the build does not take.
     """
-    if symmetrize not in ("auto", True, False):
-        raise ValueError("symmetrize must be \"auto\" (project when an operation is "
-                         "measured near-symmetric), True (always project) or False "
-                         f"(never), got {symmetrize!r}")
-    # everything else goes to `_build_rep` by name: a word it does not take -- a
+    # every keyword not named goes to `_build_rep` by name: a word it does not take -- a
     # misspelling, or a model's parameter given as a keyword of its own -- is refused
     # here, before the identification runs, rather than by `_build_rep` after it
     unknown = sorted(set(build_kw) - _BUILD_KEYWORDS)
@@ -1070,25 +1055,19 @@ def _call_resolved(model, *, typat, environment, decorations, c, nk, tol, cut, w
             _prec = float("nan")
         if not (_prec > 0.0 and np.isfinite(_prec)):
             raise ValueError(
-                "precision must be a positive number or None, got "
-                f"{precision!r}. It is the relative precision of this model's own "
-                "numbers -- how far they miss the symmetry they have, not how many "
-                "decimals its files print -- and None means nothing is derived from "
-                "it and the individual tolerances stand as given.")
+                f"realized_group(): precision must be a positive number, got {precision!r}. "
+                "Pass the relative precision of the model's own numbers, how far they "
+                "miss the symmetry they have, or leave it out to read the model as exact.")
         twice = [n for n, v in (("tol", tol), ("cut", cut), ("window", window),
                                 ("position_tol", position_tol))
                  if v is not None]
         if twice:
             raise ValueError(
-                f"precision={precision!r} and {' and '.join(twice)} declare the "
-                "same thing twice: precision is the declaration those are "
-                "derived from (position_tol = precision; tol = "
-                "10*precision*max|H| with max|H| measured here; cut = "
-                "tol/max|H| = 10*precision; window = clip(10*sqrt(cut), 1e-3, "
-                "0.3)). Give the one "
-                "number, or give the individual tolerances -- not both. "
-                "(symprec may be given alongside precision; it is then the floor "
-                "the finder is run at.)")
+                f"realized_group(): precision={precision!r} and {' and '.join(twice)} "
+                "declare the same thing twice: a declared precision sets position_tol = "
+                "precision and the tolerances of the Hamiltonian. Pass precision alone, "
+                "or position_tol alone for a model whose centers alone are imprecise; "
+                "symprec may be given beside either.")
     if position_tol is not None:
         try:
             _ptol = float(position_tol)
@@ -1134,7 +1113,7 @@ def _call_resolved(model, *, typat, environment, decorations, c, nk, tol, cut, w
         for s, orbs in enumerate(site_orbs):
             site_of[list(orbs)] = s
     # WHAT THE DECLARATIONS SAY, read as grammar before anything is measured: a
-    # malformed `characters=` or `multiplets=` raises here, and which words name
+    # malformed `characters=` or `site_multiplets=` raises here, and which words name
     # something at a site is read in the site group the measurement reaches
     _declaration_grammar(int(model.norb), characters=build_kw.get("characters"),
                          multiplets=build_kw.get("multiplets"), spin=spin,
@@ -1221,8 +1200,7 @@ def _call_resolved(model, *, typat, environment, decorations, c, nk, tol, cut, w
         spinor = int(model.nspin) == 2 or spin is not None
 
     measured = dict(labels=labels, spinor=bool(spinor), nk=nk, tolerances=tolerances,
-                    context=context, spin=spin,
-                    descend=descend, symmetrize=symmetrize, max_bytes=max_bytes,
+                    context=context, spin=spin, max_bytes=max_bytes,
                     build_kw=build_kw, returned=not selection_only)
     return _Resolved(environment=environment, environment_declared=environment_declared,
                      extras=extras, labels=labels, measured=measured, spin=spin, three_d=three_d,
@@ -1401,8 +1379,8 @@ def _representation_built(res, sld, *, selection_only, build_kw):
             # it is NOT about: a covariance residual inside the DECLARED
             # tolerance is the near-symmetric signal, not three measurements
             # disagreeing -- the detector was right to keep the operation and the
-            # exact gate is right to refuse it, and `symmetrize=` is what the
-            # message names.  A descent runs on every free-standing 2D model (the
+            # exact gate is right to refuse it, and the message says the
+            # operations are near-symmetric.  A descent runs on every free-standing 2D model (the
             # cell keeps the whole sigma_h family and the Hamiltonian selects),
             # so without excluding it the guard would hide that message behind
             # itself.
@@ -1765,7 +1743,7 @@ def _declared_recipe(reduction, spinor=False) -> str:
 
 def _layer_realized(model, *, environment, cross_check, typat, decorations, extras,
                     dz, c, check, n_check, seed, labels, spinor, nk,
-                    tolerances, context, spin, descend, symmetrize,
+                    tolerances, context, spin,
                     max_bytes, build_kw, returned):
     r"""A layer's realization: its presentation, its environment's cell, both sides.
 
@@ -1921,8 +1899,7 @@ def _layer_realized(model, *, environment, cross_check, typat, decorations, extr
     got = _realized_core(m3, cell, cell_typat, tolerances=tolerances,
                          fully_periodic=False, labels=labels, spinor=spinor,
                          nk=nk,
-                         context=context, spin=spin, descend=descend,
-                         symmetrize=symmetrize, max_bytes=max_bytes,
+                         context=context, spin=spin, max_bytes=max_bytes,
                          build_kw=build_kw, returned=returned,
                          declared_wider=wider, free_standing=free_standing,
                          centres_read=read)
@@ -1965,8 +1942,8 @@ def _layer_realized(model, *, environment, cross_check, typat, decorations, extr
         model, typat=typat, environment=other_environment,
         cross_check=False, context=context,
         decorations=decorations, dz=dz, c=c, nk=nk,
-        symmetrize=symmetrize, max_bytes=max_bytes,
-        spinor=spinor, spin=spin, descend=descend, check=check,
+        max_bytes=max_bytes,
+        spinor=spinor, spin=spin, check=check,
         n_check=n_check, seed=seed,
         # the tolerances this side resolved: the same Hamiltonian's noise is
         # judged against the same numbers on the other side
@@ -2236,7 +2213,7 @@ def _model_sectors(model, group, assignment, spin, validated, *, tolerances, con
 
 
 def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
-                   context, spin, descend, symmetrize, max_bytes, build_kw,
+                   context, spin, max_bytes, build_kw,
                    fully_periodic, returned, declared_wider=None, free_standing=None,
                    centres_read=None):
     r"""The group this Hamiltonian obeys — three steps, rounded until they settle.
@@ -2310,7 +2287,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
     an operation obeyed within the declared covariance gate
     (``tolerances.energy``) but not to the exact gates is **near**-symmetric,
     which is the signal that licenses projecting the Hamiltonian onto its
-    group-invariant part (:func:`..symmetrization.symmetrize`) and measuring
+    group-invariant part (:func:`..symmetrization._symmetrized`) and measuring
     everything again on the projected model; so are multiplets that hold only
     within the declared tolerance, which the multiplet measurement records, and
     coupled parts of the crystal the hoppings join only below it, which the
@@ -2337,7 +2314,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
     detector's cut and window, the centres' tolerance, the multiplets' block
     tests (``tolerances.matrix``, :func:`.._tolerance.noise_floor`) and the
     symmetry finder's distance.  ``max_bytes`` is the memory the hopping projection
-    may take at its peak, handed to :func:`..symmetrization.symmetrize`, and
+    may take at its peak, handed to :func:`..symmetrization._symmetrized`, and
     the ceiling the detector may raise its own budget to on a spectrum with
     exactly degenerate levels, handed to :func:`_validate_group`; the
     detector's window valve does not move with it.  ``declared_wider`` is
@@ -2677,27 +2654,6 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
             # that allows operations the Hamiltonian breaks is the wrong cell, so
             # the cell is lowered to the operations that were measured to hold
             # and only that group is ever returned.
-            if not descend:
-                # Where the DECLARATION is the whole verdict, the honest refusal
-                # is the one that names the subgroup the declared content is
-                # covariant on -- which is exactly what `_build_rep` says when it
-                # is handed a fixed group, and this call was told not to lower
-                # one.  A Hamiltonian that also breaks operations by its own
-                # hoppings is a different statement, and keeps its own refusal.
-                if (declaration is not None and declaration.refuted
-                        and not (set(validated.broken) | set(refuted))
-                        - set(declaration.refuted)):
-                    return _refused(_declaration_breaks(
-                        group, assignment, decls, choices,
-                        standing=validated.indices,
-                        subgroup=declaration.subgroup,
-                        broken=declaration.refuted,
-                        readings=declaration.candidates,
-                        not_lowered=("This call was told `descend=False`, "
-                                     "which asks for the group the cell "
-                                     "allows, so the descent was not made.")))
-                return _refused(_cell_group_not_realized(group, validated,
-                                                         fully_periodic, refuted))
             got = _descend_once(base_cell, base_typat, group, validated,
                                 spinor=bool(spinor),
                                 include_TR=bool(group.include_TR),
@@ -2809,17 +2765,15 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
             # against the exact gate the representation of THIS model and group
             # will be built with, measured once: the detection record carries
             # neither the number of states nor max|H|
-            exact_gate = (None if symmetrize is False
-                          else _exact_gate(model, group, validated, build_kw))
-            classes = ({} if symmetrize is False
-                       else classify_operations(validated, tolerances.energy,
-                                                exact_gate=exact_gate))
+            exact_gate = _exact_gate(model, group, validated, build_kw)
+            classes = _classify_operations(validated, tolerances.energy,
+                                           exact_gate=exact_gate)
             # THE PARTS OF THE CRYSTAL THE VERDICT READ, where it read several
             # the sectors read at the declared precision also keep apart, and
             # the largest coupling the Hamiltonian holds between two of them:
             # the build gives each part a character of its own, which leaves
             # every covariance as it was only where the parts are exactly apart
-            apart = None if symmetrize is False else _parts_apart(choices, layout, sectors)
+            apart = _parts_apart(choices, layout, sectors)
             coupling = 0.0 if apart is None else _parts_coupling(model, apart)
             coupled = apart is not None and coupling > exact_gate
             # ... and what the sectors read at the declared precision keep
@@ -2828,9 +2782,8 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
             # them apart exactly: a representation of the copies that mixes
             # them is covariant only on exact copies, and one carried by each
             # such sector on its own only where nothing couples them
-            held_apart = (None if symmetrize is False
-                          else _held_sets(sectors, layout, model, group, assignment, spin,
-                                          validated))
+            held_apart = _held_sets(sectors, layout, model, group, assignment, spin,
+                                    validated)
             off = _held_off(model, held_apart)
             alike = held_apart is not None and max(off.values()) > exact_gate
             # the DECLARED CONTENTS as they stand on this group, not the words
@@ -2853,24 +2806,24 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
             # the detector and on its own matrix stays exact; a build that cannot
             # be made here reads nothing, and the build on what settles says what
             # it says.
-            if (symmetrize == "auto" and not layout._near and not coupled and not alike
+            if (not layout._near and not coupled and not alike
                     and not any(c == "near" for c in classes.values())):
                 provisional, _record = _projection_operators(
                     model, group, assignment, validated, tol=tolerances.energy,
                     build_kw={**sym_kw, "spin": spin, "_labelled": False})
                 if provisional:
-                    classes = classify_operations(
+                    classes = _classify_operations(
                         validated, tolerances.energy, exact_gate=exact_gate,
                         anchored=provisional.residuals)
-            if (symmetrize is True or any(c == "near" for c in classes.values())
-                    or (symmetrize == "auto" and (layout._near or coupled or alike))):
-                got = _symmetrize(model, group, assignment, validated,
-                                  tol=tolerances.energy, spin=spin,
-                                  max_bytes=max_bytes,
-                                  _parts=(None if apart is None else
-                                          {"orbitals": apart, "coupling": coupling}),
-                                  _held=({"sets": held_apart, "off": off} if alike else None),
-                                  **sym_kw)
+            if (any(c == "near" for c in classes.values())
+                    or layout._near or coupled or alike):
+                got = _symmetrized(model, group, assignment, validated,
+                                   tol=tolerances.energy, spin=spin,
+                                   max_bytes=max_bytes,
+                                   _parts=(None if apart is None else
+                                           {"orbitals": apart, "coupling": coupling}),
+                                   _held=({"sets": held_apart, "off": off} if alike else None),
+                                   **sym_kw)
                 if isinstance(got, Refusal):
                     if got.gate == "rep_not_covariant":
                         # The provisional build's covariance gate IS the declared
@@ -3593,8 +3546,7 @@ def _cell_group_not_realized(group, validated, three_d, refuted=None) -> Refusal
             f"its coset partners: this cell's point set repeats under it, so what the "
             f"cell allows is a lattice supergroup of index "
             f"{int(group._lattice_index)}, and the Hamiltonian breaking the translation "
-            "is what makes the model's own lattice its translation group. With "
-            "descend=True the first step of the descent is that lattice descent.")
+            "is what makes the model's own lattice its translation group.")
     route = ("`typat=` where two sites are chemically inequivalent, or "
              "`decorations=` where a distortion lowered the symmetry: a bond "
              "distortion moves no atom, so no symmetry finder can see it in the "
@@ -3641,9 +3593,8 @@ def _cell_group_not_realized(group, validated, three_d, refuted=None) -> Refusal
         "returning a representation of it here would label these bands with a "
         "group the model does not have. Identify again from a cell that asks the "
         f"question the Hamiltonian answers — {route} — and pass the result back "
-        "through this call, or pass descend=True (the default) and have the cell "
-        "lowered to the operations that were measured to hold. "
-        "`context['validated']` is the verdict and residual on every operation.",
+        "through this call. "
+        "`context['validated']` holds each operation's measurement and residual.",
         value=float(n_broken), threshold=0.0,
         context={"group": group, "validated": validated,
                  "number_str": group.number_str, "size": int(group.size),

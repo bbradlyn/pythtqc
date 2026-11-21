@@ -170,22 +170,20 @@ A model symmetric only to its declared precision, made exactly symmetric
 
 ```mermaid
 flowchart TD
-    y_r(["r = realized_group(model), from the groups module"])
+    y_r(["r = realized_group(model, precision=p), from the groups module"])
 
-    y_r --> y_calls
+    y_r --> y_fields
 
-    subgraph y_calls ["calls on the model and r"]
+    subgraph y_fields ["fields of r"]
         direction LR
-        y_classify["classify_operations(r.validated, tol)"] --> y_classes(["each operation's class against the tolerance: exact, near or broken"])
-        y_positions["symmetrize_positions(model, r.group, r.assignment)"] --> y_moved(["the model with its orbital centres moved onto the nearest positions the group carries"])
-        y_symmetrize["symmetrize(model, r.group, r.assignment, r.validated)"] --> y_exact(["the model nearest the one handed in that obeys the group exactly"])
-        y_symmetrize --> y_sym[["Symmetrization: how far the model was moved onto its symmetric part, and why"]]
+        y_positions["r.positions"] --> y_moved(["the orbital centres moved onto the nearest positions the group carries"])
+        y_symmetrization["r.symmetrization"] --> y_sym[["Symmetrization: how far the model was moved onto its symmetric part, and why"]]
     end
 ```
 
-`realized_group` takes all three steps itself where `precision=` asks, and keeps
-the centres' correction on `r.positions` and the projection on
-`r.symmetrization`.
+`realized_group` moves the centres and projects the Hamiltonian itself where
+`precision=` asks, and keeps the centres' correction on `r.positions` and the
+projection on `r.symmetrization`.
 
 ### `sewing`
 
@@ -319,7 +317,7 @@ above it in this table, the public ones among them.
 | `_subgroups` | the subgroups inside the operations the Hamiltonian keeps, and the tie rule that picks one where several of one order qualify |
 | `_detector` | the eigen-sift detector: every matrix `X` with `X H(k) = H(Rk) X` on a grid of `k` |
 | `_matrices` | the arithmetic of the operations' matrices: their composition, their phase, the Bloch operator, the members of a solution space inside given blocks |
-| `_grammar` | the grammar of `characters=` and `multiplets=`, read where a call starts |
+| `_grammar` | the grammar of `characters=` and `site_multiplets=`, read where a call starts |
 | `_centres` | the orbital centres against the group's action: where the operations put them, and how far they miss |
 | `_naming` | site irreps named off the tables, each by the elementary band representation it induces |
 | `symmetry` | the representation's records: each operation's matrix on the model's states, the atomic-limit table and each orbital's row |

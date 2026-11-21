@@ -484,19 +484,7 @@ print(tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1], characters={(0, 1):
 ```
 
 Where the hoppings are not covariant under a declaration, `realized_group`
-descends. Asked not to descend
-(`descend=False`), it refuses
-[`declaration_breaks_group`](../reference/refusals.md#declaration_breaks_group)
-and names the operations the declared content is covariant on. A doublet at
-`1a` states the diagonal mirror group:
-
-```python
-wrong = tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1], characters={(0, 1): "E"},
-                           descend=False)
-print(wrong.gate, [tqc.operations(wrong.context["group"])[i].name
-                   for i in wrong.context["subgroup"]])
-#  declaration_breaks_group ['E', 'C2(z)', 'm([110])', 'm([1-10])', "E'", "C2(z)'", "m([110])'", "m([1-10])'"]
-```
+descends.
 
 ## Where next
 

@@ -668,19 +668,14 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
 
 
 @pytest.mark.slow
-def test_a_refusal_over_there_is_refused_and_words_it_has_none_for_are_not_compared():
-    """``"refused"`` and ``"not compared"``, and the substrate answer is still served.
+def test_words_the_other_environment_has_none_for_are_not_compared():
+    """``"not compared"``, and the substrate answer is still served.
 
-    Constructed from the one knob that makes the two readings refuse
-    differently: ``descend=False`` asks for the cell's upper bound, and
     Kane–Mele plus Rashba obeys the whole substrate cell (``P6mm1' #183.186``,
-    24 of 24) while breaking 24 operations of the free-standing one — so that
-    reading refuses ``cell_group_not_realized`` where this one is served.  The
-    record carries the gate, and the outcome is ``"refused"`` rather than
-    ``"ambiguous"``, which is reserved for a subgroup statement that fails for
-    the candidate the tie rule keeps and holds for another of the candidates.  Allowed to descend, the free-standing
-    reading loses the operations that turn the layer over, reaches ``3m`` site
-    groups, reads the declared ``A1`` there, and the two agree.
+    24 of 24) while breaking 24 operations of the free-standing one.  The
+    free-standing reading loses the operations that turn the layer over,
+    reaches ``3m`` site groups, reads the declared ``A1`` there, and the two
+    agree.
 
     A declaration in site irreps the other environment has no word for is not
     compared at all.  Graphene's sublattices declared ``A1`` and ``A2`` of their
@@ -695,20 +690,9 @@ def test_a_refusal_over_there_is_refused_and_words_it_has_none_for_are_not_compa
     the same way, naming the substrate's group: the substrate is the crystal
     asked about.
     """
-    r = tqg.realized_group(kane_mele(0.0, -1.0, 0.3, 0.25), characters={0: "A1"},
-                           descend=False, **SUB)
-    assert not isinstance(r, Refusal), str(r)
-    assert (r.group.number_str, len(r.validated.indices)) == ("183.186", 24)
-    w = r.cross_check
-    assert w["outcome"] == "refused" and w["agrees"] is None
-    assert w["refusal"]["gate"] == "cell_group_not_realized"
-    assert w["refusal"]["environment"] == "free-standing"
-    assert set(w["refusal"]) == {"gate", "reason", "environment"}
-    assert w["free_standing"] is None and w["substrate"]["number_str"] == "183.186"
-    assert "not a mismatch" in w["note"]
-    assert "the other environment refused" in repr(r)
     down = tqg.realized_group(kane_mele(0.0, -1.0, 0.3, 0.25), characters={0: "A1"}, **SUB)
     assert not isinstance(down, Refusal), str(down)
+    assert (down.group.number_str, len(down.validated.indices)) == ("183.186", 24)
     w = down.cross_check
     assert (w["outcome"], w["free_standing"]["number_str"], w["substrate"]["number_str"]) \
         == ("agree", "183.186", "183.186"), "the free-standing reading reads A1 in 3m"

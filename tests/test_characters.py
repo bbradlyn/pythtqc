@@ -93,8 +93,6 @@ GATE = tqs.EXACT_TOL   # the exact floor of _build_rep's covariance gate
 # scaffolding
 # ---------------------------------------------------------------------------
 
-C_SLAB = 30.0                      # slab lattice constant of the 3D presentation
-
 
 def realized_bundle_2d(model, typat, **kwargs):
     """``(model3d, group, assignment, validated, rep)`` in the *realized* group.
@@ -107,7 +105,7 @@ def realized_bundle_2d(model, typat, **kwargs):
     result unpacks as exactly the tuple these tests destructure.  This wrapper
     is all that is left of the local copy.
     """
-    out = tqg.realized_group(model, typat=typat, c=C_SLAB, **kwargs)
+    out = tqg.realized_group(model, typat=typat, **kwargs)
     assert out, str(out)
     return out
 
@@ -1252,7 +1250,7 @@ def test_group_provenance_rides_into_the_character_tables(lin3g_undeclared):
 
     # ... and the other stamp, on the same model and the same served group: the
     # free-standing cell is an upper bound the measurement had to cut
-    down = tqg.realized_group(lin3g_undeclared.source, typat=[0, 0, 1, 1], c=C_SLAB,
+    down = tqg.realized_group(lin3g_undeclared.source, typat=[0, 0, 1, 1],
                               environment="free-standing")
     assert down, str(down)
     assert down.group.number_str == "99.164" and down.group.size == 16

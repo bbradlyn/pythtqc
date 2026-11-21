@@ -345,7 +345,7 @@ _LAYOUT_MERGE = 0.5
 #: this floor, or the rounding the representation's own arithmetic carries
 #: where that is larger.  The same gate is the boundary between an *exact*
 #: operation and a merely near one
-#: (:func:`..symmetrization.classify_operations`), and it is not a knob the
+#: (:func:`..symmetrization._classify_operations`), and it is not a knob the
 #: pipeline turns: a declared detection tolerance moves the detector's gate and
 #: cut, never this one.
 EXACT_TOL = 5e-14

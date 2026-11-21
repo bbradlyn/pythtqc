@@ -5,7 +5,7 @@ A cell group is an upper bound.  Before this wave ``realized_group`` refused
 the caller to describe a better cell; now it **lowers** the cell to the
 operations that were measured to hold and serves that group, so nothing
 downstream — corep labels, EBR rows, indicators, SRSIs — is ever read in a group
-the model does not have.  ``descend=False`` restores the refusal, to the letter.
+the model does not have.
 
 What the mechanism is, and what it is not:
 
@@ -96,6 +96,7 @@ from pythtqc import _descent
 from pythtqc import _layers
 from pythtqc import _measure
 from pythtqc import _multiplets
+from pythtqc import _realized
 from pythtqc import _spacegroup
 from pythtqc import _tables
 
@@ -233,34 +234,6 @@ def test_the_descent_and_the_decoration_agree_on_the_strong_and_weak_phases(fkm_
         assert sa.values == sb.values and sa.order == sb.order
         classes[name] = sa.values
     assert classes == {"strong": (0, 1), "weak": (1, 0)}
-
-
-@pytest.mark.slow
-def test_descend_false_restores_the_refusal_the_descent_replaced():
-    """The upper bound is still askable, and it is the old record verbatim.
-
-    On a 3D crystal whose hoppings break the fourfold axis: the cell allows
-    ``P4/mmm1' #123.340``, the Hamiltonian obeys 16 of its 32 operations, and
-    every broken one is a proof.  The context carries the audit the refusal
-    was made on, and the message names the routes to the group the Hamiltonian
-    has -- ``typat=``, ``decorations=`` for a distortion no symmetry finder can
-    see, and the descent itself -- rather than a tolerance to loosen.
-    """
-    r = tqg.realized_group(anisotropic_stack(), descend=False)
-    assert not r and isinstance(r, Refusal)
-    assert r.gate == "cell_group_not_realized"
-    assert (r.value, r.threshold) == (16.0, 0.0)
-    assert r.context["n_obeyed"] == 16 and r.context["size"] == 32
-    assert r.context["refuted_by"] == {"no symmetry matrix": 16}
-    assert r.context["number_str"] == "123.340"
-    assert len(r.context["broken"]) == 16
-    assert isinstance(r.context["validated"], tqg.ValidatedGroup)
-    assert r.context["validated"].broken == r.context["broken"]
-    assert isinstance(r.context["group"], tqg.GroupData)
-    assert "typat=" in r.reason and "decorations=" in r.reason
-    assert "no symmetry finder can see it" in r.reason
-    assert "unmeasured upper bound" in r.reason
-    assert "descend=True" in r.reason
 
 
 # ---------------------------------------------------------------------------
@@ -492,7 +465,8 @@ def test_a_flat_fixture_reaches_the_same_group_by_the_layer_descent(
     holds, so the group identified from the model is returned at every ``c``
     and the record is the same both times.
     """
-    r = tqg.realized_group(build(), environment="free-standing", **kw)
+    # the slab presented at the vacuum height `c`, a keyword of the private entry
+    r = _realized._realize(build(), environment="free-standing", **kw)
     assert r, str(r)
     d = r.descent
     assert d is not None, name
@@ -762,24 +736,6 @@ def test_the_slab_mirror_is_refuted_by_tensor_structure_and_the_cell_descends(
 
 
 @pytest.mark.slow
-def test_descend_false_refuses_and_names_the_tensor_structure(slab_mirror):
-    """The upper bound is still askable, and the refusal says which measurement made it."""
-    rashba, _down = slab_mirror
-    r = tqg.realized_group(rashba, environment="free-standing",
-                           characters={0: "pz"}, descend=False)
-    assert not r and isinstance(r, Refusal)
-    assert r.gate == "cell_group_not_realized"
-    assert (r.value, r.threshold) == (24.0, 0.0)
-    assert r.context["n_obeyed"] == 24 and r.context["size"] == 48
-    assert r.context["refuted_by"] == {"tensor structure": 24}
-    assert len(r.context["tensor_structure_refuted"]) == 24
-    assert r.context["number_str"] == "191.234"
-    assert "broken by tensor structure" in r.reason
-    assert "O(g) (x) S(g)" in r.reason
-    assert "descend=True" in r.reason
-
-
-@pytest.mark.slow
 def test_the_ansatz_defects_of_an_exact_model_are_at_machine_level(realized):
     """The ceiling: every operation an exact fixture obeys reads ``0``, not ``1``.
 
@@ -853,8 +809,8 @@ def test_the_consistency_guard_surfaces_a_descent_that_did_not_clear_the_gate(
     group outright and never descends.
 
     One case is carved out of the guard: a covariance residual inside the
-    detector's ``tol`` — the near-symmetric signal, which ``symmetrize=`` is the
-    answer to — would otherwise be hidden behind this message for every 2D
+    detector's ``tol`` — the near-symmetric signal, which a declared precision
+    answers — would otherwise be hidden behind this message for every 2D
     caller, since a descent runs on every 2D model in layer mode. Provoked at
     1e-9 against the default ``tol`` of 1e-8, the guard stands aside and
     ``rep_not_covariant`` comes back verbatim, naming the group identified and

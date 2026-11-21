@@ -339,19 +339,14 @@ contain that unitary part and never asks it, so the operation carries the
 verdict of the group the descent lowered, and is named by its index there. The
 Zeeman variant is the case. Each vertical mirror flips `σ_z` on the sublattice
 it fixes, and so does time reversal, so each mirror is broken and each mirror
-combined with time reversal holds; the cell's own group, which `descend=False`
-asks for and refuses where the Hamiltonian breaks any of it, lists them among
-the operations measured to hold:
+combined with time reversal holds:
 
 ```python
 print([(o["name"], o["of"]) for o in broken.beyond_grey["operations"]], broken.beyond_grey["magnetic_type"])
 #  [("m([010])'", '156.50'), ("m(x)'", '156.50'), ("m([1-10])'", '156.50')] III
-allowed = tqc.realized_group(zeeman, typat=[0, 1], descend=False)
-print(allowed.gate, [op.name for op in allowed.context["validated"].operations.values()])
-#  cell_group_not_realized ['E', 'C3(z)', 'C3^-1(z)', "m([010])'", "m(x)'", "m([1-10])'"]
 ```
 
-The six operations listed make a magnetic group of type III, and the group
+These three, with the three rotations of `P3`, make a magnetic group of type III, and the group
 returned is its unitary half, `P3`. An operation combined with time reversal
 that is not an operation of the cell is not searched for: `C2(z)` exchanges the
 two sublattices declared different atoms, so `C2(z)` combined with time
@@ -1481,7 +1476,7 @@ line ending with the attribute that holds that part, as the records above do.
 | `WyckoffPosition` | `groups.wyckoff_positions_spglib` | one Wyckoff position in spglib's standardization, whose letter is not a table key |
 | `IrrepContent` | `groups.identify_from_characters`, and `CorepContent.content` | the identification of measured characters: each row's multiplicities before rounding, and how far they sat from integers |
 | `SpinBasis` | `spin_basis`, `spinless_presentation` | which orbitals of a spinless model are the up and down partners of one spinor Wannier function: `kind` and `pairs` |
-| `Symmetrization` | `symmetrize`, and `RealizedGroup.symmetrization` | how far a near-symmetric model was moved onto its symmetric part ([above](#every-field)) |
+| `Symmetrization` | `RealizedGroup.symmetrization` | how far a near-symmetric model was moved onto its symmetric part ([above](#every-field)) |
 | `MultiplicitySpace`, `SiteMultiplets` | the atomic-limit table, `rep.multiplets` | a conserved pseudospin and the site content assigned its copies; the multiplets each site's orbitals are bound into |
 | `Thresholds`, as `pythtqc.sewing.Thresholds` | `CorepContent.thresholds`, `HSPTable.thresholds` | the two zero thresholds at one `k`, flat for quantities built from `H(k)` alone and conditioned for those read off eigenvectors |
 

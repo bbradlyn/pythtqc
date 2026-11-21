@@ -29,7 +29,7 @@ What is regressed here, and the number that closes each:
   and ``max_k |H_new(k) − H_sym(k)|`` on random k off the transform grid
   (1e-15);
 * **broken is not near** — a genuine 1e-2 distortion is refused by
-  ``realized_group`` exactly as before this wave, and ``symmetrize`` on a
+  ``realized_group`` exactly as before this wave, and ``_symmetrize`` on a
   hand-built record that *lists* such an operation refuses
   ``symmetrize_broken_operation`` rather than imposing the symmetry;
 * **idempotence** — a symmetrized model classifies every operation ``exact``
@@ -40,7 +40,7 @@ What is regressed here, and the number that closes each:
 * **the other defect** — a wannier90 model's *centres* are numerically
   determined too, and centres that miss the group's own action by ``δ`` cost
   ``2π·δ·max|H|`` of covariance whatever the hoppings do (one Kane-Mele orbital
-  displaced by 1e-8 costs 2.4e-7).  ``symmetrize_positions`` moves them onto the
+  displaced by 1e-8 costs 2.4e-7).  ``_symmetrize_positions`` moves them onto the
   nearest positions the group carries exactly, in the model's own frame, which is
   a **k-dependent gauge transformation** and therefore free: the spectrum moves
   by rounding and the residual returns to rounding.  Positions further off than ``max_move`` are
@@ -73,8 +73,8 @@ from pythtqc import sewing as tqw
 from pythtqc import spin as tqspin
 from pythtqc import symmetry as tqs
 from pythtqc.refusal import InternalError, Refusal
-from pythtqc.symmetrization import (EXACT_GATE, classify_operations, symmetrize,
-                                    symmetrize_positions)
+from pythtqc.symmetrization import (EXACT_GATE, _classify_operations, _symmetrize,
+                                    _symmetrize_positions)
 from pythtqc import _build
 from pythtqc import _tolerance
 from pythtqc import _detector
@@ -239,7 +239,7 @@ def lin3g_jittered(lin3g):
     """
     model = jitter(lin3g)
     tol = TOL_FACTOR * JITTER * _max_H(model)
-    out = tqg.realized_group(model, typat=[0, 0, 1, 1], tol=tol,
+    out = _realized._realize(model, typat=[0, 0, 1, 1], tol=tol,
                              characters=["s", "dx2-y2", "s", "s"])
     assert out, str(out)
     return out, model, tol
@@ -273,18 +273,18 @@ def test_the_three_classes_are_read_off_the_measured_residuals(lin3g, lin3g_jitt
     ``EXACT_GATE``, which is ``EXACT_TOL`` and not retyped here, and above it
     where the rounding a model's representation carries is larger (the
     classification is handed that gate by ``realized_group`` and
-    ``symmetrize``).  The boundary above is whatever the caller declared.
+    ``_symmetrize``).  The boundary above is whatever the caller declared.
     """
     _out, model, tol = lin3g_jittered
     m3, group, _asg, val = _pipeline(model, [0, 0, 1, 1], tol=tol)
-    classes = classify_operations(val, tol)
+    classes = _classify_operations(val, tol)
     assert set(classes) == set(val.indices)
     assert set(classes.values()) == {"exact", "near"}, classes
     # the identity is exact; every other operation carries the jitter
     assert sum(1 for c in classes.values() if c == "near") == len(classes) - 1
 
     # ... and at a tolerance below the defect the SAME residuals read broken
-    assert set(classify_operations(val, 1e-9).values()) == {"exact", "broken"}
+    assert set(_classify_operations(val, 1e-9).values()) == {"exact", "broken"}
     assert EXACT_GATE == 5e-14 == tqs.EXACT_TOL, \
         "the floor of _build_rep's own gate, and that number does not move"
 
@@ -313,7 +313,7 @@ def test_the_jittered_lin3g_comes_back_as_the_clean_one(lin3g_clean, lin3g_jitte
     jit_H = np.asarray(_layers._slab_presentation(model).hamiltonian(
         k_pts=k, flatten_spin_axis=True))
     sym_H = np.asarray(out.model.hamiltonian(k_pts=k, flatten_spin_axis=True))
-    # the docstring's number, not the gate it passed: `symmetrize` refuses above
+    # the docstring's number, not the gate it passed: `_symmetrize` refuses above
     # `tol`, so `defect <= tol` is unfailable on a record that came back
     assert rec.defect == pytest.approx(9.49e-7, rel=1e-2, abs=0)
     assert np.abs(sym_H - clean_H).max() < np.abs(jit_H - clean_H).max()
@@ -362,7 +362,7 @@ def test_the_record_carries_the_measurements_that_license_it(lin3g_jittered):
     assert len(rec.near) == len(rec.classes) - 1 and len(rec.exact) == 1
     assert rec.passes == 1, "the exact D of the representation route needs one pass"
     # the defect is O(the residuals that licensed it) -- measured 0.031 of the
-    # bound below.  Not `<= tol`: `symmetrize` refuses above `tol`, so that one
+    # bound below.  Not `<= tol`: `_symmetrize` refuses above `tol`, so that one
     # cannot fail on a record it returned
     worst = max(rec.residuals[i] for i in rec.near)
     assert rec.defect <= 10 * worst
@@ -376,8 +376,8 @@ def test_the_record_carries_the_measurements_that_license_it(lin3g_jittered):
     reach = _tetragonal_reach(jitter=1e-6)
     tol = TOL_FACTOR * 1e-6 * _max_H(reach)
     m3, group, asg, val = _pipeline(reach, tol=tol)
-    fine, fine_rec = symmetrize(m3, group, asg, val, tol=tol)
-    cubic, cubic_rec = symmetrize(m3, group, asg, val, tol=tol, k_grid=9)
+    fine, fine_rec = _symmetrize(m3, group, asg, val, tol=tol)
+    cubic, cubic_rec = _symmetrize(m3, group, asg, val, tol=tol, k_grid=9)
     assert fine_rec.grid["R_box"] == (3, 3, 1)
     assert (fine_rec.grid["n"], fine_rec.grid["n_points"]) == ((9, 9, 5), 405)
     assert (cubic_rec.grid["n"], cubic_rec.grid["n_points"]) == ((9, 9, 9), 729)
@@ -444,7 +444,7 @@ def test_the_operators_carry_none_of_the_models_noise(lin3g_jittered, lin3g_clea
 @pytest.mark.parametrize("name", ["km_odd", "km_inversion", "fkm_strong"])
 def test_symmetrization_recovers_the_clean_answer_on_every_presentation(name, request,
                                                                          realized):
-    """The theorem again, on the routes ``symmetrize`` has to respect.
+    """The theorem again, on the routes the projection has to respect.
 
     The layer route (Kane-Mele, whose cell is the slab point set **as given**)
     and a 3D cell whose group comes from a ``decorations=`` crystal field (the
@@ -502,7 +502,7 @@ def test_symmetrization_recovers_the_clean_answer_on_every_presentation(name, re
     jit = jitter(model)
     tol = TOL_FACTOR * JITTER * _max_H(model)
     # a layer's other environment is not read here; a crystal has none
-    out = tqg.realized_group(jit, tol=tol, cross_check=False, **kw)
+    out = _realized._realize(jit, tol=tol, cross_check=False, **kw)
     assert out, str(out)
     rec = out.symmetrization
     assert rec is not None and rec.passes == 1
@@ -551,7 +551,7 @@ def test_a_declared_spinor_basis_symmetrizes_like_the_native_model():
 
     jit = jitter(flat)
     tol = TOL_FACTOR * JITTER * _max_H(flat)
-    out = tqg.realized_group(jit, typat=[0, 0, 1, 1], spin=sb, tol=tol,
+    out = _realized._realize(jit, typat=[0, 0, 1, 1], spin=sb, tol=tol,
                              characters={0: "A1"}, cross_check=False)
     assert out, str(out)
     rec = out.symmetrization
@@ -590,7 +590,7 @@ def test_a_magnetic_model_is_symmetrized_without_inventing_time_reversal():
     tol = TOL_FACTOR * JITTER * _max_H(model)
     # `A1` is the trivial irrep of a threefold axis, the way the position's own
     # site-symmetry listing spells it
-    out = tqg.realized_group(jit, typat=[0, 1], decorations=_CHIRAL_C3, tol=tol,
+    out = _realized._realize(jit, typat=[0, 1], decorations=_CHIRAL_C3, tol=tol,
                              characters={0: "A1"}, cross_check=False)
     assert out, str(out)
     assert out.group.number_str == "143" and not out.group.include_TR
@@ -654,7 +654,7 @@ def test_a_genuine_distortion_is_descended_to_and_never_symmetrized_away(lin3g):
     ``m(x)``, ``m(y)``, with their time-reversed partners.
     """
     bad = distort(lin3g, rel=1e-2)
-    out = tqg.realized_group(bad, environment="free-standing", typat=[0, 0, 1, 1],
+    out = _realized._realize(bad, environment="free-standing", typat=[0, 0, 1, 1],
                              tol=1e-6,
                              characters=["s", "dx2-y2", "s", "s"], cross_check=False)
     assert out, str(out)
@@ -680,7 +680,7 @@ def test_a_genuine_distortion_is_descended_to_and_never_symmetrized_away(lin3g):
 def test_symmetrize_refuses_an_operation_that_is_broken_rather_than_near(lin3g):
     """The refusal that makes the record mean something.
 
-    ``_validate_group``'s own gate cannot hand ``symmetrize`` a broken operation,
+    ``_validate_group``'s own gate cannot hand ``_symmetrize`` a broken operation,
     so the case is provoked with a hand-built record that *lists* the eight
     refuted operations as survivors.  Symmetrizing over them would impose a
     symmetry this Hamiltonian does not have, and the refusal names them.
@@ -690,8 +690,8 @@ def test_symmetrize_refuses_an_operation_that_is_broken_rather_than_near(lin3g):
     assert len(val.indices) == 8
     forced = dataclasses.replace(
         val, indices=tuple(int(s.ind) for s in group.symmetries))
-    got = symmetrize(m3, group, asg, forced, tol=1e-6,
-                     characters=["s", "dx2-y2", "s", "s"])
+    got = _symmetrize(m3, group, asg, forced, tol=1e-6,
+                      characters=["s", "dx2-y2", "s", "s"])
     assert not got and got.gate == "symmetrize_broken_operation"
     # the eight by NAME, not by `_validate_group`'s own list of them: the 4-fold
     # axis, the two diagonal mirrors and their time-reversed partners, which is
@@ -709,13 +709,13 @@ def test_symmetrize_refuses_an_operation_that_is_broken_rather_than_near(lin3g):
 @pytest.mark.slow
 def test_the_covariance_refusal_points_at_the_route_when_a_tolerance_was_declared(
         lin3g_jittered, monkeypatch):
-    """``symmetrize=False`` leaves the near model to the exact gate, which refuses.
+    """The exact gate's refusal says when the operations were measured at a looser declared tolerance.
 
     When the detector's *declared* tolerance lies above ``_build_rep``'s own
     gate and the best candidate lands between the two, the operations are
     near-symmetric and the refusal says so — factually, with both numbers, and
-    without moving either.  The group is identified either way, so the refusal
-    opens by naming it and carries it in ``context["group"]``.
+    without moving either.  ``realized_group`` projects such a model before it
+    builds, so the refusal is read on the build alone.
 
     The representation the projection is made with is gated at the declared
     tolerance itself, every operation having been kept at it, so no candidate
@@ -731,7 +731,7 @@ def test_the_covariance_refusal_points_at_the_route_when_a_tolerance_was_declare
     read-off, which never enumerates.  So is
     ``projection_too_large``, the other practical limit: the hopping
     projection's memory at its peak.  ``max_bytes=`` is ``realized_group``'s
-    own budget for it, at ``symmetrize``'s default, and it reaches the
+    own budget for it, at ``_symmetrize``'s default, and it reaches the
     projection: on the jittered model's grid, 7 x 7 points at 8 states, the
     projection holds the Hamiltonian and its group average, 2.1 grids of
     ``16 x 49 x 8**2`` bytes as measured, and streams one k-point of the rest
@@ -740,18 +740,18 @@ def test_the_covariance_refusal_points_at_the_route_when_a_tolerance_was_declare
     grid.
     """
     projected, model, tol = lin3g_jittered
-    got = tqg.realized_group(model, typat=[0, 0, 1, 1], tol=tol, symmetrize=False,
-                             characters=["s", "dx2-y2", "s", "s"])
+    # the near model handed to the exact build, which the projection otherwise precedes
+    m3, group, asg, val = _pipeline(model, [0, 0, 1, 1], tol=tol)
+    assert group.name == "P4mm1'" and group.number_str == "99.164"
+    got = _build._build_rep(m3, group, asg, validated=val,
+                            characters=["s", "dx2-y2", "s", "s"])
     assert not got and got.gate == "rep_not_covariant"
     # the threshold is this model's own exact gate -- its 16 operations on 8
     # states at max|H| = 12.375 lift it above the floor -- and never the declared tol
     gate = tqs.covariance_gate(len(got.context["indices"]), int(model.nstate), _max_H(model))
     assert got.threshold == pytest.approx(gate, rel=1e-12) and gate > EXACT_GATE
     assert gate < got.value <= tol
-    assert "near-symmetric" in got.reason and "symmetrize" in got.reason
-    assert "The group identified is P4mm1' #99.164" in got.reason
-    group = got.context["group"]
-    assert group.name == "P4mm1'" and group.number_str == "99.164"
+    assert "near-symmetric" in got.reason
 
     # the projection's own representation, provoked to miss its gate
     import pythtqc.symmetrization as _projection
@@ -768,7 +768,7 @@ def test_the_covariance_refusal_points_at_the_route_when_a_tolerance_was_declare
 
     patch_everywhere(monkeypatch, "_build_rep", refusing)
     with pytest.raises(InternalError, match="onto its invariant part, still does not") as err:
-        tqg.realized_group(model, typat=[0, 0, 1, 1], tol=tol,
+        _realized._realize(model, typat=[0, 0, 1, 1], tol=tol,
                            characters=["s", "dx2-y2", "s", "s"])
     assert "P4mm1' #99.164" in str(err.value) and "reaches 0.5 against" in str(err.value)
     monkeypatch.undo()
@@ -792,8 +792,8 @@ def test_the_covariance_refusal_points_at_the_route_when_a_tolerance_was_declare
     # projection_too_large: the projection's memory, the same group named and
     # carried, and the budget it names runs the projection the default ran
     assert (inspect.signature(tqg.realized_group).parameters["max_bytes"].default
-            == inspect.signature(symmetrize).parameters["max_bytes"].default == 1e9)
-    tight = tqg.realized_group(model, typat=[0, 0, 1, 1], tol=tol, max_bytes=1e5,
+            == inspect.signature(_symmetrize).parameters["max_bytes"].default == 1e9)
+    tight = _realized._realize(model, typat=[0, 0, 1, 1], tol=tol, max_bytes=1e5,
                                characters=["s", "dx2-y2", "s", "s"])
     assert not tight and tight.gate == "projection_too_large"
     grids = 2.1 * 16 * 49 * 8 ** 2
@@ -803,7 +803,7 @@ def test_the_covariance_refusal_points_at_the_route_when_a_tolerance_was_declare
     assert "The group identified is P4mm1' #99.164" in tight.reason
     assert tight.context["group"].number_str == "99.164"
     assert "`realized_group(..., max_bytes=1.2e5)` runs it" in tight.reason
-    runs = tqg.realized_group(model, typat=[0, 0, 1, 1], tol=tol, max_bytes=1.2e5,
+    runs = _realized._realize(model, typat=[0, 0, 1, 1], tol=tol, max_bytes=1.2e5,
                               characters=["s", "dx2-y2", "s", "s"], cross_check=False)
     assert runs, str(runs)
     assert runs.symmetrization.grid == projected.symmetrization.grid
@@ -824,9 +824,9 @@ def test_symmetrizing_a_symmetrized_model_changes_nothing(lin3g_jittered):
     m3 = out.model
     asg = _tables._assign_orbitals(m3, out.group, typat=[0, 0, 1, 1])
     val = _measure._validate_group(m3, out.group, nk=6, tol=tol)
-    assert set(classify_operations(val, tol).values()) == {"exact"}
-    sym2, rec2 = symmetrize(m3, out.group, asg, val, tol=tol,
-                            characters=["s", "dx2-y2", "s", "s"])
+    assert set(_classify_operations(val, tol).values()) == {"exact"}
+    sym2, rec2 = _symmetrize(m3, out.group, asg, val, tol=tol,
+                             characters=["s", "dx2-y2", "s", "s"])
     assert rec2.near == () and rec2.passes == 1
     k = np.random.default_rng(9).uniform(-0.5, 0.5, size=(24, 2))
     a = np.asarray(m3.hamiltonian(k_pts=k, flatten_spin_axis=True))
@@ -851,22 +851,20 @@ def test_the_grammar_gates_are_ValueErrors(lin3g):
     tol = TOL_FACTOR * JITTER * _max_H(lin3g)
     m3, group, asg, val = _pipeline(lin3g, [0, 0, 1, 1], tol=tol)
     with pytest.raises(TypeError):
-        symmetrize(m3, group, asg, val)                     # tol is required
+        _symmetrize(m3, group, asg, val)                     # tol is required
     with pytest.raises(ValueError, match="positive"):
-        symmetrize(m3, group, asg, val, tol=0.0)
+        _symmetrize(m3, group, asg, val, tol=0.0)
     with pytest.raises(ValueError, match="too coarse"):
-        symmetrize(m3, group, asg, val, tol=tol, k_grid=5)
-    with pytest.raises(ValueError, match="symmetrize must be"):
-        tqg.realized_group(m3, typat=[0, 0, 1, 1], symmetrize="yes")
+        _symmetrize(m3, group, asg, val, tol=tol, k_grid=5)
     with pytest.raises(ValueError, match="max_bytes must be a positive"):
-        symmetrize(m3, group, asg, val, tol=tol, max_bytes=0)
+        _symmetrize(m3, group, asg, val, tol=tol, max_bytes=0)
     with pytest.raises(ValueError, match="max_bytes must be a positive"):
         tqg.realized_group(m3, typat=[0, 0, 1, 1], max_bytes=-1.0)
     with pytest.raises(ValueError, match="max_candidates must be a positive"):
-        symmetrize(m3, group, asg, val, tol=tol, max_candidates="many")
+        _symmetrize(m3, group, asg, val, tol=tol, max_candidates="many")
     with pytest.raises(ValueError, match="max_candidates must be a positive"):
         tqg.realized_group(m3, typat=[0, 0, 1, 1], max_candidates=0)
-    tight = symmetrize(m3, group, asg, val, tol=tol, max_bytes=1e5)
+    tight = _symmetrize(m3, group, asg, val, tol=tol, max_bytes=1e5)
     assert not tight and tight.gate == "projection_too_large"
 
 
@@ -916,10 +914,10 @@ def test_a_multiplet_site_symmetrizes_through_the_representation_nearest_its_blo
     asg = _tables._assign_orbitals(jit, group)
     val = _measure._validate_group(jit, group, nk=5, tol=tol)
     assert len(val.indices) == 48, "the whole group survives at the declared tolerance"
-    assert set(classify_operations(val, tol).values()) == {"exact", "near"}
+    assert set(_classify_operations(val, tol).values()) == {"exact", "near"}
     assert asg.site_orbitals == ((0, 1), (2, 3))
 
-    model, rec = symmetrize(jit, group, asg, val, tol=tol)
+    model, rec = _symmetrize(jit, group, asg, val, tol=tol)
     assert rec.passes == 1
     assert rec.checks["covariance_residue"] < 1e-13
     assert rec.checks["k_identity"] < 1e-13
@@ -1088,7 +1086,7 @@ def test_a_tied_orientation_branch_is_measured_the_same_representation():
     assert max(float(np.abs(rep.matrices[i] - other.matrices[i]).max())
                for i in rep.indices) == 0.0
 
-    sym, rec = symmetrize(model, group, asg, val, tol=tol)
+    sym, rec = _symmetrize(model, group, asg, val, tol=tol)
     assert rec.verification["near_kept"] and not rec.verification["broken"]
     assert rec.verification["worst_residual"] < 1e-12
     assert len(rec.near) == 2 and rec.defect > 1e-9
@@ -1176,7 +1174,7 @@ def test_a_declared_position_tol_snaps_the_centres_before_anything_else(
 
     # ... and the hoppings needed nothing: every operation is exact afterwards
     assert out.symmetrization is None
-    assert set(classify_operations(out.validated, 1e-8).values()) == {"exact"}
+    assert set(_classify_operations(out.validated, 1e-8).values()) == {"exact"}
     assert max(out.validated.residuals[i] for i in out.validated.indices) < EXACT_GATE
     assert len(out.validated.indices) == out.group.size == 12
 
@@ -1271,7 +1269,7 @@ def test_the_position_pass_runs_before_the_hopping_projection(km_odd,
     both = jitter(_move_one_centre(km_odd, 1e-8))
     tol = TOL_FACTOR * JITTER * _max_H(km_odd)
 
-    out = tqg.realized_group(both, environment="free-standing", typat=[0, 1],
+    out = _realized._realize(both, environment="free-standing", typat=[0, 1],
                              characters={0: "A1"}, tol=tol,
                              position_tol=1e-6, cross_check=False)
     assert out, str(out)
@@ -1308,7 +1306,7 @@ def test_the_position_pass_runs_before_the_hopping_projection(km_odd,
     # the same call with the centres undeclared: their defect is inside the
     # declared tol, so the descent is the clean model's, and the projection
     # refuses centres its operators do not carry, with the defect and the route
-    head = tqg.realized_group(both, environment="free-standing", typat=[0, 1],
+    head = _realized._realize(both, environment="free-standing", typat=[0, 1],
                               characters={0: "A1"}, tol=tol)
     assert not head and head.gate == "positions_not_exactly_symmetric"
     assert head.context["group"].number_str == "156.50"
@@ -1387,8 +1385,8 @@ def test_centres_too_far_from_symmetric_break_the_operations_they_miss(km_odd):
     cell, cell_typat = _layers._decorated_cell(clean3, [0, 1])
     group = _spacegroup._group_of(cell, typat=cell_typat, spinor=True)
     asg = _tables._assign_orbitals(clean3, group, typat=[0, 1])
-    refused = symmetrize_positions(_move_one_centre(clean3, 1e-3), group, asg,
-                                   max_move=1e-6)
+    refused = _symmetrize_positions(_move_one_centre(clean3, 1e-3), group, asg,
+                                    max_move=1e-6)
     assert not refused and refused.gate == "positions_not_nearly_symmetric"
     assert refused.value == pytest.approx(5e-4, rel=1e-6, abs=0)
     assert refused.threshold == 1e-6
@@ -1615,7 +1613,7 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
         assert len(noisy.descent["dropped"]) == len(exact.descent["dropped"]) == n_broken
         assert noisy.time_reversal["outcome"] == exact.time_reversal["outcome"]
         # the moved centres satisfy the operations returned: measured 4.4e-16
-        _again, rec = symmetrize_positions(noisy.model, noisy.group, noisy.assignment)
+        _again, rec = _symmetrize_positions(noisy.model, noisy.group, noisy.assignment)
         assert rec["defect_before"] <= _FEW_ULP, "nothing left for a second pass to move"
         table = tqw.hsp_table(noisy.rep, bands=1)       # this is what used to RAISE
         ref = tqw.hsp_table(exact.rep, bands=1)
@@ -1783,8 +1781,7 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
     That licenses the projection: the model's own blocks on each multiplet made
     an exact representation, ``H`` moved by about the turn, and every call returns
     ``R3m1'`` with its covariance and product table at machine precision, the
-    rows the characters name.  With ``symmetrize=False`` the exact gate
-    refuses as before, naming the route.  The same shell at both sites of
+    rows the characters name.  The same shell at both sites of
     ``6c`` of ``R-3m`` -- a bismuth-like geometry -- is one multiplet per site
     without the precision, and ``R-3m1'``, 24 of 24, with its ``p_z`` and pair
     apart under it; declared or not, at either precision, every subset of its
@@ -1934,11 +1931,6 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
         assert max(noisy.rep.residuals.values()) < 1e-13
         assert noisy.rep.product_residual < 1e-13
         assert noisy.rep.characters.irreps == ("-E1", "-1E2E + -E1", "-1E2E + -E1")
-    # without the projection the exact gate refuses, inside the declared tol
-    kept = tqg.realized_group(shell, precision=1e-6, symmetrize=False, **kw)
-    assert kept.gate == "rep_not_covariant" and 1e-9 < kept.value < 1e-6, str(kept)
-    assert kept.context["group"].number_str == "160.66"
-    assert 'symmetrize="auto"' in kept.reason
     # ... and the same shell at both sites of 6c of R-3m
     pair = tqc_models.r3m_p_shell(angle=1e-8, spinful=True, pair=True)
     bare = tqg.realized_group(pair)
@@ -2002,19 +1994,13 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
 def test_the_declaration_is_grammar(km_odd):
     """Declaring the same thing twice, or declaring a precision that is not one.
 
-    ``precision`` **is** the declaration ``tol``, ``cut``, ``window`` and
-    ``position_tol`` are derived from, so giving it beside any of them says the
-    same thing twice and the
-    call cannot pick a winner: that is a mistake in the call, not a verdict about
-    a model, and it raises.  The detector's two relative numbers are in the list
-    for the same reason the gate is — they follow from the declaration, read
-    against the same ``max|H|`` — so declaring one of them is declaring the
-    precision a second time, in a second unit.  ``symprec`` is a different
-    question (which group is *found*) and may be given alongside.
+    ``precision`` **is** the declaration ``position_tol`` is derived from, so
+    giving both says the same thing twice and the call cannot pick a winner:
+    that is a mistake in the call, not a verdict about a model, and it raises.
+    ``symprec`` is a different question (which group is *found*) and may be
+    given alongside.
     """
-    for kw in (dict(tol=1e-6), dict(position_tol=1e-6), dict(cut=1e-6),
-               dict(window=0.05), dict(cut=1e-6, window=0.05),
-               dict(tol=1e-6, position_tol=1e-6)):
+    for kw in (dict(position_tol=1e-6),):
         with pytest.raises(ValueError, match="same thing twice") as e:
             tqg.realized_group(km_odd, typat=[0, 1], precision=1e-6, **kw)
         assert f"{' and '.join(kw)} declare the same thing twice" in str(e.value), \

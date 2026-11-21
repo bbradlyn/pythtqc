@@ -4841,23 +4841,3 @@ def test_a_shipped_lift_set_that_does_not_close_raises_an_internal_error(monkeyp
     assert "S(g)S(h) is not ±S(gh)" in text, text
     assert "coboundary equation" in text, text
     assert not isinstance(exc.value, Refusal) and isinstance(exc.value, RuntimeError)
-
-
-@pytest.mark.slow
-def test_the_front_door_forwards_its_cut_and_window_to_the_detector():
-    """``realized_group(cut=, window=)`` are the numbers the detector ran at.
-
-    The two keywords are resolved at the front door and handed to
-    ``_validate_group`` at every call the pipeline makes, so the record of each
-    operation carries exactly the declared cut and window -- and, with nothing
-    declared, the cut is the gate and the window follows from it.
-    """
-    m = square()
-    r = G.realized_group(m, cut=1e-6, window=0.05, cross_check=False)
-    assert r and r.validated._records, r
-    for ind, rec in r.validated._records.items():
-        assert rec["cut"] == 1e-6 and rec["window"] == 0.05, (ind, rec)
-        assert rec["tol"] == 1e-8
-    plain = G.realized_group(m, cross_check=False)
-    for ind, rec in plain.validated._records.items():
-        assert rec["cut"] == rec["tol"] == 1e-8, (ind, rec)

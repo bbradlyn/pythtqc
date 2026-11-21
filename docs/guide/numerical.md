@@ -84,7 +84,7 @@ print(f"position_tol {p['position_tol']:.0e}, symprec {p['symprec']:.0e}, raised
 from the centres at all: a Cartesian length in the model's units, `1e-5` by default. The
 precision leaves it alone unless the declared position noise, `precision × L` with `L` the
 longest lattice vector along the periodic directions, would exceed it; the finder then runs
-at `10 × precision × L`, and `symprec_raised` is `True`. Giving `tol`, `cut`, `window` or
+at `10 × precision × L`, and `symprec_raised` is `True`. Giving
 `position_tol` beside `precision` declares the same thing twice and raises `ValueError`;
 `symprec` may be given beside it, as the finder's floor.
 
@@ -102,7 +102,7 @@ the crystal. The declaration is what separates the two.
 
 ## Exact, near and broken
 
-Under a declared `tol`, each operation's measured covariance residual puts it in one of
+Under a declared precision, with `tol` the tolerance it derives, each operation's measured covariance residual puts it in one of
 three classes:
 
 | class | residual | what it means |
@@ -127,10 +127,6 @@ print(Counter(s.classes.values()), f"exact up to {s.exact_gate:.2g}, near up to 
 
 The two exact operations are the identity and time reversal, which a real rescaling of each
 hopping keeps; the other fourteen hold only within the declaration.
-[`classify_operations`](../reference/functions.md#classify_operations) makes the same
-classification by hand, on the operations a call measured to hold at the declared `tol`,
-`r.validated`, and, handed the covariances of the representation
-the projection is built with (`anchored=`), at the larger of the two.
 
 ## The centres first, because moving them is a gauge
 
@@ -258,7 +254,7 @@ low with nothing declared wants `precision=` before anything else.
 A near operation is one the declaration already calls symmetric within noise, so
 projecting `H` onto its group-invariant part moves it by about the residual, inside that
 same declaration, and the model that comes back passes the exact checks. `realized_group`
-runs the projection at its default `symmetrize="auto"`, and the record's `symmetrization`
+runs the projection itself, where a declared precision calls for it, and the record's `symmetrization`
 says how far the Hamiltonian moved:
 
 ```python
@@ -326,9 +322,6 @@ print(rb.symmetrization, sorted({b["name"] for b in rb.descent["dropped"]}))
 The fourfold rotations and the diagonal mirrors, each with its partner combined with time
 reversal, are broken and named on the record's `descent`, and `symmetrization` is `None`. The
 declared precision is what separates near from broken, which is why it is declared.
-[`symmetrize`](../reference/functions.md#symmetrize), called by hand on a record
-whose operations include one broken at the `tol` it is given, refuses
-`symmetrize_broken_operation` rather than impose a symmetry the model does not have.
 
 ## A large model
 
@@ -357,8 +350,6 @@ long.
   centres off the cell's operations with no precision declared, by enough to break them,
   or, where an operation reads near-symmetric, by more than the projection's operators
   carry them to.
-- [`rep_not_covariant`](../reference/refusals.md#rep_not_covariant): near-symmetric
-  operations meeting the exact check unprojected, with `symmetrize=False`.
 - [`projection_too_large`](../reference/refusals.md#projection_too_large) and
   [`detector_too_large`](../reference/refusals.md#detector_too_large): a memory budget.
 - [`operations_not_consistent`](../reference/refusals.md#operations_not_consistent) and
@@ -368,7 +359,6 @@ long.
   unless they cannot be read as a symmetric set at all, as when two sites of one species
   sit closer together than the symmetry finder can tell apart.
 - The projection's own checks,
-  [`symmetrize_broken_operation`](../reference/refusals.md#symmetrize_broken_operation),
   [`symmetrize_defect_exceeds_tol`](../reference/refusals.md#symmetrize_defect_exceeds_tol)
   and [`symmetrize_range_not_closed`](../reference/refusals.md#symmetrize_range_not_closed).
 
@@ -379,9 +369,7 @@ long.
 A spinor calculation arrives from pythtb's importer as a spinless model with the spin inside
 the orbital index, and `spin=` beside `precision=` declares which orbitals are the up and
 down states of one Wannier function ([a wannier90 spinor import](spin.md#a-wannier90-spinor-import)).
-Every argument: [`realized_group`](../reference/functions.md#realized_group), and the two
-passes by hand, [`symmetrize_positions`](../reference/functions.md#symmetrize_positions) and
-[`symmetrize`](../reference/functions.md#symmetrize). Every field of the record's
+Every argument: [`realized_group`](../reference/functions.md#realized_group). Every field of the record's
 `precision`, `positions` and `symmetrization`: [the records reference](../reference/records.md).
 Every tolerance, with its unit and default: [the glossary](../reference/glossary.md). A real
 material on this route: [silicon from wannier90](../start/tutorial-wannier90.md).

@@ -973,8 +973,7 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     ``I4_1``, whose fourfold screw the hoppings pin at ``i`` between two orbits
     of multiplets, and ``_build_rep`` called again on that group reads that
     factor as the root of unity it is and builds the matrices
-    ``realized_group`` returned.  With ``descend=False`` the eight are named
-    instead.  Its orthorhombic sibling in ``Pmmm1'`` is the
+    ``realized_group`` returned.  Its orthorhombic sibling in ``Pmmm1'`` is the
     tie: three ``2/m`` subgroups carry one, and the rule keeps the one whose
     twofold lies along the conventional ``c``, then ``a``, then ``b``.  The
     sibling's bonds written on the tetragonal cell descend in two steps, the
@@ -1116,17 +1115,13 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     assert repr(out).endswith("(8 antiunitary operations measured to hold) but is beyond "
                               "the validated scope)")
     assert "descended from P4/mmm1'" not in repr(out)
-    refused = tqg.realized_group(flat_p, descend=False)
-    assert isinstance(refused, Refusal) and refused.gate == "cell_group_not_realized"
-    assert refused.context["refuted_by"] == {"projective class": 8}
-    assert sorted(refused.context["projective_class"]) == sorted(b["ind"] for b in d["dropped"])
-    assert "projective class of the states" in refused.reason and "`spin=`" in refused.reason
-    assert refused.context["group"].number_str == "123"
     # ... and _build_rep, handed the fixed group P4/mmm it cannot lower, still
     # names the pair and the sign no single-valued representation carries
-    fixed = refused.context["group"]
+    fixed = _spacegroup._group_of(flat_p, typat=[0] * int(flat_p.norb), spinor=False,
+                                  include_TR=False)
+    assert fixed.number_str == "123"
     no_rep = _build._build_rep(flat_p, fixed, _tables._assign_orbitals(flat_p, fixed),
-                            validated=refused.context["validated"])
+                            validated=_measure._validate_group(flat_p, fixed))
     assert isinstance(no_rep, Refusal) and no_rep.gate == "rep_not_multiplicative"
     assert no_rep.value == pytest.approx(2.0, abs=1e-9)
     assert no_rep.context["commutation_phase"] == pytest.approx(-1.0, abs=1e-9)
@@ -1544,7 +1539,7 @@ def test_a_pair_given_two_different_characters_is_a_grammar_error(km_flat, monke
     with pytest.raises(ValueError, match="spin pair 0"):
         tqg.realized_group(flat, spin="interleaved", characters={0: "s", 1: "pz"})
     with pytest.raises(ValueError, match="split between"):
-        tqg.realized_group(flat, spin="interleaved", multiplets=[[(0,), (1,)], [(2, 3)]])
+        tqg.realized_group(flat, spin="interleaved", site_multiplets=[[(0,), (1,)], [(2, 3)]])
 
 
 # ---------------------------------------------------------------------------
@@ -1717,8 +1712,7 @@ def test_the_transcription_in_pythtbs_convention_is_labelled_s_in_its_own_group(
     operation exact, while the matrices the tables' spin lift anchors miss ``H``
     by the turn and read near, so the projection makes them exact and
     ``P6mm1' #183.186`` is returned, both sites ``-E1``, ``H`` moved by about the
-    turn.  With ``symmetrize=False`` the exact gate refuses, inside the declared
-    tolerance.
+    turn.
     """
     fixture = tqc_models.p41_flat_band()
     paper = _onto_the_papers_axis(fixture)            # the involution: back to the paper's
@@ -1752,10 +1746,6 @@ def test_the_transcription_in_pythtbs_convention_is_labelled_s_in_its_own_group(
     assert read.descent is None and read.rep.characters.irreps == ("-E1", "-E1")
     rec = read.symmetrization
     assert rec.near and 1e-7 < rec.defect < 1e-5, "H moved by about the turn"
-    kept = tqg.realized_group(turned, precision=1e-5, symmetrize=False)
-    assert kept.gate == "rep_not_covariant", str(kept)
-    assert 1e-7 < kept.value < read.precision["tol"]
-    assert kept.context["group"].number_str == "183.186"
 
 
 def test_a_wrong_but_well_formed_pairing_dies_before_anything_is_built(km_flat):

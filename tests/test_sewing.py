@@ -1033,7 +1033,7 @@ def test_a_feature_sector_wfarray_sews(lin3g_undeclared):
 
 def test_module_surface():
     """The names the package serves: the sewing module's, the spinor declaration's
-    and the symmetrizing pass's."""
+    and the symmetrizing pass's record."""
     from pythtqc import spin as tqsp
     from pythtqc import symmetrization as tqsym
 
@@ -1064,8 +1064,12 @@ def test_module_surface():
         assert getattr(tqc, name) is getattr(tqsp, name)
     assert "spin" in tqc.__all__ and tqc.spin is tqsp
 
-    # `tqc.symmetrize` is the projection itself, not the module holding it
-    assert tqc.symmetrize is tqc.symmetrization.symmetrize is tqsym.symmetrize
+    # the projection is run by `realized_group` alone: the module holding it
+    # exports the record, not the calls
+    for name in ("symmetrize", "symmetrize_positions", "classify_operations"):
+        assert not hasattr(tqc, name) and name not in tqc.__all__, name
+        assert not hasattr(tqsym, name) and name not in tqsym.__all__, name
+    assert tqc.symmetrization is tqsym
     assert callable(tqc.utils.save_figure)
-    for name in ("symmetrization", "utils", "symmetrize"):
+    for name in ("symmetrization", "utils"):
         assert name in tqc.__all__, name

@@ -943,7 +943,7 @@ def _band_representations(rep) -> tuple:
                 "be identified: the orbital centres miss "
                 f"the operations by {miss:.3g} (reduced), more than the {_BLOCH_TOL:.0e} the "
                 "Bloch operators carry them to; move them onto the group's positions first, "
-                "with realized_group's precision= or with symmetrize_positions")
+                "with realized_group's precision=")
         return tuple(BandRepresentation(**where_of(orbit, orbitals)[1], terms=(), note=note)
                      for orbit, orbitals, _rows in blocks)
     measured = _orbit_contents(group, rep, [rows for _orbit, _orbitals, rows in blocks])
