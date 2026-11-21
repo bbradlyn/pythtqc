@@ -148,26 +148,36 @@ def bilayer_slab(dz=0.3):
     return m
 
 
-def by_bond(vectors, positions, hop, reach=2):
+def by_bond(vectors, positions, hop, reach=2, rows=None):
     """One orbital at each site, the hopping from orbital ``i`` to ``j`` a function of the bond alone.
 
     ``hop(i, j, d)`` is the amplitude for the Cartesian bond ``d``, so the model
     is the same crystal on whichever lattice basis ``vectors`` are written in.
+    With ``rows``, the bonds are those within ``reach`` cells of ``vectors``,
+    and the model is written on the basis ``rows @ vectors``, as
+    :func:`on_basis` writes the sites.
     """
     vectors, positions = np.asarray(vectors, float), np.asarray(positions, float)
     dim = len(vectors)
-    m = TBModel(lattice=Lattice(vectors.tolist(), positions.tolist(),
+    if rows is None:
+        written, sites, inv, shift = vectors, positions, np.eye(dim), np.zeros_like(positions)
+    else:
+        written, sites = on_basis(vectors, positions, rows)
+        inv = np.linalg.inv(np.asarray(rows, float))
+        shift = np.rint(positions @ inv - sites)
+    m = TBModel(lattice=Lattice(written.tolist(), sites.tolist(),
                                 periodic_dirs=list(range(dim))))
     m.set_onsite([0.0] * len(positions))
     cells = np.array(np.meshgrid(*[range(-reach, reach + 1)] * dim, indexing="ij"))
     for i in range(len(positions)):
         for j in range(i, len(positions)):
             for R in cells.reshape(dim, -1).T:
-                if i == j and tuple(R) <= (0,) * dim:
+                Rw = np.rint(R @ inv + shift[j] - shift[i]).astype(int)
+                if i == j and tuple(Rw) <= (0,) * dim:
                     continue
                 t = hop(i, j, (positions[j] + R - positions[i]) @ vectors)
                 if t:
-                    m.set_hop(t, i, j, R.tolist())
+                    m.set_hop(t, i, j, Rw.tolist())
     return m
 
 
@@ -384,6 +394,9 @@ def test_the_group_is_independent_of_how_the_cell_is_written():
     ``s`` orbital on ``a1 + 2 a2, a2``, a layer whose points S and Y stay in
     its plane; and the hexagonal lattice with one ``s`` orbital on
     ``a1 + 10 a2, a2, a3``, whose K is found at its coordinates in that cell.
+    Two more on bases whose operations' integer matrices reach hundreds: the
+    square lattice with one ``s`` orbital, read as on ``a1, a2``, and
+    zincblende, read with its group.
     """
     for build in (lambda: graphene(0.0, -1.0), bilayer_slab):
         a = _spacegroup._group_of(build(), include_TR=False, vacuum_length=20.0)
@@ -443,6 +456,23 @@ def test_the_group_is_independent_of_how_the_cell_is_written():
                   s_hexagonal, reach=11)
     assert read(far, 1) == ("P6/mmm1'", "191.234", "GM1+ + A1+ + H1 + K1 + L1+ + M1+",
                             [("1a", "A1g")])
+
+    # rotations whose entries reach hundreds in the cell's reduced coordinates: the square
+    # lattice on 5 a1 + 8 a2, 3 a1 + 5 a2, its H(Rk) rounding with them; and zincblende on
+    # a1, 6 a1 + a2, 4 a1 + 9 a2 + a3, its translations rebuilt from the tables', read in
+    # the setting this cell's carrying onto the tables' cell gives, B on 4d
+    assert read(by_bond(square_vectors, [[0.0, 0.0]], s_square, rows=[[5, 8], [3, 5]]), 1) == reduced
+
+    def s_zincblende(i, j, d):
+        r = round(float(np.linalg.norm(d)), 6)
+        if r == 0.433013 and i != j:
+            return -1.0
+        return {0: -0.2, 1: -0.1}[i] if r == 0.707107 and i == j else 0.0
+
+    zincblende = by_bond(fcc, [[0.0, 0.0, 0.0], [0.25, 0.25, 0.25]], s_zincblende,
+                         rows=[[1, 0, 0], [6, 1, 0], [4, 9, 1]])
+    assert read(zincblende, 1) == ("F-43m1'", "216.75", "GM1 + L1 + W4 + X3",
+                                   [("4a", "A1"), ("4d", "A1")])
 
 
 @pytest.mark.slow

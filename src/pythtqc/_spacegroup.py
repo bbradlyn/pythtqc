@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from dataclasses import dataclass, field
+from fractions import Fraction
 from functools import lru_cache
 import math
 import os
@@ -1815,6 +1816,28 @@ def _translation_closure(symmetries) -> float:
     return float(worst)
 
 
+def _rebuilt_translation(refUC, t_ref, shift, R, t_old) -> np.ndarray:
+    r"""``refUC·t_ref + s − R s``, moved by the lattice vector that puts it nearest ``t_old``.
+
+    Every term is an exact rational: ``R`` is an integer matrix, ``t_ref`` the
+    tabulated fraction and ``refUC`` and ``s`` the binary numbers they are
+    stored as.  The sum is formed exactly and rounded once, so the translation
+    carries one rounding of its own size.  Formed in floating point, the
+    products ``R s`` round at the size of the rotation's entries, which on a
+    strongly skewed lattice basis reach hundreds, and the closure multiplies
+    that by such entries again.
+    """
+    exact = [Fraction(float(x)) for x in np.ravel(shift)]
+    out = []
+    for i in range(len(exact)):
+        v = exact[i]
+        for j in range(len(exact)):
+            v += Fraction(float(refUC[i, j])) * Fraction(float(t_ref[j]))
+            v -= Fraction(float(R[i, j])) * exact[j]
+        out.append(v)
+    return np.array([float(v + round(float(t_old[i]) - float(v))) for i, v in enumerate(out)])
+
+
 def _exact_operations(sg, symprec, tables_ready, lattice) -> tuple | Refusal:
     r"""Make the identified operations close **exactly** — and only if they do not.
 
@@ -1926,9 +1949,8 @@ def _exact_operations(sg, symprec, tables_ready, lattice) -> tuple | Refusal:
                 f"group #{sg.number_str}: operation #{s.ind}'s reference-cell rotation "
                 f"is not among the tabulated ones, so the shipped symmetry list and "
                 "the identified one are not the same group.")
-        t_map = refUC @ tabulated[key] + shiftUC - R @ shiftUC
         t_old = np.asarray(s.translation, dtype=float)
-        t_new = t_map + np.rint(t_old - t_map)
+        t_new = _rebuilt_translation(refUC, tabulated[key], shiftUC, R, t_old)
         defect = max(defect, float(np.abs(t_new - t_old).max()))
         # the same move as a length, in the units the finder's distance is in
         moved = max(moved, float(np.linalg.norm((t_new - t_old) @ lat)))

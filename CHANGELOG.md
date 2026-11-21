@@ -69,6 +69,14 @@
   operations measured to hold do not close into a group, as a numerical model's
   operations near its tolerance can: the largest group they contain, as for any such
   model.
+- `realized_group` builds the representation of a crystal written on a strongly skewed
+  lattice basis, where it refused `rep_not_covariant` though every operation held: the
+  square lattice with one `s` orbital on `5 a1 + 8 a2, 3 a1 + 5 a2` among them. The
+  covariance of `H(k)` is held to the rounding its Bloch phases carry at the rotated
+  k-points besides that of the representation's own arithmetic.
+- `realized_group` reads zincblende written on `a1, 6 a1 + a2, 4 a1 + 9 a2 + a3`, where it
+  raised `InternalError`, the operations rebuilt from the tabulated ones not closing. Each
+  rebuilt translation is formed exactly and rounded once.
 
 ## 0.1.0a3 — the second public version
 

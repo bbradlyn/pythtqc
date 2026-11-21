@@ -71,6 +71,7 @@ from pythtqc.refusal import Refusal
 from pythtqc import sewing as tqw
 from pythtqc import spin as tqsp
 from pythtqc import symmetry as tqs
+from pythtqc import _bloch
 from pythtqc import _build
 from pythtqc import _layers
 from pythtqc import _matrices
@@ -2802,9 +2803,9 @@ def test_a_site_s_operations_bind_its_orbitals_and_copies_of_one_irrep_are_one(c
     for apart in _LABELS_REST_ON.get(case, ()):
         note = tqw.hsp_table(realize(apart(), **kwargs).rep, bands=6).note
         assert note == tqw._ANOTHER_LABELLING_RELABELS, note
-    # the covariance gate is the larger of the exact floor and the rounding the
-    # representation's own arithmetic carries, |G| N eps max|H| on its battery:
-    # the floor for the 4mm pair, the P2/m cases and the shells of R3m, R-3m and
+    # the covariance gate is the larger of the exact floor, the rounding the
+    # representation's own arithmetic carries, |G| N eps max|H| on its battery, and
+    # the rounding of the Bloch phases there; the second is the floor for the 4mm pair, the P2/m cases and the shells of R3m, R-3m and
     # P-43m, and far above it on the 96 operations of the 8c models, whose
     # measured blocks are carried through the group's words -- and every case
     # closes it; the matrices multiply as the group does to the same rounding,
@@ -2812,8 +2813,11 @@ def test_a_site_s_operations_bind_its_orbitals_and_copies_of_one_irrep_are_one(c
     rep = out.rep
     scale = float(np.abs(np.asarray(rep.model.hamiltonian(
         k_pts=rep._battery, flatten_spin_axis=True))).max())
-    gate = tqs.covariance_gate(len(rep.indices), int(rep.model.nstate), scale)
-    assert rep._search["gate"] == gate and (gate > GATE) == (len(rep.indices) == 96)
+    arithmetic = tqs.covariance_gate(len(rep.indices), int(rep.model.nstate), scale)
+    phases = _matrices._phase_rounding(_bloch.evaluator(rep.model), rep.group,
+                                       rep._operations, rep._battery)
+    gate = tqs.covariance_gate(len(rep.indices), int(rep.model.nstate), scale, phases)
+    assert rep._search["gate"] == gate and (arithmetic > GATE) == (len(rep.indices) == 96)
     assert max(rep.residuals.values()) <= gate
     assert rep.product_residual <= tqs.covariance_gate(len(rep.indices),
                                                        int(rep.model.nstate), 1.0)

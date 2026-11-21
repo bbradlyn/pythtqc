@@ -241,6 +241,54 @@ class _BlochSum:
             ham[:, rows[:, :, None], rows[:, None, :]] += self.site[None, :, :, :]
         return ham
 
+    def phase_rounding(self, k_pts, rotation=None) -> float:
+        r"""The rounding ``H`` carries from its Bloch phases, at ``k`` or at its image ``k W``.
+
+        Each phase ``e^{2\pi i x}`` is taken of a reduced dot product
+        ``x = q\cdot R`` or ``q\cdot\tau``, which rounds at ``ε`` times the sum
+        of its terms' sizes, ``|q|\cdot|R|``.  At the image ``q = k W`` of an
+        operation whose integer matrix ``W`` has large entries, as on a strongly
+        skewed lattice basis, the terms are large and cancel to a phase of
+        order one, so the phase rounds at ``2\pi ε\,(|k||W|)\cdot|R|``, and
+        ``H`` at ``2\pi ε`` times each hopping's size weighted by that sum.
+        The bound on an entry is summed along its row, which bounds
+        ``|D\,δH\,D^\dagger|`` for any unitary ``D``.
+
+        Parameters
+        ----------
+        k_pts : array of shape (n, dim_k)
+            The reduced k-points ``k``.
+        rotation : array of shape (dim_k, dim_k), optional
+            ``W``, the operation's action on reduced k as rows,
+            ``k \mapsto k W``.  Omitted, ``H(k)`` itself is estimated.
+
+        Returns
+        -------
+        float
+            The largest such rounding over ``k_pts``, in the units of ``H``;
+            ``0.0`` for a model with no hoppings.
+        """
+        if not self.n_hops:
+            return 0.0
+        a = np.abs(np.atleast_2d(np.asarray(k_pts, dtype=float)))
+        if rotation is not None:
+            a = a @ np.abs(np.asarray(rotation, dtype=float))
+        M = self.nstate
+        size = np.abs(self.blocks).reshape(self.n_R, M, M)
+        size = size + size.swapaxes(-2, -1)           # each hopping and its conjugate
+        rows = size.sum(axis=-1)                      # (n_R, M): an entry's row sum, per R
+        R_abs = np.abs(self.unique_R)
+        tau = np.abs(self.orb_per)
+        if self.nspin != 1:
+            tau = np.repeat(tau, self.nspin, axis=0)
+        whole = size.sum(axis=0)                      # (M, M)
+        s_R = a @ R_abs.T                             # (n, n_R): |q|.|R|
+        s_tau = a @ tau.T                             # (n, M): |q|.|tau|
+        bound = (s_R @ rows                           # the lattice vectors' phases
+                 + s_tau * whole.sum(axis=-1)[None, :]  # the row's own centre
+                 + s_tau @ whole.T)                   # each column's centre
+        return float(2.0 * np.pi * np.finfo(float).eps * bound.max())
+
 
 _kept: OrderedDict = OrderedDict()
 _kept_bytes = 0

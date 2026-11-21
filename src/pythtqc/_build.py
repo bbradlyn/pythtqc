@@ -27,7 +27,8 @@ from ._matrices import (
     _covariance_battery, _identity_position, _lift_of, _minimal_generators,
     _moves_padded, _order_and_zeta, _power, _product_table_residual, _propagated,
     _proportionality, _real_characters, _resolve_spin, _settle_unit,
-    _spin_pair_split, _translation_phase, bloch_operator, covariance_gate)
+    _phase_rounding, _spin_pair_split, _translation_phase, bloch_operator,
+    covariance_gate)
 from ._grammar import _declaration_grammar
 from ._naming import _site_tables
 from .symmetry import MultiplicitySpace, SpaceGroupRep, _fold
@@ -747,7 +748,9 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
         is :func:`covariance_gate` of this build: the larger of the exact floor
         :data:`.._tolerance.EXACT_TOL`, ``5e-14``, and ``|G|·N·ε·max|H|``, the rounding a
         representation of the ``|G|`` operations represented, on ``N`` states,
-        carries, with ``max|H|`` the largest entry of ``H(k)`` on the battery.
+        carries, with ``max|H|`` the largest entry of ``H(k)`` on the battery,
+        and the rounding of the Bloch phases of ``H(k)`` and ``H(Rk)`` there,
+        which grows with the integers of a strongly skewed lattice basis.
         Rounding never refuses a valid model; above the gate the verdict is the
         verdict, and nothing is weakened to make a candidate pass.  A number
         given here is the gate.
@@ -1574,9 +1577,11 @@ def _candidate_battery(model, group, ops, mul, meas, *, k_pts, n_battery, seed, 
     bloch = _bloch.evaluator(model)
     H = np.asarray(bloch(k_pts))
     if tol is None:
-        # the rounding this representation's own arithmetic carries, measured
-        # on the battery it is gated on, and never below the exact floor
-        tol = covariance_gate(len(kept), nstate, float(np.abs(H).max()))
+        # the rounding this representation's own arithmetic and the Bloch
+        # phases carry, measured on the battery it is gated on, and never
+        # below the exact floor
+        tol = covariance_gate(len(kept), nstate, float(np.abs(H).max()),
+                              _phase_rounding(bloch, group, [syms[p] for p in kept], k_pts))
     Hrot, kact = {}, {}
     for p in kept:
         act = group.k_action_of(syms[p])
@@ -3032,7 +3037,8 @@ def _exact_gate(model, group, validated, build_kw=None) -> float:
 
     The same :func:`covariance_gate`, measured the way the build measures it:
     ``|G|`` the operations it represents, ``N`` the model's states and
-    ``max|H|`` on its battery.  ``build_kw`` are the build's own keywords, of
+    ``max|H|`` and the rounding of the Bloch phases on its battery.
+    ``build_kw`` are the build's own keywords, of
     which ``operations=``, ``include_vacuum_ops=``, ``k_pts=``, ``n_battery=``
     and ``seed=`` bear on the gate.
     A detection record carries neither ``N`` nor ``max|H|``, so
@@ -3048,8 +3054,10 @@ def _exact_gate(model, group, validated, build_kw=None) -> float:
     ops = _given("operations")
     indices = [int(i) for i in (validated.indices if ops is None else ops)]
     padded = bool(_given("include_vacuum_ops"))
-    n_operations = sum(1 for i in indices
-                       if padded or not _moves_padded(syms[i], group.vacuum_dirs))
+    kept = [syms[i] for i in indices
+            if padded or not _moves_padded(syms[i], group.vacuum_dirs)]
     k_pts = _covariance_battery(group, _given("k_pts"), _given("n_battery"), _given("seed"))
-    H = np.asarray(_bloch.hamiltonian(model, k_pts))
-    return covariance_gate(n_operations, int(model.nstate), float(np.abs(H).max()))
+    bloch = _bloch.evaluator(model)
+    H = np.asarray(bloch(k_pts))
+    return covariance_gate(len(kept), int(model.nstate), float(np.abs(H).max()),
+                           _phase_rounding(bloch, group, kept, k_pts))

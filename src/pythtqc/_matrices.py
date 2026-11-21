@@ -2303,13 +2303,16 @@ def _atom_blocks(states, su2):
 
 
 
-def covariance_gate(n_operations, nstate, scale) -> float:
-    r"""The rounding a representation's covariance carries, ``max(5e-14, |G|·N·ε·max|H|)``: the most an exact one misses by.
+def covariance_gate(n_operations, nstate, scale, phases=0.0) -> float:
+    r"""The rounding a representation's covariance carries, ``max(5e-14, |G|·N·ε·max|H|, phases)``: the most an exact one misses by.
 
     An exact representation's covariance ``max_k ‖D H(k) D† − H(Rk)‖`` is the
     rounding of its own arithmetic: its matrices are products of up to ``|G|``
     matrices of size ``N × N``, each rounding at ``N·ε``, and ``D H D†``
-    carries that onto entries of ``H`` as large as ``max|H|``.  A wrong matrix
+    carries that onto entries of ``H`` as large as ``max|H|``.  ``H(Rk)``
+    carries the rounding of its Bloch phases besides, which grows with the
+    integers of the operation's action on reduced k and of the hopping
+    vectors, both large on a strongly skewed lattice basis.  A wrong matrix
     misses by a fraction of ``max|H|`` itself, many decades above.
 
     Parameters
@@ -2322,6 +2325,10 @@ def covariance_gate(n_operations, nstate, scale) -> float:
     scale : float
         ``max|H|``, the largest entry of ``H(k)`` over the ``k`` the covariance
         is measured at.
+    phases : float, optional
+        The rounding ``H(k)`` and ``H(Rk)`` carry from their Bloch phases over
+        those ``k`` and operations, in the units of ``H``
+        (:func:`_phase_rounding`).  Default ``0.0``.
 
     Returns
     -------
@@ -2331,7 +2338,38 @@ def covariance_gate(n_operations, nstate, scale) -> float:
         96 operations of ``Im-3m1'`` on 32 states with ``max|H| = 1.76``.
     """
     return max(EXACT_TOL, float(n_operations) * float(nstate)
-               * float(np.finfo(float).eps) * float(scale))
+               * float(np.finfo(float).eps) * float(scale), float(phases))
+
+
+def _phase_rounding(bloch, group, operations, k_pts) -> float:
+    r"""The rounding of the Bloch phases a covariance ``‖D H(k) D† − H(Rk)‖`` carries.
+
+    The most :meth:`.._bloch._BlochSum.phase_rounding` gives at ``k``, added
+    to the most it gives at an image ``Rk`` over the operations, each image
+    taken through the operation's integer action on reduced k.
+
+    Parameters
+    ----------
+    bloch : .._bloch._BlochSum
+        The model's Bloch sum, :func:`.._bloch.evaluator`.
+    group : .._spacegroup.GroupData
+        The group the operations are of.
+    operations : iterable of irrep.symmetry_operation.SymmetryOperation
+        The operations whose covariance is measured.
+    k_pts : array of shape (n, dim_k)
+        The k-points it is measured at.
+
+    Returns
+    -------
+    float
+        In the units of ``H``.
+    """
+    images = 0.0
+    for op in operations:
+        act = group.k_action_of(op)
+        if act is not None:
+            images = max(images, bloch.phase_rounding(k_pts, act(np.eye(group.dim_k))))
+    return bloch.phase_rounding(k_pts) + images
 
 
 def _covariance_battery(group, k_pts, n_battery, seed):
