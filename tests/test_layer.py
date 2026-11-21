@@ -973,7 +973,8 @@ def test_a_buckled_honeycomb_is_read_from_its_real_geometry():
     identity = comp.gates.hamiltonian_identity
     assert identity.at_zero == 0.0 and identity.residual <= identity.threshold
     pair = tqr.srsi_of_bands(tqw.hsp_table(r, bands=2))
-    assert pair.stable and [str(x) for x in pair.theta_Z] == \
+    assert any(x.denominator != 1 for x in pair.theta_Z.values()) and \
+        [str(x) for x in pair.theta_Z.values()] == \
         ["-1/2", "0", "0", "0", "0", "0", "0", "1/2", "0"]
     assert tqr.srsi_of_bands(tqw.hsp_table(r, bands=4)).theta_Z == \
         tqr.srsi_of_model(r).theta_Z
@@ -1104,8 +1105,8 @@ def test_a_mirror_symmetric_bilayer_keeps_its_sigma_h():
     assert sorted(pair.numerical.restriction.outside_layer) == ["1b", "1d", "2e"]
     (orbit,) = free.wyckoff_orbits
     assert orbit.numerical.alternatives == ()
-    (srsi_orbit,) = tqr.srsi_of_model(free).orbits
-    assert [loc["letter"] for loc in srsi_orbit.localizations] == ["a"]
+    (srsi_orbit,) = tqr.srsi_of_model(free).wyckoff_orbits
+    assert [loc.wyckoff for loc in srsi_orbit.numerical.localizations] == ["1a"]
     for bands in (1, 2):
         si = tqe.symmetry_indicator(tqw.hsp_table(free, bands=bands))
         assert not si.divisors, si

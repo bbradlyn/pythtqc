@@ -79,8 +79,15 @@ def values(theta):
     return "(" + ", ".join(str(v) for v in theta) + ")"
 
 
+def mod_n(theta_zn, modulus):
+    """The invariants valued modulo ``modulus``, in the tables' order."""
+    return tuple(entry.value for entry in theta_zn.values() if entry.modulus == modulus)
+
+
 def moduli(theta_zn):
-    return ", ".join(f"mod {n} {values(theta)}" for n, theta in sorted(theta_zn.items()))
+    """The invariants valued modulo n, by modulus, ``mod 2 (0, 1)``."""
+    return ", ".join(f"mod {n} {values(mod_n(theta_zn, n))}"
+                     for n in sorted({entry.modulus for entry in theta_zn.values()}))
 
 
 def atomic_limits(d):
@@ -94,14 +101,22 @@ def atomic_limits(d):
     return "atomic limits", f"{len(sums)} sums of elementary band representations"
 
 
+def reading(split):
+    """``nsit`` or ``not nsit``, the criterion's answer on a splitting."""
+    return "nsit" if split.nsit else "not nsit"
+
+
 def positions(s):
     """The Wyckoff positions of a sum of elementary band representations, one per copy."""
     return sorted(t.wyckoff for t in s for _ in range(t.multiplicity))
 
 
-def columns(s):
-    """A sum of elementary band representations by the SRSI tables' columns, {(irrep, letter): m}."""
-    return {(t.irrep, t.wyckoff.lstrip("0123456789")): t.multiplicity for t in s}
+def counts(terms):
+    """A sum of site irreps at Wyckoff positions as a mapping, {(irrep, wyckoff): m}."""
+    out = {}
+    for t in terms:
+        out[(t.irrep, t.wyckoff)] = out.get((t.irrep, t.wyckoff), 0) + t.multiplicity
+    return out
 
 
 ########### 1. the model, its two orbits and all eight bands ###########
@@ -118,26 +133,29 @@ row("realized group", f"#{group.number_str} {group.name}, orbitals at Wyckoff "
 
 tables = tqc.srsi_tables(group)
 m_srsi = tqc.srsi_of_model(r)
-first, second = m_srsi.orbits[0], m_srsi.orbits[1]
-row(f"the {first.multiplicity}{first.letter} orbit", fmt(first.content))
-row(f"the {second.multiplicity}{second.letter} orbit", fmt(second.content))
+# the orbitals at each position: the Wyckoff orbits there, their contents added
+for here in letters:
+    content = {}
+    for orbit in m_srsi.wyckoff_orbits:
+        if orbit.wyckoff == here:
+            for corep, m in orbit.numerical.symmetry_data.items():
+                content[corep] = content.get(corep, 0) + m
+    row(f"the {here} orbit", fmt(content))
 
 t8 = tqc.hsp_table(r, bands=8)
 d8 = tqc.decompose(t8)
-# the orbitals' own sum: each orbit's elementary band representations, by the tables' columns
-own = {key: m for orbit in (first, second)
-       for key, m in zip(tables.ebrs, orbit.chosen["p"]) if m}
-own_sum = next(s for s in d8.candidate_sums if columns(s) == own)
+# the orbitals' own sum: each Wyckoff orbit's elementary band representations
+own = counts(t for orbit in m_srsi.wyckoff_orbits for t in orbit.numerical.chosen)
+own_sum = next(s for s in d8.candidate_sums if counts(s) == own)
 words = own_sum.label.split(" + ")
-own_terms = [" + ".join(w for w, t in zip(words, own_sum)
-                        if t.wyckoff.lstrip("0123456789") == orbit.letter)
-             for orbit in (first, second)]
+own_terms = [" + ".join(w for w, t in zip(words, own_sum) if t.wyckoff == here)
+             for here in letters]
 row("all 8 bands", fmt(t8.symmetry_data))
 row("atomic limits", f"{atomic_limits(d8)[1]}, at",
     ", ".join("+".join(where) for where in sorted(positions(s) for s in d8.candidate_sums)))
 row("the model's own", f"{'+'.join(positions(own_sum))}, {own_terms[0]}",
     f"+ {own_terms[1]}")
-row("srsi_of_model(r)", "the invariants of the model and of each site orbit")
+row("srsi_of_model(r)", "the invariants of the model and of each Wyckoff orbit")
 print(textwrap.indent(m_srsi.summary(), "   "))
 print("   the two orbits have one content and different Z2-valued invariants; the eight")
 print("   bands are three elementary band representations at two Wyckoff positions, an")
@@ -152,30 +170,33 @@ row("bands 4 and 5", fmt(p2.symmetry_data))
 row(*atomic_limits(d2))
 
 b2 = tqc.srsi_of_bands(p2)
-row("srsi_of_bands", f"Z-valued {values(b2.theta_Z)}, and no Z_n-valued invariants")
+row("srsi_of_bands", f"Z-valued {values(b2.theta_Z.values())}, and no Z_n-valued invariants")
+
+# the group's elementary band representations, in the order of its list
+EBRS = [(e.irrep, e.wyckoff) for e in tqc.ebr_data(group).ebrs]
 
 
 def signed_sum(p):
     """A vector over the group's elementary band representations, in the invariants' notation."""
     parts = []
-    for m, (irrep, letter) in zip(p, tables.ebrs):
+    for irrep, wyckoff in EBRS:
+        m = p.get((irrep, wyckoff), 0)
         if m:
             sign = "- " if m < 0 else ("+ " if parts else "")
-            parts.append(f"{sign}{abs(m)} ({irrep})_{letter}")
+            parts.append(f"{sign}{abs(m)} ({irrep})_{wyckoff.lstrip('0123456789')}")
     return " ".join(parts)
 
 
 # two vectors over the elementary band representations with this content: the
 # one atomic limit, and the rational vector the band route evaluates, one of
 # many with the same content
-p = columns(d2.candidate_sums[0])
-column = tables.theta(p)
-solved = tables.theta_columns(list(b2.p))
-row("the atomic limit", f"{signed_sum(tuple(p.get(key, 0) for key in tables.ebrs))}, "
-    f"Z-valued {values(column[0])}, "
-    f"{moduli(column[1])}")
-row("a signed sum", f"{signed_sum(b2.p)}, Z-valued {values(solved[0])}, "
-    f"{moduli(solved[1])}")
+column = tables.theta(d2.candidate_sums[0])
+solved = tables.theta(b2.numerical.p)
+row("the atomic limit", f"{signed_sum(counts(d2.candidate_sums[0]))}, "
+    f"Z-valued {values(column.theta_Z.values())}, "
+    f"{moduli(column.theta_Zn)}")
+row("a signed sum", f"{signed_sum(b2.numerical.p)}, Z-valued {values(solved.theta_Z.values())}, "
+    f"{moduli(solved.theta_Zn)}")
 print("   the Z-valued invariants agree and the Z2-valued ones differ: the Z_n-valued")
 print("   invariants are not functions of the content, so a band set has them only through")
 print("   a set of orbitals known to carry it, the model's own or an atomic limit")
@@ -228,14 +249,14 @@ mid4 = 0.5 * (bands[:, 3].max() + bands[:, 4].min())
 mid6 = 0.5 * (bands[:, 5].max() + bands[:, 6].min())
 ax.axhline(mid4, color="0.35", ls="--", lw=1.1)
 ax.axhline(mid6, color="0.35", ls=":", lw=1.1)
-ax.annotate(f"4-band gap ({gap4:.3f}):  {four.verdict}\n"
-            fr"$\theta_\mathbb{{Z}}[V]=({', '.join(str(v) for v in four.theta_Z_v)})$",
+ax.annotate(f"4-band gap ({gap4:.3f}):  {reading(four)}\n"
+            fr"$\theta_\mathbb{{Z}}[V]=({', '.join(str(v) for v in four.valence.theta_Z.values())})$",
             xy=(0.995, mid4), xycoords=("axes fraction", "data"),
             xytext=(0, 6), textcoords="offset points",
             ha="right", fontsize=9, color="0.15",
             bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="0.7", alpha=0.9))
-ax.annotate(f"6-band gap ({gap6:.3f}):  {six.verdict}\n"
-            fr"$\theta_\mathbb{{Z}}[V]=({', '.join(str(v) for v in six.theta_Z_v)})$",
+ax.annotate(f"6-band gap ({gap6:.3f}):  {reading(six)}\n"
+            fr"$\theta_\mathbb{{Z}}[V]=({', '.join(str(v) for v in six.valence.theta_Z.values())})$",
             xy=(0.995, mid6), xycoords=("axes fraction", "data"),
             xytext=(0, 6), textcoords="offset points",
             ha="right", fontsize=9, color="0.15",
@@ -246,9 +267,9 @@ ax.set_xlim(kd[0], kd[-1])
 ax.set_ylabel("$E$", fontsize=15)
 ax.set_title(f"lin3g in #{group.number_str} {group.name}: the eight bands are "
              f"{'+'.join(positions(own_sum))},\n"
-             fr"$\theta_\mathbb{{Z}}[H]=({', '.join(str(v) for v in m_srsi.theta_Z)})$, "
-             fr"$\theta_{{\mathbb{{Z}}_2}}[H]={m_srsi.theta_Zn[2]}$"
-             f" — the six-band gap {six.verdict}, the four-band gap {four.verdict}",
+             fr"$\theta_\mathbb{{Z}}[H]=({', '.join(str(v) for v in m_srsi.theta_Z.values())})$, "
+             fr"$\theta_{{\mathbb{{Z}}_2}}[H]={mod_n(m_srsi.theta_Zn, 2)}$"
+             f" — the six-band gap {reading(six)}, the four-band gap {reading(four)}",
              fontsize=9)
 fig.tight_layout(pad=0.6)
 # save_figure writes the PDF without its creation date, so a rerun gives the same file

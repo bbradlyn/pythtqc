@@ -182,9 +182,9 @@ which decomposes. The figure is both band structures. It illustrates
 The tables of the stable real-space invariants of
 [Hwang et al., Nat. Commun. **17**, 8564 (2026)](https://doi.org/10.1038/s41467-026-74844-w),
 with no model. It prints space
-group 211 without spin–orbit coupling end to end: its rows, its site keys with
-which are maximal and which have an elementary band representation, and the band
-count as a form in the invariants; the site irreps `B2` and `B3` at Wyckoff `d`,
+group 211 without spin–orbit coupling end to end: its rows, its site irreps with
+which are maximal and which have an elementary band representation; the site
+irreps `B2` and `B3` at Wyckoff `d`,
 which the invariants do not distinguish; two printed indicator rows of space
 group 147 that are not indicators on the group's own elementary band
 representations, and the derived rows returned in their place; the 211
@@ -192,7 +192,7 @@ symmetry-indicated splittings of an elementary band representation that the
 paper's supplement lists, each asked again with the no-go criterion over a complete
 enumeration of atomic realizations; and the 36 pairs of site irreps, over 26
 space groups, that the invariants do not distinguish. The figure tallies the
-verdicts and the pairs. It illustrates
+criterion's answers and the pairs. It illustrates
 [stable real-space invariants](guide/srsi.md).
 
 ### [`tqc_srsi_fkm_two_routes.py`](../examples/tqc_srsi_fkm_two_routes.py)
@@ -203,9 +203,9 @@ denominator 4 in the strong phase, which is the order of its indicator class;
 the orbit's invariants from its orbitals, at Wyckoff `6c`, which is not a
 maximal position, localized at `3a` and at `3b` with the same values; all four
 bands from the bands and from the orbitals, which agree; the denominator against
-the order of the class in all three phases; and the no-go criterion's verdicts,
-`stable topological` in the strong and weak phases and `no Z_n SRSIs` for the
-dimers. The figure is the bands of the three phases. It illustrates
+the order of the class in all three phases; and the no-go criterion, `not nsit`
+in all three: the valence pair's invariants fractional in the strong and weak
+phases, and no invariant valued modulo n for the dimers. The figure is the bands of the three phases. It illustrates
 [stable real-space invariants](guide/srsi.md) and
 [symmetry indicators](guide/indicators.md).
 
@@ -217,8 +217,8 @@ random `k`, their spin blocks conjugated by `iσ_x` onto pythtb's spin axis alon
 `+z`. A chiral next-nearest-neighbour pattern breaks the vertical mirrors so that
 the hoppings obey `P41'` #75.2, the group the paper writes. It prints the
 invariants read off the orbitals; what momentum space says of the two pairs,
-both decomposing, with no indicator group to read; the no-go criterion's
-verdict, `diagnosed topological`; and the Wilson loop of each pair, which says
+both decomposing, with no indicator group to read; the no-go criterion,
+`nsit`; and the Wilson loop of each pair, which says
 which side carries the obstruction. The figure is the spectra and the Wilson
 loops. It illustrates [the no-go criterion](guide/srsi.md#the-no-go-criterion)
 and [a model written for the other spin axis](guide/spin.md#a-model-written-for-the-other-axis).
@@ -228,12 +228,13 @@ and [a model written for the other spin axis](guide/spin.md#a-model-written-for-
 `pythtqc.models.lin3g()`, the spinful model of
 [Lin et al., Nat. Commun. **15**, 550 (2024)](https://doi.org/10.1038/s41467-024-44762-w):
 eight bands from four orbitals at `1a` and `2c`, three elementary band
-representations at two Wyckoff positions. It prints the two orbits, which share
+representations at two Wyckoff positions. It prints the orbitals at its two
+positions, which share
 one content and are told apart only by their `ℤ2`-valued invariants; bands 4 and
 5, which decompose, and why their `ℤ_n`-valued invariants come from the orbitals
 and not from the bands; and the no-go criterion on two gaps of the same
-Hamiltonian: `diagnosed topological` at the gap above the sixth band, and
-`invisible to the SRSIs` at the gap above the fourth. The figure is the eight
+Hamiltonian: `nsit` at the gap above the sixth band, and `not nsit`, two pairs
+of realizations adding up, at the gap above the fourth. The figure is the eight
 bands with both gaps marked. It illustrates
 [stable real-space invariants](guide/srsi.md) and
 [fragility](guide/atomic-limits.md#what-a-decomposition-cannot-certify).

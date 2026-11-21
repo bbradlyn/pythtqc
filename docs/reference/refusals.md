@@ -226,8 +226,7 @@ Returned by `realized_group`.
 
 #### `srsi_scope`
 
-Returned by `srsi_tables`, `srsi_of`, `srsi_of_columns`, `srsi_of_bands`,
-`srsi_of_model`, `splitting`, `stably_equivalent_pairs` and
+Returned by `srsi_tables`, `srsi_of_bands`, `srsi_of_model`, `splitting` and
 `pythtqc.srsi.canonical_determinism`.
 
 - **What it means.** The group is not grey, or the number handed to `srsi_tables` is
@@ -354,34 +353,20 @@ Returned by `in_plane_restriction`, `decompose` and `regular_completion`.
 
 ### Stable real-space invariants
 
-#### `srsi_not_atomic`
-
-Returned by `atomic_realizations`, and by `nsit_criterion` and `splitting` through it.
-
-- **What it means.** `theta_Z`, the ℤ-valued stable real-space invariants of the bands
-  ([the stable ones](../guide/srsi.md#the-stable-ones)), has a fractional entry, so the bands
-  carry a nonzero symmetry indicator and no atomic insulator has their symmetry data: there
-  are no atomic realizations to enumerate.
-- **Usual cause.** Bands that are stably topological.
-- **What to do.** Nothing: it is the verdict, and a stronger one than an empty list of
-  realizations. `splitting` reads a fractional `theta_Z` on the valence side as its own
-  verdict, `stable topological`, and returns that record rather than this refusal
-  ([the no-go criterion](../guide/srsi.md#the-no-go-criterion)).
-
-#### `orbit_content_incomplete`
+#### `wyckoff_orbit_content_incomplete`
 
 Returned by `srsi_of_model` and `splitting`.
 
-- **What it means.** An orbit's content could not be identified at a high-symmetry point,
+- **What it means.** A Wyckoff orbit's content could not be identified at a high-symmetry point,
   for a reason other than a trivial little group, so its symmetry content is incomplete.
 - **Usual cause.** A refusal at that point, which `context["refusal"]` carries.
 - **What to do.** Read that refusal; its entry here says what to do.
 
-#### `orbit_not_localizable`
+#### `wyckoff_orbit_not_localizable`
 
 Returned by `srsi_of_model` and `splitting`.
 
-- **What it means.** An orbit's measured content is no band representation of any
+- **What it means.** A Wyckoff orbit's measured content is no band representation of any
   Wyckoff position on the closure of its own, the points its free coordinates sweep and the
   higher-symmetry positions among them, nor a composite site irrep the tables carry: the
   orbit's content is not an atomic limit at the position it sits on.

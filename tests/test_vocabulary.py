@@ -108,9 +108,10 @@ def sweep(every_table):
         "paper_rows": 0, "shipped_rows": 0, "gate": {},
     }
     for table, data in every_table:
-        key = (table.sg, table.spinor)
+        sg, spinor, number_str = table._sg, table.group.spinor, table.group.number_str
+        key = (sg, spinor)
         out["systems"] += 1
-        u, v, d, matrix = _smith._smith_system(data, table.number_str)
+        u, v, d, matrix = _smith._smith_system(data, number_str)
         n_row, n_col = len(matrix), len(matrix[0])
         slots = [i for i, x in enumerate(d) if x > 1]
         divisors = [int(d[i]) for i in slots]
@@ -120,38 +121,38 @@ def sweep(every_table):
             out["with_divisors"].add(key)
 
         # (a) every SERVED row is an indicator of its own group
-        for form in table.indicators:
+        for form in table._indicator_rows:
             for column in range(n_col):
-                total = sum((c * Fraction(table.theta_on_columns[i - 1][column])
+                total = sum((c * Fraction(table._theta_on_columns[i - 1][column])
                              for i, c in form.coefficients.items()), Fraction(0))
                 out["vanish_probes"] += 1
                 if total.denominator != 1 or int(total) % form.mod:
                     out["vanish_failures"].append(
-                        (table.sg, table.spinor, form.name, column, str(total)))
+                        (sg, spinor, form.name, column, str(total)))
 
         # (d) the correspondence, per group and per name
-        entry = shipped_tables[table.spinor].get(table.number_str, {})
+        entry = shipped_tables[spinor].get(number_str, {})
         forms = dict(entry.get("indicators", {}))
         out["paper_rows"] += len(table.indicators)
         out["shipped_rows"] += len(forms)
         paired = set()
-        for form in table.indicators:
+        for form in table._indicator_rows:
             spelled, relation = _srsitables._spelling(form.name)
             if spelled not in forms:
                 out["relations"]["paper_only"] += 1
-                out["paper_only"].append((table.sg, table.spinor, form.name, spelled))
+                out["paper_only"].append((sg, spinor, form.name, spelled))
                 continue
             paired.add(spelled)
             out["relations"][relation] += 1
             if relation == "reordered":
-                out["reordered"].append((table.sg, form.name, spelled))
+                out["reordered"].append((sg, form.name, spelled))
             shipped_mod = float(forms[spelled]["mod"])
             if int(round(shipped_mod)) != form.mod:
                 out["modulus_mismatch"].append(
-                    (table.sg, table.spinor, form.name, spelled, form.mod, shipped_mod))
+                    (sg, spinor, form.name, spelled, form.mod, shipped_mod))
         for spelled in sorted(set(forms) - paired):
             out["relations"]["irreptables_only"] += 1
-            out["irreptables_only"].append((table.sg, table.spinor, spelled))
+            out["irreptables_only"].append((sg, spinor, spelled))
 
         out["gate"][key] = (tuple(divisors), 0, 0)
         if not divisors:
@@ -163,27 +164,27 @@ def sweep(every_table):
         for slot in slots:
             y = [Fraction(int(u_inv[i][slot])) for i in range(n_row)]
             generator_values.append(
-                table.indicators_of_columns(_srsitables._rational_p(u, v, d, y)))
+                table._indicators_of_columns(_srsitables._rational_p(u, v, d, y)))
             out["generators"] += 1
         seen, n_here, collided_here = {}, 0, 0
         for combination in itertools.product(*(range(x) for x in divisors)):
             y = [sum(c * int(u_inv[i][s]) for c, s in zip(combination, slots))
                  for i in range(n_row)]
-            solved = table.indicators_of_columns(
+            solved = table._indicators_of_columns(
                 _srsitables._rational_p(u, v, d, [Fraction(x) for x in y]))
             # ... and the same class through the homomorphism arithmetic the
             # package's own gate uses.  Two computations, one answer.
             combined = {f.name: sum(c * generator_values[g][f.name]
                                     for g, c in enumerate(combination)) % f.mod
-                        for f in table.indicators}
-            assert solved == combined, (table.sg, table.spinor, combination)
+                        for f in table._indicator_rows}
+            assert solved == combined, (sg, spinor, combination)
             out["classes"] += 1
             n_here += 1
             signature = tuple(sorted(solved.items()))
             if signature in seen:
                 collided_here += 1
                 out["non_injective"].append(
-                    (table.sg, table.spinor, seen[signature], combination, solved))
+                    (sg, spinor, seen[signature], combination, solved))
             seen[signature] = combination
         out["gate"][key] = (tuple(divisors), n_here, collided_here)
 
@@ -195,24 +196,24 @@ def sweep(every_table):
         for slot in slots:
             y = [Fraction(int(u_inv[i][slot])) for i in range(n_row)]
             vectors.append((y, _srsitables._rational_p(u, v, d, y)))
-        shim = _srsitables._TableKey(table.number_str, table.spinor)
+        shim = _srsitables._TableKey(number_str, spinor)
         for y, p in vectors:
             named, _touched, note, _coeffs = tqe._named_forms(
                 shim, data, matrix, y, "II")
             if named is None:
-                out["named_none"].append((table.sg, table.spinor, note))
+                out["named_none"].append((sg, spinor, note))
                 break
-            paper = table.indicators_of_columns(p)
-            for form in table.indicators:
+            paper = table._indicators_of_columns(p)
+            for form in table._indicator_rows:
                 spelled, _relation = _srsitables._spelling(form.name)
                 if spelled not in named:
                     continue
                 value = paper[form.name]
-                assert isinstance(value, int), (table.sg, form.name, value)
+                assert isinstance(value, int), (sg, form.name, value)
                 out["compared"] += 1
                 if value % form.mod != named[spelled] % form.mod:
                     out["disagreements"].append(
-                        (table.sg, table.spinor, form.name, spelled,
+                        (sg, spinor, form.name, spelled,
                          value, named[spelled], form.mod))
     return out
 
@@ -334,7 +335,7 @@ def test_the_gate_the_package_caches_is_the_measured_one(every_table, sweep):
     the gate a vocabulary that cannot separate the classes and requires it to
     say so.
     """
-    lookup = {(t.sg, t.spinor): t for t, _d in every_table}
+    lookup = {(t._sg, t.group.spinor): t for t, _d in every_table}
     for sg, spinor, divisors, n_classes, n_forms in ((191, True, (6, 12), 72, 7),
                                                      (166, True, (2, 4), 8, 4),
                                                      (2, True, (2, 2, 2, 4), 32, 4)):
@@ -383,12 +384,14 @@ def test_the_gate_measures_injectivity_rather_than_assuming_it(monkeypatch):
     assert tqr.canonical_determinism(real)["injective"] is True, \
         "the shipped vocabulary of #166.98 does separate its eight classes"
 
-    z4 = next(form for form in real.indicators if form.name == "z4")
+    z4 = next(form for form in real._indicator_rows if form.name == "z4")
     twin = replace(z4, name="z4_twin", name_tex="z_{4}^{\\rm twin}")
-    doubled = replace(real, indicators=(z4, twin))
+    doubled = replace(real, _indicator_rows=(z4, twin),
+                      indicators={"z4": real.indicators["z4"],
+                                  "z4_twin": real.indicators["z4"]})
 
     patch_everywhere(monkeypatch, "_table_of_number", lambda sg, spinor: doubled)
-    gate = _srsitables._canonical_gate.__wrapped__(real.number_str, real.spinor)
+    gate = _srsitables._canonical_gate.__wrapped__(real.group.number_str, real.group.spinor)
 
     assert gate["available"] and gate["names"] == ("z4", "z4_twin")
     assert gate["divisors"] == (2, 4) and gate["n_classes"] == 8, \
@@ -611,7 +614,7 @@ def test_fu_kane_mele_s_classes_in_the_paper_s_names(fkm_canonical, phase):
     values, order, canonical = FKM_CANONICAL[phase]
     assert si.values == values and si.order == order and si.divisors == (2, 4)
     assert si.indicators == canonical
-    assert {f.name: f.name_tex for f in tqr.srsi_tables(group).indicators} == {
+    assert {f.name: f.name_tex for f in tqr.srsi_tables(group)._indicator_rows} == {
         "z2w,1": "z_{2w,1}", "z2w,2": "z_{2w,2}", "z2w,3": "z_{2w,3}", "z4": "z_{4}"}
     assert _irreptables_named(group, si) == canonical, \
         "irreptables' own arithmetic, the same numbers"
@@ -640,7 +643,7 @@ def test_a_trivial_indicator_group_has_no_class_to_speak(lin3g_declared_cross_ch
     assert "the indicator group of #99.164 is trivial" in si.numerical.indicators_note
     assert "indicators:" not in si.summary()
     table = tqr.srsi_tables(99, spinor=True)
-    assert table and table.indicators == ()
+    assert table and table.indicators == {}
 
 
 def test_a_unitary_group_gets_the_smith_class_and_no_canonical_name(unitary_group):
@@ -723,7 +726,7 @@ def test_a_class_with_no_canonical_name_at_all_is_an_internal_error(
     real = tqr.srsi_tables
 
     def stripped(g):
-        return replace(real(g), indicators=())
+        return replace(real(g), indicators={}, _indicator_rows=())
 
     patch_everywhere(monkeypatch, "srsi_tables", stripped)
     with pytest.raises(InternalError, match="carries no indicator row"):

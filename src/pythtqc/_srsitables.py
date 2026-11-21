@@ -1,12 +1,12 @@
 """The tables of the stable real-space invariants of Hwang et al., as shipped:
-each grey group's rows over the site keys they are written on, and the paper's
-names for the symmetry indicators against ``irreptables``' own.
+each grey group's invariants over the site irreps at its Wyckoff positions, and
+the paper's names for the symmetry indicators against ``irreptables``' own.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from fractions import Fraction
 import functools
 import itertools
@@ -22,10 +22,10 @@ from . import _spacegroup
 from . import _tables
 from .refusal import InternalError, Refusal
 
-__all__ = ["DATA_DIR", "GATES", "SRSIRow", "SRSIIndicator", "SiteKey", "SplitEBR",
-           "SRSITables", "srsi_status", "srsi_tables", "NAME_RELATIONS",
-           "indicator_vocabularies", "to_irreptables_name", "from_irreptables_name",
-           "NamePair", "name_correspondence", "canonical_determinism", "MaximalKey"]
+__all__ = ["DATA_DIR", "GATES", "SRSITables", "SRSITablesNumerical", "IndicatorCheck",
+           "Provenance", "ProvenanceCounts", "SiteIrrep", "SplitEBR", "StablePair",
+           "Invariants", "ModularValue", "srsi_status", "srsi_tables",
+           "canonical_determinism"]
 
 
 #: Where the converted tables live inside the installed package.
@@ -33,6 +33,9 @@ DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 
 #: ``ebr_data`` position strings: ``"12d(31',3)"`` -> multiplicity, letter, symbols.
 _POSITION = re.compile(r"^(\d+)([a-zA-Z])\((.*)\)$")
+
+#: A Wyckoff position as a call writes it, ``"12d"``: multiplicity, letter.
+_WYCKOFF = re.compile(r"^(\d+)([a-zA-Z])$")
 
 #: The paper the shipped tables come from; the converted files repeat it in
 #: their own provenance block, and every refusal that names a table carries it.
@@ -56,21 +59,20 @@ GATES = {
     "srsi_ebr_basis":
         "the installed irreptables carries a different EBR list than the conversion "
         "resolved against, so the stored column indices would name the wrong EBRs",
-    "srsi_not_atomic":
-        "theta_Z is fractional, so no atomic insulator has this symmetry data and "
-        "there is nothing to enumerate",
     "srsi_realizations_truncated":
         "the enumeration of atomic realizations hit its cap, and a no-go is asserted "
         "only on a complete enumeration",
-    "orbit_content_incomplete":
+    "wyckoff_orbit_content_incomplete":
         "a high-symmetry point refused for a reason other than a trivial little "
-        "group, so the orbit's measured content is not the whole vector",
-    "orbit_not_localizable":
-        "the orbit's content is a band representation of nothing on the closure of "
-        "its variety, and no composite site irrep explains it either",
+        "group, so the symmetry data vector measured on a Wyckoff orbit is not whole",
+    "wyckoff_orbit_not_localizable":
+        "the symmetry data vector of a Wyckoff orbit is a band representation of no "
+        "position on the closure of its variety, and no composite site irrep "
+        "explains it either",
     "wyckoff_setting":
-        "geometry and content name different Wyckoff positions (srsi_of_model), or "
-        "pyxtal's list is not in the tables' setting (wyckoff_sites_tables)",
+        "geometry and the symmetry data vector name different Wyckoff positions "
+        "(srsi_of_model), or pyxtal's list is not in the tables' setting "
+        "(wyckoff_sites_tables)",
     "wyckoff_unresolved":
         "a position lies on no Wyckoff variety within tol -- a guard, since the "
         "general position's variety is the whole cell",
@@ -82,6 +84,10 @@ GATES = {
         "vocabularies cannot be paired for this group",
 }
 
+
+# ---------------------------------------------------------------------------
+# how a summary writes a group, a set of invariants, a sum of site irreps
+# ---------------------------------------------------------------------------
 
 def _count(n, noun) -> str:
     """``"1 row"``, ``"3 rows"``: a count and its noun, in the number the count takes."""
@@ -106,20 +112,68 @@ def _grey_symbol(number_str: str, spinor: bool) -> str:
         return ""
 
 
-def _group(number_str, spinor) -> str:
+def _label(group) -> str:
+    """``P6mm1' #183.186``: a group as a summary names it, by the tables' symbol and its number."""
+    symbol = _grey_symbol(str(group.number_str), bool(group.spinor)) or str(group.name or "")
+    return (f"{symbol} " if symbol else "") + f"#{group.number_str}"
+
+
+def _group(group) -> str:
     """``P6mm1' #183.186, double-valued``: the group a summary is of, and which of its tables."""
-    symbol = _grey_symbol(str(number_str), bool(spinor))
-    return (f"{symbol} " if symbol else "") + f"#{number_str}, {_valuedness(spinor)}"
+    return f"{_label(group)}, {_valuedness(group.spinor)}"
 
 
 def _values(values) -> str:
-    """``(1, -1/2, 0)``: invariants as a summary prints them."""
+    """``(1, -1/2, 0)``: invariants as a summary prints them, a lone one ``(0)``."""
     return "(" + ", ".join(str(v) for v in values) + ")"
 
 
-def _by_modulus(theta_zn) -> str:
-    """``mod 2 (0, 1), mod 4 (3)``: the Z_n-valued invariants, by modulus."""
-    return ", ".join(f"mod {n} {_values(values)}" for n, values in sorted(theta_zn.items()))
+def _span(names) -> str:
+    """``theta_1 to theta_3``, ``theta_4, theta_5``, ``theta_5``: consecutive invariants named."""
+    names = list(names)
+    if len(names) >= 3:
+        return f"{names[0]} to {names[-1]}"
+    return ", ".join(names)
+
+
+def _and(items) -> str:
+    """``a``, ``a and b``, ``a, b and c``."""
+    items = list(items)
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def _zn_groups(theta_zn) -> list:
+    """``[(n, names, values), ...]``: the invariants valued modulo n, a group per modulus, in the tables' order."""
+    out: list = []
+    for name, entry in theta_zn.items():
+        if out and out[-1][0] == int(entry.modulus):
+            out[-1][1].append(name)
+            out[-1][2].append(entry.value)
+        else:
+            out.append((int(entry.modulus), [name], [entry.value]))
+    return out
+
+
+def _zn_text(theta_zn) -> str:
+    """``theta_4, theta_5 = (0, 1) mod 2``: each modulus its own clause."""
+    return "; ".join(f"{_span(names)} = {_values(values)} mod {n}"
+                     for n, names, values in _zn_groups(theta_zn))
+
+
+def _invariants_text(theta_z, theta_zn=None) -> str:
+    """``theta_1 to theta_3 = (2, 2, 0); theta_4, theta_5 = (0, 1) mod 2``."""
+    text = f"{_span(theta_z)} = {_values(theta_z.values())}"
+    return text + (f"; {_zn_text(theta_zn)}" if theta_zn else "")
+
+
+def _zn_header(theta_zn) -> str:
+    """``(theta_4, theta_5) mod 2``: the invariants valued modulo n a column of values holds."""
+    return _and([f"({_span(names)}) mod {n}" for n, names, _v in _zn_groups(theta_zn)])
+
+
+def _zn_values(theta_zn) -> str:
+    """``(1, 1)``: the values under :func:`_zn_header`, a group per modulus."""
+    return "; ".join(_values(values) for _n, _names, values in _zn_groups(theta_zn))
 
 
 def _indicator_line(indicator, whose) -> str:
@@ -127,18 +181,15 @@ def _indicator_line(indicator, whose) -> str:
     if not indicator.divisors:
         return f"  {whose} symmetry-indicator group is trivial   (.indicator)"
     if not any(indicator.values):
-        return (f"  {whose} symmetry-indicator class is zero, in {indicator.indicator_group}"
+        return (f"  {whose} symmetry indicator: class zero in {indicator.indicator_group}"
                 "   (.indicator)")
-    return (f"  {whose} symmetry-indicator class: {indicator.values} in "
+    return (f"  {whose} symmetry indicator: class {indicator.values} in "
             f"{indicator.indicator_group}, of order {indicator.order}   (.indicator)")
 
 
-def _site_irreps(irreps, letter) -> str:
-    """``B2 and B3 at Wyckoff position d``: site irreps at one position."""
-    return f"{' and '.join(irreps)} at Wyckoff position {letter}"
-
-
-#: How a summary reads a configuration of orbitals, ``1 (B2)_d + 2 (A1)_a``.
+def _pair_text(pair) -> str:
+    """``B2 and B3 at 12d``: a pair no invariant tells apart."""
+    return f"{' and '.join(pair.irreps)} at {pair.wyckoff}"
 
 
 def _signed(terms) -> str:
@@ -153,8 +204,25 @@ def _signed(terms) -> str:
 
 
 def _formula(row) -> str:
-    """``2 (-1E2E)_e + 1 (-E)_a``: an invariant's terms, each a site irrep at its Wyckoff letter times its multiplicity."""
-    return _signed((term["coef"], f"({term['irrep']})_{term['letter']}") for term in row.terms)
+    """``2 (-1E2E)_e + 1 (-E)_a``: an invariant's terms, each a site irrep at its Wyckoff letter times its multiplicity.
+
+    A site irrep is spelled as the list of elementary band representations
+    spells it where it names one, ``A`` at a ``222`` site.
+    """
+    return _signed((term["coef"], f"({term.get('ebr_label') or term['irrep']})_{term['letter']}")
+                   for term in row.terms)
+
+
+def _is_sum(p) -> bool:
+    """Whether ``p`` is a sum of term rows: an iterable, not a mapping or a string, of rows with ``multiplicity``, ``irrep`` and ``wyckoff``."""
+    if isinstance(p, (Mapping, str, bytes)):
+        return False
+    try:
+        rows = list(p)
+    except TypeError:
+        return False
+    return all(hasattr(t, "multiplicity") and hasattr(t, "irrep") and hasattr(t, "wyckoff")
+               for t in rows)
 
 
 # ---------------------------------------------------------------------------
@@ -162,30 +230,60 @@ def _formula(row) -> str:
 # ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
-class SRSIRow:
-    r"""One stable real-space invariant :math:`\theta_i` of a group: its formula over the site keys.
+class ModularValue:
+    """One invariant valued modulo n: its value and the modulus.
 
-    :meth:`summary` prints the formula.
+    An entry of every ``theta_Zn``.
 
     Attributes
     ----------
-    index : int
-        The paper's index, from 1.
-    name : str
-        ``"theta_3"``.
-    mod : int or None
-        ``n`` for a :math:`\mathbb{Z}_n`-valued invariant, ``None`` for a
-        :math:`\mathbb{Z}`-valued one.
-    coefficients : tuple of int
-        The formula on the group's elementary band representations, one
-        coefficient per entry of :attr:`SRSITables.ebrs`.
-    terms : tuple of dict
-        Every term of the formula, ``{"coef", "irrep", "irrep_tex", "letter",
-        "column", "maximal", "ebr"}``: the coefficient, the site irrep and its
-        TeX, the Wyckoff letter, and the column of the elementary band
-        representation the key induces, ``None`` where it induces a composite one (``ebr``),
-        at a non-maximal position or at a maximal one whose band representation is
-        a sum of others (``maximal`` says which).
+    value : int or Fraction
+        The value, reduced modulo :attr:`modulus`; a fraction, unreduced, only
+        where :meth:`SRSITables.theta` was handed a rational site-symmetry
+        vector and the value is not a whole number.
+    modulus : int
+        The modulus n.
+    """
+
+    value: Any
+    modulus: int
+
+
+@dataclass(frozen=True)
+class Invariants:
+    r"""The stable real-space invariants of a site-symmetry vector, by name.
+
+    What :meth:`SRSITables.theta` returns.
+
+    Attributes
+    ----------
+    theta_Z : dict
+        ``{name: value}``: each integer-valued invariant, an exact fraction, in
+        the tables' order; whole numbers exactly where the symmetry indicator is
+        zero.
+    theta_Zn : dict
+        ``{name: ModularValue}``: each invariant valued modulo n.  They belong to
+        the site-symmetry vector handed in, not to its symmetry data vector.
+    """
+
+    theta_Z: dict
+    theta_Zn: dict
+
+    def __repr__(self) -> str:  # pragma: no cover - convenience only
+        return f"Invariants({_invariants_text(self.theta_Z, self.theta_Zn)})"
+
+
+@dataclass(frozen=True)
+class _SRSIRow:
+    r"""One invariant :math:`\theta_i` of a group: its formula over the site irreps.
+
+    ``index`` is the paper's, from 1; ``mod`` is ``n`` for one valued modulo n
+    and ``None`` for an integer-valued one; ``coefficients`` is the formula on
+    the elementary band representations, one per entry of ``tables._ebrs``;
+    ``terms`` is every term of the formula, ``{"coef", "irrep", "irrep_tex",
+    "letter", "column", "maximal", "ebr"}``, the site irrep as the paper spells
+    it and ``ebr_label`` where the list spells it otherwise, ``column`` ``None``
+    for a site irrep that induces no elementary band representation.
     """
 
     index: int
@@ -194,56 +292,16 @@ class SRSIRow:
     coefficients: tuple
     terms: tuple = field(repr=False)
 
-    def summary(self) -> str:
-        """The invariant, then its formula, a line each."""
-        return (f"{self.name}, {'Z' if self.mod is None else f'Z{self.mod}'}-valued: a sum "
-                "of terms c (irrep)_w, c times the multiplicity of a site irrep at Wyckoff "
-                "position w   (.name, .mod)\n"
-                "  " + _formula(self) + "   (.terms)")
-
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
-        kind = "Z" if self.mod is None else f"Z{self.mod}"
-        return f"SRSIRow({self.name}, {kind}, {_count(len(self.terms), 'term')})"
-
 
 @dataclass(frozen=True)
-class SRSIIndicator:
+class _SRSIIndicator:
     r"""One symmetry indicator as the paper tabulates it: a form in the :math:`\theta_i`, modulo its own modulus.
 
-    :meth:`summary` prints the form evaluated and where it comes from.
-
-    Attributes
-    ----------
-    name, name_tex : str
-        The paper's name, ``"z2w,1"``, and its TeX, ``"z_{2w,1}"``, in the naming
-        of Song et al. 2018.
-    mod : int
-        The modulus.
-    theta : dict
-        ``{i: coefficient}``: the printed coefficient of each :math:`\theta_i`, an
-        exact fraction.
-    vanishes_on_ebrs : bool
-        Whether the printed form is ``0`` modulo :attr:`mod` on every elementary
-        band representation of the group, as an indicator is; ``False`` for four
-        forms, all of SGs 147, 162 and 163 without spin-orbit coupling.
-    ebr_failures : tuple
-        ``(column, value)`` of each elementary band representation the printed
-        form does not vanish on.
-    derived : dict or None
-        ``{i: coefficient}``: the form in the :math:`\theta_i` that equals, on
-        every band set, ``irreptables``' momentum-space form of the same name, or
-        the group's one Smith coordinate.  ``None`` where ``irreptables`` has no
-        form of the name and the group no single Smith coordinate, as
-        :attr:`derived_note` says.
-    relation : str or None
-        The printed form against the derived one: ``"equal"``, ``"equivalent"``
-        (other coefficients, the same values on every band set modulo
-        :attr:`mod`) or ``"different"``.
-    source : str or None
-        What the derived form was derived from, ``"irreptables:<name>"`` or
-        ``"smith"``.
-    derived_note : str
-        The derivation in a sentence, or why there is none.
+    ``theta`` is the printed form ``{i: coefficient}``; ``derived``, where there
+    is one, the form equal to ``irreptables``' of the same name or to the
+    group's one Smith coordinate, with ``relation`` and ``source``;
+    ``ebr_failures`` the ``(column, value)`` of each elementary band
+    representation the printed form does not vanish on.
     """
 
     name: str
@@ -259,84 +317,186 @@ class SRSIIndicator:
 
     @property
     def coefficients(self) -> dict:
-        """The form :meth:`SRSITables.indicators_of` evaluates: the printed one, or the derived one where :attr:`relation` is ``"different"``.
-
-        Those are the four forms of SGs 147, 162 and 163 without spin-orbit coupling,
-        which do not vanish on their own group's elementary band representations and
-        so are not indicators as printed.
-        """
+        """The form :meth:`SRSITables.indicators_of` evaluates: the printed one, or the derived one where :attr:`relation` is ``"different"``."""
         if self.relation == "different" and self.derived is not None:
             return dict(self.derived)
         return dict(self.theta)
 
-    def summary(self) -> str:
-        """The indicator, the form evaluated, and where that form comes from, a line each."""
-        def form(row):
-            return _signed((c, f"theta_{i}") for i, c in sorted(row.items()))
 
-        source = ("the group's one Smith coordinate" if self.source == "smith" else
-                  f"irreptables' formula named {str(self.source).partition(':')[2]}")
-        whence = {
-            "equal": f"the form the tables print, equal to the one derived from {source}",
-            "equivalent": (f"the form the tables print, with the values modulo {self.mod} "
-                           f"of the one derived from {source}"),
-            "different": (f"the form derived from {source}: the one the tables print, "
-                          f"{form(self.theta)}, does not vanish on every elementary band "
-                          "representation, and is no indicator"),
-        }.get(self.relation, "the form the tables print, with nothing to derive it from")
-        attributes = {"equal": ".relation, .source", "equivalent": ".relation, .source",
-                      "different": ".relation, .theta, .vanishes_on_ebrs"}.get(
-                          self.relation, ".derived_note")
-        return (f"{self.name}, modulo {self.mod}: a form in the stable real-space "
-                "invariants theta_i   (.name, .mod)\n"
-                f"  {form(self.coefficients)}   (.coefficients)\n"
-                f"  {whence}   ({attributes})")
+@dataclass(frozen=True)
+class IndicatorCheck:
+    """One symmetry indicator of the tables held against the group's elementary band representations and against irreptables.
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
-        flag = "" if self.vanishes_on_ebrs else ", printed row not an indicator"
-        rel = f", {self.relation}" if self.relation else ""
-        return f"SRSIIndicator({self.name}, mod {self.mod}{rel}{flag})"
+    An entry of ``tables.numerical.indicators``.
+
+    Attributes
+    ----------
+    relation : str or None
+        The printed form against the derived one: ``"equal"``, ``"equivalent"``
+        (other coefficients, the same values on every band set modulo the
+        indicator's modulus) or ``"different"``; ``None`` where none is derived.
+    source : str or None
+        What the derived form was derived from, ``"irreptables:<name>"`` or
+        ``"smith"``.
+    derived : str or None
+        The derived form in the invariants, written as ``tables.indicators``
+        writes the printed one.  Where :attr:`relation` is ``"different"`` it is
+        the form ``indicators_of`` evaluates.
+    derived_note : str
+        The derivation in a sentence, or why there is none.
+    ebr_failures : tuple
+        ``(site irrep, Wyckoff position, value)`` of each elementary band
+        representation the printed form does not vanish on,
+        ``("A1", "1a", "1/2")``.
+    vanishes_on_ebrs : bool
+        Whether the printed form is zero modulo its modulus on every elementary
+        band representation of the group, as an indicator is.
+    """
+
+    relation: str | None
+    source: str | None
+    derived: str | None
+    derived_note: str
+    ebr_failures: tuple
+    vanishes_on_ebrs: bool
 
 
 @dataclass(frozen=True)
-class SiteKey:
-    r"""One site key: a site irrep at a Wyckoff position, one coordinate of the site-symmetry vector ``p``.
+class SRSITablesNumerical:
+    """How each symmetry indicator of the tables was checked.
 
-    A key at a maximal position induces an elementary band representation, unless
-    that band representation is a sum of others (:math:`{}^1E{}^2E` at site
-    symmetry :math:`\bar4`, ``E`` at :math:`\bar4m2` and :math:`\bar42m`); a key at
-    a non-maximal position induces a composite one.  A group's keys are
-    :attr:`SRSITables.site_keys`.
+    ``tables.numerical``.
+
+    Attributes
+    ----------
+    indicators : dict
+        ``{name: IndicatorCheck}`` for each symmetry indicator.
+    """
+
+    indicators: dict
+
+
+@dataclass(frozen=True)
+class ProvenanceCounts:
+    """What the conversion of the paper's tables counted, for one valuedness.
+
+    ``tables.provenance.counts``.  Each field is a count over the 217 tabulated
+    groups of that valuedness, ``zn_rows``, ``si_moduli`` and
+    ``derived_indicator_rows`` by modulus or relation.
+    """
+
+    groups: int
+    srsi_rows: int
+    zn_rows: dict
+    terms: int
+    terms_on_ebr_columns: int
+    terms_at_maximal_wyckoff_without_an_ebr: int
+    terms_at_nonmaximal_wyckoff: int
+    alias_positions: int
+    composite_positions: int
+    si_groups: int
+    si_expressions: int
+    si_moduli: dict
+    split_groups: int
+    splittings: int
+    splittings_srsi_mismatch: int
+    splittings_srsi_match: int
+    ebr_columns: int
+    si_on_ebr_checks: int
+    si_expressions_not_vanishing_on_ebrs: int
+    si_failing_groups: tuple
+    kernel_checks: int
+    derived_indicator_rows: dict
+
+
+@dataclass(frozen=True)
+class Provenance:
+    """Where the tables come from: the paper, and the versions of the tables they were converted against.
+
+    ``tables.provenance``.
+
+    Attributes
+    ----------
+    paper, doi : str
+        The paper the tables are converted from, and its DOI.
+    valuedness : str
+        ``"single"`` or ``"double"``.
+    converted : str
+        When the tables were converted.
+    irrep_version, irreptables_version : str
+        The versions of ``irrep`` and ``irreptables`` the elementary band
+        representations were resolved against.
+    omitted_groups : tuple of int
+        The thirteen space groups the tables leave out.
+    omitted_reason : str
+        Why, in the words of the paper's caption.
+    label_map : dict
+        ``{TeX spelling: spelling}``: the paper's site irreps as the package
+        spells them.
+    label_aliases, composite_site_irreps : tuple
+        The site irreps the paper and the list spell differently, and those
+        whose band representation is composite.
+    counts : ProvenanceCounts
+        What the conversion counted.
+    notes : tuple of str
+        What the conversion says about the tables, a sentence each.
+    """
+
+    paper: str
+    doi: str
+    valuedness: str
+    converted: str
+    irrep_version: str
+    irreptables_version: str
+    omitted_groups: tuple
+    omitted_reason: str
+    label_map: dict
+    label_aliases: tuple
+    composite_site_irreps: tuple
+    counts: ProvenanceCounts
+    notes: tuple
+
+
+@dataclass(frozen=True)
+class SiteIrrep:
+    r"""A site irrep at a Wyckoff position: one coordinate of the site-symmetry vector ``p``.
+
+    A site irrep at a maximal position induces an elementary band
+    representation, unless that band representation is a sum of others
+    (:math:`{}^1E{}^2E` at site symmetry :math:`\bar4`, ``E`` at
+    :math:`\bar4m2` and :math:`\bar42m`); one at a non-maximal position induces
+    a composite one.  An entry of ``tables.site_irreps``.
 
     Attributes
     ----------
     irrep : str
-        The site irrep, as the paper spells it.
-    letter : str
-        The Wyckoff letter, in the setting the tables are written in.
-    maximal, ebr : bool
-        Whether the position is maximal, and whether the key induces an
-        elementary band representation.
-    column : int or None
-        That representation's column in ``ebr_data(group).ebrs``.
-    ebr_label : str or None
-        That list's spelling of the irrep where it differs, ``A`` for the paper's
-        ``A_1`` at a ``222`` site; :meth:`SRSITables.theta` takes either spelling,
-        or the key itself.
+        The site irrep, as the list of elementary band representations spells
+        it where it names one, ``A`` where the paper writes ``A1`` at a ``222``
+        site, and as the paper spells it elsewhere.
+    wyckoff : str
+        The Wyckoff position in the setting the tables are written in, with its
+        multiplicity in the conventional cell, ``"4d"``.
+    maximal : bool
+        Whether the position is maximal.
+    ebr : bool
+        Whether the site irrep induces an elementary band representation.
     """
 
     irrep: str
-    letter: str
+    wyckoff: str
     maximal: bool
     ebr: bool
-    column: int | None = None
-    ebr_label: str | None = None
+    # the paper's spelling, the letter alone, and the column of the elementary
+    # band representation in the group's list
+    _paper: str = field(default="", repr=False)
+    _letter: str = field(default="", repr=False)
+    _column: int | None = field(default=None, repr=False)
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
-        kind = ("EBR column %d" % self.column if self.ebr
-                else "maximal, composite band representation" if self.maximal
-                else "non-maximal")
-        return f"SiteKey(({self.irrep})_{self.letter}, {kind})"
+        return (f"SiteIrrep({self.irrep} at {self.wyckoff}, "
+                f"{'maximal' if self.maximal else 'not maximal'}, "
+                + ("an elementary band representation" if self.ebr
+                   else "no elementary band representation") + ")")
 
 
 @dataclass(frozen=True)
@@ -344,256 +504,303 @@ class SplitEBR:
     r"""One splitting of an elementary band representation into others, as the paper lists it.
 
     The paper lists the splittings the symmetry indicators allow, every part an
-    elementary band representation, and marks whether the
-    :math:`\mathbb{Z}_n`-valued invariants of the parts add up to the whole's.  The
-    paper's result is that all of them are topological; :func:`..srsi.nsit_criterion`
-    decides one over every atomic realization of its parts.  :meth:`summary`
-    prints it.
+    elementary band representation, and marks whether the invariants valued
+    modulo n of the parts add up to the whole's.  An entry of
+    ``tables.split_ebrs``; :meth:`summary` prints it.
 
     Attributes
     ----------
-    parent : dict
-        The whole, ``{"irrep", "irrep_tex", "letter", "column"}``: its site irrep,
-        Wyckoff letter and column.
-    children : tuple of dict
-        The parts, two or more, each written the same way.
+    parent : SiteIrrep
+        The whole, the same entry as in ``tables.site_irreps``.
+    children : tuple of SiteIrrep
+        The parts, two or more.
+    label : str
+        The splitting as the paper writes it, ``"(-E)_c = (-E2)_a + (-E1)_a"``.
     srsi_mismatch : bool
-        The paper's mark: ``True`` where the parts' :math:`\mathbb{Z}_n`-valued
-        invariants do not add up to the whole's.
+        The paper's mark: ``True`` where the parts' invariants valued modulo n
+        do not add up to the whole's.
     """
 
-    parent: dict
+    parent: SiteIrrep
     children: tuple
+    label: str
     srsi_mismatch: bool
 
     def summary(self) -> str:
         """The splitting, and whether the invariants of its parts add up to the whole's, a line each."""
-        def key(entry):
-            return f"({entry['irrep']})_{entry['letter']}"
-
-        return (f"{key(self.parent)} = {' + '.join(key(c) for c in self.children)}, a "
-                "splitting the symmetry indicators allow, each term the elementary band "
-                "representation of a site irrep at a Wyckoff position"
-                "   (.parent, .children)\n"
-                "  the Z_n-valued stable real-space invariants of the parts "
+        return (f"{self.label}, a splitting the symmetry indicators allow, each term the "
+                "elementary band representation of a site irrep at a Wyckoff position"
+                "   (.label)\n"
+                "  the invariants valued modulo n of the parts "
                 f"{'do not add' if self.srsi_mismatch else 'add'} up to the whole's"
                 "   (.srsi_mismatch)")
+
+    def __repr__(self) -> str:  # pragma: no cover - convenience only
+        return f"SplitEBR({self.label}, srsi_mismatch={self.srsi_mismatch})"
+
+
+@dataclass(frozen=True)
+class StablePair:
+    """Two site irreps at one maximal Wyckoff position that no stable real-space invariant distinguishes.
+
+    Their elementary band representations have the same symmetry data vector,
+    and they carry the same invariants, so nothing the package measures tells
+    them apart; the paper's example is ``B2`` and ``B3`` at ``12d`` of
+    ``I432``.  An entry of ``tables.stably_equivalent``; :meth:`summary` prints
+    it.
+
+    Attributes
+    ----------
+    irreps : tuple of str
+        The two site irreps, as the list of elementary band representations
+        spells them.
+    wyckoff : str
+        The Wyckoff position, ``"12d"``.
+    symmetry_data : dict
+        ``{corep: multiplicity}``: the symmetry data vector both induce.
+    theta_Z : dict
+        ``{name: value}``: the integer-valued invariants both carry.
+    theta_Zn : dict
+        ``{name: ModularValue}``: the invariants valued modulo n both carry.
+    """
+
+    irreps: tuple
+    wyckoff: str
+    symmetry_data: dict = field(repr=False, default_factory=dict)
+    theta_Z: dict = field(default_factory=dict)
+    theta_Zn: dict = field(default_factory=dict)
+    # the two elementary band representations' names and columns in the list
+    _names: tuple = field(default=(), repr=False)
+    _columns: tuple = field(default=(), repr=False)
+
+    def summary(self) -> str:
+        """The pair, then what both members share, a line each."""
+        return "\n".join([
+            f"{_pair_text(self)}, which no stable real-space invariant distinguishes"
+            "   (.irreps, .wyckoff)",
+            "  their elementary band representations have the same symmetry data vector"
+            "   (.symmetry_data)",
+            f"  the invariants both carry: {_invariants_text(self.theta_Z, self.theta_Zn)}"
+            + ("   (.theta_Z, .theta_Zn)" if self.theta_Zn else "   (.theta_Z)")])
+
+    def __repr__(self) -> str:  # pragma: no cover - convenience only
+        return f"StablePair({'/'.join(self.irreps)} at {self.wyckoff})"
 
 
 @dataclass(frozen=True)
 class SRSITables:
     r"""The stable real-space invariants of one grey space group, as the paper tabulates them.
 
-    What :func:`srsi_tables` returns; :meth:`summary` prints the invariants, a line
-    each, and :meth:`formulas` each one's formula over the site irreps.
-    :meth:`theta` evaluates them on a site-symmetry vector ``p`` over the
-    site keys, :meth:`theta_columns` on one over the group's elementary band
-    representations, and :meth:`indicators_of` and :meth:`indicators_of_columns`
-    evaluate the paper's symmetry indicators.
+    What :func:`srsi_tables` returns; :meth:`summary` prints the invariants, a
+    line each, and :meth:`formulas` each one's formula over the site irreps.
+    :meth:`theta` evaluates them on a site-symmetry vector ``p``, and
+    :meth:`indicators_of` evaluates the paper's symmetry indicators.
 
     Attributes
     ----------
-    sg, number_str : int, str
-        The space-group number, and the grey group's label in the tables,
-        ``"25.58"``.
-    spinor : bool
-        Which of the group's two tables: with spin-orbit coupling, double-valued,
-        or without.
-    rows : tuple of SRSIRow
-        The invariants :math:`\theta_i`, in the paper's order.
-    names, moduli : tuple
-        Their names, and each one's modulus, ``None`` for a
-        :math:`\mathbb{Z}`-valued one.
-    ebrs : tuple
-        ``(site irrep, Wyckoff letter)`` of each elementary band representation, in
-        the order of ``ebr_data(group).ebrs``: the columns.
-    theta_on_columns : tuple of tuple of int
-        :math:`\Theta` on those columns: ``theta_on_columns[i][j]`` is the
-        coefficient of column ``j`` in :math:`\theta_{i+1}`.
-    indicators : tuple of SRSIIndicator
-        The paper's symmetry indicators, as forms in the :math:`\theta_i`.
+    group : ..groups.GroupData
+        The group the tables were read for: the measured group handed to
+        :func:`srsi_tables`, or, from a space-group number, the grey group with
+        its name, number, valuedness and magnetic type, and no cell
+        (``periodic_dirs`` is ``None``).
+    invariants : dict
+        ``{name: formula}``: each invariant, in the paper's order, as a sum of
+        terms ``c (irrep)_w``, ``c`` times the multiplicity of a site irrep at
+        Wyckoff position ``w``: ``tables.invariants["theta_4"]`` is
+        ``"1 (-E2)_b"``.
+    indicators : dict
+        ``{name: form}``: each of the paper's symmetry indicators as a form in
+        the invariants, ``"-2 theta_1 + 2 theta_2 + 2 theta_5"``, as the paper
+        prints it.
+    moduli : dict
+        ``{name: modulus}``: each invariant's and each indicator's modulus,
+        ``None`` for an integer-valued invariant.
+    site_irreps : tuple of SiteIrrep
+        Every site irrep at a Wyckoff position the formulas count, maximal or
+        not: the coordinates of ``p``.
     split_ebrs : tuple of SplitEBR
-        The paper's splittings of an elementary band representation into others.
-    terms_without_ebr_column : tuple of dict
-        Every term on a site key that induces a composite band representation,
-        with the index of its invariant, ``srsi``.
-    provenance : dict
-        Where the tables come from: the paper and its DOI, the ``irrep`` and
-        ``irreptables`` versions they were converted against, the map of its labels.
+        The paper's splittings of an elementary band representation into
+        others.
+    stably_equivalent : tuple of StablePair
+        The site irreps at one maximal position that no invariant tells apart.
+    provenance : Provenance
+        Where the tables come from.
+    numerical : SRSITablesNumerical
+        How each symmetry indicator was checked.
     """
 
-    sg: int
-    number_str: str
-    spinor: bool
-    rows: tuple
-    theta_on_columns: tuple
-    moduli: tuple
-    names: tuple
-    ebrs: tuple
-    indicators: tuple
+    group: Any = field(compare=False)
+    invariants: dict
+    indicators: dict
+    moduli: dict
+    site_irreps: tuple
     split_ebrs: tuple
-    terms_without_ebr_column: tuple = field(repr=False)
-    provenance: dict = field(repr=False, default_factory=dict)
+    provenance: Any = field(repr=False)
+    numerical: Any = field(repr=False)
+    # the space-group number, the tables' label for the grey group and which
+    # of its tables; the invariants as rows; the formulas on the columns, the
+    # elementary band representations of the group's list as (irrep, letter);
+    # the indicators as rows; the terms on site irreps that induce no
+    # elementary band representation; each letter's multiplicity
+    _sg: int = field(repr=False)
+    _number_str: str = field(repr=False)
+    _spinor: bool = field(repr=False)
+    _rows: tuple = field(repr=False)
+    _theta_on_columns: tuple = field(repr=False)
+    _ebrs: tuple = field(repr=False)
+    _indicator_rows: tuple = field(repr=False)
+    _terms_without_ebr_column: tuple = field(repr=False)
+    _multiplicities: dict = field(repr=False, compare=False)
 
     # -- the shape of the invariant group ----------------------------------
     @property
-    def z_rows(self) -> tuple:
-        r"""Where the :math:`\mathbb{Z}`-valued invariants are in :attr:`rows`."""
-        return tuple(i for i, m in enumerate(self.moduli) if m is None)
+    def _names(self) -> tuple:
+        """Every invariant's name, in the paper's order."""
+        return tuple(row.name for row in self._rows)
 
     @property
-    def zn_rows(self) -> dict:
-        r"""``{n: (row indices,)}``: where the :math:`\mathbb{Z}_n`-valued invariants are in :attr:`rows`, by modulus."""
+    def _z_rows(self) -> tuple:
+        r"""Where the integer-valued invariants are in :attr:`_rows`."""
+        return tuple(i for i, row in enumerate(self._rows) if row.mod is None)
+
+    @property
+    def _zn_rows(self) -> dict:
+        r"""``{n: (row indices,)}``: where the invariants valued modulo n are in :attr:`_rows`, by modulus."""
         out: dict[int, list] = {}
-        for i, mod in enumerate(self.moduli):
-            if mod is not None:
-                out.setdefault(int(mod), []).append(i)
+        for i, row in enumerate(self._rows):
+            if row.mod is not None:
+                out.setdefault(int(row.mod), []).append(i)
         return {n: tuple(v) for n, v in sorted(out.items())}
 
     @property
-    def structure(self) -> str:
-        """The group the invariants take values in, ``"Z x Z x Z2"``."""
-        parts = ["Z"] * len(self.z_rows)
-        for n, rows in self.zn_rows.items():
-            parts += [f"Z{n}"] * len(rows)
-        return " x ".join(parts) or "trivial"
+    def stably_equivalent(self) -> tuple:
+        """The site irreps at one maximal Wyckoff position that no stable real-space invariant distinguishes."""
+        return _stable_pairs(int(self._sg), bool(self._spinor))
 
     # -- the arithmetic ----------------------------------------------------
-    def theta_unreduced(self, p) -> tuple:
-        r"""Every :math:`\theta_i` of ``p``, in table order, the :math:`\mathbb{Z}_n`-valued ones not reduced modulo ``n``.
-
-        ``p`` is the mapping :meth:`theta` takes; a sequence over the columns is
-        :meth:`theta_unreduced_columns`' and raises :class:`TypeError` here.
-
-        Returns
-        -------
-        tuple of Fraction
-            One per row of :attr:`rows`.
-        """
-        if not isinstance(p, Mapping):
-            raise TypeError(
-                "SRSITables.theta_unreduced() takes a {(site irrep, Wyckoff "
-                "letter): multiplicity} mapping over the site keys; a sequence "
-                "indexed by the EBR columns (SRSITables.ebrs) is "
-                "theta_unreduced_columns()'s")
-        return self._theta_of_sites(p)
-
-    def theta_unreduced_columns(self, p) -> tuple:
-        """:meth:`theta_unreduced` on a ``p`` over the columns, :attr:`ebrs`.
-
-        A mapping is :meth:`theta_unreduced`'s and raises :class:`TypeError` here.
-        """
-        if isinstance(p, Mapping):
-            raise TypeError(
-                "SRSITables.theta_unreduced_columns() takes a sequence indexed by "
-                "the EBR columns (SRSITables.ebrs); a {(site irrep, Wyckoff "
-                "letter): multiplicity} mapping is theta_unreduced()'s")
-        return self._theta_of_columns(p)
-
-    def theta(self, p) -> tuple:
-        r"""``(theta_Z, theta_Zn)``: the invariants of a site-symmetry vector ``p`` over the site keys.
+    def theta(self, p) -> Invariants:
+        r"""The stable real-space invariants of a site-symmetry vector ``p``.
 
         Parameters
         ----------
-        p : mapping
-            ``{(site irrep, Wyckoff letter): multiplicity}`` over any site keys of the
-            group, maximal or not, a key spelled as the paper or as the list of
-            elementary band representations spells it, or one of :attr:`site_keys`.
-            Integer for an atomic configuration, rational for a band set with a
-            nonzero symmetry indicator.
+        p : mapping or sum of term rows
+            ``{(site irrep, Wyckoff position): multiplicity}`` over any site
+            irreps of the group, at maximal positions or not, the position
+            written with its multiplicity, ``("-E", "2c")``, and the site irrep
+            spelled as the list of elementary band representations or as the
+            paper spells it; or a sum of term rows, each with ``multiplicity``,
+            ``irrep`` and ``wyckoff``, such as a candidate sum
+            :func:`..ebr.decompose` returns, an atomic realization or a Wyckoff
+            orbit's ``terms``.  Integer multiplicities for an atomic
+            configuration, rational ones for a band set with a nonzero
+            symmetry indicator.
 
         Returns
         -------
-        tuple
-            ``theta_Z``, the :math:`\mathbb{Z}`-valued invariants in table order as
-            exact fractions, integral exactly when the symmetry indicator is zero; and
-            ``theta_Zn``, ``{n: values}``, each modulo ``n``, or an unreduced fraction
-            where it is not an integer.  ``theta_Zn`` belongs to this ``p``, not to its
-            symmetry data vector: it is the band set's only for a configuration that is
-            known, never for one solved back out of a band set's content.
+        Invariants
+            ``out.theta_Z`` holds the integer-valued invariants by name, exact
+            fractions, whole numbers exactly where the symmetry indicator is
+            zero; ``out.theta_Zn`` the invariants valued modulo n.  These belong
+            to ``p``, not to its symmetry data vector: they are a band set's
+            only for a configuration that is known.
 
         Raises
         ------
         TypeError
-            ``p`` is a sequence, :meth:`theta_columns`' shape.
+            ``p`` is neither a mapping nor a sum of term rows.
         ValueError
-            A key the tables do not carry; the message lists those at its letter.
+            A position written without its multiplicity or with another one
+            than the tables give it, or a site irrep the tables do not carry
+            there; the message lists those they carry.
 
         Examples
         --------
-        >>> tables.theta({("-E", "a"): 1})                  # doctest: +SKIP
-        ((Fraction(1, 1),), {2: (0, 0, 0)})
+        >>> tables.theta({("-E", "2c"): 1})                    # doctest: +SKIP
+        Invariants(theta_1 to theta_3 = (1, 1, 0); theta_4, theta_5 = (0, 1) mod 2)
         """
-        if not isinstance(p, Mapping):
-            raise TypeError(
-                "SRSITables.theta() takes a {(site irrep, Wyckoff letter): "
-                "multiplicity} mapping over the site keys; a sequence indexed by "
-                "the EBR columns (SRSITables.ebrs) is theta_columns()'s")
-        return self._reduced(self._theta_of_sites(p))
+        return self._invariants(self._theta_of_sites("theta", p))
 
-    def theta_columns(self, p) -> tuple:
-        """:meth:`theta` on a ``p`` over the group's elementary band representations, :attr:`ebrs`.
+    def theta_unreduced(self, p) -> dict:
+        r"""Every invariant of ``p``, by name, those valued modulo n not reduced.
 
-        The shape a decomposition writes ``p`` in, exact for a configuration at those
-        positions alone.  A mapping is :meth:`theta`'s and raises :class:`TypeError`
-        here.
+        Parameters
+        ----------
+        p : mapping or sum of term rows
+            As :meth:`theta` takes it.
+
+        Returns
+        -------
+        dict
+            ``{name: value}`` for every invariant, in the paper's order, exact
+            fractions.
+
+        Raises
+        ------
+        TypeError, ValueError
+            As :meth:`theta` raises them.
         """
-        if isinstance(p, Mapping):
-            raise TypeError(
-                "SRSITables.theta_columns() takes a sequence indexed by the EBR "
-                "columns (SRSITables.ebrs); a {(site irrep, Wyckoff letter): "
-                "multiplicity} mapping is theta()'s")
-        return self._reduced(self._theta_of_columns(p))
-
-    def _reduced(self, raw) -> tuple:
-        """``(theta_Z, theta_Zn)`` from the unreduced rows."""
-        z_values = tuple(raw[i] for i in self.z_rows)
-        zn = {}
-        for n, rows in self.zn_rows.items():
-            zn[n] = tuple(int(raw[i]) % n if raw[i].denominator == 1 else raw[i]
-                          for i in rows)
-        return z_values, zn
-
-    def _theta_of_columns(self, p) -> tuple:
-        """:meth:`theta_unreduced_columns`' arithmetic, without the type gate."""
-        vec = _as_fractions(p, len(self.ebrs))
-        return tuple(sum((Fraction(c) * v for c, v in zip(row, vec)), Fraction(0))
-                     for row in self.theta_on_columns)
+        raw = self._theta_of_sites("theta_unreduced", p)
+        return {row.name: value for row, value in zip(self._rows, raw)}
 
     def indicators_of(self, p) -> dict:
-        """``{name: value}``: the paper's symmetry indicators of ``p``, each modulo its own modulus.
+        """The paper's symmetry indicators of ``p``, each modulo its own modulus.
 
-        ``p`` is the mapping :meth:`theta` takes; a sequence over the columns is
-        :meth:`indicators_of_columns`' and raises :class:`TypeError` here.  A value is
-        an integer, or an unreduced fraction where it is not one.  Each form is
-        :attr:`SRSIIndicator.coefficients`: the printed one, or the derived one for the
-        four forms of SGs 147, 162 and 163 without spin-orbit coupling that are not
-        indicators as printed.
+        Each form is the one ``tables.indicators`` prints, but for the four
+        forms of space groups 147, 162 and 163 without spin-orbit coupling that
+        do not vanish on their own group's elementary band representations,
+        where it is the derived one ``tables.numerical.indicators`` holds.
+
+        Parameters
+        ----------
+        p : mapping or sum of term rows
+            As :meth:`theta` takes it.
+
+        Returns
+        -------
+        dict
+            ``{name: value}``: an integer modulo the indicator's modulus, or an
+            unreduced fraction where the value is not a whole number.
+
+        Raises
+        ------
+        TypeError, ValueError
+            As :meth:`theta` raises them.
         """
-        if not isinstance(p, Mapping):
-            raise TypeError(
-                "SRSITables.indicators_of() takes a {(site irrep, Wyckoff letter): "
-                "multiplicity} mapping over the site keys; a sequence indexed by "
-                "the EBR columns (SRSITables.ebrs) is indicators_of_columns()'s")
-        return self._indicators_of_raw(self._theta_of_sites(p))
+        return self._indicators_of_raw(self._theta_of_sites("indicators_of", p))
 
-    def indicators_of_columns(self, p) -> dict:
-        """:meth:`indicators_of` on a ``p`` over the group's elementary band representations, :attr:`ebrs`.
+    def _invariants(self, raw) -> Invariants:
+        """The :class:`Invariants` of the unreduced rows ``raw``."""
+        theta_z = {self._rows[i].name: raw[i] for i in self._z_rows}
+        theta_zn = {}
+        for i, row in enumerate(self._rows):
+            if row.mod is not None:
+                n = int(row.mod)
+                theta_zn[row.name] = ModularValue(
+                    int(raw[i]) % n if raw[i].denominator == 1 else raw[i], n)
+        return Invariants(theta_Z=theta_z, theta_Zn=theta_zn)
 
-        The shape a ``p`` solved out of a symmetry data vector comes in.  A mapping is
-        :meth:`indicators_of`'s and raises :class:`TypeError` here.
-        """
-        if isinstance(p, Mapping):
-            raise TypeError(
-                "SRSITables.indicators_of_columns() takes a sequence indexed by "
-                "the EBR columns (SRSITables.ebrs); a {(site irrep, Wyckoff "
-                "letter): multiplicity} mapping is indicators_of()'s")
+    def _theta_columns(self, p) -> Invariants:
+        """:meth:`theta` on a ``p`` over the columns, the group's elementary band representations in the order of ``tables._ebrs``."""
+        return self._invariants(self._theta_of_columns(p))
+
+    def _theta_unreduced_columns(self, p) -> tuple:
+        """Every invariant of a ``p`` over the columns, unreduced, one per row in the paper's order."""
+        return self._theta_of_columns(p)
+
+    def _indicators_of_columns(self, p) -> dict:
+        """:meth:`indicators_of` on a ``p`` over the columns."""
         return self._indicators_of_raw(self._theta_of_columns(p))
+
+    def _theta_of_columns(self, p) -> tuple:
+        """The unreduced rows of a ``p`` over the columns."""
+        vec = _as_fractions(p, len(self._ebrs))
+        return tuple(sum((Fraction(c) * v for c, v in zip(row, vec)), Fraction(0))
+                     for row in self._theta_on_columns)
 
     def _indicators_of_raw(self, raw) -> dict:
         """:meth:`indicators_of`' arithmetic on the unreduced rows."""
         out = {}
-        for form in self.indicators:
+        for form in self._indicator_rows:
             total = sum((c * raw[i - 1] for i, c in form.coefficients.items()),
                         Fraction(0))
             out[form.name] = (int(total) % form.mod if total.denominator == 1
@@ -601,65 +808,87 @@ class SRSITables:
         return out
 
     # -- the full site-symmetry vector -------------------------------------
-    @property
-    def site_keys(self) -> tuple:
-        """Every site key the invariants count, a site irrep at a Wyckoff position, maximal or not: the coordinates of ``p``.
-
-        Returns
-        -------
-        tuple of SiteKey
-            Sorted by Wyckoff letter, then by irrep.
-        """
-        seen = {}
-        for row in self.rows:
-            for term in row.terms:
-                key = (str(term["irrep"]), str(term["letter"]))
-                if key not in seen:
-                    seen[key] = SiteKey(
-                        irrep=key[0], letter=key[1],
-                        maximal=bool(term["maximal"]), ebr=bool(term["ebr"]),
-                        column=(None if term["column"] is None
-                                else int(term["column"])),
-                        ebr_label=term.get("ebr_label"))
-        return tuple(seen[k] for k in sorted(seen))
-
     def _site_lookup(self) -> dict:
-        """``{(spelling, letter): (irrep, letter)}`` — both spellings of a key."""
+        """``{(spelling, letter): (paper's spelling, letter)}``: both spellings of a site irrep."""
         out = {}
-        for key in self.site_keys:
-            out[(key.irrep, key.letter)] = (key.irrep, key.letter)
-            if key.ebr_label:
-                out[(key.ebr_label, key.letter)] = (key.irrep, key.letter)
+        for site in self.site_irreps:
+            out[(site._paper, site._letter)] = (site._paper, site._letter)
+            out[(site.irrep, site._letter)] = (site._paper, site._letter)
         return out
 
-    def _theta_of_sites(self, p) -> tuple:
-        """:meth:`theta_unreduced` on a ``p`` keyed by ``(site irrep, letter)``."""
+    def _position(self, call, position) -> str:
+        """The letter of ``position``, written ``"1a"``; ``ValueError`` where it is not one of the tables' positions."""
+        position = str(position)
+        letters = self._multiplicities
+        match = _WYCKOFF.match(position)
+        if match is None:
+            if re.fullmatch(r"[a-zA-Z]", position):
+                written = (f"'{letters[position]}{position}'" if position in letters
+                           else "such as '1a'")
+                raise ValueError(f"{call}(): the position {position!r} is written with its "
+                                 f"multiplicity, {written}")
+            raise ValueError(f"{call}(): {position!r} is no Wyckoff position; a position is "
+                             "written with its multiplicity, such as '1a'")
+        multiplicity, letter = int(match.group(1)), match.group(2)
+        carried = sorted({site._letter for site in self.site_irreps})
+        if letter not in carried:
+            raise ValueError(
+                f"{call}(): #{self._number_str} has no Wyckoff position {position} in its "
+                "tables; they carry "
+                + ", ".join(f"{letters.get(c, '')}{c}" for c in carried))
+        if letters.get(letter) != multiplicity:
+            raise ValueError(f"{call}(): #{self._number_str} has Wyckoff position "
+                             f"{letters.get(letter)}{letter}, not {position}")
+        return letter
+
+    def _theta_of_sites(self, call, p) -> tuple:
+        """The unreduced rows of ``p``, a mapping keyed ``(site irrep, "1a")`` or a sum of term rows."""
+        if isinstance(p, Mapping):
+            items = list(p.items())
+        elif _is_sum(p):
+            items = [((t.irrep, t.wyckoff), t.multiplicity) for t in p]
+        else:
+            raise TypeError(
+                f"{call}(): p is a mapping {{(site irrep, Wyckoff position): multiplicity}}, "
+                "the position written '1a', or a sum of term rows; got a "
+                f"{type(p).__name__}")
         lookup = self._site_lookup()
         vector: dict = {}
-        for key, value in dict(p).items():
-            if isinstance(key, SiteKey):
-                key = (key.irrep, key.letter)
+        for key, value in items:
             if not (isinstance(key, tuple) and len(key) == 2):
                 raise ValueError(
-                    f"the site-symmetry vector is keyed by (site irrep, Wyckoff "
-                    f"letter) pairs or by the SiteKey records site_keys returns; "
+                    f"{call}(): the site-symmetry vector is keyed by (site irrep, Wyckoff "
+                    "position) pairs, the position written '1b', or is a sum of term rows; "
                     f"got {key!r}")
-            resolved = lookup.get((str(key[0]), str(key[1])))
+            letter = self._position(call, key[1])
+            resolved = lookup.get((str(key[0]), letter))
             if resolved is None:
-                here = sorted({k.irrep for k in self.site_keys
-                               if k.letter == str(key[1])})
-                letters = sorted({k.letter for k in self.site_keys})
+                here = sorted({site.irrep for site in self.site_irreps
+                               if site._letter == letter})
                 raise ValueError(
-                    f"#{self.number_str} "
-                    f"({'double' if self.spinor else 'single'}-valued) has no site "
-                    f"irrep {str(key[0])!r} at Wyckoff letter {str(key[1])!r}. "
-                    + (f"At {str(key[1])!r} the tables carry {here}."
-                       if here else
-                       f"The tables carry no Wyckoff letter {str(key[1])!r} at all; "
-                       f"they carry {letters}."))
+                    f"{call}(): #{self._number_str} ({_valuedness(self._spinor)}) has no "
+                    f"site irrep {str(key[0])!r} at {key[1]}; at {key[1]} the tables carry "
+                    f"{here}")
             vector[resolved] = vector.get(resolved, Fraction(0)) + Fraction(value)
+        return self._raw_of(vector)
+
+    def _theta_at(self, irreps, letter) -> Invariants:
+        """:meth:`theta` of ``{irrep: multiplicity}`` at one letter, the irreps in either spelling."""
+        lookup = self._site_lookup()
+        vector: dict = {}
+        for irrep, value in dict(irreps).items():
+            resolved = lookup.get((str(irrep), str(letter)))
+            if resolved is None:
+                raise ValueError(
+                    f"#{self._number_str} ({_valuedness(self._spinor)}) has no site irrep "
+                    f"{str(irrep)!r} at Wyckoff letter {str(letter)!r}")
+            vector[resolved] = vector.get(resolved, Fraction(0)) + Fraction(value)
+        return self._invariants(self._raw_of(vector))
+
+    def _raw_of(self, vector) -> tuple:
+        """The unreduced rows of ``{(paper's spelling, letter): multiplicity}``."""
         out = []
-        for row in self.rows:
+        for row in self._rows:
             total = Fraction(0)
             for term in row.terms:
                 got = vector.get((str(term["irrep"]), str(term["letter"])))
@@ -670,103 +899,82 @@ class SRSITables:
 
     # -- the basis of the atomic realizations: the maximal positions -------
     @property
-    def maximal_keys(self) -> tuple:
-        r"""Every maximal site key, with the bands one copy of it carries: the coordinates :func:`..srsi.atomic_realizations` lists configurations over.
+    def _maximal_keys(self) -> tuple:
+        r"""Every maximal site irrep, with the bands one copy of it carries: the coordinates :func:`..srsi.atomic_realizations` lists configurations over.
 
-        The keys with an elementary band representation come first, in the order of
-        :attr:`ebrs`, then the maximal ones whose band representation is a sum of
-        others.  Maximal positions are enough: an atomic insulator moves onto them
-        with its invariants unchanged.
-
-        Returns
-        -------
-        tuple of MaximalKey
-
-        Raises
-        ------
-        ..refusal.InternalError
-            The installed list of elementary band representations is not the one the
-            tables were converted against, or the band count is not a form in the
-            :math:`\mathbb{Z}`-valued invariants: a defect to report.
-            :func:`srsi_tables` refuses ``srsi_ebr_basis`` for the first before this
-            is reached.
+        The site irreps with an elementary band representation come first, in
+        the order of ``tables._ebrs``, then the maximal ones whose band
+        representation is a sum of others.
         """
-        return _maximal_basis(int(self.sg), bool(self.spinor))[0]
+        return _maximal_basis(int(self._sg), bool(self._spinor))[0]
 
     @property
-    def band_count_form(self) -> tuple:
-        r"""The band count as a form in the :math:`\mathbb{Z}`-valued invariants: the ``a`` with ``a . theta_Z`` the number of bands.
-
-        The band count is itself an invariant, and the form is unique; its value on a
-        key whose band representation is a sum of others is that key's band count
-        (:attr:`MaximalKey.dim`).  ``#211.57`` reads :math:`\nu = \theta_1 + \theta_2
-        + 2\theta_3 + 3\theta_4 + 3\theta_5 + 3\theta_6 + 4\theta_7`.
-
-        Returns
-        -------
-        tuple of Fraction
-            One per :attr:`z_rows`.
-        """
-        return _maximal_basis(int(self.sg), bool(self.spinor))[2]
-
-    def row(self, name: str) -> SRSIRow | None:
-        """The invariant named ``name``, ``"theta_3"``, or ``None``."""
-        for row in self.rows:
-            if row.name == name:
-                return row
-        return None
+    def _band_count_form(self) -> tuple:
+        r"""The band count as a form in the integer-valued invariants: the ``a`` with ``a . theta_Z`` the number of bands, one entry per integer-valued invariant."""
+        return _maximal_basis(int(self._sg), bool(self._spinor))[2]
 
     def summary(self) -> str:
-        """The invariants, row by row, and what else the table holds, a line each."""
-        lines = [f"{_group(self.number_str, self.spinor)}: stable real-space invariants "
-                 f"{self.structure}   (.structure)",
-                 "  each invariant, Z- or Z_n-valued, and the number of terms in its "
-                 "formula   (.rows)"]
-        lines += [f"  {row.name:>9s}  {'Z' if row.mod is None else 'Z%d' % row.mod:>3s}"
-                  f"  {_count(len(row.terms), 'term')}" for row in self.rows]
-        lines.append(f"  {_count(len(self.site_keys), 'site irrep')} at Wyckoff positions, "
-                     f"{len(self.ebrs)} of them inducing an elementary band representation"
-                     "   (.site_keys, .ebrs)")
-        if self.terms_without_ebr_column:
-            lines.append(f"  {_count(len(self.terms_without_ebr_column), 'term')} on site "
-                         "irreps that induce a composite band representation"
-                         "   (.terms_without_ebr_column)")
+        """The invariants, a line each with its modulus, and what else the tables hold, a line each."""
+        lines = [f"{_group(self.group)}: "
+                 f"{_count(len(self.invariants), 'stable real-space invariant')}"
+                 "   (.group, .invariants)",
+                 "  each invariant, and its modulus where it is valued modulo n"
+                 "   (.invariants, .moduli)"]
+        lines += [f"  {name:>9s}  "
+                  f"{'Z' if self.moduli[name] is None else 'Z%d' % self.moduli[name]:>3s}"
+                  for name in self.invariants]
+        n_ebr = sum(1 for site in self.site_irreps if site.ebr)
+        lines.append(f"  {_count(len(self.site_irreps), 'site irrep')} at Wyckoff positions, "
+                     f"{n_ebr} of them inducing an elementary band representation"
+                     "   (.site_irreps)")
         lines.append("  " + (f"{_count(len(self.indicators), 'symmetry indicator')}, each "
                              "a form in the theta_i: "
-                             + ", ".join(f"{f.name} (mod {f.mod})" for f in self.indicators)
+                             + ", ".join(f"{name} (mod {self.moduli[name]})"
+                                         for name in self.indicators)
+                             + "   (.indicators, .moduli)"
                              if self.indicators else
                              "no symmetry indicator, the group's indicator group being "
-                             "trivial")
-                     + "   (.indicators)")
+                             "trivial   (.indicators)"))
         if self.split_ebrs:
             lines.append(f"  {len(self.split_ebrs)} splitting"
                          f"{'' if len(self.split_ebrs) == 1 else 's'} of an elementary band "
                          "representation into others that the symmetry indicators allow"
                          "   (.split_ebrs)")
+        pairs = self.stably_equivalent
+        if pairs:
+            lines.append("  site irreps no stable real-space invariant distinguishes: "
+                         + "; ".join(_pair_text(pair) for pair in pairs)
+                         + "   (.stably_equivalent)")
         return "\n".join(lines)
 
     def formulas(self) -> str:
         r"""Every invariant's formula, a line each, as the paper tabulates them, under a line saying what a term is.
 
-        ``theta_2 (Z2) = 1 (-E)_b``: the invariant and whether it is
-        :math:`\mathbb{Z}`- or :math:`\mathbb{Z}_n`-valued, then its terms, each
-        a site irrep at its Wyckoff letter times its multiplicity.
+        ``theta_2 (Z2) = 1 (-E)_b``: the invariant and its modulus, then its
+        terms, each a site irrep at its Wyckoff letter times its multiplicity.
         """
-        heads = [f"{row.name} ({'Z' if row.mod is None else f'Z{row.mod}'})"
-                 for row in self.rows]
+        heads = [f"{name} ({'Z' if self.moduli[name] is None else f'Z{self.moduli[name]}'})"
+                 for name in self.invariants]
         width = max((len(head) for head in heads), default=0)
         return "\n".join(
-            ["each invariant, Z- or Z_n-valued, as a sum of terms c (irrep)_w, c times the "
-             "multiplicity of a site irrep at Wyckoff position w   (.rows)"]
-            + [f"  {head:<{width}} = {_formula(row)}" for head, row in zip(heads, self.rows)])
+            ["each invariant, Z or Z_n by its modulus, as a sum of terms c (irrep)_w, c times "
+             "the multiplicity of a site irrep at Wyckoff position w   (.invariants, .moduli)"]
+            + [f"  {head:<{width}} = {formula}"
+               for head, formula in zip(heads, self.invariants.values())])
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
-        return (f"SRSITables(#{self.number_str}, "
-                f"{'double' if self.spinor else 'single'}-valued, "
-                f"{len(self.rows)} SRSIs = {self.structure}, "
-                f"{len(self.ebrs)} EBR columns, "
-                f"{len(self.indicators)} indicators, "
-                f"{len(self.split_ebrs)} split EBRs)")
+        return (f"SRSITables({_label(self.group)}, {_valuedness(self._spinor)}, "
+                f"{_count(len(self.invariants), 'invariant')}, "
+                f"{_count(len(self.indicators), 'indicator')}, "
+                f"{_count(len(self.split_ebrs), 'split EBR')})")
+
+
+def _split(tables, invariants) -> tuple:
+    """``(theta_Z, {n: values})`` of :class:`Invariants`, each in the tables' order, the values valued modulo n grouped by modulus."""
+    theta_z = tuple(invariants.theta_Z.values())
+    theta_zn = {n: tuple(invariants.theta_Zn[tables._rows[i].name].value for i in rows)
+                for n, rows in tables._zn_rows.items()}
+    return theta_z, theta_zn
 
 
 # ---------------------------------------------------------------------------
@@ -821,8 +1029,8 @@ def _as_fractions(p, n) -> tuple:
     values = list(p)
     if len(values) != n:
         raise ValueError(f"the site-symmetry vector has {len(values)} entries against "
-                         f"{n} EBR columns; it must be indexed by the group's own EBR "
-                         "list (SRSITables.ebrs)")
+                         f"{n} elementary band representations; it is indexed by the "
+                         "group's own list of elementary band representations")
     return tuple(Fraction(v) for v in values)
 
 
@@ -831,9 +1039,25 @@ def _lettered(entry: dict) -> dict:
     return {("letter" if key == "wyckoff" else key): value for key, value in entry.items()}
 
 
-def _build(record: dict, provenance: dict) -> SRSITables:
+def _tupled(value):
+    """A list of the converted data as an immutable sequence, anything else as it is."""
+    return tuple(value) if isinstance(value, list) else value
+
+
+@functools.lru_cache(maxsize=2)
+def _provenance(valuedness: str) -> Provenance:
+    """The provenance block of one of the two documents, as its record."""
+    block = dict(_document(valuedness)["provenance"])
+    counts = ProvenanceCounts(**{key: _tupled(value)
+                                 for key, value in dict(block.pop("counts")).items()})
+    return Provenance(counts=counts, **{key: _tupled(value) for key, value in block.items()})
+
+
+def _build(record: dict, provenance: Provenance, group) -> SRSITables:
     n_ebr = len(record["ebrs"])
-    rows, matrix, moduli, names, orphans = [], [], [], [], []
+    multiplicities = {str(p["letter"]): int(p["multiplicity"])
+                      for p in _spacegroup._pyxtal_wyckoff(int(record["sg"]))[0]}
+    rows, matrix, orphans = [], [], []
     for entry in record["srsis"]:
         coefficients = [0] * n_ebr
         terms = []
@@ -843,48 +1067,97 @@ def _build(record: dict, provenance: dict) -> SRSITables:
                 orphans.append(dict(_lettered(term), srsi=entry["index"]))
             else:
                 coefficients[term["column"]] += int(term["coef"])
-        rows.append(SRSIRow(index=int(entry["index"]), name=str(entry["name"]),
-                            mod=None if entry["mod"] is None else int(entry["mod"]),
-                            coefficients=tuple(coefficients), terms=tuple(terms)))
+        rows.append(_SRSIRow(index=int(entry["index"]), name=str(entry["name"]),
+                             mod=None if entry["mod"] is None else int(entry["mod"]),
+                             coefficients=tuple(coefficients), terms=tuple(terms)))
         matrix.append(tuple(coefficients))
-        moduli.append(rows[-1].mod)
-        names.append(rows[-1].name)
-    indicators = tuple(
-        SRSIIndicator(name=str(e["name"]), name_tex=str(e["name_tex"]),
-                      mod=int(e["mod"]),
-                      theta={int(k): Fraction(v[0], v[1]) for k, v in e["theta"].items()},
-                      vanishes_on_ebrs=bool(e.get("vanishes_on_ebrs", True)),
-                      ebr_failures=tuple((int(c), str(v))
-                                         for c, v in e.get("ebr_failures", ())),
-                      derived=(None if e.get("derived") is None else
-                               {int(k): Fraction(v[0], v[1])
-                                for k, v in e["derived"]["theta"].items()}),
-                      relation=(None if e.get("derived") is None
-                                else str(e["derived"]["relation"])),
-                      source=(None if e.get("derived") is None
-                              else str(e["derived"]["source"])),
-                      derived_note=str(e.get("derived_note", "")))
+    indicator_rows = tuple(
+        _SRSIIndicator(name=str(e["name"]), name_tex=str(e["name_tex"]),
+                       mod=int(e["mod"]),
+                       theta={int(k): Fraction(v[0], v[1]) for k, v in e["theta"].items()},
+                       vanishes_on_ebrs=bool(e.get("vanishes_on_ebrs", True)),
+                       ebr_failures=tuple((int(c), str(v))
+                                          for c, v in e.get("ebr_failures", ())),
+                       derived=(None if e.get("derived") is None else
+                                {int(k): Fraction(v[0], v[1])
+                                 for k, v in e["derived"]["theta"].items()}),
+                       relation=(None if e.get("derived") is None
+                                 else str(e["derived"]["relation"])),
+                       source=(None if e.get("derived") is None
+                               else str(e["derived"]["source"])),
+                       derived_note=str(e.get("derived_note", "")))
         for e in record["indicators"])
-    splits = tuple(SplitEBR(parent=_lettered(e["parent"]),
-                            children=tuple(_lettered(c) for c in e["children"]),
-                            srsi_mismatch=bool(e["srsi_mismatch"]))
-                   for e in record["split_ebrs"])
+    ebrs = tuple((str(a), str(b)) for a, b in record["ebrs"])
+
+    # every site irrep the formulas count, in the order of the paper's spelling
+    # and letter
+    seen = {}
+    for row in rows:
+        for term in row.terms:
+            key = (str(term["irrep"]), str(term["letter"]))
+            if key not in seen:
+                seen[key] = SiteIrrep(
+                    irrep=str(term.get("ebr_label") or term["irrep"]),
+                    wyckoff=f"{multiplicities[key[1]]}{key[1]}",
+                    maximal=bool(term["maximal"]), ebr=bool(term["ebr"]),
+                    _paper=key[0], _letter=key[1],
+                    _column=None if term["column"] is None else int(term["column"]))
+    site_irreps = tuple(seen[k] for k in sorted(seen))
+
+    def site(entry) -> SiteIrrep:
+        entry = _lettered(entry)
+        key = (str(entry["irrep"]), str(entry["letter"]))
+        if key in seen:
+            return seen[key]
+        column = entry.get("column")
+        return SiteIrrep(irrep=key[0], wyckoff=f"{multiplicities[key[1]]}{key[1]}",
+                         maximal=True, ebr=column is not None, _paper=key[0],
+                         _letter=key[1], _column=None if column is None else int(column))
+
+    def written(s) -> str:
+        return f"({s.irrep})_{s._letter}"
+
+    splits = []
+    for e in record["split_ebrs"]:
+        parent, children = site(e["parent"]), tuple(site(c) for c in e["children"])
+        splits.append(SplitEBR(
+            parent=parent, children=children,
+            label=f"{written(parent)} = {' + '.join(written(c) for c in children)}",
+            srsi_mismatch=bool(e["srsi_mismatch"])))
+
+    def form(row) -> str:
+        return _signed((c, f"theta_{i}") for i, c in sorted(row.items()))
+
+    checks = {}
+    for f in indicator_rows:
+        checks[f.name] = IndicatorCheck(
+            relation=f.relation, source=f.source,
+            derived=None if f.derived is None else form(f.derived),
+            derived_note=f.derived_note,
+            ebr_failures=tuple((ebrs[c][0], f"{multiplicities[ebrs[c][1]]}{ebrs[c][1]}", v)
+                               for c, v in f.ebr_failures),
+            vanishes_on_ebrs=f.vanishes_on_ebrs)
+    moduli = {row.name: row.mod for row in rows}
+    moduli.update({f.name: f.mod for f in indicator_rows})
     return SRSITables(
-        sg=int(record["sg"]), number_str=str(record["number_str"]),
-        spinor=record["valuedness"] == "double",
-        rows=tuple(rows), theta_on_columns=tuple(matrix), moduli=tuple(moduli),
-        names=tuple(names),
-        ebrs=tuple((str(a), str(b)) for a, b in record["ebrs"]),
-        indicators=indicators, split_ebrs=splits,
-        terms_without_ebr_column=tuple(orphans), provenance=provenance)
+        group=group,
+        invariants={row.name: _formula(row) for row in rows},
+        indicators={f.name: form(f.theta) for f in indicator_rows},
+        moduli=moduli, site_irreps=site_irreps, split_ebrs=tuple(splits),
+        provenance=provenance, numerical=SRSITablesNumerical(indicators=checks),
+        _sg=int(record["sg"]), _number_str=str(record["number_str"]),
+        _spinor=record["valuedness"] == "double", _rows=tuple(rows),
+        _theta_on_columns=tuple(matrix), _ebrs=ebrs, _indicator_rows=indicator_rows,
+        _terms_without_ebr_column=tuple(orphans), _multiplicities=multiplicities)
 
 
 def _table_of_number(sg: int, spinor: bool) -> SRSITables | Refusal:
-    """The SRSI table of a space-group **number** — :func:`srsi_tables`' second shape.
+    """The tables of a space-group **number** -- :func:`srsi_tables`' second shape.
 
-    Refuses ``srsi_data`` (the converted files are not installed),
-    ``srsi_scope`` (``sg`` outside 1..230) or ``srsi_table_absent`` (one of the
-    thirteen groups the tables omit, with the caption's reason).
+    Their group is the grey group of the number, with no cell.  Refuses
+    ``srsi_data`` (the converted files are not installed), ``srsi_scope``
+    (``sg`` outside 1..230) or ``srsi_table_absent`` (one of the thirteen groups
+    the tables omit, with the caption's reason).
     """
     if not 1 <= int(sg) <= 230:
         return Refusal(
@@ -894,7 +1167,8 @@ def _table_of_number(sg: int, spinor: bool) -> SRSITables | Refusal:
     status = srsi_status()
     if not status["data"]:
         return _refuse_no_data(status)
-    document = _document("double" if spinor else "single")
+    valuedness = "double" if spinor else "single"
+    document = _document(valuedness)
     provenance = document["provenance"]
     record = document["groups"].get(str(int(sg)))
     if record is None:
@@ -906,22 +1180,24 @@ def _table_of_number(sg: int, spinor: bool) -> SRSITables | Refusal:
             context={"sg": int(sg), "spinor": bool(spinor),
                      "omitted_groups": tuple(provenance["omitted_groups"]),
                      "doi": provenance["doi"]})
-    return _build(record, provenance)
+    number_str = str(record["number_str"])
+    group = _spacegroup._group_of_number(int(sg), number_str, bool(spinor),
+                                         _grey_symbol(number_str, bool(spinor)))
+    return _build(record, _provenance(valuedness), group)
 
 
 def srsi_tables(group_or_number, *, spinor=None) -> SRSITables | Refusal:
     """The stable real-space invariants of a grey space group, as the paper tabulates them.
 
-    From a measured group the tables come in that group's order of elementary band
-    representations, so a ``p`` built anywhere in the package drops into
-    :meth:`SRSITables.theta`; from a space-group number with ``spinor=`` they need
-    no model.
+    From a measured group the tables come with the group, and every call that
+    reads a model's site irreps reads them in these tables; from a space-group
+    number with ``spinor=`` they need no model.
 
     Parameters
     ----------
     group_or_number : ..groups.GroupData or int
-        A grey group a model was measured to have, or a space-group number from
-        1 to 230.
+        A grey group a model was measured to have, ``r.group``, or a
+        space-group number from 1 to 230.
     spinor : bool, optional
         With a number, and only then: the tables with spin-orbit coupling
         (``True``) or without.
@@ -930,10 +1206,15 @@ def srsi_tables(group_or_number, *, spinor=None) -> SRSITables | Refusal:
     -------
     SRSITables or Refusal
         ``tables.summary()`` prints the invariants; ``tables.theta(p)`` evaluates
-        them on a configuration.  A ``Refusal`` in its place is falsy.
+        them on a configuration.  From a number, ``tables.group`` holds the grey
+        group's name, number and valuedness and no cell.  A ``Refusal`` in its
+        place is falsy.
 
     Raises
     ------
+    TypeError
+        Neither a group nor a number: what :func:`..groups.realized_group`
+        returns, or its representation, in place of its group.
     ValueError
         A number without ``spinor=``, or a group with it.
 
@@ -954,31 +1235,35 @@ def srsi_tables(group_or_number, *, spinor=None) -> SRSITables | Refusal:
 
     Examples
     --------
-    >>> srsi_tables(25, spinor=True).structure             # doctest: +SKIP
-    'Z x Z2 x Z2 x Z2'
+    >>> srsi_tables(25, spinor=True).moduli["theta_2"]     # doctest: +SKIP
+    2
     """
-    if isinstance(group_or_number, (int, np.integer)):
+    if isinstance(group_or_number, (int, np.integer)) and not isinstance(group_or_number,
+                                                                          bool):
         if spinor is None:
             raise ValueError(
-                f"srsi_tables({int(group_or_number)}) is a space-group number, and the "
+                f"srsi_tables(): {int(group_or_number)} is a space-group number, and the "
                 "tables come in two valuednesses: pass spinor=True or spinor=False. "
-                "With a measured GroupData the flag comes off the group itself")
+                "A measured group carries its own")
         return _table_of_number(int(group_or_number), bool(spinor))
     group = group_or_number
-    # The two grammar checks come FIRST and stay hard errors: declaring the
+    if not _spacegroup._is_number_group(group):
+        _spacegroup._require_group("srsi_tables", group)
+    # The grammar check comes FIRST and stays a hard error: declaring the
     # valuedness twice is a mistake in the call, not a fact about the crystal,
     # and it is wrong whatever lattice the group is on.  The lattice gate is a
     # physics verdict and follows.
-    if spinor is not None:
+    if spinor is not None and not isinstance(group, Refusal):
         own = bool(getattr(group, "spinor", False))
         raise ValueError(
-            f"srsi_tables() was given a group and spinor={spinor!r}. A GroupData "
-            f"already declares its valuedness (spinor={own!r} here), and it is the "
-            "group's own flag that decides which table its EBR columns belong to; "
-            "pass spinor= only with a bare space-group number")
+            f"srsi_tables(): a group was given with spinor={spinor!r}. A group already "
+            f"declares its valuedness (spinor={own!r} here), and it decides which table "
+            "is read; pass spinor= only with a space-group number")
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
+    if _spacegroup._is_number_group(group):
+        return _table_of_number(int(group._sg_number), bool(group.spinor))
     mtype = _spacegroup._magnetic_type(group)
     if mtype != "II":
         return Refusal(
@@ -996,21 +1281,20 @@ def srsi_tables(group_or_number, *, spinor=None) -> SRSITables | Refusal:
     if not data:
         return data
     installed = tuple(_ebr_key(name, position) for name, position in data["ebrs"])
-    if installed != table.ebrs or str(group.number_str) != table.number_str:
+    if installed != table._ebrs or str(group.number_str) != table._number_str:
         return Refusal(
             "srsi_ebr_basis",
             f"the EBR list installed for #{group.number_str} is not the one the SRSI "
-            f"conversion resolved against (#{table.number_str}, {len(table.ebrs)} "
+            f"conversion resolved against (#{table._number_str}, {len(table._ebrs)} "
             f"columns against {len(installed)}), so its stored column indices would "
             "name the wrong EBRs. The tables were converted against irreptables "
-            f"{table.provenance.get('irreptables_version')}: install that version",
-            value=float(len(installed)), threshold=float(len(table.ebrs)),
+            f"{table.provenance.irreptables_version}: install that version",
+            value=float(len(installed)), threshold=float(len(table._ebrs)),
             context={"number_str": str(group.number_str),
-                     "converted_against": table.number_str,
-                     "installed": tuple(installed), "expected": table.ebrs,
-                     "irreptables_version": table.provenance.get(
-                         "irreptables_version")})
-    return table
+                     "converted_against": table._number_str,
+                     "installed": tuple(installed), "expected": table._ebrs,
+                     "irreptables_version": table.provenance.irreptables_version})
+    return replace(table, group=group)
 
 
 def _ebr_key(name, position) -> tuple:
@@ -1060,6 +1344,40 @@ def _no_bare_number(group_or_tables, call) -> None:
             "space-group number carries no valuedness, so load the table first -- "
             f"srsi_tables({n}, spinor=True) or srsi_tables({n}, spinor=False) -- and "
             "pass that")
+
+
+@functools.lru_cache(maxsize=None)
+def _stable_pairs(sg: int, spinor: bool) -> tuple:
+    """The pairs of site irreps at one maximal position no invariant tells apart, in one system: ``tables.stably_equivalent``."""
+    tables = _table_of_number(int(sg), bool(spinor))
+    if not tables:                            # pragma: no cover - gated above
+        return ()
+    data = _tables._ebr_data(_TableKey(tables._number_str, spinor))
+    if not data:                              # pragma: no cover - install-dependent
+        return ()
+    matrix = np.asarray(data["matrix"], dtype=int)
+    labels = list(data["labels_physics_convention"])
+    by_content: dict = {}
+    for j, (_name, position) in enumerate(data["ebrs"]):
+        match = _POSITION.match(str(position))
+        by_content.setdefault((match.group(2), tuple(int(x) for x in matrix[:, j])),
+                              []).append((j, match.group(1) + match.group(2)))
+    out = []
+    for (_letter, vector), entries in sorted(by_content.items()):
+        if len(entries) < 2:
+            continue
+        columns = [j for j, _w in entries]
+        got = tables._theta_columns(
+            [1 if j == columns[0] else 0 for j in range(len(tables._ebrs))])
+        out.append(StablePair(
+            irreps=tuple(sorted(tables._ebrs[j][0] for j in columns)),
+            wyckoff=entries[0][1],
+            symmetry_data=_tables.ordered_content(
+                {labels[i]: int(x) for i, x in enumerate(vector) if x}),
+            theta_Z=got.theta_Z, theta_Zn=got.theta_Zn,
+            _names=tuple(sorted(str(data["ebrs"][j][0]) for j in columns)),
+            _columns=tuple(columns)))
+    return tuple(out)
 
 
 # ---------------------------------------------------------------------------
@@ -1291,20 +1609,20 @@ def name_correspondence(group_or_tables):
     if not tables:
         return tables
     try:
-        entry = _spacegroup._indicator_table(tables.spinor, True).get(
-            tables.number_str, {})
+        entry = _spacegroup._indicator_table(tables._spinor, True).get(
+            tables._number_str, {})
         forms = dict(entry.get("indicators", {}))
     except Exception as exc:                   # pragma: no cover - table defect
         return Refusal("irreptables_indicator_tables",
                        f"irreptables' indicator table could not be read: {exc}",
-                       context={"number_str": tables.number_str})
+                       context={"number_str": tables._number_str})
     out, paired = [], set()
-    for form in tables.indicators:
+    for form in tables._indicator_rows:
         spelled, relation = _spelling(form.name)
         if spelled not in forms:
             out.append(NamePair(form.name, None, "paper_only", form.mod,
                                 f"irreptables ships no form spelled {spelled!r} for "
-                                f"#{tables.number_str}"))
+                                f"#{tables._number_str}"))
             continue
         mod = float(forms[spelled]["mod"])
         if abs(mod - round(mod)) > 1e-9 or int(round(mod)) != form.mod:
@@ -1322,7 +1640,7 @@ def name_correspondence(group_or_tables):
         mod = float(forms[spelled]["mod"])
         out.append(NamePair(None, spelled, "irreptables_only",
                             int(round(mod)) if abs(mod - round(mod)) < 1e-9 else None,
-                            f"the paper's table for #{tables.number_str} carries no "
+                            f"the paper's table for #{tables._number_str} carries no "
                             f"form spelled {_unspelling(spelled)[0]!r}"))
     return tuple(out)
 
@@ -1342,7 +1660,7 @@ def _canonical_gate(number_str: str, spinor: bool) -> dict:
     to :math:`\{BS\}/\{AI\}` exactly when it vanishes modulo its own modulus on
     every EBR column -- an EBR is an atomic limit -- and that is checked here on
     the row :meth:`SRSITables.indicators_of` evaluates
-    (:attr:`SRSIIndicator.coefficients`: the printed row, or the derived one
+    (``_SRSIIndicator.coefficients``: the printed row, or the derived one
     for the four rows of SGs 147, 162 and 163 without SOC where the printed one
     is not an indicator).  Measured over all 434 tabulated systems: zero
     failures.
@@ -1378,22 +1696,22 @@ def _canonical_gate(number_str: str, spinor: bool) -> dict:
     divisors = tuple(int(d[i]) for i in slots)
 
     failures = []
-    for form in tables.indicators:
+    for form in tables._indicator_rows:
         row = form.coefficients
         for column in range(n_col):
-            total = sum((c * Fraction(tables.theta_on_columns[i - 1][column])
+            total = sum((c * Fraction(tables._theta_on_columns[i - 1][column])
                          for i, c in row.items()), Fraction(0))
             if total.denominator != 1 or int(total) % form.mod:
                 failures.append((str(form.name), int(column), str(total)))
 
     generators, collisions, fractional = (), (), ()
     n_classes = 0
-    if divisors and tables.indicators:
+    if divisors and tables._indicator_rows:
         u_inv = _smith._unimodular_inverse(u)
         values_of = []
         for slot in slots:
             y = [Fraction(int(u_inv[i][slot])) for i in range(n_row)]
-            values_of.append(tables.indicators_of_columns(_rational_p(u, v, d, y)))
+            values_of.append(tables._indicators_of_columns(_rational_p(u, v, d, y)))
         generators = tuple(dict(v2) for v2 in values_of)
         fractional = tuple((str(name), str(value))
                            for record in values_of
@@ -1406,7 +1724,7 @@ def _canonical_gate(number_str: str, spinor: bool) -> dict:
                     (str(form.name),
                      sum(c * values_of[g][form.name]
                          for g, c in enumerate(combination)) % form.mod)
-                    for form in tables.indicators)
+                    for form in tables._indicator_rows)
                 n_classes += 1
                 if reading in seen:
                     hits.append((seen[reading], combination, dict(reading)))
@@ -1414,8 +1732,8 @@ def _canonical_gate(number_str: str, spinor: bool) -> dict:
             collisions = tuple(hits)
     return {"available": True, "number_str": str(number_str), "spinor": bool(spinor),
             "divisors": divisors, "slots": slots,
-            "names": tuple(str(f.name) for f in tables.indicators),
-            "moduli": tuple(int(f.mod) for f in tables.indicators),
+            "names": tuple(str(f.name) for f in tables._indicator_rows),
+            "moduli": tuple(int(f.mod) for f in tables._indicator_rows),
             "vanishes": not failures, "ebr_failures": tuple(failures),
             "integral": not fractional, "fractional": fractional,
             "n_classes": int(n_classes), "injective": not collisions,
@@ -1465,7 +1783,7 @@ def canonical_determinism(group_or_tables) -> dict | Refusal:
               else srsi_tables(group_or_tables))
     if not tables:
         return tables
-    return dict(_canonical_gate(tables.number_str, tables.spinor))
+    return dict(_canonical_gate(tables._number_str, tables._spinor))
 
 
 def _canonical_reading(group, magnetic_type, u, v, d, y, divisors) -> tuple:
@@ -1520,14 +1838,14 @@ def _canonical_reading(group, magnetic_type, u, v, d, y, divisors) -> tuple:
             "class to read in the paper's named indicators; the paper's tables carry an indicator "
             "row for exactly the 170 grey systems that have one, and this is not one "
             "of them"), {}
-    if not tables.indicators:
+    if not tables._indicator_rows:
         raise InternalError(
             f"#{group.number_str}: the indicator group is {divisors} and the paper's "
             "table for this system carries no indicator row, so the paper's named "
             "indicators have no value for this class. The two lists were measured to "
             "coincide exactly (170 systems), so this is a defect in the shipped data "
             "or in this package's use of it.")
-    gate = _canonical_gate(tables.number_str, tables.spinor)
+    gate = _canonical_gate(tables._number_str, tables._spinor)
     if not gate["available"]:
         raise InternalError(
             f"#{group.number_str}: the paper's forms could not be checked as indicators "
@@ -1561,37 +1879,30 @@ def _canonical_reading(group, magnetic_type, u, v, d, y, divisors) -> tuple:
             "this group's classes apart, which is a finding about the tables and not a "
             "number to print.")
     p = _rational_p(u, v, d, [Fraction(int(x)) for x in y])
-    canonical = tables.indicators_of_columns(p)
-    tex = {str(f.name): str(f.name_tex) for f in tables.indicators}
+    canonical = tables._indicators_of_columns(p)
+    tex = {str(f.name): str(f.name_tex) for f in tables._indicator_rows}
     note = (
         f"the class in the paper's named indicators, of the SRSI paper ({_DOI}), evaluated "
         f"as the tabulated forms in the Z-SRSIs on the exact rational p of this "
         f"symmetry data vector. The paper's names determine the class here: all "
         f"{gate['n_classes']} elements of {'x'.join('Z%d' % x for x in divisors)} have "
-        f"different canonical values, and every one of the {len(tables.indicators)} "
+        f"different canonical values, and every one of the {len(tables._indicator_rows)} "
         "forms vanishes on every EBR column of this group")
     return canonical, note, tex
 
 
 @dataclass(frozen=True)
-class MaximalKey:
-    """One maximal site key, with the bands one copy of it carries: a coordinate of the atomic realizations.
+class _MaximalKey:
+    """One maximal site irrep, with the bands one copy of it carries: a coordinate of the atomic realizations.
 
-    The keys of a group are :attr:`SRSITables.maximal_keys`.
-
-    Attributes
-    ----------
-    irrep, letter : str
-        The site irrep, as the paper spells it, and the Wyckoff letter.
-    dim : int
-        The bands one copy carries: its elementary band representation's, or, for
-        a key whose band representation is a sum of others, the value of
-        :attr:`SRSITables.band_count_form` on it.
-    ebr : bool
-        Whether it induces an elementary band representation.
-    column, ebr_name, ebr_label : int, str, str or None
-        That representation's column and name in ``ebr_data(group).ebrs``, and
-        that list's spelling of the irrep where it differs.
+    ``irrep`` is the paper's spelling and ``letter`` the Wyckoff letter; ``dim``
+    the bands one copy carries, its elementary band representation's or, for a
+    site irrep whose band representation is a sum of others, the band-count
+    form's value on it; ``column`` and ``ebr_name`` the column and name in the
+    group's list, and ``ebr_label`` the list's spelling where it differs;
+    ``term`` the site irrep as a term of multiplicity one, as the list writes
+    its position and site groups.  The keys of a group are
+    ``tables._maximal_keys``.
     """
 
     irrep: str
@@ -1601,6 +1912,7 @@ class MaximalKey:
     column: int | None = None
     ebr_name: str | None = None
     ebr_label: str | None = None
+    term: Any = None
 
     @property
     def label(self) -> str:
@@ -1610,7 +1922,7 @@ class MaximalKey:
     def __repr__(self) -> str:  # pragma: no cover - convenience only
         kind = (f"column {self.column}" if self.ebr
                 else "composite band representation")
-        return f"MaximalKey({self.label}, {self.dim} bands, {kind})"
+        return f"_MaximalKey({self.label}, {self.dim} bands, {kind})"
 
 
 class _TableKey:
@@ -1620,7 +1932,7 @@ class _TableKey:
     exactly what :func:`.._tables._ebr_data` needs to return the columns the
     conversion resolved against -- so a table in hand can fetch its own EBR list
     without a measured ``GroupData``, which is what
-    :attr:`SRSITables.maximal_keys` and a sweep over all 230 space groups both
+    ``tables._maximal_keys`` and a sweep over all 230 space groups both
     need.
     """
 
@@ -1701,73 +2013,83 @@ def _maximal_basis(sg: int, spinor: bool) -> tuple:
     tables = _table_of_number(int(sg), bool(spinor))
     if not tables:                            # pragma: no cover - gated above
         raise ValueError(f"space group {sg} has no shipped SRSI table: {tables}")
-    data = _tables._ebr_data(_TableKey(tables.number_str, spinor))
+    data = _tables._ebr_data(_TableKey(tables._number_str, spinor))
     if not data:                              # pragma: no cover - install-dependent
         raise InternalError(
-            f"#{tables.number_str}: the EBR list this table's columns index into "
+            f"#{tables._number_str}: the EBR list this table's columns index into "
             f"cannot be returned ({data}), so the maximal-position basis cannot be "
             "built.")
     installed = tuple(_ebr_key(name, position) for name, position in data["ebrs"])
-    if installed != tables.ebrs:              # pragma: no cover - install-dependent
+    if installed != tables._ebrs:              # pragma: no cover - install-dependent
         raise InternalError(
-            f"#{tables.number_str}: the installed EBR list is not the one the SRSI "
+            f"#{tables._number_str}: the installed EBR list is not the one the SRSI "
             f"conversion resolved against ({len(installed)} columns against "
-            f"{len(tables.ebrs)}), so the stored column indices name the wrong EBRs "
+            f"{len(tables._ebrs)}), so the stored column indices name the wrong EBRs "
             "and the atomic realizations would be written in the wrong coordinates. "
             "srsi_tables() refuses 'srsi_ebr_basis' for exactly this; the tables were "
             "converted against irreptables "
-            f"{tables.provenance.get('irreptables_version')}: install that version.")
+            f"{tables.provenance.irreptables_version}: install that version.")
 
     by_column, composite = {}, []
-    for key in tables.site_keys:
+    for key in tables.site_irreps:
         if not key.maximal:
             continue
         if key.ebr:
-            by_column[int(key.column)] = key
+            by_column[int(key._column)] = key
         else:
             composite.append(key)
-    if set(by_column) != set(range(len(tables.ebrs))):
+    # the list's entry at each letter, which writes a position's site groups
+    entry_at = {}
+    for name, position in data["ebrs"]:
+        entry_at.setdefault(_ebr_key(name, position)[1], _tables._ebr_term(name, position))
+    if set(by_column) != set(range(len(tables._ebrs))):
         raise InternalError(          # pragma: no cover - table-dependent
-            f"#{tables.number_str}: the table's rows touch {len(by_column)} of the "
-            f"{len(tables.ebrs)} EBR columns. Every column must appear, because the "
+            f"#{tables._number_str}: the table's rows touch {len(by_column)} of the "
+            f"{len(tables._ebrs)} EBR columns. Every column must appear, because the "
             "band count is a Z-linear form in the Z-SRSIs and an EBR carries bands.")
 
     nu = [_ebr_dimension(name) for name, _position in data["ebrs"]]
-    theta_zero = [[tables.theta_on_columns[i][j] for j in range(len(tables.ebrs))]
-                  for i in tables.z_rows]
+    theta_zero = [[tables._theta_on_columns[i][j] for j in range(len(tables._ebrs))]
+                  for i in tables._z_rows]
     band_form = _solve_left(theta_zero, nu)
     if band_form is None:
         raise InternalError(          # pragma: no cover - table-dependent
-            f"#{tables.number_str}: the band count is not a Z-linear form in the "
+            f"#{tables._number_str}: the band count is not a Z-linear form in the "
             "Z-SRSIs on this group's EBR columns, though it is one in all 434 "
             "tabulated systems as measured -- the band count is a stable real-space "
             "invariant, so it has to be. Either the shipped Theta or the EBR band "
             "counts are not what they are taken to be.")
 
+    def alias(key):
+        return key.irrep if key.irrep != key._paper else None
+
     keys, columns = [], []
-    for j in range(len(tables.ebrs)):
+    for j in range(len(tables._ebrs)):
         key = by_column[j]
-        keys.append(MaximalKey(irrep=key.irrep, letter=key.letter, dim=int(nu[j]),
-                               ebr=True, column=j,
-                               ebr_name=str(data["ebrs"][j][0]),
-                               ebr_label=key.ebr_label))
-        columns.append(tuple(int(row[j]) for row in tables.theta_on_columns))
+        keys.append(_MaximalKey(irrep=key._paper, letter=key._letter, dim=int(nu[j]),
+                                ebr=True, column=j,
+                                ebr_name=str(data["ebrs"][j][0]),
+                                ebr_label=alias(key),
+                                term=_tables._ebr_term(*data["ebrs"][j])))
+        columns.append(tuple(int(row[j]) for row in tables._theta_on_columns))
     for key in composite:
-        raw = tables.theta_unreduced({key: 1})
+        raw = tables._raw_of({(key._paper, key._letter): Fraction(1)})
         if any(value.denominator != 1 for value in raw):
             raise InternalError(      # pragma: no cover - table-dependent
-                f"#{tables.number_str}: the Theta column of the composite site irrep "
-                f"({key.irrep})_{key.letter} is not integral.")
-        dim = sum((band_form[i] * raw[r] for i, r in enumerate(tables.z_rows)),
+                f"#{tables._number_str}: the Theta column of the composite site irrep "
+                f"({key._paper})_{key._letter} is not integral.")
+        dim = sum((band_form[i] * raw[r] for i, r in enumerate(tables._z_rows)),
                   Fraction(0))
         if dim.denominator != 1 or dim <= 0:
             raise InternalError(      # pragma: no cover - table-dependent
-                f"#{tables.number_str}: the band-count form gives {dim} bands for the "
-                f"composite site irrep ({key.irrep})_{key.letter}, which is not a "
+                f"#{tables._number_str}: the band-count form gives {dim} bands for the "
+                f"composite site irrep ({key._paper})_{key._letter}, which is not a "
                 "positive integer. A site irrep whose induced band representation is "
                 "composite still induces a definite number of bands.")
-        keys.append(MaximalKey(irrep=key.irrep, letter=key.letter, dim=int(dim),
-                               ebr=False, column=None, ebr_name=None,
-                               ebr_label=key.ebr_label))
+        listed = entry_at[key._letter]
+        keys.append(_MaximalKey(irrep=key._paper, letter=key._letter, dim=int(dim),
+                                ebr=False, column=None, ebr_name=None,
+                                ebr_label=alias(key),
+                                term=replace(listed, irrep=key.irrep)))
         columns.append(tuple(int(value) for value in raw))
     return tuple(keys), tuple(columns), band_form

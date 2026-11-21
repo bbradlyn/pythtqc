@@ -1019,14 +1019,11 @@ A refusal handed in as `group` is returned as it is.
 - [`symmetry_indicator`](#symmetry_indicator) — The symmetry-indicator class of a band set: the class of its symmetry data vector among the band structures modulo the atomic limits.
 - [`stack_presentation`](#stack_presentation) — The layer repeated along its normal with no hopping between the copies: a crystal with the layer's bands at every `k_z`.
 - [`srsi_tables`](#srsi_tables) — The stable real-space invariants of a grey space group, as the paper tabulates them.
-- [`srsi_of`](#srsi_of) — `(theta_Z, theta_Zn)`: the stable real-space invariants of a configuration `p` over the site keys.
-- [`srsi_of_columns`](#srsi_of_columns) — `(theta_Z, theta_Zn)` of a configuration `p` over the group's elementary band representations.
-- [`srsi_of_bands`](#srsi_of_bands) — The $`\mathbb{Z}`$-valued stable real-space invariants of a band set, from its symmetry data vector.
-- [`srsi_of_model`](#srsi_of_model) — A model's stable real-space invariants, read off its orbitals.
+- [`srsi_of_bands`](#srsi_of_bands) — The integer-valued stable real-space invariants of a band set, from its symmetry data vector.
+- [`srsi_of_model`](#srsi_of_model) — A model's stable real-space invariants, read off its orbitals, a row for each Wyckoff orbit.
 - [`splitting`](#splitting) — Whether the bands asked for and the rest of a model's bands can both be atomic insulators.
 - [`nsit_criterion`](#nsit_criterion) — The paper's no-go criterion on a gapped splitting whose invariants are in hand.
 - [`atomic_realizations`](#atomic_realizations) — Every atomic insulator with a band set's symmetry data, each a set of orbitals at maximal Wyckoff positions.
-- [`stably_equivalent_pairs`](#stably_equivalent_pairs) — Site irreps at one maximal Wyckoff position that no stable real-space invariant distinguishes.
 
 ### `symmetry_indicator`
 
@@ -1120,8 +1117,8 @@ The stable real-space invariants of a grey space group, as the paper tabulates t
 
 **Parameters**
 
-- **`group_or_number`** (`GroupData or int`): A grey group a model was measured to have, or a space-group number from
-  1 to 230.
+- **`group_or_number`** (`GroupData or int`): A grey group a model was measured to have, `r.group`, or a
+  space-group number from 1 to 230.
 
 - **`spinor`** (`bool, optional`): With a number, and only then: the tables with spin-orbit coupling
   (`True`) or without.
@@ -1129,7 +1126,9 @@ The stable real-space invariants of a grey space group, as the paper tabulates t
 **Returns**
 
 - `SRSITables or Refusal`: `tables.summary()` prints the invariants; `tables.theta(p)` evaluates
-  them on a configuration.  A `Refusal` in its place is falsy.
+  them on a configuration.  From a number, `tables.group` holds the grey
+  group's name, number and valuedness and no cell.  A `Refusal` in its
+  place is falsy.
 
 **Refusals**
 
@@ -1145,63 +1144,13 @@ The stable real-space invariants of a grey space group, as the paper tabulates t
 
 - **`ebr_tables`, `irrep_tables`, `ebr_convention`**: from [`ebr_data`](#ebr_data).
 
-### `srsi_of`
-
-```text
-srsi_of(group_or_tables, p)
-```
-
-`(theta_Z, theta_Zn)`: the stable real-space invariants of a configuration `p` over the site keys.
-
-**Parameters**
-
-- **`group_or_tables`** (`GroupData or SRSITables`): A measured grey group, or its tables.
-
-- **`p`** (`mapping`): `{(site irrep, Wyckoff letter): multiplicity}`: integer for an atomic
-  configuration, rational for a band set with a nonzero symmetry indicator.
-
-**Returns**
-
-- `tuple or Refusal`: `theta_Z`, the $`\mathbb{Z}`$-valued invariants as exact
-  fractions in table order, and `theta_Zn`, `{n: values}`, the
-  $`\mathbb{Z}_n`$-valued ones modulo `n`.  `theta_Zn` belongs to
-  this `p`: it is a band set's only for a configuration that is known.  A
-  `Refusal` in its place is falsy.
-
-**Refusals**
-
-- **`srsi_data`, `srsi_scope`, `srsi_table_absent`, `srsi_ebr_basis`**: from [`srsi_tables`](#srsi_tables): the group has no tables.
-
-### `srsi_of_columns`
-
-```text
-srsi_of_columns(group_or_tables, p)
-```
-
-`(theta_Z, theta_Zn)` of a configuration `p` over the group's elementary band representations.
-
-**Parameters**
-
-- **`group_or_tables`** (`GroupData or SRSITables`): As for [`srsi_of`](#srsi_of).
-
-- **`p`** (`sequence`): One multiplicity per entry of `SRSITables.ebrs`.
-
-**Returns**
-
-- `tuple or Refusal`: `(theta_Z, theta_Zn)`, as [`srsi_of`](#srsi_of) returns them.  A `Refusal`
-  in its place is falsy.
-
-**Refusals**
-
-- **`srsi_data`, `srsi_scope`, `srsi_table_absent`, `srsi_ebr_basis`**: from [`srsi_tables`](#srsi_tables): the group has no tables.
-
 ### `srsi_of_bands`
 
 ```text
 srsi_of_bands(symmetry_data, realized=None)
 ```
 
-The $`\mathbb{Z}`$-valued stable real-space invariants of a band set, from its symmetry data vector.
+The integer-valued stable real-space invariants of a band set, from its symmetry data vector.
 
 **Parameters**
 
@@ -1217,8 +1166,8 @@ The $`\mathbb{Z}`$-valued stable real-space invariants of a band set, from its s
 
 - `BandSRSIs or Refusal`: `out.summary()` prints the invariants, whether they are fractional, and
   the symmetry-indicator class, and `out.line()` the same on one line;
-  `out.theta_Z`, `out.stable` and `out.indicator` hold them.  A
-  `Refusal` in its place is falsy.
+  `out.theta_Z` holds the invariants by name and `out.indicator` the
+  class.  A `Refusal` in its place is falsy.
 
 **Refusals**
 
@@ -1232,34 +1181,36 @@ A refusal handed in as `realized` is returned as it is.
 ### `srsi_of_model`
 
 ```text
-srsi_of_model(realized, *, rep=None)
+srsi_of_model(realized)
 ```
 
-A model's stable real-space invariants, read off its orbitals.
+A model's stable real-space invariants, read off its orbitals, a row for each Wyckoff orbit.
 
 **Parameters**
 
 - **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned, `r`.
 
-- **`rep`** (`SpaceGroupRep, optional`): A representation to read in place of the one `realized` holds.
-
 **Returns**
 
-- `ModelSRSIs or Refusal`: `out.summary()` prints the invariants and each orbit's; `out.theta_Z`
-  and `out.theta_Zn` hold the model's, `out.orbits` each orbit's.  A
-  `Refusal` in its place is falsy.
+- `ModelSRSIs or Refusal`: `out.summary()` prints the invariants and each row's; `out.theta_Z`
+  and `out.theta_Zn` hold the model's, by name, and
+  `out.wyckoff_orbits` a row for each Wyckoff orbit, the row of
+  `r.wyckoff_orbits` with its invariants.  A `Refusal` in its place is
+  falsy.
 
 **Refusals**
 
 - **`srsi_scope`, `srsi_table_absent`, `srsi_data`, `srsi_ebr_basis`**: from [`srsi_tables`](#srsi_tables): the group has no tables.
 
-- **`orbit_content_incomplete`**: an orbit's content could not be read at a high-symmetry point.
+- **`wyckoff_orbit_content_incomplete`**: a Wyckoff orbit's symmetry data vector could not be read at a
+  high-symmetry point.
 
-- **`orbit_not_localizable`**: an orbit's content is a band representation of no position its orbitals
-  can slide onto.
+- **`wyckoff_orbit_not_localizable`**: a Wyckoff orbit's symmetry data vector is a band representation of no
+  position its orbitals can slide onto.
 
-- **`wyckoff_setting`**: the content decomposes at a position the geometry says the orbitals are
-  not at: the package disagreeing with itself, a case to report.
+- **`wyckoff_setting`**: the symmetry data vector decomposes at a position the geometry says the
+  orbitals are not at: the package disagreeing with itself, a case to
+  report.
 
 - **`tables_not_ready`, `wyckoff_unresolved`, `ebr_tables`**: from [`wyckoff_sites_tables`](#wyckoff_sites_tables) and [`ebr_data`](#ebr_data).
 
@@ -1275,36 +1226,33 @@ Whether the bands asked for and the rest of a model's bands can both be atomic i
 
 - **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned, `r`.
 
-- **`bands`** (`int or sequence of int`): The bands asked for, `V`: an `int` is the lowest *n*, a sequence
-  those bands.  Required.
+- **`bands`** (`int or sequence of int`): The valence bands: an `int` is the lowest *n*, a sequence those bands.
+  Required.
 
 **Returns**
 
-- `Splitting or Refusal`: The verdict on `V`, the bands asked for, and `C`, the rest of the
-  model's bands, `H` being all of them.  `out.summary()` prints it and
-  what it rests on: the invariants of `V`, `C` and `H`, and the atomic
-  realizations of each side.  `out.verdict` is `"diagnosed topological"`, `"invisible to the SRSIs"`, `"no Z_n SRSIs"` or
-  `"stable topological"`, the last where `V` carries a nonzero symmetry
-  indicator, `out.indicator`.  The record is truthy.  A `Refusal` in its
-  place is falsy.
+- `Splitting or Refusal`: `out.nsit` holds whether the splitting is NSIT, which it is only
+  where both sides have atomic realizations and no pair of them adds up
+  to the whole model's invariants valued modulo n.  `out.valence` and
+  `out.conduction` hold each side's realizations, empty where its
+  invariants are fractional.  `out.summary()` prints it and what it
+  rests on.  The record is truthy.  A `Refusal` in its place is falsy.
 
 **Refusals**
 
 - **`srsi_scope`, `srsi_table_absent`, `srsi_data`, `srsi_ebr_basis`**: from [`srsi_tables`](#srsi_tables): the group has no tables.
 
-- **`orbit_content_incomplete`, `orbit_not_localizable`, `wyckoff_setting`**: from [`srsi_of_model`](#srsi_of_model), for the orbitals.
+- **`wyckoff_orbit_content_incomplete`, `wyckoff_orbit_not_localizable`, `wyckoff_setting`**: from [`srsi_of_model`](#srsi_of_model), for the orbitals.
 
 - **`incomplete_content`, `not_a_band_structure`, ...**: from [`hsp_table`](#hsp_table) and [`srsi_of_bands`](#srsi_of_bands), for the bands.
 
-- **`srsi_not_atomic`, `srsi_realizations_truncated`**: from [`nsit_criterion`](#nsit_criterion), which lists each side at the default cap of
+- **`srsi_realizations_truncated`**: from [`nsit_criterion`](#nsit_criterion), which lists each side at the default cap of
   [`atomic_realizations`](#atomic_realizations).
 
 ### `nsit_criterion`
 
 ```text
-nsit_criterion(
-    tables, theta_total, theta_Z_v, theta_Z_c, *, n_bands_v=None, n_bands_c=None
-)
+nsit_criterion(tables, theta_total, theta_Z_v, theta_Z_c)
 ```
 
 The paper's no-go criterion on a gapped splitting whose invariants are in hand.
@@ -1313,31 +1261,29 @@ The paper's no-go criterion on a gapped splitting whose invariants are in hand.
 
 - **`tables`** (`SRSITables`): The group's tables.
 
-- **`theta_total`** (`tuple`): `(theta_Z, theta_Zn)` of `H`, all the bands, as
-  `SRSITables.theta` returns them for the model's orbitals.
+- **`theta_total`** (`Invariants or ModelSRSIs`): The whole model's invariants, with `theta_Z` and `theta_Zn` by
+  name: what `tables.theta` returns for the model's orbitals, or what
+  [`srsi_of_model`](#srsi_of_model) returns.
 
-- **`theta_Z_v`, `theta_Z_c`** (`sequence`): The $`\mathbb{Z}`$-valued invariants of `V` and of `C`, the two
-  sides of the gap; a pair that does not add up to those of `H` raises
-  `ValueError`.
-
-- **`n_bands_v`, `n_bands_c`** (`int, optional`): The bands on each side, for [`atomic_realizations`](#atomic_realizations).
+- **`theta_Z_v`, `theta_Z_c`** (`mapping`): `{name: value}`: the integer-valued invariants of the valence and of
+  the conduction bands, as `b.theta_Z` holds them.
 
 **Returns**
 
-- `Splitting or Refusal`: `out.summary()` prints the verdict, the realizations of each side and
-  the pairs that add up; `out.verdict` holds the verdict.  The record is
-  truthy.  A `Refusal` in its place is falsy.
+- `Splitting or Refusal`: `out.nsit` holds whether the splitting is NSIT; `out.summary()`
+  prints it, why, the realizations of each side and the pairs that add
+  up.  The record is truthy.  A `Refusal` in its place is falsy.
 
 **Refusals**
 
-- **`srsi_not_atomic`, `srsi_realizations_truncated`**: from [`atomic_realizations`](#atomic_realizations), which lists each side at its default
-  cap: a side with fractional invariants, or more realizations than the
-  cap, which [`atomic_realizations`](#atomic_realizations) with a larger `cap=` lists.
+- **`srsi_realizations_truncated`**: from [`atomic_realizations`](#atomic_realizations), which lists each side at its default
+  cap: more realizations than the cap, which [`atomic_realizations`](#atomic_realizations)
+  with a larger `cap=` lists.
 
 ### `atomic_realizations`
 
 ```text
-atomic_realizations(tables, theta_Z, *, n_bands=None, cap=256)
+atomic_realizations(tables, theta_Z, *, cap=256)
 ```
 
 Every atomic insulator with a band set's symmetry data, each a set of orbitals at maximal Wyckoff positions.
@@ -1346,46 +1292,18 @@ Every atomic insulator with a band set's symmetry data, each a set of orbitals a
 
 - **`tables`** (`SRSITables`): The group's tables, from [`srsi_tables`](#srsi_tables).
 
-- **`theta_Z`** (`sequence`): The band set's $`\mathbb{Z}`$-valued invariants, one per
-  `SRSITables.z_rows`.
+- **`theta_Z`** (`mapping`): `{name: value}`: the band set's integer-valued invariants, each once,
+  as `b.theta_Z` holds them.
 
-- **`n_bands`** (`int, optional`): The band count, which `theta_Z` fixes; another raises
-  `ValueError`.
-
-- **`cap`** (`int, optional`): The most realizations to list; more is refused.  Default 256.
+- **`cap`** (`int, default 256`): The most realizations to list; more is refused.
 
 **Returns**
 
-- `Realizations or Refusal`: `out.summary()` prints every realization with its own
-  $`\mathbb{Z}_n`$-valued invariants; `out.realizations` holds them.
-  The record is truthy, and an empty list with integral `theta_Z` is a
-  fragile band set.  A `Refusal` in its place is falsy.
+- `Realizations or Refusal`: `out.summary()` prints every realization with its own invariants
+  valued modulo n; `out.realizations` holds them.  The record is truthy,
+  and an empty list with whole-number `theta_Z` is a fragile band set.
+  A `Refusal` in its place is falsy.
 
 **Refusals**
-
-- **`srsi_not_atomic`**: `theta_Z` is fractional: the band set carries a nonzero symmetry
-  indicator, and no atomic insulator has its symmetry data.
 
 - **`srsi_realizations_truncated`**: more than `cap` realizations; a larger `cap=` lists them.
-
-### `stably_equivalent_pairs`
-
-```text
-stably_equivalent_pairs(group_or_tables)
-```
-
-Site irreps at one maximal Wyckoff position that no stable real-space invariant distinguishes.
-
-**Parameters**
-
-- **`group_or_tables`** (`GroupData or SRSITables`): A measured grey group, or its tables.
-
-**Returns**
-
-- `tuple of StablePair or Refusal`: Each pair's `summary()` prints it.  Empty for most groups, and then
-  falsy, as a `Refusal` in its place is: `isinstance(out, Refusal)`
-  tells the two apart.
-
-**Refusals**
-
-- **`srsi_data`, `srsi_scope`, `srsi_table_absent`, `srsi_ebr_basis`**: from [`srsi_tables`](#srsi_tables): the group has no tables.

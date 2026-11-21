@@ -352,7 +352,7 @@ def _name_by_invariants(group, assignment, site, table, row, *, context=None) ->
     from fractions import Fraction
 
     from . import _naming, _smith, _tables, srsi
-    from ._srsitables import _rational_p, srsi_tables
+    from ._srsitables import _rational_p, _split, srsi_tables
     from .refusal import InternalError, Refusal
 
     ctx = {} if context is None else context
@@ -403,12 +403,12 @@ def _name_by_invariants(group, assignment, site, table, row, *, context=None) ->
             vector = [0] * len(data["ebrs"])
             for j, m in zip(columns, solution):
                 vector[j] = int(m)
-            z, zn = tables.theta_columns(vector)
+            z, zn = _split(tables, tables._theta_columns(vector))
             found.add((tuple(z), tuple(sorted((n, tuple(v)) for n, v in zn.items()))))
     labels = list(data["labels_physics_convention"])
     y = [Fraction(int(counts.get(label, 0))) for label in labels]
     u, v, d, _matrix = _smith._smith_system(data, str(group.number_str))
-    z_rational = tuple(tables.theta_columns(_rational_p(u, v, d, y))[0])
+    z_rational = tuple(tables._theta_columns(_rational_p(u, v, d, y)).theta_Z.values())
     if len(found) > 1 or any(z != z_rational for z, _zn in found):
         raise InternalError(
             f"#{group.number_str}: the band representation a row of the site table at "
@@ -416,10 +416,11 @@ def _name_by_invariants(group, assignment, site, table, row, *, context=None) ->
             f"integer-valued invariants {z_rational} by the Smith form; the readings of "
             "one band representation have to agree")
     target = next(iter(found)) if found else None
-    form = tables.band_count_form
+    form = tables._band_count_form
     out = []
-    for name in sorted({k.irrep for k in tables.site_keys if k.letter == letter}):
-        z, zn = tables.theta({(name, letter): 1})
+    # the names in the paper's spelling, which the table of names holds
+    for name in sorted({k._paper for k in tables.site_irreps if k._letter == letter}):
+        z, zn = _split(tables, tables._theta_at({name: 1}, letter))
         if int(sum(Fraction(a) * b for a, b in zip(form, z))) != bands:
             continue
         theta = (tuple(z), tuple(sorted((n, tuple(w)) for n, w in zn.items())))

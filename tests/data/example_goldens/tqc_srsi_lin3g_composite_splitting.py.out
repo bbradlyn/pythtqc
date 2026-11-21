@@ -11,12 +11,13 @@ Bands are counted from 0, as pythtb counts them.
                       1a+1a+1a+1a, 1a+1a+1b+1b, 1a+1a+2c, 1b+1b+1b+1b, 1b+1b+2c, 2c+2c
    the model's own  : 1a+1a+2c, -E1 at 1a (4mm1') + -E2 at 1a (4mm1')
                       + -E at 2c (mm21')
-   srsi_of_model(r) : the invariants of the model and of each site orbit
-   P4mm1' #99.164, double-valued: stable real-space invariants, Z x Z x Z x Z2 x Z2   (.structure)
-     the whole model: Z-valued (2, 2, 0), mod 2 (0, 1)   (.theta_Z, .theta_Zn)
-     each site orbit, its content written m (irrep)_w, and its SRSIs   (.orbits)
-       orbitals 0-1 at 1a, 1 (-E1)_a + 1 (-E2)_a: Z-valued (1, 1, 0), mod 2 (0, 0)
-       orbitals 2-3 at 2c, 1 (-E)_c: Z-valued (1, 1, 0), mod 2 (0, 1)
+   srsi_of_model(r) : the invariants of the model and of each Wyckoff orbit
+   P4mm1' #99.164, double-valued: stable real-space invariants   (.group)
+     the whole model: theta_1 to theta_3 = (2, 2, 0); theta_4, theta_5 = (0, 1) mod 2   (.theta_Z, .theta_Zn)
+     each Wyckoff orbit, its site irreps written m (irrep)_w, with theta_1 to theta_3 and theta_4, theta_5 mod 2   (.wyckoff_orbits)
+       1a (4mm1'): orbital 0, 1 (-E1)_a: (0, 1, 0); (0, 0) mod 2
+       1a (4mm1'): orbital 1, 1 (-E2)_a: (1, 0, 0); (0, 0) mod 2
+       2c (mm21'): orbitals 2-3, 1 (-E)_c: (1, 1, 0); (0, 1) mod 2
    the two orbits have one content and different Z2-valued invariants; the eight
    bands are three elementary band representations at two Wyckoff positions, an
    atomic insulator, not the one whose splittings the supplement tabulates
@@ -32,36 +33,32 @@ Bands are counted from 0, as pythtb counts them.
    a set of orbitals known to carry it, the model's own or an atomic limit
 
 3. splitting(r, bands=6): the six occupied bands against the two above them
-   P4mm1' #99.164, double-valued, diagnosed topological: the two sides of the gap cannot both be atomic insulators   (.verdict)
-     the bands=6 valence bands, the remaining 2 conduction bands, and all 8 bands   (.n_bands_v, .n_bands_c)
-     Z-valued stable real-space invariants: all 8 (2, 2, 0) = valence (1, 1, 1) + conduction (1, 1, -1)   (.theta_Z_total, .theta_Z_v, .theta_Z_c)
-     Z_n-valued invariants of all 8: mod 2 (0, 1)   (.theta_Zn_total)
-     the valence bands' symmetry-indicator group is trivial   (.indicator)
-     possible atomic realizations of the valence bands, and their Z_n-valued SRSIs   (.realizations_v)
-       1 (-E2)_b + 1 (-E)_c   mod 2 (1, 1)
-       1 (-E1)_b + 2 (-E2)_b   mod 2 (0, 0)
-       1 (-E1)_a + 1 (-E2)_a + 1 (-E2)_b   mod 2 (1, 0)
-     possible atomic realizations of the conduction bands, and their Z_n-valued SRSIs   (.realizations_c)
-       1 (-E1)_b   mod 2 (0, 0)
-     no pair of a valence and a conduction realization has Z_n-valued invariants adding up to those of all 8   (.consistent_pairs)
+   P4mm1' #99.164, double-valued: nsit, no realization of the valence bands and of the conduction bands adding up to the whole model's invariants valued modulo n   (.group, .nsit)
+     Z-valued stable real-space invariants theta_1 to theta_3: the whole model (2, 2, 0) = valence (1, 1, 1) + conduction (1, 1, -1)   (.theta_Z, .valence.theta_Z, .conduction.theta_Z)
+     invariants valued modulo n of the whole model: theta_4, theta_5 = (0, 1) mod 2   (.theta_Zn)
+     atomic realizations of the valence bands, with (theta_4, theta_5) mod 2   (.valence.realizations)
+       1 (-E2)_b + 1 (-E)_c   (1, 1)
+       1 (-E1)_b + 2 (-E2)_b   (0, 0)
+       1 (-E1)_a + 1 (-E2)_a + 1 (-E2)_b   (1, 0)
+     atomic realizations of the conduction bands, with (theta_4, theta_5) mod 2   (.conduction.realizations)
+       1 (-E1)_b   (0, 0)
+     no pair of a valence and a conduction realization has invariants valued modulo n adding up to the whole model's   (.consistent_pairs)
    bands 4 and 5 are among the six: what their atomic limit in section 2 could not
    show, the Z2-valued invariants of the two sides of this gap do
 
 4. splitting(r, bands=4): the same model, the gap two bands lower
-   P4mm1' #99.164, double-valued, invisible to the SRSIs: the stable real-space invariants (SRSIs) allow both sides of the gap to be atomic insulators, which does not make them so   (.verdict)
-     the bands=4 valence bands, the remaining 4 conduction bands, and all 8 bands   (.n_bands_v, .n_bands_c)
-     Z-valued stable real-space invariants: all 8 (2, 2, 0) = valence (1, 1, 0) + conduction (1, 1, 0)   (.theta_Z_total, .theta_Z_v, .theta_Z_c)
-     Z_n-valued invariants of all 8: mod 2 (0, 1)   (.theta_Zn_total)
-     the valence bands' symmetry-indicator group is trivial   (.indicator)
-     possible atomic realizations of the valence bands, and their Z_n-valued SRSIs   (.realizations_v)
-       1 (-E)_c   mod 2 (0, 1)
-       1 (-E1)_b + 1 (-E2)_b   mod 2 (1, 0)
-       1 (-E1)_a + 1 (-E2)_a   mod 2 (0, 0)
-     possible atomic realizations of the conduction bands, and their Z_n-valued SRSIs   (.realizations_c)
-       1 (-E)_c   mod 2 (0, 1)
-       1 (-E1)_b + 1 (-E2)_b   mod 2 (1, 0)
-       1 (-E1)_a + 1 (-E2)_a   mod 2 (0, 0)
-     pairs of a valence and a conduction realization whose Z_n-valued invariants add up to those of all 8   (.consistent_pairs)
+   P4mm1' #99.164, double-valued: not nsit, 2 pairs of a valence and a conduction realization adding up to the whole model's invariants valued modulo n   (.group, .nsit, .consistent_pairs)
+     Z-valued stable real-space invariants theta_1 to theta_3: the whole model (2, 2, 0) = valence (1, 1, 0) + conduction (1, 1, 0)   (.theta_Z, .valence.theta_Z, .conduction.theta_Z)
+     invariants valued modulo n of the whole model: theta_4, theta_5 = (0, 1) mod 2   (.theta_Zn)
+     atomic realizations of the valence bands, with (theta_4, theta_5) mod 2   (.valence.realizations)
+       1 (-E)_c   (0, 1)
+       1 (-E1)_b + 1 (-E2)_b   (1, 0)
+       1 (-E1)_a + 1 (-E2)_a   (0, 0)
+     atomic realizations of the conduction bands, with (theta_4, theta_5) mod 2   (.conduction.realizations)
+       1 (-E)_c   (0, 1)
+       1 (-E1)_b + 1 (-E2)_b   (1, 0)
+       1 (-E1)_a + 1 (-E2)_a   (0, 0)
+     pairs of a valence and a conduction realization whose invariants valued modulo n add up to the whole model's   (.consistent_pairs)
        1 (-E)_c with 1 (-E1)_a + 1 (-E2)_a
        1 (-E1)_a + 1 (-E2)_a with 1 (-E)_c
    the same Hamiltonian and the same eight bands, one gap lower: the criterion

@@ -29,6 +29,7 @@
 
 # Author: the pythTQC examples
 
+import math
 import os
 import sys
 import textwrap
@@ -86,6 +87,11 @@ def values(theta):
     return "(" + ", ".join(str(v) for v in theta) + ")"
 
 
+def denominator(b):
+    """The common denominator of a band set's Z-valued invariants."""
+    return math.lcm(*(v.denominator for v in b.theta_Z.values()))
+
+
 ########### 1. delta_t = +0.4 on the [111] bond, from the bands ###########
 
 print("\n1. delta_t = +0.4 on the [111] bond, read from the bands")
@@ -104,8 +110,8 @@ row("valence content", fmt(t2_strong.symmetry_data))
 # that induces it.
 b_strong = tqc.srsi_of_bands(t2_strong)
 si_strong = tqc.symmetry_indicator(t2_strong)
-row("srsi_of_bands", f"Z-valued {values(b_strong.theta_Z)}")
-row("denominator", b_strong.denominator)
+row("srsi_of_bands", f"Z-valued {values(b_strong.theta_Z.values())}")
+row("denominator", denominator(b_strong))
 row("indicator class", f"{values(si_strong.values)} in {si_strong.indicator_group}, of order "
     f"{si_strong.order}")
 print("   the Z-valued invariants are fractional: no integer site-symmetry vector")
@@ -115,28 +121,27 @@ print("   induces the valence content, so the valence bands are no atomic limit"
 
 print("\n2. the same phase, read from the orbitals")
 
-# srsi_of_model reads the invariants off the orbitals: for each site orbit it
+# srsi_of_model reads the invariants off the orbitals: for each Wyckoff orbit it
 # measures the content of the orbitals there, writes it as a sum of elementary
-# band representations at the positions in the closure of the orbit's position,
-# and evaluates the invariants on that sum.
+# band representations at the positions it slides onto, and evaluates the
+# invariants on that sum.
 m_srsi = tqc.srsi_of_model(r_strong)
-orbit = m_srsi.orbits[0]
+orbit = m_srsi.wyckoff_orbits[0]
 row("the orbit", f"orbitals {' and '.join(str(i) for i in orbit.orbitals)} at Wyckoff "
-    f"{orbit.multiplicity}{orbit.letter}, not a maximal position")
-row("its content", fmt(orbit.content))
+    f"{orbit.wyckoff}, not a maximal position")
+row("its content", fmt(orbit.numerical.symmetry_data))
 
-# The orbit sits on a line whose closure carries two positions with elementary
-# band representations, and its orbitals localize at each of them: one set of
+# The orbit sits on a line that slides onto two positions with elementary band
+# representations, and its orbitals localize at each of them: one set of
 # orbitals moved two ways, with the same invariants.
-for loc in orbit.localizations:
-    where = loc["terms"][0][2].split("(")[0]
-    terms = " + ".join(f"{n} x {name}@{at}" for n, name, at in loc["terms"])
-    row(f"localized at {where}", f"{terms},", f"Z-valued {values(loc['theta_Z'])}")
+for loc in orbit.numerical.localizations:
+    row(f"localized at {loc.wyckoff}", f"{loc.label},",
+        f"Z-valued {values(loc.theta_Z.values())}")
 
 t4_strong = tqc.hsp_table(r_strong, bands=4)
 b4_strong = tqc.srsi_of_bands(t4_strong)
-row("all 4 bands", f"Z-valued {values(b4_strong.theta_Z)}, read from the bands")
-row("the whole model", f"Z-valued {values(m_srsi.theta_Z)}, read from the orbitals")
+row("all 4 bands", f"Z-valued {values(b4_strong.theta_Z.values())}, read from the bands")
+row("the whole model", f"Z-valued {values(m_srsi.theta_Z.values())}, read from the orbitals")
 print("   all four bands together are the model's own orbitals, so the bands carry the")
 print("   orbitals' integers")
 
@@ -171,7 +176,7 @@ print(f"   {'phase':<8} {'class':<8} {'order':<7} "
 for phase, si, b in (("strong", si_strong, b_strong), ("weak", si_weak, b_weak),
                      ("dimers", si_dimers, b_dimers)):
     print(f"   {phase:<8} {values(si.values):<8} {si.order:<7} "
-          f"{values(b.theta_Z):<42} {b.denominator}")
+          f"{values(b.theta_Z.values()):<42} {denominator(b)}")
 print("   the denominator equals the order of the class in all three phases; the theorem")
 print("   of Hwang et al. is the equivalence behind it, a nonzero class if and only if a")
 print("   fractional Z-valued invariant")
@@ -215,8 +220,8 @@ axes[0].set_title("strong: delta_t = +0.4\n"
                   f"#{g_strong.number_str} {g_strong.name}   class "
                   f"{si_strong.values} in {si_strong.indicator_group}\n"
                   fr"$\theta_\mathbb{{Z}}[V] = "
-                  fr"({', '.join(str(v) for v in b_strong.theta_Z)})$, "
-                  f"denominator {b_strong.denominator}", fontsize=9.5)
+                  fr"({', '.join(str(v) for v in b_strong.theta_Z.values())})$, "
+                  f"denominator {denominator(b_strong)}", fontsize=9.5)
 
 # --- the weak phase ---
 kv, kd, kn = m_weak.k_path(path, NK_PATH, report=False)
@@ -231,8 +236,8 @@ axes[1].set_title("weak: delta_t = -0.4\n"
                   f"#{g_weak.number_str} {g_weak.name}   class "
                   f"{si_weak.values} in {si_weak.indicator_group}\n"
                   fr"$\theta_\mathbb{{Z}}[V] = "
-                  fr"({', '.join(str(v) for v in b_weak.theta_Z)})$, "
-                  f"denominator {b_weak.denominator}", fontsize=9.5)
+                  fr"({', '.join(str(v) for v in b_weak.theta_Z.values())})$, "
+                  f"denominator {denominator(b_weak)}", fontsize=9.5)
 
 # --- the dimers ---
 kv, kd, kn = m_dimers.k_path(path, NK_PATH, report=False)
@@ -247,8 +252,8 @@ axes[2].set_title("dimers: three bonds cut\n"
                   f"#{g_dimers.number_str} {g_dimers.name}   class "
                   f"{si_dimers.values} in {si_dimers.indicator_group}\n"
                   fr"$\theta_\mathbb{{Z}}[V] = "
-                  fr"({', '.join(str(v) for v in b_dimers.theta_Z)})$, "
-                  f"denominator {b_dimers.denominator}", fontsize=9.5)
+                  fr"({', '.join(str(v) for v in b_dimers.theta_Z.values())})$, "
+                  f"denominator {denominator(b_dimers)}", fontsize=9.5)
 
 fig.suptitle("Fu-Kane-Mele on diamond, one bond detuned along [111]: the four bands "
              "along GM-T-F-L-GM, the valence pair in blue, with its stable "

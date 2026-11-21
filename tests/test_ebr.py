@@ -1136,7 +1136,7 @@ def test_a_pure_2D_layer_reaches_the_layer_class_by_measuring_its_own_stack(
     assert named == KM_LAYER_NAMED
     assert {_srsitables.to_irreptables_name(k): v for k, v in si.indicators.items()} == \
         named, "the spelling map applied to real data"
-    tex = {f.name: f.name_tex for f in tqr.srsi_tables(191, spinor=True).indicators}
+    tex = {f.name: f.name_tex for f in tqr.srsi_tables(191, spinor=True)._indicator_rows}
     assert tex["z3m,pi"] == "z_{3m,\\pi}"
     assert "all 72 elements of Z6xZ12 have different canonical values" in \
         si.numerical.indicators_note

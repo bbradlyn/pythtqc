@@ -39,14 +39,14 @@ A1↑G(4)@4a(321',32): GM1 + GM5 + M1M4 + M5 + R3 + X1 + X2
 A1↑G(4)@4b(321',32): GM1 + GM5 + M1M4 + M5 + R3 + X1 + X2
 
 5. the stable real-space invariants
-P4_3321' #212.60, single-valued: stable real-space invariants, Z x Z x Z x Z2   (.structure)
-  the whole model: Z-valued (0, 0, 1), mod 2 (1)   (.theta_Z, .theta_Zn)
-  each site orbit, its content written m (irrep)_w, and its SRSIs   (.orbits)
-    orbitals 0-7 at 4a, 1 (E)_a: Z-valued (0, 0, 1), mod 2 (1)
-1 (E)_a:  ((Fraction(0, 1), Fraction(0, 1), Fraction(1, 1)), {2: (1,)})
-1 (A1)_a: ((Fraction(1, 1), Fraction(0, 1), Fraction(0, 1)), {2: (1,)})
-1 (A1)_b: ((Fraction(1, 1), Fraction(0, 1), Fraction(0, 1)), {2: (0,)})
-1 (E)_a - 1 (A1)_a: ((Fraction(-1, 1), Fraction(0, 1), Fraction(1, 1)), {2: (0,)})
-1 (E)_a - 1 (A1)_b: ((Fraction(-1, 1), Fraction(0, 1), Fraction(1, 1)), {2: (1,)})
+P4_3321' #212.60, single-valued: stable real-space invariants   (.group)
+  the whole model: theta_1 to theta_3 = (0, 0, 1); theta_4 = (1) mod 2   (.theta_Z, .theta_Zn)
+  each Wyckoff orbit, its site irreps written m (irrep)_w, with theta_1 to theta_3 and theta_4 mod 2   (.wyckoff_orbits)
+    4a (321'): orbitals 0-7, 1 (E)_a: (0, 0, 1); (1) mod 2
+1 (E)_a:  Invariants(theta_1 to theta_3 = (0, 0, 1); theta_4 = (1) mod 2)
+1 (A1)_a: Invariants(theta_1 to theta_3 = (1, 0, 0); theta_4 = (1) mod 2)
+1 (A1)_b: Invariants(theta_1 to theta_3 = (1, 0, 0); theta_4 = (0) mod 2)
+1 (E)_a - 1 (A1)_a: Invariants(theta_1 to theta_3 = (-1, 0, 1); theta_4 = (0) mod 2)
+1 (E)_a - 1 (A1)_b: Invariants(theta_1 to theta_3 = (-1, 0, 1); theta_4 = (1) mod 2)
 
 Done — figure written to <FIGDIR>

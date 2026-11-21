@@ -68,9 +68,8 @@ GROUPS = (
     ("Stable invariants",
      "the symmetry-indicator class of a band set, and its stable real-space "
      "invariants, from the bands or from the orbitals",
-     ("symmetry_indicator", "stack_presentation", "srsi_tables", "srsi_of",
-      "srsi_of_columns", "srsi_of_bands", "srsi_of_model", "splitting",
-      "nsit_criterion", "atomic_realizations", "stably_equivalent_pairs")),
+     ("symmetry_indicator", "stack_presentation", "srsi_tables", "srsi_of_bands",
+      "srsi_of_model", "splitting", "nsit_criterion", "atomic_realizations")),
 )
 
 #: the docstring sections the page carries, after the summary paragraph

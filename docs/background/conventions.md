@@ -322,13 +322,6 @@ position and writes the bar back, so graphene's position reads `2c (-6m21')` in
 every summary and on every term pythTQC returns: a decomposition's and the
 atomic-limit table's band representations'.
 
-The records of the stable real-space invariants write an EBR, in a localization's
-terms and in the tables' list, by the label the group's list of EBRs gives it,
-`-E1↑G(2)@1a(3m1',3m)`: the site irrep; `↑G`, induced up to the space group; the
-number of bands it makes in parentheses; then `@`, the Wyckoff position, and the
-site-symmetry group with and without time reversal, `2c(-6m21',-6m2)` for
-graphene's.
-
 ## Reading across to BCS
 
 A Seitz symbol is the server's general position, its axis at most written the

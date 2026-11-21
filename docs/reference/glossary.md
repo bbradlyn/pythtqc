@@ -67,12 +67,12 @@ What each thing is called where a call returns it.
 | what a vector that is not decomposable rests on | `certificate`: `"proof"` or `"none within the bound"` | `decompose` |
 | the indicator group `X_BS` | `indicator_group` (`"Z6 x Z12"`) and its `divisors` | `symmetry_indicator` |
 | a band set's indicator class | `values`, each modulo its divisor; `order`; `indicators`, in the names of the stable-RSI paper ([citing](../citing.md#stable-real-space-invariants)) | `symmetry_indicator` |
-| the stable real-space invariants | `theta_Z`, the `ℤ`-valued ones; `theta_Zn`, the `ℤ_n`-valued ones by modulus | `srsi_of_bands`, `srsi_of_model`, `srsi_of` |
-| the site-symmetry vector | `p`, over site keys `(site irrep, Wyckoff letter)` | `srsi_of`; `SRSITables.theta` |
-| an atomic insulator with a band set's symmetry data | a realization | `atomic_realizations`; `realizations_v` and `realizations_c` on a splitting |
-| a splitting's verdict | `verdict`: `"diagnosed topological"`, `"invisible to the SRSIs"`, `"no Z_n SRSIs"` or `"stable topological"` | `splitting`, `nsit_criterion` |
+| the stable real-space invariants | `theta_Z`, the `ℤ`-valued ones; `theta_Zn`, the `ℤ_n`-valued ones; each a mapping by name | `srsi_of_bands`, `srsi_of_model`, `SRSITables.theta` |
+| the site-symmetry vector | `p`, keyed `(site irrep, Wyckoff position)`, the position written `1a` | `SRSITables.theta` |
+| an atomic insulator with a band set's symmetry data | a realization | `atomic_realizations`; `valence` and `conduction` on a splitting |
+| a splitting no symmetry indicator sees | `nsit`: `True` or `False` | `splitting`, `nsit_criterion` |
 | pairs of realizations whose invariants add up | `consistent_pairs` | `splitting` |
-| site irreps the stable invariants do not distinguish | a `StablePair` | `stably_equivalent_pairs`; `same_content` |
+| site irreps the stable invariants do not distinguish | a `StablePair` | `SRSITables.stably_equivalent`; `stably_equivalent` |
 
 ### A numerical model
 
@@ -152,14 +152,6 @@ identified again; `r.descent`. A **reduction** is the cell lowered by declared
 content before any hopping is read, which is not a descent and is on
 `r.decoration.declared`.
 
-**Diagnosed topological.** A splitting for which no pair of atomic
-realizations of its two sides adds up to the whole's `ℤ_n`-valued invariants,
-a side with no realization at all included: the valence set, the conduction
-set, or both is not an atomic insulator. The stable-RSI paper, Hwang *et al.*,
-Nat. Commun. **17**, 8564 (2026), which tabulates the invariants
-([citing](../citing.md#stable-real-space-invariants)), calls it NSIT,
-non-symmetry-indicated topological.
-
 **Elementary divisor; Smith normal form.** The EBR matrix, a row per corep at
 each high-symmetry point and a column per EBR, is brought to a diagonal `D` by
 integer matrices with integer inverses, `U·M·V = D`; the diagonal entries are
@@ -201,10 +193,6 @@ atomic limit; zero certifies nothing.
 on spinors, or its restriction to a layer group. The twofold rotation `C2z` is
 a rotation, and a wallpaper group holds no inversion.
 
-**Invisible to the SRSIs.** A splitting for which some pair of atomic
-realizations of its two sides adds up to the whole's `ℤ_n`-valued invariants:
-any topology it carries is invisible to the stable real-space invariants.
-
 **`k`-action class.** Operations that act alike on `k`, unitary or
 antiunitary alike. One measurement settles the whole class, so on a flat layer
 an operation and its product with the horizontal mirror share a verdict, and
@@ -242,6 +230,15 @@ carrier of a site irrep.
 the tolerance of the exact check the representation is built with; the signal
 on which the Hamiltonian is projected onto its symmetric part.
 [Numerical models](../guide/numerical.md).
+
+**NSIT.** Non-symmetry-indicated topological: a splitting whose two sides each
+have atomic realizations, no pair of which adds up to the whole's `ℤ_n`-valued
+invariants, so the valence set, the conduction set, or both is not an atomic
+insulator, and no symmetry indicator says so. A side with fractional invariants,
+or with integral ones and no realization at all, is seen from its symmetry data
+and is not NSIT. The stable-RSI paper, Hwang *et al.*, Nat. Commun. **17**, 8564
+(2026), which tabulates the invariants
+([citing](../citing.md#stable-real-space-invariants)), names it.
 
 **Orbit.** The sites the group's operations carry one site onto, all at one
 Wyckoff position.
@@ -302,9 +299,10 @@ over a degenerate multiplet is that multiplet's character.
 operations that fix it. A site irrep is an irreducible representation of it;
 for a spinful model, a double-valued site corep.
 
-**Site key; site-symmetry vector.** A site key is a pair (site irrep, Wyckoff
-letter). The site-symmetry vector `p` counts how many times each site irrep
-occurs at each Wyckoff position, maximal or not: one entry per site key.
+**Site-symmetry vector.** The site-symmetry vector `p` counts how many times
+each site irrep occurs at each Wyckoff position, maximal or not: one entry per
+pair (site irrep, Wyckoff position), the position written with its
+multiplicity, `1a`.
 
 **Slab cell.** A layer set in a three-dimensional cell, its non-periodic
 direction vacuum. A layer's group is that slab's space group.
@@ -337,7 +335,7 @@ covers in the cell: a point, or a line or plane where it has free parameters.
 An orbital confined to a variety can slide along it, and the variety's closure
 adds the more special positions it meets: the line `6c` of `R-3m`,
 `(0, 0, z)`, closes on `3a` at `z = 0` and on `3b` at `z = 1/2`. A site's
-`slides_onto`, and an orbit's `closure` in the SRSI records, name the positions
+`slides_onto`, and a Wyckoff orbit's in the SRSI records, name the positions
 there at which the tables have elementary band representations, the positions
 such an orbital can be moved to.
 

@@ -2,6 +2,68 @@
 
 ## Unreleased
 
+- Every set of stable real-space invariants is held by name: `theta_Z` maps each
+  integer-valued invariant's name to its value, `theta_Zn` each one valued modulo n to a
+  `ModularValue` with `value` and `modulus`, `mo.theta_Zn["theta_5"].value`. A printed
+  tuple of invariants names them, `theta_1 to theta_3 = (2, 2, 0); theta_4, theta_5 =
+  (0, 1) mod 2`. The values are unchanged.
+- `srsi_tables` returns the paper's tables flat: `invariants`, each invariant's formula by
+  name; `indicators`, each indicator's form in the invariants as the paper prints it;
+  `moduli`, each one's modulus; `site_irreps`, rows of `SiteIrrep` with `irrep` and
+  `wyckoff`, `"4d"`; `split_ebrs`; `stably_equivalent`, the site irreps no invariant tells
+  apart; `group`; and `provenance`, a `Provenance`. The tables of a space-group number hold
+  the grey group by its name, `"I4321'"` for 211, with no cell, and a lookup that needs a
+  cell raises `TypeError` on it. `rows`, `names`, `row()`, `structure`, `ebrs`, `sg`,
+  `number_str`, `spinor`, `site_keys`, `maximal_keys`, `band_count_form`, `z_rows`,
+  `zn_rows`, `theta_on_columns`, `terms_without_ebr_column` and the three `_columns`
+  methods are gone. `srsi_tables` raises `TypeError` on what `realized_group` returns.
+- `tables.theta(p)`, `theta_unreduced` and `indicators_of` take a mapping keyed by site
+  irrep and Wyckoff position, `{("-E", "2c"): 1}`, or a sum of term rows, such as a
+  candidate sum of `decompose` or an atomic realization. `theta` returns an `Invariants`
+  with `theta_Z` and `theta_Zn`, and `theta_unreduced` a mapping by name. A position
+  written without its multiplicity, or with another one than the tables give it, raises
+  `ValueError` naming the position to write; a sequence of numbers raises `TypeError`.
+  A site irrep is spelled as the list of elementary band representations spells it, `A`
+  at a `222` site, wherever the invariants' records print one.
+- `srsi_of`, `srsi_of_columns` and `stably_equivalent_pairs` are gone: `tables.theta(p)`
+  and `tables.stably_equivalent` return the same values.
+- `srsi_of_bands` returns `theta_Z` by name, `indicator` and `group`; the rational
+  site-symmetry vector is `b.numerical.p`, keyed as `theta` takes it. `names`, `stable`,
+  `denominator`, `n_bands`, `number_str` and `spinor` are gone.
+- `srsi_of_model` returns a row for each Wyckoff orbit in `mo.wyckoff_orbits`, the row of
+  `r.wyckoff_orbits` with its `theta_Z`, `theta_Zn` and `slides_onto`, the positions its
+  orbitals slide onto, `("3a", "3b")`; its localizations, its measured symmetry data
+  vector and the composite site irreps are under `o.numerical`. A model with two Wyckoff
+  orbits on one orbit of sites, lin3g's two orbitals at `1a`, has a row for each where it
+  had one; a composite multiplet beside another on one site is read on its own orbitals.
+  The model's totals are unchanged. `orbits`, `names`, `moduli`, `structure`, `tables`,
+  `number_str` and `spinor` are gone, and `srsi_of_model` no longer takes `rep=`.
+- `atomic_realizations` takes `theta_Z` by name, `b.theta_Z`, and no longer takes
+  `n_bands=`. It returns the record with no realization on fractional invariants, where it
+  refused `srsi_not_atomic`, which is gone. A realization is an `AtomicRealization`, a sum
+  of term rows equal to the same sum from `decompose`, with `label`, `theta_Zn` and
+  `stably_equivalent`; `n_bands`, `atomic_possible`, `note` and `keys` are gone, and
+  `bound` and `cap` are under `rz.numerical`.
+- `splitting` and `nsit_criterion` return `nsit`, `valence` and `conduction`, each side's
+  realizations as `atomic_realizations` returns them, the whole model's `theta_Z` and
+  `theta_Zn`, `consistent_pairs` as pairs of realizations, and `stably_equivalent`.
+  `verdict`, `reason`, `realizations_v`, `realizations_c`, `theta_Z_v`, `theta_Z_c`,
+  `theta_Z_total`, `theta_Zn_total`, `n_bands_v`, `n_bands_c`, `v_atomic_possible`,
+  `c_atomic_possible`, `indicator`, `moduli`, `same_content` and `SPLITTING_VERDICTS` are
+  gone. `nsit_criterion` takes the whole model's invariants as what `tables.theta` or
+  `srsi_of_model` returns, and each side's by name; `n_bands_v=` and `n_bands_c=` are gone.
+  The summary's first line says whether the splitting is NSIT and why not.
+- `nsit` is true only where both sides have atomic realizations and no pair of them adds
+  up to the whole model's invariants valued modulo n. A side with whole-number invariants
+  and no atomic realization makes it false, where it made it true: Kane-Mele split at half
+  filling reads `nsit` false, its conduction bands having no atomic realization.
+- The refusals `orbit_content_incomplete` and `orbit_not_localizable` are
+  `wyckoff_orbit_content_incomplete` and `wyckoff_orbit_not_localizable`.
+- `OrbitSRSIs` is `WyckoffOrbitSRSIs`, and `SiteKey` is `SiteIrrep`. `SRSIRow`,
+  `SRSIIndicator` and `MaximalKey` are no longer in `pythtqc.srsi`. `pythtqc.srsi` holds
+  the new records `BandSRSIsNumerical`, `WyckoffOrbitSRSIsNumerical`, `Localization`,
+  `RealizationsNumerical`, `SRSITablesNumerical`, `IndicatorCheck`, `Provenance`,
+  `ProvenanceCounts`, `Invariants` and `ModularValue`.
 - `decompose`, `symmetry_indicator`, `srsi_of_bands` and `regular_completion` take the
   table `hsp_table` returns alone, `decompose(t)`, or a symmetry data vector written out by
   hand with what `realized_group` returned beside it, `decompose(vector, r)`. The first

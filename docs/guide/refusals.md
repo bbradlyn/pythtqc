@@ -31,8 +31,8 @@ print(out)
 
 - **`True False`**: `isinstance(out, tqc.Refusal)` is the test to branch on; it tells a
   refusal apart from every value a call returns. A refusal is falsy as well, but so are
-  some ordinary verdicts, which a truth test would read as refusals:
-  `stably_equivalent_pairs`, which has no pairs for most groups, and `subtract` of two
+  some ordinary values, which a truth test would read as refusals: the
+  `stably_equivalent` of an `SRSITables`, which has no pairs for most groups, and `subtract` of two
   equal contents, which leaves none.
 - **`Refusal[multiplet_split]`**: `out.gate`, the name of the check that stopped the call.
   The name is stable, and it is the heading of the refusal's entry in

@@ -29,6 +29,7 @@ Wyckoff letter is read in** — so that is where it starts.
    route's on *all* of its bands, on lin3g and on the odd Kane-Mele regime.
 """
 
+import math
 import re
 
 import numpy as np
@@ -68,6 +69,22 @@ def fkm_strong(realized):
     out = realized(fkm_regime("strong"), decorations=FKM_BOND, characters={0: "s"})
     assert out, str(out)
     assert out.group.number_str == "166.98"
+    return out
+
+
+def _p43m_3c():
+    """Every ``p`` orbital at ``3c`` of ``P-43m``, spinless: a composite multiplet beside another on one site."""
+    from pythtqc import models
+    return models._cubic_3c_p_model([(s, a) for s in range(3) for a in range(3)],
+                                    models._cubic_rotations(False), 7)
+
+
+@pytest.fixture(scope="module")
+def p43m_composite(realized):
+    """The ``3c`` model of ``P-43m1' #215.71``: two Wyckoff orbits on one orbit of sites, one of them composite."""
+    out = realized(_p43m_3c)
+    assert out, str(out)
+    assert out.group.number_str == "215.71"
     return out
 
 
@@ -191,11 +208,11 @@ def test_the_distorted_orbit_sits_on_the_6c_line_between_3a_and_3b(fkm_strong):
     (orbit,) = table
     assert (orbit.wyckoff, orbit.unitary_site_symmetry, orbit.orbitals, orbit.label,
             orbit.numerical.named_by) == ("6c", "3m", (0, 1), "-E1", "point group")
-    at_a = [loc for loc in tqr.srsi_of_model(fkm_strong).orbits[0].localizations
-            if loc["letter"] == "a"]
+    at_a = [loc for loc in
+            tqr.srsi_of_model(fkm_strong).wyckoff_orbits[0].numerical.localizations
+            if loc.wyckoff == "3a"]
     assert [(t.multiplicity, t.irrep, t.wyckoff) for t in orbit.band_representation] == \
-        [(m, name.split("↑")[0], position.split("(")[0])
-         for m, name, position in at_a[0]["terms"]] == \
+        [(t.multiplicity, t.irrep, t.wyckoff) for t in at_a[0]] == \
         [(1, "-E1g", "3a"), (1, "-E1u", "3a")]
     assert [[(t.multiplicity, t.irrep, t.wyckoff) for t in alternative]
             for alternative in orbit.numerical.alternatives] == \
@@ -263,7 +280,7 @@ def test_a_drifted_centre_reads_as_the_general_position_rather_than_refusing():
     closure carries all four letters the tables list EBRs at, and
     ``srsi_of_model`` then reports
     whichever one the block's content actually decomposes at, or refuses
-    ``orbit_not_localizable``.  The gate stays as a guard against a ``pyxtal``
+    ``wyckoff_orbit_not_localizable``.  The gate stays as a guard against a ``pyxtal``
     list with no general position; this test is what says it is a guard.
 
     ``site._residual`` is **not** what says the centre drifted: the general
@@ -301,25 +318,45 @@ def test_a_drifted_centre_reads_as_the_general_position_rather_than_refusing():
 # 2.  a model -> its SRSIs
 # ---------------------------------------------------------------------------
 
-#: What each fixture's orbits localize to, and the model's total Z-SRSIs.
-#: ``(letter, ((multiplicity, EBR name), ...))`` per orbit, then the total.
+#: What each case's rows localize to, and the model's invariants.  Per row, in
+#: the order of ``r.wyckoff_orbits``: its Wyckoff position, its orbitals and its
+#: site irreps; the position its localization is at, and that localization's
+#: terms, each a site irrep at a position (none for a row whose site irreps
+#: induce a composite band representation); the row's integer-valued invariants
+#: and its invariants valued modulo n.  Then the model's two.
 MODEL_SRSIS = {
     # -E1 since 2026-09-10 (the served matrices carry the tables' lift); the first
     # two Z-SRSIs count the two 8a spinor EBRs, so the total moved with the name
-    "FKM diamond": ((("a", (("-E1↑G(4)", "8a"),)),),
-                    ("1", "0", "0", "0", "0", "0", "0", "0")),
-    "FKM strong": ((("c", (("-E1g↑G(2)", "3a"), ("-E1u↑G(2)", "3a"))),),
-                   ("0", "0", "1", "1", "0", "0", "0", "0")),
-    "Kane-Mele odd": ((("c", (("-E1↑G(2)", "1c"),)),
-                       ("b", (("-E1↑G(2)", "1b"),))),
-                      ("0", "2", "-1", "-1")),
+    "FKM diamond": ((("8a", (0, 1), "-E1", "8a", (("-E1", "8a"),),
+                      ("1", "0", "0", "0", "0", "0", "0", "0"), ()),),
+                    ("1", "0", "0", "0", "0", "0", "0", "0"), ()),
+    "FKM strong": ((("6c", (0, 1), "-E1", "3a", (("-E1g", "3a"), ("-E1u", "3a")),
+                     ("0", "0", "1", "1", "0", "0", "0", "0"), ()),),
+                   ("0", "0", "1", "1", "0", "0", "0", "0"), ()),
+    "Kane-Mele odd": ((("1c", (0,), "-E1", "1c", (("-E1", "1c"),), ("0", "1", "0", "-1"), ()),
+                       ("1b", (1,), "-E1", "1b", (("-E1", "1b"),), ("0", "1", "-1", "0"), ())),
+                      ("0", "2", "-1", "-1"), ()),
+    # two Wyckoff orbits on the one orbit of sites at 1a, each its own row
+    "lin3g": ((("1a", (0,), "-E1", "1a", (("-E1", "1a"),), ("0", "1", "0"), (0, 0)),
+               ("1a", (1,), "-E2", "1a", (("-E2", "1a"),), ("1", "0", "0"), (0, 0)),
+               ("2c", (2, 3), "-E", "2c", (("-E", "2c"),), ("1", "1", "0"), (0, 1))),
+              ("2", "2", "0"), (0, 1)),
+    # a composite multiplet beside another on one site: each row reads its own
+    # orbitals, and the composite one its own site irrep
+    "P-43m 3c": ((("3c", (0, 4, 8), "B2", "3c", (("B2", "3c"),),
+                   ("0", "-1", "1", "1", "0", "1", "1", "-1", "0", "0"), ()),
+                  ("3c", (1, 2, 3, 5, 6, 7), "E", "3c", (),
+                   ("1", "1", "0", "1", "1", "-1", "-1", "0", "0", "0"), ())),
+                 ("1", "0", "1", "2", "1", "0", "0", "-1", "0", "0"), ()),
 }
 
-#: The points each orbit's content is identified at: every tabulated point of
-#: a fully periodic crystal's group, and the in-plane ones of a layer's --
-#: ``#156.50``'s ``A``/``H``/``L`` rows have no ``k`` in a monolayer's zone.
+#: The points each row's symmetry data vector is identified at: every tabulated
+#: point of a fully periodic crystal's group, and the in-plane ones of a
+#: layer's -- ``#156.50``'s ``A``/``H``/``L`` rows have no ``k`` in a
+#: monolayer's zone.
 ORBIT_POINTS = {"FKM diamond": ("GM", "L", "W", "X"), "FKM strong": ("GM", "F", "L", "T"),
-                "Kane-Mele odd": ("GM", "K", "M")}
+                "Kane-Mele odd": ("GM", "K", "M"), "lin3g": ("GM", "M", "X"),
+                "P-43m 3c": ("GM", "M", "R", "X")}
 
 #: How many bands each fixture has in total (the identity of § 4 is asserted on
 #: *all* of them).
@@ -339,7 +376,8 @@ Z_ROW_NAMES = {
 #: fixture holds more than one.
 _CASES = {"FKM diamond": ("fkm_undistorted", None), "FKM strong": ("fkm_strong", None),
           "lin3g": ("lin3g_declared_cross_checked", None),
-          "Kane-Mele odd": ("km_realized", "odd")}
+          "Kane-Mele odd": ("km_realized", "odd"),
+          "P-43m 3c": ("p43m_composite", None)}
 
 
 def _record(request, name):
@@ -352,49 +390,64 @@ def _record(request, name):
 @pytest.mark.slow
 @pytest.mark.parametrize("name", sorted(MODEL_SRSIS))
 def test_srsi_of_model_localizes_every_orbit_and_pins_the_total(request, name):
-    """Every orbit's letter, its localization and the model's SRSIs, measured.
+    """Every Wyckoff orbit's position, its localization and the model's SRSIs, measured.
 
-    The letters are route G's (the § 1 tests above) and the localizations are
-    route C's — the block's own content, decomposed over the EBR columns of a
-    letter on the closure of its variety — and the two must land in the same
-    place, which is the one safety gate left in this route.  The content is
-    identified only at the points the model can sample, which for a layer are
-    its in-plane ones.  The distorted Fu-Kane-Mele orbit is on a line the tables
-    list no EBR at, so it is localized by the adiabatic shift, and the summary
-    says so.
-    The totals are pinned as strings so a Fraction that stopped being integral
-    would be visible.
+    A row for each row of ``r.wyckoff_orbits``, its orbitals and site irreps
+    the same.  The positions are route G's (the § 1 tests above) and the
+    localizations are route C's — the row's own symmetry data vector,
+    decomposed over the EBR columns of a position on the closure of its
+    variety — and the two must land in the same place, which is the one safety
+    gate left in this route.  The symmetry data vector is identified only at
+    the points the model can sample, which for a layer are its in-plane ones.
+    The distorted Fu-Kane-Mele orbit is on a line the tables list no EBR at, so
+    it is localized by the adiabatic shift, and the summary says so.  Each
+    row's invariants are the tables' own of its site irreps at its own
+    position, the composite one's included.  The totals are pinned as strings
+    so a Fraction that stopped being integral would be visible.
     """
     realized = _record(request, name)
-    want_orbits, want_total = MODEL_SRSIS[name]
+    want_rows, want_total, want_zn = MODEL_SRSIS[name]
     got = tqr.srsi_of_model(realized)
     assert got, str(got)
-    assert got.number_str == realized.group.number_str
-    assert len(got.orbits) == len(want_orbits)
-    for orbit, (letter, terms) in zip(got.orbits, want_orbits):
-        assert orbit.letter == letter, (name, orbit)
-        assert orbit.points == ORBIT_POINTS[name], (name, orbit.points)
-        served = tuple((str(ebr), position.split("(")[0])
-                       for _m, ebr, position in orbit.chosen["terms"])
-        assert served == terms, (name, orbit.chosen)
-        assert all(m == 1 for m, _e, _p in orbit.chosen["terms"])
-        assert orbit.content
+    assert got.group is realized.group
+    tables = tqr.srsi_tables(realized.group)
+    assert len(got.wyckoff_orbits) == len(want_rows) == len(realized.wyckoff_orbits)
+    for row, given, want in zip(got.wyckoff_orbits, realized.wyckoff_orbits, want_rows):
+        wyckoff, orbitals, label, at, terms, theta_z, theta_zn = want
+        assert (row.wyckoff, row.orbitals, row.label) == (wyckoff, orbitals, label), (name, row)
+        assert (row.terms, row.site_symmetry, row.band_representation) == (
+            given.terms, given.site_symmetry, given.band_representation), name
+        assert row.numerical.kpoints == ORBIT_POINTS[name], (name, row.numerical.kpoints)
+        chosen = row.numerical.chosen
+        assert chosen is row.numerical.localizations[0]
+        assert chosen.wyckoff == at, (name, chosen)
+        assert tuple((t.irrep, t.wyckoff) for t in chosen) == terms, (name, chosen)
+        assert all(t.multiplicity == 1 for t in chosen)
+        assert (row.numerical.composite is None) == bool(terms), name
+        assert row.numerical.symmetry_data
+        assert tuple(str(v) for v in row.theta_Z.values()) == theta_z, name
+        assert tuple(v.value for v in row.theta_Zn.values()) == theta_zn, name
+        # the row's invariants are the tables' own of its site irreps there
+        assert tables.theta(row.terms) == tqr.Invariants(row.theta_Z, row.theta_Zn), name
         # the agreement over the entries themselves, not the record's flag: every
-        # localization of the orbit lands on the same SRSIs
-        assert orbit.agree and all(
-            e["theta_Z"] == orbit.theta_Z and e["theta_Zn"] == orbit.theta_Zn
-            for e in orbit.localizations), orbit.localizations
-    assert tuple(str(v) for v in got.theta_Z) == want_total, name
-    assert all(v.denominator == 1 for v in got.theta_Z), "a model is an atomic limit"
+        # localization of the row lands on the same SRSIs
+        assert row.numerical.agree and all(
+            e.theta_Z == row.theta_Z and e.theta_Zn == row.theta_Zn
+            for e in row.numerical.localizations), row.numerical.localizations
+    assert tuple(str(v) for v in got.theta_Z.values()) == want_total, name
+    assert tuple(v.value for v in got.theta_Zn.values()) == want_zn, name
+    assert all(v.denominator == 1 for v in got.theta_Z.values()), "a model is an atomic limit"
     # the record prints what it did
     text = got.summary()
     assert realized.group.number_str in text
-    assert f"the whole model: Z-valued ({', '.join(want_total)})" in text
-    for orbit, (letter, _terms) in zip(got.orbits, want_orbits):
-        assert f"{orbit.multiplicity}{letter}" in text
-    if any(orbit.composite is None and orbit.letter not in orbit.closure
-           for orbit in got.orbits):
-        assert "slid onto" in text, name
+    names = tuple(got.theta_Z)
+    span = f"{names[0]} to {names[-1]}" if len(names) > 2 else ", ".join(names)
+    assert f"the whole model: {span} = ({', '.join(want_total)})" in text
+    for row in got.wyckoff_orbits:
+        assert f"{row.wyckoff} ({row.site_symmetry}): " in text
+    if any(row.numerical.composite is None and row.wyckoff not in row.slides_onto
+           for row in got.wyckoff_orbits):
+        assert "slides onto 3a and 3b" in text, name
 
 
 @pytest.mark.slow
@@ -409,7 +462,7 @@ def test_a_model_s_z_srsis_are_the_band_route_s_on_all_of_its_bands(request, nam
     solve of ``BR . p = y`` on the other).  It is the sharpest single check
     either route has.
 
-    The two records' ``names`` are built by the identical expression off the same
+    The two records' names are built by the identical expression off the same
     table, so comparing them to each other would catch nothing; they are compared
     to the literals of ``Z_ROW_NAMES`` instead.
     """
@@ -420,13 +473,12 @@ def test_a_model_s_z_srsis_are_the_band_route_s_on_all_of_its_bands(request, nam
     n_bands = ALL_BANDS[name]
     bands = tqr.srsi_of_bands(tqw.hsp_table(realized, bands=n_bands))
     assert bands, str(bands)
-    assert tuple(model_srsis.theta_Z) == tuple(bands.theta_Z), name
-    # `denominator` is the lcm of the same denominators `stable` is `any()` of,
-    # so one of the two says it
-    assert not bands.stable, "all the bands of a model are an atomic limit"
+    assert model_srsis.theta_Z == bands.theta_Z, name
+    assert all(v.denominator == 1 for v in bands.theta_Z.values()), \
+        "all the bands of a model are an atomic limit"
     want_names = Z_ROW_NAMES[group.number_str]
-    assert bands.names == want_names, name
-    assert model_srsis.names == want_names, name
+    assert tuple(bands.theta_Z) == want_names, name
+    assert tuple(model_srsis.theta_Z) == want_names, name
 
 
 def test_the_safety_gate_can_tell_a_setting_problem_from_a_modelling_one(
@@ -435,7 +487,7 @@ def test_the_safety_gate_can_tell_a_setting_problem_from_a_modelling_one(
 
     Two different diagnoses hide behind "the decomposition failed": a content
     that is a band representation of *nothing* (a modelling statement,
-    ``orbit_not_localizable``) and one that is a band representation of a
+    ``wyckoff_orbit_not_localizable``) and one that is a band representation of a
     position the geometry says the orbitals are not on (a **setting** statement,
     ``wyckoff_setting``).  ``_letters_that_do_fit`` is what separates them, and
     it is measured here on lin3g's own EBR columns: each ``1a`` row fits at
@@ -461,7 +513,7 @@ def test_the_safety_gate_can_tell_a_setting_problem_from_a_modelling_one(
     assert got[("-E2↑G(2)", "1b")] == ("b",)
     assert got[("-E↑G(4)", "2c")] == ("a", "b", "c")
     # ... and a content that fits nowhere gives the empty tuple, which is what
-    # sends the caller to `orbit_not_localizable` instead
+    # sends the caller to `wyckoff_orbit_not_localizable` instead
     assert tqr._letters_that_do_fit(data, {labels[0]: 1}, points, 4) == ()
 
 
@@ -481,24 +533,26 @@ def test_srsi_of_bands_reproduces_the_fu_kane_mele_anchors(fkm_strong):
     got = tqr.srsi_of_bands(content)
     assert got, str(got)
     assert got.indicator.values == (0, 1) and got.indicator.order == 4
-    assert tuple(str(v) for v in got.theta_Z) == (
+    assert tuple(str(v) for v in got.theta_Z.values()) == (
         "-1/4", "0", "1/2", "1", "1/4", "-1/2", "-1/4", "1/4")
     # the paper's theorem, as a two-route check: a real-space denominator against
     # a momentum-space class order.  (Whether the class is nonzero is
     # `any(indicator.values)` and `order` is an lcm over the same values, so a
     # third term would be free.)
-    assert got.stable
-    assert got.denominator == 4
-    assert got.n_bands == 2
-    assert got.line() == ("theta_Z = (-1/4, 0, 1/2, 1, 1/4, -1/2, -1/4, 1/4), fractional with "
-                          "common denominator 4; class (0, 1) in Z2 x Z4, of order 4"), \
-        "the record on one line, the denominator and the order side by side"
-    assert "Z-valued stable real-space invariants of 2 bands" in got.summary()
-    assert "common denominator 4: the bands are stable topological" in got.summary()
-    # the record's own one-line rendering: the group, the theta_Z and the
-    # verdict word, which is what a reader checks first
-    assert repr(got) == ("BandSRSIs(#166.98, "
-                         "(-1/4, 0, 1/2, 1, 1/4, -1/2, -1/4, 1/4), stable)")
+    assert math.lcm(*(v.denominator for v in got.theta_Z.values())) == 4
+    assert got.group is fkm_strong.group
+    assert got.line() == ("theta_1 to theta_8 = (-1/4, 0, 1/2, 1, 1/4, -1/2, -1/4, 1/4), "
+                          "fractional; class (0, 1) in Z2 x Z4, of order 4"), \
+        "the record on one line, the invariants and the class side by side"
+    assert "Z-valued stable real-space invariants of the bands" in got.summary()
+    assert "  fractional   (.theta_Z)" in got.summary()
+    # the record's own one-line rendering: the group, the theta_Z and whether
+    # they are fractional, which is what a reader checks first
+    assert repr(got) == ("BandSRSIs(R-3m1' #166.98, theta_1 to theta_8 = "
+                         "(-1/4, 0, 1/2, 1, 1/4, -1/2, -1/4, 1/4), fractional)")
+    # one rational site-symmetry vector of many, keyed as the tables take it, and
+    # the tables read the same invariants off it
+    assert tqr.srsi_tables(fkm_strong.group).theta(got.numerical.p).theta_Z == got.theta_Z
 
 
 def test_srsi_of_bands_reproduces_the_lin3g_and_kane_mele_anchors(
@@ -519,13 +573,12 @@ def test_srsi_of_bands_reproduces_the_lin3g_and_kane_mele_anchors(
         got = tqr.srsi_of_bands(tqw.hsp_table(lin3g_declared_cross_checked, bands=bands))
         assert got, (name, str(got))
         blocks[name] = got
-        assert not got.stable, name
         # integral theta_Z, so the common denominator is 1: the other half of
         # the theorem the Fu-Kane-Mele anchors read at 4 and 2
-        assert got.denominator == 1, name
-    assert tuple(str(v) for v in blocks["P4"].theta_Z) == ("1", "1", "0")
-    assert tuple(str(v) for v in blocks["P2"].theta_Z) == ("0", "0", "1")
-    assert tuple(str(v) for v in blocks["P6"].theta_Z) == ("1", "1", "1")
+        assert all(v.denominator == 1 for v in got.theta_Z.values()), name
+    assert tuple(str(v) for v in blocks["P4"].theta_Z.values()) == ("1", "1", "0")
+    assert tuple(str(v) for v in blocks["P2"].theta_Z.values()) == ("0", "0", "1")
+    assert tuple(str(v) for v in blocks["P6"].theta_Z.values()) == ("1", "1", "1")
     # the premise: the measured symmetry data vectors of the three blocks add
     assert tuple(blocks["P6"].indicator._y) == tuple(
         a + b for a, b in zip(blocks["P4"].indicator._y, blocks["P2"].indicator._y))
@@ -535,8 +588,8 @@ def test_srsi_of_bands_reproduces_the_lin3g_and_kane_mele_anchors(
         km = km_realized[regime]
         out = tqr.srsi_of_bands(tqw.hsp_table(km, bands=2))
         assert out, (regime, str(out))
-        got[regime] = tuple(str(v) for v in out.theta_Z)
-        assert not out.stable
+        got[regime] = tuple(str(v) for v in out.theta_Z.values())
+        assert all(v.denominator == 1 for v in out.theta_Z.values())
     # different Wyckoff positions, different real-space invariants -- the two
     # literals above are the statement; `got["odd"] != got["even"]` beside them
     # would be a remark about this file

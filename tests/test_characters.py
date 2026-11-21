@@ -980,8 +980,9 @@ def test_an_orbit_reads_its_own_name_whichever_of_its_sites_is_listed_first(real
             assert row.label == "B1", (swap, row)
             assert row.terms == (tqg.Term(1, "B1", "2c", "mm21'", "mm2"),)
             assert row.site_symmetry == "mm21'" and row.unitary_site_symmetry == "mm2"
-            (orbit,) = [o for o in model_srsi.orbits if set(o.orbitals) == set(row.orbitals)]
-            assert {name.split("↑")[0] for _m, name, _w in orbit.chosen["terms"]} == {"B1"}
+            (orbit,) = [o for o in model_srsi.wyckoff_orbits
+                        if set(o.orbitals) == set(row.orbitals)]
+            assert {t.irrep for t in orbit.numerical.chosen} == {"B1"}
         per_site = {o.irrep for o in out.rep._characters.orbitals}
         assert per_site == {"B1", "B2"}, "the two sites of an orbit read conjugate site irreps"
 

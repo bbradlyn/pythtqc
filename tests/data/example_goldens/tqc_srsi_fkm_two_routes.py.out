@@ -13,9 +13,9 @@ stable real-space invariants, read from the bands and from the orbitals.
 2. the same phase, read from the orbitals
    the orbit        : orbitals 0 and 1 at Wyckoff 6c, not a maximal position
    its content      : -GM8 + -GM9 + -F3F4 + -F5F6 + -L3L4 + -L5L6 + -T8 + -T9
-   localized at 3a  : 1 x -E1g↑G(2)@3a(-3m1',-3m) + 1 x -E1u↑G(2)@3a(-3m1',-3m),
+   localized at 3a  : 1 (-E1g)_a + 1 (-E1u)_a,
                       Z-valued (0, 0, 1, 1, 0, 0, 0, 0)
-   localized at 3b  : 1 x -E1g↑G(2)@3b(-3m1',-3m) + 1 x -E1u↑G(2)@3b(-3m1',-3m),
+   localized at 3b  : 1 (-E1g)_b + 1 (-E1u)_b,
                       Z-valued (0, 0, 1, 1, 0, 0, 0, 0)
    all 4 bands      : Z-valued (0, 0, 1, 1, 0, 0, 0, 0), read from the bands
    the whole model  : Z-valued (0, 0, 1, 1, 0, 0, 0, 0), read from the orbitals
@@ -37,23 +37,21 @@ stable real-space invariants, read from the bands and from the orbitals.
 
 4. splitting(r, bands=2): the no-go criterion on the gap above the valence bands
    strong           : delta_t = +0.4
-   R-3m1' #166.98, double-valued, stable topological: the bands asked for carry a nonzero symmetry indicator, so no atomic insulator has their symmetry data   (.verdict)
-     the bands=2 valence bands, the remaining 2 conduction bands, and all 4 bands   (.n_bands_v, .n_bands_c)
-     Z-valued stable real-space invariants: all 4 (0, 0, 1, 1, 0, 0, 0, 0) = valence (-1/4, 0, 1/2, 1, 1/4, -1/2, -1/4, 1/4) + conduction (1/4, 0, 1/2, 0, -1/4, 1/2, 1/4, -1/4)   (.theta_Z_total, .theta_Z_v, .theta_Z_c)
-     the valence bands' symmetry-indicator class: (0, 1) in Z2 x Z4, of order 4   (.indicator)
+   R-3m1' #166.98, double-valued: not nsit, the valence bands' invariants being fractional   (.group, .nsit, .valence.theta_Z)
+     Z-valued stable real-space invariants theta_1 to theta_8: the whole model (0, 0, 1, 1, 0, 0, 0, 0) = valence (-1/4, 0, 1/2, 1, 1/4, -1/2, -1/4, 1/4) + conduction (1/4, 0, 1/2, 0, -1/4, 1/2, 1/4, -1/4)   (.theta_Z, .valence.theta_Z, .conduction.theta_Z)
+     the valence bands have no atomic realization, their invariants fractional   (.valence.realizations, .valence.theta_Z)
+     the conduction bands have no atomic realization, their invariants fractional   (.conduction.realizations, .conduction.theta_Z)
    weak             : delta_t = -0.4
-   R-3m1' #166.98, double-valued, stable topological: the bands asked for carry a nonzero symmetry indicator, so no atomic insulator has their symmetry data   (.verdict)
-     the bands=2 valence bands, the remaining 2 conduction bands, and all 4 bands   (.n_bands_v, .n_bands_c)
-     Z-valued stable real-space invariants: all 4 (0, 0, 1, 1, 0, 0, 0, 0) = valence (0, 0, 1, 1, 1/2, 0, -1/2, 0) + conduction (0, 0, 0, 0, -1/2, 0, 1/2, 0)   (.theta_Z_total, .theta_Z_v, .theta_Z_c)
-     the valence bands' symmetry-indicator class: (1, 0) in Z2 x Z4, of order 2   (.indicator)
+   R-3m1' #166.98, double-valued: not nsit, the valence bands' invariants being fractional   (.group, .nsit, .valence.theta_Z)
+     Z-valued stable real-space invariants theta_1 to theta_8: the whole model (0, 0, 1, 1, 0, 0, 0, 0) = valence (0, 0, 1, 1, 1/2, 0, -1/2, 0) + conduction (0, 0, 0, 0, -1/2, 0, 1/2, 0)   (.theta_Z, .valence.theta_Z, .conduction.theta_Z)
+     the valence bands have no atomic realization, their invariants fractional   (.valence.realizations, .valence.theta_Z)
+     the conduction bands have no atomic realization, their invariants fractional   (.conduction.realizations, .conduction.theta_Z)
    dimers           : three bonds cut
-   R-3m1' #166.98, double-valued, no Z_n SRSIs: the group has no Z_n-valued stable real-space invariant (SRSI) to test whether both sides of the gap are atomic insulators   (.verdict)
-     the bands=2 valence bands, the remaining 2 conduction bands, and all 4 bands   (.n_bands_v, .n_bands_c)
-     Z-valued stable real-space invariants: all 4 (0, 0, 1, 1, 0, 0, 0, 0) = valence (0, 0, 0, 1, 0, 0, 0, 0) + conduction (0, 0, 1, 0, 0, 0, 0, 0)   (.theta_Z_total, .theta_Z_v, .theta_Z_c)
-     the valence bands' symmetry-indicator class is zero, in Z2 x Z4   (.indicator)
-     possible atomic realizations of the valence bands   (.realizations_v)
+   R-3m1' #166.98, double-valued: not nsit, the group having no invariants valued modulo n   (.group, .nsit, .theta_Zn)
+     Z-valued stable real-space invariants theta_1 to theta_8: the whole model (0, 0, 1, 1, 0, 0, 0, 0) = valence (0, 0, 0, 1, 0, 0, 0, 0) + conduction (0, 0, 1, 0, 0, 0, 0, 0)   (.theta_Z, .valence.theta_Z, .conduction.theta_Z)
+     atomic realizations of the valence bands   (.valence.realizations)
        1 (-E1u)_a
-     possible atomic realizations of the conduction bands   (.realizations_c)
+     atomic realizations of the conduction bands   (.conduction.realizations)
        1 (-E1g)_a
 
 5. the bands along GM-T-F-L-GM, one panel per phase

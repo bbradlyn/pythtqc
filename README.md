@@ -26,7 +26,7 @@ print(tqc.format_coreps(t.symmetry_data))
 print(tqc.symmetry_indicator(t))
 #  SymmetryIndicator(P6/mmm1' #191.234, class (1, 0) in Z6 x Z12, completed on the stack)
 print(tqc.srsi_of_bands(t))
-#  BandSRSIs(#191.234, (-1/6, 1/6, 1/2, 1/3, 0, 2/3, 0, 0, 0, -1/3, -2/3, 0, 1/2, 0), stable)
+#  BandSRSIs(P6/mmm1' #191.234, theta_1 to theta_14 = (-1/6, 1/6, 1/2, 1/3, 0, 2/3, 0, 0, 0, -1/3, -2/3, 0, 1/2, 0), fractional)
 ```
 
 The Hamiltonian obeys `P6/mmm` with time reversal adjoined, the `1'`. Its two

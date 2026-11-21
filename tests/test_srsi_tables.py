@@ -42,7 +42,7 @@ Wave S1b adds three more:
    print one.  Every shipped row annihilates it and the Z rows span exactly its
    left null space -- the only check of the **non-EBR** terms there is, since
    the kernel test of statement 3 lives on EBR columns alone.
-9. **The full site-symmetry vector as the primitive**: ``site_keys`` is the
+9. **The full site-symmetry vector as the primitive**: ``site_irreps`` is the
    paper's whole basis, ``theta`` evaluates on it -- the keys no EBR column
    reaches included -- and every key moves some SRSI.
 
@@ -64,6 +64,7 @@ indicator reaches them; that is said where it is measured and not glossed over.
 """
 
 import collections
+import dataclasses
 import json
 import os
 from fractions import Fraction
@@ -138,11 +139,11 @@ def test_every_term_of_every_group_resolves_to_exactly_one_ebr_or_says_why(every
         for _name, wyckoff in data["ebrs"]:
             match = _srsitables._POSITION.match(str(wyckoff))
             symbols[match.group(2)] = match.group(3)
-        kind = "double" if table.spinor else "single"
+        kind = "double" if table.group.spinor else "single"
         seen_alias, seen_absent = set(), set()
-        for row in table.rows:
+        for row in table._rows:
             for term in row.terms:
-                where = (table.sg, kind, row.name, term["irrep"], term["letter"])
+                where = (table._sg, kind, row.name, term["irrep"], term["letter"])
                 if term["ebr"]:
                     assert term["maximal"] and term["column"] is not None, where
                     label = term.get("ebr_label", term["irrep"])
@@ -155,7 +156,7 @@ def test_every_term_of_every_group_resolves_to_exactly_one_ebr_or_says_why(every
                     assert term["maximal"] == (term["letter"] in letters), where
                     tally["composite" if term["maximal"] else "nonmaximal"][kind] += 1
                 # the two spellings the conversion derived, once per position
-                position = (table.sg, term["letter"], term["irrep"])
+                position = (table._sg, term["letter"], term["irrep"])
                 site = (kind, symbols.get(term["letter"]), term["irrep"])
                 if "ebr_label" in term:
                     if position not in seen_alias:
@@ -231,22 +232,23 @@ def test_the_measured_counts_of_the_shipped_tables(
     tables = [tqr.srsi_tables(sg, spinor=spinor) for sg in range(1, 231)]
     tables = [t for t in tables if t]
     assert len(tables) == groups
-    assert sorted(set(range(1, 231)) - {t.sg for t in tables}) == list(OMITTED)
-    assert sum(len(t.rows) for t in tables) == srsi_rows
-    moduli = collections.Counter(m for t in tables for m in t.moduli if m is not None)
+    assert sorted(set(range(1, 231)) - {t._sg for t in tables}) == list(OMITTED)
+    assert sum(len(t._rows) for t in tables) == srsi_rows
+    moduli = collections.Counter(row.mod for t in tables for row in t._rows
+                                 if row.mod is not None)
     assert dict(moduli) == zn
     assert sum(1 for t in tables if t.indicators) == si_groups
-    si = collections.Counter(f.mod for t in tables for f in t.indicators)
+    si = collections.Counter(f.mod for t in tables for f in t._indicator_rows)
     assert dict(si) == si_moduli
     assert sum(1 for t in tables if t.split_ebrs) == split_groups
     assert sum(len(t.split_ebrs) for t in tables) == splittings
 
     provenance = tables[0].provenance
-    assert provenance["counts"]["groups"] == groups
-    assert provenance["counts"]["srsi_rows"] == srsi_rows
-    assert provenance["counts"]["si_expressions"] == sum(si.values())
-    assert provenance["counts"]["splittings"] == splittings
-    assert tuple(provenance["omitted_groups"]) == OMITTED
+    assert provenance.counts.groups == groups
+    assert provenance.counts.srsi_rows == srsi_rows
+    assert provenance.counts.si_expressions == sum(si.values())
+    assert provenance.counts.splittings == splittings
+    assert tuple(provenance.omitted_groups) == OMITTED
 
 
 def test_the_provenance_names_the_paper_and_the_versions_it_was_converted_against():
@@ -281,15 +283,15 @@ def test_the_provenance_names_the_paper_and_the_versions_it_was_converted_agains
     for spinor in (False, True):
         table = tqr.srsi_tables(2, spinor=spinor)
         provenance = table.provenance
-        assert provenance["doi"] == "https://doi.org/10.1038/s41467-026-74844-w"
-        assert not {"converter", "sources"} & set(provenance)
-        assert provenance["irrep_version"]
-        assert provenance["irreptables_version"]       # the one srsi_ebr_basis names
+        assert provenance.doi == "https://doi.org/10.1038/s41467-026-74844-w"
+        assert not {"converter", "sources"} & set(provenance.__dataclass_fields__)
+        assert provenance.irrep_version
+        assert provenance.irreptables_version       # the one srsi_ebr_basis names
         # the label map is the mechanical TeX -> irreptables spelling, and it is
         # a function: 58 distinct spellings without SOC, 36 with
-        assert len(provenance["label_map"]) == (36 if spinor else 58)
-        assert provenance["label_map"]["\\bar{A}_g\\bar{A}_g" if spinor
-                                       else "A_{g}"] == ("-AgAg" if spinor else "Ag")
+        assert len(provenance.label_map) == (36 if spinor else 58)
+        assert provenance.label_map["\\bar{A}_g\\bar{A}_g" if spinor
+                                    else "A_{g}"] == ("-AgAg" if spinor else "Ag")
 
 
 # ---------------------------------------------------------------------------
@@ -324,23 +326,23 @@ def test_every_ebr_is_symmetry_indicator_trivial_through_the_srsis(every_table):
     checked = failed = 0
     seen = {}
     for table, _data in every_table:
-        n_ebr = len(table.ebrs)
-        for form in table.indicators:
+        n_ebr = len(table._ebrs)
+        for form in table._indicator_rows:
             bad = []
             for column in range(n_ebr):
                 p = [0] * n_ebr
                 p[column] = 1
-                raw = table.theta_unreduced_columns(p)
+                raw = table._theta_unreduced_columns(p)
                 total = sum((c * raw[i - 1] for i, c in form.theta.items()),
                             Fraction(0))
                 checked += 1
                 if total.denominator != 1 or int(total) % form.mod:
                     bad.append(column)
-            assert form.vanishes_on_ebrs == (not bad), (table.sg, form.name, bad)
+            assert form.vanishes_on_ebrs == (not bad), (table._sg, form.name, bad)
             if bad:
                 failed += 1
-                key = (table.sg, form.name)
-                assert not table.spinor, key
+                key = (table._sg, form.name)
+                assert not table.group.spinor, key
                 seen[key] = (form.mod, len(bad), n_ebr)
                 assert [c for c, _v in form.ebr_failures] == bad, key
     assert seen == NOT_INDICATORS
@@ -373,9 +375,14 @@ def _rational_p(u, v, d, y):
 # 5.  the paper's worked examples
 # ---------------------------------------------------------------------------
 
+def _row(table, name):
+    """The tables' row of one invariant, ``theta_3``, with its formula's terms, or ``None``."""
+    return next((row for row in table._rows if row.name == name), None)
+
+
 def _row_terms(table, name):
     """``{(irrep, letter): coefficient}`` for one SRSI, as the paper prints it."""
-    row = table.row(name)
+    row = _row(table, name)
     assert row is not None, name
     return {(t["irrep"], t["letter"]): t["coef"] for t in row.terms}
 
@@ -403,10 +410,10 @@ def test_the_supplement_s_worked_example_with_soc_is_the_parsed_rows():
     by row, term by term (docs/guide/srsi.md), which holds it.
     """
     table = tqr.srsi_tables(212, spinor=True)
-    assert table and len(table.rows) == len(SG212_DOUBLE)
+    assert table and len(table._rows) == len(SG212_DOUBLE)
     for name, (terms, modulus) in SG212_DOUBLE.items():
         assert _row_terms(table, name) == terms, name
-        assert table.row(name).mod == modulus, name
+        assert _row(table, name).mod == modulus, name
 
 
 def test_pmm2_reproduces_the_paper_s_own_distinguishing_example():
@@ -419,18 +426,18 @@ def test_pmm2_reproduces_the_paper_s_own_distinguishing_example():
     different symmetry data vector — the converse failure, also the paper's.
     """
     table = tqr.srsi_tables(25, spinor=True)
-    columns = {letter: j for j, (_label, letter) in enumerate(table.ebrs)}
+    columns = {letter: j for j, (_label, letter) in enumerate(table._ebrs)}
     assert set(columns) == set("abcd")
 
     def theta(p):
-        return table.theta_columns(p)
+        return _srsitables._split(table, table._theta_columns(p))
 
     a = [1 if j == columns["a"] else 0 for j in range(4)]
     b = [1 if j == columns["b"] else 0 for j in range(4)]
     assert theta(a) == ((Fraction(1),), {2: (0, 0, 0)})
     assert theta(b) == ((Fraction(1),), {2: (1, 0, 0)})
 
-    data = _tables._ebr_data(_srsitables._TableKey(table.number_str, True))
+    data = _tables._ebr_data(_srsitables._TableKey(table.group.number_str, True))
     matrix = np.asarray(data["matrix"], dtype=int)
     assert (matrix @ np.array(a) == matrix @ np.array(b)).all(), (
         "the two EBRs have the same symmetry-data vector")
@@ -459,10 +466,10 @@ def test_i432_without_soc_rows_satisfy_the_adiabatic_relation():
     ``w = g`` and ``w = h``, row by row.
     """
     table = tqr.srsi_tables(211, spinor=False)
-    assert table and len(table.rows) == 10
+    assert table and len(table._rows) == 10
     # nothing printed in the supplement is dropped: the 48 terms with no EBR
     # column of their own are served beside the ones that have one
-    assert len(table.terms_without_ebr_column) == 48
+    assert len(table._terms_without_ebr_column) == 48
 
     # the premise of the arithmetic, from pyxtal's Wyckoff list of SG 211 -- an
     # oracle the shipped rows cannot influence
@@ -477,13 +484,13 @@ def test_i432_without_soc_rows_satisfy_the_adiabatic_relation():
 
     # ... and the parsed rows' site irreps are what those orders predict
     used = collections.defaultdict(set)
-    for row in table.rows:
+    for row in table._rows:
         for term in row.terms:
             used[term["letter"]].add(term["irrep"])
     assert used["j"] == {"A"}, "one site irrep at the general position, and it is A"
     assert used["g"] == used["h"] == {"A", "B"}, "the two irreps of an order-two group"
 
-    for row in table.rows:
+    for row in table._rows:
         if row.mod is not None:
             continue
         coefficients = {(t["irrep"], t["letter"]): t["coef"] for t in row.terms}
@@ -511,7 +518,7 @@ def test_f43c_with_soc_rows_satisfy_the_adiabatic_relation():
     ``lambda = 2`` in every one of the five.
     """
     table = tqr.srsi_tables(219, spinor=True)
-    assert table and len(table.rows) == 5
+    assert table and len(table._rows) == 5
 
     # the premise, from pyxtal's Wyckoff list and irreptables' EBR list
     wyckoffs = {w["letter"]: w for w in _spacegroup._pyxtal_wyckoff(219)[0]}
@@ -520,20 +527,20 @@ def test_f43c_with_soc_rows_satisfy_the_adiabatic_relation():
     assert general["n_free"] == 3, "the general position: trivial site symmetry"
     assert wyckoffs["c"]["multiplicity"] == 24
     at_c = {label for label, letter
-            in _ebr_keys(_tables._ebr_data(_srsitables._TableKey(table.number_str, True)))
+            in _ebr_keys(_tables._ebr_data(_srsitables._TableKey(table.group.number_str, True)))
             if letter == "c"}
     assert at_c == {"-1E12E1", "-1E22E2"}, "24c is maximal: irreptables lists its two"
 
     # ... and the parsed rows touch exactly those site irreps
     used = collections.defaultdict(set)
-    for row in table.rows:
+    for row in table._rows:
         for term in row.terms:
             used[term["letter"]].add(term["irrep"])
     assert used["h"] == {"-AA"}, "one site irrep at the general position 96h"
     assert used["c"] == at_c
 
-    for name in table.names:
-        terms, modulus = _row_terms(table, name), table.row(name).mod
+    for name in table._names:
+        terms, modulus = _row_terms(table, name), _row(table, name).mod
         here = terms.get(("-AA", "h"), 0)
         there = 2 * (terms.get(("-1E12E1", "c"), 0) + terms.get(("-1E22E2", "c"), 0))
         assert ((here - there) % modulus == 0) if modulus else here == there, (
@@ -557,19 +564,21 @@ def test_a_zn_srsi_of_an_atomic_limit_is_a_residue_modulo_its_own_n():
     identity: the raw ``2`` and ``3`` come back as ``0`` and ``1`` mod 2.
     """
     table = tqr.srsi_tables(99, spinor=True)
-    assert table and table.zn_rows == {2: (3, 4)}, table.structure
-    assert table.structure == "Z x Z x Z x Z2 x Z2"
+    assert table and table.moduli == {"theta_1": None, "theta_2": None, "theta_3": None,
+                                      "theta_4": 2, "theta_5": 2}, table.moduli
 
-    p = {("-E2", "b"): 2, ("-E", "c"): 3}
+    p = {("-E2", "1b"): 2, ("-E", "2c"): 3}
     raw = table.theta_unreduced(p)
-    assert all(v.denominator == 1 for v in raw), raw
-    assert [raw[i] for i in table.zn_rows[2]] == [Fraction(2), Fraction(3)], raw
+    assert all(v.denominator == 1 for v in raw.values()), raw
+    assert [raw["theta_4"], raw["theta_5"]] == [Fraction(2), Fraction(3)], raw
 
-    z_values, zn = table.theta(p)
-    assert z_values == (Fraction(3), Fraction(3), Fraction(2)), z_values
-    assert zn == {2: (0, 1)}, zn
-    assert all(isinstance(x, int) and 0 <= x < 2
-               for row in zn.values() for x in row), zn
+    got = table.theta(p)
+    assert got.theta_Z == {"theta_1": Fraction(3), "theta_2": Fraction(3),
+                           "theta_3": Fraction(2)}, got
+    assert got.theta_Zn == {"theta_4": tqr.ModularValue(0, 2),
+                            "theta_5": tqr.ModularValue(1, 2)}, got
+    assert all(isinstance(x.value, int) and 0 <= x.value < x.modulus
+               for x in got.theta_Zn.values()), got
 
 
 # ---------------------------------------------------------------------------
@@ -606,9 +615,9 @@ def test_the_kernel_check_that_gates_the_conversion(every_table):
 
     This is the sharpest available check that the label map, the Wyckoff letters
     and the resolved column indices are *jointly* right: a single mis-resolved
-    term would generically break it.  It is also what makes
-    :func:`~pythtqc.srsi.srsi_of_columns` well defined on a band set that is not
-    an atomic limit, where ``p`` is only determined up to ``ker BR``.
+    term would generically break it.  It is also what makes the invariants of a
+    band set that is not an atomic limit well defined, where ``p`` is only
+    determined up to ``ker BR``.
 
     Exact over the integers, through the Smith factors the tables ship with the
     EBR matrix, checked first to be its Smith form: ``u BR v = R`` with ``R``
@@ -617,22 +626,22 @@ def test_the_kernel_check_that_gates_the_conversion(every_table):
     """
     checked = kernel_vectors = 0
     for table, data in every_table:
-        u, v, d, matrix = _smith._smith_system(data, table.number_str)
+        u, v, d, matrix = _smith._smith_system(data, table.group.number_str)
         u, v, matrix = (np.asarray(x, dtype=np.int64) for x in (u, v, matrix))
         n_row, n_col = matrix.shape
         # every product below stays far inside int64, so the arithmetic is exact
         assert (int(np.abs(u).max()) * int(np.abs(matrix).max()) * n_row
-                * int(np.abs(v).max()) * n_col) < 2 ** 62, (table.sg, table.spinor)
+                * int(np.abs(v).max()) * n_col) < 2 ** 62, (table._sg, table.group.spinor)
         smith = np.zeros((n_row, n_col), dtype=np.int64)
         for i in range(min(n_row, n_col)):
             smith[i, i] = d[i]
-        assert (u @ matrix @ v == smith).all(), (table.sg, table.spinor, "u BR v = R")
+        assert (u @ matrix @ v == smith).all(), (table._sg, table.group.spinor, "u BR v = R")
         kernel = [j for j in range(n_col) if j >= n_row or d[j] == 0]
-        z_rows = np.asarray([[int(x) for x in table.theta_on_columns[i]]
-                             for i in table.z_rows], dtype=np.int64)
-        assert len(z_rows), (table.sg, table.spinor)
-        assert not (z_rows @ v[:, kernel]).any(), (table.sg, table.spinor)
-        assert _rank(z_rows) == n_col - len(kernel), (table.sg, table.spinor)
+        z_rows = np.asarray([[int(x) for x in table._theta_on_columns[i]]
+                             for i in table._z_rows], dtype=np.int64)
+        assert len(z_rows), (table._sg, table.group.spinor)
+        assert not (z_rows @ v[:, kernel]).any(), (table._sg, table.group.spinor)
+        assert _rank(z_rows) == n_col - len(kernel), (table._sg, table.group.spinor)
         kernel_vectors += len(kernel)
         checked += 1
     assert checked == 434, checked
@@ -657,15 +666,15 @@ def test_the_shipped_rows_generate_the_group_their_structure_names(every_table):
     **any** change of basis of :math:`\Theta_\mathbb{Z}` passes it — doubling a
     row included.  This is the complement of it.  The paper's rows are not
     merely a basis of that space over :math:`\mathbb{Q}`; they are a set of
-    *generators of the SRSI group*, and :attr:`~pythtqc.srsi.SRSITables.structure`
-    says which group that is, so
+    *generators of the SRSI group*, and the moduli of ``tables.moduli`` say which
+    group that is, so
 
     .. math:: \theta:\ \mathbb{Z}^{\text{site keys}} \longrightarrow
               \mathbb{Z}^{n_\mathbb{Z}} \times \prod_j \mathbb{Z}_{n_j}
 
     has to be **onto**.  Doubling ``theta_1`` would land it in
     :math:`2\mathbb{Z}\times\cdots`: the row would no longer take every integer
-    value on an integer occupation, and the ``Z`` the structure string advertises
+    value on an integer occupation, and the ``Z`` its modulus ``None`` advertises
     would be the wrong group.  Checked exactly over the integers, on the paper's
     *whole* site basis rather than the EBR projection: the columns of the
     coefficient matrix, together with :math:`n_j e_j` for each
@@ -699,28 +708,28 @@ def test_the_shipped_rows_generate_the_group_their_structure_names(every_table):
     checked = 0
     zn_coefficients = collections.Counter()
     for table, _data in every_table:
-        index = {(key.irrep, key.letter): j for j, key in enumerate(table.site_keys)}
-        columns = [[0] * len(table.rows) for _ in index]
-        for i, row in enumerate(table.rows):
+        index = {(key._paper, key._letter): j for j, key in enumerate(table.site_irreps)}
+        columns = [[0] * len(table._rows) for _ in index]
+        for i, row in enumerate(table._rows):
             for term in row.terms:
                 columns[index[(str(term["irrep"]), str(term["letter"]))]][i] += \
                     int(term["coef"])
         # n e_i is zero in the group, which is what makes row i a Z_n row
-        for n, rows in table.zn_rows.items():
+        for n, rows in table._zn_rows.items():
             for i in rows:
-                unit = [0] * len(table.rows)
+                unit = [0] * len(table._rows)
                 unit[i] = int(n)
                 columns.append(unit)
-                for term in table.rows[i].terms:
+                for term in table._rows[i].terms:
                     zn_coefficients[(n, int(term["coef"]))] += 1
-        lattice = sympy.Matrix(len(table.rows), len(columns),
+        lattice = sympy.Matrix(len(table._rows), len(columns),
                                lambda r, c: columns[c][r])
         normal = smith_normal_form(lattice, domain=sympy.ZZ)
         divisors = [abs(normal[i, i]) for i in range(min(normal.shape))]
-        assert len(divisors) == len(table.rows), (table.sg, table.spinor, divisors)
+        assert len(divisors) == len(table._rows), (table._sg, table.group.spinor, divisors)
         assert all(d == 1 for d in divisors), (
-            table.sg, table.spinor, table.structure, divisors,
-            "the rows generate a proper subgroup of the one structure names")
+            table._sg, table.group.spinor, table.moduli, divisors,
+            "the rows generate a proper subgroup of the one their moduli name")
         checked += 1
     assert checked == 434, checked
     assert dict(zn_coefficients) == ZN_COEFFICIENTS, dict(zn_coefficients)
@@ -734,8 +743,8 @@ def test_srsi_tables_refuses_a_unitary_group(lin3g):
     """The tables are the time-reversal-symmetric ones, and the type is measured.
 
     And every route that stands on the tables returns the same refusal for a
-    unitary group rather than an answer: the band route, the model route, the
-    splitting and the pairs the SRSIs do not distinguish.  The model routes read
+    unitary group rather than an answer: the band route, the model route and the
+    splitting.  The model routes read
     Haldane's model, whose hoppings break time reversal, so that its group is the
     unitary ``P6 #168``.
     """
@@ -754,8 +763,7 @@ def test_srsi_tables_refuses_a_unitary_group(lin3g):
     for route, refused in (
             ("srsi_of_bands", tqr._srsi_of_bands({}, group)),
             ("srsi_of_model", tqr.srsi_of_model(broken)),
-            ("splitting", tqr.splitting(broken, bands=1)),
-            ("stably_equivalent_pairs", tqr.stably_equivalent_pairs(group))):
+            ("splitting", tqr.splitting(broken, bands=1))):
         assert not refused and refused.gate == "srsi_scope", (route, str(refused))
         assert refused.context["magnetic_type"] == "I", route
 
@@ -804,89 +812,66 @@ def test_srsi_tables_refuses_a_stale_ebr_basis_and_names_both_lists(
     assert tqr.srsi_tables(group), "the real list is served again"
 
 
-def test_srsi_of_columns_accepts_a_table_or_a_group_and_refuses_a_wrong_length(
+def test_theta_takes_a_mapping_by_position_and_a_sum_of_term_rows_alike(
         lin3g_declared_cross_checked):
-    """**Two entry points, one reading** — on a ``p`` whose reading is not zero.
+    """**One evaluation, two shapes of ``p``** -- on a ``p`` whose reading is not zero.
 
-    The zero vector would prove only that nothing raises: it is the all-zero
-    reading in *every* table with this many columns, so an equality on it cannot
-    say the group route reached the right table.  The probe is the mixed one the
-    sibling test uses — two orbitals on the first EBR column, one on the last —
-    and both halves of its reading are pinned before the three routes are
-    compared on it.
+    A configuration is handed to ``theta`` as a mapping keyed by site irrep and
+    Wyckoff position, ``("-E1", "1a")``, or as a sum of term rows, as a
+    candidate sum of ``decompose`` or an atomic realization holds them; both
+    give the same invariants, and so do the same multiplicities over the
+    group's elementary band representations.  The zero vector would prove only
+    that nothing raises: the probe is two orbitals on the first elementary band
+    representation and one on the last, and both halves of its reading are
+    pinned.  Then every elementary band representation of lin3g's ``P4mm1'
+    #99.164``, singly, the three ways.
     """
     group = lin3g_declared_cross_checked.group
     table = tqr.srsi_tables(group)
-    p = [0] * len(table.ebrs)
-    p[0], p[-1] = 2, 1
     # #99.164 with SOC, measured 2026-09-09: neither half of the reading is zero
-    assert table.theta_columns(p) == ((Fraction(1), Fraction(3), Fraction(0)),
-                                      {2: (0, 1)})
-    assert tqr.srsi_of_columns(group, p) == tqr.srsi_of_columns(table, p) == \
-        table.theta_columns(p)
-    with pytest.raises(ValueError, match="EBR columns"):
-        tqr.srsi_of_columns(table, [0, 1])
+    got = table.theta({("-E1", "1a"): 2, ("-E", "2c"): 1})
+    assert got.theta_Z == {"theta_1": 1, "theta_2": 3, "theta_3": 0}
+    assert got.theta_Zn == {"theta_4": tqr.ModularValue(0, 2),
+                            "theta_5": tqr.ModularValue(1, 2)}
+    ebrs = tqg.ebr_data(group).ebrs
+    assert table.theta((dataclasses.replace(ebrs[0], multiplicity=2), ebrs[-1])) == got
+    vector = [0] * len(ebrs)
+    vector[0], vector[-1] = 2, 1
+    assert table._theta_columns(vector) == got
+    for column, term in enumerate(ebrs):
+        vector = [1 if j == column else 0 for j in range(len(ebrs))]
+        assert table.theta([term]) == table.theta({(term.irrep, term.wyckoff): 1}) == \
+            table._theta_columns(vector), f"#{group.number_str} {term}"
 
 
-def test_the_two_shapes_of_p_have_a_name_each_and_neither_takes_the_other(
-        lin3g_declared_cross_checked):
-    """**Two entry points, one per shape of ``p``**, and they agree where both speak.
+def test_a_mistake_in_p_raises_saying_what_to_pass():
+    """``theta``, ``theta_unreduced`` and ``indicators_of`` say what they take.
 
-    An EBR column *is* a site key -- ``(site irrep, Wyckoff letter)`` with a
-    column index -- so the same configuration written as a vector over the
-    columns (``srsi_of_columns``) and as a mapping over the keys (``srsi_of``)
-    must give the same SRSIs, both halves.  Measured on lin3g's ``P4mm1'
-    #99.164``, every EBR column, singly and in a mixed sum.
-
-    Neither name accepts the other's shape: handing a mapping to the column
-    spellings is a :class:`TypeError` naming the one to use, so a ``p`` in the
-    wrong order can no longer be read as a right-length sequence by accident.
+    A sequence of numbers is no site-symmetry vector: a :class:`TypeError` names
+    the two shapes taken.  A position written without its multiplicity,
+    ``("-E", "c")``, or with another one than the tables give it,
+    ``("-E", "1c")``, is a :class:`ValueError` naming the position to write.
+    Each is raised before any arithmetic.  A sum of term rows is taken by all
+    three alike.
     """
-    group = lin3g_declared_cross_checked.group
-    table = tqr.srsi_tables(group)
-    assert table, str(table)
-    for column, (irrep, letter) in enumerate(table.ebrs):
-        vector = [1 if j == column else 0 for j in range(len(table.ebrs))]
-        assert tqr.srsi_of_columns(group, vector) == tqr.srsi_of(
-            group, {(irrep, letter): 1}), \
-            f"#{group.number_str} column {column} ({irrep})_{letter}"
-    # and a sum of two of them, which the mapping adds up by key
-    mixed = [0] * len(table.ebrs)
-    mixed[0], mixed[-1] = 2, 1
-    assert tqr.srsi_of_columns(table, mixed) == tqr.srsi_of(
-        table, {table.ebrs[0]: 2, table.ebrs[-1]: 1})
-
-    table = tqr.srsi_tables(211, spinor=False)
-    mapping = {("B3", "d"): 1}
-    for call in (lambda: tqr.srsi_of_columns(table, mapping),
-                 lambda: table.theta_columns(mapping),
-                 lambda: table.theta_unreduced_columns(mapping),
-                 lambda: table.indicators_of_columns(mapping)):
-        with pytest.raises(TypeError, match="mapping is"):
-            call()
-
-
-def test_a_sequence_under_the_mapping_spellings_says_which_name_to_use():
-    """The mapping spellings refuse the column shape and name the one that takes it.
-
-    ``srsi_of``, ``theta``, ``theta_unreduced`` and ``indicators_of`` take the
-    site-key mapping and the ``_columns`` four take the sequence over the EBR
-    columns.  Each gate is raised before any arithmetic, so a shape handed to
-    the wrong name is answered as the grammar mistake it is and never as a
-    number.
-    """
-    table = tqr.srsi_tables(211, spinor=False)
-    vector = [0] * len(table.ebrs)
-    vector[16] = 1
-
-    for call, names in ((lambda: tqr.srsi_of(table, vector), "srsi_of_columns"),
-                        (lambda: table.theta(vector), "theta_columns"),
-                        (lambda: table.theta_unreduced(vector),
-                         "theta_unreduced_columns"),
-                        (lambda: table.indicators_of(vector),
-                         "indicators_of_columns")):
-        with pytest.raises(TypeError, match=names):
-            call()
+    table = tqr.srsi_tables(99, spinor=True)
+    vector = [0] * len(table._ebrs)
+    vector[-1] = 1
+    for name in ("theta", "theta_unreduced", "indicators_of"):
+        call = getattr(table, name)
+        with pytest.raises(TypeError, match=rf"^{name}\(\): p is a mapping .* or a sum "
+                                            "of term rows; got a list$"):
+            call(vector)
+        with pytest.raises(ValueError, match=rf"^{name}\(\): the position 'c' is written "
+                                             "with its multiplicity, '2c'$"):
+            call({("-E", "c"): 1})
+        with pytest.raises(ValueError, match=rf"^{name}\(\): #99.164 has Wyckoff position "
+                                             "2c, not 1c$"):
+            call({("-E", "1c"): 1})
+    row = tqg.Term(1, "-E", "2c", "mm21'", "mm2")
+    assert table.theta_unreduced([row]) == table.theta_unreduced({("-E", "2c"): 1}) == \
+        dict(zip(table.invariants, table._theta_unreduced_columns(vector)))
+    assert table.indicators_of([row]) == {}, "#99.164 has no symmetry indicator"
 
 
 def test_srsi_tables_takes_a_number_or_a_group_and_serves_the_same_table(
@@ -906,7 +891,8 @@ def test_srsi_tables_takes_a_number_or_a_group_and_serves_the_same_table(
     that difference is the gate's own test
     (:func:`test_srsi_tables_refuses_a_stale_ebr_basis_and_names_both_lists`).
     What discriminates here is the rest: the two :class:`ValueError`\\ s, the
-    number string, the row and site-key counts and the structure string.
+    group the tables of a number hold, the counts of invariants and site irreps,
+    and their moduli.
     """
     group = lin3g_declared_cross_checked.group
     assert group.number_str == "99.164" and group.spinor
@@ -914,13 +900,26 @@ def test_srsi_tables_takes_a_number_or_a_group_and_serves_the_same_table(
     by_group = tqr.srsi_tables(group)
     by_number = tqr.srsi_tables(99, spinor=True)
     assert by_group == by_number
-    assert by_number.number_str == "99.164" and by_number.spinor
+    assert by_group.group is group
+    assert by_number.group.number_str == "99.164" and by_number.group.spinor
 
-    # the model-free route on the supplement's own worked example
+    # the model-free route on the supplement's own worked example: the tables of a
+    # number hold the grey group, by its name, with no cell
     sg211 = tqr.srsi_tables(211, spinor=False)
-    assert sg211 and sg211.number_str == "211.57" and not sg211.spinor
-    assert len(sg211.rows) == 10 and len(sg211.site_keys) == 29
-    assert sg211.structure == "Z x Z x Z x Z x Z x Z x Z x Z2 x Z2 x Z2"
+    assert sg211 and sg211.group.number_str == "211.57" and not sg211.group.spinor
+    assert (sg211.group.name, sg211.group.magnetic_type, sg211.group.periodic_dirs) == \
+        ("I4321'", "II", None)
+    assert len(sg211.invariants) == 10 and len(sg211.site_irreps) == 29
+    assert [sg211.moduli[name] for name in sg211.invariants] == [None] * 7 + [2] * 3
+    # a lookup that needs a cell does not take that group, and srsi_tables does
+    # not take what realized_group returns
+    with pytest.raises(TypeError, match=r"^operations\(\): the tables of a space-group "
+                                        "number hold no cell; pass r.group"):
+        tqg.operations(sg211.group)
+    with pytest.raises(TypeError, match=r"^srsi_tables\(\): got what realized_group "
+                                        r"returns; pass its group, r.group\.$"):
+        tqr.srsi_tables(lin3g_declared_cross_checked)
+    assert tqr.srsi_tables(sg211.group) == sg211
 
     with pytest.raises(ValueError, match="two valuednesses"):
         tqr.srsi_tables(211)
@@ -929,9 +928,7 @@ def test_srsi_tables_takes_a_number_or_a_group_and_serves_the_same_table(
     with pytest.raises(ValueError, match="already declares its valuedness"):
         tqr.srsi_tables(group, spinor=False)
     # the calls that take a table do not take a number: they name the loader
-    for call in (lambda: tqr.srsi_of(211, {}), lambda: tqr.srsi_of_columns(211, []),
-                 lambda: tqr.stably_equivalent_pairs(211),
-                 lambda: tqr.canonical_determinism(211),
+    for call in (lambda: tqr.canonical_determinism(211),
                  lambda: _srsitables.name_correspondence(211)):
         with pytest.raises(TypeError, match=r"srsi_tables\(211, spinor=True\)"):
             call()
@@ -941,18 +938,18 @@ def test_srsi_tables_takes_a_number_or_a_group_and_serves_the_same_table(
 #: the entry points a user calls and the records they hand back.  Everything
 #: else reaches through ``pythtqc.srsi`` / ``pythtqc.groups``.
 FROZEN_TOP_LEVEL = frozenset({
-    "srsi_tables", "srsi_of", "srsi_of_columns", "srsi_of_bands", "srsi_of_model",
-    "splitting", "nsit_criterion",
-    "atomic_realizations", "stably_equivalent_pairs",
+    "srsi_tables", "srsi_of_bands", "srsi_of_model",
+    "splitting", "nsit_criterion", "atomic_realizations",
     "wyckoff_sites_tables",
     "SRSITables", "BandSRSIs", "ModelSRSIs", "Splitting", "Realizations", "StablePair",
 })
 
 #: Reachable through the submodules and deliberately **not** at the top level.
-NOT_TOP_LEVEL = ("SRSIRow", "SRSIIndicator", "SiteKey", "SplitEBR", "OrbitSRSIs",
-                 "MaximalKey", "AtomicRealization",
-                 "SPLITTING_VERDICTS", "GATES", "srsi_status",
-                 "canonical_determinism")
+NOT_TOP_LEVEL = ("SiteIrrep", "SplitEBR", "WyckoffOrbitSRSIs", "WyckoffOrbitSRSIsNumerical",
+                 "Localization", "AtomicRealization", "BandSRSIsNumerical",
+                 "RealizationsNumerical", "SRSITablesNumerical", "IndicatorCheck",
+                 "Provenance", "ProvenanceCounts", "Invariants", "ModularValue",
+                 "GATES", "srsi_status", "canonical_determinism")
 
 
 def test_the_frozen_api_and_the_names_kept_off_the_top_level():
@@ -985,41 +982,43 @@ def test_the_frozen_api_and_the_names_kept_off_the_top_level():
 
 
 def test_every_served_record_is_uniform():
-    """The C1 record shape: ``number_str`` and ``spinor`` on each.
+    """One record shape: ``group`` on each, and the invariants by name.
 
     And one pair of names for the invariants wherever they appear —
-    ``theta_Z`` / ``theta_Zn``, with the totals of a splitting spelled
-    ``theta_Z_total`` / ``theta_Zn_total`` so that a record carrying three
-    vectors names all three.  ``summary()`` is not asserted over the six here —
-    ``callable`` is true of any attribute that exists, so the line said only
-    that — but exercised below on the two the freeze gave one to, and
-    ``SRSITables.formulas()`` beside it, one line per invariant.
+    ``theta_Z`` / ``theta_Zn``, the whole model's on a splitting and each
+    side's on its ``valence`` and ``conduction`` — keyed by the invariants'
+    names in the tables' order.  ``summary()`` is exercised on the tables and
+    on a pair no invariant tells apart, and ``SRSITables.formulas()`` beside
+    them, one line per invariant.
     """
     for record in (tqr.SRSITables, tqr.BandSRSIs, tqr.ModelSRSIs, tqr.Splitting,
-                   tqr.Realizations, tqr.StablePair):
-        fields = set(record.__dataclass_fields__)
-        assert {"number_str", "spinor"} <= fields, record.__name__
+                   tqr.Realizations):
+        assert "group" in record.__dataclass_fields__, record.__name__
     assert "theta_Z" in tqr.BandSRSIs.__dataclass_fields__
     assert "theta_Zn" not in tqr.BandSRSIs.__dataclass_fields__   # the band route
-    for record in (tqr.ModelSRSIs, tqr.OrbitSRSIs, tqr.StablePair):
+    for record in (tqr.ModelSRSIs, tqr.WyckoffOrbitSRSIs, tqr.StablePair, tqr.Splitting,
+                   tqr.Invariants):
         assert {"theta_Z", "theta_Zn"} <= set(record.__dataclass_fields__), record
-    assert {"theta_Z_total", "theta_Zn_total", "theta_Z_v", "theta_Z_c"} <= set(
-        tqr.Splitting.__dataclass_fields__)
+    assert {"valence", "conduction"} <= set(tqr.Splitting.__dataclass_fields__)
 
-    # the two records the freeze gave a summary() to, exercised
     table = tqr.srsi_tables(211, spinor=False)
+    got = table.theta({("A1", "2a"): 1})
+    assert tuple(got.theta_Z) == tuple(name for name in table.invariants
+                                       if table.moduli[name] is None)
+    assert tuple(got.theta_Zn) == ("theta_8", "theta_9", "theta_10")
+    assert all(entry.modulus == table.moduli[name] for name, entry in got.theta_Zn.items())
     text = table.summary()
-    assert "I4321' #211.57, single-valued" in text and table.structure in text
-    assert "theta_10" in text and "17 of them inducing an elementary band" in text
+    assert "I4321' #211.57, single-valued: 10 stable real-space invariants" in text
+    assert "theta_10   Z2" in text and "17 of them inducing an elementary band" in text
     head, *lines = table.formulas().splitlines()
     assert "multiplicity" in head, "the first line says what a term's coefficient counts"
-    assert [line.split(" (")[0].strip() for line in lines] == [row.name for row in table.rows], \
+    assert [line.split(" (")[0].strip() for line in lines] == list(table.invariants), \
         "formulas() writes every invariant, in the paper's order"
     assert all(" = " in line for line in lines)
-    assert lines[0].split(" = ", 1)[1].count(")_") == len(table.rows[0].terms), \
+    assert lines[0].split(" = ", 1)[1].count(")_") == len(table._rows[0].terms), \
         "each term is one site irrep at its Wyckoff letter"
-    pair, = tqr.stably_equivalent_pairs(table)
-    assert "B2 and B3 at Wyckoff position d, which no stable real-space invariant " \
+    pair, = table.stably_equivalent
+    assert "B2 and B3 at 12d, which no stable real-space invariant " \
         "distinguishes" in pair.summary()
     assert "the invariants both carry" in pair.summary()
 
@@ -1030,8 +1029,7 @@ def test_the_srsi_module_all_is_complete():
                if not name.startswith("_")
                and getattr(value, "__module__", None) == tqr.__name__}
     assert defined <= set(tqr.__all__), sorted(defined - set(tqr.__all__))
-    for name in ("GATES", "SPLITTING_VERDICTS"):
-        assert name in tqr.__all__, name
+    assert "GATES" in tqr.__all__
     assert len(set(tqr.__all__)) == len(tqr.__all__)
 
 
@@ -1057,7 +1055,7 @@ def test_the_gate_list_is_measured_against_the_source():
                 assert isinstance(first, ast.Constant), ast.dump(first)
                 literals.add(first.value)
     assert literals == set(tqr.GATES), sorted(literals ^ set(tqr.GATES))
-    assert len(tqr.GATES) == 12
+    assert len(tqr.GATES) == 11
     for gate, meaning in tqr.GATES.items():
         assert meaning and "\n" not in meaning, gate
 
@@ -1065,7 +1063,7 @@ def test_the_gate_list_is_measured_against_the_source():
 def test_the_terms_without_an_ebr_column_are_served_rather_than_dropped():
     """Nothing the table prints is thrown away by the restriction to EBR columns."""
     table = tqr.srsi_tables(25, spinor=True)
-    orphans = table.terms_without_ebr_column
+    orphans = table._terms_without_ebr_column
     assert len(orphans) == 5                      # 2e, 2f, 2g, 2h and the general 4i
     assert {t["letter"] for t in orphans} == set("efghi")
     assert all(t["srsi"] == 1 and not t["maximal"] for t in orphans)
@@ -1073,9 +1071,9 @@ def test_the_terms_without_an_ebr_column_are_served_rather_than_dropped():
     # the rows themselves also carry every printed term -- theta_1 has nine
     # (four on EBR columns and the five above), theta_2..4 one each -- while
     # `coefficients` carries only the EBR block
-    assert [len(row.terms) for row in table.rows] == [9, 1, 1, 1]
-    assert [sum(1 for t in row.terms if t["ebr"]) for row in table.rows] == [4, 1, 1, 1]
-    assert all(len(row.coefficients) == len(table.ebrs) for row in table.rows)
+    assert [len(row.terms) for row in table._rows] == [9, 1, 1, 1]
+    assert [sum(1 for t in row.terms if t["ebr"]) for row in table._rows] == [4, 1, 1, 1]
+    assert all(len(row.coefficients) == len(table._ebrs) for row in table._rows)
 
 
 # ---------------------------------------------------------------------------
@@ -1107,7 +1105,7 @@ def test_the_four_corrected_rows_are_the_derived_ones(sg, name):
     ``vanishes_on_ebrs=False`` with the columns it fails on.
     """
     table = tqr.srsi_tables(sg, spinor=False)
-    form = next(f for f in table.indicators if f.name == name)
+    form = next(f for f in table._indicator_rows if f.name == name)
     modulus, want = CORRECTED[(sg, name)]
     assert form.mod == modulus
     assert form.relation == "different" and form.derived is not None
@@ -1115,17 +1113,23 @@ def test_the_four_corrected_rows_are_the_derived_ones(sg, name):
     assert all(v.denominator == 1 for v in form.derived.values())
     assert form.coefficients == form.derived
     assert not form.vanishes_on_ebrs, "the PRINTED row is still flagged"
+    # the tables print the paper's form, and the check holds the derived one
+    check = table.numerical.indicators[name]
+    assert (check.relation, check.vanishes_on_ebrs) == ("different", False)
+    assert table.indicators[name] != check.derived
+    assert [c for c, _w, _v in check.ebr_failures] == [table._ebrs[c][0]
+                                                       for c, _v in form.ebr_failures]
 
-    n_ebr = len(table.ebrs)
+    n_ebr = len(table._ebrs)
     for column in range(n_ebr):
         p = [1 if j == column else 0 for j in range(n_ebr)]
-        raw = table.theta_unreduced_columns(p)
+        raw = table._theta_unreduced_columns(p)
         total = sum((c * raw[i - 1] for i, c in form.derived.items()), Fraction(0))
         assert total.denominator == 1 and int(total) % modulus == 0, (
             column, total, "the derived row must vanish on every EBR")
 
-    data = _tables._ebr_data(_srsitables._TableKey(table.number_str, False))
-    u, v, d, matrix = _smith._smith_system(data, table.number_str)
+    data = _tables._ebr_data(_srsitables._TableKey(table.group.number_str, False))
+    u, v, d, matrix = _smith._smith_system(data, table.group.number_str)
     u_inv = _smith._unimodular_inverse(u)
     checked = 0
     for i, di in enumerate(d):
@@ -1133,7 +1137,7 @@ def test_the_four_corrected_rows_are_the_derived_ones(sg, name):
             continue
         y = [Fraction(int(u_inv[r][i])) for r in range(len(u))]
         p, _y_prime = _rational_p(u, v, d, y)
-        raw = table.theta_unreduced_columns(p)
+        raw = table._theta_unreduced_columns(p)
         total = sum((c * raw[j - 1] for j, c in form.derived.items()), Fraction(0))
         assert total.denominator == 1, (i, total, "integer on the {BS} basis")
         checked += 1
@@ -1242,7 +1246,7 @@ def test_every_table_row_annihilates_the_supplement_s_own_adiabatic_matrix(
     Three statements, all measured here:
 
     * the rows touch **exactly** the printed basis -- 29 of 29 for SG 211
-      without SOC, 13 of 13 for SG 219 with -- so ``site_keys`` *is* the paper's
+      without SOC, 13 of 13 for SG 219 with -- so ``site_irreps`` *is* the paper's
       ``p``, and no coordinate of it is missing or invented;
     * every row annihilates every column of ``q``;
     * the Z-valued rows span **exactly** the left null space of ``q``: rank 7 of
@@ -1253,15 +1257,15 @@ def test_every_table_row_annihilates_the_supplement_s_own_adiabatic_matrix(
 
     table = tqr.srsi_tables(sg, spinor=spinor)
     assert table
-    keys = {(k.irrep, k.letter) for k in table.site_keys}
+    keys = {(k._paper, k._letter) for k in table.site_irreps}
     assert keys == set(basis), (sorted(keys ^ set(basis)),
                                 "the rows touch exactly the paper's basis")
-    assert len(table.site_keys) == len(basis)
+    assert len(table.site_irreps) == len(basis)
 
     n_row, n_col = len(q), len(q[0])
     assert n_row == len(basis)
     z_rows = []
-    for row in table.rows:
+    for row in table._rows:
         coefficients = {(t["irrep"], t["letter"]): int(t["coef"]) for t in row.terms}
         vector = [coefficients.get(key, 0) for key in basis]
         values = [sum(vector[i] * q[i][j] for i in range(n_row))
@@ -1289,7 +1293,7 @@ def test_theta_evaluates_the_keys_no_ebr_column_can_reach():
     """The coordinates the EBR block drops -- and they are not zero.
 
     Both kinds, in SG 84 without SOC: ``(A)_8k`` at a **non-maximal** position,
-    and ``({}^1E{}^2E)_4e`` at a **maximal** one whose induced band
+    and ``({}^1E{}^2E)_2e`` at a **maximal** one whose induced band
     representation is composite (site symmetry ``-4``, one of the 39 such
     positions).  The EBR-column form cannot express either -- there is none --
     and the full vector can, with the table's own printed coefficients.
@@ -1305,32 +1309,34 @@ def test_theta_evaluates_the_keys_no_ebr_column_can_reach():
     the kernel check.
     """
     table = tqr.srsi_tables(84, spinor=False)
-    keys = {(k.irrep, k.letter): k for k in table.site_keys}
-    assert not keys[("A", "k")].maximal and keys[("A", "k")].column is None
-    assert keys[("1E2E", "e")].maximal and not keys[("1E2E", "e")].ebr
-    assert keys[("1E2E", "e")].column is None
+    keys = {(k.irrep, k.wyckoff): k for k in table.site_irreps}
+    assert not keys[("A", "8k")].maximal and keys[("A", "8k")]._column is None
+    assert keys[("1E2E", "2e")].maximal and not keys[("1E2E", "2e")].ebr
+    assert keys[("1E2E", "2e")]._column is None
 
-    for key in (("A", "k"), ("1E2E", "e")):
-        z_values, zn = table.theta({key: 1})
-        want = tuple(Fraction(_row_terms(table, name).get(key, 0))
-                     for name in table.names if table.row(name).mod is None)
-        assert z_values == want
-        assert any(v != 0 for v in z_values), (key, "a basis vector is not in ker")
+    for key in (("A", "8k"), ("1E2E", "2e")):
+        got = table.theta({key: 1})
+        letter = key[1].lstrip("0123456789")
+        want = {name: Fraction(_row_terms(table, name).get((key[0], letter), 0))
+                for name in table._names if _row(table, name).mod is None}
+        assert got.theta_Z == want
+        assert any(v != 0 for v in got.theta_Z.values()), (key, "a basis vector is not in ker")
     # and rational multiplicities go through, the way they do on the columns
-    half = table.theta({("A", "k"): Fraction(1, 2)})[0]
-    whole = table.theta({("A", "k"): 1})[0]
-    assert half == tuple(v / 2 for v in whole)
+    half = table.theta({("A", "8k"): Fraction(1, 2)}).theta_Z
+    whole = table.theta({("A", "8k"): 1}).theta_Z
+    assert half == {name: v / 2 for name, v in whole.items()}
 
 
 def test_theta_refuses_an_unknown_key_by_naming_the_known_ones():
     """A mistyped label is a grammar mistake, so it raises rather than refusing."""
     table = tqr.srsi_tables(25, spinor=True)
-    with pytest.raises(ValueError, match=r"no site irrep 'Q' at Wyckoff letter 'a'"):
-        table.theta({("Q", "a"): 1})
+    with pytest.raises(ValueError, match=r"^theta\(\): #25.58 \(double-valued\) has no site "
+                                         r"irrep 'Q' at 1a; at 1a the tables carry \['-E'\]$"):
+        table.theta({("Q", "1a"): 1})
     with pytest.raises(ValueError, match=r"the tables carry \['-E'\]"):
-        table.theta({("-E", "a"): 1, ("Q", "a"): 1})
-    with pytest.raises(ValueError, match="no Wyckoff letter 'z' at all"):
-        table.theta({("-E", "z"): 1})
+        table.theta({("-E", "1a"): 1, ("Q", "1a"): 1})
+    with pytest.raises(ValueError, match="has no Wyckoff position 1z in its tables"):
+        table.theta({("-E", "1z"): 1})
     with pytest.raises(ValueError, match="keyed by"):
         table.theta({"-E": 1})
 
@@ -1347,11 +1353,11 @@ def test_the_site_keys_are_the_whole_basis_and_no_column_is_empty(every_table):
     """
     checked = collections.Counter()
     for table, _data in every_table:
-        kind = "double" if table.spinor else "single"
-        for key in table.site_keys:
-            # the record site_keys returns is itself a key theta takes
-            z_values, zn = table.theta({key: 1})
-            assert any(v != 0 for v in z_values) or any(
-                v for row in zn.values() for v in row), (table.sg, key)
+        kind = "double" if table.group.spinor else "single"
+        for key in table.site_irreps:
+            # each entry's site irrep and position are a key theta takes
+            got = table.theta({(key.irrep, key.wyckoff): 1})
+            assert any(v != 0 for v in got.theta_Z.values()) or any(
+                v.value for v in got.theta_Zn.values()), (table._sg, key)
             checked[kind] += 1
     assert dict(checked) == {"single": 5019, "double": 2604}, dict(checked)

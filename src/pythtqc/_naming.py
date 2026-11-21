@@ -814,7 +814,7 @@ def _induced_bands(group, assignment, site, chi) -> int:
     content: the multiplicity of each corep times that corep's dimension.  It
     is the one number a **composite** site irrep — one no EBR column carries,
     so that no name can be matched — still shares with the SRSI tables, which
-    carry it as :attr:`..srsi.MaximalKey.dim`.
+    carry it as the band count of each maximal site irrep (``tables._maximal_keys``).
     """
     plan = _induction_plan(group, assignment, int(site), tuple(chi))
     if plan is None:

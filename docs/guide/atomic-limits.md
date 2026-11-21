@@ -168,8 +168,8 @@ print(tqc.subtract(t, tqc.hsp_table(r, bands=[0, 1, 2, 3])) == pair.symmetry_dat
 d_pair = tqc.decompose(pair)
 print(d_pair.decomposable, [s.label for s in d_pair.candidate_sums])
 #  True ["-E2 at 1b (4mm1')"]
-print(tqc.splitting(r, bands=6).verdict)
-#  diagnosed topological
+print(tqc.splitting(r, bands=6).nsit)
+#  True
 ```
 
 The pair reproduces the EBR `-E2 at 1b` exactly and is fragile all the same,
@@ -179,8 +179,8 @@ is the **stable real-space invariants**, combinations of how many Wannier
 functions carry each site irrep at each Wyckoff position that no symmetric
 deformation can change ([stable real-space invariants](srsi.md)):
 `splitting(r, bands=6)` asks whether the six bands below the gap and the two
-above it can both be atomic insulators, and its verdict,
-`diagnosed topological`, says they cannot
+above it can both be atomic insulators, and its `nsit`, `True`, says they
+cannot, though each side has atomic realizations
 ([the no-go criterion](srsi.md#the-no-go-criterion)).
 [`examples/tqc_srsi_lin3g_composite_splitting.py`](../../examples/tqc_srsi_lin3g_composite_splitting.py)
 runs that analysis on this model whole.

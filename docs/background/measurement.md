@@ -352,9 +352,8 @@ The verdicts on topology are proofs in one direction only. A decomposition
 that finds no sum, with the certificate `proof`, means no atomic limit
 carries the bands' symmetry content; a nonzero symmetry indicator means the
 same, and adding the bands of an atomic limit cannot change it; and where a set
-of bands is split into valence and conduction bands, the verdict
-`diagnosed topological` from the stable real-space invariants means the two
-cannot both be atomic limits. The converses certify nothing. A
+of bands is split into valence and conduction bands, `nsit` true from the
+stable real-space invariants means the two cannot both be atomic limits. The converses certify nothing. A
 [symmetry data vector](tqc-primer.md#how-a-symmetry-indicator-is-computed) that
 decomposes into elementary band representations, and a zero indicator, leave
 [fragile topology](tqc-primer.md#fragile-topology) and every obstruction the

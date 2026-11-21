@@ -280,20 +280,19 @@ flowchart TD
         i_split["splitting(r, bands=n)"] --> i_S[["Splitting: whether the bands asked for and the model's other bands can both be atomic insulators"]]
     end
 
-    subgraph i_table_calls ["calls on an SRSITables"]
+    subgraph i_table_calls ["calls and fields of an SRSITables"]
         direction LR
         i_nsit["nsit_criterion(tables, θ_total, θ_Z_v, θ_Z_c)"] --> i_S2[["Splitting: whether the bands below and above a gap can both be atomic insulators, from their invariants alone"]]
         i_ar["atomic_realizations(tables, θ_Z)"] --> i_RZ[["Realizations: every atomic insulator with ℤ-valued invariants θ_Z, each a set of orbitals at maximal Wyckoff positions"]]
-        i_pairs["stably_equivalent_pairs(tables)"] --> i_SP[["StablePair, one per pair: two site irreps at one maximal Wyckoff position that no stable real-space invariant distinguishes"]]
-        i_of["srsi_of(tables, p), srsi_of_columns(tables, p)"] --> i_of_out(["(θ_Z, θ_Zn), the invariants of a configuration p of orbitals"])
+        i_pairs["tables.stably_equivalent"] --> i_SP[["StablePair, one per pair: two site irreps at one maximal Wyckoff position that no stable real-space invariant distinguishes"]]
+        i_of["tables.theta(p)"] --> i_of_out(["Invariants: θ_Z and θ_Zn by name, the invariants of a configuration p of orbitals"])
     end
 ```
 
 `nsit_criterion` is the test `splitting` makes, run on invariants already in
 hand. A `Splitting` holds each side's `Realizations` on
-`.realizations_v` and `.realizations_c`; a `BandSRSIs` the `SymmetryIndicator`
-measured with it on `.indicator`; and a `ModelSRSIs` the `SRSITables` it was read
-with on `.tables`.
+`.valence` and `.conduction`, and a `BandSRSIs` the `SymmetryIndicator`
+measured with it on `.indicator`.
 
 ## Beneath the path
 

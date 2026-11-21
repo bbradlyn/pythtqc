@@ -356,16 +356,16 @@ def test_the_chiral_pattern_descends_the_square_lattice_to_p4(p41_routes):
     assert told._assignment.wyckoff_spglib == chiral._assignment.wyckoff_spglib == ("c",)
     m, told_m = tqr.srsi_of_model(chiral), tqr.srsi_of_model(told)
     assert m and told_m, str(m if not m else told_m)
-    assert tuple(told_m.theta_Z) == tuple(m.theta_Z)
+    assert told_m.theta_Z == m.theta_Z
     assert told_m.theta_Zn == m.theta_Zn
 
     # the five maximal keys of #75.2 are the columns the criterion works in,
     # and their band dimensions are what bounds its enumeration
     tables = tqr.srsi_tables(chiral.group)
     assert tables, str(tables)
-    assert [key.label for key in tables.maximal_keys] == [
+    assert [key.label for key in tables._maximal_keys] == [
         "(-1E12E1)_a", "(-1E22E2)_a", "(-1E12E1)_b", "(-1E22E2)_b", "(-1E2E)_c"]
-    assert [key.dim for key in tables.maximal_keys] == [2, 2, 2, 2, 4]
+    assert [key.dim for key in tables._maximal_keys] == [2, 2, 2, 2, 4]
 
 
 # ---------------------------------------------------------------------------

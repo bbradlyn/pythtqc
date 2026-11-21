@@ -1071,52 +1071,49 @@ number with `spinor=`.
 ```python
 tables = tqc.srsi_tables(r.group)
 print(tables.summary())
-#  P6mm1' #183.186, double-valued: stable real-space invariants Z x Z x Z x Z x Z2   (.structure)
-#    each invariant, Z- or Z_n-valued, and the number of terms in its formula   (.rows)
-#      theta_1    Z  6 terms
-#      theta_2    Z  6 terms
-#      theta_3    Z  6 terms
-#      theta_4    Z  2 terms
-#      theta_5   Z2  1 term
-#    9 site irreps at Wyckoff positions, 6 of them inducing an elementary band representation   (.site_keys, .ebrs)
-#    9 terms on site irreps that induce a composite band representation   (.terms_without_ebr_column)
+#  P6mm1' #183.186, double-valued: 5 stable real-space invariants   (.group, .invariants)
+#    each invariant, and its modulus where it is valued modulo n   (.invariants, .moduli)
+#      theta_1    Z
+#      theta_2    Z
+#      theta_3    Z
+#      theta_4    Z
+#      theta_5   Z2
+#    9 site irreps at Wyckoff positions, 6 of them inducing an elementary band representation   (.site_irreps)
 #    no symmetry indicator, the group's indicator group being trivial   (.indicators)
 #    1 splitting of an elementary band representation into others that the symmetry indicators allow   (.split_ebrs)
 print(tables.formulas())
-#  each invariant, Z- or Z_n-valued, as a sum of terms c (irrep)_w, c times the multiplicity of a site irrep at Wyckoff position w   (.rows)
+#  each invariant, Z or Z_n by its modulus, as a sum of terms c (irrep)_w, c times the multiplicity of a site irrep at Wyckoff position w   (.invariants, .moduli)
 #    theta_1 (Z)  = 2 (-1E2E)_d + 2 (-1E2E)_e + 4 (-AA)_f + 1 (-E1)_b + 1 (-E3)_a + 1 (-E)_c
 #    theta_2 (Z)  = 2 (-1E2E)_d + 2 (-1E2E)_e + 4 (-AA)_f + 1 (-E1)_b + 1 (-E2)_a + 1 (-E)_c
 #    theta_3 (Z)  = 2 (-1E2E)_d + 2 (-1E2E)_e + 4 (-AA)_f + 1 (-E1)_a + 1 (-E1)_b + 1 (-E)_c
 #    theta_4 (Z)  = 2 (-1E2E)_b - 1 (-E1)_b
 #    theta_5 (Z2) = 1 (-E)_c
-print(tables.theta({("-E1", "a"): 1}))
-#  ((Fraction(0, 1), Fraction(0, 1), Fraction(1, 1), Fraction(0, 1)), {2: (0,)})
+print(tables.theta({("-E1", "1a"): 1}))
+#  Invariants(theta_1 to theta_4 = (0, 0, 1, 0); theta_5 = (0) mod 2)
 ```
 
-A term is one site key, a site irrep at a Wyckoff letter, written
-`(irrep, letter)`, times its multiplicity, and `formulas()` writes every
-invariant out, term by term. `theta(p)` evaluates the invariants on a
-configuration, here one `-E1` at `1a`, an `s` orbital with its spin at the
-hexagon centre: the `ℤ`-valued ones as exact fractions, and the `ℤ_n`-valued
-ones by modulus.
+A term is a site irrep at a Wyckoff position, written `(irrep, position)` with
+the position's multiplicity, `1a`, times how many times it occurs, and
+`formulas()` writes every invariant out, term by term. `theta(p)` evaluates the
+invariants on a configuration, here one `-E1` at `1a`, an `s` orbital with its
+spin at the hexagon center: each by name, the `ℤ`-valued ones as exact
+fractions, and the `ℤ_n`-valued ones with their modulus.
 
 | field | what it holds |
 |---|---|
-| `number_str`, `sg`, `spinor` | the group, its space-group number, and whether these are the tables with spin–orbit coupling |
-| `rows`, `names`, `moduli`, `structure` | the invariants `θ_i` in the paper's order, their names, each one's modulus (`None` for a `ℤ`-valued one), and the group they form, `"Z x Z x Z x Z x Z2"` |
-| `z_rows`, `zn_rows` | which rows are `ℤ`-valued, and the `ℤ_n`-valued ones by modulus |
-| `site_keys`, `maximal_keys` | every key the rows touch, maximal or not, each marked maximal or not and with its column where it has one; and the maximal keys with the bands each orbital there contributes, the basis the atomic realizations are enumerated over |
-| `ebrs`, `theta_on_columns` | the elementary band representations as columns, and `Θ` restricted to them |
-| `band_count_form` | the number of bands as a form in the `ℤ`-valued invariants, itself an invariant |
-| `indicators`, `split_ebrs`, `terms_without_ebr_column` | the paper's indicators as forms in the invariants, its splittings of elementary band representations, and the terms on keys no column carries |
-| `provenance` | where the converted tables came from, with the paper's DOI |
+| `group` | the group the tables are of: the measured group handed in, or, from a number, its `name`, `number_str` and `spinor` |
+| `invariants`, `moduli` | the invariants `θ_i` in the paper's order, each one's formula by name; and each invariant's and each indicator's modulus by name, `None` for a `ℤ`-valued one |
+| `site_irreps` | every site irrep the formulas touch, a `SiteIrrep` each: its `irrep` and `wyckoff`, whether the position is `maximal`, and whether it induces an elementary band representation, `ebr` |
+| `indicators`, `split_ebrs` | the paper's indicators as forms in the invariants, by name, and its splittings of elementary band representations |
+| `stably_equivalent` | the pairs of site irreps no invariant distinguishes, each a [`StablePair`](#stablepair) |
+| `provenance` | where the converted tables came from, with the paper's DOI, `provenance.doi` |
+| `numerical.indicators` | each indicator's check against the elementary band representations, by name |
 
 `formulas()` writes the invariants out, a line each; the other methods
-evaluate them: `theta(p)` on a mapping over site keys,
-`theta_columns(p)` on a sequence over the columns, `theta_unreduced` and
-`theta_unreduced_columns` with the `ℤ_n` rows not reduced, `indicators_of` and
-`indicators_of_columns` for the tabulated indicators, and `row(name)`.
-`srsi_of` and `srsi_of_columns` are the same evaluations as calls.
+evaluate them: `theta(p)` on a mapping keyed `(site irrep, Wyckoff position)`
+or on a sum of term rows, such as a candidate sum of `decompose`,
+`theta_unreduced` with the `ℤ_n` rows not reduced, and `indicators_of` for the
+tabulated indicators.
 
 ### `ModelSRSIs`
 
@@ -1124,31 +1121,32 @@ The invariants read off the orbitals: `srsi_of_model`.
 
 ```python
 print(tqc.srsi_of_model(r).summary())
-#  P6mm1' #183.186, double-valued: stable real-space invariants, Z x Z x Z x Z x Z2   (.structure)
-#    the whole model: Z-valued (1, 1, 1, -1), mod 2 (0)   (.theta_Z, .theta_Zn)
-#    each site orbit, its content written m (irrep)_w, and its SRSIs   (.orbits)
-#      orbitals 0-1 at 2b, 1 (-E1)_b: Z-valued (1, 1, 1, -1), mod 2 (0)
+#  P6mm1' #183.186, double-valued: stable real-space invariants   (.group)
+#    the whole model: theta_1 to theta_4 = (1, 1, 1, -1); theta_5 = (0) mod 2   (.theta_Z, .theta_Zn)
+#    each Wyckoff orbit, its site irreps written m (irrep)_w, with theta_1 to theta_4 and theta_5 mod 2   (.wyckoff_orbits)
+#      2b (3m1'): orbitals 0-1, 1 (-E1)_b: (1, 1, 1, -1); (0) mod 2
 ```
 
-An orbit at a position the tables list no elementary band representation at is
-moved along its own variety, the point, line or plane its Wyckoff position
-covers, to the positions on the variety's closure that list one, and its line
-names the one its content is written at, `at 6c, slid onto 3a` in
+A Wyckoff orbit at a position the tables list no elementary band representation
+at is moved along its own variety, the point, line or plane its Wyckoff position
+covers, to the positions on the variety's closure that list one, and its row
+names them, `slides onto 3a and 3b` in
 [the SRSI guide](../guide/srsi.md#from-the-orbitals). A model is an atomic
 configuration, so its total is integral, and it carries the `ℤ_n`-valued
 invariants as well.
 
-`ModelSRSIs` holds `orbits`, `theta_Z`, `theta_Zn`, `names`, `moduli`,
-`structure`, `number_str`, `spinor` and the `tables`. Each orbit, an
-`OrbitSRSIs`, holds its `orbitals` and `sites`; its `letter`, `multiplicity` and
-`n_free` in the tables' setting; `closure`, the letters an orbital confined to
-its variety can be moved to; `content`, the coreps its states carry, measured;
-`points`, where; `localizations`, every decomposition of that content over the
-columns of a letter of `closure`, each with its terms and invariants; `chosen`,
-the one returned, and `agree`, that every localization gave the same invariants;
-`same_content`, columns the content cannot tell apart; `composite`, the site
-irreps of an orbit whose band representation no column carries; and its own
-`theta_Z` and `theta_Zn`.
+`ModelSRSIs` holds `wyckoff_orbits`, `theta_Z`, `theta_Zn` and `group`. Each
+row, a `WyckoffOrbitSRSIs`, holds every field of the row of `r.wyckoff_orbits`
+for the same orbitals, its `wyckoff`, `site_symmetry`, `orbitals` and `terms`
+among them; `slides_onto`, the positions an orbital confined to its variety can
+be moved to; and its own `theta_Z` and `theta_Zn`. Its `numerical` adds
+`symmetry_data`, the coreps its states carry, measured, and `kpoints`, where;
+`localizations`, every decomposition of that vector at a position of
+`slides_onto`, each with its terms and invariants; `chosen`, the one returned,
+and `agree`, that every localization gave the same invariants; `n_free`;
+`stably_equivalent`, site irreps the decompositions used that no invariant
+distinguishes; and `composite`, at its own position, the terms of a row whose
+site irreps induce a band representation that is not elementary.
 
 ### `BandSRSIs`
 
@@ -1157,7 +1155,7 @@ The `ℤ`-valued invariants of a band subset, read off its symmetry data vector:
 
 ```python
 print(tqc.srsi_of_bands(tf).summary())
-#  P6/mmm1' #191.234, double-valued: the Z-valued stable real-space invariants of 2 bands   (.theta_Z)
+#  P6/mmm1' #191.234, double-valued: the Z-valued stable real-space invariants of the bands   (.group, .theta_Z)
 #      theta_1 =     -1/6
 #      theta_2 =      1/6
 #      theta_3 =      1/2
@@ -1172,23 +1170,23 @@ print(tqc.srsi_of_bands(tf).summary())
 #     theta_12 =        0
 #     theta_13 =      1/2
 #     theta_14 =        0
-#    fractional, with common denominator 6: the bands are stable topological   (.stable, .denominator)
-#    their symmetry-indicator class: (1, 0) in Z6 x Z12, of order 6   (.indicator)
+#    fractional   (.theta_Z)
+#    their symmetry indicator: class (1, 0) in Z6 x Z12, of order 6   (.indicator)
 ```
 
 Fractional, so no configuration of orbitals has this pair's symmetry data; the
 common denominator, 6, is the order of its indicator class. The `ℤ_n`-valued
 invariants are not functions of a symmetry data vector, so this record carries none.
 
-`BandSRSIs` holds `theta_Z` and `names`; `stable`, whether any is fractional;
-`denominator`; `indicator`, the `SymmetryIndicator` measured with it; `p`, the
-rational site-symmetry vector that was evaluated, one of many; `n_bands`,
-`number_str` and `spinor`. `line()` puts the record on one line, the invariants,
-their denominator and their class, for a table of band sets:
+`BandSRSIs` holds `theta_Z`, by name; `indicator`, the `SymmetryIndicator`
+measured with it; `group`; and `numerical.p`, the rational site-symmetry vector
+that was evaluated, one of many. `line()` puts the record on one line, the
+invariants, whether they are fractional, and their class, for a table of band
+sets:
 
 ```python
 print(tqc.srsi_of_bands(tf).line())
-#  theta_Z = (-1/6, 1/6, 1/2, 1/3, 0, 2/3, 0, 0, 0, -1/3, -2/3, 0, 1/2, 0), fractional with common denominator 6; class (1, 0) in Z6 x Z12, of order 6
+#  theta_1 to theta_14 = (-1/6, 1/6, 1/2, 1/3, 0, 2/3, 0, 0, 0, -1/3, -2/3, 0, 1/2, 0), fractional; class (1, 0) in Z6 x Z12, of order 6
 ```
 
 ### `Splitting` and `Realizations`
@@ -1200,81 +1198,74 @@ occupied pair against the pair above it, on the substrate:
 ```python
 split = tqc.splitting(r, bands=2)
 print(split.summary())
-#  P6mm1' #183.186, double-valued, diagnosed topological: the two sides of the gap cannot both be atomic insulators   (.verdict)
-#    the bands=2 valence bands, the remaining 2 conduction bands, and all 4 bands   (.n_bands_v, .n_bands_c)
-#    Z-valued stable real-space invariants: all 4 (1, 1, 1, -1) = valence (0, 0, 1, 0) + conduction (1, 1, 0, -1)   (.theta_Z_total, .theta_Z_v, .theta_Z_c)
-#    Z_n-valued invariants of all 4: mod 2 (0)   (.theta_Zn_total)
-#    the valence bands' symmetry-indicator group is trivial   (.indicator)
-#    possible atomic realizations of the valence bands, and their Z_n-valued SRSIs   (.realizations_v)
-#      1 (-E1)_a   mod 2 (0)
-#    the conduction bands have no atomic realization: theta_Z is integral, so no symmetry indicator sees these bands, and no set of orbitals at maximal Wyckoff positions has their symmetry data: a fragile band set   (.realizations_c, .c_atomic_possible)
+#  P6mm1' #183.186, double-valued: not nsit, the conduction bands having no atomic realization   (.group, .nsit, .conduction.realizations)
+#    Z-valued stable real-space invariants theta_1 to theta_4: the whole model (1, 1, 1, -1) = valence (0, 0, 1, 0) + conduction (1, 1, 0, -1)   (.theta_Z, .valence.theta_Z, .conduction.theta_Z)
+#    invariants valued modulo n of the whole model: theta_5 = (0) mod 2   (.theta_Zn)
+#    atomic realizations of the valence bands, with (theta_5) mod 2   (.valence.realizations)
+#      1 (-E1)_a   (0)
+#    the conduction bands have no atomic realization   (.conduction.realizations)
 ```
 
-The verdict comes first and its reason last: the pair above the gap, the
-conduction bands, has integral `ℤ`-valued invariants and no atomic realization
-at all, a fragile side. The invariants of all the bands are read off the
-orbitals, those of the valence bands off their bands, and the conduction bands'
-are their difference; where both sides have atomic realizations, a line names
-the pairs whose `ℤ_n`-valued invariants add up to those of all the bands, or
-says that no pair does.
+`nsit` comes first, with why: the pair above the gap, the conduction bands, has
+integral `ℤ`-valued invariants and no atomic realization at all, a fragile side,
+which its symmetry data already shows. The invariants of all the bands are read
+off the orbitals, those of the valence bands off their bands, and the conduction
+bands' are their difference; where both sides have atomic realizations, a line
+names the pairs whose `ℤ_n`-valued invariants add up to those of all the bands,
+or says that no pair does.
 
-`verdict` takes four values:
+`nsit` is read in this order, and the summary's first line names the case:
 
-| value | what it says |
+| case | `nsit` |
 |---|---|
-| `"diagnosed topological"` | no pair of realizations of the two sides adds up to the total's `ℤ_n`-valued invariants, or one side has no realization at all: the valence set, the conduction set or both is not an atomic insulator. The paper's name is NSIT, non-symmetry-indicated topological |
-| `"invisible to the SRSIs"` | some pair adds up: any topology of the splitting is invisible to the stable real-space invariants |
-| `"no Z_n SRSIs"` | the group has no `ℤ_n`-valued invariant, so there is no additivity to test |
-| `"stable topological"` | a side's `ℤ`-valued invariants are fractional, so it is not an atomic insulator and the criterion is not needed |
+| the valence bands' `ℤ`-valued invariants are fractional: a nonzero symmetry indicator | `False` |
+| a side has integral invariants and no atomic realization: a fragile side, which its symmetry data shows | `False` |
+| the group has no `ℤ_n`-valued invariant, so there is no additivity to test | `False` |
+| some pair of a valence and a conduction realization adds up: any topology of the splitting is invisible to the stable real-space invariants | `False` |
+| both sides have atomic realizations and no pair adds up: the valence set, the conduction set or both is not an atomic insulator, and no symmetry indicator says so. The paper's name is NSIT, non-symmetry-indicated topological | `True` |
 
-`Splitting` also holds `nsit`, whether the verdict is the first; `reason`;
-`theta_Z_total` and `theta_Zn_total`, the total's invariants; `theta_Z_v` and
-`theta_Z_c`; `realizations_v` and `realizations_c`, the enumerations, `None`
-where none was run; `consistent_pairs`, as indices into them;
-`v_atomic_possible` and `c_atomic_possible`, whether each side has any
-realization, which separates a fragile side from two atomic sides that cannot
-add up; `moduli`; `indicator`, the valence side's class; `n_bands_v` and
-`n_bands_c`; `same_content`, site irreps the invariants do not distinguish that
-a realization uses; and `number_str` and `spinor`.
+`Splitting` also holds `theta_Z` and `theta_Zn`, the whole model's invariants;
+`valence` and `conduction`, each side's `Realizations`, with its own `theta_Z`,
+empty where it has none; `consistent_pairs`, the pairs of a valence and a
+conduction realization that add up, read as `for v, c in split.consistent_pairs`;
+`stably_equivalent`, site irreps the invariants do not distinguish that a
+realization uses; and `group`.
 
 A `Realizations`, also returned by `atomic_realizations`, is read part by part
 by its `summary()`, here the valence side's:
 
 ```python
-print(split.realizations_v.summary())
-#  P6mm1' #183.186, double-valued: 1 atomic realization of 2 bands with Z-valued stable real-space invariants (0, 0, 1, 0)   (.realizations, .n_bands, .theta_Z)
-#    possible atomic realizations, and their Z_n-valued SRSIs   (.label, .theta_Zn of each)
-#      1 (-E1)_a   mod 2 (0)
+print(split.valence.summary())
+#  P6mm1' #183.186, double-valued: 1 atomic realization with Z-valued stable real-space invariants theta_1 to theta_4 = (0, 0, 1, 0)   (.group, .realizations, .theta_Z)
+#    each realization, with (theta_5) mod 2   (.label, .theta_Zn of each)
+#      1 (-E1)_a   (0)
 ```
 
-It holds `theta_Z`, the invariants reproduced; `n_bands`; `keys`, the maximal
-site keys it is written over; `realizations`, every one, each an
-`AtomicRealization` with its multiplicities `p`, its `terms` and `label`, its
-own `theta_Zn`, its `n_bands`, and the `pairs` it touches; `atomic_possible`,
-whether there is any; and `bound`, `cap` and `note`. The enumeration is
-complete, so an empty one is a proof: integral invariants and no realization is
-a fragile band set.
+It holds `theta_Z`, the invariants reproduced, by name; `realizations`, every
+one, each an `AtomicRealization` with its `terms` and `label`, its own
+`theta_Zn`, and the `stably_equivalent` pairs it touches; `group`; and
+`numerical.bound` and `numerical.cap`. The enumeration is complete, so an empty
+one is a proof: integral invariants and no realization is a fragile band set,
+and fractional invariants have none.
 
 ### `StablePair`
 
 Two site irreps at one position that no measurement in this package tells
 apart: identical columns of elementary band representations, so nothing in
 momentum space, and identical invariants, so nothing in real space.
-`stably_equivalent_pairs` returns them for a group:
+A group's tables hold them, `stably_equivalent`:
 
 ```python
-pair, = tqc.stably_equivalent_pairs(tqc.srsi_tables(211, spinor=False))
+pair, = tqc.srsi_tables(211, spinor=False).stably_equivalent
 print(pair.summary())
-#  I4321' #211.57, single-valued: B2 and B3 at Wyckoff position d, which no stable real-space invariant distinguishes   (.irreps, .letter)
-#    their elementary band representations, columns 15 and 16 of the group's list, have the same content at every high-symmetry point   (.names, .columns, .symmetry_vector)
-#    the invariants both carry: Z-valued (1, 0, 1, 1, 1, -1, 0), Z_n-valued mod 2 (0, 0, 1)   (.theta_Z, .theta_Zn)
+#  B2 and B3 at 12d, which no stable real-space invariant distinguishes   (.irreps, .wyckoff)
+#    their elementary band representations have the same symmetry data vector   (.symmetry_data)
+#    the invariants both carry: theta_1 to theta_7 = (1, 0, 1, 1, 1, -1, 0); theta_8 to theta_10 = (0, 0, 1) mod 2   (.theta_Z, .theta_Zn)
 ```
 
-It holds `letter`, `irreps` and `columns`; `names`, the two elementary band
-representations under the labels of the group's list; `symmetry_vector`, the
-one both members induce; `theta_Z` and `theta_Zn`, which both carry; and
-`number_str` and `spinor`. The two are not distinguished, which is not the same
-as being one thing.
+It holds `wyckoff` and `irreps`; `symmetry_data`, the symmetry data vector both
+members induce; and `theta_Z` and `theta_Zn`, which both carry. The two are not
+distinguished, which is not the same as being one thing.
 
 ## `Refusal`
 
@@ -1319,10 +1310,10 @@ Every refusal reached once the group is identified names it.
 
 `isinstance(out, tqc.Refusal)` is the test: it separates a refusal from every
 value a call returns. A refusal is falsy too, and so are two verdicts, which a
-truth test would misread: `stably_equivalent_pairs`, which returns its pairs
+truth test would misread: a group's `stably_equivalent`, which holds its pairs
 together and on most groups has none, and `subtract` of two equal contents,
 which leaves none. Every record is truthy, a decomposition with no sum, a zero
-indicator class and a `"diagnosed topological"` splitting included. Two things
+indicator class and a splitting whose `nsit` is false included. Two things
 raise instead: a malformed argument raises
 `ValueError` before anything is measured, and the package disagreeing with
 itself raises `InternalError`, a defect to report and nothing in the model to
@@ -1351,10 +1342,9 @@ line ending with the attribute that holds that part, as the records above do.
 | `SiteMultiplets` | taken by `realized_group`'s `site_multiplets=` | the multiplets each site's orbitals are bound into |
 | `Thresholds`, as `pythtqc.sewing.Thresholds` | `CorepsAt.numerical.thresholds`, `BandCharacters.numerical.thresholds` | the two zero thresholds at one `k`, flat for quantities built from `H(k)` alone and conditioned for those read off eigenvectors |
 
-The records inside the SRSI ones are reached as `pythtqc.srsi.<name>`: `SRSIRow`,
-one invariant with its modulus and terms; `SRSIIndicator`, one tabulated
-indicator as a form in the invariants; `SiteKey` and `MaximalKey`, one site key,
-with the bands one orbital there contributes for a maximal one; `SplitEBR`, one
-splitting of an elementary band representation the paper lists;
-`AtomicRealization`; and `OrbitSRSIs`. `SRSIRow`, `SRSIIndicator` and
-`SplitEBR` have a `summary()` too.
+The records inside the SRSI ones are reached as `pythtqc.srsi.<name>`:
+`SiteIrrep`, one site irrep at a Wyckoff position; `SplitEBR`, one splitting of
+an elementary band representation the paper lists, which has a `summary()` too;
+`Invariants`, what `theta` returns, and `ModularValue`, one `ℤ_n`-valued
+invariant with its `value` and `modulus`; `AtomicRealization`;
+`WyckoffOrbitSRSIs`, and `Localization`, one of its decompositions.

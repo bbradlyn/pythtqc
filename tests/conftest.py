@@ -422,8 +422,8 @@ def every_table():
 
     One pass over the 434 systems, shared by every sweep over the SRSI tables.
     Each EBR list is fetched by the table's own grey BNS number and valuedness
-    (``srsi._TableKey``), with no measured group; a space group with no table
-    refuses ``srsi_table_absent``.
+    (``_srsitables._TableKey``), with no measured group; a space group with no
+    table refuses ``srsi_table_absent``.
     """
     import pythtqc.srsi as _tqr
     from pythtqc import _srsitables
@@ -436,8 +436,9 @@ def every_table():
             if not table:
                 assert table.gate == "srsi_table_absent", (sg, spinor, table.gate)
                 continue
-            data = _tables._ebr_data(_srsitables._TableKey(table.number_str, spinor))
-            assert data, f"#{table.number_str}: {data}"
+            number_str = table.group.number_str
+            data = _tables._ebr_data(_srsitables._TableKey(number_str, spinor))
+            assert data, f"#{number_str}: {data}"
             out.append((table, data))
     return out
 

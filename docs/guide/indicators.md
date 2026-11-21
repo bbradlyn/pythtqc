@@ -222,15 +222,11 @@ Hwang *et al.*,
 [*Stable real-space invariants and topology beyond symmetry indicators*, Nat. Commun. **17**, 8564 (2026)](https://doi.org/10.1038/s41467-026-74844-w),
 gives named forms in the real-space invariants
 ([stable real-space invariants](srsi.md)). `indicators` is the class in the
-paper's names, the ones pythTQC returns, and the group's tables of stable
-real-space invariants carry each name's typography for a plot label:
+paper's names, the ones pythTQC returns:
 
 ```python
 print(si_free.indicators)
 #  {'z2w,3': 1, 'z4': 2, 'z3m,pi': 1, 'z3m,0': 1, 'z6m,0': 5, 'z6m,pi': 5, 'z12': 10}
-tex = {f.name: f.name_tex for f in tqc.srsi_tables(si_free.group).indicators}
-print(tex["z3m,pi"])
-#  z_{3m,\pi}
 print(si.indicators, si.numerical.indicators_note)
 #  None the indicator group of #99.164 is trivial, so there is no class to read in the paper's named indicators; the paper's tables carry an indicator row for exactly the 170 grey systems that have one, and this is not one of them
 ```

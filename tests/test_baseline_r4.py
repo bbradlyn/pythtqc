@@ -93,6 +93,7 @@ that is what this file is here to catch.
 
 import io
 import json
+import math
 import os
 from fractions import Fraction
 
@@ -104,6 +105,7 @@ from pythtb.models import kane_mele
 import tqc_models
 from conftest import FKM_BOND, fkm_regime, km_z2_regime, p41_band
 from pythtqc import ebr as tqe
+from pythtqc import groups as tqg
 from pythtqc import sewing as tqw
 from pythtqc import srsi as tqr
 from pythtqc.refusal import Refusal
@@ -534,51 +536,94 @@ def test_a_pure_ebr_serves_its_own_induced_representation(key, realized):
 # section 4: the SRSI outputs of the SRSI examples' models
 # ---------------------------------------------------------------------------
 
+def _by_modulus(theta_zn):
+    """``{n: [values]}`` of invariants valued modulo n held by name, as the baseline stores them."""
+    out = {}
+    for entry in theta_zn.values():
+        out.setdefault(int(entry.modulus), []).append(entry.value)
+    return dict(sorted(out.items()))
+
+
+def _structure(moduli):
+    """``Z x Z x Z2``: the group the invariants take values in, as the baseline stores it."""
+    parts = ["Z"] * sum(1 for m in moduli if m is None)
+    for n in sorted({m for m in moduli if m is not None}):
+        parts += [f"Z{n}"] * sum(1 for m in moduli if m == n)
+    return " x ".join(parts) or "trivial"
+
+
 def _srsi_model_record(ms):
     if isinstance(ms, Refusal):
         return {"__refusal__": str(ms.gate)}
-    out = {"theta_Z": [_num(v) for v in ms.theta_Z]}
-    for attr in ("theta_Zn", "names", "moduli", "structure", "number_str", "spinor"):
-        v = getattr(ms, attr, None)
-        if v is not None:
-            out[attr] = _jsonable(v)
-    out["orbits"] = _jsonable([
-        {k: _jsonable(v) for k, v in o.items()
-         if k in ("letter", "wyckoff", "site_irrep", "irrep", "multiplicity", "n")}
-        if isinstance(o, dict) else str(o) for o in (ms.orbits or ())])
+    tables = tqr.srsi_tables(ms.group)
+    moduli = [tables.moduli[name] for name in tables.invariants]
+    out = {"theta_Z": [_num(v) for v in ms.theta_Z.values()],
+           "theta_Zn": _jsonable(_by_modulus(ms.theta_Zn)),
+           "names": list(ms.theta_Z), "moduli": moduli, "structure": _structure(moduli),
+           "number_str": str(ms.group.number_str), "spinor": bool(ms.group.spinor)}
+    # the rows by Wyckoff orbit gathered by their position, which is one orbit
+    # of sites in every stored model, as the baseline stored the orbits of sites
+    orbits = {}
+    for row in ms.wyckoff_orbits:
+        orbitals, count = orbits.setdefault(row.wyckoff, [set(), 1])
+        orbitals |= set(row.orbitals)
+        orbits[row.wyckoff][1] = count * len(row.numerical.localizations)
+    out["orbits"] = [f"OrbitSRSIs(orbitals {sorted(orbitals)} @ {wyckoff}, "
+                     f"{count} localization(s))"
+                     for wyckoff, (orbitals, count) in orbits.items()]
     return out
 
 
-def _srsi_bands_record(b):
+def _srsi_bands_record(b, n_bands):
     if isinstance(b, Refusal):
         return {"__refusal__": str(b.gate)}
-    out = {"theta_Z": [_num(v) for v in b.theta_Z], "stable": _num(b.stable)}
-    for attr in ("names", "denominator", "p", "n_bands", "number_str"):
-        v = getattr(b, attr, None)
-        if v is not None:
-            out[attr] = _jsonable(v)
+    keys = [(term.irrep, term.wyckoff) for term in tqg.ebr_data(b.group).ebrs]
+    out = {"theta_Z": [_num(v) for v in b.theta_Z.values()],
+           "stable": any(v.denominator != 1 for v in b.theta_Z.values()),
+           "names": list(b.theta_Z),
+           "denominator": math.lcm(*(v.denominator for v in b.theta_Z.values())),
+           "p": [_num(Fraction(b.numerical.p.get(key, 0))) for key in keys],
+           "n_bands": int(n_bands), "number_str": str(b.group.number_str)}
     ind = getattr(b, "indicator", None)
     out["indicator_values"] = (None if ind is None or isinstance(ind, Refusal)
                                else _jsonable(list(ind.values)))
     return out
 
 
-def _splitting_record(s):
+def _splitting_record(s, n_valence, n_total):
     if isinstance(s, Refusal):
         return {"__refusal__": str(s.gate)}
-    out = {}
-    for attr in ("number_str", "spinor", "verdict", "nsit", "theta_Z_total",
-                 "theta_Zn_total", "theta_Z_v", "theta_Z_c", "moduli",
-                 "v_atomic_possible", "c_atomic_possible", "n_bands_v",
-                 "n_bands_c", "same_content"):
-        v = getattr(s, attr, None)
-        if v is not None:
-            out[attr] = _jsonable(v)
-    out["n_consistent_pairs"] = len(getattr(s, "consistent_pairs", ()) or ())
-    out["consistent_pairs"] = _jsonable(
-        list(getattr(s, "consistent_pairs", ()) or ())[:12])
-    out["repr"] = repr(s)[:800]
-    return out
+    valence, conduction = s.valence, s.conduction
+    # the verdict in the words the baseline stored, in the order they were read
+    if any(v.denominator != 1 for v in valence.theta_Z.values()):
+        verdict = "stable topological"
+    elif s.nsit or not valence.realizations or not conduction.realizations:
+        verdict = "diagnosed topological"
+    elif not s.theta_Zn:
+        verdict = "no Z_n SRSIs"
+    else:
+        verdict = "invisible to the SRSIs"
+    pairs = [[valence.realizations.index(v), conduction.realizations.index(c)]
+             for v, c in s.consistent_pairs]
+    return {"number_str": str(s.group.number_str), "spinor": bool(s.group.spinor),
+            "verdict": verdict, "nsit": bool(s.nsit),
+            "theta_Z_total": [_num(v) for v in s.theta_Z.values()],
+            "theta_Zn_total": _jsonable(_by_modulus(s.theta_Zn)),
+            "theta_Z_v": [_num(v) for v in valence.theta_Z.values()],
+            "theta_Z_c": [_num(v) for v in conduction.theta_Z.values()],
+            "moduli": sorted({int(e.modulus) for e in s.theta_Zn.values()}),
+            "v_atomic_possible": bool(valence.realizations),
+            "c_atomic_possible": bool(conduction.realizations),
+            "n_bands_v": int(n_valence), "n_bands_c": int(n_total - n_valence),
+            "same_content": _jsonable(list(s.stably_equivalent)),
+            "n_consistent_pairs": len(pairs), "consistent_pairs": pairs[:12],
+            "repr": (f"Splitting(#{s.group.number_str}, {verdict}, "
+                     f"{len(pairs)} consistent pair(s))")}
+
+
+def _bands_of(r):
+    """How many bands a model has, its orbitals times their spin states."""
+    return int(r.model.norb) * int(getattr(r.model, "nspin", 1))
 
 
 def _srsi_case(key, realized):
@@ -591,9 +636,9 @@ def _srsi_case(key, realized):
             return {"__refusal__": str(r.gate)}
         t2 = tqw.hsp_table(r, bands=2)
         return {"srsi_of_model": _srsi_model_record(tqr.srsi_of_model(r)),
-                "srsi_of_bands_2": _srsi_bands_record(
-                    tqr.srsi_of_bands(t2)),
-                "splitting_2": _splitting_record(tqr.splitting(r, bands=2))}
+                "srsi_of_bands_2": _srsi_bands_record(tqr.srsi_of_bands(t2), 2),
+                "splitting_2": _splitting_record(tqr.splitting(r, bands=2), 2,
+                                                 _bands_of(r))}
     if key == "lin3g":
         # the ``r1`` section's declaration, in the default reading
         build, kw = R1_BUILDERS["lin3g"]
@@ -601,8 +646,10 @@ def _srsi_case(key, realized):
         if isinstance(r, Refusal):
             return {"__refusal__": str(r.gate)}
         return {"srsi_of_model": _srsi_model_record(tqr.srsi_of_model(r)),
-                "splitting_6": _splitting_record(tqr.splitting(r, bands=6)),
-                "splitting_4": _splitting_record(tqr.splitting(r, bands=4))}
+                "splitting_6": _splitting_record(tqr.splitting(r, bands=6), 6,
+                                                 _bands_of(r)),
+                "splitting_4": _splitting_record(tqr.splitting(r, bands=4), 4,
+                                                 _bands_of(r))}
     if key == "p41_chiral":
         # the chiral layer of section 1, in the default reading
         r = realized(LAYER_2D["p41_chiral"][0])
@@ -611,19 +658,25 @@ def _srsi_case(key, realized):
         tv = tqw.hsp_table(r, bands=2)
         return {"number_str": str(r.group.number_str),
                 "srsi_of_model": _srsi_model_record(tqr.srsi_of_model(r)),
-                "srsi_of_bands_2": _srsi_bands_record(
-                    tqr.srsi_of_bands(tv)),
-                "splitting_2": _splitting_record(tqr.splitting(r, bands=2))}
+                "srsi_of_bands_2": _srsi_bands_record(tqr.srsi_of_bands(tv), 2),
+                "splitting_2": _splitting_record(tqr.splitting(r, bands=2), 2,
+                                                 _bands_of(r))}
     _, num, valuedness = key.split("_")
     tb = tqr.srsi_tables(int(num), spinor=(valuedness == "double"))
     if isinstance(tb, Refusal):
         return {"__refusal__": str(tb.gate)}
-    pairs = tqr.stably_equivalent_pairs(tb)
-    return {"n_rows": len(getattr(tb, "rows", ()) or ()),
-            "names": _jsonable(list(getattr(tb, "names", ()) or ())),
-            "moduli": _jsonable(list(getattr(tb, "moduli", ()) or ())),
-            "repr": repr(tb)[:400],
-            "n_pairs": len(pairs), "pairs": _jsonable(list(pairs)[:40])}
+    names = list(tb.invariants)
+    moduli = [tb.moduli[name] for name in names]
+    columns = sum(1 for site in tb.site_irreps if site.ebr)
+    # the tables' and the pairs' printed forms as the baseline stored them
+    shown = (f"SRSITables(#{tb.group.number_str}, "
+             f"{'double' if tb.group.spinor else 'single'}-valued, "
+             f"{len(names)} SRSIs = {_structure(moduli)}, {columns} EBR columns, "
+             f"{len(tb.indicators)} indicators, {len(tb.split_ebrs)} split EBRs)")
+    pairs = [f"StablePair(#{tb.group.number_str}, {'/'.join(pair.irreps)} @ "
+             f"{pair.wyckoff.lstrip('0123456789')})" for pair in tb.stably_equivalent]
+    return {"n_rows": len(names), "names": names, "moduli": moduli,
+            "repr": shown[:400], "n_pairs": len(pairs), "pairs": pairs[:40]}
 
 
 @pytest.mark.parametrize("key", sorted(BASELINE["srsi"]))

@@ -97,25 +97,24 @@ import pythtqc as tqc
 
 t25 = tqc.srsi_tables(25, spinor=True)            # Pmm2 with spin-orbit coupling
 print(t25.summary())
-#  Pmm21' #25.58, double-valued: stable real-space invariants Z x Z2 x Z2 x Z2   (.structure)
-#    each invariant, Z- or Z_n-valued, and the number of terms in its formula   (.rows)
-#      theta_1    Z  9 terms
-#      theta_2   Z2  1 term
-#      theta_3   Z2  1 term
-#      theta_4   Z2  1 term
-#    9 site irreps at Wyckoff positions, 4 of them inducing an elementary band representation   (.site_keys, .ebrs)
-#    5 terms on site irreps that induce a composite band representation   (.terms_without_ebr_column)
+#  Pmm21' #25.58, double-valued: 4 stable real-space invariants   (.group, .invariants)
+#    each invariant, and its modulus where it is valued modulo n   (.invariants, .moduli)
+#      theta_1    Z
+#      theta_2   Z2
+#      theta_3   Z2
+#      theta_4   Z2
+#    9 site irreps at Wyckoff positions, 4 of them inducing an elementary band representation   (.site_irreps)
 #    no symmetry indicator, the group's indicator group being trivial   (.indicators)
 print(t25.formulas())                              # each invariant, term by term
-#  each invariant, Z- or Z_n-valued, as a sum of terms c (irrep)_w, c times the multiplicity of a site irrep at Wyckoff position w   (.rows)
+#  each invariant, Z or Z_n by its modulus, as a sum of terms c (irrep)_w, c times the multiplicity of a site irrep at Wyckoff position w   (.invariants, .moduli)
 #    theta_1 (Z)  = 2 (-1E2E)_e + 2 (-1E2E)_f + 2 (-1E2E)_g + 2 (-1E2E)_h + 4 (-AA)_i + 1 (-E)_a + 1 (-E)_b + 1 (-E)_c + 1 (-E)_d
 #    theta_2 (Z2) = 1 (-E)_b
 #    theta_3 (Z2) = 1 (-E)_c
 #    theta_4 (Z2) = 1 (-E)_d
-print(t25.theta({("-E", "a"): 1}))                 # one Kramers pair at 1a
-#  ((Fraction(1, 1),), {2: (0, 0, 0)})
-print(t25.theta({("-E", "b"): 1}))                 # ... or at 1b
-#  ((Fraction(1, 1),), {2: (1, 0, 0)})
+print(t25.theta({("-E", "1a"): 1}))                # one Kramers pair at 1a
+#  Invariants(theta_1 = (1); theta_2 to theta_4 = (0, 0, 0) mod 2)
+print(t25.theta({("-E", "1b"): 1}))                # ... or at 1b
+#  Invariants(theta_1 = (1); theta_2 to theta_4 = (1, 0, 0) mod 2)
 ```
 
 ## How to read it
@@ -137,46 +136,35 @@ print(t25.theta({("-E", "b"): 1}))                 # ... or at 1b
   to `2h`, `-AA` one at the general position `4i`. `theta_1` counts Kramers
   pairs per cell, the band count being `2·theta_1`; `theta_2` to `theta_4`
   count `Ē` at `1b`, `1c` and `1d` modulo 2, and the parity at `1a` follows.
-- `theta(p)` takes `p` as a mapping `{(site irrep, Wyckoff letter):
-  multiplicity}` and returns `(theta_Z, theta_Zn)`: the ℤ-valued SRSIs as
-  exact fractions, the ℤₙ-valued ones as `{n: values}` modulo `n`. A Kramers
-  pair at `1a` and one at `1b` share `theta_1` and differ in `theta_2`, the
-  paper's first worked example. `theta_columns` takes `p` as a sequence over
-  the group's EBR columns instead, the shape a decomposition writes it in,
-  exact for a configuration on those positions alone. `tqc.srsi_of(group, p)`
-  and `tqc.srsi_of_columns(group, p)` are the same two evaluations on a
-  measured group.
+- `theta(p)` takes `p` as a mapping `{(site irrep, Wyckoff position):
+  multiplicity}`, the position written with its multiplicity, `1a`, or as a sum
+  of term rows, the shape a decomposition writes it in. It returns the
+  invariants by name: `theta_Z`, the ℤ-valued SRSIs as exact fractions, and
+  `theta_Zn`, the ℤₙ-valued ones modulo `n`. A Kramers pair at `1a` and one at
+  `1b` share `theta_1` and differ in `theta_2`, the paper's first worked
+  example.
 
 The same tables, field by field:
 
 ```python
-print(t25.number_str, t25.structure, t25.provenance["doi"])
-#  25.58 Z x Z2 x Z2 x Z2 https://doi.org/10.1038/s41467-026-74844-w
-print([(key.irrep, key.letter, key.column) for key in t25.site_keys if key.ebr])
-#  [('-E', 'a', 0), ('-E', 'b', 1), ('-E', 'c', 2), ('-E', 'd', 3)]
-print([(key.irrep, key.letter, key.maximal) for key in t25.site_keys if not key.ebr])
-#  [('-1E2E', 'e', False), ('-1E2E', 'f', False), ('-1E2E', 'g', False), ('-1E2E', 'h', False), ('-AA', 'i', False)]
-print(t25.band_count_form, t25.zn_rows)
-#  (Fraction(2, 1),) {2: (1, 2, 3)}
-p = {("-E", "b"): 3}                               # three Kramers pairs at 1b
-print(tqc.srsi_of(t25, p), t25.theta_unreduced(p))
-#  ((Fraction(3, 1),), {2: (1, 0, 0)}) (Fraction(3, 1), Fraction(3, 1), Fraction(0, 1), Fraction(0, 1))
-print(t25.theta_unreduced_columns([0, 3, 0, 0]) == t25.theta_unreduced(p))   # the same p over the columns
-#  True
+print(t25.group.number_str, t25.moduli, t25.provenance.doi)
+#  25.58 {'theta_1': None, 'theta_2': 2, 'theta_3': 2, 'theta_4': 2} https://doi.org/10.1038/s41467-026-74844-w
+print([(key.irrep, key.wyckoff) for key in t25.site_irreps if key.ebr])
+#  [('-E', '1a'), ('-E', '1b'), ('-E', '1c'), ('-E', '1d')]
+print([(key.irrep, key.wyckoff, key.maximal) for key in t25.site_irreps if not key.ebr])
+#  [('-1E2E', '2e', False), ('-1E2E', '2f', False), ('-1E2E', '2g', False), ('-1E2E', '2h', False), ('-AA', '4i', False)]
+p = {("-E", "1b"): 3}                              # three Kramers pairs at 1b
+print(t25.theta(p), t25.theta_unreduced(p))
+#  Invariants(theta_1 = (3); theta_2 to theta_4 = (1, 0, 0) mod 2) {'theta_1': Fraction(3, 1), 'theta_2': Fraction(3, 1), 'theta_3': Fraction(0, 1), 'theta_4': Fraction(0, 1)}
 ```
 
-`number_str` and `structure` name the group and its SRSI group, and
-`provenance["doi"]` the paper the tables are converted from. A site key is a
-site irrep at a Wyckoff letter, marked `maximal` where its position is and
-`ebr` where it induces an EBR, `column` being its place among the columns
-`theta_columns` reads: here the four `Ē` on the lines, and none of the five
-keys on the mirror planes and at the general position. `band_count_form` is the
-number of bands as a form in the ℤ-valued invariants, `2·theta_1`, and
-`zn_rows` the places of the ℤₙ-valued rows by modulus, counted from 0:
-`theta_2` to `theta_4`, modulo 2. `srsi_of(t25, p)` is `t25.theta(p)` as a call;
+`group.number_str` names the group, `moduli` gives each invariant's modulus,
+`None` for a ℤ-valued one, and `provenance.doi` the paper the tables are
+converted from. A site irrep at a Wyckoff position is marked `maximal` where
+its position is and `ebr` where it induces an EBR: here the four `Ē` on the
+lines, and none of the five on the mirror planes and at the general position.
 `theta_unreduced(p)` reads every row with the ℤₙ ones unreduced, three pairs at
-`1b` giving `3` in `theta_2` where `theta` gives `1` modulo 2; and
-`theta_unreduced_columns` reads `p` over the columns.
+`1b` giving `3` in `theta_2` where `theta` gives `1` modulo 2.
 
 ## From the bands
 
@@ -195,11 +183,11 @@ r = tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1])
 group = r.group
 six = tqc.srsi_of_bands(tqc.hsp_table(r, bands=6))
 print(six.summary())
-#  P4mm1' #99.164, double-valued: the Z-valued stable real-space invariants of 6 bands   (.theta_Z)
+#  P4mm1' #99.164, double-valued: the Z-valued stable real-space invariants of the bands   (.group, .theta_Z)
 #      theta_1 =        1
 #      theta_2 =        1
 #      theta_3 =        1
-#    integral: the bands are not stable topological   (.stable)
+#    integral   (.theta_Z)
 #    their symmetry-indicator group is trivial   (.indicator)
 phases = {"strong": [0.4, 0.0, 0.0, 0.0], "weak": [-0.4, 0.0, 0.0, 0.0],
           "dimers": [0.0, -1.0, -1.0, -1.0]}
@@ -209,9 +197,9 @@ valence = {}                                       # each phase's valence pair
 for name, rd in diamond.items():
     b = valence[name] = tqc.srsi_of_bands(tqc.hsp_table(rd, bands=2))
     print(name, b.line())                          # the record on one line
-#  strong theta_Z = (-1/4, 0, 1/2, 1, 1/4, -1/2, -1/4, 1/4), fractional with common denominator 4; class (0, 1) in Z2 x Z4, of order 4
-#  weak theta_Z = (0, 0, 1, 1, 1/2, 0, -1/2, 0), fractional with common denominator 2; class (1, 0) in Z2 x Z4, of order 2
-#  dimers theta_Z = (0, 0, 0, 1, 0, 0, 0, 0), integral; class zero in Z2 x Z4
+#  strong theta_1 to theta_8 = (-1/4, 0, 1/2, 1, 1/4, -1/2, -1/4, 1/4), fractional; class (0, 1) in Z2 x Z4, of order 4
+#  weak theta_1 to theta_8 = (0, 0, 1, 1, 1/2, 0, -1/2, 0), fractional; class (1, 0) in Z2 x Z4, of order 2
+#  dimers theta_1 to theta_8 = (0, 0, 0, 1, 0, 0, 0, 0), integral; class zero in Z2 x Z4
 ```
 
 lin3g's group has a trivial indicator group, and its three ℤ-valued SRSIs are
@@ -224,24 +212,23 @@ class has no integer
 site-symmetry vector, not even one with negative entries as a fragile band set
 has, and a fraction says so in real space.
 
-The tables carry the paper's indicators as forms in these invariants. Each
-form has its `name`, its modulus `mod`, its coefficient on each `theta_i` keyed
-by `i` (`theta`), and `relation`, how the printed form compares with the one
-derived from the momentum-space indicator. `indicators_of(p)` evaluates them
-on a site-symmetry vector, and on the band route's `p`, written over the EBR
-columns whose site keys `t166.ebrs` lists, they give each phase's class in the
-paper's names:
+The tables carry the paper's indicators as forms in these invariants, keyed
+by name: `moduli` holds each one's modulus, and `numerical.indicators` its
+`relation`, how the printed form compares with the one derived from the
+momentum-space indicator. `indicators_of(p)` evaluates them on a
+site-symmetry vector, and on the band route's `p`, `numerical.p`, they give
+each phase's class in the paper's names:
 
 ```python
 t166 = tqc.srsi_tables(diamond["strong"].group)
-for form in t166.indicators:
-    print(form.name, form.mod, form.relation, form.theta)
-#  z2w,1 2 equal {1: Fraction(2, 1), 2: Fraction(-2, 1), 3: Fraction(2, 1), 4: Fraction(-2, 1), 7: Fraction(-2, 1)}
-#  z2w,2 2 equal {1: Fraction(2, 1), 2: Fraction(-2, 1), 3: Fraction(2, 1), 4: Fraction(-2, 1), 7: Fraction(-2, 1)}
-#  z2w,3 2 equal {1: Fraction(2, 1), 2: Fraction(-2, 1), 3: Fraction(2, 1), 4: Fraction(-2, 1), 7: Fraction(-2, 1)}
-#  z4 4 equal {1: Fraction(-4, 1), 2: Fraction(4, 1), 3: Fraction(-4, 1), 4: Fraction(4, 1)}
+for name, form in t166.indicators.items():
+    print(name, t166.moduli[name], t166.numerical.indicators[name].relation, form)
+#  z2w,1 2 equal 2 theta_1 - 2 theta_2 + 2 theta_3 - 2 theta_4 - 2 theta_7
+#  z2w,2 2 equal 2 theta_1 - 2 theta_2 + 2 theta_3 - 2 theta_4 - 2 theta_7
+#  z2w,3 2 equal 2 theta_1 - 2 theta_2 + 2 theta_3 - 2 theta_4 - 2 theta_7
+#  z4 4 equal -4 theta_1 + 4 theta_2 - 4 theta_3 + 4 theta_4
 for name, b in valence.items():
-    print(name, t166.indicators_of(dict(zip(t166.ebrs, b.p))))
+    print(name, t166.indicators_of(b.numerical.p))
 #  strong {'z2w,1': 1, 'z2w,2': 1, 'z2w,3': 1, 'z4': 3}
 #  weak {'z2w,1': 1, 'z2w,2': 1, 'z2w,3': 1, 'z4': 0}
 #  dimers {'z2w,1': 0, 'z2w,2': 0, 'z2w,3': 0, 'z4': 0}
@@ -257,75 +244,78 @@ onto the next.
 
 `srsi_of_model` reads both halves off the model's orbitals: a tight-binding
 model is an atomic configuration, so its `p` is known rather than solved for.
-It measures the content of each site orbit's own orbitals, the trace of each
+It measures the content of each Wyckoff orbit's own orbitals, the trace of each
 little-group operation over them at every high-symmetry point, and decomposes
 it over the EBRs of the orbit's position:
 
 ```python
 mo = tqc.srsi_of_model(r)
 print(mo.summary())
-#  P4mm1' #99.164, double-valued: stable real-space invariants, Z x Z x Z x Z2 x Z2   (.structure)
-#    the whole model: Z-valued (2, 2, 0), mod 2 (0, 1)   (.theta_Z, .theta_Zn)
-#    each site orbit, its content written m (irrep)_w, and its SRSIs   (.orbits)
-#      orbitals 0-1 at 1a, 1 (-E1)_a + 1 (-E2)_a: Z-valued (1, 1, 0), mod 2 (0, 0)
-#      orbitals 2-3 at 2c, 1 (-E)_c: Z-valued (1, 1, 0), mod 2 (0, 1)
-for orbit in mo.orbits:
-    print(f"{orbit.multiplicity}{orbit.letter}:", tqc.format_coreps(orbit.content))
-#  1a: -GM6 + -GM7 + -M6 + -M7 + 2x-X5
+#  P4mm1' #99.164, double-valued: stable real-space invariants   (.group)
+#    the whole model: theta_1 to theta_3 = (2, 2, 0); theta_4, theta_5 = (0, 1) mod 2   (.theta_Z, .theta_Zn)
+#    each Wyckoff orbit, its site irreps written m (irrep)_w, with theta_1 to theta_3 and theta_4, theta_5 mod 2   (.wyckoff_orbits)
+#      1a (4mm1'): orbital 0, 1 (-E1)_a: (0, 1, 0); (0, 0) mod 2
+#      1a (4mm1'): orbital 1, 1 (-E2)_a: (1, 0, 0); (0, 0) mod 2
+#      2c (mm21'): orbitals 2-3, 1 (-E)_c: (1, 1, 0); (0, 1) mod 2
+for orbit in mo.wyckoff_orbits:
+    print(f"{orbit.wyckoff}:", tqc.format_coreps(orbit.numerical.symmetry_data))
+#  1a: -GM7 + -M7 + -X5
+#  1a: -GM6 + -M6 + -X5
 #  2c: -GM6 + -GM7 + -M6 + -M7 + 2x-X5
 eight = tqc.srsi_of_bands(tqc.hsp_table(r, bands=8))
 print(eight.theta_Z == mo.theta_Z)
 #  True
 ```
 
-The model's SRSIs come first, the sum of its orbits', and each site orbit
-follows with its orbitals, its Wyckoff position, the site irreps its content
+The model's SRSIs come first, the sum of its orbits', and each Wyckoff orbit
+follows with its Wyckoff position, its orbitals, the site irreps its content
 decomposes into there, and its own SRSIs, ℤ-valued and then ℤ₂-valued. The
-`1a` pair and the `2c` pair have the same content at every high-symmetry point
+two orbitals at `1a` together and the `2c` pair have the same content at every high-symmetry point
 and the same ℤ-valued SRSIs, and the second ℤ₂ invariant tells them apart, as
 the tables of `Pmm2` told `1a` from `1b`. The model's ℤ-valued SRSIs are
 integral, as a configuration of orbitals must be, and equal what the band route
 reads off all eight bands: the identity that ties the two routes together.
 
-The record holds the fields the summary names, and for each orbit its
-`orbitals` and `chosen`, the localization returned, with its `terms`, each a
-multiplicity, an EBR and its position as the group's list labels them
-([the band-representation key](../background/conventions.md#the-band-representation-key)),
-and its own invariants. `localizations` holds every localization in that form,
-here one per orbit:
+The record holds the fields the summary names, and for each Wyckoff orbit its
+`orbitals` and, under `numerical`, `chosen`, the localization returned, with its
+`terms`, each a multiplicity, a site irrep and its Wyckoff position, and its
+own invariants. `localizations` holds every localization in that form, here
+one per orbit:
 
 ```python
-print(mo.structure, mo.theta_Zn)
-#  Z x Z x Z x Z2 x Z2 {2: (0, 1)}
-for orbit in mo.orbits:
-    print(orbit.orbitals, orbit.chosen["terms"], orbit.chosen["theta_Zn"])
-#  (0, 1) ((1, '-E1↑G(2)', "1a(4mm1',4mm)"), (1, '-E2↑G(2)', "1a(4mm1',4mm)")) {2: (0, 0)}
-#  (2, 3) ((1, '-E↑G(4)', "2c(mm21',mm2)"),) {2: (0, 1)}
+print({name: x.value for name, x in mo.theta_Zn.items()})
+#  {'theta_4': 0, 'theta_5': 1}
+for orbit in mo.wyckoff_orbits:
+    chosen = orbit.numerical.chosen
+    print(orbit.orbitals, [(t.multiplicity, t.irrep, t.wyckoff) for t in chosen],
+          {name: x.value for name, x in chosen.theta_Zn.items()})
+#  (0,) [(1, '-E1', '1a')] {'theta_4': 0, 'theta_5': 0}
+#  (1,) [(1, '-E2', '1a')] {'theta_4': 0, 'theta_5': 0}
+#  (2, 3) [(1, '-E', '2c')] {'theta_4': 0, 'theta_5': 1}
 ```
 
 An orbit at a position the tables induce no EBR from slides onto one. The
 detuned diamond's orbit sits on the line `6c`, `(0, 0, z)` of `R-3m`; the
 positions on that line the tables do induce EBRs from are `3a`, at `z = 0`,
-and `3b`, at `z = ½`, and the summary writes the orbit's content at the one it
-slid onto:
+and `3b`, at `z = ½`, and the summary writes the orbit's site irreps at `6c`
+and the positions it slides onto:
 
 ```python
 strong = tqc.srsi_of_model(diamond["strong"])
 print(strong.summary())
-#  R-3m1' #166.98, double-valued: stable real-space invariants, Z x Z x Z x Z x Z x Z x Z x Z   (.structure)
-#    the whole model: Z-valued (0, 0, 1, 1, 0, 0, 0, 0)   (.theta_Z)
-#    each site orbit, its content written m (irrep)_w, and its SRSIs   (.orbits)
-#      orbitals 0-1 at 6c, slid onto 3a, 1 (-E1g)_a + 1 (-E1u)_a: Z-valued (0, 0, 1, 1, 0, 0, 0, 0)
-print([(loc["letter"], tuple(str(x) for x in loc["theta_Z"]))
-       for loc in strong.orbits[0].localizations])
-#  [('a', ('0', '0', '1', '1', '0', '0', '0', '0')), ('b', ('0', '0', '1', '1', '0', '0', '0', '0'))]
+#  R-3m1' #166.98, double-valued: stable real-space invariants   (.group)
+#    the whole model: theta_1 to theta_8 = (0, 0, 1, 1, 0, 0, 0, 0)   (.theta_Z)
+#    each Wyckoff orbit, its site irreps written m (irrep)_w, with theta_1 to theta_8   (.wyckoff_orbits, .slides_onto)
+#      6c (3m1'): orbitals 0-1, 1 (-E1)_c, slides onto 3a and 3b: (0, 0, 1, 1, 0, 0, 0, 0)
+print([(loc.wyckoff, tuple(str(x) for x in loc.theta_Z.values()))
+       for loc in strong.wyckoff_orbits[0].numerical.localizations])
+#  [('3a', ('0', '0', '1', '1', '0', '0', '0', '0')), ('3b', ('0', '0', '1', '1', '0', '0', '0', '0'))]
 ```
 
 It localizes at both with the same SRSIs, and that agreement is what an SRSI
 is: a number no symmetric move changes. An orbit whose site irreps induce a
-band representation that is a sum of others, which no EBR column carries, is
-read through its site irreps instead, which the tables carry as keys of their
-own.
+band representation that is a sum of others, which no EBR carries, is read
+through its site irreps instead, which the tables carry on their own.
 
 ## Why the ℤₙ half needs the orbitals
 
@@ -340,21 +330,22 @@ show it:
 t45 = tqc.hsp_table(r, bands=[4, 5])
 b45 = tqc.srsi_of_bands(t45)
 tables = tqc.srsi_tables(group)
-print(tables.ebrs)
-#  (('-E1', 'a'), ('-E2', 'a'), ('-E1', 'b'), ('-E2', 'b'), ('-E', 'c'))
-print([str(x) for x in b45.p], tables.theta_columns(list(b45.p)))
-#  ['1', '1', '-1', '0', '0'] ((Fraction(0, 1), Fraction(0, 1), Fraction(1, 1)), {2: (0, 0)})
+ebrs = [(e.irrep, e.wyckoff) for e in tqc.ebr_data(group).ebrs]   # the group's list of EBRs
+print(ebrs)
+#  [('-E1', '1a'), ('-E2', '1a'), ('-E1', '1b'), ('-E2', '1b'), ('-E', '2c')]
+print([str(b45.numerical.p.get(key, 0)) for key in ebrs], tables.theta(b45.numerical.p))
+#  ['1', '1', '-1', '0', '0'] Invariants(theta_1 to theta_3 = (0, 0, 1); theta_4, theta_5 = (0, 0) mod 2)
 d45 = tqc.decompose(t45)           # the EBR the pair's content matches
-p = {(t.irrep, t.wyckoff.lstrip("0123456789")): t.multiplicity for t in d45.candidate_sums[0]}
-print(tuple(p.get(key, 0) for key in tables.ebrs), tables.theta(p))
-#  (0, 0, 0, 1, 0) ((Fraction(0, 1), Fraction(0, 1), Fraction(1, 1)), {2: (1, 0)})
+counts = {(t.irrep, t.wyckoff): t.multiplicity for t in d45.candidate_sums[0]}
+print(tuple(counts.get(key, 0) for key in ebrs), tables.theta(d45.candidate_sums[0]))
+#  (0, 0, 0, 1, 0) Invariants(theta_1 to theta_3 = (0, 0, 1); theta_4, theta_5 = (1, 0) mod 2)
 ```
 
 The band route's `p`, `(-E1)_a + (-E2)_a − (-E1)_b`, is one rational solution
 of `BR·p = y` among many and reads ℤ₂ values `(0, 0)`; the solution `decompose`
-returns, one `-E2` at `1b` over the same columns, reads `(1, 0)`; both read the
+returns, one `-E2` at `1b` over the same list, reads `(1, 0)`; both read the
 ℤ-valued `(0, 0, 1)`. Read a ℤₙ value only for a configuration that is known:
-the one `srsi_of_model` reads off the orbitals, an EBR column, or a solution
+the one `srsi_of_model` reads off the orbitals, a single EBR, or a solution
 `decompose` returned.
 
 ## Which Wyckoff letter is a table key
@@ -371,10 +362,10 @@ table carries its Wyckoff position in that setting:
 print([o.wyckoff for o in r.wyckoff_orbits])
 #  ['1a', '1a', '2c']
 t227 = tqc.srsi_tables(227, spinor=True)           # Fd-3m with spin-orbit coupling
-for letter in "ab":
-    print(letter, [str(x) for x in t227.theta({("-E1", letter): 1})[0]])
-#  a ['1', '0', '0', '0', '0', '0', '0', '0']
-#  b ['0', '0', '0', '1', '0', '0', '0', '0']
+for position in ("8a", "8b"):
+    print(position, [str(x) for x in t227.theta({("-E1", position): 1}).theta_Z.values()])
+#  8a ['1', '0', '0', '0', '0', '0', '0', '0']
+#  8b ['0', '0', '0', '1', '0', '0', '0', '0']
 ```
 
 `wyckoff`, one per Wyckoff orbit, is in the setting the tables are written in,
@@ -386,21 +377,21 @@ table key; `wyckoff_sites_tables(group)` returns its full record.
 
 Two site irreps at one maximal position can be indistinguishable to everything
 this package measures: their EBRs have identical symmetry data vectors, and their
-SRSIs are identical too. `stably_equivalent_pairs` reports such pairs; the
+SRSIs are identical too. The tables' `stably_equivalent` lists such pairs; the
 paper's own example is `B2` and `B3` at `12d` of `I432`:
 
 ```python
-pair, = tqc.stably_equivalent_pairs(tqc.srsi_tables(211, spinor=False))
+pair, = tqc.srsi_tables(211, spinor=False).stably_equivalent
 print(pair.summary())
-#  I4321' #211.57, single-valued: B2 and B3 at Wyckoff position d, which no stable real-space invariant distinguishes   (.irreps, .letter)
-#    their elementary band representations, columns 15 and 16 of the group's list, have the same content at every high-symmetry point   (.names, .columns, .symmetry_vector)
-#    the invariants both carry: Z-valued (1, 0, 1, 1, 1, -1, 0), Z_n-valued mod 2 (0, 0, 1)   (.theta_Z, .theta_Zn)
-print(pair.irreps, pair.letter, pair.names)
-#  ('B2', 'B3') d ('B2↑G(6)', 'B3↑G(6)')
+#  B2 and B3 at 12d, which no stable real-space invariant distinguishes   (.irreps, .wyckoff)
+#    their elementary band representations have the same symmetry data vector   (.symmetry_data)
+#    the invariants both carry: theta_1 to theta_7 = (1, 0, 1, 1, 1, -1, 0); theta_8 to theta_10 = (0, 0, 1) mod 2   (.theta_Z, .theta_Zn)
+print(pair.irreps, pair.wyckoff)
+#  ('B2', 'B3') 12d
 ```
 
-The pair's `irreps` and `letter` are the summary's first line; `names` labels
-its two EBRs as the group's list does, at the `columns` the second line gives.
+The pair's `irreps` and `wyckoff` are the summary's first line, and
+`symmetry_data` holds the symmetry data vector its two EBRs share.
 The SRSIs do not distinguish the two, which is not to say they are the same:
 telling them apart would take an invariant finer than the stable ones, and
 whichever member a decomposition picks, no number this package returns moves.
@@ -424,25 +415,23 @@ fourth and its sixth band are measured in
 ```python
 gap6 = tqc.splitting(r, bands=6)                   # six bands against two
 print(gap6.summary())
-#  P4mm1' #99.164, double-valued, diagnosed topological: the two sides of the gap cannot both be atomic insulators   (.verdict)
-#    the bands=6 valence bands, the remaining 2 conduction bands, and all 8 bands   (.n_bands_v, .n_bands_c)
-#    Z-valued stable real-space invariants: all 8 (2, 2, 0) = valence (1, 1, 1) + conduction (1, 1, -1)   (.theta_Z_total, .theta_Z_v, .theta_Z_c)
-#    Z_n-valued invariants of all 8: mod 2 (0, 1)   (.theta_Zn_total)
-#    the valence bands' symmetry-indicator group is trivial   (.indicator)
-#    possible atomic realizations of the valence bands, and their Z_n-valued SRSIs   (.realizations_v)
-#      1 (-E2)_b + 1 (-E)_c   mod 2 (1, 1)
-#      1 (-E1)_b + 2 (-E2)_b   mod 2 (0, 0)
-#      1 (-E1)_a + 1 (-E2)_a + 1 (-E2)_b   mod 2 (1, 0)
-#    possible atomic realizations of the conduction bands, and their Z_n-valued SRSIs   (.realizations_c)
-#      1 (-E1)_b   mod 2 (0, 0)
-#    no pair of a valence and a conduction realization has Z_n-valued invariants adding up to those of all 8   (.consistent_pairs)
+#  P4mm1' #99.164, double-valued: nsit, no realization of the valence bands and of the conduction bands adding up to the whole model's invariants valued modulo n   (.group, .nsit)
+#    Z-valued stable real-space invariants theta_1 to theta_3: the whole model (2, 2, 0) = valence (1, 1, 1) + conduction (1, 1, -1)   (.theta_Z, .valence.theta_Z, .conduction.theta_Z)
+#    invariants valued modulo n of the whole model: theta_4, theta_5 = (0, 1) mod 2   (.theta_Zn)
+#    atomic realizations of the valence bands, with (theta_4, theta_5) mod 2   (.valence.realizations)
+#      1 (-E2)_b + 1 (-E)_c   (1, 1)
+#      1 (-E1)_b + 2 (-E2)_b   (0, 0)
+#      1 (-E1)_a + 1 (-E2)_a + 1 (-E2)_b   (1, 0)
+#    atomic realizations of the conduction bands, with (theta_4, theta_5) mod 2   (.conduction.realizations)
+#      1 (-E1)_b   (0, 0)
+#    no pair of a valence and a conduction realization has invariants valued modulo n adding up to the whole model's   (.consistent_pairs)
 ```
 
-- `diagnosed topological`: the criterion finds the splitting topological, and
+- `nsit`: the criterion finds the splitting topological, and
   no symmetry indicator says so, the valence bands' indicator group being
   trivial: the paper calls it non-symmetry-indicated topological (NSIT). The
   last line is the reason.
-- The invariants of all 8 bands are the model's, read off the orbitals above;
+- The whole model's invariants, of all 8 bands, are read off the orbitals above;
   the valence bands' ℤ-valued SRSIs are read off the six bands, and the
   conduction bands' are the difference.
 - The valence bands' atomic realizations are every arrangement of orbitals on
@@ -456,16 +445,17 @@ print(gap6.summary())
   arithmetic in real space and without a Wilson loop, an obstruction no
   decomposition sees.
 
-Each line ends with the fields it is read from; `number_str` is the group,
-`nsit` whether the verdict is `diagnosed topological`, and `realizations_v` and
-`realizations_c` hold each side's enumeration, every realization with its own
-`theta_Zn`:
+Each line ends with the fields it is read from; `group` is the group, `nsit`
+what the criterion returns, and `valence.realizations` and
+`conduction.realizations` hold each side's enumeration, every realization with
+its own `theta_Zn`:
 
 ```python
-print(gap6.number_str, gap6.nsit, [str(x) for x in gap6.theta_Z_v], gap6.theta_Zn_total)
-#  99.164 True ['1', '1', '1'] {2: (0, 1)}
-print([v.theta_Zn[2] for v in gap6.realizations_v.realizations],
-      [c.theta_Zn[2] for c in gap6.realizations_c.realizations])
+print(gap6.group.number_str, gap6.nsit, [str(x) for x in gap6.valence.theta_Z.values()],
+      {name: x.value for name, x in gap6.theta_Zn.items()})
+#  99.164 True ['1', '1', '1'] {'theta_4': 0, 'theta_5': 1}
+print([tuple(x.value for x in v.theta_Zn.values()) for v in gap6.valence.realizations],
+      [tuple(x.value for x in c.theta_Zn.values()) for c in gap6.conduction.realizations])
 #  [(1, 1), (0, 0), (1, 0)] [(0, 0)]
 ```
 
@@ -473,30 +463,30 @@ Each of the valence bands' three realizations with the conduction bands' one
 adds up to `(1, 1)`, `(0, 0)` or `(1, 0)`, and none to the `(0, 1)` of all 8.
 
 The same Hamiltonian with the gap two bands lower, and the detuned diamond,
-read the other three verdicts:
+read `nsit` false in three other ways, each named on the summary's first line:
 
 ```python
 four = tqc.splitting(r, bands=4)
-print(four.verdict, four.consistent_pairs)
-#  invisible to the SRSIs ((0, 2), (2, 0))
+print(four.nsit, [(v.label, c.label) for v, c in four.consistent_pairs])
+#  False [('1 (-E)_c', '1 (-E1)_a + 1 (-E2)_a'), ('1 (-E1)_a + 1 (-E2)_a', '1 (-E)_c')]
 for name, rd in diamond.items():
-    print(name, "|", tqc.splitting(rd, bands=2).verdict)
-#  strong | stable topological
-#  weak | stable topological
-#  dimers | no Z_n SRSIs
+    print(name, "|", tqc.splitting(rd, bands=2).summary().splitlines()[0])
+#  strong | R-3m1' #166.98, double-valued: not nsit, the valence bands' invariants being fractional   (.group, .nsit, .valence.theta_Z)
+#  weak | R-3m1' #166.98, double-valued: not nsit, the valence bands' invariants being fractional   (.group, .nsit, .valence.theta_Z)
+#  dimers | R-3m1' #166.98, double-valued: not nsit, the group having no invariants valued modulo n   (.group, .nsit, .theta_Zn)
 ```
 
-**Read the verdicts as written.** `invisible to the SRSIs` does not say the
-four-band splitting is trivial: two pairs of realizations add up, so any
-topology it carries is invisible to the stable real-space invariants. The
-criterion is sufficient, never necessary. `stable topological`, in the strong
-and the weak phase: the valence side's ℤ-valued SRSIs are fractional, so by the
-theorem no atomic insulator has its content, and the criterion is not needed.
-`no Z_n SRSIs`: the group, `R-3m1'` here, has no ℤₙ-valued SRSI, so there is no
-sum to test. In any group, a side with integral ℤ-valued SRSIs and no atomic
-realization at all, a fragile side, also makes a splitting
-`diagnosed topological`; `v_atomic_possible` and `c_atomic_possible` say which
-of the two a diagnosis is, and
+**Read `nsit` as written.** `not nsit` with two pairs of realizations adding
+up does not say the four-band splitting is trivial: any topology it carries is
+invisible to the stable real-space invariants. The criterion is sufficient,
+never necessary. In the strong and the weak phase the valence side's ℤ-valued
+SRSIs are fractional, so by the theorem no atomic insulator has its content: a
+nonzero symmetry indicator says so, and the criterion is not needed. In the
+dimers the group, `R-3m1'` here, has no ℤₙ-valued SRSI, so there is no sum to
+test. In any group, a side with integral ℤ-valued SRSIs and no atomic
+realization at all, a fragile side, also makes `nsit` false: no nonnegative sum
+of EBRs has its symmetry data vector, which `decompose` sees on that side.
+`valence.realizations` and `conduction.realizations` say which side it is, and
 [the records reference](../reference/records.md#splitting-and-realizations)
 reads one on Kane–Mele, whose upper pair has no realization.
 `atomic_realizations` runs the enumeration on its own, and `nsit_criterion` the
@@ -512,11 +502,11 @@ above it:
 
 ```python
 split = tables.split_ebrs[0]
-print(split.srsi_mismatch, (split.parent["irrep"], split.parent["letter"]),
-      [(child["irrep"], child["letter"]) for child in split.children])
-#  True ('-E', 'c') [('-E2', 'a'), ('-E1', 'a')]
-whole, below, above = (tables.theta({(part["irrep"], part["letter"]): 1}) for part in (split.parent, *split.children))
-print(tqc.nsit_criterion(tables, whole, below[0], above[0]).nsit)
+print(split.srsi_mismatch, (split.parent.irrep, split.parent.wyckoff),
+      [(child.irrep, child.wyckoff) for child in split.children])
+#  True ('-E', '2c') [('-E2', '1a'), ('-E1', '1a')]
+whole, below, above = (tables.theta({(part.irrep, part.wyckoff): 1}) for part in (split.parent, *split.children))
+print(tqc.nsit_criterion(tables, whole, below.theta_Z, above.theta_Z).nsit)
 #  True
 ```
 
@@ -536,8 +526,12 @@ print(absent.gate, len(absent.context["omitted_groups"]))
 #  srsi_table_absent 13
 rs = diamond["strong"]
 fractional = tqc.srsi_of_bands(tqc.hsp_table(rs, bands=2))
-print(tqc.atomic_realizations(tqc.srsi_tables(rs.group), fractional.theta_Z).gate)
-#  srsi_not_atomic
+rz = tqc.atomic_realizations(tqc.srsi_tables(rs.group), fractional.theta_Z)
+print(rz.realizations)                             # a record, with no realization
+#  ()
+print(rz.summary())
+#  R-3m1' #166.98, double-valued: no atomic realization with Z-valued stable real-space invariants theta_1 to theta_8 = (-1/4, 0, 1/2, 1, 1/4, -1/2, -1/4, 1/4)   (.group, .realizations, .theta_Z)
+#    fractional   (.theta_Z)
 ```
 
 - [`srsi_table_absent`](../reference/refusals.md#srsi_table_absent): one of
@@ -546,16 +540,16 @@ print(tqc.atomic_realizations(tqc.srsi_tables(rs.group), fractional.theta_Z).gat
   group is not grey, or a number is outside 1 to 230; a Hamiltonian that breaks
   time reversal is returned a unitary group
   ([time reversal is measured](group.md#time-reversal-is-measured)).
-- [`srsi_not_atomic`](../reference/refusals.md#srsi_not_atomic): fractional
-  ℤ-valued SRSIs, which no atomic insulator has, so nothing to enumerate.
+- On fractional ℤ-valued SRSIs, which no atomic insulator has,
+  `atomic_realizations` returns its record with no realization.
   [`srsi_realizations_truncated`](../reference/refusals.md#srsi_realizations_truncated):
   the enumeration reached its cap, and a no-go is asserted only on a complete
   one. `atomic_realizations` takes a larger `cap=`; `splitting` and
   `nsit_criterion` run it at
   [its default](../reference/glossary.md#budgets-meshes-and-lengths).
-- [`orbit_content_incomplete`](../reference/refusals.md#orbit_content_incomplete),
-  [`orbit_not_localizable`](../reference/refusals.md#orbit_not_localizable):
-  an orbit's content was not measured at every point, or is a band
+- [`wyckoff_orbit_content_incomplete`](../reference/refusals.md#wyckoff_orbit_content_incomplete),
+  [`wyckoff_orbit_not_localizable`](../reference/refusals.md#wyckoff_orbit_not_localizable):
+  a Wyckoff orbit's content was not measured at every point, or is a band
   representation of no position its orbitals can move onto.
   [`wyckoff_setting`](../reference/refusals.md#wyckoff_setting): geometry and
   content name different Wyckoff positions, a check the package makes on
@@ -580,14 +574,11 @@ print(tqc.atomic_realizations(tqc.srsi_tables(rs.group), fractional.theta_Z).gat
 `StablePair`, field by field, are in [the records reference](../reference/records.md),
 and the calls among [the functions](../reference/functions.md#stable-invariants):
 [`srsi_tables`](../reference/functions.md#srsi_tables),
-[`srsi_of`](../reference/functions.md#srsi_of),
-[`srsi_of_columns`](../reference/functions.md#srsi_of_columns),
 [`srsi_of_bands`](../reference/functions.md#srsi_of_bands),
 [`srsi_of_model`](../reference/functions.md#srsi_of_model),
 [`splitting`](../reference/functions.md#splitting),
 [`nsit_criterion`](../reference/functions.md#nsit_criterion),
-[`atomic_realizations`](../reference/functions.md#atomic_realizations),
-[`stably_equivalent_pairs`](../reference/functions.md#stably_equivalent_pairs).
+[`atomic_realizations`](../reference/functions.md#atomic_realizations).
 [The primer](../background/tqc-primer.md#real-space-invariants-and-the-stable-ones)
 places the invariants in the literature. Four [examples](../examples.md) run
 them end to end: [the tables of every group](../../examples/tqc_srsi_tables.py),

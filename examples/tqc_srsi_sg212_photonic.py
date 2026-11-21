@@ -230,18 +230,19 @@ print(tqc.srsi_of_model(r).summary())
 
 # srsi_tables holds the group's SRSIs as formulas in the site irreps, and theta()
 # evaluates them on a band representation multiplicity vector m, the multiplicity
-# of each site irrep: it returns the Z-valued SRSIs, as exact fractions, and the
-# Z2-valued one as an integer mod 2.
+# of each site irrep at its Wyckoff position, the position written with its
+# multiplicity, 4a: it returns the SRSIs by name, the Z-valued ones as exact
+# fractions and the Z2-valued one mod 2.
 srsi = tqc.srsi_tables(r.group)
-print("1 (E)_a: ", srsi.theta({("E", "a"): 1}))
-print("1 (A1)_a:", srsi.theta({("A1", "a"): 1}))
-print("1 (A1)_b:", srsi.theta({("A1", "b"): 1}))
+print("1 (E)_a: ", srsi.theta({("E", "4a"): 1}))
+print("1 (A1)_a:", srsi.theta({("A1", "4a"): 1}))
+print("1 (A1)_b:", srsi.theta({("A1", "4b"): 1}))
 
 # The SRSIs are linear in m, so the SRSIs of the physical bands are a difference
 # of the SRSIs of the model minus the SRSIs of the auxiliary bands.  Both choices
 # of auxiliary bands give the Z-valued SRSIs (-1, 0, 1).  The Z2-valued SRSI
 # differs between the two choices.
-print("1 (E)_a - 1 (A1)_a:", srsi.theta({("E", "a"): 1, ("A1", "a"): -1}))
-print("1 (E)_a - 1 (A1)_b:", srsi.theta({("E", "a"): 1, ("A1", "b"): -1}))
+print("1 (E)_a - 1 (A1)_a:", srsi.theta({("E", "4a"): 1, ("A1", "4a"): -1}))
+print("1 (E)_a - 1 (A1)_b:", srsi.theta({("E", "4a"): 1, ("A1", "4b"): -1}))
 
 print("\nDone — figure written to", OUTDIR)

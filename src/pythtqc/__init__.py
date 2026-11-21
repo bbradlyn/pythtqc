@@ -58,9 +58,8 @@ from .sewing import (BandCharacters, CorepsAt, HSPTable, SewingMatrix, character
                      solve_at)
 from .spin import SpinBasis, spin_basis, spin_operator, spinless_presentation
 from .srsi import (BandSRSIs, ModelSRSIs, Realizations, SRSITables, Splitting,
-                   StablePair, atomic_realizations, nsit_criterion, splitting, srsi_of,
-                   srsi_of_bands, srsi_of_columns, srsi_of_model, srsi_tables,
-                   stably_equivalent_pairs)
+                   StablePair, atomic_realizations, nsit_criterion, splitting,
+                   srsi_of_bands, srsi_of_model, srsi_tables)
 from .symmetrization import Symmetrization
 from .symmetry import (AtomicLimitTable, BandRepresentation, SiteMultiplets, SpaceGroupRep,
                        WyckoffOrbit)
@@ -85,8 +84,8 @@ __all__ = [
     "SiteMultiplets",
     "SpinBasis", "spin_basis", "spin_operator", "spinless_presentation",
     "SRSITables", "BandSRSIs", "ModelSRSIs", "Splitting", "Realizations", "StablePair",
-    "srsi_tables", "srsi_of", "srsi_of_columns", "srsi_of_bands", "srsi_of_model",
-    "splitting", "nsit_criterion", "atomic_realizations", "stably_equivalent_pairs",
+    "srsi_tables", "srsi_of_bands", "srsi_of_model",
+    "splitting", "nsit_criterion", "atomic_realizations",
     "Symmetrization",
     "multiplets",
     "solve_at", "format_coreps",

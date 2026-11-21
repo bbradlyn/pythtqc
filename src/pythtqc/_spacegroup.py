@@ -378,8 +378,10 @@ class GroupData:
     _dim_k: int
     _dim_r: int
     _setup_note: str | None = None
-    # "cell", "realized" or "descended": read off the cell's points, measured on
-    # the Hamiltonian, or measured after the cell was lowered
+    # "cell", "realized", "descended" or "number": read off the cell's points,
+    # measured on the Hamiltonian, measured after the cell was lowered, or the
+    # grey group of a space-group number, with no cell, that the tables of the
+    # invariants read from a number hold
     _provenance: str = "cell"
     # how far the operations as spglib found them missed closing into a group,
     # reduced modulo the lattice -- 0.0 for a cell built from exact numbers,
@@ -513,9 +515,12 @@ class GroupData:
                    "tables on the finer lattice]")
         else:
             tag = "" if self._tables_ready else " [tables not ready]"
+        if _is_number_group(self):
+            tag = ""
+        periodic = None if self.periodic_dirs is None else tuple(self.periodic_dirs)
         return (f"GroupData({self.name} #{self.number_str}, "
                 f"spinor={self.spinor}, magnetic_type={self.magnetic_type!r}, "
-                f"periodic_dirs={tuple(self.periodic_dirs)}{tag})")
+                f"periodic_dirs={periodic}{tag})")
 
 
 @dataclass(frozen=True)
@@ -1706,6 +1711,9 @@ def _require_group(call: str, obj) -> None:
     :func:`.._realized.realized_group` returns and a representation each get
     a message of their own, since each holds the group.
     """
+    if _is_number_group(obj):
+        raise TypeError(f"{call}(): the tables of a space-group number hold no cell; pass "
+                        "r.group of what realized_group returns.")
     if isinstance(obj, (GroupData, Refusal)):
         return
     from ._realized import RealizedGroup
@@ -1717,6 +1725,27 @@ def _require_group(call: str, obj) -> None:
         raise TypeError(f"{call}(): got a representation; pass the group, r.group.")
     raise TypeError(f"{call}(): got a {type(obj).__name__}; pass a group, r.group of "
                     "what realized_group returns.")
+
+
+def _group_of_number(sg: int, number_str: str, spinor: bool, name: str) -> GroupData:
+    """The grey group of a space-group number, with no cell: what the tables of a number hold as their group.
+
+    It holds the name, number, valuedness and magnetic type, ``periodic_dirs``
+    ``None``, and no operations or cell; a lookup handed it raises
+    ``TypeError`` (:func:`_require_group`).
+    """
+    return GroupData(
+        name=str(name), number_str=str(number_str), spinor=bool(spinor),
+        magnetic_type="II", periodic_dirs=None, _sg_number=int(sg), _magnetic=True,
+        _include_TR=True, _symmetries=[], _lattice=None, _site_positions=None,
+        _site_orbitals=(), _typat=None, _vacuum_dirs=(), _vacuum_length=0.0,
+        _refUC=None, _shiftUC=None, _tables_ready=False, _symprec=0.0, _dim_k=3,
+        _dim_r=3, _provenance="number")
+
+
+def _is_number_group(obj) -> bool:
+    """Whether ``obj`` is the group of a space-group number, which holds no cell (:func:`_group_of_number`)."""
+    return isinstance(obj, GroupData) and obj._provenance == "number"
 
 
 def _lattice_not_descended(group) -> Refusal | None:

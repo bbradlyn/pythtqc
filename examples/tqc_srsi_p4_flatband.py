@@ -120,6 +120,16 @@ def values(theta):
     return "(" + ", ".join(str(v) for v in theta) + ")"
 
 
+def mod_n(theta_zn, modulus):
+    """The invariants valued modulo ``modulus``, in the tables' order."""
+    return tuple(entry.value for entry in theta_zn.values() if entry.modulus == modulus)
+
+
+def reading(split):
+    """``nsit`` or ``not nsit``, the criterion's answer on a splitting."""
+    return "nsit" if split.nsit else "not nsit"
+
+
 def numbers(points):
     """Numbers written out, each rounded to six decimals."""
     return ", ".join(str(float(np.round(v, 6))) for v in points)
@@ -365,9 +375,9 @@ t_conduction = tqc.hsp_table(realized, bands=[2, 3])
 b_conduction = tqc.srsi_of_bands(t_conduction)
 d_valence = tqc.decompose(t_valence)
 d_conduction = tqc.decompose(t_conduction)
-row("bands 0 and 1", f"{fmt(t_valence.symmetry_data)}, Z-valued {values(b_valence.theta_Z)}")
+row("bands 0 and 1", f"{fmt(t_valence.symmetry_data)}, Z-valued {values(b_valence.theta_Z.values())}")
 row(*atomic_limits(d_valence))
-row("bands 2 and 3", f"{fmt(t_conduction.symmetry_data)}, Z-valued {values(b_conduction.theta_Z)}")
+row("bands 2 and 3", f"{fmt(t_conduction.symmetry_data)}, Z-valued {values(b_conduction.theta_Z.values())}")
 row(*atomic_limits(d_conduction))
 class_lower = indicator_class(b_valence.indicator)
 class_upper = indicator_class(b_conduction.indicator)
@@ -382,7 +392,7 @@ print("   nothing in momentum space objects to this splitting")
 print("\n5. splitting(realized, bands=2): bands 0 and 1 against bands 2 and 3")
 split_flat = tqc.splitting(realized, bands=2)
 print(textwrap.indent(split_flat.summary(), "   "))
-(modulus,) = tuple(split_flat.theta_Zn_total)          # the one modulus of #75.2
+(modulus,) = {entry.modulus for entry in split_flat.theta_Zn.values()}   # the one modulus of #75.2
 print("   the realizations of the two pairs are their atomic limits in section 4")
 
 ########### 6. the Wilson loop of each pair ###########
@@ -448,11 +458,12 @@ pair_23 = float(np.abs(energies_z2[:, 2] - energies_z2[:, 3]).max())
 row("degenerate pairs", f"bands 0 and 1, and bands 2 and 3, over the {NKE}x{NKE} mesh: largest",
     f"|E0 - E1| {pair_01:.6f} and |E2 - E3| {pair_23:.6f}")
 row("bands 1 and 2", f"gap {energies_z2[:, 2].min() - energies_z2[:, 1].max():.6f}")
-row("Z-valued", f"all 4 bands {values(z2_srsi.theta_Z)}, the valence bands "
-    f"{values(split_z2.theta_Z_v)}")
-row(f"mod {modulus}", f"all 4 bands {values(z2_srsi.theta_Zn[modulus])}")
+row("Z-valued", f"all 4 bands {values(z2_srsi.theta_Z.values())}, the valence bands "
+    f"{values(split_z2.valence.theta_Z.values())}")
+row(f"mod {modulus}", f"all 4 bands {values(mod_n(z2_srsi.theta_Zn, modulus))}")
 row("splitting", "bands 0 and 1 against bands 2 and 3:",
-    tqc.Splitting.HEADLINES[split_z2.verdict])
+    "nsit: the two sides of the gap cannot both be atomic insulators" if split_z2.nsit
+    else "not nsit")
 if split_z2.consistent_pairs:
     row("consistent pairs", f"{len(split_z2.consistent_pairs)}, each a valence and a conduction "
         "realization whose", "Z_n-valued invariants add up to those of all 4 bands")
@@ -504,11 +515,11 @@ axes[0, 0].set_ylabel("$E$", fontsize=15)
 axes[0, 0].set_title(f"(i) the flat-band model, mirrors broken, "
                      f"{group.name} #{group.number_str}\n"
                      fr"$\theta_\mathbb{{Z}}[V]="
-                     fr"({', '.join(str(v) for v in b_valence.theta_Z)})$, "
+                     fr"({', '.join(str(v) for v in b_valence.theta_Z.values())})$, "
                      fr"$\theta_\mathbb{{Z}}[C]="
-                     fr"({', '.join(str(v) for v in b_conduction.theta_Z)})$, "
-                     fr"$\theta_{{\mathbb{{Z}}_2}}[H]={m_srsi.theta_Zn[modulus]}$"
-                     f"\nsplitting: {split_flat.verdict}", fontsize=9.5)
+                     fr"({', '.join(str(v) for v in b_conduction.theta_Z.values())})$, "
+                     fr"$\theta_{{\mathbb{{Z}}_2}}[H]={mod_n(m_srsi.theta_Zn, modulus)}$"
+                     f"\nsplitting: {reading(split_flat)}", fontsize=9.5)
 
 # --- the same model's Wilson loops ---
 for column in range(2):
@@ -536,8 +547,8 @@ axes[1, 0].set_xlim(kd[0], kd[-1])
 axes[1, 0].set_ylabel("$E$", fontsize=15)
 axes[1, 0].set_title(f"(ii) the $\\mathbb{{Z}}_2$ model, mirrors broken, "
                      f"{z2_realized.group.name} #{z2_realized.group.number_str}\n"
-                     fr"$\theta_{{\mathbb{{Z}}_2}}[H]={z2_srsi.theta_Zn[modulus]}$"
-                     f"   splitting: {split_z2.verdict}", fontsize=9.5)
+                     fr"$\theta_{{\mathbb{{Z}}_2}}[H]={mod_n(z2_srsi.theta_Zn, modulus)}$"
+                     f"   splitting: {reading(split_z2)}", fontsize=9.5)
 
 # --- the Z2 model's Wilson loops ---
 for column in range(2):
