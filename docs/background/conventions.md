@@ -143,8 +143,10 @@ so a label copied off such a page is the label returned here; the elementary
 band representations, the
 [stable real-space invariants](../guide/srsi.md) and the published tables
 they are checked against all key on it. Where the tables' entries at a
-position do not name a row, it keeps the site point group's own name, and the
-atomic-limit table says which
+position do not name a row, a single-valued row takes the name the tables of
+the stable real-space invariants give it where they single it out, and
+otherwise the row keeps the site point group's own name; the atomic-limit
+table says which
 ([`named by`](../reference/records.md#the-atomic-limit-table)). The listing
 differs from an abstract point-group table at some sites. The free-standing
 honeycomb's site group, with its rows as the tables name them:

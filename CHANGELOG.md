@@ -40,6 +40,18 @@
   `realized_group(model, precision=...)` moves the orbital centers, projects the
   Hamiltonian and classifies each operation itself, and returns the projection's record
   on `r.symmetrization`.
+- At a Wyckoff position where the tables list no band representation, a site irrep takes
+  the name of the site irrep that the tables of the stable real-space invariants (Hwang et
+  al., Nat. Commun. 17, 8564 (2026)) give the same invariants, alike with time-reversal
+  symmetry and without, and its `named_by` reads `"invariants"`, where it read
+  `"point group"` or `"Mulliken"`. At 28 such positions, the lines of site symmetry `mm2`
+  in 12 groups (`4l` to `4o` of `P4/mmm` among them), `B1` and `B2` change places, and a
+  declared `B1` or `B2` there states the other row than it did, with spin as without.
+  Every character, matrix and band label returned is unchanged.
+- Every site of a Wyckoff orbit at such a position reads the orbit's name, whichever site
+  is listed first: at `4i` of `P4/mmm`, where a fourfold rotation carries one site onto
+  the other and exchanges `B1` with `B2`, the site that read the other symbol reads the
+  orbit's.
 
 ## 0.1.0a3 — the second public version
 

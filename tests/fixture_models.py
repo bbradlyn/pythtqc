@@ -2180,7 +2180,8 @@ def _harmonic(name, degree, frame=None):
     return v if frame is None else _shell_matrix(frame, degree) @ v
 
 
-def _carried_model(lattice, sites, ops, orbitals, seed, cutoff, rotation=None, scale=1.0):
+def _carried_model(lattice, sites, ops, orbitals, seed, cutoff, rotation=None, scale=1.0,
+                   imag=0.0, origin=None):
     """Orbitals carried as functions, random hoppings averaged over ``ops`` (Cartesian, about the origin).
 
     ``sites`` are Cartesian and ``orbitals`` is ``[(site, degree, vector)]``,
@@ -2189,7 +2190,10 @@ def _carried_model(lattice, sites, ops, orbitals, seed, cutoff, rotation=None, s
     ``scale``, the whole set averaged with the orbitals carried as the
     functions they are, so the model obeys ``ops`` exactly; ``rotation`` then
     writes it in the orbital basis ``q = Vᵀ p``, ``H'(R) = Vᵀ H(R) V`` -- a
-    change of basis and nothing else.
+    change of basis and nothing else.  A nonzero ``imag`` gives every hopping
+    between two orbitals an imaginary part, ``imag`` times a second random
+    number, which breaks time reversal; ``origin``, in reduced coordinates,
+    moves every orbital by it, each wrapped back into the home cell.
     """
     A = np.asarray(lattice, dtype=float)
     Ainv = np.linalg.inv(A)
@@ -2231,8 +2235,10 @@ def _carried_model(lattice, sites, ops, orbitals, seed, cutoff, rotation=None, s
                 if np.linalg.norm(pos[j] + L @ A - pos[i]) <= cutoff \
                         and (i, j, tuple(L)) not in seeds:
                     t = float(scale) * float(rng.normal())
+                    if imag and not (i == j and not L.any()):
+                        t = t + 1j * float(scale) * float(imag) * float(rng.normal())
                     seeds[(i, j, tuple(L))] = t
-                    seeds[(j, i, tuple(-L))] = t
+                    seeds[(j, i, tuple(-L))] = np.conj(t) if imag else t
     hops = {}
     for (i, j, L), t in seeds.items():
         for g, R in enumerate(ops):
@@ -2244,22 +2250,32 @@ def _carried_model(lattice, sites, ops, orbitals, seed, cutoff, rotation=None, s
     V = np.eye(n) if rotation is None else np.asarray(rotation, dtype=float)
     by_L = {}
     for (i, j, L), t in hops.items():
-        by_L.setdefault(L, np.zeros((n, n)))[i, j] += t
-    m = TBModel(Lattice(A.tolist(), [list(p @ Ainv) for p in pos], periodic_dirs=[0, 1, 2]),
+        by_L.setdefault(L, np.zeros((n, n), dtype=complex if imag else float))[i, j] += t
+    reduced = [p @ Ainv for p in pos]
+    wrap = np.zeros((n, 3), dtype=int)
+    if origin is not None:
+        # each orbital moved by the origin and wrapped into the home cell; a
+        # hopping's lattice vector takes up the two wraps
+        moved = np.array(reduced) + np.asarray(origin, dtype=float)
+        wrap = np.floor(moved + 1e-9).astype(int)
+        reduced = list(moved - wrap)
+    m = TBModel(Lattice(A.tolist(), [list(p) for p in reduced], periodic_dirs=[0, 1, 2]),
                 spinful=False)
     entered = set()
     for L, H in by_L.items():
         Hp = V.T @ H @ V
         for i in range(n):
             for j in range(n):
-                t = float(Hp[i, j])
+                t = complex(Hp[i, j]) if imag else float(Hp[i, j])
                 if abs(t) < 1e-12 or (j, i, tuple(-np.array(L))) in entered:
                     continue
                 entered.add((i, j, L))
                 if i == j and L == (0, 0, 0):
-                    m.set_onsite(t, i)
-                else:
+                    m.set_onsite(float(np.real(t)), i)
+                elif origin is None:
                     m.set_hop(t, i, j, list(L))
+                else:
+                    m.set_hop(t, i, j, [int(x) for x in np.asarray(L) + wrap[j] - wrap[i]])
     return m
 
 
@@ -2677,6 +2693,59 @@ def p4mmm_p_shell(angle=0.0, seed=3):
     ops = [np.asarray(R, dtype=float) for R, _t in P4MMM_OPS]
     return _carried_model(P4MMM_LATTICE, [np.zeros(3)], ops, orbitals, seed, 1.7,
                           rotation=_turned_p_shell(angle, order), scale=0.25)
+
+
+def p4mmm_4l_sp(*, imag=0.0, origin=(0.0, 0.0, 0.0), spinful=False, reverse=False):
+    """``s`` and the tangential ``p`` at the four sites of ``4l`` of ``P4/mmm``.
+
+    The sites ``(x, 0, 0)``, ``(-x, 0, 0)``, ``(0, x, 0)``, ``(0, -x, 0)`` of
+    :data:`P4MMM_LATTICE` at ``x = 0.2``, each with site group ``mm2`` (its
+    twofold along the bond), carry an ``s`` orbital (orbitals 0 to 3) and the
+    ``p`` orbital tangential to the bond, ``p_y`` at ``(±x, 0, 0)`` and ``p_x``
+    at ``(0, ±x, 0)`` (orbitals 4 to 7).  Every pair within 1.05 gets a random
+    hopping, seed 13, averaged over the sixteen operations of ``4/mmm``
+    (:data:`P4MMM_OPS`), so the hoppings obey ``P4/mmm1'`` (#123.340).  The
+    tables list no band representation at ``4l``: its site irreps are named by
+    the tables of the stable real-space invariants, the tangential ``p`` there
+    ``B2``.
+
+    Parameters
+    ----------
+    imag : float, default 0.0
+        The scale of an imaginary part given every hopping between two
+        orbitals; a nonzero one breaks time reversal and leaves ``P4/mmm``.
+    origin : tuple of float, default (0.0, 0.0, 0.0)
+        A shift of every orbital, in reduced coordinates; ``(0.5, 0.5, 0.0)``
+        writes the same crystal with its orbit at ``4n``.
+    spinful : bool, default False
+        Whether the electron's spin is carried, with random spin-orbit blocks
+        averaged over the operations and time reversal.  Taken with the
+        default ``imag`` and ``origin`` only.
+    reverse : bool, default False
+        Whether the four sites are listed in the other order, ``(0, -x, 0)``
+        first, each with its ``s`` and ``p`` orbitals: the same crystal.
+
+    Returns
+    -------
+    pythtb.TBModel
+        3D model, 8 orbitals.
+    """
+    x = 0.2
+    sites = [np.array([x, 0.0, 0.0]), np.array([-x, 0.0, 0.0]),
+             np.array([0.0, x, 0.0]), np.array([0.0, -x, 0.0])]
+    tangential = ["py", "py", "px", "px"]
+    if reverse:
+        sites, tangential = sites[::-1], tangential[::-1]
+    orbitals = ([(s, 0, _harmonic("s", 0)) for s in range(4)]
+                + [(s, 1, _harmonic(tangential[s], 1)) for s in range(4)])
+    ops = [np.asarray(R, dtype=float) for R, _t in P4MMM_OPS]
+    if spinful:
+        if imag or np.any(np.asarray(origin, dtype=float)):
+            raise ValueError("p4mmm_4l_sp(): spinful=True takes the default imag and origin")
+        return _carried_spinful_model(P4MMM_LATTICE, sites, ops, orbitals, 13, 1.05)
+    return _carried_model(P4MMM_LATTICE, sites, ops, orbitals, 13, 1.05, imag=imag,
+                          origin=None if not np.any(np.asarray(origin, dtype=float))
+                          else origin)
 
 
 # ---------------------------------------------------------------------------

@@ -3231,7 +3231,7 @@ def _label_character(table, chi, tol=1e-6, *, sums=False, orbital=False):
 
 #: How directly a row's name comes off the tables, most direct first.  A sum of
 #: rows is named as directly as its least direct part.
-_NAMED_BY_RANK = {"tables": 0, "point group": 1, "Mulliken": 2}
+_NAMED_BY_RANK = {"tables": 0, "invariants": 1, "point group": 2, "Mulliken": 3}
 
 
 def _named_content(table, chi, tol=1e-6, *, sums=True, orbital=False):
@@ -3252,7 +3252,8 @@ def _named_content(table, chi, tol=1e-6, *, sums=True, orbital=False):
     ``B1 + B2``).
 
     A sum is named from the tables only as far as its least direct part is --
-    ``tables``, then ``point group`` -- and a sum one of whose rows has no name
+    ``tables``, then ``invariants``, then ``point group``, then ``Mulliken``
+    -- and a sum one of whose rows has no name
     is not named at all, ``("", "unnamed")``, since naming it would claim a
     name for that row too.  The generator characters stay the whole statement
     there.

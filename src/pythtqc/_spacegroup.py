@@ -2645,6 +2645,23 @@ def _variety_contains_variety(inner, outer, tol) -> bool:
     return bool(np.abs(delta @ P_out.T).max(axis=1).min() <= tol)
 
 
+def _in_tables_cell(group: GroupData, points) -> np.ndarray:
+    r"""Points of the model's cell written in the tables' conventional cell, reduced to it.
+
+    :math:`x_\text{ref} = \mathrm{refUC}^{-1}(x - \mathrm{shiftUC}) \bmod 1`, a
+    coordinate within rounding of 1 written as 0, through the group's one stored
+    ``refUC`` and ``shiftUC``: the carrying every Wyckoff letter, every operation
+    in the reference cell and every name read at a site goes through.  ``points``
+    is one point or an array of shape ``(n, 3)`` in reduced coordinates of the
+    model's three-dimensional cell; an array of shape ``(n, 3)`` is returned.
+    """
+    raw = np.atleast_2d(np.asarray(points, dtype=float))
+    inv = np.linalg.inv(np.asarray(group._refUC, dtype=float))
+    shift = np.asarray(group._shiftUC, dtype=float)
+    reference = np.array([(inv @ (x - shift)) % 1.0 for x in raw])
+    return np.where(np.abs(reference - 1.0) < 1e-9, 0.0, reference)
+
+
 def _reference_operations(group: GroupData) -> tuple:
     r"""The group's own unitary operations, written in the reference cell.
 

@@ -1,7 +1,9 @@
 """Site irreps named off the tables: each row of a measured site-group character
 table by the elementary band representation it induces from the site's Wyckoff
-position, otherwise by the name the tables' origins give its point group; and
-the site tables a declaration is read on, the rows named that way.
+position; where the list of elementary band representations has no entry
+there, by the site irrep the tables of the stable real-space invariants give
+the same invariants; otherwise by the name the tables' origins give its point
+group; and the site tables a declaration is read on, the rows named that way.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ import re
 
 import numpy as np
 
+from . import _site_names
 from . import _sitechars
 from . import _spacegroup
 from . import _tables
@@ -31,7 +34,12 @@ def _site_tables(group, assignment, kept_u, kept_au, sites):
     computed table.  Each row is then named by the band representation it
     induces (:func:`.._naming._site_irrep_labels`), which is a statement about the
     site's Wyckoff position as well as about its group, so two sites share a
-    table only when they share both.
+    table only when they share both.  At a position whose names are read from
+    the tables of the stable real-space invariants, two sites share a table only
+    where they also lie in one stretch of the position and their carrying to
+    the position's own site acts alike on their operations
+    (:func:`.._site_names.carry_to_own_site`), so that no site takes another's
+    names by the order the sites are listed in.
 
     A row is named in the valuedness the model's own states carry: a spinless
     model's site irreps are the single-valued ones the EBR entries at that
@@ -46,6 +54,10 @@ def _site_tables(group, assignment, kept_u, kept_au, sites):
         ind_au = tuple(int(i) for i in assignment.site_group[s] if int(i) in kept_au)
         letter = letters[int(s)] if int(s) < len(letters) else ""
         key = (ind_u, ind_au, letter)
+        if _site_names._holds(group, letter):
+            carried = _site_names.carry_to_own_site(
+                group, letter, assignment.site_positions[int(s)], ind_u + ind_au)
+            key = key + (carried,)
         if key not in cache:
             table = _site_group_table(group, ind_u, antiunitary=ind_au)
             cache[key] = _named_from_tables(group, assignment, int(s), table)
@@ -65,6 +77,9 @@ def _site_group_table(group, indices, antiunitary=()):
     at this site, the row keeps the name its Mulliken symbol gives it
     (``"Mulliken"``), where that is a name rather than a placeholder
     (:func:`.._sitechars.is_placeholder`).  A row neither names is unnamed.
+    These are the names a row keeps where neither the elementary band
+    representations at its position nor the tables of the stable real-space
+    invariants name it (:func:`_named_from_tables`).
     """
 
     table = _sitechars.site_group_table(group, indices, antiunitary=antiunitary)
@@ -125,11 +140,16 @@ def _named_from_tables(group, assignment, site, table):
 
     A row the tables reach is named by the band representation it induces: the
     entry at the site's own Wyckoff position whose content it reproduces
-    (``named_by = "tables"``).  A row those entries do not name keeps the site
-    point group's own name, ``named_by = "point group"``: the tables' own name
-    for that irrep of the point group, read at the origin of a symmorphic group,
-    single-valued for a spinless row (:func:`.._naming._point_group_irreps`) and
-    double-valued for a spinful one (:func:`.._naming._point_group_names`).  A
+    (``named_by = "tables"``).  A single-valued row at a position the list of
+    elementary band representations has no entry at takes the name of the
+    site irrep the tables of the stable real-space invariants give the same
+    invariants, read at this site by its own carrying to the position's own
+    site (``named_by = "invariants"``, :mod:`.._site_names`).  A row neither
+    names keeps the site point group's own name, ``named_by = "point group"``:
+    the tables' own name for that irrep of the point group, read at the origin
+    of a symmorphic group, single-valued for a spinless row
+    (:func:`.._naming._point_group_irreps`) and double-valued for a spinful one
+    (:func:`.._naming._point_group_names`).  A
     spinless row those names leave open keeps its Mulliken symbol, ``named_by =
     "Mulliken"``, where that is a name (:func:`_site_group_table`).  A row
     nothing names is left **empty**, ``named_by = "unnamed"``, and its generator
@@ -139,8 +159,10 @@ def _named_from_tables(group, assignment, site, table):
     Where the states carry spin the returned name is the double-valued site
     corep, and the row's **orbital** factor — single-valued, and what a
     declaration states — is named at the same position by the same group's
-    single-valued entries (:attr:`.._sitechars.SiteGroupTable.declarable`).
-    Both come off the tables; the second is never returned.
+    single-valued entries, or where those have none by the tables of the
+    stable real-space invariants, as a spinless row is
+    (:attr:`.._sitechars.SiteGroupTable.declarable`).  Both come off the
+    tables; the second is never returned.
     """
 
     if group.spinor:
@@ -575,12 +597,16 @@ def _site_irrep_labels(group, assignment, site, table) -> tuple:
     r"""The site-irrep labels of one computed table, and where each name comes from.
 
     A name the tables carry at the position is the part of the EBR entry
-    before ``↑G``, which is what a Wyckoff position is looked up by; a row the
-    entries there do not reach keeps the table's own name and where it came
-    from (``.._naming._site_group_table``): the tables' name for that irrep of
-    the site's point group, its Mulliken symbol, or none.  Labels have to be
-    unique within one table, so a name from the entries that collides with a
-    kept one leaves the whole table on its own names.
+    before ``↑G``, which is what a Wyckoff position is looked up by.  A row the
+    entries there do not reach takes the name the tables of the stable
+    real-space invariants give it, read at this site by its own carrying to the
+    position's own site (:func:`.._site_names.table_names`).  A row neither
+    reaches keeps the table's own name and where it came from
+    (``.._naming._site_group_table``): the tables' name for that irrep of the
+    site's point group, its Mulliken symbol, or none.  Labels have to be unique
+    within one table: names from the invariants that collide with another
+    row's are dropped for the whole table, and a name from the entries that
+    still collides with a kept one leaves the whole table on its own names.
 
     Parameters
     ----------
@@ -593,26 +619,32 @@ def _site_irrep_labels(group, assignment, site, table) -> tuple:
     -------
     tuple
         ``(labels, named_by)``, one entry of each per row: the label, and
-        ``"tables"``, ``"point group"``, ``"Mulliken"`` or, for a row nothing
-        names, ``"unnamed"``.
+        ``"tables"``, ``"invariants"``, ``"point group"``, ``"Mulliken"`` or,
+        for a row nothing names, ``"unnamed"``.
     """
     names = _site_irrep_names(group, assignment, int(site), table)
     own = tuple(table.labels)
     mine = tuple(table.named_by) if len(table.named_by) == len(own) else (
         tuple("point group" if label else "unnamed" for label in own))
-    labels, named_by = [], []
-    for row, name in enumerate(names):
-        base = str(name).split("↑G")[0] if name else ""
-        if base:
-            labels.append(base)
-            named_by.append("tables")
-        else:
-            labels.append(own[row])
-            named_by.append(mine[row])
-    named = [label for label in labels if label]
-    if len(set(named)) != len(named):
-        return own, mine
-    return tuple(labels), tuple(named_by)
+    bases = [str(name).split("↑G")[0] if name else "" for name in names]
+    found = (_site_names.table_names(group, assignment, int(site), table)
+             if not all(bases) else ("",) * len(own))
+    for invariants in (found, ("",) * len(own)):
+        labels, named_by = [], []
+        for row, base in enumerate(bases):
+            if base:
+                labels.append(base)
+                named_by.append("tables")
+            elif invariants[row]:
+                labels.append(invariants[row])
+                named_by.append("invariants")
+            else:
+                labels.append(own[row])
+                named_by.append(mine[row])
+        named = [label for label in labels if label]
+        if len(set(named)) == len(named):
+            return tuple(labels), tuple(named_by)
+    return own, mine
 
 
 # --------------------------------------------------------------------------
@@ -904,11 +936,21 @@ def _site_orbital_labels(group, assignment, site, table) -> tuple:
     -------
     tuple
         One entry per row: the single-valued entry's name at the site's own
-        Wyckoff position, and ``""`` for a row the single-valued entries there
-        do not reach.
+        Wyckoff position; for a row those entries do not reach, the name the
+        tables of the stable real-space invariants give it
+        (:func:`.._site_names.table_names`), unless one of those names would
+        repeat another row's word, when none of them is taken; and ``""`` for
+        a row neither reaches.
     """
     names = _site_irrep_names(_single_valued_view(group), assignment, int(site), table)
-    return tuple(str(name).split("↑G")[0] if name else "" for name in names)
+    bases = tuple(str(name).split("↑G")[0] if name else "" for name in names)
+    if all(bases):
+        return bases
+    found = _site_names.table_names(group, assignment, int(site), table)
+    filled = tuple(base or name for base, name in zip(bases, found))
+    words = [word or own for word, own in zip(filled, table.labels)]
+    words = [word for word in words if word]
+    return filled if len(set(words)) == len(words) else bases
 
 
 # --------------------------------------------------------------------------

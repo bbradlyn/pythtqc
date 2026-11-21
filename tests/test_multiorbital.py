@@ -2730,7 +2730,8 @@ def test_a_site_s_operations_bind_its_orbitals_and_copies_of_one_irrep_are_one(c
         [o.orbital for o in rows]
     for orbit in table.band_representations:
         own = all(rows[a].named_by == "tables" for a in orbit.orbitals)
-        assert all(rows[a].named_by == ("tables" if own else "point group")
+        assert all(rows[a].named_by == ("tables" if own else "point group"
+                                        if out.group.spinor else "invariants")
                    for a in orbit.orbitals)
         assert own == all(position.split("(")[0] == orbit.wyckoff
                           for _m, _name, position in orbit.terms)

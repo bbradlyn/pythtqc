@@ -21,7 +21,7 @@ from ._tolerance import (
 from ._text import _point_text
 from ._spacegroup import (
     GroupData, IrrepContent, KGrid, LittleGroup, OrbitalAssignment, SiteReference,
-    _EBRTransportError, _GENERIC_PARAMETER, _centering, _is_reciprocal,
+    _EBRTransportError, _GENERIC_PARAMETER, _centering, _in_tables_cell, _is_reciprocal,
     _is_translation, _lattice_not_descended, _letters_on_closure, _magnetic_type,
     _pad_cell, _pyxtal_wyckoff, _reference_operations, _refuse_no_tables,
     _sites_and_typat, _snap_rational, _variety_residual, _wyckoff_setting_audit,
@@ -257,10 +257,7 @@ def wyckoff_sites_tables(
     pyxtal_positions, _centering = _pyxtal_wyckoff(int(group.sg_number))
     raw = (np.asarray(group.site_positions, dtype=float) if positions is None
            else np.atleast_2d(np.asarray(positions, dtype=float)))
-    inv = np.linalg.inv(np.asarray(group._refUC, dtype=float))
-    shift = np.asarray(group._shiftUC, dtype=float)
-    reference = np.array([(inv @ (x - shift)) % 1.0 for x in raw])
-    reference = np.where(np.abs(reference - 1.0) < 1e-9, 0.0, reference)
+    reference = _in_tables_cell(group, raw)
 
     residuals = {p["letter"]: _variety_residual(p["arms"], reference)
                  for p in pyxtal_positions}

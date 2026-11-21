@@ -88,8 +88,10 @@ term a multiplicity, an elementary band representation and its position. Each
 sublattice induces the one `-E1↑G(2)` at its own position, an entry of the
 tables, and the row takes the name that entry gives its site irrep: `tables`
 in `named_by`. An orbit at a position where the tables list no band
-representation is named by the `point group`, and its sum is written at other
-positions ([below](#a-declaration-that-lowers-the-group)).
+representation takes, without spin, the name the tables of the stable
+real-space invariants give it, `invariants` in `named_by`; with spin, or where
+those tables do not tell it apart, it is named by its `point group`, and its
+sum is written at other positions ([below](#a-declaration-that-lowers-the-group)).
 
 Every field of a row, and the lines a table can print under its rows, are in
 [the records reference](../reference/records.md#the-atomic-limit-table);

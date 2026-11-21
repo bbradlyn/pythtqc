@@ -92,9 +92,12 @@ class AtomicLimitRow:
         ``""`` where nothing names it.
     named_by : str
         Where the name comes from: ``"tables"``, the tables' band
-        representations at this position; ``"point group"``, the site's point
-        group at the origin of a symmorphic group; ``"Mulliken"``, the row's
-        Mulliken symbol; or ``"unnamed"``.
+        representations at this position; ``"invariants"``, for a spinless row
+        where the tables list no band representation at this position, the site
+        irrep the tables of the stable real-space invariants give the same
+        invariants; ``"point group"``, the site's point group at the origin of a
+        symmorphic group; ``"Mulliken"``, the row's Mulliken symbol; or
+        ``"unnamed"``.
     determined_by : str
         How the site irrep is known: ``"declaration"``; ``"declaration not
         carried"``, declared and not carried by the Hamiltonian's own blocks;
@@ -154,7 +157,9 @@ class AtomicLimitRow:
 
     def summary(self) -> str:
         """The row, a line for each part that applies, ending with the attribute that holds it."""
-        named = {"tables": "the tables", "point group": "the site's point group",
+        named = {"tables": "the tables",
+                 "invariants": "the tables of the stable real-space invariants",
+                 "point group": "the site's point group",
                  "Mulliken": "Mulliken's convention"}.get(self.named_by)
         lines = [f"orbital {self.orbital}, site {self.site}, at {self.wyckoff or '?'} "
                  f"({self.site_symmetry}): {self.irrep or 'unnamed'}"

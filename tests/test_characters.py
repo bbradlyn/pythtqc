@@ -56,6 +56,7 @@ every corep at once.  That is what the echo record exists for, so the
 structural tests here assert that it covers every orbital and prints the frame.
 """
 
+import contextlib
 import dataclasses
 import itertools
 import re
@@ -1318,6 +1319,11 @@ def test_the_diamond_site_irreps_are_the_names_the_tables_print(spinless_diamond
     words a declaration may use are the same five, row for row, and the corep's
     own name declares too: ``-E1`` and ``s``, the shared record's declaration,
     resolve to one content, character for character.
+
+    Where the tables list no band representation, at ``4l`` and ``4i`` of
+    P4/mmm, a row is the name the tables of the stable real-space invariants
+    print, read alike with time reversal and without, at any origin, with spin,
+    at every site of an orbit and in either order of its sites.
     """
     r = spinless_diamond
     assert r.group.number_str == "227.129"
@@ -1414,6 +1420,82 @@ def test_the_diamond_site_irreps_are_the_names_the_tables_print(spinless_diamond
         "the corep's name and the orbital name it lifts from are one declaration"
     assert (as_corep[1], as_orbital[1]) == ("-E1", "A1")
     assert len(as_corep[0]) == len(dtable.indices)
+
+    # 4l of P4/mmm, s and the tangential p at each site: the tables list no band
+    # representation there, and the tables of the invariants call the tangential
+    # p B2, with time reversal and without, at the origin moved to 4n, and in
+    # either order of the four sites
+    def tangential(o):
+        """(C2, m(z), the other mirror) of a row at a 4l site, as integers."""
+        chi = {k: round(complex(v).real) for k, v in o.generator_character.items()}
+        c2 = next(v for k, v in chi.items() if k.startswith("C2("))
+        mirror = next(v for k, v in chi.items() if k.startswith("m(") and k != "m(z)")
+        return c2, chi["m(z)"], mirror
+
+    tangential_b2 = {4: "B2", 5: "B2", 6: "B2", 7: "B2"}
+    seen = {}
+    for title, kw, number, letter in (
+            ("time reversal", {}, "123.340", "l"), ("broken", {"imag": 0.7}, "123", "l"),
+            ("origin", {"origin": (0.5, 0.5, 0.0)}, "123.340", "n"),
+            ("reversed", {"reverse": True}, "123.340", "l")):
+        model = tqc_models.p4mmm_4l_sp(**kw)
+        for declared in (None, tangential_b2):
+            with (pytest.warns(UserWarning, match="time reversal is broken") if "imag" in kw
+                  else contextlib.nullcontext()):
+                got = tqg.realized_group(model, characters=declared)
+            assert got, str(got)
+            assert (got.group.number_str, got.assignment.wyckoff_tables) == \
+                (number, (letter,) * 4), title
+            rows = got.rep.characters.orbitals
+            assert got.rep.characters.irreps == ("A1",) * 4 + ("B2",) * 4, title
+            assert {o.named_by for o in rows} == {"invariants"}, title
+            assert all(tangential(o) == (-1, 1, -1) for o in rows[4:]), \
+                f"{title}: B2 is the p tangential to the bond, odd under the in-plane mirror"
+            if declared:
+                assert {o.determined_by for o in rows[4:]} == {"declaration"}, title
+            seen[title, declared is None] = {
+                (tuple(np.round(got.assignment.site_positions[o.site], 6)), o.orbital // 4):
+                (o.irrep, o.named_by, tangential(o)) for o in rows}
+    for declared in (True, False):
+        assert seen["reversed", declared] == seen["time reversal", declared], \
+            "every site reads the orbit's name, whichever site is listed first"
+    spun = tqg.realized_group(tqc_models.p4mmm_4l_sp(spinful=True), characters=tangential_b2)
+    assert spun and spun.group.number_str == "123.340" and spun.group.spinor
+    assert spun.rep.characters.irreps == ("-E",) * 8
+    assert all(o.determined_by == "declaration" and tangential(o) == (-1, 1, -1)
+               for o in spun.rep.characters.orbitals[4:]), \
+        "with spin a declared B2 states the orbital a spinless B2 names"
+
+    # 4i of P4/mmm: (0, 1/2, ±z) and (1/2, 0, ±z) are fixed by the same operations,
+    # and the fourfold carrying one onto the other exchanges p_x and p_y, so the
+    # orbit's name falls on p_x at one site and on p_y at the other
+    z = 0.2 * float(tqc_models.P4MMM_LATTICE[2, 2])
+    sites = [np.array([0.0, 0.5, z]), np.array([0.5, 0.0, z]),
+             np.array([0.0, 0.5, -z]), np.array([0.5, 0.0, -z])]
+    functions = (("s", 0), ("px", 1), ("py", 1), ("dxy", 2))
+    ops = [np.asarray(R, dtype=float) for R, _t in tqc_models.P4MMM_OPS]
+    read = []
+    for listed in (sites, sites[::-1]):
+        orbitals = [(s, degree, tqc_models._harmonic(name, degree))
+                    for s in range(4) for name, degree in functions]
+        model = tqc_models._carried_model(tqc_models.P4MMM_LATTICE, listed, ops, orbitals,
+                                          13, 1.05)
+        got = tqg.realized_group(model, characters={k: functions[k % 4][0]
+                                                    for k in range(16)})
+        assert got and got.group.number_str == "123.340", str(got)
+        assert set(got.assignment.wyckoff_tables) == {"i"}
+        names = {}
+        for o in got.rep.characters.orbitals:
+            line = "x" if abs(got.assignment.site_positions[o.site][1]) < 1e-6 else "y"
+            names.setdefault((line, functions[o.orbital % 4][0]), set()).add(
+                (o.irrep, o.named_by))
+        assert all(len(v) == 1 for v in names.values()), names
+        names = {k: next(iter(v)) for k, v in names.items()}
+        assert {how for _name, how in names.values()} == {"invariants"}
+        assert names["x", "px"] == names["y", "py"] != names["x", "py"] == names["y", "px"], \
+            "both sites of the orbit read the orbit's name"
+        read.append(names)
+    assert read[0] == read[1], "the same names in either order of the sites"
 
 
 @pytest.mark.slow
@@ -1619,3 +1701,128 @@ def test_every_ebr_column_at_a_fixture_position_comes_from_its_computed_rows(key
             "unaccounted for")
         checked += 1
     assert seen, f"{key}: no site of this fixture was examined"
+
+
+#: The 28 positions whose names the tables of the invariants give otherwise than
+#: Mulliken's symbols, B1 for B2: every stretch of each is checked.
+SWAPPED_POSITIONS = (
+    (47, "i"), (47, "j"), (47, "k"), (47, "l"), (65, "g"), (65, "h"), (69, "g"),
+    (71, "e"), (71, "f"), (123, "l"), (123, "m"), (123, "n"), (123, "o"), (131, "j"),
+    (131, "k"), (131, "l"), (131, "m"), (139, "i"), (139, "j"), (191, "i"), (200, "f"),
+    (200, "g"), (221, "h"), (221, "i"), (221, "j"), (225, "h"), (225, "i"), (229, "h"))
+
+
+def _names_sample():
+    """The positions the data test works out again: the 28, those of several stretches, 24 more."""
+    from pythtqc import _site_names
+    document = _site_names._document() or {"groups": {}}
+    held = [(int(sg), letter) for sg, letters in document["groups"].items()
+            for letter in letters]
+    several = [p for p in held if len(document["groups"][str(p[0])][p[1]]) > 1]
+    rest = sorted(set(held) - set(SWAPPED_POSITIONS) - set(several))
+    drawn = np.random.default_rng(20261120).permutation(len(rest))[:24]
+    return sorted(set(SWAPPED_POSITIONS) | set(several) | {rest[i] for i in drawn})
+
+
+def _geometry_crystal(sg, letter, q):
+    """A spinless crystal of one orbital at each site of a position's orbit at parameter ``q``.
+
+    The orbit is written in a primitive cell of the tables' conventional cell, and
+    two orbits of the general position are added so that the crystal's group is
+    the space group itself; no hopping.
+    """
+    from pythtqc import _spacegroup
+    positions, centering = _spacegroup._pyxtal_wyckoff(sg)
+    general = max(positions, key=lambda p: p["multiplicity"])
+    if sg <= 2:
+        lengths, angles = (1.0, 1.13, 1.27), (81.3, 86.7, 77.9)
+    elif sg <= 15:
+        lengths, angles = (1.0, 1.13, 1.27), (90.0, 103.7, 90.0)
+    elif sg <= 74:
+        lengths, angles = (1.0, 1.21, 1.43), (90.0, 90.0, 90.0)
+    elif sg <= 142:
+        lengths, angles = (1.0, 1.0, 1.37), (90.0, 90.0, 90.0)
+    elif sg <= 194:
+        lengths, angles = (1.0, 1.0, 1.61), (90.0, 90.0, 120.0)
+    else:
+        lengths, angles = (1.0, 1.0, 1.0), (90.0, 90.0, 90.0)
+    (a, b, c), (al, be, ga) = lengths, np.radians(angles)
+    cx, cy = c * np.cos(be), c * (np.cos(al) - np.cos(be) * np.cos(ga)) / np.sin(ga)
+    conventional = np.array([[a, 0, 0], [b * np.cos(ga), b * np.sin(ga), 0],
+                             [cx, cy, np.sqrt(c * c - cx ** 2 - cy ** 2)]])
+    shifts = [np.asarray(v, dtype=float) for v in centering if np.abs(v).max() > 0.01]
+    if len(shifts) == 3:
+        primitive = np.array([[0.0, 0.5, 0.5], [0.5, 0.0, 0.5], [0.5, 0.5, 0.0]])
+    else:
+        found = (np.array(trip) for trip in itertools.combinations(
+            [np.eye(3)[i] for i in range(3)] + shifts
+            + [s - np.eye(3)[i] for s in shifts for i in range(3)], 3)
+            if abs(abs(np.linalg.det(np.array(trip))) - 1.0 / (len(shifts) + 1)) < 0.01)
+        primitive = next(P[[1, 0, 2]] if np.linalg.det(P) < 0 else P for P in found
+                         if all(np.allclose(v @ np.linalg.inv(P), np.rint(v @ np.linalg.inv(P)))
+                                for v in shifts + list(np.eye(3))))
+    inv = np.linalg.inv(primitive)
+
+    def orbit(arms, p):
+        points = []
+        for A, b, _P in arms:
+            y = (((A @ np.asarray(p) + b) % 1.0) @ inv) % 1.0
+            y = np.where(np.isclose(y, 1.0), 0.0, y)
+            if not any(np.allclose((y - x + 0.5) % 1.0 - 0.5, 0.0) for x in points):
+                points.append(y)
+        return points
+
+    by = {p["letter"]: p for p in positions}
+    target = orbit(by[letter]["arms"], q)
+    first = orbit(general["arms"], (0.071, 0.187, 0.313))
+    second = orbit(general["arms"], (0.211, 0.353, 0.097))
+    typat = [0] * len(target) + [1] * len(first) + [2] * len(second)
+    lattice = Lattice((primitive @ conventional).tolist(),
+                      np.array(target + first + second).tolist(), periodic_dirs=[0, 1, 2])
+    return TBModel(lattice, spinful=False), typat
+
+
+@pytest.mark.data
+@pytest.mark.parametrize("sg, letter", _names_sample())
+def test_the_table_of_site_irrep_names_is_what_inducing_and_matching_gives(sg, letter):
+    """The shipped names are the site irreps whose invariants each row's band representation has.
+
+    At every stretch of the position, the stretches the carrying finds are the
+    file's reference points; at the reference point a crystal of the position's
+    orbit is read, the reference site's operations are the file's, and every row
+    of its site group, induced to every high-symmetry point and matched against
+    the tables of the stable real-space invariants, is the file's entry: the one
+    site irrep with the row's invariants, or none where two tie.  The file holds
+    no entry beyond those rows.
+    """
+    from pythtqc import _site_names, _spacegroup
+    entries = _site_names._document()["groups"][str(sg)][letter]
+    references = _site_names._stretches(sg, letter)
+    assert len(references) == len(entries)
+    for stretch, (q, entry) in enumerate(zip(_site_names._stretch_parameters(sg, letter),
+                                             entries)):
+        assert np.allclose(references[stretch], entry["reference"], atol=1e-6)
+        model, typat = _geometry_crystal(sg, letter, q)
+        group = _spacegroup._group_of(model, typat=typat, include_TR=True)
+        assert group and int(group.sg_number) == sg and group.name.endswith("1'"), str(group)
+        assignment = _tables._assign_orbitals(model, group, typat=typat)
+        site = int(assignment.site_of_orbital[0])
+        assert assignment.wyckoff_tables[site] == letter
+        anti = {int(s.ind) for s in group.symmetries if s.time_reversal}
+        table = tqc_sitechars.site_group_table(
+            group, tuple(int(i) for i in assignment.site_group[site] if int(i) not in anti),
+            antiunitary=tuple(int(i) for i in assignment.site_group[site] if int(i) in anti))
+        carried = _site_names.carry_to_own_site(group, letter, assignment.site_positions[site],
+                                                tuple(table.indices))
+        assert carried is not None and carried[0] == stretch
+        rotations, rows = _site_names._keyed_rows(group, table, carried[1])
+        assert [list(R) for R in rotations] == entry["rotations"]
+        stored = {tuple(chi): name for chi, name in entry["names"]}
+        assert set(stored) == set(rows), f"#{sg} {letter} stretch {stretch}"
+        context: dict = {}
+        for row, chi in enumerate(rows):
+            found = _site_names._name_by_invariants(group, assignment, site, table, row,
+                                                    context=context)
+            assert found, f"#{sg} {letter} stretch {stretch}: row {chi} matches no site irrep"
+            assert stored[chi] == (found[0] if len(found) == 1 else None), \
+                f"#{sg} {letter} stretch {stretch}: row {chi} is {found}"

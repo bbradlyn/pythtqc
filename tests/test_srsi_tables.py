@@ -251,8 +251,10 @@ def test_the_measured_counts_of_the_shipped_tables(
 def test_the_provenance_names_the_paper_and_the_versions_it_was_converted_against():
     """A table names the paper it was converted from and the versions it was read against.
 
-    Both documents are installed, each carrying its provenance block and the 217
-    groups; the provenance names no script and no source file.
+    The three documents are installed, each carrying its provenance block: the
+    two tables with the 217 groups, and the names of site irreps worked out from
+    them, where ``B2`` at ``4l`` of P4/mmm is the ``p`` tangential to the bond;
+    the provenance names no script and no source file.
     """
     status = tqr.srsi_status()
     assert status["data"] and status["reason"] is None
@@ -262,6 +264,19 @@ def test_the_provenance_names_the_paper_and_the_versions_it_was_converted_agains
             document = json.load(handle)
         assert set(document) == {"provenance", "groups"}
         assert len(document["groups"]) == 217
+    names = os.path.join(os.path.dirname(status["single"]), "site_irrep_names.json")
+    assert os.path.isfile(names)
+    with open(names, encoding="utf-8") as handle:
+        document = json.load(handle)
+    assert set(document) == {"provenance", "groups"}
+    assert document["provenance"]["doi"] == "https://doi.org/10.1038/s41467-026-74844-w"
+    assert not {"converter", "sources"} & set(document["provenance"])
+    entry = document["groups"]["123"]["l"][0]
+    # E, C2(x), m(z) and m(y) at (x, 0, 0), in the conventional cell of the tables
+    on = {(1, 0, 0, 0, 1, 0, 0, 0, 1): 1, (1, 0, 0, 0, -1, 0, 0, 0, -1): -1,
+          (1, 0, 0, 0, 1, 0, 0, 0, -1): 1, (1, 0, 0, 0, -1, 0, 0, 0, 1): -1}
+    row = [on[tuple(R)] for R in entry["rotations"]]
+    assert {tuple(chi): name for chi, name in entry["names"]}[tuple(row)] == "B2"
     for spinor in (False, True):
         table = tqr.srsi_tables(2, spinor=spinor)
         provenance = table.provenance

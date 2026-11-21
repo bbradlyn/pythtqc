@@ -17,10 +17,14 @@ position (:mod:`.._naming`), which is physics and needs no orientation conventio
 and it is the name a position is tabulated under, so a declaration may be
 written in it.  For a model whose states carry spin the match is against the
 group's **double-valued** entries, and what a row is named is the double-valued
-site corep the states carry there.  Where the entries at the position do not
-name the row — the tables list none there, or none whose band representation is
-the row's, the row's being composite — it keeps the site point group's own
-name: for a single-valued row the names of section 3 below, and for a
+site corep the states carry there.  Where the tables list no band
+representation at the position, a single-valued row takes the name of the site
+irrep the tables of the stable real-space invariants give the same invariants,
+read at each site by its own carrying to the position's own site
+(:mod:`.._site_names`), so that every site of an orbit reads one name.  Where
+neither names the row, because the band representation it induces is composite
+or the invariants do not single out one site irrep, it keeps the site point
+group's own name: for a single-valued row the names of section 3 below, and for a
 double-valued one the name the tables give that irrep of the point group at the
 origin of a symmorphic space group, the one position where every point group is
 a site group whole (:mod:`.._naming`).  A row nothing names has **no name** — an
@@ -309,8 +313,11 @@ class SiteGroupTable:
     named_by : tuple of str
         Where each row's label comes from: ``"tables"`` when the band
         representation it induces is the EBR entries at the site's own Wyckoff
-        position, ``"point group"`` when those entries do not name the row and
-        the name is the point group's own (the tables' names at the origin of a
+        position, ``"invariants"`` when the tables list no band representation
+        at the position and the tables of the stable real-space invariants give
+        a single-valued row the name of one site irrep, ``"point group"`` when
+        neither names the row and the name is the point group's own (the tables'
+        names at the origin of a
         symmorphic group, single- or double-valued), ``"Mulliken"`` when those
         names leave a single-valued row open and its Mulliken symbol of section
         3 names it, and ``"unnamed"`` when nothing reaches the row and the label
@@ -323,8 +330,9 @@ class SiteGroupTable:
         the orbital is (``A2``), so both have to resolve.  It is the name the
         group's **single-valued** entries give that row at the position —
         the same word the same orbital would be returned under on a spinless
-        model — and for a row those entries do not reach, the tables' name for
-        that irrep of the point group, which a row nothing names lacks.
+        model — and for a row those entries do not reach, the name the tables
+        of the stable real-space invariants give it, or else the tables' name
+        for that irrep of the point group, which a row nothing names lacks.
         Never a returned name — :attr:`..symmetry.AtomicLimitRow.irrep` is always
         from :attr:`labels`, and what the caller wrote is kept verbatim in
         :attr:`..symmetry.AtomicLimitRow.declared_as`.

@@ -313,6 +313,13 @@ MESH_TOL = 1e-9
 #: diamond, 1/6 in ``P3_121``).
 WYCKOFF_REFERENCE_TOL = 1e-4
 
+#: How far a point of a Wyckoff position, once placed on its variety in the
+#: tables' conventional cell, may sit from a point an operation fixes, or a
+#: displacement from a lattice vector, and be that point, in reduced
+#: coordinates.  The points compared are rationals of small denominator
+#: carried by integer matrices, exact to rounding.
+_ON_VARIETY = 1e-7
+
 #: How far a phase read off the states' matrices may sit from the root of unity
 #: it reads as.  The phases the class verdict compares -- the ratio of two
 #: commuting operations' matrices taken in the two orders, and the relations a

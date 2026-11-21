@@ -39,7 +39,7 @@ What each thing is called where a call returns it.
 | the orbital function | `function`, the word a declaration wrote, spelled as `characters=` takes it; blank on a row nothing declared a function for | the atomic-limit table |
 | the site irrep | `irrep`, and `declared_irrep` for what a declaration resolved to | the atomic-limit table; `rep.characters.irreps`, one per orbital |
 | how a site irrep is known | `determined_by`: `declaration`, `declaration not carried`, `hamiltonian` or `lowest-l` | the atomic-limit table |
-| where its name comes from | `named_by`: `tables`, `point group`, `Mulliken` or `unnamed` | the atomic-limit table |
+| where its name comes from | `named_by`: `tables`, `invariants`, `point group`, `Mulliken` or `unnamed` | the atomic-limit table |
 | the orbitals the Hamiltonian binds into one carrier of a site irrep | a multiplet: `multiplet` on a row; per site, `rep.multiplets` | the atomic-limit table; `r.rep` |
 | a choice of the one-dimensional characters the hoppings leave open, one on each coupled part | a labelling: a declaration fixes it, and the lowest-ℓ rule makes it otherwise; `determined_by` says which rows rest on it, and `note` which band sets' labels | the atomic-limit table; `hsp_table` |
 | a conserved pseudospin, and the site content assigned its copies | `multiplicity_spaces`, one `MultiplicitySpace` per orbit: its `content` the one assigned, `contents` every one the group's table admits, `n_representations` how many representations of the copies it admits | the atomic-limit table |

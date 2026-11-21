@@ -770,13 +770,14 @@ and a **labelling** of the representation is one choice of those characters;
 | `hamiltonian` | nothing was declared for this orbital, and every labelling the declarations leave open gives it this site irrep: an orbital the hoppings fix relative to a declared one, or an irrep such as the `E` of a `(p_x, p_y)` pair at a `3m` site, which no labelling changes |
 | `lowest-l` | nothing was declared, and the labellings left open give it different site irreps; the one the lowest-ℓ rule picks is shown, and `characters=` states another ([the lowest-ℓ rule](../background/measurement.md#the-lowest-angular-momentum-rule)) |
 
-`named_by` takes four:
+`named_by` takes five:
 
 | value | where the name comes from |
 |---|---|
 | `tables` | the tables list the band representation these states induce at this Wyckoff position, and the name is the site irrep those entries carry |
-| `point group` | the tables' entries at this position do not name it, because they list none there or none whose band representation is this row's; the name is the one the tables give that irrep of the site point group, read at the origin of a symmorphic space group, so one irrep has one name at every site. One of the exceptions to a site irrep at a maximal Wyckoff position inducing an elementary band representation, the `E` at `3c` of `P-43m`, reads this way |
-| `Mulliken` | those names follow an orientation no table fixes at this site, so the name is the row's Mulliken symbol: `B1` and `B2` of an `mm2` line whose twofold axis lies along `x` |
+| `invariants` | the tables list no band representation at this position, and the tables of the stable real-space invariants single out the site irrep these states carry there, a single-valued one: the name is theirs |
+| `point group` | the tables' entries at this position do not name it, because they list none there and the tables of the stable real-space invariants do not single it out, or none whose band representation is this row's; the name is the one the tables give that irrep of the site point group, read at the origin of a symmorphic space group, so one irrep has one name at every site. One of the exceptions to a site irrep at a maximal Wyckoff position inducing an elementary band representation, the `E` at `3c` of `P-43m`, reads this way |
+| `Mulliken` | those names follow an orientation no table fixes at this site, so the name is the row's Mulliken symbol: `B1` and `B2` of an `mm2` line in a group the tables of the invariants do not cover, or where they do not tell the two apart |
 | `unnamed` | nothing named the row: `irrep` is blank, and the characters are the whole statement |
 
 A sum of irreps is named as directly as the least direct of its terms. Under
