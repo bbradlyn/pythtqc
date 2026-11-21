@@ -75,6 +75,7 @@ from pythtqc import _build
 from pythtqc import _layers
 from pythtqc import _matrices
 from pythtqc import _measure
+from pythtqc import _multiplets
 from pythtqc import _realized
 from pythtqc import _spacegroup
 from pythtqc import _tables
@@ -805,7 +806,7 @@ def test_i213_site_permutations_follow_the_measured_action(i213_bundle):
     here because 36 of the 96 (operation, site) images sit in a *different*
     unit cell.
     """
-    _, group, assignment, validated, rep = i213_bundle
+    model, group, assignment, validated, rep = i213_bundle
     perms = np.asarray(assignment.permutations, int)
     shifts = np.asarray(assignment.lattice_shift, int)
     assert perms.shape == (24, 4) and shifts.shape == (24, 4, 3)
@@ -841,6 +842,23 @@ def test_i213_site_permutations_follow_the_measured_action(i213_bundle):
     # shifted operation is counted as a site symmetry of this site
     assert set(assignment.site_group[0]) == set(fixes)
     assert len([i for i in fixes if not group.symmetries[pos[i]].time_reversal]) == 3
+
+    # the orbit of the sites is what the operations carry them into by any
+    # product of them, also where the ones measured to hold do not yet close
+    # into a group: two threefold axes without their squares, as operations near
+    # the covariance gate can leave them before the descent resolves the closure,
+    # carry the four sites into one orbit, and the multiplets' blocks are read
+    held = [pos[i] for i in (1, 5, 8)]
+    syms = group.symmetries
+    prod = group.get_product_table(get_diff=False)
+    assert any(int(prod[a][b]) not in held for a in held for b in held), "not a group"
+    layout = rep.multiplets
+    cperm = _multiplets._channel_perms(model, assignment, syms, held, layout, None)
+    classes, ncls = _matrices._channel_classes(cperm, held, layout._nchan)
+    assert ncls == 1 and classes.tolist() == [0, 0, 0, 0]
+    blocks = _multiplets._multiplet_blocks(model, group, assignment, None, validated, layout,
+                                           held)
+    assert not isinstance(blocks, Refusal), str(blocks)
 
 
 def test_i213_rep_reproduces_the_nonsymmorphic_factor_system(i213_bundle):

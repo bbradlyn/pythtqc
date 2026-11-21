@@ -1978,14 +1978,24 @@ def _channel_classes(cperm, u_pos, nchan):
     """Which sign class each multiplet belongs to — the orbits of the multiplets.
 
     The tensor structure's freedom is one scalar per class per generator, so a
-    class is what the operations under test carry into one another.
+    class is what the operations under test carry into one another, by any
+    product of them: the orbits under the group they generate.  On a group the
+    images of one multiplet are its whole orbit; operations measured to hold
+    that do not yet close into a group, before the descent resolves them, carry
+    a multiplet further only by their products.
     """
     cls = -np.ones(int(nchan), dtype=int)
     ncls = 0
     for c in range(int(nchan)):
         if cls[c] < 0:
-            for d in {int(cperm[p][c]) for p in u_pos} | {c}:
-                cls[d] = ncls
+            cls[c] = ncls
+            orbit = [c]
+            for a in orbit:
+                for p in u_pos:
+                    d = int(cperm[p][a])
+                    if cls[d] < 0:
+                        cls[d] = ncls
+                        orbit.append(d)
             ncls += 1
     return cls, ncls
 

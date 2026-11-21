@@ -65,6 +65,10 @@
   fourfold site of a square lattice, stated as two multiplets, give `Pmm21'` on a
   substrate and `Pmmm1'` free-standing or stacked into a crystal, where it raised
   `InternalError`.
+- `realized_group` returns a group where it raised `IndexError`, on a model whose
+  operations measured to hold do not close into a group, as a numerical model's
+  operations near its tolerance can: the largest group they contain, as for any such
+  model.
 
 ## 0.1.0a3 — the second public version
 
