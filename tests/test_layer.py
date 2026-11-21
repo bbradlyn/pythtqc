@@ -386,20 +386,20 @@ def test_a_flat_model_defaults_to_the_substrate_and_a_slab_to_free_standing():
     """
     flat = tqg.realized_group(kane_mele(0.0, -1.0, 0.3, 0.0), characters={0: "A1"})
     assert not isinstance(flat, Refusal), str(flat)
-    assert flat.environment == "substrate"
-    assert flat.environment_declared is False
+    assert flat.environment.kind == "substrate"
+    assert flat.environment.declared is False
     assert (flat.group.number_str, len(flat.operations)) == ("183.186", 24)
-    assert len(flat.validated.indices) == 24
-    w = flat.cross_check
-    assert (w["outcome"], w["agrees"], w["free_standing"]) == ("not compared", None, None)
-    assert w["substrate"]["number_str"] == "183.186"
+    assert len(flat.numerical.validated._indices) == 24
+    w = flat.environment.cross_check
+    assert (w.outcome, w.agrees, w.free_standing) == ("not compared", None, None)
+    assert w.substrate.number_str == "183.186"
     assert ("on a substrate (the default), not compared with the free-standing layer: the "
             "declaration is written in the substrate's site irreps") in repr(flat)
 
     slab = tqg.realized_group(buckled_graphene(), cross_check=False)
     assert not isinstance(slab, Refusal), str(slab)
-    assert slab.environment == "free-standing"
-    assert slab.environment_declared is False
+    assert slab.environment.kind == "free-standing"
+    assert slab.environment.declared is False
     assert (slab.group.number_str, len(slab.operations)) == ("164.86", 24)
 
 
@@ -479,22 +479,22 @@ def test_a_free_standing_kane_mele_reads_its_whole_layer_group(km_inversion_free
     r = km_inversion_free_standing
     assert not isinstance(r, Refusal), str(r)
     assert (r.group.number_str, r.group.name, len(r.operations)) == ("191.234", "P6/mmm1'", 48)
-    assert len(r.validated.indices) == 48
+    assert len(r.numerical.validated._indices) == 48
     assert r.group._provenance == "realized"
-    assert r.environment == "free-standing" and r.environment_declared is True
+    assert r.environment.kind == "free-standing" and r.environment.declared is True
     assert "; free-standing" in repr(r)
     assert "(the default)" not in repr(r), "this one was declared"
     assert r.descent is None, "the Hamiltonian obeys the whole cell group"
-    assert r.decoration["n_atoms"] == 0 and r.decoration["dz"] is None
-    assert "free-standing" in r.decoration["recipe"]
+    assert r.decoration.n_atoms == 0 and r.decoration.dz is None
+    assert "free-standing" in r.decoration.recipe
     # the declared p_z is A2'' of -6m2, returned on this spinful model as the corep -E2
-    assert list(r.rep.characters.irreps) == ["-E2", "-E2"]
-    assert len(r.validated.undetermined) == 48
-    assert len(r.rep.indices) == 48, "every operation obeyed is represented, free-standing"
+    assert list(r.rep._characters.irreps) == ["-E2", "-E2"]
+    assert len(r.numerical.validated.undetermined) == 48
+    assert len(r.rep._indices) == 48, "every operation obeyed is represented, free-standing"
     # every antiunitary operation obeyed: the realization is grey and nothing moves
-    assert r.time_reversal["outcome"] == "kept"
-    assert r.time_reversal["n_broken"] == 0
-    assert r.time_reversal["n_obeyed"] == r.time_reversal["n_antiunitary"] == 24
+    assert r.time_reversal.outcome == "kept"
+    assert r.time_reversal.n_broken == 0
+    assert r.time_reversal.n_obeyed == r.time_reversal.n_antiunitary == 24
     assert r.beyond_grey is None
     assert "time reversal" not in repr(r), "nothing happened, so nothing is said"
 
@@ -559,20 +559,20 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
     r = p41_chiral_substrate            # the session's shared record of that reading
     assert not isinstance(r, Refusal), str(r)
     assert (r.group.number_str, r.group.name, len(r.operations)) == ("75.2", "P41'", 8)
-    assert len(r.validated.indices) == 8
-    assert r.environment == "substrate"
-    assert r.descent["from"]["number_str"] == "99.164"
-    assert r.assignment.wyckoff_spglib == ("c",)
-    assert {b["name"] for b in r.descent["dropped"]} >= {
+    assert len(r.numerical.validated._indices) == 8
+    assert r.environment.kind == "substrate"
+    assert r.descent.cell_group.number_str == "99.164"
+    assert r._assignment.wyckoff_spglib == ("c",)
+    assert {b.name for b in r.descent.dropped} >= {
         "m(x)", "m(y)", "m([110])", "m([1-10])",
         "m(x)'", "m(y)'", "m([110])'", "m([1-10])'"}
 
-    w = r.cross_check
-    assert w["outcome"] == "agree" and w["agrees"] is True
-    assert w["free_standing"]["number_str"] == w["substrate"]["number_str"] == "75.2"
-    assert w["refusal"] is None, "nothing over there refused"
-    assert w["tie"] == (), "the free-standing lift is unique"
-    assert "the free-standing group #75.2 agrees" in repr(r)
+    w = r.environment.cross_check
+    assert w.outcome == "agree" and w.agrees is True
+    assert w.free_standing.number_str == w.substrate.number_str == "75.2"
+    assert w.refusal is None, "nothing over there refused"
+    assert w.tie == (), "the free-standing lift is unique"
+    assert "the free-standing group P41' #75.2 agrees" in repr(r)
 
     # the same cell with every centre jittered by 1e-5, as a fitted model's can
     # be, its precision declared: the centres are made exact before the setting
@@ -582,25 +582,25 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
     fitted = tqg.realized_group(jittered(exact, 1e-5), precision=1e-4)
     assert not isinstance(fitted, Refusal), str(fitted)
     assert (fitted.group.number_str, len(fitted.operations)) == ("75.2", 8)
-    assert fitted.rep.characters.irreps == r.rep.characters.irreps
-    assert (tqw.hsp_table(fitted.rep, bands=2).counts
-            == tqw.hsp_table(r.rep, bands=2).counts)
-    assert fitted.positions["frame"] == "model"
+    assert fitted.rep._characters.irreps == r.rep._characters.irreps
+    assert (tqw.hsp_table(fitted, bands=2).counts
+            == tqw.hsp_table(r, bands=2).counts)
+    assert fitted.numerical.positions.frame == "model"
     assert float(np.abs(np.asarray(fitted.model.orb_vecs)[:, :2]
                         - np.asarray(exact.orb_vecs)).max()) <= _FEW_ULP
-    assert fitted.cross_check["outcome"] == "agree"
+    assert fitted.environment.cross_check.outcome == "agree"
 
     # the free-standing reading: every fiber's other member refuted by its own lift
     free = tqg.realized_group(tqc_models.p41_flat_band(chiral=True), cross_check=False,
                               **FREE)
     assert not isinstance(free, Refusal), str(free)
     assert (free.group.number_str, len(free.operations)) == ("75.2", 8)
-    assert free.rep.characters.irreps == r.rep.characters.irreps
-    step = free.descent["steps"][0]
-    assert step["refuted_by"] == {"no symmetry matrix": 32, "tensor structure": 24}
-    assert not step.get("tie")
-    rotoinversions = {b["name"]: b["refuted_by"] for b in free.descent["dropped"]
-                      if b["name"] in ("S4(z)", "S4^-1(z)")}
+    assert free.rep._characters.irreps == r.rep._characters.irreps
+    step = free.descent.steps[0]
+    assert step.refuted_by == {"no symmetry matrix": 32, "tensor structure": 24}
+    assert not step.tie
+    rotoinversions = {b.name: b.refuted_by for b in free.descent.dropped
+                      if b.name in ("S4(z)", "S4^-1(z)")}
     assert rotoinversions == {"S4(z)": "tensor structure", "S4^-1(z)": "tensor structure"}
 
     # a declaration's readings: the vertical mirrors kept, and the substrate agrees
@@ -610,41 +610,41 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
     hc = tqg.realized_group(pxpy_centred(), characters=declared, **FREE)
     assert not isinstance(hc, Refusal), str(hc)
     assert (hc.group.number_str, hc.group.name, len(hc.operations)) == ("156.50", "P3m11'", 12)
-    assert hc.decoration["declared"]["to"]["number_str"] == "187.210"
+    assert hc.decoration.declared.subgroup.number_str == "187.210"
     d = hc.descent
-    assert d["from"]["number_str"] == "187.210" and d["dropped_by"]["declaration"] == 12
-    assert d["steps"][0]["declaration"]["names"] == (mirrors, twofolds)
+    assert d.cell_group.number_str == "187.210" and d.dropped_by["declaration"] == 12
+    assert d.steps[0].declaration.names == (mirrors, twofolds)
     assert "it holds 6 operations that keep the layer's side (R[2,2] = +1) where the " \
-        "next holds 3" in d["note"]
-    w = hc.cross_check
-    assert w["outcome"] == "agree" and w["substrate"]["number_str"] == "156.50"
-    assert {t["name"] for t in w["tie"]} == set(twofolds[3:])
-    assert {t["environment"] for t in w["tie"]} == {"free-standing"}
-    assert "the one the tie rule keeps" in w["note"]
+        "next holds 3" in d.note
+    w = hc.environment.cross_check
+    assert w.outcome == "agree" and w.substrate.number_str == "156.50"
+    assert {t.name for t in w.tie} == set(twofolds[3:])
+    assert {t.environment for t in w.tie} == {"free-standing"}
+    assert "the one the tie rule keeps" in w.note
     apart = tqg.realized_group(pxpy_centred(t_sp=0.0, t_ss=-0.4), characters=declared,
                                **FREE)
     assert not isinstance(apart, Refusal), str(apart)
-    assert (apart.group.number_str, apart.descent["from"]["number_str"]) == \
+    assert (apart.group.number_str, apart.descent.cell_group.number_str) == \
         ("156.50", "187.210"), "the s decoupled from the doublets: the same descent"
-    assert apart.descent["steps"][0]["declaration"]["names"] == (mirrors, twofolds)
-    assert apart.rep.characters.irreps == hc.rep.characters.irreps
-    assert apart.cross_check["outcome"] == "agree"
+    assert apart.descent.steps[0].declaration.names == (mirrors, twofolds)
+    assert apart.rep._characters.irreps == hc.rep._characters.irreps
+    assert apart.environment.cross_check.outcome == "agree"
     for e_s, t_ss, first in ((0.5, -0.4, True), (-0.2, 0.25, False), (-0.2, 0.25, True)):
         words = {(1, 2): "E'", (3, 4): "E''"} if first else {(0, 1): "E'", (2, 3): "E''"}
         moved = tqg.realized_group(pxpy_centred(t_sp=0.0, e_s=e_s, t_ss=t_ss, s_first=first),
                                    typat=[1, 0, 0, 0, 0] if first else [0, 0, 0, 0, 1],
                                    characters=words, **FREE)
         assert not isinstance(moved, Refusal), f"{(e_s, t_ss, first)}: {moved}"
-        assert (moved.group.number_str, moved.descent["from"]["number_str"]) == \
+        assert (moved.group.number_str, moved.descent.cell_group.number_str) == \
             ("156.50", "187.210"), (e_s, t_ss, first)
-        assert moved.cross_check["outcome"] == "agree"
-        assert moved.cross_check["substrate"]["number_str"] == "156.50"
-        assert sorted(moved.rep.characters.irreps) == sorted(hc.rep.characters.irreps)
+        assert moved.environment.cross_check.outcome == "agree"
+        assert moved.environment.cross_check.substrate.number_str == "156.50"
+        assert sorted(moved.rep._characters.irreps) == sorted(hc.rep._characters.irreps)
     bare = tqg.realized_group(pxpy_centred(t_sp=0.0, t_ss=-0.4), **FREE)
     assert not isinstance(bare, Refusal), str(bare)
-    assert (bare.group.number_str, len(bare.validated.indices)) == ("191.234", 48)
-    assert bare.cross_check["outcome"] == "agree"
-    assert bare.cross_check["substrate"]["number_str"] == "183.186"
+    assert (bare.group.number_str, len(bare.numerical.validated._indices)) == ("191.234", 48)
+    assert bare.environment.cross_check.outcome == "agree"
+    assert bare.environment.cross_check.substrate.number_str == "183.186"
 
     # the other choice: the statement fails for it, and that is "ambiguous"
     ranked = _subgroups._tie_ranked
@@ -653,21 +653,21 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
     other = tqg.realized_group(tqc_models.p41_flat_band(chiral=True))
     assert not isinstance(other, Refusal), str(other)
     assert other.group.number_str == "75.2", "the substrate reading has no tie"
-    w = other.cross_check
-    assert (w["outcome"], w["free_standing"]["number_str"], w["tie"]) == ("agree", "75.2", ()), \
+    w = other.environment.cross_check
+    assert (w.outcome, w.free_standing.number_str, w.tie) == ("agree", "75.2", ()), \
         "nor has the free-standing one, so the rule's order moves nothing"
 
     turned = tqg.realized_group(pxpy_centred(), characters=declared, **FREE)
     assert not isinstance(turned, Refusal), str(turned)
     assert (turned.group.number_str, turned.group.name) == ("149.22", "P3121'"), \
         "the twofolds' reading"
-    w = turned.cross_check
-    assert w["outcome"] == "ambiguous" and w["agrees"] is None
-    assert w["substrate"]["number_str"] == "156.50"
-    assert {t["name"] for t in w["tie"]} == set(mirrors[3:])
-    assert ("{" + ", ".join(twofolds) + "} and {" + ", ".join(mirrors) + "}") in w["note"]
+    w = turned.environment.cross_check
+    assert w.outcome == "ambiguous" and w.agrees is None
+    assert w.substrate.number_str == "156.50"
+    assert {t.name for t in w.tie} == set(mirrors[3:])
+    assert ("{" + ", ".join(twofolds) + "} and {" + ", ".join(mirrors) + "}") in w.note
     assert ("does not hold for that one; it holds for {" + ", ".join(mirrors)
-            + "} free-standing and P3m11' #156.50 on a substrate") in w["note"], w["note"]
+            + "} free-standing and P3m11' #156.50 on a substrate") in w.note, w.note
 
     # a layer that breaks time reversal, the rule reversed for its free-standing
     # reading alone: the two readings keep different members of their ties
@@ -692,12 +692,12 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
     split = tqg.realized_group(rashba, **SUB)
     assert not isinstance(split, Refusal), str(split)
     assert (split.group.number_str, split.group.name) == ("168", "P6")
-    assert split.time_reversal["outcome"] == "measured broken"
-    w = split.cross_check
-    assert w["outcome"] == "ambiguous" and w["agrees"] is None
-    assert (w["free_standing"]["number_str"], w["substrate"]["number_str"]) == ("187", "168")
+    assert split.time_reversal.outcome == "measured broken"
+    w = split.environment.cross_check
+    assert w.outcome == "ambiguous" and w.agrees is None
+    assert (w.free_standing.number_str, w.substrate.number_str) == ("187", "168")
     assert ("it holds for P-6m2 #187 free-standing and {E, C3(z), C3^-1(z), m([010]), "
-            "m(x), m([1-10])} on a substrate") in w["note"], w["note"]
+            "m(x), m([1-10])} on a substrate") in w.note, w.note
     assert len(selections) == 2
     for sel in selections:
         assert len(sel.held) == len(sel.descent) == 1
@@ -730,22 +730,22 @@ def test_words_the_other_environment_has_none_for_are_not_compared():
     """
     down = tqg.realized_group(kane_mele(0.0, -1.0, 0.3, 0.25), characters={0: "A1"}, **SUB)
     assert not isinstance(down, Refusal), str(down)
-    assert (down.group.number_str, len(down.validated.indices)) == ("183.186", 24)
-    w = down.cross_check
-    assert (w["outcome"], w["free_standing"]["number_str"], w["substrate"]["number_str"]) \
+    assert (down.group.number_str, len(down.numerical.validated._indices)) == ("183.186", 24)
+    w = down.environment.cross_check
+    assert (w.outcome, w.free_standing.number_str, w.substrate.number_str) \
         == ("agree", "183.186", "183.186"), "the free-standing reading reads A1 in 3m"
 
     words = {0: "A1", 1: "A2"}
     split = tqg.realized_group(graphene(0.0, -1.0), characters=words, **SUB)
     assert not isinstance(split, Refusal), str(split)
-    assert (split.group.number_str, split.group.name, len(split.validated.indices)) == \
+    assert (split.group.number_str, split.group.name, len(split.numerical.validated._indices)) == \
         ("143.2", "P31'", 6)
-    assert split.descent["dropped_by"] == {"declaration": 6}
-    w = split.cross_check
-    assert (w["outcome"], w["agrees"], w["free_standing"], w["refusal"]) == \
+    assert split.descent.dropped_by == {"declaration": 6}
+    w = split.environment.cross_check
+    assert (w.outcome, w.agrees, w.free_standing, w.refusal) == \
         ("not compared", None, None, None)
-    assert w["substrate"]["number_str"] == "143.2" and w["rows"] == ()
-    assert "the declaration is written in the substrate's site irreps" in w["note"]
+    assert w.substrate.number_str == "143.2" and w.rows == ()
+    assert "the declaration is written in the substrate's site irreps" in w.note
     assert ("on a substrate, not compared with the free-standing layer: the declaration "
             "is written in the substrate's site irreps") in repr(split)
     told = tqg.realized_group(graphene(0.0, -1.0), characters=words, **FREE)
@@ -824,16 +824,16 @@ def test_a_flat_spinless_layer_keeps_sigma_h_and_the_declaration_names_it():
     r = tqg.realized_group(square_layer(), characters={0: "pz"}, cross_check=False, **FREE)
     assert not isinstance(r, Refusal), str(r)
     assert (r.group.number_str, len(r.operations)) == ("123.340", 32)
-    assert len(r.validated.indices) == 32
-    assert list(r.rep.characters.irreps) == ["A2u"]
-    chars = r.rep.characters.orbitals[0].generator_character
+    assert len(r.numerical.validated._indices) == 32
+    assert list(r.rep._characters.irreps) == ["A2u"]
+    chars = r.rep._characters.orbitals[0].generator_character
     assert complex(chars["m(z)"]).real == pytest.approx(-1.0, abs=1e-9)
     assert complex(chars["i"]).real == pytest.approx(-1.0, abs=1e-9)
 
-    partners = _descent._mirror_partners(r.group, r.validated, r.assignment)
+    partners = _descent._mirror_partners(r.group, r.numerical.validated, r._assignment)
     assert len(partners) == 16 and len(set(partners) | set(partners.values())) == 32
-    decls, _layout = _descent._declared_contents(r.model, r.group, r.assignment, r.validated,
-                                            r.rep.multiplets, spin=None,
+    decls, _layout = _descent._declared_contents(r.model, r.group, r._assignment, r.numerical.validated,
+                                            r.rep._multiplets, spin=None,
                                             characters={0: "pz"})
     assert _descent._mirror_sign(r.group, partners, decls) == {"sign": -1,
                                                           "determined_by": "declaration"}
@@ -854,7 +854,7 @@ def test_a_spinless_layers_sigma_h_is_never_broken_by_the_hoppings(mix, conserve
     two orbitals, and what it measures is that they are equal.  Without it the
     two never meet: their relative parity is not measured at all, which the
     record says as a conserved operator — a phase on each orbital separately
-    commutes with ``H(k)`` at every ``k``, so ``conserved["dim"]`` is ``1`` at
+    commutes with ``H(k)`` at every ``k``, so ``conserved.dim`` is ``1`` at
     ``mix = 0`` and ``0`` with the term.  The labels are equal either way,
     because where nothing measures a relative character the convention is the
     **least twist** and that is the trivial one; the contrast the physics
@@ -878,26 +878,26 @@ def test_a_spinless_layers_sigma_h_is_never_broken_by_the_hoppings(mix, conserve
     if not mix:
         told = tqg.realized_group(square_s_pz(), characters={0: "s", 1: "pz"},
                                   cross_check=False, **FREE)
-        lower = tqe.decompose(tqw.hsp_table(told.rep, bands=1), told.group, rep=told.rep)
+        lower = tqe.decompose(tqw.hsp_table(told, bands=1), told.group, rep=told.rep)
         assert isinstance(lower, Refusal) and lower.gate == "not_a_band_structure", str(lower)
-        both = tqe.decompose(tqw.hsp_table(told.rep, bands=2), told.group, rep=told.rep)
+        both = tqe.decompose(tqw.hsp_table(told, bands=2), told.group, rep=told.rep)
         assert both.solution_strings() == (
             "1 x A1g↑G(1)@1a(4/mmm1',4/mmm) + 1 x A2u↑G(1)@1a(4/mmm1',4/mmm)",)
         assert sorted(both.restriction.outside_layer) == ["1b", "1d", "2e"]
     r = tqg.realized_group(square_s_pz(mix), **FREE)
     assert not isinstance(r, Refusal), str(r)
     assert (r.group.number_str, len(r.operations)) == ("123.340", 32)
-    assert len(r.validated.indices) == 32 and r.descent is None
-    assert list(r.rep.characters.irreps) == ["A1g", "A1g"]
-    chars = [o.generator_character["m(z)"] for o in r.rep.characters.orbitals]
+    assert len(r.numerical.validated._indices) == 32 and r.descent is None
+    assert list(r.rep._characters.irreps) == ["A1g", "A1g"]
+    chars = [o.generator_character["m(z)"] for o in r.rep._characters.orbitals]
     assert abs(chars[0] - chars[1]) < 1e-9
-    assert r.conserved["dim"] == conserved, (
+    assert r.conserved.dim == conserved, (
         "the parity-mixing term is exactly what removes the conserved operator "
         "that left the relative parity open")
-    w = r.cross_check
-    assert w["outcome"] == "agree"
-    assert w["free_standing"]["number_str"] == "123.340"
-    assert w["substrate"]["number_str"] == "99.164" and w["substrate"]["size"] == 16
+    w = r.environment.cross_check
+    assert w.outcome == "agree"
+    assert w.free_standing.number_str == "123.340"
+    assert w.substrate.number_str == "99.164" and w.substrate.size == 16
 
 
 # ---------------------------------------------------------------------------
@@ -944,23 +944,23 @@ def test_a_buckled_honeycomb_is_read_from_its_real_geometry():
     r = tqg.realized_group(buckled(kane_mele(0.0, -1.0, 0.3, 0.0)), cross_check=False)
     assert not isinstance(r, Refusal), str(r)
     assert (r.group.number_str, r.group.name, len(r.operations)) == ("164.86", "P-3m11'", 24)
-    assert len(r.validated.indices) == 24 and r.descent is None
-    assert r.environment == "free-standing" and r.environment_declared is False
+    assert len(r.numerical.validated._indices) == 24 and r.descent is None
+    assert r.environment.kind == "free-standing" and r.environment.declared is False
     assert _names(r.group) == ["C2([010])", "C2([1-10])", "C2(x)", "C3(z)", "C3^-1(z)",
                                "E", "S3(z)", "S3^-1(z)", "i", "m([010])", "m([1-10])",
                                "m(x)"]
-    assert r.presentation["tilted"] is None
-    valence = tqe.decompose(tqw.hsp_table(r.rep, bands=2), r.group, rep=r.rep)
+    assert r.environment.presentation.tilted is None
+    valence = tqe.decompose(tqw.hsp_table(r, bands=2), r.group, rep=r.rep)
     assert (valence.verdict, valence.certificate) == ("none", "proof"), valence.summary()
     assert valence.signed_combinations["n_solutions"] == 0
     assert sorted(valence.restriction.outside_layer) == ["1b", "3f"]
     assert ("1b and 3f lie outside the slab, so their band representations are left "
             "out") in valence.summary()
-    whole = tqe.decompose(tqw.hsp_table(r.rep, bands=4), r.group, rep=r.rep)
+    whole = tqe.decompose(tqw.hsp_table(r, bands=4), r.group, rep=r.rep)
     assert whole.solution_strings() == ("1 x -E1↑G(4)@2d(3m1',3m)",)
 
     def indicator(realized, bands):
-        return tqe.symmetry_indicator(tqw.hsp_table(realized.rep, bands=bands),
+        return tqe.symmetry_indicator(tqw.hsp_table(realized, bands=bands),
                                       realized.group, rep=realized.rep, bands=bands)
 
     # its class, on the decoupled stack at the orbitals' heights
@@ -973,14 +973,14 @@ def test_a_buckled_honeycomb_is_read_from_its_real_geometry():
                                                             pytest.approx(0.3))
     identity = comp["gates"]["hamiltonian_identity"]
     assert identity["at_zero"] == 0.0 and identity["residual"] <= identity["threshold"]
-    pair = tqr.srsi_of_bands(tqw.hsp_table(r.rep, bands=2), r.group, rep=r.rep, bands=2)
+    pair = tqr.srsi_of_bands(tqw.hsp_table(r, bands=2), r.group, rep=r.rep, bands=2)
     assert pair.stable and [str(x) for x in pair.theta_Z] == \
         ["-1/2", "0", "0", "0", "0", "0", "0", "1/2", "0"]
-    assert tqr.srsi_of_bands(tqw.hsp_table(r.rep, bands=4), r.group, rep=r.rep,
+    assert tqr.srsi_of_bands(tqw.hsp_table(r, bands=4), r.group, rep=r.rep,
                              bands=4).theta_Z == tqr.srsi_of_model(r).theta_Z
 
     def labels(realized, bands):
-        return tqw.hsp_table(realized.rep, bands=bands).counts
+        return tqw.hsp_table(realized, bands=bands).counts
 
     layer = buckled(kane_mele(0.0, -1.0, 0.3, 0.0))
     lat = np.asarray(layer.lat_vecs, dtype=float)
@@ -991,13 +991,13 @@ def test_a_buckled_honeycomb_is_read_from_its_real_geometry():
     assert _names(t.group) == _names(r.group)
     assert labels(t, 2) == labels(r, 2)
     assert indicator(t, 2).values == (1, 0)
-    assert t.source is src and np.abs(np.asarray(t.model.lat_vecs)[2, :2]).max() < 1e-12
+    assert t.numerical.source is src and np.abs(np.asarray(t.model.lat_vecs)[2, :2]).max() < 1e-12
     where = [np.asarray(m.orb_vecs) @ np.asarray(m.lat_vecs) for m in (t.model, src)]
     assert np.abs(where[0] - where[1]).max() < 1e-12, "every orbital where it was"
-    moved = t.presentation["tilted"]
-    assert moved["tilt"] == pytest.approx((0.3, 0.2), abs=1e-12)
-    assert moved["n_moved"] == 2 and moved["max_move"] == pytest.approx(0.0015, abs=1e-12)
-    assert max(moved["spectrum_residual"], t.presentation["residual"]) < 1e-12
+    moved = t.environment.presentation.tilted
+    assert moved.tilt == pytest.approx((0.3, 0.2), abs=1e-12)
+    assert moved.n_moved == 2 and moved.max_move == pytest.approx(0.0015, abs=1e-12)
+    assert max(moved.spectrum_residual, t.environment.presentation.residual) < 1e-12
 
     cut = fcc_s().cut_piece(3, 2)
     plane = np.asarray(cut.lat_vecs, dtype=float)[:2]
@@ -1009,12 +1009,12 @@ def test_a_buckled_honeycomb_is_read_from_its_real_geometry():
     assert (a.group.name, a.group.number_str) == (b.group.name, b.group.number_str) \
         == ("P-3m11'", "164.86")
     assert labels(a, 3) == labels(b, 3)
-    assert list(a.rep.characters.irreps) == list(b.rep.characters.irreps)
-    assert a.presentation["tilted"]["n_moved"] == 2 and b.presentation["tilted"] is None
+    assert list(a.rep._characters.irreps) == list(b.rep._characters.irreps)
+    assert a.environment.presentation.tilted.n_moved == 2 and b.environment.presentation.tilted is None
     one = tqg.realized_group(fcc_s().cut_piece(1, 2), cross_check=False)
     assert (one.group.name, one.group.number_str) == ("P6/mmm1'", "191.234")
-    assert one.presentation["tilted"]["n_moved"] == 0
-    assert one.presentation["residual"] == 0.0, "nothing moved: bit for bit"
+    assert one.environment.presentation.tilted.n_moved == 0
+    assert one.environment.presentation.residual == 0.0, "nothing moved: bit for bit"
 
 
 @pytest.mark.slow
@@ -1042,18 +1042,18 @@ def test_the_buckled_honeycomb_on_a_substrate_is_p3m1():
     r = tqg.realized_group(buckled(kane_mele(0.0, -1.0, 0.3, 0.0)), **SUB)
     assert not isinstance(r, Refusal), str(r)
     assert (r.group.number_str, r.group.name, len(r.operations)) == ("156.50", "P3m11'", 12)
-    assert len(r.validated.indices) == 12
+    assert len(r.numerical.validated._indices) == 12
     assert r.descent is None, "nothing was allowed that the geometry does not have"
-    assert r.environment_declared is True
+    assert r.environment.declared is True
     assert _names(r.group) == ["C3(z)", "C3^-1(z)", "E", "m([010])", "m([1-10])", "m(x)"]
-    assert r.assignment.site_orbitals == ((0,), (1,)), "the sublattices stay apart"
-    assert r.assignment.wyckoff_spglib == ("c", "b")
-    w = r.cross_check
-    assert w["outcome"] == "agree" and w["free_standing"]["number_str"] == "164.86"
-    assert w["missing"] == () and w["extra"] == ()
-    assert w["flipping"] == () and w["unmapped"] == ()
-    assert len(w["rows"]) == 12, "one row per substrate operation, both cosets"
-    assert "preserves the layer's normal" in w["note"]
+    assert r._assignment.site_orbitals == ((0,), (1,)), "the sublattices stay apart"
+    assert r._assignment.wyckoff_spglib == ("c", "b")
+    w = r.environment.cross_check
+    assert w.outcome == "agree" and w.free_standing.number_str == "164.86"
+    assert w.missing == () and w.extra == ()
+    assert w.flipping == () and w.unmapped == ()
+    assert len(w.rows) == 12, "one row per substrate operation, both cosets"
+    assert "preserves the layer's normal" in w.note
 
 
 @pytest.mark.slow
@@ -1089,26 +1089,26 @@ def test_a_mirror_symmetric_bilayer_keeps_its_sigma_h():
     """
     noisy = tqg.realized_group(general_bilayer(1e-10, 0))
     assert (noisy.group.number_str, len(noisy.operations)) == ("123.340", 32)
-    assert noisy.cross_check["outcome"] == "agree"
+    assert noisy.environment.cross_check.outcome == "agree"
 
     free = tqg.realized_group(aa_bilayer())
     assert not isinstance(free, Refusal), str(free)
     assert (free.group.number_str, len(free.operations)) == ("123.340", 32)
-    assert len(free.validated.indices) == 32 and free.descent is None
-    assert free.environment == "free-standing"
-    assert free.cross_check["outcome"] == "agree"
-    bonding = tqe.decompose(tqw.hsp_table(free.rep, bands=1), free.group, rep=free.rep)
+    assert len(free.numerical.validated._indices) == 32 and free.descent is None
+    assert free.environment.kind == "free-standing"
+    assert free.environment.cross_check.outcome == "agree"
+    bonding = tqe.decompose(tqw.hsp_table(free, bands=1), free.group, rep=free.rep)
     assert bonding.solution_strings() == ("1 x A1g↑G(1)@1a(4/mmm1',4/mmm)",)
-    pair = tqe.decompose(tqw.hsp_table(free.rep, bands=2), free.group, rep=free.rep)
+    pair = tqe.decompose(tqw.hsp_table(free, bands=2), free.group, rep=free.rep)
     assert pair.solution_strings() == (
         "1 x A1g↑G(1)@1a(4/mmm1',4/mmm) + 1 x A2u↑G(1)@1a(4/mmm1',4/mmm)",)
     assert sorted(pair.restriction.outside_layer) == ["1b", "1d", "2e"]
-    (orbit,) = free.rep.characters.band_representations
-    assert orbit.alternatives == ()
+    (orbit,) = free.wyckoff_orbits
+    assert orbit.numerical.alternatives == ()
     (srsi_orbit,) = tqr.srsi_of_model(free).orbits
     assert [loc["letter"] for loc in srsi_orbit.localizations] == ["a"]
     for bands in (1, 2):
-        si = tqe.symmetry_indicator(tqw.hsp_table(free.rep, bands=bands), free.group,
+        si = tqe.symmetry_indicator(tqw.hsp_table(free, bands=bands), free.group,
                                     rep=free.rep, bands=bands)
         assert si.verdict == "trivial indicator group", si
         assert (si.completion["outcome"], si.completion["stack_extent"]) == \
@@ -1117,12 +1117,12 @@ def test_a_mirror_symmetric_bilayer_keeps_its_sigma_h():
     sub = tqg.realized_group(aa_bilayer(), **SUB)
     assert not isinstance(sub, Refusal), str(sub)
     assert (sub.group.number_str, len(sub.operations)) == ("99.164", 16)
-    assert len(sub.validated.indices) == 16
-    assert sub.assignment.site_orbitals == ((0,), (1,)), "the two layers stay two sites"
-    assert sub.assignment.wyckoff_spglib == ("a", "a")
-    assert sub.cross_check["outcome"] == "agree"
-    assert sub.cross_check["free_standing"]["number_str"] == "123.340"
-    on_sub = tqe.decompose(tqw.hsp_table(sub.rep, bands=2), sub.group, rep=sub.rep)
+    assert len(sub.numerical.validated._indices) == 16
+    assert sub._assignment.site_orbitals == ((0,), (1,)), "the two layers stay two sites"
+    assert sub._assignment.wyckoff_spglib == ("a", "a")
+    assert sub.environment.cross_check.outcome == "agree"
+    assert sub.environment.cross_check.free_standing.number_str == "123.340"
+    on_sub = tqe.decompose(tqw.hsp_table(sub, bands=2), sub.group, rep=sub.rep)
     assert on_sub.solution_strings() == ("2 x A1↑G(1)@1a(4mm1',4mm)",)
     assert on_sub.restriction.outside_layer == {}
 
@@ -1156,15 +1156,15 @@ def test_the_translation_conjugate_p4mm_is_the_one_the_hamiltonian_realizes(p41_
     conj = tqg.realized_group(conjugate_p4mm(), cross_check=False, **SUB)
     assert not isinstance(conj, Refusal), str(conj)
     assert (conj.group.number_str, len(conj.operations)) == ("99.164", 16)
-    assert len(conj.validated.indices) == 16
+    assert len(conj.numerical.validated._indices) == 16
     assert _tau(conj.group, "C4(z)") == (0.5, 0.5, 0.0)
-    assert conj.assignment.wyckoff_tables == ("b", "a")
+    assert conj._assignment.wyckoff_tables == ("b", "a")
 
     paper = p41_substrate
     assert not isinstance(paper, Refusal), str(paper)
     assert paper.group.number_str == conj.group.number_str
     assert _tau(paper.group, "C4(z)") == (0.0, 0.0, 0.0)
-    assert paper.assignment.wyckoff_tables == ("c", "c")
+    assert paper._assignment.wyckoff_tables == ("c", "c")
 
     # the paper's cell with every centre jittered by 1e-5, its precision
     # declared, reads the same conjugate: the centres are made exact in the
@@ -1174,9 +1174,9 @@ def test_the_translation_conjugate_p4mm_is_the_one_the_hamiltonian_realizes(p41_
     assert not isinstance(fitted, Refusal), str(fitted)
     assert fitted.group.number_str == paper.group.number_str
     assert _tau(fitted.group, "C4(z)") == (0.0, 0.0, 0.0)
-    assert fitted.assignment.wyckoff_tables == ("c", "c")
-    assert (tqw.hsp_table(fitted.rep, bands=2).counts
-            == tqw.hsp_table(paper.rep, bands=2).counts)
+    assert fitted._assignment.wyckoff_tables == ("c", "c")
+    assert (tqw.hsp_table(fitted, bands=2).counts
+            == tqw.hsp_table(paper, bands=2).counts)
 
 
 # ---------------------------------------------------------------------------
@@ -1281,11 +1281,11 @@ def test_realized_group_itself_raises_when_the_two_environments_disagree(monkeyp
     """
     part = tqg.realized_group(tqc_models.pxpy_honeycomb(), characters={0: "A2''"}, **FREE)
     assert not isinstance(part, Refusal), str(part)
-    assert (part.group.number_str, part.group.name, len(part.validated.indices)) == (
+    assert (part.group.number_str, part.group.name, len(part.numerical.validated._indices)) == (
         "65.482", "Cmmm1'", 16)
-    assert part.descent["steps"][0]["refuted_by"] == {"declaration": 32}
-    w = part.cross_check
-    assert (w["outcome"], w["substrate"]["number_str"]) == ("agree", "35.166"), \
+    assert part.descent.steps[0].refuted_by == {"declaration": 32}
+    w = part.environment.cross_check
+    assert (w.outcome, w.substrate.number_str) == ("agree", "35.166"), \
         "the word restricted to the substrate's site group, and the two agree"
 
     for spelling, env, number, crossed, words in (
@@ -1295,34 +1295,34 @@ def test_realized_group_itself_raises_when_the_two_environments_disagree(monkeyp
              ("not compared", None, "183.186"), [""] * 6)):
         one = tqg.realized_group(p_shell_honeycomb(), characters=spelling, **env)
         assert not isinstance(one, Refusal), f"{spelling}: {one}"
-        assert (one.group.number_str, len(one.validated.indices)) == (number, len(one.operations))
-        assert one.descent is None and (one.decoration or {}).get("declared") is None, \
+        assert (one.group.number_str, len(one.numerical.validated._indices)) == (number, len(one.operations))
+        assert one.descent is None and (one.decoration is None or one.decoration.declared is None), \
             "one species: nothing excluded from the cell, nothing broken"
-        assert one.rep.multiplets.by_site == (((0,), (1, 2)), ((3,), (4, 5)))
-        rows = one.rep.characters.orbitals
+        assert one.rep._multiplets.by_site == (((0,), (1, 2)), ((3,), (4, 5)))
+        rows = one.rep._characters.orbitals
         assert {o.determined_by for o in rows} == {"declaration"}
         assert [o.function for o in rows] == words, "a shell is a function word, a sum is not"
-        assert one.rep.characters.irreps == (
+        assert one.rep._characters.irreps == (
             ("A2''", "E'", "E'") if env is FREE else ("A1", "E", "E")) * 2, \
             "each row its own multiplet's, as the shell declared orbital by orbital reads"
-        w = one.cross_check
-        assert (w["outcome"], (w["free_standing"] or {}).get("number_str"),
-                w["substrate"]["number_str"]) == crossed
+        w = one.environment.cross_check
+        assert (w.outcome, getattr(w.free_standing, "number_str", None),
+                w.substrate.number_str) == crossed
 
     for spelling, labels in ((None, ("A1'", "E'", "E'")),
                              (["pz", "px", "py"] * 2, ("A2''", "E'", "E'"))):
         free = tqg.realized_group(p_shell_honeycomb(), characters=spelling, **FREE)
         assert not isinstance(free, Refusal), f"{spelling}: {free}"
-        assert (free.group.number_str, len(free.validated.indices)) == ("191.234", 48)
-        assert free.rep.multiplets.by_site == (((0,), (1, 2)), ((3,), (4, 5)))
-        assert free.rep.characters.irreps == labels * 2
-        w = free.cross_check
-        assert w["outcome"] == "agree" and w["substrate"]["number_str"] == "183.186"
+        assert (free.group.number_str, len(free.numerical.validated._indices)) == ("191.234", 48)
+        assert free.rep._multiplets.by_site == (((0,), (1, 2)), ((3,), (4, 5)))
+        assert free.rep._characters.irreps == labels * 2
+        w = free.environment.cross_check
+        assert w.outcome == "agree" and w.substrate.number_str == "183.186"
         on = tqg.realized_group(p_shell_honeycomb(), characters=spelling, cross_check=False,
                                 **SUB)
         assert not isinstance(on, Refusal), f"{spelling}: {on}"
-        assert (on.group.number_str, len(on.validated.indices)) == ("183.186", 24)
-        assert on.rep.characters.irreps == ("A1", "E", "E") * 2
+        assert (on.group.number_str, len(on.numerical.validated._indices)) == ("183.186", 24)
+        assert on.rep._characters.irreps == ("A1", "E", "E") * 2
         if spelling is None:
             undeclared = free
     # the reference orbital named, through the private entry that takes it
@@ -1399,10 +1399,10 @@ def test_cross_check_false_skips_the_gate_and_records_nothing(monkeypatch):
     assert selections == ["substrate"], "the default runs it exactly once"
 
     assert not isinstance(r, Refusal), str(r)
-    assert r.cross_check is None
-    assert (r.group.number_str, len(r.validated.indices)) == ("123.340", 32)
+    assert r.environment.cross_check is None
+    assert (r.group.number_str, len(r.numerical.validated._indices)) == ("123.340", 32)
     assert not isinstance(checked, Refusal), str(checked)
-    assert checked.cross_check["outcome"] == "agree"
+    assert checked.environment.cross_check.outcome == "agree"
     assert checked.group.number_str == r.group.number_str
 
 
@@ -1427,12 +1427,12 @@ def test_the_opposite_axis_transcription_reads_its_own_layer_group():
     r = tqg.realized_group(raw_axis(tqc_models.p41_flat_band()), **FREE)
     assert not isinstance(r, Refusal), str(r)
     assert (r.group.number_str, r.group.name, len(r.operations)) == ("115.284", "P-4m21'", 16)
-    assert len(r.validated.indices) == 16
+    assert len(r.numerical.validated._indices) == 16
     assert _names(r.group) == ["C2([1-10])", "C2([110])", "C2(z)", "E",
                                "S4(z)", "S4^-1(z)", "m(x)", "m(y)"]
-    assert r.descent["from"]["number_str"] == "123.340"
-    assert r.cross_check["outcome"] == "agree"
-    assert r.cross_check["substrate"]["number_str"] == "25.58", (
+    assert r.descent.cell_group.number_str == "123.340"
+    assert r.environment.cross_check.outcome == "agree"
+    assert r.environment.cross_check.substrate.number_str == "25.58", (
         "re-pinned in wave R4d: the substrate reading is the side-preserving "
         "subgroup of THIS group, and D2d keeps only {E, C2(z), m(x), m(y)}; "
         "R4b's projected reading served #99.164 there by giving four operations "
@@ -1489,10 +1489,10 @@ def test_the_opposite_axis_transcription_on_a_substrate_is_the_axial_mm2():
     assert not isinstance(full, Refusal), str(full)
     g = full.group
     assert (g.number_str, g.name, g._size) == ("25.58", "Pmm21'", 8)
-    assert len(full.validated.indices) == 8
+    assert len(full.numerical.validated._indices) == 8
     assert _names(g) == ["C2(z)", "E", "m(x)", "m(y)"]
-    assert full.descent["from"]["number_str"] == "99.164"
-    assert full.descent["steps"][0]["refuted_by"] == {"tensor structure": 24}
+    assert full.descent.cell_group.number_str == "99.164"
+    assert full.descent.steps[0].refuted_by == {"tensor structure": 24}
     assert full.rep._branch_tie is True, "re-pinned in wave R4e; it used to refuse"
     assert full.rep._choice["orientation"] == 1
     assert full.rep._search["n_survivors"] == 2, "what the GATES found"
@@ -1501,20 +1501,20 @@ def test_the_opposite_axis_transcription_on_a_substrate_is_the_axial_mm2():
 
     built = {}
     for branch in (1, -1):
-        one = _build._build_rep(full.model, g, full.assignment,
-                             validated=full.validated, orientation_branch=branch)
+        one = _build._build_rep(full.model, g, full._assignment,
+                             validated=full.numerical.validated, orientation_branch=branch)
         assert not isinstance(one, Refusal), str(one)
         assert one._choice["orientation"] == branch
         assert one._branch_tie is False, "a restricted search never asks the question"
         # the s orbital's A1 of mm2, returned on this spinful model as the corep -E
-        assert list(one.characters.irreps) == ["-E", "-E"]
+        assert list(one._characters.irreps) == ["-E", "-E"]
         built[branch] = one
     # the two branches are NOT compared bit for bit: each is built from its own
     # adjoint and then phased by `normalize_rep`, so what is left is libm's
     # sin(pi) residue in that canonical phase -- a few ulp, measured 2.4e-16
     # (1.1 ulp) here.
     assert max(float(np.abs(built[1].matrices[i] - built[-1].matrices[i]).max())
-               for i in built[1].indices) <= _FEW_ULP, \
+               for i in built[1].matrices) <= _FEW_ULP, \
         "the two branches are the same representation after normalization"
 
     # in three dimensions: as written, spin blocks turned, and turned whole
@@ -1534,24 +1534,24 @@ def test_the_opposite_axis_transcription_on_a_substrate_is_the_axial_mm2():
 
     written = tqg.realized_group(crystal)
     assert written and written.descent is None, str(written)
-    assert (written.group.number_str, len(written.validated.indices)) == ("166.98", 24)
-    assert written.rep.characters.irreps == ("-E1", "-E1")
+    assert (written.group.number_str, len(written.numerical.validated._indices)) == ("166.98", 24)
+    assert written.rep._characters.irreps == ("-E1", "-E1")
 
     turned = tqg.realized_group(spin_blocks_turned(crystal, u))
     assert turned, str(turned)
     assert (turned.group.number_str, turned.group.name, len(turned.operations)) == (
         "2.5", "P-11'", 4)
     assert _names(turned.group) == ["E", "i"]
-    assert turned.descent["from"]["number_str"] == "166.98"
-    assert turned.descent["steps"][0]["refuted_by"] == {"tensor structure": 20}
-    assert all(0.5 < b["residual"] < 0.9 for b in turned.descent["dropped"])
+    assert turned.descent.cell_group.number_str == "166.98"
+    assert turned.descent.steps[0].refuted_by == {"tensor structure": 20}
+    assert all(0.5 < b.residual < 0.9 for b in turned.descent.dropped)
 
     rigid = tqg.realized_group(spin_blocks_turned(crystal, u, lattice=whole))
     assert rigid and rigid.descent is None, str(rigid)
-    assert (rigid.group.number_str, len(rigid.validated.indices)) == ("166.98", 24)
-    assert rigid.rep.characters.irreps == written.rep.characters.irreps
-    assert (tqw.hsp_table(rigid.rep, bands=[0, 1]).counts
-            == tqw.hsp_table(written.rep, bands=[0, 1]).counts)
+    assert (rigid.group.number_str, len(rigid.numerical.validated._indices)) == ("166.98", 24)
+    assert rigid.rep._characters.irreps == written.rep._characters.irreps
+    assert (tqw.hsp_table(rigid, bands=[0, 1]).counts
+            == tqw.hsp_table(written, bands=[0, 1]).counts)
 
 
 @pytest.mark.slow
@@ -1585,7 +1585,7 @@ def test_the_closed_gate_raises_on_the_raw_blocks_on_the_tables_own_lift(p41_sub
     assert not isinstance(m3, Refusal), str(m3)
     val = _measure._validate_group(m3, host.group, nk=6)
     with pytest.raises(InternalError) as err:
-        _build._build_rep(m3, host.group, host.assignment, validated=val)
+        _build._build_rep(m3, host.group, host._assignment, validated=val)
     said = str(err.value)
     assert "8 of the" in said, "the four site-swapping ones, and with T"
     assert said.count("its spin lift") == 8, said
@@ -1616,15 +1616,15 @@ def test_the_decoration_record_names_the_base_and_the_extras_on_top():
     on_top = tqg.realized_group(conjugate_p4mm(), decorations=cap, cross_check=False, **SUB)
     assert not isinstance(on_top, Refusal), str(on_top)
     assert (on_top.group.number_str, len(on_top.operations)) == ("99.164", 16)
-    assert on_top.decoration["dz"] == tqg.DECORATION_DZ, "the shadow recipe ran"
-    assert on_top.decoration["n_atoms"] == 3, "a shadow under each site, and the cap"
-    assert on_top.decoration["typat"] == (1, 1, "cap")
-    assert "shadow species under every site" in on_top.decoration["recipe"]
-    assert on_top.decoration["recipe"].endswith("1 caller-supplied species on top")
+    assert on_top.decoration.dz == tqg.DECORATION_DZ, "the shadow recipe ran"
+    assert on_top.decoration.n_atoms == 3, "a shadow under each site, and the cap"
+    assert on_top.decoration.typat == (1, 1, "cap")
+    assert "shadow species under every site" in on_top.decoration.recipe
+    assert on_top.decoration.recipe.endswith("1 caller-supplied species on top")
 
     alone = tqg.realized_group(conjugate_p4mm(), decorations=cap, cross_check=False, **FREE)
     assert not isinstance(alone, Refusal), str(alone)
     assert (alone.group.number_str, len(alone.operations)) == ("99.164", 16)
-    assert alone.decoration["dz"] is None, "nothing was put under the layer"
-    assert alone.decoration["n_atoms"] == 1 and alone.decoration["typat"] == ("cap",)
-    assert alone.decoration["recipe"] == "caller-supplied decoration"
+    assert alone.decoration.dz is None, "nothing was put under the layer"
+    assert alone.decoration.n_atoms == 1 and alone.decoration.typat == ("cap",)
+    assert alone.decoration.recipe == "caller-supplied decoration"

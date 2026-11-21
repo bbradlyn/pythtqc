@@ -19,7 +19,7 @@ from pythtb.models import kane_mele
 km = kane_mele(1.0, -1.0, 0.3, 0.25)                  # delta, t, soc, rashba
 r = tqc.realized_group(km, typat=[0, 1], characters={0: "A1"})
 gamma = tqc.high_symmetry_points(r.group)["GM"]
-out = tqc.corep_content(r.rep, gamma, bands=1)        # the lowest band alone, at Γ
+out = tqc.corep_content(r, gamma, bands=1)            # the lowest band alone, at Γ
 print(isinstance(out, tqc.Refusal), bool(out))
 #  True False
 print(out)
@@ -50,7 +50,7 @@ print(out)
 ```python
 print(out.gate, out.value, out.threshold, out.context["multiplet"])
 #  multiplet_split 0.0 1e-08 (0, 1)
-print(tqc.corep_content(r.rep, gamma, bands=2).counts)
+print(tqc.corep_content(r, gamma, bands=2).counts)
 #  {'-GM6': 1}
 ```
 
@@ -116,7 +116,7 @@ Every refusal is one of four kinds, and the kind says where the fix lies;
    #  projection_too_large P3m11' 3.01e+04 against 1e+04
    print(repr(tqc.realized_group(noisy, typat=[0, 1], characters={0: "A1"}, precision=1e-7,
                                  max_bytes=1e5)))
-   #  RealizedGroup(P3m11' #156.50; precision 1e-07 declared -> tol 2.97e-06 (cut 1e-06, window 0.01), position_tol 1e-07 (measured max|H| 2.969); symmetrized (defect 1.09e-07); on a substrate (the default), the free-standing group #156.50 agrees)
+   #  RealizedGroup(P3m11' #156.50; precision 1e-07 declared -> tol 2.97e-06 (cut 1e-06, window 0.01), position_tol 1e-07 (measured max|H| 2.969); symmetrized (defect 1.09e-07); on a substrate (the default), the free-standing group P3m11' #156.50 agrees)
    ```
 
    The projection needs `3.01e4` bytes against the `1e4` allowed; its reason names the
@@ -143,7 +143,7 @@ time-reversal-invariant `GM` and `M`, refuse; the table is truthy and says it is
 incomplete, and the call after it does not fill the gap:
 
 ```python
-table = tqc.hsp_table(r.rep, bands=1)
+table = tqc.hsp_table(r, bands=1)
 print(bool(table), table.complete, {point: why.gate for point, why in table.refusals.items()})
 #  True False {'GM': 'multiplet_split', 'M': 'multiplet_split'}
 missing = tqc.decompose(table)

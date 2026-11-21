@@ -557,10 +557,10 @@ def test_validate_group_forwards_the_one_declared_tolerance(near_symmetry):
     swapped = _axis_swapping(group)
 
     strict = _measure._validate_group(model, group, k_pts=k, tol=1e-8)
-    assert set(strict.indices) == {int(s.ind) for s in group._symmetries} - swapped, \
+    assert set(strict._indices) == {int(s.ind) for s in group._symmetries} - swapped, \
         "the perturbed bond's geometry names the refusals, one for one"
-    assert ind not in strict.indices, "refused at machine tolerance"
-    reason = next(d["refuted_by"] for d in strict.discrepancies if d["ind"] == ind)
+    assert ind not in strict._indices, "refused at machine tolerance"
+    reason = next(d.refuted_by for d in strict.discrepancies if d.index == ind)
     assert reason == "no symmetry matrix"
     assert strict._records[ind]["window"] == pytest.approx(0.1)
     assert strict._records[ind]["escalations"] == (1e-3, 1e-2)
@@ -569,18 +569,18 @@ def test_validate_group_forwards_the_one_declared_tolerance(near_symmetry):
 
     # the default is the declaration: spelling the cut out changes nothing
     spelled = _measure._validate_group(model, group, k_pts=k, tol=1e-8, cut=1e-8)
-    assert spelled.indices == strict.indices
+    assert spelled._indices == strict._indices
     assert spelled._records[ind] == strict._records[ind]
 
     loose = _measure._validate_group(model, group, k_pts=k, tol=1e-6)
-    assert ind in loose.indices, "kept once the tolerance is declared above the defect"
+    assert ind in loose._indices, "kept once the tolerance is declared above the defect"
     assert loose._records[ind]["window"] == pytest.approx(1e-2)
     assert loose._records[ind]["cut"] == 1e-6, "the cut followed the declaration"
 
     # the oracle stays reachable and refuses for its own (weaker) reason
     old = _measure._validate_group(model, group, k_pts=k, tol=1e-8, solver="stacked")
-    assert ind not in old.indices
-    assert next(d["refuted_by"] for d in old.discrepancies if d["ind"] == ind) \
+    assert ind not in old._indices
+    assert next(d.refuted_by for d in old.discrepancies if d.index == ind) \
         == "covariance"
     assert old._records[ind]["method"] in ("stacked", "stacked_subset"), \
         "solver= reached the detector and changed the algorithm, not only the record"
@@ -644,13 +644,13 @@ def test_the_cut_finds_the_space_and_the_gate_judges_it(near_symmetry):
     assert raised_gate.escalations == (1e-2,), "starting one decade wider than before"
 
     refused = _measure._validate_group(model, group, k_pts=k, tol=1e-8, cut=1e-6)
-    assert set(refused.indices) == {int(s.ind) for s in group._symmetries} \
+    assert set(refused._indices) == {int(s.ind) for s in group._symmetries} \
         - _axis_swapping(group), "the gate still names the same survivors"
-    entry = next(d for d in refused.discrepancies if d["ind"] == ind)
-    assert entry["refuted_by"] == "covariance", \
+    entry = next(d for d in refused.discrepancies if d.index == ind)
+    assert entry.refuted_by == "covariance", \
         "a solution exists and misses the gate, rather than not existing"
     assert refused._nullspace_dims[ind] == 1
-    assert entry["residual"] == pytest.approx(2.0 * delta, rel=0.1, abs=0.0)
+    assert entry.residual == pytest.approx(2.0 * delta, rel=0.1, abs=0.0)
     assert refused._records[ind]["cut"] == 1e-6 and refused._records[ind]["tol"] == 1e-8
 
     from pythtqc import _tables, models
@@ -660,14 +660,16 @@ def test_the_cut_finds_the_space_and_the_gate_judges_it(near_symmetry):
     noisy = jitter(models.cubic_3c_axis_p(), rel=rel)
     noise = rel * _measure._max_hamiltonian(noisy)
     got = G.realized_group(noisy)
-    assert (got.group.number_str, len(got.validated.indices)) == ("221.93", 96), \
+    v = got.numerical.validated
+    assert (got.group.number_str, len(v.obeyed) + len(v.undetermined)) \
+        == ("221.93", 96), \
         "every operation the model obeys within the gate is kept"
     sifted = _measure._validate_group(noisy, got.group, nk=6, tol=1e-8)
-    missed = [i for i in sifted.residuals if i not in sifted.indices]
+    missed = [i for i in sifted.residuals if i not in sifted._indices]
     assert missed, "the sift alone misses the gate on operations the model obeys"
     measured = _measure._validate_group(noisy, got.group, nk=6, tol=1e-8,
                                         assignment=_tables._assign_orbitals(noisy, got.group))
-    assert len(measured.indices) == 96, "with the sites given, none is missed"
+    assert len(measured._indices) == 96, "with the sites given, none is missed"
     fitted = [i for i, rec in measured._records.items() if rec["fit"] == "fitted"]
     assert set(missed) <= set(fitted), "each one the sift missed is fitted"
     assert max(measured.residuals[i] for i in fitted) < 3.0 * noise, \
@@ -704,15 +706,15 @@ def test_one_solve_per_k_action_class_and_the_record_names_it(monkeypatch):
 
     patch_everywhere(monkeypatch, "_find_intertwiners", counted)
     validated = _measure._validate_group(layer, group, nk=4)
-    assert len(validated.indices) == 48 == group._size
-    assert len(calls) == 24 == len(validated.k_action_classes), \
+    assert len(validated._indices) == 48 == group._size
+    assert len(calls) == 24 == len(validated._k_action_classes), \
         f"{len(calls)} solves for 48 operations in 24 k-action classes"
 
     k = _mesh(4, int(group._dim_k))
     floor = 1000.0 * int(layer.nstate) * _ULP * _max_H(layer, k)
     by_ind = {int(s.ind): s for s in group._symmetries}
     n_independent = 0
-    for members in validated.k_action_classes:
+    for members in validated._k_action_classes:
         solved_on = validated._records[members[0]]["solved_on"]
         assert all(validated._records[i]["solved_on"] == solved_on for i in members)
         for i in members:
@@ -864,7 +866,8 @@ def test_a_spectrum_too_degenerate_to_parametrize_is_refused_not_guessed(monkeyp
     monkeypatch.undo()
     plain = G.realized_group(km, typat=[0, 1], cross_check=False)
     assert runs.group.number_str == plain.group.number_str == "156.50"
-    assert runs.rep.characters.irreps == plain.rep.characters.irreps
+    assert ([(o.orbitals, o.label) for o in runs.wyckoff_orbits]
+            == [(o.orbitals, o.label) for o in plain.wyckoff_orbits])
 
 
 # ---------------------------------------------------------------------------

@@ -55,7 +55,8 @@ from .refusal import InternalError, Refusal
 from ._text import _index_ranges, _label_terms
 from ._matrices import _BLOCH_TOL
 from ._centres import _position_defect
-from .symmetry import BandRepresentation
+from .symmetry import _wyckoff_orbits_of
+from .symmetry import _OrbitBandRepresentation
 from ._srsitables import (
     GATES, MaximalKey, NAME_RELATIONS, NamePair, SRSIIndicator, SRSIRow, SRSITables,
     SiteKey, SplitEBR, _POSITION, _TableKey, _by_modulus, _count,
@@ -177,7 +178,7 @@ def srsi_of_bands(content, group=None, *, rep=None, points=None,
         :func:`..ebr.symmetry_indicator` takes it.
     group : ..groups.GroupData, optional
         The grey group the content was read in, ``r.group``, with tables.  A
-        table carries its own, ``t.rep.group``, and is read in it; a content
+        table carries its own and is read in it; a content
         written out by hand takes the group beside it.
     rep : ..symmetry.SpaceGroupRep, optional
         The model's representation, ``r.rep``, for :func:`..ebr.symmetry_indicator`,
@@ -501,19 +502,19 @@ class ModelSRSIs:
         return (f"ModelSRSIs(#{self.number_str}, {len(self.orbits)} orbit(s), "
                 f"theta_Z=({', '.join(str(v) for v in self.theta_Z)}))")
 
-def _unpack_realized(realized):
-    """``(model, group, assignment, rep)`` from a RealizedGroup or a sequence."""
-    if all(hasattr(realized, name)
-           for name in ("model", "group", "assignment", "rep")):
-        return (realized.model, realized.group, realized.assignment, realized.rep)
-    parts = tuple(realized)
-    if len(parts) == 5:                      # the RealizedGroup unpacking order
-        return parts[0], parts[1], parts[2], parts[4]
-    if len(parts) == 4:
-        return parts
-    raise ValueError(
-        "srsi_of_model takes a RealizedGroup, or (model, group, assignment, rep), "
-        f"or (model, group, assignment, validated, rep); got {len(parts)} items")
+def _unpack_realized(realized, call):
+    """``(model, group, assignment, rep)`` of what :func:`..groups.realized_group` returned.
+
+    ``TypeError`` for anything else, ``call`` naming the call in its message.
+    """
+    from ._realized import RealizedGroup
+
+    if isinstance(realized, RealizedGroup):
+        return (realized.model, realized.group, realized._assignment, realized.rep)
+    raise TypeError(f"{call}(): pass what realized_group returns, r, not a tuple of its "
+                    "parts" if isinstance(realized, (tuple, list)) else
+                    f"{call}(): pass what realized_group returns, r; got a "
+                    f"{type(realized).__name__}")
 
 def _orbit_content(group, rep, rows):
     r"""The symmetry content of one block of **states**, measured.
@@ -633,9 +634,7 @@ def srsi_of_model(realized, *, rep=None) -> "ModelSRSIs | Refusal":
     Parameters
     ----------
     realized : ..groups.RealizedGroup
-        What :func:`..groups.realized_group` returned, or its parts
-        ``(model, group, assignment, rep)`` or
-        ``(model, group, assignment, validated, rep)``.
+        What :func:`..groups.realized_group` returned, ``r``.
     rep : ..symmetry.SpaceGroupRep, optional
         A representation to read in place of the one ``realized`` holds.
 
@@ -648,6 +647,8 @@ def srsi_of_model(realized, *, rep=None) -> "ModelSRSIs | Refusal":
 
     Raises
     ------
+    TypeError
+        ``realized`` is not what :func:`..groups.realized_group` returned.
     ..refusal.InternalError
         Two localizations of one orbit give different invariants: a defect to
         report.
@@ -671,7 +672,9 @@ def srsi_of_model(realized, *, rep=None) -> "ModelSRSIs | Refusal":
     --------
     >>> print(srsi_of_model(realized).summary())             # doctest: +SKIP
     """
-    model, group, assignment, own_rep = _unpack_realized(realized)
+    if isinstance(realized, Refusal):
+        return realized
+    model, group, assignment, own_rep = _unpack_realized(realized, "srsi_of_model")
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
@@ -882,19 +885,21 @@ def _band_representations(rep) -> tuple:
 
     Returns
     -------
-    tuple of ..symmetry.BandRepresentation
-        In the order of ``assignment.orbits``, one per orbit that carries
-        orbitals; empty where the tables do not reach the cell, and where the
+    tuple of ..symmetry._OrbitBandRepresentation
+        One per Wyckoff orbit of orbitals, the orbit of one multiplet under the
+        group, in the order the orbits' first orbitals come in the model
+        (:func:`..symmetry._wyckoff_orbits_of`); empty where the tables do not
+        reach the cell, and where the
         representation leaves some unitary operation of its group out — a
         ``_build_rep`` handed a group larger than the one the Hamiltonian obeys
         — since the tables are the whole group's.
     """
 
-    characters = getattr(rep, "characters", None)
-    group, assignment, model = rep.group, rep.assignment, rep.model
+    characters = getattr(rep, "_characters", None)
+    group, assignment, model = rep._group, rep._assignment, rep._model
     if characters is None:
         return ()
-    represented = {int(i) for i in rep.indices}
+    represented = {int(i) for i in rep._indices}
     if any(int(s.ind) not in represented for s in group._symmetries if not s.time_reversal):
         return ()
     sites = _tables._sites_in_tables_setting(group, assignment.site_positions)
@@ -913,15 +918,9 @@ def _band_representations(rep) -> tuple:
     tables = srsi_tables(group)
     tables = tables if isinstance(tables, SRSITables) else None
     symmetry_of_site ={int(o.site): str(o.site_symmetry) for o in characters.orbitals}
-    orbit_of_orbital = np.asarray(assignment.orbit_of_orbital, dtype=int)
     nspin = int(getattr(model, "nspin", 1))
-    blocks = []
-    for index, orbit in enumerate(assignment.orbits):
-        orbitals = tuple(int(o) for o in range(int(model.norb))
-                         if int(orbit_of_orbital[o]) == index)
-        if orbitals:
-            blocks.append((orbit, orbitals,
-                           [o * nspin + s for o in orbitals for s in range(nspin)]))
+    blocks = [(orbit, orbitals, [o * nspin + s for o in orbitals for s in range(nspin)])
+              for orbit, orbitals in _wyckoff_orbits_of(rep)]
     # The operators check the orbitals' positions against the operations' action
     # on them, at their own tolerance, as every other use of these operators
     # does.  The centres a representation is built on are exact -- moved there
@@ -944,7 +943,7 @@ def _band_representations(rep) -> tuple:
                 f"the operations by {miss:.3g} (reduced), more than the {_BLOCH_TOL:.0e} the "
                 "Bloch operators carry them to; move them onto the group's positions first, "
                 "with realized_group's precision=")
-        return tuple(BandRepresentation(**where_of(orbit, orbitals)[1], terms=(), note=note)
+        return tuple(_OrbitBandRepresentation(**where_of(orbit, orbitals)[1], terms=(), note=note)
                      for orbit, orbitals, _rows in blocks)
     measured = _orbit_contents(group, rep, [rows for _orbit, _orbitals, rows in blocks])
     out = []
@@ -954,7 +953,7 @@ def _band_representations(rep) -> tuple:
                 {name: why for name, why in refusals.items() if not isinstance(why, str)})
         if counts is None or hard:
             name, why = (("", refusals) if counts is None else sorted(hard.items())[0])
-            out.append(BandRepresentation(
+            out.append(_OrbitBandRepresentation(
                 **where, terms=(),
                 note="no sum of elementary band representations, the symmetry content "
                      "could not be identified"
@@ -966,6 +965,7 @@ def _band_representations(rep) -> tuple:
         letters = [here.letter] if here.letter in here.closure else []
         letters += [letter for letter in here.closure if letter not in letters]
         named = frozenset(term for o in characters.orbitals if int(o.site) in set(orbit)
+                          and int(o.orbital) in set(orbitals)
                           for term, _k in _label_terms(o.irrep))
         own = _sum_at_first(data, counts, points, ebrs, len(rows), named,
                             [letter for letter in letters if letter not in off_layer])
@@ -976,7 +976,8 @@ def _band_representations(rep) -> tuple:
         # that variety's site group is moved along it
         composite = None
         if own is None and tables is not None:
-            composite = _composite_localization(tables, group, assignment, rep, orbit, here)
+            composite = _composite_localization(tables, group, assignment, rep, orbit, here,
+                                                orbitals=orbitals)
         if own is None and composite is None:
             listed = frozenset(_tables._letter_only(position) for _name, position in ebrs)
             through = []
@@ -1016,7 +1017,7 @@ def _band_representations(rep) -> tuple:
             alike = tuple(s for s in every
                           if s != own and tables.theta_columns(s) == mine)
         if own is None:
-            out.append(BandRepresentation(
+            out.append(_OrbitBandRepresentation(
                 **where, terms=(),
                 note=("no sum of elementary band representations carries the symmetry "
                       "content" if not every else
@@ -1027,7 +1028,7 @@ def _band_representations(rep) -> tuple:
             tuple((int(m), name, position)
                   for (name, position), m in zip(ebrs, solution) if m)
             for solution in (own,) + alike)
-        out.append(BandRepresentation(**where, terms=terms[0], alternatives=terms[1:]))
+        out.append(_OrbitBandRepresentation(**where, terms=terms[0], alternatives=terms[1:]))
     return tuple(out)
 
 def _sum_at_first(data, counts, points, ebrs, bands, named, letters):
@@ -1047,7 +1048,7 @@ def _sum_at_first(data, counts, points, ebrs, bands, named, letters):
             return _ebr._lifted((pick,), at, len(ebrs))[0]
     return None
 
-def _composite_localization(tables, group, assignment, rep, orbit, here):
+def _composite_localization(tables, group, assignment, rep, orbit, here, *, orbitals=None):
     r"""The site irreps of an orbit whose induced band representation is composite.
 
     :math:`{}^1E{}^2E` at site symmetry :math:`\bar4` and ``E`` at :math:`\bar4m2` /
@@ -1062,12 +1063,16 @@ def _composite_localization(tables, group, assignment, rep, orbit, here):
     share.  A row whose name is a key of the tables at that letter is taken by
     its name.
 
+    ``orbitals``, where given, are the orbit's own, a Wyckoff orbit's: only
+    their multiplets at the orbit's first site are read, where every orbital
+    at that site is read otherwise.
+
     Returns ``{"irreps": {irrep: multiplicity}, "site": n}`` or ``None`` — the
     latter whenever anything is not measured cleanly, so :func:`srsi_of_model`
     refuses rather than guessing.  All 39 composite positions are in the
     single-valued table, so a spinful group takes this route not at all.
     """
-    characters = getattr(rep, "characters", None)
+    characters = getattr(rep, "_characters", None)
     if characters is None or tables.spinor:
         return None
     site = int(orbit[0])
@@ -1078,8 +1083,11 @@ def _composite_localization(tables, group, assignment, rep, orbit, here):
             if key.letter == here.letter and not key.ebr]
     labels: dict = {}
     seen = set()
+    own = None if orbitals is None else {int(o) for o in orbitals}
     for entry in characters.orbitals:
         if int(entry.site) != site or entry.multiplet in seen:
+            continue
+        if own is not None and int(entry.orbital) not in own:
             continue
         seen.add(entry.multiplet)
         name = str(entry.irrep) if entry.irrep in known else ""
@@ -1805,8 +1813,7 @@ def splitting(realized, *, bands=None, rep=None,
     Parameters
     ----------
     realized : ..groups.RealizedGroup
-        What :func:`..groups.realized_group` returned, or the parts
-        :func:`srsi_of_model` takes.
+        What :func:`..groups.realized_group` returned, ``r``.
     bands : int or sequence of int
         The bands asked for, ``V``: an ``int`` is the lowest *n*, a sequence
         those bands.  Required.
@@ -1830,7 +1837,8 @@ def splitting(realized, *, bands=None, rep=None,
     Raises
     ------
     TypeError
-        ``bands`` left out.
+        ``bands`` left out, or ``realized`` is not what
+        :func:`..groups.realized_group` returned.
 
     Refusals
     --------
@@ -1851,7 +1859,9 @@ def splitting(realized, *, bands=None, rep=None,
 
     if bands is None:
         raise TypeError("splitting() missing required argument 'bands'")
-    model, group, _assignment, own_rep = _unpack_realized(realized)
+    if isinstance(realized, Refusal):
+        return realized
+    model, group, _assignment, own_rep = _unpack_realized(realized, "splitting")
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
@@ -1865,7 +1875,7 @@ def splitting(realized, *, bands=None, rep=None,
     n_valence = (int(bands) if isinstance(bands, (int, np.integer))
                  else len(list(bands)))
     n_total = int(model.norb) * int(getattr(model, "nspin", 1))
-    content = _sewing.hsp_table(rep, bands=bands)
+    content = _sewing._hsp_table_rep(rep, bands=bands)
     if not content:
         return content
     valence_side = srsi_of_bands(content, group, rep=rep, points=points,

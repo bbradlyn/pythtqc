@@ -20,7 +20,7 @@ r = tqc.realized_group(kane_mele(0.0, -1.0, 0.3, 0.0),
                        environment="free-standing", characters={0: "s"})
 print(r.group.name, r.group.number_str)
 #  P6/mmm1' 191.234
-t = tqc.hsp_table(r.rep, bands=2)
+t = tqc.hsp_table(r, bands=2)
 print(tqc.format_counts(t.counts))
 #  -GM9 + -K8 + -M6
 print(tqc.symmetry_indicator(t))

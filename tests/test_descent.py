@@ -9,8 +9,8 @@ the model does not have.
 
 What the mechanism is, and what it is not:
 
-* the kept set is **known** before the descent starts (``validated.indices``
-  minus the antiunitary operations), so nothing here searches for a group;
+* the kept set is **known** before the descent starts (the operations validated as
+  obeyed, minus the antiunitary ones), so nothing here searches for a group;
 * a cell carrying exactly that set is built — the parent cell's own points plus
   the orbit of **one generic point** under the kept set, as one extra species —
   because only the identification step (spglib + ``irrep`` on a point set) can
@@ -165,23 +165,23 @@ def test_the_distorted_diamond_descends_to_the_group_it_obeys(fkm_phases):
     for name, (down, _told) in fkm_phases.items():
         d = down.descent
         assert d is not None, name
-        assert d["from"] == {"number_str": "227.129", "name": "Fd-3m1'", "size": 96}
-        assert d["to"] == {"number_str": "166.98", "name": "R-3m1'", "size": 24}
-        assert d["iterations"] == 1 and d["dropped_by"] == {"hoppings": 72}
-        assert len(d["dropped"]) == 72 and len(d["cell"]["orbit"]) == 12
-        assert {b["refuted_by"] for b in d["dropped"]} == {"no symmetry matrix"}
-        assert {b["name"] for b in d["dropped"]} >= {
+        assert d.cell_group == tqg.NamedGroup("Fd-3m1'", "227.129", 96)
+        assert d.subgroup == tqg.NamedGroup("R-3m1'", "166.98", 24)
+        assert d.iterations == 1 and d.dropped_by == {"hoppings": 72}
+        assert len(d.dropped) == 72 and len(d.cell.orbit) == 12
+        assert {b.refuted_by for b in d.dropped} == {"no symmetry matrix"}
+        assert {b.name for b in d.dropped} >= {
             "{C4(z)|1/4,1/4,1/4}", "{m(x)|1/4,1/4,1/4}", "S4(z)", "{C4(z)|1/4,1/4,1/4}'"}
-        assert d["cell"]["generic_point"] == _descent._DESCENT_POINT   # all three directions
-        assert len(down.validated.indices) == len(down.operations) == 24
-        assert not down.validated.broken
-        assert down.group._provenance == down.rep.group._provenance == "descended"
-        assert ("descended from #227.129 (72 of 96 coset representatives of the lattice "
+        assert d.cell.generic_point == _descent._DESCENT_POINT   # all three directions
+        assert len(down.numerical.validated._indices) == len(down.operations) == 24
+        assert not down.numerical.validated.broken
+        assert down.group._provenance == down.rep._group._provenance == "descended"
+        assert ("descended from Fd-3m1' #227.129 (72 of 96 coset representatives of the lattice "
                 "translations broken") in repr(down)
         # the orbit is on the CELL; the model is the one that was handed in
-        assert down.model is down.source and down.cell is not down.model
-        assert int(down.cell.norb) == 14 and list(down.cell_typat[:2]) == [0, 0]
-        assert set(down.cell_typat[2:]) == {"descent"}
+        assert down.model is down.numerical.source and down._cell is not down.model
+        assert int(down._cell.norb) == 14 and list(down._cell_typat[:2]) == [0, 0]
+        assert set(down._cell_typat[2:]) == {"descent"}
         assert down.decoration is None, "the descent's own species are not a decoration"
 
 
@@ -207,23 +207,23 @@ def test_the_descent_and_the_decoration_agree_on_the_strong_and_weak_phases(fkm_
         assert told.descent is None, f"{name}: the decorated cell is already right"
         assert told.group._provenance == "realized"
         assert (told.group.number_str, told.group._sg_number) == ("166.98", 166)
-        assert len(told.validated.indices) == len(told.operations) == 24
-        assert told.model is told.source, "no re-presentation: only the cell changed"
-        assert told.cell is not told.model and told.cell.norb == told.model.norb + 1
-        assert told.cell_typat == [0, 0, "bond"] and told.typat == [0, 0]
-        assert told.decoration["typat"] == ("bond",) and told.decoration["n_atoms"] == 1
-        assert told.decoration["dz"] is None, "the substrate recipe never ran"
-        assert told.decoration["recipe"] == "caller-supplied decoration"
-        assert told.presentation["c"] is None
+        assert len(told.numerical.validated._indices) == len(told.operations) == 24
+        assert told.model is told.numerical.source, "no re-presentation: only the cell changed"
+        assert told._cell is not told.model and told._cell.norb == told.model.norb + 1
+        assert told._cell_typat == [0, 0, "bond"] and told._typat == [0, 0]
+        assert told.decoration.typat == ("bond",) and told.decoration.n_atoms == 1
+        assert told.decoration.dz is None, "the substrate recipe never ran"
+        assert told.decoration.recipe == "caller-supplied decoration"
+        assert told.environment is None, "a crystal periodic in three directions has no layer"
         assert (down.group.number_str, down.group.name, len(down.operations)) == \
                (told.group.number_str, told.group.name, len(told.operations))
-        assert down.assignment.wyckoff_spglib == told.assignment.wyckoff_spglib
-        assert down.assignment.wyckoff_tables == told.assignment.wyckoff_tables
-        assert tuple(down.validated.indices) == tuple(told.validated.indices)
-        assert down.rep.characters.irreps == told.rep.characters.irreps
+        assert down._assignment.wyckoff_spglib == told._assignment.wyckoff_spglib
+        assert down._assignment.wyckoff_tables == told._assignment.wyckoff_tables
+        assert tuple(down.numerical.validated._indices) == tuple(told.numerical.validated._indices)
+        assert down.rep._characters.irreps == told.rep._characters.irreps
 
-        a = tqw.hsp_table(down.rep, bands=2)
-        b = tqw.hsp_table(told.rep, bands=2)
+        a = tqw.hsp_table(down, bands=2)
+        b = tqw.hsp_table(told, bands=2)
         assert a.complete and b.complete, name
         assert a.counts == b.counts, name
         assert {p: dict(v) for p, v in a.content.items()} == \
@@ -292,23 +292,23 @@ def test_the_chiral_pattern_descends_the_square_lattice_to_p4(p41_routes):
     """
     chiral, told = p41_routes
     d = chiral.descent
-    assert chiral.environment == "substrate"
-    assert d["from"] == {"number_str": "99.164", "name": "P4mm1'", "size": 32}
-    assert d["to"] == {"number_str": "75.2", "name": "P41'", "size": 8}
-    assert d["iterations"] == 1 and d["dropped_by"] == {"hoppings": 24} and len(d["dropped"]) == 24
-    assert d["steps"][0]["refuted_by"] == {"no symmetry matrix": 16, "tensor structure": 8}
-    mirrors = [b for b in d["dropped"] if b["refuted_by"] == "no symmetry matrix"]
+    assert chiral.environment.kind == "substrate"
+    assert d.cell_group == tqg.NamedGroup("P4mm1'", "99.164", 32)
+    assert d.subgroup == tqg.NamedGroup("P41'", "75.2", 8)
+    assert d.iterations == 1 and d.dropped_by == {"hoppings": 24} and len(d.dropped) == 24
+    assert d.steps[0].refuted_by == {"no symmetry matrix": 16, "tensor structure": 8}
+    mirrors = [b for b in d.dropped if b.refuted_by == "no symmetry matrix"]
     assert len(mirrors) == 16, "the four mirrors and their primed partners, twice"
     plain = {"m(x)", "m(y)", "m([110])", "m([1-10])"}
     with_tau = {"{" + m + "|1/2,1/2,0}" for m in plain}
-    assert {b["name"] for b in mirrors} == {
+    assert {b.name for b in mirrors} == {
         n + p for n in plain | with_tau for p in ("", "'")}, "each mirror, and with tau"
     # the other eight carry the rotations of the identity coset with tau on them
-    assert {b["name"] for b in d["dropped"] if b["refuted_by"] == "tensor structure"} == {
+    assert {b.name for b in d.dropped if b.refuted_by == "tensor structure"} == {
         "{" + r + "|1/2,1/2,0}" + p for r in ("E", "C4(z)", "C2(z)", "C4^-1(z)")
         for p in ("", "'")}
 
-    step = d["lattice"]
+    step = d.lattice
     assert step["index"] == 2 and step["realized"] == ()
     assert step["fractional_translations"] == ((0.5, 0.5, 0.0),)
     assert step["coset_partners_refuted"] == 11
@@ -317,31 +317,32 @@ def test_the_chiral_pattern_descends_the_square_lattice_to_p4(p41_routes):
     assert tau["refuted_by"] == "tensor structure"
     assert tau["residual"] == pytest.approx(1.0, abs=1e-9)
 
-    assert len(chiral.validated.indices) == len(chiral.operations) == 8
+    assert len(chiral.numerical.validated._indices) == len(chiral.operations) == 8
     assert chiral.group._provenance == "descended"
-    assert chiral.time_reversal["outcome"] == "kept"
-    assert chiral.time_reversal["n_obeyed"] == chiral.time_reversal["n_antiunitary"] == 4
-    assert chiral.assignment.wyckoff_spglib == ("c",)
+    assert chiral.time_reversal.outcome == "kept"
+    assert chiral.time_reversal.n_obeyed == chiral.time_reversal.n_antiunitary == 4
+    assert chiral._assignment.wyckoff_spglib == ("c",)
 
     # the generic point is placed OFF the plane, inside the decorated cell's own
     # extent, so the slab's vacuum padding is the parent cell's bit for bit.
-    # `descent["cell"]["generic_point"]` is in the PADDED frame, and DECORATION_DZ is a
+    # `descent.cell.generic_point` is in the PADDED frame, and DECORATION_DZ is a
     # fraction of the CELL's third vector, so the depth is read where the two
     # agree -- off the descent species' own position in `cell.orb_vecs`.
-    assert d["cell"]["generic_point"][:2] == (0.1234, 0.2718)
+    assert d.cell.generic_point[:2] == (0.1234, 0.2718)
     depth, = {round(float(v[2]), 12)
-              for t, v in zip(chiral.cell_typat,
-                              np.asarray(chiral.cell.orb_vecs, dtype=float))
+              for t, v in zip(chiral._cell_typat,
+                              np.asarray(chiral._cell.orb_vecs, dtype=float))
               if str(t) == "descent"}
     assert -tqg.DECORATION_DZ < depth < 0.0, \
         "between the substrate's shadow species at -dz and the sites at 0"
-    assert len(d["cell"]["orbit"]) == 4, "one point per kept unitary operation"
-    assert repr(chiral.rep).startswith("SpaceGroupRep(P41' #75.2, ")
+    assert len(d.cell.orbit) == 4, "one point per kept unitary operation"
+    assert chiral.rep._group.number_str == "75.2"
+    assert repr(chiral.rep).startswith("SpaceGroupRep(4 states, ")
 
     # the decoration route: the same group, no descent, and the same model SRSIs
     assert told.group.number_str == "75.2"
     assert told.descent is None and told.group._provenance == "realized"
-    assert told.assignment.wyckoff_spglib == chiral.assignment.wyckoff_spglib == ("c",)
+    assert told._assignment.wyckoff_spglib == chiral._assignment.wyckoff_spglib == ("c",)
     m, told_m = tqr.srsi_of_model(chiral), tqr.srsi_of_model(told)
     assert m and told_m, str(m if not m else told_m)
     assert tuple(told_m.theta_Z) == tuple(m.theta_Z)
@@ -389,20 +390,19 @@ def test_a_fixture_that_obeys_its_cell_group_is_untouched(realized, build, serve
     assert r, str(r)
     assert r.descent is None
     assert (r.group.number_str, len(r.operations)) == served
-    assert r.group._provenance == r.rep.group._provenance == "realized"
+    assert r.group._provenance == r.rep._group._provenance == "realized"
     assert r.group._lattice_index == 1 and r.group._tables_ready
-    assert len(r.validated.indices) == len(r.operations)
-    assert not r.validated.broken
-    assert "descended from #" not in repr(r)
+    assert len(r.numerical.validated._indices) == len(r.operations)
+    assert not r.numerical.validated.broken
+    assert "descended from" not in repr(r)
     # the cell IS the model's own point set: nothing was added to it, by a
     # decoration or by a descent, and a fully periodic model records no
     # decoration at all
-    assert r.cell is r.model, "the model's own point set was the cell"
+    assert r._cell is r.model, "the model's own point set was the cell"
     assert r.decoration is None
-    assert "descent" not in {str(t) for t in r.cell_typat}
+    assert "descent" not in {str(t) for t in r._cell_typat}
     # ... and no environment, no cross-check, and no reading in the repr
-    assert r.environment is None and r.environment_declared is False
-    assert r.cross_check is None and r.rep.environment is None
+    assert r.environment is None and r.rep._environment is None
     assert "free-standing" not in repr(r) and "on a substrate" not in repr(r)
 
 
@@ -470,36 +470,36 @@ def test_a_flat_fixture_reaches_the_same_group_by_the_layer_descent(
     assert r, str(r)
     d = r.descent
     assert d is not None, name
-    assert (d["from"]["number_str"], d["from"]["name"], d["from"]["size"]) == parent
-    assert (d["to"]["number_str"], d["to"]["name"], d["to"]["size"]) == served
-    assert d["iterations"] == 1
-    assert d["steps"][0]["refuted_by"] == refuted_by
+    assert (d.cell_group.number_str, d.cell_group.name, d.cell_group.size) == parent
+    assert (d.subgroup.number_str, d.subgroup.name, d.subgroup.size) == served
+    assert d.iterations == 1
+    assert d.steps[0].refuted_by == refuted_by
     # the operations left out to close a group, by NAME, which the histogram
     # above does not give
-    assert {b["name"] for b in d["dropped"]
-            if b["refuted_by"] == "closure"} == closure_names
+    assert {b.name for b in d.dropped
+            if b.refuted_by == "closure"} == closure_names
 
     # the served answer, unchanged: this is what the decoration used to supply
     assert (r.group.number_str, r.group.name, len(r.operations)) == served
-    assert r.group._provenance == r.rep.group._provenance == "descended"
-    assert len(r.validated.indices) == len(r.operations)
-    assert not r.validated.broken and len(r.rep.indices) == len(r.operations)
-    assert r.rep.characters.irreps == labels
-    assert r.assignment.wyckoff_spglib == letters
-    assert f"descended from #{parent[0]}" in repr(r)
+    assert r.group._provenance == r.rep._group._provenance == "descended"
+    assert len(r.numerical.validated._indices) == len(r.operations)
+    assert not r.numerical.validated.broken and len(r.rep._indices) == len(r.operations)
+    assert r.rep._characters.irreps == labels
+    assert r._assignment.wyckoff_spglib == letters
+    assert f"descended from {parent[1]} #{parent[0]}" in repr(r)
 
     # the generic orbit that carried the descent lives on the CELL and nowhere
     # else: the caller decorated with nothing, and the model was not touched
-    assert r.decoration["n_atoms"] == 0
-    assert {str(t) for t in r.cell_typat[len(r.typat):]} == {"descent"}
-    assert int(r.cell.norb) == r.model.norb + len(d["cell"]["orbit"])
-    assert len(d["cell"]["orbit"]) == len(r.operations) // 2, "one point per kept unitary operation"
+    assert r.decoration.n_atoms == 0
+    assert {str(t) for t in r._cell_typat[len(r._typat):]} == {"descent"}
+    assert int(r._cell.norb) == r.model.norb + len(d.cell.orbit)
+    assert len(d.cell.orbit) == len(r.operations) // 2, "one point per kept unitary operation"
 
     # ... and the two readings of the model agree on which group it is
-    assert r.cross_check["agrees"] is True
-    assert r.cross_check["outcome"] == "agree"
-    assert r.cross_check["free_standing"]["number_str"] == served[0]
-    assert r.cross_check["substrate"]["number_str"] == served[0]
+    assert r.environment.cross_check.agrees is True
+    assert r.environment.cross_check.outcome == "agree"
+    assert r.environment.cross_check.free_standing.number_str == served[0]
+    assert r.environment.cross_check.substrate.number_str == served[0]
 
 
 # ---------------------------------------------------------------------------
@@ -663,21 +663,21 @@ def test_the_slab_mirror_is_refuted_by_tensor_structure_and_the_cell_descends(
     _rashba, down = slab_mirror
     d = down.descent
     assert d is not None
-    assert d["from"] == {"number_str": "191.234", "name": "P6/mmm1'", "size": 48}
-    assert d["to"] == {"number_str": "183.186", "name": "P6mm1'", "size": 24}
-    assert d["iterations"] == 1 and d["dropped_by"] == {"hoppings": 24} and len(d["dropped"]) == 24
-    assert d["steps"][0]["refuted_by"] == {"tensor structure": 24}
-    assert {b["refuted_by"] for b in d["dropped"]} == {"tensor structure"}
-    assert {b["name"] for b in d["dropped"]} == {
+    assert d.cell_group == tqg.NamedGroup("P6/mmm1'", "191.234", 48)
+    assert d.subgroup == tqg.NamedGroup("P6mm1'", "183.186", 24)
+    assert d.iterations == 1 and d.dropped_by == {"hoppings": 24} and len(d.dropped) == 24
+    assert d.steps[0].refuted_by == {"tensor structure": 24}
+    assert {b.refuted_by for b in d.dropped} == {"tensor structure"}
+    assert {b.name for b in d.dropped} == {
         "C2(x)", "C2(y)", "C2([010])", "C2([110])", "C2([1-10])", "C2([2-10])",
         "i", "m(z)", "S3(z)", "S3^-1(z)", "S6(z)", "S6^-1(z)",
         "C2(x)'", "C2(y)'", "C2([010])'", "C2([110])'", "C2([1-10])'", "C2([2-10])'",
         "i'", "m(z)'", "S3(z)'", "S3^-1(z)'", "S6(z)'", "S6^-1(z)'"}
-    assert min(b["residual"] for b in d["dropped"]) == pytest.approx(1.0, abs=1e-9)
-    assert max(b["residual"] for b in d["dropped"]) == pytest.approx(1.0, abs=1e-9)
+    assert min(b.residual for b in d.dropped) == pytest.approx(1.0, abs=1e-9)
+    assert max(b.residual for b in d.dropped) == pytest.approx(1.0, abs=1e-9)
     # five decades above the gate those defects are measured against, so every
     # one of the 24 is refuted outright and none of them is a near miss
-    assert min(b["residual"] for b in d["dropped"]) > 1e4 * tqs.ANSATZ_GATE
+    assert min(b.residual for b in d.dropped) > 1e4 * tqs.ANSATZ_GATE
 
     # the broken set IS the sigma_h family, read off the rotations themselves
     m3 = _layers._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.25))
@@ -688,24 +688,24 @@ def test_the_slab_mirror_is_refuted_by_tensor_structure_and_the_cell_descends(
     parent = _spacegroup._group_of(cell, typat=cell_typat, spinor=True)
     rot = {int(s.ind): int(np.rint(np.asarray(s.rotation, dtype=float)[2, 2]))
            for s in parent._symmetries}
-    assert {rot[b["ind"]] for b in d["dropped"]} == {-1}
-    assert {rot[i] for i in d["steps"][0]["kept"]} == {1}
-    assert len(d["cell"]["orbit"]) == 12, "one point per kept unitary operation"
+    assert {rot[b.index] for b in d.dropped} == {-1}
+    assert {rot[i] for i in d.steps[0].kept} == {1}
+    assert len(d.cell.orbit) == 12, "one point per kept unitary operation"
 
     # ... and only that group is served
-    assert len(down.validated.indices) == len(down.operations) == 24
-    assert not down.validated.broken and len(down.rep.indices) == 24
+    assert len(down.numerical.validated._indices) == len(down.operations) == 24
+    assert not down.numerical.validated.broken and len(down.rep._indices) == 24
     # one intertwiner per operation, against the two the Rashba-free layer has:
     # the second solution there is s_z, and the Rashba term is what takes it
     # away (the commutant the tqc_kane_mele_realized_group golden prints: "the
     # identity and 1 more" at rashba = 0, s_z, and "0 more" at rashba = 0.25)
-    assert set(down.validated._nullspace_dims.values()) == {1}
-    assert len(down.validated._nullspace_dims) == 24
-    assert down.group._provenance == down.rep.group._provenance == "descended"
-    assert ("descended from #191.234 (24 of 48 coset representatives of the lattice "
+    assert set(down.numerical.validated._nullspace_dims.values()) == {1}
+    assert len(down.numerical.validated._nullspace_dims) == 24
+    assert down.group._provenance == down.rep._group._provenance == "descended"
+    assert ("descended from P6/mmm1' #191.234 (24 of 48 coset representatives of the lattice "
             "translations broken") in repr(down)
-    assert int(down.cell.norb) == 14 and set(down.cell_typat[2:]) == {"descent"}
-    assert down.decoration["n_atoms"] == 0, "the caller decorated with nothing"
+    assert int(down._cell.norb) == 14 and set(down._cell_typat[2:]) == {"descent"}
+    assert down.decoration.n_atoms == 0, "the caller decorated with nothing"
 
     # ... and where each site's pair is one multiplet: the spin lift on the
     # solution space the pair shares, in whatever basis each site's pair is written
@@ -720,17 +720,17 @@ def test_the_slab_mirror_is_refuted_by_tensor_structure_and_the_cell_descends(
             r = tqg.realized_group(tqm.pxpy_honeycomb_spinful(soc, turn_a=turn_a, turn_b=turn_b),
                                    environment="free-standing")
             assert r, str(r)
-            assert r.rep.multiplets.dims == ((2,), (2,)), "each site's pair is one multiplet"
+            assert r.rep._multiplets.dims == ((2,), (2,)), "each site's pair is one multiplet"
             d = r.descent
             assert (r.group.number_str, r.group.name, len(r.operations)) == (*want, 24)
-            assert d["from"]["number_str"] == "191.234" and d["iterations"] == 1
-            assert d["steps"][0]["refuted_by"] == {"tensor structure": 24}
-            assert {b["name"] for b in d["dropped"]} == refuted | {n + "'" for n in refuted}
-            assert min(b["residual"] for b in d["dropped"]) == pytest.approx(1.0, abs=1e-9)
-            assert (r.cross_check["outcome"], r.cross_check["substrate"]["number_str"]) == (
+            assert d.cell_group.number_str == "191.234" and d.iterations == 1
+            assert d.steps[0].refuted_by == {"tensor structure": 24}
+            assert {b.name for b in d.dropped} == refuted | {n + "'" for n in refuted}
+            assert min(b.residual for b in d.dropped) == pytest.approx(1.0, abs=1e-9)
+            assert (r.environment.cross_check.outcome, r.environment.cross_check.substrate.number_str) == (
                 "agree", substrate)
-            read[turn_a] = (r.group.number_str, sorted(b["name"] for b in d["dropped"]),
-                            r.rep.characters.irreps)
+            read[turn_a] = (r.group.number_str, sorted(b.name for b in d.dropped),
+                            r.rep._characters.irreps)
         assert read[0.0] == read[0.7], "the basis of each site's pair moves nothing"
         assert read[0.0][2] == ("-1E2E + -E1",) * 4
 
@@ -758,8 +758,8 @@ def test_the_ansatz_defects_of_an_exact_model_are_at_machine_level(realized):
     cases = []
     r = realized(tqm.i213_flicker2018)          # the session's shared record
     assert r, str(r)
-    assert not r.validated.undetermined, "a 3D primitive group has singleton classes"
-    cases.append((r.model, r.group, r.assignment, r.validated, set(r.validated.indices)))
+    assert not r.numerical.validated.undetermined, "a 3D primitive group has singleton classes"
+    cases.append((r.model, r.group, r._assignment, r.numerical.validated, set(r.numerical.validated._indices)))
 
     m3 = _layers._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.0))
     cell, cell_typat = _layers._decorated_cell(m3, [0, 0], environment="free-standing")

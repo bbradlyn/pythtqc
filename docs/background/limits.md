@@ -109,7 +109,7 @@ contain measured on a stack of the layer
 ([a layer's class](../guide/indicators.md#a-layers-class-is-a-three-dimensional-class)).
 
 Whether the layer lies on a substrate or stands free is not in the model, and the
-substrate is a default: the record's `environment_declared` says whether it was stated.
+substrate is a default: `r.environment.declared` says whether it was stated.
 A free-standing layer handed in with nothing declared is returned its
 one-sided group, without its inversion and the indicator that would read it
 ([a 2D model](../guide/layers.md)).

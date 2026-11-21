@@ -18,11 +18,11 @@ from pythtb.models import kane_mele
 km0 = kane_mele(0.0, -1.0, 0.3, 0.0)            # kane_mele(delta, t, soc, rashba): no Rashba
 sub = tqc.realized_group(km0)
 print(repr(sub))
-#  RealizedGroup(P6mm1' #183.186; additional commuting matrices: 1; on a substrate (the default), the free-standing group #191.234 agrees)
+#  RealizedGroup(P6mm1' #183.186; additional commuting matrices: 1; on a substrate (the default), the free-standing group P6/mmm1' #191.234 agrees)
 free = tqc.realized_group(km0, environment="free-standing")
 print(repr(free))
-#  RealizedGroup(P6/mmm1' #191.234; additional commuting matrices: 1; free-standing, the substrate group #183.186 agrees)
-print(sub.cross_check["outcome"], "--", sub.cross_check["note"])
+#  RealizedGroup(P6/mmm1' #191.234; additional commuting matrices: 1; free-standing, the substrate group P6mm1' #183.186 agrees)
+print(sub.environment.cross_check.outcome, "--", sub.environment.cross_check.note)
 #  agree -- the substrate group is exactly the subgroup of the free-standing layer group that preserves the layer's normal -- every operation with R[2,2] = +1 and no other, in both cosets
 ```
 
@@ -87,9 +87,9 @@ to the layer, is odd under the mirror:
 turned = {op.name for op in free.operations.values() if op.rotation[2, 2] == -1}
 rashba = tqc.realized_group(kane_mele(0.0, -1.0, 0.3, 0.25), environment="free-standing")
 print(repr(rashba))
-#  RealizedGroup(P6mm1' #183.186; descended from #191.234 (24 of 48 coset representatives of the lattice translations broken; these are the single-valued group's, each standing for itself and its negative in the double group); free-standing, the substrate group #183.186 agrees)
-broken = {b["name"] for b in rashba.descent["dropped"]}
-print(broken == turned, sorted({b["refuted_by"] for b in rashba.descent["dropped"]}))
+#  RealizedGroup(P6mm1' #183.186; descended from P6/mmm1' #191.234 (24 of 48 coset representatives of the lattice translations broken; these are the single-valued group's, each standing for itself and its negative in the double group); free-standing, the substrate group P6mm1' #183.186 agrees)
+broken = {b.name for b in rashba.descent.dropped}
+print(broken == turned, sorted({b.refuted_by for b in rashba.descent.dropped}))
 #  True ['tensor structure']
 print(sorted(name for name in turned if not name.endswith("'")))
 #  ['C2([010])', 'C2([1-10])', 'C2([110])', 'C2([2-10])', 'C2(x)', 'C2(y)', 'S3(z)', 'S3^-1(z)', 'S6(z)', 'S6^-1(z)', 'i', 'm(z)']
@@ -121,11 +121,12 @@ substrate it is `3m`, which does not:
 pz_free = tqc.realized_group(km0, environment="free-standing", characters={0: "pz"})
 pz_sub = tqc.realized_group(km0, characters={0: "pz"})
 for r in (free, pz_free, sub, pz_sub):
-    print(r.environment, r.group.name, r.assignment.site_symmetry[0], r.rep.characters.irreps)
-#  free-standing P6/mmm1' -6m2 ('-E1', '-E1')
-#  free-standing P6/mmm1' -6m2 ('-E2', '-E2')
-#  substrate P6mm1' 3m ('-E1', '-E1')
-#  substrate P6mm1' 3m ('-E1', '-E1')
+    o = r.wyckoff_orbits[0]                     # the honeycomb's one Wyckoff orbit
+    print(r.environment.kind, r.group.name, o.unitary_site_symmetry, o.label)
+#  free-standing P6/mmm1' -6m2 -E1
+#  free-standing P6/mmm1' -6m2 -E2
+#  substrate P6mm1' 3m -E1
+#  substrate P6mm1' 3m -E1
 ```
 
 With nothing declared, the orbitals read `s`-like, by
@@ -170,7 +171,7 @@ are compared.
 
 ```python
 for r in (sub, free):
-    print(r.environment, [op.name for op in r.operations.values() if op.name in ("C2(z)", "i", "m(z)")])
+    print(r.environment.kind, [op.name for op in r.operations.values() if op.name in ("C2(z)", "i", "m(z)")])
 #  substrate ['C2(z)']
 #  free-standing ['C2(z)', 'i', 'm(z)']
 ```
@@ -214,8 +215,8 @@ way in either environment, and in three dimensions.
 ## Further
 
 The arguments `environment=`, `cross_check=` and `decorations=`:
-[`realized_group`](../reference/functions.md#realized_group). The fields
-`environment`, `environment_declared` and `cross_check`:
+[`realized_group`](../reference/functions.md#realized_group). The field
+`environment`, with its `kind`, `declared` and `cross_check`:
 [the records reference](../reference/records.md). Why a layer is silent, and how
 its out-of-plane rows are measured:
 [how pythTQC reads a Hamiltonian](../background/measurement.md#a-layer-is-silent-about-what-lies-under-it).

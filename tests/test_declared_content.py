@@ -228,7 +228,7 @@ def _lines(dim=2, coupling=0.0, odd=False):
 
 def _names(record, reason="declaration"):
     """The operations one descent record's ``reason`` refuted, by name."""
-    return {b["name"] for b in record["dropped"] if b["refuted_by"] == reason}
+    return {b.name for b in record.dropped if b.refuted_by == reason}
 
 
 def _matrix_of(rec, name, k=(0.0, 0.0)):
@@ -263,21 +263,21 @@ def test_kane_mele_declared_a1_a2_descends_to_p3(realized):
     out = realized(_km, typat=[0, 1], cross_check=False, characters=declaration)
     assert out, str(out)
     assert (out.group.number_str, out.group.name, len(out.operations)) == ("143.2", "P31'", 6)
-    assert len(out.validated.indices) == 6
-    assert out.rep.characters.irreps == ("-1E2E", "-1E2E")
+    assert len(out.numerical.validated._indices) == 6
+    assert out.rep._characters.irreps == ("-1E2E", "-1E2E")
 
     d = out.descent
-    assert d["from"] == {"number_str": "156.50", "name": "P3m11'", "size": 12}
-    assert d["to"] == {"number_str": "143.2", "name": "P31'", "size": 6}
-    assert d["steps"][0]["refuted_by"] == {"declaration": 6}
-    assert d["dropped_by"] == {"declaration": 6}
+    assert d.cell_group == tqg.NamedGroup("P3m11'", "156.50", 12)
+    assert d.subgroup == tqg.NamedGroup("P31'", "143.2", 6)
+    assert d.steps[0].refuted_by == {"declaration": 6}
+    assert d.dropped_by == {"declaration": 6}
     assert _names(d) == {"m(x)", "m([010])", "m([1-10])",
                          "m(x)'", "m([010])'", "m([1-10])'"}
-    assert "the declared orbital content broke 6 of them" in d["note"]
+    assert "the declared orbital content broke 6 of them" in d.note
     assert ("(6 of 12 coset representatives of the lattice translations broken by the "
             "declared content") in repr(out)
 
-    rec = out.rep.characters.orbitals[1]
+    rec = out.rep._characters.orbitals[1]
     assert rec.declared_irrep == declaration[1]
     assert rec.declared_in == "3m in P3m11' #156.50"
     assert rec.site_symmetry == "3"
@@ -287,7 +287,7 @@ def test_kane_mele_declared_a1_a2_descends_to_p3(realized):
         "axis lift to its one spinor pair")
     assert set(rec.declaration_broke) == _names(d)
 
-    line = [ln for ln in out.rep.characters.summary().splitlines()
+    line = [ln for ln in out.rep._characters.summary().splitlines()
             if ln.strip().startswith("orbital 1:")]
     assert len(line) == 1, "one line per declaration that lowered the group"
     assert f"declared {declaration[1]!r}, read at the 3m in P3m11' #156.50" in line[0]
@@ -297,16 +297,16 @@ def test_kane_mele_declared_a1_a2_descends_to_p3(realized):
     # into, and every kept operation was carried through the step's pairing
     served = {int(s.ind) for s in out.group._symmetries if not s.time_reversal}
     assert len(served) == 3
-    table = out.rep.characters.site_tables[1]
+    table = out.rep._characters.site_tables[1]
     assert "A2" not in table.labels, "the served site group has no A2 to resolve into"
     assert set(table.indices) <= served
-    pairs = out.descent["steps"][0]["pairs"]
+    pairs = out.descent.steps[0].pairs
     assert {b for _a, b in pairs} == served, "every kept operation was re-keyed"
-    assert len(out.rep.characters.orbitals[1].character) == len(table.indices)
+    assert len(out.rep._characters.orbitals[1].character) == len(table.indices)
 
     # the split stated by typat costs the declaration nothing: no cell reduction
     assert _reduction(out) is None and "cell lowered" not in repr(out)
-    assert out.rep.characters.orbitals[1].reduced_in == "", "nothing was reduced"
+    assert out.rep._characters.orbitals[1].reduced_in == "", "nothing was reduced"
 
 
 # ---------------------------------------------------------------------------
@@ -341,26 +341,26 @@ def test_lin3g_both_1a_orbitals_declared_alike_breaks_the_fourfold():
                              characters={0: "s", 1: "s"})
     assert out, str(out)
     assert (out.group.number_str, out.group.name) == ("25.58", "Pmm21'")
-    assert len(out.validated.indices) == len(out.operations) == 8
+    assert len(out.numerical.validated._indices) == len(out.operations) == 8
 
     d = out.descent
-    assert d["from"]["number_str"] == "99.164" and d["from"]["size"] == 16
-    assert d["steps"][0]["refuted_by"] == {"declaration": 8}
+    assert d.cell_group.number_str == "99.164" and d.cell_group.size == 16
+    assert d.steps[0].refuted_by == {"declaration": 8}
     assert _names(d) == {"C4(z)", "C4^-1(z)", "m([110])", "m([1-10])",
                          "C4(z)'", "C4^-1(z)'", "m([110])'", "m([1-10])'"}
-    assert out.rep.characters.irreps == ("-E", "-E", "-E", "-E")
-    assert out.rep.characters.orbitals[1].site_symmetry == "mm2"
-    assert out.rep.characters.orbitals[1].determined_by == "declaration"
+    assert out.rep._characters.irreps == ("-E", "-E", "-E", "-E")
+    assert out.rep._characters.orbitals[1].site_symmetry == "mm2"
+    assert out.rep._characters.orbitals[1].determined_by == "declaration"
 
     # three uncoupled lines at one site: the descent lands on Cmm2, not below it
     lines = tqg.realized_group(_lines(), typat=[0] * 3, cross_check=False,
                                characters={(0, 1, 2): "A1 + A2 + B1"})
     assert lines, str(lines)
     assert (lines.group.number_str, lines.group.name) == ("35.166", "Cmm21'")
-    assert lines.descent["from"]["number_str"] == "183.186"
-    assert lines.descent["steps"][0]["refuted_by"] == {"declaration": 16}
-    assert lines.rep.multiplets.by_site == (((0,), (1, 2)),)
-    assert lines.rep.characters.irreps == ("B2", "A2 + A1", "A2 + A1")
+    assert lines.descent.cell_group.number_str == "183.186"
+    assert lines.descent.steps[0].refuted_by == {"declaration": 16}
+    assert lines.rep._multiplets.by_site == (((0,), (1, 2)),)
+    assert lines.rep._characters.irreps == ("B2", "A2 + A1", "A2 + A1")
 
     # ... and coupled below a declared precision: the same crystal, the coupling left out
     near = tqg.realized_group(_lines(coupling=1e-7, odd=True), typat=[0] * 3,
@@ -368,10 +368,10 @@ def test_lin3g_both_1a_orbitals_declared_alike_breaks_the_fourfold():
                               characters={(0, 1, 2): "A1 + A2 + B2"})
     assert near, str(near)
     assert near.group.number_str == "35.166"
-    parts = near.symmetrization.parts
-    assert near.symmetrization.near == () and parts["orbitals"] == ((0,), (1, 2))
-    assert parts["exact"] < parts["coupling"] < 1e-6
-    assert "2 parts of the crystal are coupled only below" in near.symmetrization.summary()
+    parts = near.numerical.symmetrization.parts
+    assert near.numerical.symmetrization.near == () and parts.orbitals == ((0,), (1, 2))
+    assert parts.exact < parts.coupling < 1e-6
+    assert "2 parts of the crystal are coupled only below" in near.numerical.symmetrization.summary()
     assert not [h for h in near.model.hoppings
                 if (h["from_orbital"] == 0) != (h["to_orbital"] == 0)], \
         "nothing couples line 0 to the pair in the model returned"
@@ -419,12 +419,12 @@ def test_lin3g_1a_declared_a_doublet_keeps_the_diagonal_mm2():
     assert (out.group.number_str, out.group.name, len(out.operations)) == ("35.166",
                                                                       "Cmm21'", 8)
     d = out.descent
-    assert d["steps"][0]["refuted_by"] == {"declaration": 8}
+    assert d.steps[0].refuted_by == {"declaration": 8}
     assert _names(d) == {"C4(z)", "C4^-1(z)", "m(x)", "m(y)",
                          "C4(z)'", "C4^-1(z)'", "m(x)'", "m(y)'"}
-    assert d["tied"] == (), "the diagonal mm2 is the unique largest reading"
+    assert d.tied == (), "the diagonal mm2 is the unique largest reading"
 
-    rec = out.rep.characters
+    rec = out.rep._characters
     assert rec.irreps[2:] == ("-1E2E", "-1E2E"), "the 2c orbitals are inferred C2-odd"
     assert [o.site_symmetry for o in rec.orbitals][2:] == ["2", "2"]
     assert [(o.irrep, o.multiplet, o.declared_irrep) for o in rec.orbitals[:2]] == \
@@ -438,13 +438,13 @@ def test_lin3g_1a_declared_a_doublet_keeps_the_diagonal_mm2():
                                 characters={(0, 1): "E"})
     assert copies, str(copies)
     assert copies.group.number_str == "99.164" and copies.descent is None
-    assert copies.rep.multiplets.by_site == (((0, 1),),)
-    assert [(o.irrep, o.determined_by) for o in copies.rep.characters.orbitals] == \
+    assert copies.rep._multiplets.by_site == (((0, 1),),)
+    assert [(o.irrep, o.determined_by) for o in copies.rep._characters.orbitals] == \
         [("E", "declaration")] * 2
-    (space,) = copies.rep.characters.multiplicity_spaces
-    assert (space.content, space.determined_by, space.n_representations) == (
+    (orbit,) = copies.wyckoff_orbits
+    assert (orbit.label, orbit.determined_by, orbit.numerical.n_representations) == (
         "E", "declaration", 11)
-    assert not tqw.hsp_table(copies.rep, bands=2).note, \
+    assert not tqw.hsp_table(copies, bands=2).note, \
         "the declaration states what the copies carry: no choice of it to disclaim"
     # ... returned in the tables' own matrices of E on (p_x, p_y), time reversal
     # the identity on the two real orbitals, whatever basis of the copies was read
@@ -460,11 +460,11 @@ def test_lin3g_1a_declared_a_doublet_keeps_the_diagonal_mm2():
                                   precision=1e-6, characters=said)
         assert held, str(held)
         assert held.group.number_str == "99.164" and held.descent is None
-        corner = [held.rep.characters.orbitals[o] for o in (0, 3)]
+        corner = [held.rep._characters.orbitals[o] for o in (0, 3)]
         assert [(o.irrep, o.determined_by) for o in corner] == rows
-        alike = held.symmetrization.copies
-        assert alike["orbitals"] == ((0, 1, 2, 3, 4, 5),) and alike["copies"] == (2,)
-        assert alike["exact"] < alike["off"] < 1e-6
+        alike = held.numerical.symmetrization.copies
+        assert alike.orbitals == ((0, 1, 2, 3, 4, 5),) and alike.copies == (2,)
+        assert alike.exact < alike.off < 1e-6
         assert not [h for h in held.model.hoppings
                     if (h["from_orbital"] < 3) != (h["to_orbital"] < 3)], \
             "nothing couples the copies in the model returned"
@@ -485,20 +485,20 @@ def test_lin3g_1a_declared_a_doublet_keeps_the_diagonal_mm2():
                                  characters=said, cross_check=said is None and not jitter)
         assert out, str(out)
         assert out.group.number_str == group, (couplings, jitter, said)
-        assert [(out.rep.characters.orbitals[o].irrep,
-                 out.rep.characters.orbitals[o].determined_by) for o in (0, 3)] == [corner] * 2
-        assert max(out.rep.residuals.values()) < 1e-12, "the matrices returned are exact"
+        assert [(out.rep._characters.orbitals[o].irrep,
+                 out.rep._characters.orbitals[o].determined_by) for o in (0, 3)] == [corner] * 2
+        assert max(out.rep.numerical.residuals.values()) < 1e-12, "the matrices returned are exact"
         if said and couplings == alike:
-            assert out.descent["tied"] == ((1, 2, 5, 6), (1, 2, 7, 8)), "tied with Cmm21'"
-        sym = out.symmetrization
+            assert out.descent.tied == ((1, 2, 5, 6), (1, 2, 7, 8)), "tied with Cmm21'"
+        sym = out.numerical.symmetrization
         assert (sym is None) == (held is None)
         if held == "near":
             assert not sym.copies and not sym.shares
         elif held == "copies":
-            assert sym.copies["copies"] == (2,) and not sym.shares
+            assert sym.copies.copies == (2,) and not sym.shares
         elif held == "shares":
-            assert sym.shares["sectors"] == (2,) and not sym.copies
-            assert sym.shares["exact"] < sym.shares["coupling"] < 1e-6
+            assert sym.shares.sectors == (2,) and not sym.copies
+            assert sym.shares.exact < sym.shares.coupling < 1e-6
 
 
 @pytest.mark.slow
@@ -523,20 +523,24 @@ def test_lin3g_a_doublet_beside_two_s_orbitals_keeps_the_first_mirror_by_the_tie
     assert out, str(out)
     assert (out.group.number_str, out.group.name, len(out.operations)) == ("8.33", "Cm1'", 4)
     d = out.descent
-    assert d["steps"][0]["refuted_by"] == {"declaration": 12}
-    assert d["tied"] == ((1, 7), (1, 8)), \
+    assert d.steps[0].refuted_by == {"declaration": 12}
+    assert d.tied == ((1, 7), (1, 8)), \
         "{E, m([110])} and {E, m([1-10])}, the two maximal readings, in the rule's order"
-    assert "{E, m([110])} and {E, m([1-10])}" in d["note"]
-    assert "its principal axis, [110], comes before [1-10]" in d["note"]
+    assert "{E, m([110])} and {E, m([1-10])}" in d.note
+    assert "its principal axis, [110], comes before [1-10]" in d.note
     assert {"m([1-10])", "m([1-10])'"} <= _names(d) and "m([110])" not in _names(d), \
         "the first reading is the one kept"
-    rec = out.rep.characters
+    rec = out.rep._characters
     assert [(o.wyckoff, o.site_symmetry, o.irrep, o.named_by) for o in rec.orbitals] == \
         [("2a", "m", "-1E2E", "tables")] * 2 + [("4b", "1", "-AA", "point group")] * 2
-    doublet, pair = rec.band_representations
+    *doublet, pair = rec.band_representations
+    assert [(b.orbitals, [(m, name, position.split("(")[0]) for m, name, position in b.terms])
+            for b in doublet] == [((o,), [(1, "-1E2E↑G(2)", "2a")]) for o in (0, 1)], \
+        "each row of the 1a doublet is a Wyckoff orbit of its own and induces its own sum"
     assert [(m, name, position.split("(")[0]) for m, name, position in pair.terms] == \
         [(2, "-1E2E↑G(2)", "2a")]
-    assert pair.sentence() in rec.summary() and doublet.sentence() not in rec.summary()
+    assert pair.sentence() in rec.summary()
+    assert not [b for b in doublet if b.sentence() in rec.summary()]
 
 
 # ---------------------------------------------------------------------------
@@ -598,10 +602,10 @@ def test_the_square_doublet_declared_s_and_d_keeps_the_fourfold():
     assert out, str(out)
     assert (out.group.number_str, out.group.name, len(out.operations)) == ("99.164",
                                                                       "P4mm1'", 16)
-    assert out.descent is None and len(out.validated.indices) == 16
-    assert out.rep.multiplets.by_site == (((0, 1),),), "the multiplets are the measured ones"
+    assert out.descent is None and len(out.numerical.validated._indices) == 16
+    assert out.rep._multiplets.by_site == (((0, 1),),), "the multiplets are the measured ones"
 
-    rec = out.rep.characters
+    rec = out.rep._characters
     assert set(rec.irreps) == {"B1 + A1"}, "the site holds A1 + B1, the pair as a whole"
     assert [o.determined_by for o in rec.orbitals] == ["declaration"] * 2
     assert rec.orbitals[1].declared_irrep == "B1", "dx2-y2 resolved in 4mm"
@@ -620,10 +624,10 @@ def test_the_square_doublet_declared_s_and_d_keeps_the_fourfold():
     # what the Hamiltonian conserves at the site: p_x and p_y, which nothing
     # couples, are two sectors, and the fourfold exchanges them
     conserved = out.conserved
-    assert [(s["orbitals"], s["copies"], s["dim"]) for s in conserved["sectors"]] == \
+    assert [(s.orbitals, s.copies, s.dim) for s in conserved.sectors] == \
         [((0,), 1, 1), ((1,), 1, 1)]
-    assert conserved["images"][frame["C4(z)"]] == (1, 0)
-    assert conserved["images"][frame["m(x)"]] == (0, 1)
+    assert conserved.images[frame["C4(z)"]] == (1, 0)
+    assert conserved.images[frame["m(x)"]] == (0, 1)
 
     # the same pair written in a basis turned inside the site, (p_x +- p_y)/sqrt(2)
     # at pi/4 among them: one multiplet, E undeclared and A1 + B1 declared, in every
@@ -638,10 +642,10 @@ def test_the_square_doublet_declared_s_and_d_keeps_the_fourfold():
                                      characters=characters)
             assert got, (angle, str(got))
             assert (got.group.number_str, got.descent) == ("99.164", None), angle
-            assert got.rep.multiplets.by_site == (((0, 1),),), angle
-            assert got.rep.characters.irreps == (rows, rows), angle
-            assert [o.determined_by for o in got.rep.characters.orbitals] == [how] * 2
-            assert [s["copies"] for s in got.conserved["sectors"]] == [1, 1], angle
+            assert got.rep._multiplets.by_site == (((0, 1),),), angle
+            assert got.rep._characters.irreps == (rows, rows), angle
+            assert [o.determined_by for o in got.rep._characters.orbitals] == [how] * 2
+            assert [s.copies for s in got.conserved.sectors] == [1, 1], angle
 
     # the pair declared by its matrices: the basis, which no content states
     pxpy = {"C4(z)": [[0, -1], [1, 0]], "m(x)": [[-1, 0], [0, 1]]}
@@ -649,39 +653,39 @@ def test_the_square_doublet_declared_s_and_d_keeps_the_fourfold():
     assert plain, str(plain)
     for name, M in pxpy.items():
         assert np.allclose(_matrix_of(plain, name), M), name
-    assert plain.rep.characters.irreps == ("E", "E")
-    assert [o.determined_by for o in plain.rep.characters.orbitals] == ["declaration"] * 2
-    assert tqw.hsp_table(plain.rep, bands=1).note == ""
+    assert plain.rep._characters.irreps == ("E", "E")
+    assert [o.determined_by for o in plain.rep._characters.orbitals] == ["declaration"] * 2
+    assert tqw.hsp_table(plain, bands=1).note == ""
     bare = tqg.realized_group(_square_pxpy(), cross_check=False)
-    assert tqw.hsp_table(bare.rep, bands=1).note, "undeclared, the labels rest on a choice"
+    assert tqw.hsp_table(bare, bands=1).note, "undeclared, the labels rest on a choice"
     twisted = tqg.realized_group(_square_pxpy(), cross_check=False, characters={
         (0, 1): {**pxpy, "m(x)": [[1, 0], [0, -1]]}})
-    assert twisted.rep.characters.irreps == ("E", "E")
+    assert twisted.rep._characters.irreps == ("E", "E")
     for name in ("m(x)", "m(y)", "m([110])", "m([1-10])"):
         assert np.allclose(_matrix_of(twisted, name), -_matrix_of(plain, name)), name
-    assert (tqw.hsp_table(twisted.rep, bands=1).content["X"]
-            != tqw.hsp_table(plain.rep, bands=1).content["X"])
+    assert (tqw.hsp_table(twisted, bands=1).content["X"]
+            != tqw.hsp_table(plain, bands=1).content["X"])
     turn = np.array([[1.0, -1.0], [1.0, 1.0]]) / np.sqrt(2.0)
     turned = tqg.realized_group(_square_pxpy(np.pi / 4), cross_check=False, characters={
         (0, 1): {name: (turn @ np.asarray(M, dtype=float) @ turn.T).tolist()
                  for name, M in pxpy.items()}})
     for bands in (1, 2):
-        assert (tqw.hsp_table(turned.rep, bands=bands).counts
-                == tqw.hsp_table(plain.rep, bands=bands).counts), bands
+        assert (tqw.hsp_table(turned, bands=bands).counts
+                == tqw.hsp_table(plain, bands=bands).counts), bands
     # ... and the matrices of p_x +- i p_y, a basis the hoppings do not carry
     rotating = {(0, 1): {"C4(z)": [[1j, 0], [0, -1j]], "m(x)": [[0, 1], [1, 0]]}}
     apart = tqg.realized_group(_square_pxpy(), cross_check=False, characters=rotating)
     assert (apart.group.number_str, apart.descent) == ("99.164", None)
-    assert ([o.determined_by for o in apart.rep.characters.orbitals]
+    assert ([o.determined_by for o in apart.rep._characters.orbitals]
             == ["declaration not carried"] * 2)
     coupled = tqg.realized_group(_square_pxpy(diagonal=0.2), cross_check=False,
                                  characters=rotating)
     assert coupled.group.number_str == "3.2"
     assert {"C4(z)", "m(x)", "m([110])"} <= _names(coupled.descent)
     assert "C2(z)" not in _names(coupled.descent)
-    note = next(b["note"] for b in coupled.descent["dropped"] if b["name"] == "C4(z)")
+    note = next(b.note for b in coupled.descent.dropped if b.name == "C4(z)")
     assert "no multiple of it" in note, note
-    assert [o.determined_by for o in coupled.rep.characters.orbitals] == ["declaration"] * 2
+    assert [o.determined_by for o in coupled.rep._characters.orbitals] == ["declaration"] * 2
     # ... in the group the layer's environment and its hoppings leave: m(z) is an
     # operation free-standing alone, and C4(z) none where the hoppings break it
     flat = {(0, 1): {**pxpy, "m(z)": [[1, 0], [0, 1]]}}
@@ -694,14 +698,14 @@ def test_the_square_doublet_declared_s_and_d_keeps_the_fourfold():
                                   environment="free-standing", characters={
                                       (0, 1): {**pxpy, "m(z)": [[parity, 0], [0, parity]]}})
         assert free.group.number_str == "123.340", str(free)
-        assert free.rep.characters.irreps == (irrep,) * 2
-        assert [o.determined_by for o in free.rep.characters.orbitals] == ["declaration"] * 2
+        assert free.rep._characters.irreps == (irrep,) * 2
+        assert [o.determined_by for o in free.rep._characters.orbitals] == ["declaration"] * 2
     stretched = _square_pxpy(diagonal=0.2, sigma_y=0.8)
     lowered = tqg.realized_group(stretched, cross_check=False,
                                  characters={(0, 1): {"m(x)": pxpy["m(x)"]}})
     assert lowered.group.number_str == "25.58", str(lowered)
     assert {"C4(z)", "m([110])"} <= _names(lowered.descent, "no symmetry matrix")
-    assert [o.determined_by for o in lowered.rep.characters.orbitals] == ["declaration"] * 2
+    assert [o.determined_by for o in lowered.rep._characters.orbitals] == ["declaration"] * 2
     named = tqg.realized_group(stretched, cross_check=False, characters={(0, 1): pxpy})
     assert not named and named.gate == "unknown_label", str(named)
     assert "'C4(z)' names no operation of this site group" in named.reason
@@ -713,12 +717,12 @@ def test_the_square_doublet_declared_s_and_d_keeps_the_fourfold():
     assert turned, str(turned)
     assert (turned.group.name, turned.group.number_str, len(turned.operations)) == (
         "Cm1'", "8.33", 4)
-    assert turned.descent["from"]["number_str"] == "160.66"
-    assert turned.descent["steps"][0]["refuted_by"] == {"declaration": 8}
-    assert turned.rep.multiplets.by_site == (((0, 1, 2),),)
-    assert turned.rep.characters.irreps == ("A'' + 2xA'",) * 3
-    assert turned.symmetrization is None, "the model's own blocks are exact"
-    assert max(turned.rep.residuals.values()) < 1e-13
+    assert turned.descent.cell_group.number_str == "160.66"
+    assert turned.descent.steps[0].refuted_by == {"declaration": 8}
+    assert turned.rep._multiplets.by_site == (((0, 1, 2),),)
+    assert turned.rep._characters.irreps == ("A'' + 2xA'",) * 3
+    assert turned.numerical.symmetrization is None, "the model's own blocks are exact"
+    assert max(turned.rep.numerical.residuals.values()) < 1e-13
 
 
 @pytest.mark.slow
@@ -762,21 +766,21 @@ def test_a_measured_multiplet_is_assigned_the_lowest_l_its_characters_allow():
         out = tqg.realized_group(model, cross_check=False)
         assert out, str(out)
         assert out.group.number_str == group and len(out.operations) == size
-        rec = out.rep.characters
+        rec = out.rep._characters
         assert rec.irreps == (label,) * 2
         frame = {name: ind for ind, name in rec.frame.items()}
         chi = rec.orbitals[0].character
         assert complex(chi[frame["C2(z)"]]).real == pytest.approx(-2.0, abs=1e-9)
         assert complex(chi[frame["C3(z)"]]).real == pytest.approx(-1.0, abs=1e-9)
-        assert max(out.rep.residuals.values()) < 1e-13
-        assert out.rep.product_residual < 1e-13
+        assert max(out.rep.numerical.residuals.values()) < 1e-13
+        assert out.rep.numerical.product_residual < 1e-13
 
     other = tqg.realized_group(_tri_pxpy(), cross_check=False, characters={(0, 1): "E2"})
     assert other, str(other)
     assert other.group.number_str == "183.186" and len(other.operations) == 24
-    assert other.descent is None and len(other.validated.indices) == 24
-    assert other.rep.multiplets.by_site == (((0, 1),),)
-    rec = other.rep.characters
+    assert other.descent is None and len(other.numerical.validated._indices) == 24
+    assert other.rep._multiplets.by_site == (((0, 1),),)
+    rec = other.rep._characters
     assert rec.irreps == ("E2",) * 2
     assert rec.orbitals[0].site_symmetry == "6mm"
     assert rec.orbitals[0].declared_in == "6mm in P6mm1' #183.186"
@@ -829,7 +833,7 @@ def test_a_declaration_a_complex_twist_serves_is_served_with_it():
 
     default = _build._build_rep(model, group, assignment, validated=validated, n_battery=5)
     assert default, str(default)
-    assert default.characters.irreps == ("-1E + -2E", "-1E + -2E") + ("2x-A",) * 4, (
+    assert default._characters.irreps == ("-1E + -2E", "-1E + -2E") + ("2x-A",) * 4, (
         "the 4a pair's states are the spinor pair the tables name at that position; "
         "the 8b orbitals sit at the general position, which the EBR table does not "
         "carry, so each is named by its trivial site group itself: a spin doublet "
@@ -838,14 +842,14 @@ def test_a_declaration_a_complex_twist_serves_is_served_with_it():
     out = _build._build_rep(model, group, assignment, validated=validated, n_battery=5,
                          characters={0: "B"})
     assert out, str(out)
-    assert out.characters.irreps == ("-1E + -2E", "-1E + -2E") + ("2x-A",) * 4, \
+    assert out._characters.irreps == ("-1E + -2E", "-1E + -2E") + ("2x-A",) * 4, \
         "B and A of a twofold axis lift to the one spinor pair; the 8b rows are named " \
         "by their trivial site group"
-    assert out.characters.orbitals[0].declared_as == "B"
-    assert out.characters.orbitals[0].determined_by == "declaration"
+    assert out._characters.orbitals[0].declared_as == "B"
+    assert out._characters.orbitals[0].determined_by == "declaration"
     lat = np.asarray(group._lattice, dtype=float)
     named = {_sitechars.operation_name(out._operation(int(i)), lat): int(i)
-             for i in out.indices}
+             for i in out._indices}
     assert set(named) == {"E", "C2(z)", "C4(z)", "C4^-1(z)"}, sorted(named)
     four = named["C4(z)"]
 
@@ -860,15 +864,15 @@ def test_a_declaration_a_complex_twist_serves_is_served_with_it():
     assert abs(twist[named["C2(z)"]] + 1.0) < 1e-9, "the declaration asks for it"
     assert abs(twist[four] * twist[named["C4^-1(z)"]] - 1.0) < 1e-9
     assert abs(twist[four] + 1j) < 1e-9, "the band labels take -i"
-    assert [key for choice in out.characters._labellings["choices"]
+    assert [key for choice in out._characters._labellings["choices"]
             for key, _labels in choice["others"]] == ["bands"]
-    lowest = tqw.hsp_table(out, bands=2)
+    lowest = tqw._hsp_table_rep(out, bands=2)
     assert lowest.content["GM"] == {"-GM5": 1, "-GM8": 1}
     assert list(lowest.counts) == ["-GM5", "-GM8", "-M6", "-M7", "-N2", "-X3", "-X4"]
     assert list(lowest.records["M"].labels[0]) == ["-M6", "-M7"]
     assert lowest.note == tqw._ANOTHER_LABELLING_RELABELS
     assert all(abs(abs(v) - 1.0) < 1e-9 for v in twist.values())
-    assert max(out.residuals.values()) < 1e-13 and out.product_residual < 1e-13, \
+    assert max(out.numerical.residuals.values()) < 1e-13 and out.numerical.product_residual < 1e-13, \
         "a complex character preserves the covariance and the product table"
 
     # the P labels, exchanged level by level -- which is what the twist DOES
@@ -877,8 +881,8 @@ def test_a_declaration_a_complex_twist_serves_is_served_with_it():
     w = np.asarray(states[0], dtype=float).reshape(-1)[:4]
     got = []
     for block in tqw.multiplets(w):
-        a = tqw.corep_content(default, P, states=states, bands=list(block))
-        b = tqw.corep_content(out, P, states=states, bands=list(block))
+        a = tqw._corep_content_rep(default, P, states=states, bands=list(block))
+        b = tqw._corep_content_rep(out, P, states=states, bands=list(block))
         assert a and b, (block, str(a), str(b))
         got.append((a.counts, b.counts))
     assert got == [({"-P3": 1}, {"-P4": 1}),
@@ -890,7 +894,7 @@ def test_a_declaration_a_complex_twist_serves_is_served_with_it():
     assert ok, str(ok)
     assert max(float(np.abs(np.asarray(ok.matrices[i])
                             - np.asarray(default.matrices[i])).max())
-               for i in default.indices) == 0.0
+               for i in default._indices) == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -931,7 +935,7 @@ def test_the_measured_blocks_enumeration_is_capped_and_says_so():
     wide = _build._build_rep(model, group, assignment, validated=validated,
                           multiplets=[[(0, 1, 2, 3)]])
     assert wide, str(wide)
-    assert [(o.irrep, o.determined_by) for o in wide.characters.orbitals] == \
+    assert [(o.irrep, o.determined_by) for o in wide._characters.orbitals] == \
         [("A1", "lowest-l")] * 4, "each orbital read on its own, an s each"
 
     # ... and the pseudospin's own enumeration: the sums of dimension four
@@ -965,7 +969,7 @@ def test_several_maximal_readings_of_a_declaration_name_the_first_by_the_tie_rul
     km = realized(tqm.kane_mele_inversion, environment="substrate", cross_check=False,
                   characters={0: "A1"})
     assert km and km.group.number_str == "183.186", str(km)
-    wide = _build._build_rep(km.model, km.group, km.assignment, validated=km.validated,
+    wide = _build._build_rep(km.model, km.group, km._assignment, validated=km.numerical.validated,
                           characters=["s", "A2"])
     assert not wide and wide.gate == "declaration_breaks_group", str(wide)
     assert wide.context["relative_character"] == "A2"
@@ -1023,20 +1027,20 @@ def test_a_free_block_on_another_site_takes_the_least_twist(realized):
     out = realized(_two_sites, typat=[0, 1], cross_check=False)
     assert out, str(out)
     assert out.group.number_str == "99.164" and out.descent is None
-    assert len(out.validated.indices) == len(out.operations) == 16
-    assert out.rep.characters.irreps == ("A1", "A1")
-    assert out.rep.characters.orbitals[1].determined_by == "lowest-l"
-    assert out.conserved["dim"] == 1, "the relative phase commutes with H at every k"
-    assert [(s["orbitals"], s["sites"], s["copies"], s["dim"])
-            for s in out.conserved["sectors"]] == [((0,), (0,), 1, 1), ((1,), (1,), 1, 1)], \
+    assert len(out.numerical.validated._indices) == len(out.operations) == 16
+    assert out.rep._characters.irreps == ("A1", "A1")
+    assert out.rep._characters.orbitals[1].determined_by == "lowest-l"
+    assert out.conserved.dim == 1, "the relative phase commutes with H at every k"
+    assert [(s.orbitals, s.sites, s.copies, s.dim)
+            for s in out.conserved.sectors] == [((0,), (0,), 1, 1), ((1,), (1,), 1, 1)], \
         "each site a sector of its own: the projector onto either commutes with H"
 
     coupled = tqg.realized_group(_two_sites(0.3), typat=[0, 1], cross_check=False)
     assert coupled, str(coupled)
     assert coupled.group.number_str == "99.164" and coupled.descent is None
-    assert coupled.rep.characters.irreps == ("A1", "A1")
-    assert coupled.conserved["dim"] == 0, "nothing commutes with H beyond the identity"
-    assert [(s["orbitals"], s["copies"], s["dim"]) for s in coupled.conserved["sectors"]] == \
+    assert coupled.rep._characters.irreps == ("A1", "A1")
+    assert coupled.conserved.dim == 0, "nothing commutes with H beyond the identity"
+    assert [(s.orbitals, s.copies, s.dim) for s in coupled.conserved.sectors] == \
         [((0, 1), 1, 2)], "the hoppings join the two sites into one sector"
 
 
@@ -1064,10 +1068,10 @@ def test_a_free_block_takes_the_declared_character_and_nothing_breaks(
                              characters=declaration)
     assert out, str(out)
     assert out.group.number_str == "99.164" and out.descent is None
-    assert out.rep.characters.irreps == labels
-    assert tuple(o.determined_by for o in out.rep.characters.orbitals) == determined_by
-    assert max(out.rep.residuals.values()) < 1e-13
-    assert out.rep.product_residual < 1e-13
+    assert out.rep._characters.irreps == labels
+    assert tuple(o.determined_by for o in out.rep._characters.orbitals) == determined_by
+    assert max(out.rep.numerical.residuals.values()) < 1e-13
+    assert out.rep.numerical.product_residual < 1e-13
 
 
 @pytest.mark.slow
@@ -1082,7 +1086,8 @@ def test_the_verdict_stage_chooses_and_the_build_does_not_re_measure(realized):
     """
     base = realized(_two_sites, typat=[0, 1], cross_check=False)
     assert base, str(base)
-    model, group, assignment, validated, _rep = base.bundle
+    model, group, assignment, validated = (base.model, base.group, base._assignment,
+                                           base.numerical.validated)
     assert group.number_str == "99.164", str(group)
     layout = _multiplets._site_multiplets(model, group, assignment, None, validated)
     u_pos = [p for p, s in enumerate(group._symmetries) if not s.time_reversal]
@@ -1101,8 +1106,8 @@ def test_the_verdict_stage_chooses_and_the_build_does_not_re_measure(realized):
     assert plain and handed, (str(plain), str(handed))
     assert max(float(np.abs(np.asarray(plain.matrices[i])
                             - np.asarray(handed.matrices[i])).max())
-               for i in plain.indices) == 0.0
-    assert plain.characters.irreps == handed.characters.irreps == ("A1", "A1")
+               for i in plain._indices) == 0.0
+    assert plain._characters.irreps == handed._characters.irreps == ("A1", "A1")
 
 
 # ---------------------------------------------------------------------------
@@ -1119,7 +1124,7 @@ def test_the_verdict_stage_chooses_and_the_build_does_not_re_measure(realized):
 
 def _reduction(out):
     """The step 1 record, off the decoration where it lives."""
-    return (out.decoration or {}).get("declared")
+    return None if out.decoration is None else out.decoration.declared
 
 
 def _rect_pair():
@@ -1186,37 +1191,37 @@ def test_kane_mele_a1_a2_with_no_typat_splits_the_cell_before_it_descends():
 
     red = _reduction(out)
     assert red is not None, "the split is on the decoration, not on `descent`"
-    assert red["from"] == {"number_str": "183.186", "name": "P6mm1'", "size": 24}
-    assert red["to"] == {"number_str": "156.50", "name": "P3m11'", "size": 12}
-    assert red["n_excluded"] == 12
-    assert {e["name"] for e in red["excluded"]} == {
+    assert red.cell_group == tqg.NamedGroup("P6mm1'", "183.186", 24)
+    assert red.subgroup == tqg.NamedGroup("P3m11'", "156.50", 12)
+    assert red.n_excluded == 12
+    assert {e.name for e in red.excluded} == {
         "C2(z)", "C6^-1(z)", "C6(z)", "m([2-10])", "m(y)", "m([110])",
         "C2(z)'", "C6^-1(z)'", "C6(z)'", "m([2-10])'", "m(y)'", "m([110])'"}
-    assert {e["reason"] for e in red["excluded"]} == {
+    assert {e.reason for e in red.excluded} == {
         "declared content differs across the orbit"}
-    assert all(e["sites"] == (0, 1) and e["orbitals"] == (0, 1)
-               for e in red["excluded"])
+    assert all(e.sites == (0, 1) and e.orbitals == (0, 1)
+               for e in red.excluded)
 
     # the descent is the hoppings' half, and it starts from the reduced cell
     d = out.descent
-    assert d["from"]["number_str"] == "156.50" and len(d["dropped"]) == 6
-    assert d["to"]["number_str"] == "143.2"
+    assert d.cell_group.number_str == "156.50" and len(d.dropped) == 6
+    assert d.subgroup.number_str == "143.2"
     assert _names(d) == {"m(x)", "m([010])", "m([1-10])",
                          "m(x)'", "m([010])'", "m([1-10])'"}
-    assert not {b["name"] for b in d["dropped"]} & {e["name"] for e in red["excluded"]}, \
+    assert not {b.name for b in d.dropped} & {e.name for e in red.excluded}, \
         "nothing is charged twice: what was never there was never broken"
-    assert out.rep.characters.irreps == ("-1E2E", "-1E2E")
+    assert out.rep._characters.irreps == ("-1E2E", "-1E2E")
 
     text = repr(out)
-    assert ("cell lowered by the declared content from #183.186 "
+    assert ("cell lowered by the declared content from P6mm1' #183.186 "
             "(12 of 24 coset representatives of the lattice translations excluded") in text
     assert text.index("cell lowered") < text.index("descended from")
 
     corep = tqg.realized_group(_km(), cross_check=False, characters={0: "A2", 1: "-E1"})
     assert corep, str(corep)
-    assert (corep.group.number_str, len(corep.validated.indices)) == ("183.186", 24)
+    assert (corep.group.number_str, len(corep.numerical.validated._indices)) == ("183.186", 24)
     assert _reduction(corep) is None and corep.descent is None
-    assert corep.rep.characters.irreps == ("-E1", "-E1")
+    assert corep.rep._characters.irreps == ("-E1", "-E1")
 
 
 @pytest.mark.slow
@@ -1281,19 +1286,19 @@ def test_one_px_at_a_3m_site_is_the_crystal_with_one_mirror():
     assert out.descent is None
 
     red = _reduction(out)
-    assert red["from"] == {"number_str": "156.50", "name": "P3m11'", "size": 12}
-    assert red["to"]["number_str"] == "8.33" and red["n_excluded"] == 8
-    assert {e["name"] for e in red["excluded"]} == {
+    assert red.cell_group == tqg.NamedGroup("P3m11'", "156.50", 12)
+    assert red.subgroup.number_str == "8.33" and red.n_excluded == 8
+    assert {e.name for e in red.excluded} == {
         "C3(z)", "C3^-1(z)", "m([010])", "m([1-10])",
         "C3(z)'", "C3^-1(z)'", "m([010])'", "m([1-10])'"}
-    assert {e["reason"] for e in red["excluded"]} == {
+    assert {e.reason for e in red.excluded} == {
         "the declared function at this site is not carried to itself"}
-    assert all(e["sites"] == (0, 0) for e in red["excluded"])
+    assert all(e.sites == (0, 0) for e in red.excluded)
 
     # the one mirror that survives is the one p_x is an eigenvector of, and the
     # row is that eigenvalue: p_x is ODD under m(x), so the label is the site
     # group's odd one-dimensional irrep and nothing here is two-dimensional.
-    row = out.rep.characters.orbitals[0]
+    row = out.rep._characters.orbitals[0]
     assert row.site_symmetry == "m" and row.dim == 2 and row.function == "px"
     assert row.irrep == "-1E2E", (
         "the spinor pair of a site group with one mirror: both of its orbital "
@@ -1308,28 +1313,28 @@ def test_one_px_at_a_3m_site_is_the_crystal_with_one_mirror():
     px = _sitechars._apply(np.eye(3), _sitechars.SHORTHANDS["px"], 1)
     image = _sitechars._apply(R_inv, _sitechars.SHORTHANDS["px"], 1)
     assert np.allclose(image, -px), "the kept mirror carries p_x to -p_x"
-    table = out.rep.characters.site_tables[0]
+    table = out.rep._characters.site_tables[0]
     odd = [i for i, lab in enumerate(table.labels)
            if table.character_on(i, int(mirror.ind)).real < 0]
     assert len(odd) == 1 and row.irrep == table.labels[odd[0]], \
         "the odd row of m, not the even one"
     assert set(table.declarable) == {"A\'", "A\'\'"}, \
         "the orbital names a declaration is still written in"
-    assert not [lab for t in out.rep.characters.site_tables.values() for lab in t.labels
+    assert not [lab for t in out.rep._characters.site_tables.values() for lab in t.labels
                 if "_" in lab], "no site group is served a generic suffix"
 
     # where the word was read and where it resolves are two different places,
     # and the record says both
     assert row.declared_in == "3m in P3m11' #156.50"
     assert row.reduced_in == "m in Cm1' #8.33"
-    assert out.rep.characters.declarations[0]["reduced_in"] == "m in Cm1' #8.33"
-    line = [ln for ln in out.rep.characters.summary().splitlines()
+    assert out.rep._characters.declarations[0]["reduced_in"] == "m in Cm1' #8.33"
+    line = [ln for ln in out.rep._characters.summary().splitlines()
             if ln.strip().startswith("orbital 0:")]
     assert len(line) == 1 and "the declared content lowered the cell" in line[0]
     assert "m in Cm1' #8.33" in line[0] and "3m in P3m11' #156.50" in line[0]
 
     # the undeclared sublattice imposes nothing and is read relative to it
-    assert out.rep.characters.orbitals[1].determined_by == "hamiltonian"
+    assert out.rep._characters.orbitals[1].determined_by == "hamiltonian"
 
     # p_x and p_y: both sites reduce to the same mirror, and then it is broken
     both = tqg.realized_group(_km(), typat=[0, 1], cross_check=False,
@@ -1337,12 +1342,12 @@ def test_one_px_at_a_3m_site_is_the_crystal_with_one_mirror():
     assert both, str(both)
     assert (both.group.number_str, len(both.operations)) == ("1.2", 2)
     red = _reduction(both)
-    assert red["from"]["number_str"] == "156.50" and red["n_excluded"] == 8
-    assert red["to"]["number_str"] == "8.33"
-    assert both.descent["from"]["number_str"] == "8.33"
-    assert both.descent["dropped_by"] == {"declaration": 2}
+    assert red.cell_group.number_str == "156.50" and red.n_excluded == 8
+    assert red.subgroup.number_str == "8.33"
+    assert both.descent.cell_group.number_str == "8.33"
+    assert both.descent.dropped_by == {"declaration": 2}
     assert _names(both.descent) == {"m(x)", "m(x)'"}
-    rows = both.rep.characters.orbitals
+    rows = both.rep._characters.orbitals
     assert rows[0].declared_irrep != rows[1].declared_irrep, \
         "opposite parities under the one mirror, which is why it breaks"
     assert all(r.reduced_in == "m in Cm1' #8.33" for r in rows)
@@ -1354,8 +1359,8 @@ def test_one_px_at_a_3m_site_is_the_crystal_with_one_mirror():
 
     def _by_reason(red):
         names = {}
-        for e in red["excluded"]:
-            names.setdefault(e["reason"], set()).add(e["name"])
+        for e in red.excluded:
+            names.setdefault(e.reason, set()).add(e.name)
         return names
 
     def primed(names):
@@ -1367,52 +1372,52 @@ def test_one_px_at_a_3m_site_is_the_crystal_with_one_mirror():
         "Cmm21'", "35.166", 8)
     assert orbit.group._provenance == "realized" and orbit.descent is None
     red = _reduction(orbit)
-    assert red["from"] == {"number_str": "183.186", "name": "P6mm1'", "size": 24}
-    assert red["to"]["number_str"] == "35.166" and red["n_excluded"] == 16
+    assert red.cell_group == tqg.NamedGroup("P6mm1'", "183.186", 24)
+    assert red.subgroup.number_str == "35.166" and red.n_excluded == 16
     assert _by_reason(red) == {
         turned: primed({"C3(z)", "C3^-1(z)", "m([010])", "m([1-10])"}),
         outside: primed({"C6(z)", "C6^-1(z)", "m([2-10])", "m([110])"})}
-    assert all(e["sites"] == (0, 1) and e["orbitals"] == (0,)
-               for e in red["excluded"] if e["reason"] == outside), \
+    assert all(e.sites == (0, 1) and e.orbitals == (0,)
+               for e in red.excluded if e.reason == outside), \
         "each carries the declared site onto the undeclared one"
-    assert orbit.cross_check["outcome"] == "agree"
-    assert orbit.cross_check["free_standing"]["number_str"] == "35.166"
-    assert [o.determined_by for o in orbit.rep.characters.orbitals] == \
+    assert orbit.environment.cross_check.outcome == "agree"
+    assert orbit.environment.cross_check.free_standing.number_str == "35.166"
+    assert [o.determined_by for o in orbit.rep._characters.orbitals] == \
         ["declaration", "hamiltonian"]
     # declared at every site of the orbit, the second site's function the one the
     # kept operations carry the first site's onto: the same crystal
     every = tqg.realized_group(_km(), cross_check=False, characters={0: "px", 1: "px"})
     assert every, str(every)
     assert every.group.number_str == "35.166" and every.descent is None
-    assert every.rep.characters.irreps == orbit.rep.characters.irreps
-    assert [o.determined_by for o in every.rep.characters.orbitals] == ["declaration"] * 2
+    assert every.rep._characters.irreps == orbit.rep._characters.irreps
+    assert [o.determined_by for o in every.rep._characters.orbitals] == ["declaration"] * 2
     assert max(float(np.abs(np.asarray(every.rep.matrices[i])
                             - np.asarray(orbit.rep.matrices[i])).max())
-               for i in orbit.rep.indices) < 1e-14, "one crystal, one representation"
+               for i in orbit.rep._indices) < 1e-14, "one crystal, one representation"
 
     # ... and in three dimensions, where the cell's group is cubic
     cubic = tqg.realized_group(cubic_3c_perp_doublet(), characters={0: "py"})
     assert cubic, str(cubic)
     red = _reduction(cubic)
-    assert red["from"] == {"number_str": "221.93", "name": "Pm-3m1'", "size": 96}
-    assert red["to"] == {"number_str": "200.15", "name": "Pm-31'", "size": 48}
+    assert red.cell_group == tqg.NamedGroup("Pm-3m1'", "221.93", 96)
+    assert red.subgroup == tqg.NamedGroup("Pm-31'", "200.15", 48)
     by_reason = _by_reason(red)
     assert set(by_reason) == {turned, outside} and len(by_reason[outside]) == 32
     assert by_reason[turned] == primed({"C4(x)", "C4^-1(x)", "S4(x)", "S4^-1(x)",
                                         "C2([011])", "C2([01-1])", "m([011])",
                                         "m([01-1])"}), \
         "the operations of the site's 4/mmm that turn p_y into p_z"
-    assert all(e["sites"][0] == 0 for e in red["excluded"])
+    assert all(e.sites[0] == 0 for e in red.excluded)
     # the hoppings break the inversion coset of m-3, as they do undeclared, and
     # nothing else: p_y is what they carry, and so are p_z and p_x where the
     # threefolds carry it
     assert (cubic.group.name, cubic.group.number_str, len(cubic.operations)) == (
         "P231'", "195.2", 24)
     d = cubic.descent
-    assert d["from"]["number_str"] == "200.15" and "declaration" not in d["dropped_by"]
-    assert d["steps"][0]["refuted_by"] == {"no symmetry matrix": 24}
-    rows = cubic.rep.characters.orbitals
-    assert cubic.rep.characters.irreps == ("B2", "B1", "B3", "B1", "B3", "B2")
+    assert d.cell_group.number_str == "200.15" and "declaration" not in d.dropped_by
+    assert d.steps[0].refuted_by == {"no symmetry matrix": 24}
+    rows = cubic.rep._characters.orbitals
+    assert cubic.rep._characters.irreps == ("B2", "B1", "B3", "B1", "B3", "B2")
     assert rows[0].declared_irrep == rows[0].irrep
     assert [o.determined_by for o in rows] == ["declaration"] + ["hamiltonian"] * 5
     assert all((o.wyckoff, o.site_symmetry) == ("3c", "222") for o in rows)
@@ -1424,12 +1429,12 @@ def test_one_px_at_a_3m_site_is_the_crystal_with_one_mirror():
     stacked = tqg.realized_group(_stacked_pair(), characters={0: "px"})
     assert stacked, str(stacked)
     red = _reduction(stacked)
-    assert red["from"]["number_str"] == "123.340"
-    assert red["to"] == {"number_str": "115.284", "name": "P-4m21'", "size": 16}
+    assert red.cell_group.number_str == "123.340"
+    assert red.subgroup == tqg.NamedGroup("P-4m21'", "115.284", 16)
     assert _by_reason(red) == {
         turned: primed({"C4(z)", "C4^-1(z)", "m([110])", "m([1-10])"}),
         _declaration._OUTSIDE_THE_TIE: primed({"C2(x)", "C2(y)", "i", "m(z)"})}
-    note = next(e["note"] for e in red["excluded"] if e["name"] == "i")
+    note = next(e.note for e in red.excluded if e.name == "i")
     assert "{E, C2(z), C2(y), C2(x), i, m(z), m(y), m(x)}" in note
     assert "the tie rule" in note and "keeps the first since" in note
 
@@ -1452,14 +1457,14 @@ def test_a_declared_function_whose_orbit_is_the_multiplet_reduces_nothing(realiz
     assert bare and out, (str(bare), str(out))
     assert out.group.number_str == "183.186" and len(out.operations) == 24
     assert _reduction(out) is None and out.descent is None
-    assert out.rep.characters.irreps == ("E",) * 4
-    assert [o.determined_by for o in out.rep.characters.orbitals] == ["declaration"] * 4
-    assert [o.function for o in out.rep.characters.orbitals] == ["px", "py", "px", "py"], \
+    assert out.rep._characters.irreps == ("E",) * 4
+    assert [o.determined_by for o in out.rep._characters.orbitals] == ["declaration"] * 4
+    assert [o.function for o in out.rep._characters.orbitals] == ["px", "py", "px", "py"], \
         "the words written, orbital by orbital, on a two-dimensional multiplet"
-    assert [o.function for o in bare.rep.characters.orbitals] == [""] * 4
+    assert [o.function for o in bare.rep._characters.orbitals] == [""] * 4
     assert max(float(np.abs(np.asarray(bare.rep.matrices[i])
                             - np.asarray(out.rep.matrices[i])).max())
-               for i in bare.rep.indices) == 0.0
+               for i in bare.rep._indices) == 0.0
 
 
 def test_a_declaration_descends_from_the_cell_its_reduction_left():
@@ -1472,10 +1477,10 @@ def test_a_declaration_descends_from_the_cell_its_reduction_left():
     """
     out = tqg.realized_group(_km(), characters={0: "A1", 1: "A2"})
     assert out, str(out)
-    assert out.descent["from"]["number_str"] == "156.50", \
+    assert out.descent.cell_group.number_str == "156.50", \
         "the cell the declaration left, not the one no `typat` allows"
-    assert out.descent["dropped_by"] == {"declaration": 6}
-    assert out.group.number_str == "143.2" and len(out.validated.indices) == 6, \
+    assert out.descent.dropped_by == {"declaration": 6}
+    assert out.group.number_str == "143.2" and len(out.numerical.validated._indices) == 6, \
         "the six operations of P31'"
 
 
@@ -1664,27 +1669,27 @@ def test_a_declaration_on_either_sublattice_states_the_same_crystal(realized):
     both = realized(_km, typat=[0, 1], cross_check=False, characters={0: "A2", 1: "A2"})
     assert out and both, (str(out), str(both))
     assert (out.group.number_str, out.group.name, len(out.operations)) == ("156.50", "P3m11'", 12)
-    assert out.descent is None and len(out.validated.indices) == 12
+    assert out.descent is None and len(out.numerical.validated._indices) == 12
     assert both.group.number_str == "156.50" and both.descent is None
-    assert out.rep.characters.irreps == both.rep.characters.irreps == ("-E1", "-E1")
-    assert [o.determined_by for o in out.rep.characters.orbitals] == \
+    assert out.rep._characters.irreps == both.rep._characters.irreps == ("-E1", "-E1")
+    assert [o.determined_by for o in out.rep._characters.orbitals] == \
         ["hamiltonian", "declaration"], "the reference read relative to the declared row"
-    assert [o.determined_by for o in both.rep.characters.orbitals] == ["declaration"] * 2
-    frame = out.rep.characters.frame
+    assert [o.determined_by for o in both.rep._characters.orbitals] == ["declaration"] * 2
+    frame = out.rep._characters.frame
     mirror = next(ind for ind, name in frame.items() if name == "m(x)")
-    assert complex(out.rep.characters.orbitals[0].character[mirror]).real == \
+    assert complex(out.rep._characters.orbitals[0].character[mirror]).real == \
         pytest.approx(-1.0), "orbital 0 is A2 too: odd under the mirror"
     assert max(float(np.abs(np.asarray(out.rep.matrices[i])
                             - np.asarray(both.rep.matrices[i])).max())
-               for i in out.rep.indices) < 1e-14, "one crystal, one representation"
+               for i in out.rep._indices) < 1e-14, "one crystal, one representation"
     # the declared A2 is a character of the whole group, and it is what the
     # matrices carry: every mirror's matrix is minus the undeclared one
     plain = realized(_km, typat=[0, 1], cross_check=False)
     assert plain, str(plain)
-    for ind in both.rep.indices:
+    for ind in both.rep._indices:
         if both.rep._operation(ind).time_reversal:
             continue
-        name = both.rep.characters.frame[int(ind)]
+        name = both.rep._characters.frame[int(ind)]
         sign = -1.0 if name.startswith("m(") else 1.0
         assert np.abs(np.asarray(both.rep.matrices[ind])
                       - sign * np.asarray(plain.rep.matrices[ind])).max() < 1e-12, name
@@ -1693,17 +1698,17 @@ def test_a_declaration_on_either_sublattice_states_the_same_crystal(realized):
                 for words in ({0: "1E"}, {0: "1E", 1: "1E"}))
     assert one and two, (str(one), str(two))
     for r in (one, two):
-        assert (r.group.number_str, r.group.name, len(r.validated.indices)) == ("143", "P3", 3)
+        assert (r.group.number_str, r.group.name, len(r.numerical.validated._indices)) == ("143", "P3", 3)
         assert not _names(r.descent), "the declaration breaks nothing"
-        assert r.rep.characters.irreps == ("1E", "1E")
-        w = r.cross_check
-        assert (w["outcome"], w["free_standing"], w["substrate"]["number_str"]) == \
+        assert r.rep._characters.irreps == ("1E", "1E")
+        w = r.environment.cross_check
+        assert (w.outcome, w.free_standing, w.substrate.number_str) == \
             ("not compared", None, "143")
-    assert [o.determined_by for o in one.rep.characters.orbitals] == \
+    assert [o.determined_by for o in one.rep._characters.orbitals] == \
         ["declaration", "hamiltonian"]
     assert max(float(np.abs(np.asarray(one.rep.matrices[i])
                             - np.asarray(two.rep.matrices[i])).max())
-               for i in one.rep.indices) < 1e-14, "one crystal, one representation"
+               for i in one.rep._indices) < 1e-14, "one crystal, one representation"
 
 
 def test_a_site_group_with_no_rotation_axis_is_named_by_its_own_parity():
@@ -1722,18 +1727,18 @@ def test_a_site_group_with_no_rotation_axis_is_named_by_its_own_parity():
     inv = tqg.realized_group(_triclinic(), nk=3)
     assert inv, str(inv)
     assert inv.group.name == "P-11'"
-    assert inv.rep.characters.orbitals[0].site_symmetry == "-1"
-    assert set(inv.rep.characters.site_tables[0].labels) == {"Ag", "Au"}
+    assert inv.rep._characters.orbitals[0].site_symmetry == "-1"
+    assert set(inv.rep._characters.site_tables[0].labels) == {"Ag", "Au"}
 
     plain = tqg.realized_group(_triclinic(origin=False), typat=[0, 1], nk=3)
     assert plain, str(plain)
     assert plain.group.name == "P11'"
-    assert plain.rep.characters.site_tables[0].labels == ("A",)
+    assert plain.rep._characters.site_tables[0].labels == ("A",)
     assert [(o.orbitals, o.terms, o.note)
-            for o in plain.rep.characters.band_representations] == \
+            for o in plain.rep._characters.band_representations] == \
         [((0,), ((1, "A↑G(1)", "1a(11',1)"),), ""), ((1,), ((1, "A↑G(1)", "1a(11',1)"),), "")]
 
-    for rec in (inv.rep.characters, plain.rep.characters):
+    for rec in (inv.rep._characters, plain.rep._characters):
         assert not [lab for t in rec.site_tables.values() for lab in t.labels
                     if "_" in lab], "no site group is served a generic suffix"
 
@@ -1758,17 +1763,17 @@ def test_px_declared_across_the_2c_orbit_splits_the_cell_and_nothing_descends():
     assert out.group._provenance == "realized" and out.descent is None
 
     red = _reduction(out)
-    assert red["from"] == {"number_str": "99.164", "name": "P4mm1'", "size": 16}
-    assert red["n_excluded"] == 8
-    assert {e["name"] for e in red["excluded"]} == {
+    assert red.cell_group == tqg.NamedGroup("P4mm1'", "99.164", 16)
+    assert red.n_excluded == 8
+    assert {e.name for e in red.excluded} == {
         "C4(z)", "C4^-1(z)", "m([110])", "m([1-10])",
         "C4(z)'", "C4^-1(z)'", "m([110])'", "m([1-10])'"}
-    assert {e["reason"] for e in red["excluded"]} == {
+    assert {e.reason for e in red.excluded} == {
         "declared content differs across the orbit"}
-    assert all(e["sites"] == (1, 2) and e["orbitals"] == (1, 2)
-               for e in red["excluded"])
+    assert all(e.sites == (1, 2) and e.orbitals == (1, 2)
+               for e in red.excluded)
 
-    rec = out.rep.characters
+    rec = out.rep._characters
     assert rec.irreps == ("A1", "B1", "B1"), "the s, and p_x by its parities"
     assert [o.determined_by for o in rec.orbitals] == ["declaration"] * 3
     for o in rec.orbitals[1:]:
@@ -1779,7 +1784,7 @@ def test_px_declared_across_the_2c_orbit_splits_the_cell_and_nothing_descends():
         assert o.reduced_in == "mm2 in Pmm21' #25.58"
     assert max(float(np.abs(np.asarray(bare.rep.matrices[i])
                             - np.asarray(out.rep.matrices[i])).max())
-               for i in out.rep.indices) == 0.0, \
+               for i in out.rep._indices) == 0.0, \
         "the declaration states the crystal these hoppings already are"
 
 
@@ -1805,17 +1810,17 @@ def test_the_same_px_hoppings_declared_s_break_what_the_parities_differ_on():
     assert _reduction(out) is None, "one content across the orbit reduces nothing"
 
     d = out.descent
-    assert d["from"]["number_str"] == "99.164" and len(d["dropped"]) == 12
-    assert d["steps"][0]["refuted_by"] == {"declaration": 4, "no symmetry matrix": 8}
+    assert d.cell_group.number_str == "99.164" and len(d.dropped) == 12
+    assert d.steps[0].refuted_by == {"declaration": 4, "no symmetry matrix": 8}
     assert _names(d) == {"C2(z)", "m(x)", "C2(z)'", "m(x)'"}
     assert _names(d, "no symmetry matrix") == {
         "C4(z)", "C4^-1(z)", "m([110])", "m([1-10])",
         "C4(z)'", "C4^-1(z)'", "m([110])'", "m([1-10])'"}
-    note = next(b["note"] for b in d["dropped"] if b["name"] == "m(x)")
+    note = next(b.note for b in d.dropped if b.name == "m(x)")
     assert "the hoppings carry orbitals (1,) with -1" in note and "state +1" in note, \
         "the note says what was declared and what the hoppings carry"
 
-    rec = out.rep.characters
+    rec = out.rep._characters
     assert rec.irreps == ("A'", "A'", "A'"), "the kept mirror is m(y), even on all three"
     assert [o.determined_by for o in rec.orbitals] == ["declaration"] * 3
     assert [o.site_symmetry for o in rec.orbitals] == ["m"] * 3

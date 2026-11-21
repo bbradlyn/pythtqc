@@ -976,7 +976,7 @@ def _layer_reading(group, data, rep=None):
         """A reduced coordinate along the vacuum direction as a height from the middle plane."""
         return ((float(z) + 0.5) % 1.0 - 0.5) * scale
 
-    model = getattr(rep, "model", None)
+    model = getattr(rep, "_model", None)
     if model is not None:
 
         where = _orb_positions_3d(model, group)
@@ -1040,11 +1040,11 @@ def _same_rep(a, b) -> bool:
     """Whether two representations are one: the same group, the same operations and the same matrices."""
     if a is b:
         return True
-    if not _same_group(a.group, b.group):
+    if not _same_group(a._group, b._group):
         return False
-    if tuple(a.indices) != tuple(b.indices) or tuple(a.antiunitary) != tuple(b.antiunitary):
+    if tuple(a._indices) != tuple(b._indices) or tuple(a.antiunitary) != tuple(b.antiunitary):
         return False
-    return all(np.allclose(a.matrices[i], b.matrices[i]) for i in a.indices)
+    return all(np.allclose(a.matrices[i], b.matrices[i]) for i in a._indices)
 
 def _table_binding(content, group, rep, *, where):
     """A table is read in one group with one representation, and is read with no other.
@@ -1059,19 +1059,19 @@ def _table_binding(content, group, rep, *, where):
     own = getattr(content, "rep", None) if hasattr(content, "counts") else None
     if own is None:
         return
-    if group is not None and not _same_group(group, own.group):
+    if group is not None and not _same_group(group, own._group):
         raise ValueError(
-            f"{where}(): the table was read in {own.group.name} #{own.group.number_str}, "
+            f"{where}(): the table was read in {own._group.name} #{own._group.number_str}, "
             f"and group is {group.name} #{group.number_str}. A table's labels are the "
             "coreps of the group it was read in, so there is nothing to read in another "
-            "group; the table carries its own as t.rep.group, and hsp_table(rep, bands=...) "
-            "on a representation of the other group reads the bands in that one.")
+            "group; the table carries its own, and hsp_table(r, bands=...) on a model of "
+            "the other group reads the bands in that one.")
     if rep is not None and not _same_rep(rep, own):
         raise ValueError(
             f"{where}(): rep= is not the representation the table was read with, which "
             "the table carries as t.rep: its group, its operations or its matrices differ. "
             "The labels were read off t.rep, so another representation says nothing about "
-            "them; pass t.rep, or read the bands again with hsp_table(rep, bands=...).")
+            "them; pass t.rep, or read the bands again with hsp_table(r, bands=...).")
 
 def _read_in(content, group, rep, *, where):
     """The group and the representation a content is read in, ``(group, rep)``.
@@ -1089,11 +1089,11 @@ def _read_in(content, group, rep, *, where):
             raise TypeError(
                 f"{where}() missing required argument 'group': the content carries no "
                 "representation, so the group whose coreps its labels name is passed "
-                "beside it. A table hsp_table(rep, bands=...) returned carries its own "
+                "beside it. A table hsp_table(r, bands=...) returned carries its own "
                 "as t.rep, and is read in that group with none passed.")
         return group, rep
     _table_binding(content, group, rep, where=where)
-    return (own.group if group is None else group), (own if rep is None else rep)
+    return (own._group if group is None else group), (own if rep is None else rep)
 
 def _table_bands(table):
     """The band block an :class:`~.sewing.HSPTable` was handed, as it was handed in."""
@@ -1267,10 +1267,10 @@ def _site_content_record(rep):
     """The site content a record's labels rest on, or ``None`` without a ``rep``."""
     if rep is None:
         return None
-    ch = getattr(rep, "characters", None)
+    ch = getattr(rep, "_characters", None)
     if ch is None:
         return None
-    return {"number_str": str(rep.group.number_str),
+    return {"number_str": str(rep._group.number_str),
             "irreps": tuple(str(x) for x in ch.irreps),
             "determined_by": tuple(str(o.determined_by) for o in ch.orbitals),
             "residual": float(ch.residual)}
@@ -1296,7 +1296,7 @@ def decompose(content, group=None, *, rep=None, points=None, allow_incomplete=Fa
         which must be complete, or ``{corep: multiplicity}`` written out.
     group : .groups.GroupData, optional
         The group the content was read in, ``r.group``.  A table carries its
-        own, ``t.rep.group``, and is read in it; a content written out by hand
+        own and is read in it; a content written out by hand
         takes the group beside it.
     rep : .symmetry.SpaceGroupRep, optional
         The representation the content was read with, ``r.rep``: it says how
@@ -1365,7 +1365,7 @@ def decompose(content, group=None, *, rep=None, points=None, allow_incomplete=Fa
     --------
     lin3g's six lowest bands (:func:`.models.lin3g`):
 
-    >>> d = decompose(hsp_table(r.rep, bands=6))                      # doctest: +SKIP
+    >>> d = decompose(hsp_table(r, bands=6))                      # doctest: +SKIP
     >>> d.verdict, d.positions                                        # doctest: +SKIP
     ('symmetry-indicated decomposable', (('1b', '2c'), ('1a', '1a', '1b'), ('1b', '1b', '1b')))
     """
@@ -1716,7 +1716,7 @@ def _stack_record(table, group, rep, restriction, *, c, environment, note) -> di
                   "points": tuple(sorted(table.points, key=_tables.point_order)),
                   "orphans": tuple(restriction.orphans),
                   "content": _tables.ordered_content(table.counts),
-                  "n_represented": len(rep.indices)},
+                  "n_represented": len(rep._indices)},
         "stack": {}, "gates": {}, "note": note,
     }
 
@@ -1735,7 +1735,7 @@ def _stack_hamiltonian(rep, c):
     and is held to zero (``"at_zero"``), the stack's period (``"period"``) and
     the layer's extent along its normal (``"extent"``).
     """
-    stack = _layers.stack_presentation(rep.model, c=c)
+    stack = _layers.stack_presentation(rep._model, c=c)
     if isinstance(stack, Refusal):
         return stack, None
     period = float(np.linalg.norm(np.asarray(stack.lat_vecs, dtype=float)[2]))
@@ -1743,7 +1743,7 @@ def _stack_hamiltonian(rep, c):
     extent = float(z.max() - z.min()) * period if z.size else 0.0
     rng = np.random.default_rng(20240829)
     k2 = rng.uniform(-0.5, 0.5, size=(8, 2))
-    flat = np.asarray(_bloch.hamiltonian(rep.model, k2))
+    flat = np.asarray(_bloch.hamiltonian(rep._model, k2))
     stack_sum = _bloch.evaluator(stack)
     phase = 2j * np.pi * z
     if int(stack.nspin) == 2:
@@ -1773,7 +1773,7 @@ def _identity_record(rep, identity) -> dict:
                          "stack's period C: zero at k_z = 0, and at every k_z for a flat "
                          "layer")},
             "no_hopping_across_the_stack": {
-                "n_hoppings": int(rep.model.nhops), "worst": 0,
+                "n_hoppings": int(rep._model.nhops), "worst": 0,
                 "note": "measured by stack_presentation, which refuses on any nonzero"}}
 
 def _identity_holds(identity) -> bool:
@@ -1902,8 +1902,8 @@ def _stack_in_group(table, group, rep, restriction, *, c, bands, verify, charact
 
     record = _stack_record(
         table, group, rep, restriction, c=c,
-        environment=(None if getattr(rep, "environment", None) is None
-                     else str(rep.environment)),
+        environment=(None if getattr(rep, "_environment", None) is None
+                     else str(rep._environment)),
         note=("the layer's plane has no coordinate for the k-points at k_z = ½, where its "
               "group's EBR basis has rows that repeat no in-plane row. The same layer "
               "repeated along its normal with no hopping between copies, each orbital at "
@@ -1942,7 +1942,7 @@ def _stack_in_group(table, group, rep, restriction, *, c, bands, verify, charact
                "its H(k, k_z) is not the layer's H(k) in the stack's gauge")
 
     # ---- 2. the layer's group and matrices, on the stack ----------------
-    represented = {int(i) for i in rep.indices}
+    represented = {int(i) for i in rep._indices}
     unrepresented = tuple(sorted(int(s.ind) for s in group._symmetries
                                  if int(s.ind) not in represented))
     if unrepresented:
@@ -1951,30 +1951,30 @@ def _stack_in_group(table, group, rep, restriction, *, c, bands, verify, charact
                     f"{_text._runs(unrepresented)} of {group.name} #{group.number_str}, "
                     "so the decoupled stack's rows at k_z = ½ cannot be read in that group",
                     unrepresented=unrepresented)
-    g3, asg3 = _layers._layer_on_stack(group, rep.assignment, stack)
+    g3, asg3 = _layers._layer_on_stack(group, rep._assignment, stack)
     by_ind = {int(s.ind): s for s in g3._symmetries}
     rng = np.random.default_rng(20241004)
     battery = rng.uniform(-0.5, 0.5, size=(8, 3))
     battery[:len(_KZ_PROBE), 2] = _KZ_PROBE
     # the stack is built here and held by nothing else, so no edit of it is checked for
-    rep3 = replace(rep, model=stack, group=g3, assignment=asg3,
-                   _operations=tuple(by_ind[int(i)] for i in rep.indices),
+    rep3 = replace(rep, _model=stack, _group=g3, _assignment=asg3,
+                   _operations=tuple(by_ind[int(i)] for i in rep._indices),
                    _battery=battery, _model_key=None)
     residuals = rep3.covariance(battery)
     scale = float(np.abs(np.asarray(_bloch.hamiltonian(stack, battery))).max())
-    gate = max(covariance_gate(len(rep.indices), int(stack.nstate), scale),
+    gate = max(covariance_gate(len(rep._indices), int(stack.nstate), scale),
                float((rep._search or {}).get("gate") or 0.0))
     worst_d = max(residuals.values(), default=0.0)
     record["gates"]["representation"] = {
         "covariance": float(worst_d), "threshold": float(gate),
-        "n_operations": len(rep.indices), "n_k": int(battery.shape[0]),
+        "n_operations": len(rep._indices), "n_k": int(battery.shape[0]),
         "note": ("the layer's own matrices on the stack's H(k, k_z): "
                  "max |D H(k) D^-1 - H(Rk)| over every operation")}
     if worst_d > gate:
         defect("representation", float(worst_d),
                "the layer's own matrices do not carry the stack's H(k, k_z) onto itself")
-    rep3 = replace(rep3, residuals=residuals)
-    typat = tuple(int(group._typat[int(s)]) for s in rep.assignment.site_of_orbital)
+    rep3 = replace(rep3, numerical=replace(rep3.numerical, residuals=residuals))
+    typat = tuple(int(group._typat[int(s)]) for s in rep._assignment.site_of_orbital)
     record["stack"] = {"number_str": str(g3.number_str), "name": str(g3.name),
                        "size": int(g3._size), "dim_k": int(g3._dim_k),
                        "periodic_dirs": tuple(int(p) for p in g3.periodic_dirs),
@@ -1982,7 +1982,7 @@ def _stack_in_group(table, group, rep, restriction, *, c, bands, verify, charact
 
     # ---- 3. the content on the stack, same band block ----------------------
     within = f"the decoupled stack, read in {group.name} #{group.number_str},"
-    table3 = _sewing.hsp_table(rep3, bands=_table_bands(table))
+    table3 = _sewing._hsp_table_rep(rep3, bands=_table_bands(table))
     if isinstance(table3, Refusal):
         return stop("stack_content", f"{within} has content that could not be read: "
                     + table3.reason, gate=table3.gate)
@@ -1994,7 +1994,7 @@ def _stack_in_group(table, group, rep, restriction, *, c, bands, verify, charact
 
     # ---- 4. the characters, where the two presentations meet --------------
     worst_chi, n_chi, shared_points = _shared_characters(
-        table, table3, {int(i): int(i) for i in rep.indices})
+        table, table3, {int(i): int(i) for i in rep._indices})
     labels_equal = all(dict(table.content[a]) == dict(table3.content[b])
                        for a, b in shared_points
                        if a in table.content and b in table3.content)
@@ -2047,7 +2047,7 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
         complete.
     group : .groups.GroupData, optional
         The group the content was read in, ``r.group``.  A table carries its
-        own, ``t.rep.group``, and is read in it; a content written out by hand
+        own and is read in it; a content written out by hand
         takes the group beside it.
     rep : .symmetry.SpaceGroupRep, optional
         The representation the content was read with, ``r.rep``; a table
@@ -2119,7 +2119,7 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
     --------
     Fu, Kane and Mele's diamond with one bond detuned, its two lowest bands:
 
-    >>> si = symmetry_indicator(hsp_table(r.rep, bands=2))          # doctest: +SKIP
+    >>> si = symmetry_indicator(hsp_table(r, bands=2))          # doctest: +SKIP
     >>> si.structure, si.values, si.canonical                       # doctest: +SKIP
     ('Z2 x Z4', (0, 1), {'z2w,1': 1, 'z2w,2': 1, 'z2w,3': 1, 'z4': 3})
     """
@@ -2206,7 +2206,7 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
                "The rows can be measured on the decoupled stack of the layer, which "
                "is built from the representation the bands were read with, its model "
                "and declared characters, and the bands the content counts: pass the "
-               "table hsp_table(rep, bands=...) returned, which carries them, and do "
+               "table hsp_table(r, bands=...) returned, which carries them, and do "
                "not override points=.")
             + " Completing missing content from the stable real-space invariants is "
             "future work.",
@@ -2255,7 +2255,7 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
                   or str(getattr(group, "_provenance", "cell")))
     # the free-standing layer's group, as `realized_group` measured it beside a
     # substrate's, named where it is larger than the group the class lives in
-    free = getattr(rep, "free_standing_group", None) if rep is not None else None
+    free = getattr(rep, "_free_standing_group", None) if rep is not None else None
     free = dict(free) if free and int(free["size"]) > int(group._size) else None
     return SymmetryIndicator(
         verdict=verdict, number_str=str(group.number_str), group_name=str(group.name),
@@ -2326,10 +2326,10 @@ def subtract(content_a, content_b) -> dict | Refusal:
     """
     own_a = getattr(content_a, "rep", None) if hasattr(content_a, "counts") else None
     own_b = getattr(content_b, "rep", None) if hasattr(content_b, "counts") else None
-    if own_a is not None and own_b is not None and not _same_group(own_a.group, own_b.group):
+    if own_a is not None and own_b is not None and not _same_group(own_a._group, own_b._group):
         raise ValueError(
-            f"subtract(): the tables were read in different groups, {own_a.group.name} "
-            f"#{own_a.group.number_str} and {own_b.group.name} #{own_b.group.number_str}, "
+            f"subtract(): the tables were read in different groups, {own_a._group.name} "
+            f"#{own_a._group.number_str} and {own_b._group.name} #{own_b._group.number_str}, "
             "whose coreps cannot be subtracted label by label.")
     for content in (content_a, content_b):
         missing = _incomplete_table(content)
@@ -2576,7 +2576,7 @@ def regular_completion(content, group=None, *, bands=None, rep=None, points=None
     padding ``-GM7 + -M6 + -X5`` is ``-E1`` at ``1b``, the content of the two
     bands above the gap.
 
-    >>> rc = regular_completion(hsp_table(r.rep, bands=6), bands=8) # doctest: +SKIP
+    >>> rc = regular_completion(hsp_table(r, bands=6), bands=8) # doctest: +SKIP
     >>> rc.decomposition.solution_strings()                         # doctest: +SKIP
     ("1 x -E1↑G(2)@1b(4mm1',4mm)",)
     """

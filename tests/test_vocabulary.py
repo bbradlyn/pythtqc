@@ -549,7 +549,7 @@ def fkm_canonical(realized):
         got = realized(fkm_regime(name), decorations=FKM_BOND,
                        characters={0: "s"})
         assert got and got.group.number_str == "166.98", f"{name}: {got}"
-        table = tqw.hsp_table(got.rep, bands=2)
+        table = tqw.hsp_table(got, bands=2)
         assert table.complete
         out[name] = (table, got.group, got.rep)
     return out
@@ -625,8 +625,9 @@ def test_a_trivial_indicator_group_has_no_class_to_speak(lin3g_declared_cross_ch
     which is the coverage statement seen from one group.  ``None`` with the
     reason, not an empty dict and not a refusal: the record is an answer.
     """
-    model, group, _asg, _val, rep = lin3g_declared_cross_checked
-    si = tqe.symmetry_indicator(tqw.hsp_table(rep, bands=(4, 5)), group,
+    r = lin3g_declared_cross_checked
+    group, rep = r.group, r.rep
+    si = tqe.symmetry_indicator(tqw.hsp_table(r, bands=(4, 5)), group,
                                 rep=rep, bands=(4, 5))
     assert si and si.verdict == "trivial indicator group"
     assert si.divisors == () and si.canonical is None

@@ -149,31 +149,20 @@ otherwise the row keeps the site point group's own name; the atomic-limit
 table says which
 ([`named by`](../reference/records.md#the-atomic-limit-table)). The listing
 differs from an abstract point-group table at some sites. The free-standing
-honeycomb's site group, with its rows as the tables name them:
+honeycomb's site group:
 
 ```python
-print(gr.rep.characters.orbitals[0].wyckoff, gr.rep.characters.orbitals[0].site_symmetry)
+print(gr.wyckoff_orbits[0].wyckoff, gr.wyckoff_orbits[0].unitary_site_symmetry)
 #  2c -6m2
-table = gr.rep.characters.site_tables[0]        # the site group's own character table
-print("      " + "".join(f"{name:>8}" for name in table.class_names))
-#               E  2C3(z)  3C2(y)    m(z)  2S6(z)   3m(x)
-for label, row in zip(table.labels, table.characters.real.round(6) + 0):
-    print(f"{label:>6}" + "".join(f"{x:>8g}" for x in row))
-#    A2''       1       1      -1      -1      -1       1
-#    A1''       1       1      -1       1       1      -1
-#     A2'       1       1       1      -1      -1      -1
-#     A1'       1       1       1       1       1       1
-#     E''       2      -1       0      -2       1       0
-#      E'       2      -1       0       2      -1       0
 ```
 
-`A1''` here is the row even under the horizontal mirror `m(z)` and odd under
+The tables' `A1''` there is the row even under the horizontal mirror `m(z)` and odd under
 the in-plane twofolds. Mulliken's convention (R. S. Mulliken, J. Chem. Phys.
 **23**, 1997 (1955)) names a row by its characters: `A` or `B` by the principal
 axis, `1` or `2` by the twofolds perpendicular to it, `'` or `''` by the
 horizontal mirror, `g` or `u` by inversion, and at a sixfold site `E1` the pair
 that transforms like `(x, y)`. Its table of `-6m2` calls that row `A2'`, and
-calls the row printed `A2'` here `A1''`; `A1'`, `A2''`, `E'` and `E''` agree.
+calls the tables' `A2'` `A1''`; `A1'`, `A2''`, `E'` and `E''` agree.
 The tables name rows against a mark no choice of axes moves at four kinds of
 site, the first two told apart by the orientation the
 [band-representation key](#the-band-representation-key) writes their group in:
@@ -194,11 +183,10 @@ convention calls it, on its row and on its line under the atomic-limit table:
 ```python
 declared = tqc.realized_group(graphene(0.0, -1.0), environment="free-standing",
                               characters={0: "A1''"})
-print(declared.rep.characters.summary())
-#  orbital  Wyckoff  site symmetry  function  irrep  named by  determined by  orbital characters
-#        0       2c           -6m2             A1''    tables    declaration  E=+1, C3(z)=+1, C2(y)=-1, m(z)=+1, S6(z)=+1, m(x)=-1
-#        1       2c           -6m2             A1''    tables    hamiltonian  E=+1, C3(z)=+1, C2(y)=-1, m(z)=+1, S6(z)=+1, m(x)=-1
-#    orbital 0: declared "A1''", read at the -6m2 in P6/mmm1' #191.234; the tables' A1'' at this site is the row Mulliken's convention calls A2'; returned as A1'' of -6m2   (.declarations)
+print(declared.wyckoff_orbits.summary())
+#  Wyckoff  site symmetry  orbitals  label  determined by  declared
+#       2c         -6m21'       0-1   A1''    declaration    A1''/-
+#    orbital 0: declared "A1''", read at the -6m2 in P6/mmm1' #191.234; the tables' A1'' at this site is the row Mulliken's convention calls A2'; returned as A1'' of -6m2   (.declared)
 ```
 
 At a site whose group is the threefold axis `3` alone, the tables call the
@@ -225,7 +213,7 @@ coreps, the irreducible objects of a group that holds antiunitary operations
 ```python
 hsp = tqc.high_symmetry_points(r.group)
 for point in ("GM", "K", "M"):
-    print(tqc.corep_content(r.rep, hsp[point], bands=2))
+    print(tqc.corep_content(r, hsp[point], bands=2))
 #  CorepContent(GM: -GM6, partition=(0,))
 #  CorepContent(K: -K5 + -K6, partition=(0, 1))
 #  CorepContent(M: -M3M4, partition=(0,))
@@ -275,7 +263,7 @@ for a, b, R in ((0, 1, [0, 0]), (0, 1, [-1, 0]), (0, 2, [0, 0]), (0, 2, [0, -1])
     shifted.set_hop(-1.0, a, b, R, mode="add")
 for model, declared in ((lieb, {}), (shifted, {"precision": 1e-4})):
     rl = tqc.realized_group(model, typat=[0, 1, 1], **declared)
-    print(rl.rep.characters.orbitals[0].wyckoff, tqc.hsp_table(rl.rep, bands=1).counts)
+    print(rl.wyckoff_orbits[0].wyckoff, tqc.hsp_table(rl, bands=1).counts)
 #  1a {'GM1': 1, 'X1': 1}
 #  1a {'GM1': 1, 'X1': 1}
 ```
@@ -294,16 +282,16 @@ chooses on the cell, the same in every run: a convention of the tables
 An elementary band representation (EBR) is the band set one site irrep
 induces from its Wyckoff position, where that set is no sum of others
 ([primer](tqc-primer.md)). The records' fields hold each under one key, the
-label the group's list of EBRs gives it, and so do the methods that write a sum
-on one line, a decomposition's `solution_strings()` and a band
-representation's `spelled()`:
+label the group's list of EBRs gives it, and so does the method that writes a
+sum on one line, a decomposition's `solution_strings()`; a Wyckoff orbit's band
+representation holds the same parts as its terms:
 
 ```python
-d = tqc.decompose(tqc.hsp_table(r.rep, bands=2))
+d = tqc.decompose(tqc.hsp_table(r, bands=2))
 print(d.solution_strings())
 #  ("1 x -E1↑G(2)@1a(3m1',3m)",)
-print(gr.rep.characters.band_representations[0].spelled())
-#  1 x A1'↑G(2)@2c(-6m21',-6m2)
+print(gr.wyckoff_orbits[0].band_representation.terms)
+#  (Term(multiplicity=1, irrep="A1'", wyckoff='2c', site_symmetry="-6m21'", unitary_site_symmetry='-6m2'),)
 print([key for key in tqc.ebr_rows(gr.group) if key[0].startswith("A1'")])
 #  [("A1'", '2c'), ("A1''", '2c'), ("A1'", '2d'), ("A1''", '2d')]
 ```
@@ -366,7 +354,7 @@ energy is `−50`:
 
 ```python
 deep = tqc.realized_group(kane_mele(50.0, -1.0, 0.3, 0.25), typat=[0, 1], characters={0: "A1"})
-low = tqc.hsp_table(deep.rep, bands=2)
+low = tqc.hsp_table(deep, bands=2)
 print(low.counts, tqc.decompose(low).solution_strings())
 #  {'-GM6': 1, '-K4': 1, '-K5': 1, '-M3M4': 1} ("1 x -E1↑G(2)@1b(3m1',3m)",)
 convention = tqc.ebr_data(deep.group).convention
@@ -410,12 +398,12 @@ states = tqc.solve_at(soc.model, P)
 print(np.round(states[0][:4], 6))
 #  [-2.744031 -2.501964 -2.501964 -2.259907]
 for multiplet in ([0], [1, 2], [3]):
-    print(multiplet, tqc.corep_content(soc.rep, P, states=states, bands=multiplet).counts)
+    print(multiplet, tqc.corep_content(soc, P, states=states, bands=multiplet).counts)
 #  [0] {'-P3': 1}
 #  [1, 2] {'-P4P4': 1}
 #  [3] {'-P3': 1}
 for multiplet in ([0], [1, 2]):
-    print(multiplet, np.round(tqc.characters(soc.rep, P, states=states, bands=multiplet).characters, 6) + 0)
+    print(multiplet, np.round(tqc.characters(soc, P, states=states, bands=multiplet).characters, 6) + 0)
 #  [0] [[1.+0.j 0.-1.j]]
 #  [1, 2] [[2.+0.j 0.+2.j]]
 lg = tqc.little_group(soc.group, P)                # the operations that fix P

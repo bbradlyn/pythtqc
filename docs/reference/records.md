@@ -16,7 +16,7 @@ words are [the glossary's](glossary.md).
 - [The model on this page](#the-model-on-this-page)
 - [`RealizedGroup`](#realizedgroup), and [the descent](#the-descent)
 - [`GroupData`](#groupdata), [`OperationTable`](#operationtable-and-operation),
-  [`OrbitalAssignment`](#orbitalassignment), [`ValidatedGroup`](#validatedgroup),
+  [`ValidatedGroup`](#validatedgroup),
   [`SpaceGroupRep`](#spacegrouprep)
 - [The atomic-limit table](#the-atomic-limit-table), and
   [`BandRepresentation`](#bandrepresentation)
@@ -44,10 +44,9 @@ from pythtb.models import kane_mele
 
 km = kane_mele(0.0, -1.0, 0.3, 0.0)           # no staggered potential, no Rashba term
 r = tqc.realized_group(km, characters={0: "s"})
-model, group, assignment, validated, rep = r
-t = tqc.hsp_table(rep, bands=2)                 # the two occupied bands
+t = tqc.hsp_table(r, bands=2)                   # the two occupied bands
 fs = tqc.realized_group(km, environment="free-standing", characters={0: "s"})
-tf = tqc.hsp_table(fs.rep, bands=2)
+tf = tqc.hsp_table(fs, bands=2)
 ```
 
 `r` and `fs` are what `realized_group` returns, and `t` and `tf` the content of
@@ -66,7 +65,7 @@ is in [how pythTQC reads a Hamiltonian](../background/measurement.md).
 
 ```python
 print(r)
-#  RealizedGroup(P6mm1' #183.186; additional commuting matrices: 1; on a substrate (the default), the free-standing group #191.234 agrees)
+#  RealizedGroup(P6mm1' #183.186; additional commuting matrices: 1; on a substrate (the default), the free-standing group P6/mmm1' #191.234 agrees)
 ```
 
 The Hamiltonian obeys `P6mm1'`, space group 183 with time reversal adjoined,
@@ -81,11 +80,11 @@ that holds that part:
 
 ```python
 print(r.summary())
-#  P6mm1' #183.186, on a substrate   (.group)
+#  P6mm1' #183.186, on a substrate   (.group, .environment.kind)
 #    its operations, by index and Seitz symbol   (.operations)
-#    the orbitals, by Wyckoff position   (.rep.characters)
-#      2b (3m): orbitals 0-1, -E1
-#    one more matrix commutes with H(k) at every k   (.conserved)
+#    the orbitals, by Wyckoff orbit   (.wyckoff_orbits)
+#      2b (3m1'): orbitals 0-1, -E1
+#    one more matrix commutes with H(k) at every k   (.conserved.dim)
 ```
 
 ### The printout, clause by clause
@@ -112,11 +111,11 @@ zeeman = kane_mele(0.0, -1.0, 0.3, 0.0)
 zeeman.set_onsite([[0, 0, 0, 0.3], [0, 0, 0, -0.3]], mode="add")
 broken = tqc.realized_group(zeeman, typat=[0, 1])
 print(broken)
-#  RealizedGroup(P3 #143; time reversal measured broken; descended from #156.50 (6 of 12 coset representatives of the lattice translations broken; these are the single-valued group's, each standing for itself and its negative in the double group); additional commuting matrices: 1; on a substrate (the default), the free-standing group #174 agrees -- a larger magnetic group, of type III, is realized (3 antiunitary operations measured to hold) but is beyond the validated scope)
+#  RealizedGroup(P3 #143; time reversal measured broken; descended from P3m11' #156.50 (6 of 12 coset representatives of the lattice translations broken; these are the single-valued group's, each standing for itself and its negative in the double group); additional commuting matrices: 1; on a substrate (the default), the free-standing group P-6 #174 agrees -- a larger magnetic group, of type III, is realized (3 antiunitary operations measured to hold) but is beyond the validated scope)
 
 declared = tqc.realized_group(kane_mele(0.0, -1.0, 0.3, 0.25), characters={0: "A1", 1: "A2"})
 print(declared)
-#  RealizedGroup(P31' #143.2; cell lowered by the declared content from #183.186 (12 of 24 coset representatives of the lattice translations excluded; these are the single-valued group's, each standing for itself and its negative in the double group); descended from #156.50 (6 of 12 broken by the declared content); on a substrate (the default), the free-standing group #143.2 agrees)
+#  RealizedGroup(P31' #143.2; cell lowered by the declared content from P6mm1' #183.186 (12 of 24 coset representatives of the lattice translations excluded; these are the single-valued group's, each standing for itself and its negative in the double group); descended from P3m11' #156.50 (6 of 12 broken by the declared content); on a substrate (the default), the free-standing group P31' #143.2 agrees)
 
 rng = np.random.default_rng(7)
 centres = np.asarray(km.orb_vecs, dtype=float)
@@ -127,14 +126,14 @@ fitted.set_onsite(np.asarray(km.onsite), mode="set")
 for h in km.hoppings:
     fitted.set_hop(np.asarray(h["amplitude"]) * (1 + 1e-7 * rng.normal()), h["from_orbital"],
                    h["to_orbital"], h.get("lattice_vector", [0, 0]), mode="add")
-numerical = tqc.realized_group(fitted, characters={0: "s"}, precision=1e-6)
-print(numerical)
-#  RealizedGroup(P6mm1' #183.186; precision 1e-06 declared -> tol 2.97e-05 (cut 1e-05, window 0.0316), position_tol 1e-06 (measured max|H| 2.969); additional commuting matrices: 1; centres moved 5e-09; symmetrized (defect 1.13e-07); on a substrate (the default), the free-standing group #191.234 agrees)
+fit = tqc.realized_group(fitted, characters={0: "s"}, precision=1e-6)
+print(fit)
+#  RealizedGroup(P6mm1' #183.186; precision 1e-06 declared -> tol 2.97e-05 (cut 1e-05, window 0.0316), position_tol 1e-06 (measured max|H| 2.969); additional commuting matrices: 1; centers moved 5e-09; symmetrized (defect 1.13e-07); on a substrate (the default), the free-standing group P6/mmm1' #191.234 agrees)
 
 flat, basis = tqc.spinless_presentation(kane_mele(1.0, -1.0, 0.3, 0.25))
 unpaired = tqc.realized_group(flat)
 print(unpaired)
-#  RealizedGroup(P3m1 #156; time reversal measured broken, descended from P3m11' #156.50: its square is -1, so the states carry half-integer spin, and spin= declares which orbitals are spin partners; descended from #183.186 (12 of 24 coset representatives of the lattice translations broken); on a substrate (the default), the free-standing group #187 agrees)
+#  RealizedGroup(P3m1 #156; time reversal measured broken, descended from P3m11' #156.50: its square is -1, so the states carry half-integer spin, and spin= declares which orbitals are spin partners; descended from P6mm1' #183.186 (12 of 24 coset representatives of the lattice translations broken); on a substrate (the default), the free-standing group P-6m2 #187 agrees)
 ```
 
 The calls on the Zeeman variant and on the spinless reading also issue a
@@ -150,15 +149,15 @@ same unit. The clauses, in the order they print:
 | clause | what it says | on the record |
 |---|---|---|
 | `P6mm1' #183.186` | the group the Hamiltonian obeys: its Hermann–Mauguin symbol and the label the tables file it under. A trailing `1'` marks time reversal adjoined, a grey group; `P3 #143` has none | `group` |
-| `precision 1e-06 declared -> tol 2.97e-05 (cut 1e-05, window 0.0316), position_tol 1e-06 (measured max\|H\| 2.969)` | a declared precision, and the tolerances it derived against the Hamiltonian's measured magnitude: `tol = 10 × precision × max\|H\|`, `cut = tol / max\|H\|`. `, symprec raised to …` follows where the declared noise in the positions would defeat the symmetry finder | `precision` |
+| `precision 1e-06 declared -> tol 2.97e-05 (cut 1e-05, window 0.0316), position_tol 1e-06 (measured max\|H\| 2.969)` | a declared precision, and the tolerances it derived against the Hamiltonian's measured magnitude: `tol = 10 × precision × max\|H\|`, `cut = tol / max\|H\|`. `, symprec raised to …` follows where the declared noise in the positions would defeat the symmetry finder | `numerical.precision` |
 | `time reversal measured broken, descended from P3m11' #156.50: its square is -1, …` | time reversal is broken, so the cell was identified again without it, and the grey group it was identified from is named; where its square is `-1` on states read without spin, as on the spinless reading, the clause says the states carry half-integer spin and names `spin=`, which reads them as spinors; where operations of the cell combined with time reversal hold, as in the Zeeman variant, the clause ends at `broken` and the last clause names what holds | `time_reversal` |
-| `cell lowered by the declared content from #183.186 (12 of 24 coset representatives of the lattice translations excluded; …)` | a reduction: 12 of the cell's 24 coset representatives do not carry the declared content, so they were never operations of the declared crystal, and the cell was identified again before any hopping was read | `decoration["declared"]` |
-| `descended from #156.50 (6 of 12 coset representatives of the lattice translations broken; …)` | a descent: the Hamiltonian broke 6 of the 12 coset representatives of the group it was measured in, and the cell was lowered to a group of the operations that hold. Where the hoppings did not break them all, the parenthesis says what did: `by the centres` (operations the orbital centres are not carried by within a declared precision), `by the declared content`, as in the declared variant's `(6 of 12 broken by the declared content)`, or the count split between them. Where operations the Hamiltonian obeys are among them, left out by the states' projective class, to close a group or by the tie rule, they were dropped rather than broken, and the parenthesis counts each cause, as it does for a descent of several steps: `descended from #123.340 in 2 steps (28 of 32 coset representatives of the lattice translations dropped: 16 by the hoppings, 8 with time reversal, 4 by the states' projective class)` | `descent` |
-| `additional commuting matrices: 1` | matrices beyond the identity that commute with `H(k)` at every `k`: symmetry beyond the crystal's own, outside the group the labels are read in | `conserved` |
-| `centres moved 5e-09` | the orbital centres were moved onto the positions the group puts them at, about the origin that fits them: the largest move, in reduced coordinates | `positions` |
-| `symmetrized (defect 1.13e-07)` | the Hamiltonian was moved onto its symmetric part, by at most this much in the units of `H` | `symmetrization` |
-| `on a substrate (the default)` | a layer's environment, and that nobody declared it: `free-standing` is the other, and `(the default)` is absent where `environment=` was given | `environment`, `environment_declared` |
-| `the free-standing group #191.234 agrees` | the other environment, measured on its own and compared: the substrate group is the subgroup of the free-standing one that preserves the layer's normal. Where they do not agree it reads `the other environment refused` or `the other environment ambiguous`; where the declaration is written in a substrate's site irreps, which the free-standing layer has no word for, `not compared with the free-standing layer: the declaration is written in the substrate's site irreps` | `cross_check` |
+| `cell lowered by the declared content from P6mm1' #183.186 (12 of 24 coset representatives of the lattice translations excluded; …)` | a reduction: 12 of the cell's 24 coset representatives do not carry the declared content, so they were never operations of the declared crystal, and the cell was identified again before any hopping was read | `decoration.declared` |
+| `descended from P3m11' #156.50 (6 of 12 coset representatives of the lattice translations broken; …)` | a descent: the Hamiltonian broke 6 of the 12 coset representatives of the group it was measured in, and the cell was lowered to a group of the operations that hold. Where the hoppings did not break them all, the parenthesis says what did: `by the centers` (operations the orbital centers are not carried by within a declared precision), `by the declared content`, as in the declared variant's `(6 of 12 broken by the declared content)`, or the count split between them. Where operations the Hamiltonian obeys are among them, left out by the states' projective class, to close a group or by the tie rule, they were dropped rather than broken, and the parenthesis counts each cause, as it does for a descent of several steps: `descended from P4/mmm1' #123.340 in 2 steps (28 of 32 coset representatives of the lattice translations dropped: 16 by the hoppings, 8 with time reversal, 4 by the states' projective class)` | `descent` |
+| `additional commuting matrices: 1` | matrices beyond the identity that commute with `H(k)` at every `k`: symmetry beyond the crystal's own, outside the group the labels are read in | `conserved.dim` |
+| `centers moved 5e-09` | the orbital centers were moved onto the positions the group puts them at, about the origin that fits them: the largest move, in reduced coordinates | `numerical.positions` |
+| `symmetrized (defect 1.13e-07)` | the Hamiltonian was moved onto its symmetric part, by at most this much in the units of `H` | `numerical.symmetrization` |
+| `on a substrate (the default)` | a layer's environment, and that nobody declared it: `free-standing` is the other, and `(the default)` is absent where `environment=` was given | `environment.kind`, `environment.declared` |
+| `the free-standing group P6/mmm1' #191.234 agrees` | the other environment, measured on its own and compared: the substrate group is the subgroup of the free-standing one that preserves the layer's normal. Where they do not agree it reads `the other environment refused` or `the other environment ambiguous`; where the declaration is written in a substrate's site irreps, which the free-standing layer has no word for, `not compared with the free-standing layer: the declaration is written in the substrate's site irreps` | `environment.cross_check` |
 | `-- a larger magnetic group, of type III, is realized (3 antiunitary operations measured to hold) but is beyond the validated scope` | operations of the cell combined with time reversal that hold while time reversal itself is broken: with the group returned, a magnetic group beyond the grey groups, its type named | `beyond_grey` |
 
 A three-dimensional model prints no environment, so one that nothing else
@@ -166,50 +165,47 @@ happened to prints its group alone.
 
 ### Every field
 
-`model, group, assignment, validated, rep = r` binds five of the record's own
-fields, so the unpacked `rep` is `r.rep`. The rest are reached by name.
+Every field is read by name, and the calls that label bands take `r` whole.
 
 | field | what it holds |
 |---|---|
-| `model` | the model measured, which every later call takes: a layer's slab presentation, its `H(k)` measured identical to the layer's, or through the move `presentation` records; a three-dimensional model itself, or with the values of its parameters in place; the symmetrized model, where one was made |
-| `source` | the model exactly as it was handed in |
 | `group` | the space group the Hamiltonian obeys ([`GroupData`](#groupdata)) |
-| `assignment` | the Wyckoff orbit of each orbital, and how each operation moves the sites ([`OrbitalAssignment`](#orbitalassignment)) |
-| `validated` | the verdict on each operation ([`ValidatedGroup`](#validatedgroup)) |
-| `rep` | the matrix of each operation on the orbitals, and the atomic-limit table ([`SpaceGroupRep`](#spacegrouprep)) |
 | `operations` | the group's operations by index, one per coset of the lattice translations, each with its Seitz symbol and its name in the model's frame ([`OperationTable`](#operationtable-and-operation)) |
 | `descent` | the operations dropped and what dropped each, or `None` where the Hamiltonian obeys every unitary operation its cell allows ([the descent](#the-descent)) |
+| `wyckoff_orbits` | the orbitals, a row per Wyckoff orbit: its position, its site-symmetry group, its site irreps and the band representation they induce ([the atomic-limit table](#the-atomic-limit-table)) |
 | `time_reversal` | how time reversal was measured |
 | `conserved` | symmetry beyond the crystal's own |
-| `environment` | `"substrate"` or `"free-standing"`; `None` for a three-dimensional model |
-| `environment_declared` | whether `environment=` was given |
-| `cross_check` | the other environment, measured and compared; `None` for a three-dimensional model and with `cross_check=False` |
+| `environment` | a layer's environment, `None` for a three-dimensional model: `kind`, `"substrate"` or `"free-standing"`; `declared`, whether `environment=` was given; `cross_check`, the other environment, measured and compared, `None` with `cross_check=False`; and `presentation`, below |
 | `decoration` | what was added to the cell and why: `dz`, the depth of a substrate under the layer; `typat` and `n_atoms`, the added atoms' species and their number; `recipe`, the reason in a sentence; and `declared`, a reduction by declared content, or `None` |
-| `precision` | what a declared precision derived; `None` without one |
-| `positions` | how far the centres missed the group's own action, and their correction; `None` without a `position_tol`, declared or derived from `precision` |
-| `symmetrization` | how far the Hamiltonian was moved onto its symmetric part; `None` where nothing needed it |
 | `beyond_grey` | the cell's operations combined with time reversal that hold while time reversal itself is broken; `None` otherwise |
-| `presentation` | how a layer was presented as a slab: `c`, the slab's lattice constant; `residual`, the measured difference between the slab's `H(k)` and the layer's at `n_check` random `k`, which is zero; and `tilted`, `None` unless the layer was handed in as a slab whose non-periodic lattice vector was tilted off the layer's normal, as one cut from a crystal along a lattice vector of the crystal is. A layer's group cannot depend on that choice, so the vector is put on the normal with every orbital where it was, and `tilted` records the move: `tilt`, the vector's in-plane part in reduced coordinates of the periodic directions; `max_move` and `n_moved`, each orbital's reduced coordinates in the plane having moved by its reduced height times the tilt; `spectrum_residual`, the measured difference of the two spectra; and a `note`. The move is a change of gauge, which moves no energy, and `residual` is then measured through it, at rounding. A three-dimensional model is its own presentation, `c` and `tilted` reading `None` |
-| `cell` | the point set the group was identified on, the orbitals and any species added to them, read for its positions alone |
-| `typat`, `cell_typat` | the species of each orbital the cell was read with, and the same with the added atoms' |
-| `bundle` | the five unpacked values, in order |
+| `model` | the model measured, which every later call takes: a layer's slab presentation, its `H(k)` measured identical to the layer's, or through the move `environment.presentation` records; a three-dimensional model itself, or with the values of its parameters in place; the symmetrized model, where one was made |
+| `rep` | the matrix of each operation on the orbitals ([`SpaceGroupRep`](#spacegrouprep)) |
+| `spin` | the spin pairs `spin=` declared, a `SpinBasis`; `None` where none were |
+| `numerical` | how the measurement was made, field by field below |
+| `numerical.precision` | what a declared precision derived; `None` without one |
+| `numerical.positions` | how far the centers missed the group's own action, and their correction; `None` without a `position_tol`, declared or derived from `precision` |
+| `numerical.symmetrization` | how far the Hamiltonian was moved onto its symmetric part; `None` where nothing needed it |
+| `numerical.validated` | the verdict on each operation ([`ValidatedGroup`](#validatedgroup)) |
+| `numerical.source` | the model exactly as it was handed in |
+| `environment.presentation` | how a layer was presented as a slab: `c`, the slab's lattice constant; `residual`, the measured difference between the slab's `H(k)` and the layer's at `n_check` random `k`, which is zero; and `tilted`, `None` unless the layer was handed in as a slab whose non-periodic lattice vector was tilted off the layer's normal, as one cut from a crystal along a lattice vector of the crystal is. A layer's group cannot depend on that choice, so the vector is put on the normal with every orbital where it was, and `tilted` records the move: `tilt`, the vector's in-plane part in reduced coordinates of the periodic directions; `max_move` and `n_moved`, each orbital's reduced coordinates in the plane having moved by its reduced height times the tilt; `spectrum_residual`, the measured difference of the two spectra; and a `note`. The move is a change of gauge, which moves no energy, and `residual` is then measured through it, at rounding |
 
 ```python
-print(broken.time_reversal["outcome"], broken.time_reversal["grey_name"], "->", broken.time_reversal["name"])
+print(broken.time_reversal.outcome, broken.time_reversal.grey_name, "->", broken.time_reversal.name)
 #  measured broken P31' -> P3
-print(r.time_reversal["outcome"], r.time_reversal["n_obeyed"], "of", r.time_reversal["n_antiunitary"])
+print(r.time_reversal.outcome, r.time_reversal.n_obeyed, "of", r.time_reversal.n_antiunitary)
 #  kept 12 of 12
-print(r.conserved["dim"])
+print(r.conserved.dim)
 #  1
-print(r.environment, r.environment_declared, r.cross_check["outcome"], r.cross_check["free_standing"])
-#  substrate False agree {'number_str': '191.234', 'name': "P6/mmm1'", 'size': 48}
+print(r.environment.kind, r.environment.declared, r.environment.cross_check.outcome,
+      r.environment.cross_check.free_standing)
+#  substrate False agree P6/mmm1' #191.234
 ```
 
 `time_reversal` is time reversal as measured: the cell is
 asked as a grey group, since positions say nothing about time reversal, and
 the Hamiltonian obeys the operations combined with time reversal or not.
 
-| key | what it holds |
+| field | what it holds |
 |---|---|
 | `outcome` | `"kept"`, every operation combined with time reversal holds and the group is grey; or `"measured broken"`, they are refuted and the group returned is the unitary group, identified again from the cell |
 | `n_antiunitary`, `n_obeyed`, `n_broken` | the operations combined with time reversal of the grey group measured, and how many hold, counted by the rule `beyond_grey` names its operations by: where time reversal is broken, one whose unitary part is in the group returned makes time reversal with it and does not hold, so none holds unless a descent after time reversal was measured, by the states' projective class, left that unitary part out |
@@ -236,7 +232,7 @@ whatever basis the pair is written, and two identical lattices that no hopping
 joins are one sector of two copies. `images` gives, per operation by index, the
 sector it carries each sector onto.
 
-`cross_check` holds the other environment's measurement: `outcome`, `"agree"`,
+`environment.cross_check` holds the other environment's measurement: `outcome`, `"agree"`,
 `"ambiguous"` (the tie rule kept a subgroup the other environment did not
 measure, and the statement holds for another pair of the two environments'
 candidates, which the note names: no conflict about the Hamiltonian),
@@ -246,7 +242,7 @@ is written in a substrate's site irreps, which the free-standing layer's site
 groups name nothing for, so it says a substrate is meant and the free-standing
 layer is not read with it; a free-standing layer's words are read on the
 substrate by restriction, and compared); `agrees`; `free_standing` and
-`substrate`, each group's label, symbol and size, the other environment's
+`substrate`, each group's symbol, label and size, the other environment's
 `None` where it refused or was not compared; `rows`, each substrate
 operation and the free-standing operation it is; `missing`, `extra`, `flipping`
 and `unmapped`, the four ways the comparison can fail, each naming its
@@ -254,21 +250,21 @@ operations; `tie`, the operations a tie left out; and `note`, the comparison in
 words. A genuine mismatch raises `InternalError`: two measurements of one
 Hamiltonian disagreeing is the package disagreeing with itself.
 
-A model fitted to a calculation carries three more records:
+A model fitted to a calculation fills three more fields of `numerical`:
 
 ```python
-p = numerical.precision
-print(p["precision"], round(p["max_h"], 3), f"{p['tol']:.3g}", p["position_tol"], f"{p['window']:.3g}",
-      p["symprec"], p["symprec_raised"])
+p = fit.numerical.precision
+print(p.precision, round(p.max_h, 3), f"{p.tol:.3g}", p.position_tol, f"{p.window:.3g}",
+      p.symprec, p.symprec_raised)
 #  1e-06 2.969 2.97e-05 1e-06 0.0316 1e-05 False
-q = numerical.positions
-print(f"{q['defect']:.1e}", q["position_tol"], q["adjusted"], f"{q['max_move']:.1e}", q["n_moved"],
-      q["frame"], f"{max(abs(x) for x in q['offset']):.1e}")
+q = fit.numerical.positions
+print(f"{q.defect:.1e}", q.position_tol, q.adjusted, f"{q.max_move:.1e}", q.n_moved,
+      q.frame, f"{max(abs(x) for x in q.offset):.1e}")
 #  2.0e-08 1e-06 True 5.0e-09 1 model 5.0e-09
-s = numerical.symmetrization
-print(f"{s.defect:.3g}", f"{s.defect_relative:.3g}", len(s.near), len(s.exact), s.passes)
+s = fit.numerical.symmetrization
+print(f"{s.defect:.3g}", f"{s.defect / s.scale:.3g}", len(s.near), len(s.exact), s.passes)
 #  1.13e-07 3.76e-08 22 2 1
-print(numerical.source is fitted, numerical.model is fitted)
+print(fit.numerical.source is fitted, fit.model is fitted)
 #  True False
 ```
 
@@ -295,18 +291,15 @@ print(numerical.source is fitted, numerical.model is fitted)
   `n_moved`, and `spectrum_residual` with `n_check`, the measured statement
   that the move left the spectrum where it was. Where the whole group did not
   carry the centres, `move` is what it would have asked of one and `carried`
-  how many operations do, and the rest are broken by the centres on `descent`.
+  how many operations do, and the rest are broken by the centers on `descent`.
   Moving a centre is a `k`-dependent change of basis, so no band moves; `note`
   says what was done.
 - `symmetrization`, a `Symmetrization`: `defect`, how far `H(k)` moved, in the
-  units of `H`, and `defect_relative`, the same against its magnitude `scale`;
+  units of `H`, and `scale`, its magnitude, `defect / scale` the move relative to it;
   `near` and `exact`, the operations that were near-symmetric, which licensed
-  the projection, and those already exact, with their measured `residuals` and
-  `classes`; `tol` and `exact_gate`, the tolerances of the two checks the
-  classes were read against; `operations`, the operations averaged over, and
-  `not_represented`, those kept that the representation does not carry, a slab
-  cell's operations on its vacuum;
-  `multiplets`, how far the orbitals' multiplets held only within the declared
+  the projection, and those already exact, with their measured `residuals`;
+  `tol`, the tolerance they were read against;
+  `site_multiplets`, how far the orbitals' multiplets held only within the declared
   precision; `parts`, the parts of the crystal coupled to one another only
   below it and how large that coupling was, which the projection leaves out;
   `copies`, identical copies coupled or told apart only below it, which the
@@ -314,14 +307,13 @@ print(numerical.source is fitted, numerical.model is fitted)
   between them, the bonding and the antibonding state of two lattices joined
   on site or a square's `p_x, p_y` pair, coupled only below it, which the projection
   holds apart; `passes`; `verification`, the symmetrized model measured again at
-  the default tolerance; and `grid`, `checks`, `operators` and `machine_floor`,
-  the numbers the projection's exactness rests on. Its `summary()` reads it
-  part by part. `model` is then the symmetrized model and `source` the one
-  handed in.
+  the default tolerance; and `checks`, the numbers the projection's exactness
+  rests on. Its `summary()` reads it part by part. `model` is then the
+  symmetrized model and `numerical.source` the one handed in.
 
 `beyond_grey` names the operations of the cell combined with time reversal
 that hold while time reversal itself is broken. Each entry of `operations`
-carries the operation's `name`, its index `ind` in the group it was measured in
+carries the operation's `name`, its `index` in the group it was measured in
 and that group's label, `of`, as an entry of [the descent](#the-descent) does,
 and its rotation, translation, residual and verdict. Where the translation is
 not a lattice vector of the cell, the name carries it in Seitz form, in the
@@ -342,7 +334,7 @@ it fixes, and so does time reversal, so each mirror is broken and each mirror
 combined with time reversal holds:
 
 ```python
-print([(o["name"], o["of"]) for o in broken.beyond_grey["operations"]], broken.beyond_grey["magnetic_type"])
+print([(o.name, o.of) for o in broken.beyond_grey.operations], broken.beyond_grey.magnetic_type)
 #  [("m([010])'", '156.50'), ("m(x)'", '156.50'), ("m([1-10])'", '156.50')] III
 ```
 
@@ -383,9 +375,9 @@ instead. It is the larger group these states obey, and `spin=` reads it in the
 double-valued tables ([spin](../guide/spin.md)):
 
 ```python
-square = unpaired.time_reversal["square"]
-print(square["asked"], round(square["measured"], 6), unpaired.time_reversal["n_obeyed"], "of",
-      unpaired.time_reversal["n_antiunitary"], unpaired.beyond_grey)
+square = unpaired.time_reversal.square
+print(square.asked, round(square.measured, 6), unpaired.time_reversal.n_obeyed, "of",
+      unpaired.time_reversal.n_antiunitary, unpaired.beyond_grey)
 #  1 -1.0 0 of 6 None
 ```
 
@@ -405,23 +397,23 @@ declaration:
 
 ```python
 d = broken.descent
-print(d["from"], "->", d["to"])
-#  {'number_str': '156.50', 'name': "P3m11'", 'size': 12} -> {'number_str': '143.2', 'name': "P31'", 'size': 6}
-print(d["dropped_by"], sorted({b["refuted_by"] for b in d["dropped"]}))
+print(d.cell_group, "->", d.subgroup)
+#  P3m11' #156.50 -> P31' #143.2
+print(d.dropped_by, sorted({b.refuted_by for b in d.dropped}))
 #  {'hoppings': 6} ['no symmetry matrix']
-b = d["dropped"][0]
-print(b["ind"], b["name"], b["refuted_by"], b["step"], b["of"])
+b = d.dropped[0]
+print(b.index, b.name, b.refuted_by, b.step, b.of)
 #  4 m([010]) no symmetry matrix 1 156.50
 e = declared.descent
-b = e["dropped"][0]
-print(e["dropped_by"], b["name"], b["refuted_by"], b["orbitals"])
+b = e.dropped[0]
+print(e.dropped_by, b.name, b.refuted_by, b.orbitals)
 #  {'declaration': 6} m([010]) declaration (0, 1)
-print(b["note"])
+print(b.note)
 #  relative to orbitals (0,), the hoppings carry orbitals (1,) with +1 under this operation, and the declarations ((0,) +1, (1,) -1) state -1
-reduction = declared.decoration["declared"]
-x = reduction["excluded"][0]
-print(reduction["from"]["number_str"], "->", reduction["to"]["number_str"],
-      reduction["n_excluded"], x["name"], x["reason"])
+reduction = declared.decoration.declared
+x = reduction.excluded[0]
+print(reduction.cell_group.number_str, "->", reduction.subgroup.number_str,
+      reduction.n_excluded, x.name, x.reason)
 #  183.186 -> 156.50 12 C2(z) declared content differs across the orbit
 ```
 
@@ -437,7 +429,7 @@ fixes both sublattices, and relative to orbital 0 the hoppings carry orbital 1
 with `+1` under it, where the declaration, `A1` against `A2`, states `−1`: the
 crystal declared has no such mirror, so the group descends to one that carries
 the declared content. The twelve operations exchanging the sublattices are on
-`decoration["declared"]` instead: the two sublattices were declared different
+`decoration.declared` instead: the two sublattices were declared different
 content, so those operations were never operations of the declared crystal,
 and nothing is charged to the Hamiltonian twice.
 
@@ -455,7 +447,7 @@ and nothing is charged to the Hamiltonian twice.
 | `"closure"` | the operations that hold do not close into a group, and no subgroup inside them holds this one |
 | `"tie"` | several subgroups of the largest order tie, and the one [the tie rule](../background/measurement.md#the-descent-and-the-tie-rule) keeps does not hold this one |
 
-Every entry of `dropped` carries the operation's `ind`, its `name` in the frame
+Every entry of `dropped` carries the operation's `index`, its `name` in the frame
 `characters=` is written in, `refuted_by`, the `residual` the verdict rests on
 (`nan` where none does: a declaration, a projective class, a closure or a tie),
 `step`, the descent that dropped it, and `of`, the group that step was measured
@@ -467,21 +459,21 @@ than rounding, `covariance`: how far the matrix of that form nearest its
 solution space carries `H(k)` from `H(gk)`, against `tol`; a declaration entry `orbitals`, `declared`, `measured` and a `note`;
 a projective-class entry the anticommuting `pair` and their `names`, the
 `commutation_phase`, whether it is the sign spin-½ lifts carry (`spin_half`), and a
-`note`. The rest of the record:
+`note`; a field an entry has no value for reads `None`. The rest of the record:
 
-| key | what it holds |
+| field | what it holds |
 |---|---|
-| `from`, `to` | the group the cell allowed and the group the descent arrived at, each `number_str`, `name` and `size`; where time reversal is then measured broken, as in the Zeeman variant, the group returned is `to`'s unitary half |
-| `dropped_by` | how many operations each cause dropped, every step together: `"centres"`, `"hoppings"`, `"declaration"`, `"closure"`, `"tie"`, `"time reversal"` and `"projective class"`, in the order the measurement meets them, each that dropped any; together, the group the cell allowed less the group the descent arrived at |
+| `cell_group`, `subgroup` | the group the cell allowed and the group the descent arrived at, each `name`, `number_str` and `size`; where time reversal is then measured broken, as in the Zeeman variant, the group returned is `subgroup`'s unitary half |
+| `dropped_by` | how many operations each cause dropped, every step together: `"centers"`, `"hoppings"`, `"declaration"`, `"closure"`, `"tie"`, `"time reversal"` and `"projective class"`, in the order the measurement meets them, each that dropped any; together, the group the cell allowed less the group the descent arrived at |
 | `tied` | where a declared content leaves several readings of the largest order, all of them, in the order the tie rule ranks them, the one returned first |
 | `cell` | the orbit that carries the group the descent arrived at: the generic point added to the cell, its orbit under the operations kept, and the species it was added as |
 | `iterations`, `steps` | how many descents ran, and each one's own record: its groups, the operations it dropped (`dropped`, `n_dropped`), a count by `refuted_by`, the operations kept, and the tie or the declaration's readings (`tied`) where there were some; where the states' projective class lowered the group, under `projective`, the pairs that name it, what was kept and, where subgroups of that order tied, why the first was kept (`reason`), and on a layer the sign the horizontal mirror was given free-standing (`horizontal_mirror`) or, on a substrate, the free-standing group the class was read on (`read_on`) |
 | `lattice` | `None` unless the cell was a supercell of its own point set and the hoppings broke the translation; then that first descent, with each translation's measured residual |
 | `note` | the descent in words: what dropped the operations, counted by cause over every step, with operations left out to close a group or by the tie rule, and time reversal measured broken between two steps, among the causes, what the operations kept carry, the tie rule's choice and why, and the reduction; where time reversal is then measured broken, what holds, the unitary operations and those combined with time reversal, and that the unitary group alone is returned; where every operation broken was broken by its own form beyond `tol`, and a precision a model's numbers could have holds them, that precision |
 
-A reduction, `decoration["declared"]`, holds `from` and `to`, the group the
+A reduction, `decoration.declared`, holds `cell_group` and `subgroup`, the group the
 cell allowed and the one it was identified as; `excluded`, one entry per
-operation the declared crystal does not have, each with its `ind`, its `name`,
+operation the declared crystal does not have, each with its `index`, its `name`,
 the `sites` and `orbitals` concerned, the `reason`, and a `note`, the exclusion
 in words; `n_excluded`; `kept`, the operations kept; `pairs`, each unitary
 operation kept as its index in the group before and in the group after; and
@@ -506,14 +498,14 @@ The space group, in the model's own cell: `r.group`, and the group every table
 call takes. Its `summary()` reads it part by part:
 
 ```python
-print(group)
+print(r.group)
 #  GroupData(P6mm1' #183.186, spinor=True, magnetic_type='II', periodic_dirs=(0, 1))
-print(group.summary())
+print(r.group.summary())
 #  P6mm1' #183.186   (.name, .number_str)
 #    a grey group, magnetic type II: time reversal is one of its operations   (.magnetic_type)
 #    the double group: each operation's negative is in it too   (.spinor)
 #    a layer: periodic along the first two lattice vectors, vacuum along the third   (.periodic_dirs)
-print(group.name, group.number_str, group.magnetic_type, len(r.operations), group.spinor)
+print(r.group.name, r.group.number_str, r.group.magnetic_type, len(r.operations), r.group.spinor)
 #  P6mm1' 183.186 II 24 True
 ```
 
@@ -528,8 +520,8 @@ Its operations, one per coset of the lattice translations, are `r.operations`.
 
 ## `OperationTable` and `Operation`
 
-The operations of a group, by index: `r.operations`, `tqc.operations(group)`, and
-`rep.operations` for the ones a representation carries. A mapping from each
+The operations of a group, by index: `r.operations` and `tqc.operations(r.group)`.
+A mapping from each
 operation's index to its `Operation`, which prints as the whole correspondence
 under a line saying what its rows are, as its `summary()` returns it; an
 `Operation`'s own `summary()` reads it part by part:
@@ -565,59 +557,24 @@ carry no spin; and `antiunitary`, whether it is combined with time reversal, whi
 spellings mark with a trailing `'`. How the symbols and names are spelled is in
 [the conventions](../background/conventions.md#operations-a-seitz-symbol-and-a-cartesian-name).
 
-## `OrbitalAssignment`
-
-Which site orbit each orbital sits on, and how the operations move the sites:
-`r.assignment`, which `summary()` reads part by part.
-
-```python
-print(assignment)
-#  OrbitalAssignment(2 orbitals on 2 sites: sites (0, 1), letter b, site symmetry 3m)
-print(assignment.summary())
-#  2 orbitals on 2 sites   (.site_of_orbital, .site_positions)
-#    the orbits, by Wyckoff letter in the tables' setting and site symmetry   (.orbits, .wyckoff_tables, .site_symmetry)
-#      b (3m): sites 0-1, orbitals 0-1
-#    the operations that fix each site, by index   (.site_group)
-#    the site each operation carries each site onto, and the lattice vector it lands in   (.permutations, .lattice_shift)
-print(assignment.wyckoff_tables, assignment.wyckoff_spglib, assignment.wyckoff_spglib_dataset)
-#  ('b', 'b') ('b',) ('c', 'c')
-```
-
-A Wyckoff letter depends on the setting, and three are measured:
-`wyckoff_tables`, one per site, the letter in the tables' own setting, which
-every table is read with; `wyckoff_spglib`, one per orbit, and
-`wyckoff_spglib_dataset`, one per site, the letters in spglib's
-standardization, which are information about the geometry and never a table
-key. Here spglib's two disagree with each other, `b` against `c`.
-
-| field | what it holds |
-|---|---|
-| `orbits` | the sites, grouped into the orbits the operations carry them through |
-| `orbit_of_site`, `orbit_of_orbital`, `site_of_orbital` | which orbit each site is on, which orbit each orbital is on, and which site each orbital sits on |
-| `site_positions`, `site_orbitals` | the sites, and the orbitals on each |
-| `site_group`, `site_symmetry` | per site, the indices of the operations that fix it, and their point group's Hermann–Mauguin symbol |
-| `permutations`, `lattice_shift` | per operation and site, the site it is carried to, and the lattice vector the image lands in, which sets the phases a representation is built with |
-| `wyckoff_tables`, `wyckoff_spglib`, `wyckoff_spglib_dataset` | the Wyckoff letters, as above |
-| `max_distance` | the largest Cartesian mismatch accepted while matching images to sites |
-
 ## `ValidatedGroup`
 
-The verdict on each operation of a group: `r.validated`, which `summary()`
+The verdict on each operation of a group: `r.numerical.validated`, which `summary()`
 reads part by part.
 
 ```python
-print(validated)
-#  ValidatedGroup(P6mm1' #183.186, 24 of 24 coset representatives of the lattice translations obeyed, which form a group; they are the single-valued group's, each standing for itself and its negative in the double group)
-print(validated.summary())
-#  P6mm1' #183.186: 24 of 24 coset representatives of the lattice translations obeyed   (.indices, .verdicts)
+print(r.numerical.validated)
+#  ValidatedGroup(24 of 24 coset representatives of the lattice translations obeyed, which form a group; they are the single-valued group's, each standing for itself and its negative in the double group)
+print(r.numerical.validated.summary())
+#  24 of 24 coset representatives of the lattice translations obeyed, none broken, none undetermined   (.obeyed, .broken, .undetermined)
 #    the single-valued group's, each standing for itself and its negative in the double group
-#    each one's covariance residual, at most 1.6e-14 against the tolerance 1e-08, on 36 k-points   (.residuals, .tol, .n_kpts)
-print(validated.broken, validated.closed)
+#    each one's covariance residual, at most 1.6e-14 against the tolerance 1e-08, on 36 k-points   (.residuals, .tol, .n_kpoints)
+print(r.numerical.validated.broken, r.numerical.validated.closed)
 #  () True
-print(fs.validated)
-#  ValidatedGroup(P6/mmm1' #191.234, 48 of 48 coset representatives of the lattice translations obeyed, which form a group; they are the single-valued group's, each standing for itself and its negative in the double group; 48 act on every k as another does, so the Hamiltonian alone does not say which of each pair holds, and the representation decides)
+print(fs.numerical.validated)
+#  ValidatedGroup(48 of 48 coset representatives of the lattice translations obeyed, which form a group; they are the single-valued group's, each standing for itself and its negative in the double group; 48 act on every k as another does, so the Hamiltonian alone does not say which of each pair holds, and the representation decides)
 print(fs)
-#  RealizedGroup(P6/mmm1' #191.234; additional commuting matrices: 1; free-standing, the substrate group #183.186 agrees)
+#  RealizedGroup(P6/mmm1' #191.234; additional commuting matrices: 1; free-standing, the substrate group P6mm1' #183.186 agrees)
 ```
 
 On the substrate every operation is obeyed and the operations that hold close
@@ -630,16 +587,11 @@ built, and here every one of them holds.
 
 | field | what it holds |
 |---|---|
-| `indices` | the operations kept, `obeyed` and `undetermined` together |
-| `obeyed`, `undetermined`, `broken` | the operations settled one by one; the ones kept whose verdict their `k`-action class shares; the ones the Hamiltonian breaks |
-| `verdicts` | each operation's verdict: `"obeyed"`, `"broken"` or `"undetermined"` |
-| `operations` | the operations kept, by index, as an `OperationTable` |
+| `obeyed`, `undetermined`, `broken` | the operations settled one by one; the ones kept whose verdict their `k`-action class shares; the ones the Hamiltonian breaks. The operations kept are `obeyed` and `undetermined` together |
 | `residuals` | each operation's covariance residual |
-| `discrepancies` | one entry per broken operation: its `ind`, what refuted it, `refuted_by` (`"no symmetry matrix"`, `"covariance"` or `"out of plane"`), and its `residual` |
+| `discrepancies` | one entry per broken operation: its `index`, what refuted it, `refuted_by` (`"no symmetry matrix"`, `"covariance"` or `"out of plane"`), and its `residual` |
 | `closed` | whether the operations kept close into a group |
-| `tol`, `n_kpts` | the tolerance each covariance residual is held to, in the units of `H`, and the number of `k`-points measured |
-| `k_action_classes` | the operations grouped by their action on `k` and whether they are antiunitary: one measurement settles each class |
-| `group_label` | the group tested, as `"P6/mmm1' #191.234"` |
+| `tol`, `n_kpoints` | the tolerance each covariance residual is held to, in the units of `H`, and the number of `k`-points measured |
 
 ## `SpaceGroupRep`
 
@@ -649,118 +601,90 @@ right-handed frame; every band label is read through it. Its `summary()` reads
 it part by part:
 
 ```python
-print(rep.summary())
-#  P6mm1' #183.186, on a substrate   (.group)
-#    its operations, by index and Seitz symbol   (.operations)
-#    each one's matrix on the 4 states, each orbital's spin up then down along z   (.matrices)
+print(r.rep.summary())
+#  each operation's matrix on the 4 states, by index, each orbital's spin up then down along z   (.matrices)
 #    an operation with time reversal is its matrix times complex conjugation   (.antiunitary)
-#    the orbitals, by Wyckoff position   (.characters)
-#      2b (3m): orbitals 0-1, -E1
-#    the multiplets each site's orbitals form   (.multiplets)
-print(len(rep.matrices), len(rep.antiunitary), rep.antiunitary_operator[0], rep.matrices[2].shape)
+print(len(r.rep.matrices), len(r.rep.antiunitary), tqc.operation_index(r.group, "{1|0,0,0}'"),
+      r.rep.matrices[2].shape)
 #  24 12 13 (4, 4)
-print(rep.multiplets.summary())
-#  each site's orbitals, multiplet by multiplet   (.by_site)
-#    site 0: orbital 0
-#    site 1: orbital 1
-#    read off the Hamiltonian   (.determined_by)
+print(r.rep.numerical.summary())
+#  each matrix's covariance residual at most 1.4e-15, in the units of H   (.residuals)
+#    the matrices multiply as the group does to 7.1e-16, the Bloch operators to 8e-16   (.product_residual, .factor_residual)
 ```
 
 Twenty-four matrices, one per operation listed, twelve of them for operations
-combined with time reversal, the pure time reversal being operation 13; each
-site's orbital is a multiplet of its own.
+combined with time reversal, the pure time reversal being operation 13.
 
 | field | what it holds |
 |---|---|
 | `matrices` | each operation's `k`-independent matrix, keyed on its index: the representation induced from the site content the atomic-limit table returns; where the hoppings leave it open up to a change of basis they conserve, as on identical copies or on orbitals nothing couples, a multiplet's block is the operation on the lowest-angular-momentum functions of its content laid along its orbitals in order, `p_x, p_y` for `E` at a `4mm` site, wherever such a change of basis reaches it |
-| `indices`, `operations` | the operations represented, by index, and the same as an `OperationTable` |
 | `antiunitary` | which of them are antiunitary |
-| `characters` | [the atomic-limit table](#the-atomic-limit-table) |
-| `multiplets` | the multiplets the Hamiltonian binds each site's orbitals into, a `SiteMultiplets`: `by_site`, `dims`, `determined_by`, and `accidental`, orbitals degenerate without the symmetry forcing it |
-| `spin` | the declared spinor basis of a spinless model carrying spin in its orbital index, a `SpinBasis`; `None` for every other model |
-| `environment` | the environment a layer's representation was built in; `None` for a three-dimensional model |
-| `free_standing_group` | for a layer read on a substrate, the free-standing layer's group as `realized_group` measured it beside this one and found it to agree: its label, symbol and size, which the indicator names beside a substrate's class where it is larger; `None` otherwise |
-| `residuals`, `product_residual`, `factor_residual` | the covariance each matrix achieves; how far the matrices miss multiplying as the group does; the same for the Bloch operators, translations included |
-| `model`, `group`, `assignment` | the model, the group and the `OrbitalAssignment` it was built on |
+| `numerical` | `residuals`, `product_residual` and `factor_residual`: the covariance each matrix achieves; how far the matrices miss multiplying as the group does; the same for the Bloch operators, translations included |
 
 Its methods act with one operation: `k_action(ind)`,
 `transform_k(ind, k)`, `in_little_group(ind, k)`, `little_group(k)`,
-`bloch_operator(ind, k)`, `sewing_operator(ind, k)` and `covariance(k_pts)`;
-`antiunitary_operator` is the pure time reversal's index and matrix, which
-every corep label is anchored against; `orbits` and `site_orbitals` repeat
-those of `assignment`.
+`bloch_operator(ind, k)`, `sewing_operator(ind, k)` and `covariance(k_pts)`.
 
 ## The atomic-limit table
 
-`rep.characters`, an `AtomicLimitTable` with one `AtomicLimitRow` per orbital:
-the table an atomic limit is written up in, and the place a mis-oriented
-declaration shows. A row's own `summary()` reads it part by part.
+`r.wyckoff_orbits`, an `AtomicLimitTable` with one `WyckoffOrbit` per Wyckoff
+orbit, the orbitals the operations carry into one another: the table an atomic
+limit is written up in, and the place a mis-oriented declaration shows. A row's
+own `summary()` reads it part by part.
 
 ```python
-print(rep.characters.summary())
-#  orbital  Wyckoff  site symmetry  function  irrep  named by  determined by  orbital characters
-#        0       2b             3m         s    -E1    tables    declaration  E=+1, C3(z)=+1, m(x)=+1
-#        1       2b             3m              -E1    tables    hamiltonian  E=+1, C3(z)=+1, m(x)=+1
-print(rep.characters.multiplicity_spaces)
-#  ()
-row = rep.characters[0]
-print(row.summary())
-#  orbital 0, site 0, at 2b (3m): -E1, named by the tables   (.irrep, .named_by)
-#    declared 's' (A1), read at the 3m in P6mm1' #183.186   (.declared_as, .declared_irrep, .declared_in)
-#    orbital characters: E=+1, C3(z)=+1, m(x)=+1   (.generator_character)
-print(row.dim, row.site_group)
-#  2 (1, 2, 3, 7, 8, 9)
+print(r.wyckoff_orbits.summary())
+#  Wyckoff  site symmetry  orbitals  label  determined by  declared
+#       2b           3m1'       0-1    -E1    declaration       s/-
+o = r.wyckoff_orbits[0]
+print(o.summary())
+#  2b (3m1'): orbitals 0-1, -E1   (.wyckoff, .site_symmetry, .orbitals, .label)
+#    declared ('s', None)   (.declared)
+#    it induces -E1 at 2b (3m1')   (.band_representation)
+#    bound together at each site: orbital 0; orbital 1   (.site_multiplets)
+print(o.orbitals, o.declared, o.site_multiplets, o.numerical.named_by)
+#  (0, 1) ('s', None) ((0,), (1,)) tables
 ```
 
 Each column is a field of the row:
 
-- **`orbital`**, the model's orbital index.
-- **`Wyckoff`** (`wyckoff`), the site's Wyckoff position in the tables'
+- **`Wyckoff`** (`wyckoff`), the orbit's Wyckoff position in the tables'
   setting, multiplicity and letter.
 - **`site symmetry`** (`site_symmetry`), the Hermann–Mauguin symbol of the
-  site-symmetry group, read off the operations measured to fix the site.
-- **`function`**, the orbital function a declaration wrote, spelled as
-  `characters=` takes it so that a row declares back verbatim: a shorthand
-  (`px`, `dx2-y2`) or a shell (`p`). It is blank where nothing declared a
-  function: an undeclared orbital, or one declared by an irrep, a sum of irreps
-  or its characters, since which real functions a set of Wannier functions is,
-  inside its site, is a choice of basis the hoppings cannot make.
-- **`spin`**, on a declared spinor basis only: which member of its pair the row
-  is, `up` or `down`.
-- **`irrep`**, the site irrep the states carry, in the site group of the group
-  returned: for spinful states the double-valued site corep, `-E1` for an `s`
-  orbital at a `3m` site. It is what the row's own multiplet carries, whatever
-  the spelling of a declaration: a `p` shell declared whole on a site whose
-  `p_z` the hoppings keep apart from its `(p_x, p_y)` pair reads `A1`, `E`,
-  `E` at a `3m` site, and the shell's `A1 + E` is `declared_irrep`. Where one
-  multiplet's orbitals hold different irreps it is their sum, `2x-E1 + -1E2E`,
-  read off the characters and so the same in any basis; where it holds several
-  copies of one irrep, that irrep on every row. Blank where nothing named it.
-- **`named by`** (`named_by`), where the irrep's name comes from.
-- **`determined by`** (`determined_by`), how the site irrep is known.
-- **`orbital characters`** (`generator_character`), the orbital factor's
-  character on one operation per conjugacy class, single-valued whatever the
-  states carry.
-  A spinor's character is zero on every mirror and twofold rotation, which are
-  the operations a mis-oriented declaration is caught on, so the parity is read
-  here.
+  site-symmetry group, read off the operations measured to fix a site, with its
+  `1'` where the group returned has time reversal; `unitary_site_symmetry` is
+  its unitary part, `3m`.
+- **`orbitals`** (`orbitals`), the model's orbital indices on the orbit.
+- **`label`** (`label`), the site irreps one site of the orbit holds, in the
+  site group of the group returned: for spinful states the double-valued site
+  irrep, `-E1` for an `s` orbital at a `3m` site. It is what the orbitals carry,
+  whatever the spelling of a declaration, read off the characters and so the
+  same in any basis, a sum where they hold several, `2x-E1 + -1E2E`; `terms`
+  holds the same as rows. Two sites of the orbit that an operation carries into
+  one another can carry conjugate irreps, and the row names the orbit as the
+  tables of elementary band representations do.
+- **`determined by`** (`determined_by`), how the site irreps are known, the
+  weakest ground among the orbitals.
+- **`declared`** (`declared`), what `characters=` declared for the row: one
+  word where every orbital was declared the same, otherwise one entry per
+  orbital, `None` (printed `-`) for an orbital not declared; `None` where
+  nothing was.
 
-`determined_by` says how the site irrep is known, and with it the band
+`determined_by` says how the site irreps are known, and with it the band
 representation the irrep induces. The hoppings fix the model's representation
 only up to a one-dimensional character on each part of the crystal they couple
 ([what the hoppings fix](../background/measurement.md#what-the-hoppings-fix)),
-and a **labelling** of the representation is one choice of those characters;
-`r.assignment` is something else, where the orbitals sit.
+and a **labelling** of the representation is one choice of those characters.
 `determined_by` takes four values:
 
 | value | how the site irrep is known |
 |---|---|
 | `declaration` | `characters=` stated it, and the matrices returned carry it |
-| `declaration not carried` | `characters=` stated it, and the Hamiltonian's own blocks do not carry it under the labelling returned; `irrep` is what they carry, and a line under the table names what was declared |
+| `declaration not carried` | `characters=` stated it, and the Hamiltonian's own blocks do not carry it under the labelling returned; `label` is what they carry, and a line under the table names what was declared |
 | `hamiltonian` | nothing was declared for this orbital, and every labelling the declarations leave open gives it this site irrep: an orbital the hoppings fix relative to a declared one, or an irrep such as the `E` of a `(p_x, p_y)` pair at a `3m` site, which no labelling changes |
 | `lowest-l` | nothing was declared, and the labellings left open give it different site irreps; the one the lowest-ℓ rule picks is shown, and `characters=` states another ([the lowest-ℓ rule](../background/measurement.md#the-lowest-angular-momentum-rule)) |
 
-`named_by` takes five:
+`numerical.named_by` takes five:
 
 | value | where the name comes from |
 |---|---|
@@ -768,103 +692,89 @@ and a **labelling** of the representation is one choice of those characters;
 | `invariants` | the tables list no band representation at this position, and the tables of the stable real-space invariants single out the site irrep these states carry there, a single-valued one: the name is theirs |
 | `point group` | the tables' entries at this position do not name it, because they list none there and the tables of the stable real-space invariants do not single it out, or none whose band representation is this row's; the name is the one the tables give that irrep of the site point group, read at the origin of a symmorphic space group, so one irrep has one name at every site. One of the exceptions to a site irrep at a maximal Wyckoff position inducing an elementary band representation, the `E` at `3c` of `P-43m`, reads this way |
 | `Mulliken` | those names follow an orientation no table fixes at this site, so the name is the row's Mulliken symbol: `B1` and `B2` of an `mm2` line in a group the tables of the invariants do not cover, or where they do not tell the two apart |
-| `unnamed` | nothing named the row: `irrep` is blank, and the characters are the whole statement |
+| `unnamed` | nothing named the row: `label` is blank, and the characters are the whole statement |
 
 A sum of irreps is named as directly as the least direct of its terms. Under
 the rows the table prints a line for each of four things, each but the last
-ending with the attribute that holds it: a declaration that
-lowered the group, that the Hamiltonian's blocks do not carry, or that is
-written in a name the tables give a row Mulliken's convention calls by another
+ending with the attribute that holds it: a declaration that the Hamiltonian's
+blocks do not carry, or that is written in a name the tables give a row
+Mulliken's convention calls by another
 ([site irreps](../background/conventions.md#site-irreps)), with what was
-declared and where it was read, which row Mulliken's convention calls it, what
-it cost, and what is returned in its place; an orbit whose band representation
-is not its rows' own elementary band representations at its own position,
-written out in elementary ones ([`BandRepresentation`](#bandrepresentation)); a
-pseudospin the Hamiltonian conserves on an orbit, with the site content the
-lowest-ℓ rule assigned its copies; and, where some row reads `lowest-l`, one
-sentence saying what that means. The declared variant prints the first kind:
+declared and where it was read, which row Mulliken's convention calls it, and
+what is returned in its place; an orbit whose band representation is not its
+own elementary band representations at its own position, written out in
+elementary ones ([`BandRepresentation`](#bandrepresentation)); a pseudospin the
+Hamiltonian conserves on an orbit, with the site content the lowest-ℓ rule
+assigned its copies; and, where some row reads `lowest-l`, one sentence saying
+what that means. The declared variant, its two sublattices now two Wyckoff
+orbits:
 
 ```python
-print(declared.rep.characters.summary())
-#  orbital  Wyckoff  site symmetry  function  irrep  named by  determined by  orbital characters
-#        0       1c              3            -1E2E    tables    declaration  E=+1, C3(z)=+1, C3^-1(z)=+1
-#        1       1b              3            -1E2E    tables    declaration  E=+1, C3(z)=+1, C3^-1(z)=+1
-#    orbital 0: declared 'A1', read at the 3m in P6mm1' #183.186; the declared content lowered the cell before any hopping was read and resolves as A1 of the 3m in P3m11' #156.50; the declaration breaks m([010]), m(x), m([1-10]), m([010])', m(x)', m([1-10])'; returned as -1E2E of 3   (.declarations)
-#    orbital 1: declared 'A2', read at the 3m in P6mm1' #183.186; the declared content lowered the cell before any hopping was read and resolves as A2 of the 3m in P3m11' #156.50; the declaration breaks m([010]), m(x), m([1-10]), m([010])', m(x)', m([1-10])'; returned as -1E2E of 3   (.declarations)
+print(declared.wyckoff_orbits.summary())
+#  Wyckoff  site symmetry  orbitals  label  determined by  declared
+#       1c            31'         0  -1E2E    declaration        A1
+#       1b            31'         1  -1E2E    declaration        A2
 ```
 
-Each line says the word declared and the site group it was read in, the
-reduction it made to the cell, the operations it broke, and the site irrep
-returned in the group that holds: the site group `3` no longer tells `A1` from
-`A2`, both restricting to its `A`, so both rows read `A` carried by the spinor,
-`-1E2E`.
+The site group `3` no longer tells `A1` from `A2`, both restricting to its
+`A`, so both rows read `A` carried by the spinor, `-1E2E`; what each declaration
+resolved to, where it was read and what it broke are on the row's `numerical`.
 
-Every field of a row:
+Every field of a row beyond the columns:
 
 | field | what it holds |
 |---|---|
-| `orbital`, `site` | the orbital, and the site it sits on |
-| `wyckoff`, `site_symmetry`, `function`, `irrep`, `named_by`, `determined_by` | the columns above |
-| `multiplet` | the orbitals the Hamiltonian binds this one with, which carry its site irrep together |
-| `dim` | the dimension of what `irrep` names: twice the orbital factor's where the states carry spin |
-| `site_group` | the indices of the unitary operations that fix the site |
-| `character`, `generator_character` | the orbital factor's character on every operation of the site group, and on one per conjugacy class by name |
-| `declared_as` | exactly what was written for this orbital |
-| `declared_irrep` | the irrep, or sum, that declaration resolved to, on every row it was written for |
-| `declared_in` | the site group and the group the declaration was read in |
-| `reduced_in` | where the declaration was resolved, where the cell was lowered under it |
-| `declaration_broke` | the operations the declared content breaks |
-| `note` | how a declaration was read, and, where the tables give a declared name to a row Mulliken's convention names otherwise, which row that is; which member of its pair a row on a spinor basis is; and what a declaration not carried stated |
-| `residual` | how cleanly the orbital's block factorizes into its character and its spin factor; a large one says the irrep is not to be trusted |
+| `terms` | the site irreps as rows, `Term(1, "-E1", "2b", "3m1'", "3m")` |
+| `band_representation` | the sum of elementary band representations the orbit induces ([below](#bandrepresentation)) |
+| `site_multiplets` | the orbitals the Hamiltonian binds together at each of the orbit's sites, which carry its site irreps together |
+| `numerical.positions` | each site's position in reduced coordinates, in the order of `site_multiplets` |
+| `numerical.characters` | for each orbital, its orbital factor's character on every operation of its site group, by index, single-valued whatever the states carry. A spinor's character is zero on every mirror and twofold rotation, which are the operations a mis-oriented declaration is caught on, so the parity is read here |
+| `numerical.named_by` | where the row's site irreps take their names, below |
+| `numerical.determined_by` | for each orbital, how its site irrep is known |
+| `numerical.declared_irrep`, `declared_in`, `reduced_in`, `declaration_broke` | for each declared orbital: the site irreps its declaration resolved to; the site group and the group it was read in; where the declared content lowered the cell first, where it was resolved; and the operations the declared content breaks |
+| `numerical.alternatives` | the other sums with the same content and the same stable real-space invariants ([below](#bandrepresentation)) |
+| `numerical.contents`, `numerical.n_representations` | where the Hamiltonian conserves a pseudospin on the orbit, every set of site irreps the representations of its copies the group's own table admits give, ranked by the lowest-ℓ rule, and how many representations it admits; empty and `1` here |
+| `numerical.residual` | how cleanly the orbitals' blocks factorize into their characters and their spin factor, the largest over the row; a large one says the site irreps are not to be trusted |
 
-And of the table: `orbitals`, the rows; `irreps`, one site irrep per orbital;
-`summary()`; `band_representations`, one per orbit ([below](#bandrepresentation));
-`multiplicity_spaces`, one `MultiplicitySpace` per orbit carrying a conserved
-pseudospin, its `content` the site content assigned, `contents` every one the
-group's table admits and `n_representations` how many representations of the
-copies it admits, empty here; `declarations`, each declaration as it was read,
-with `mulliken`, each declared name the tables give a row Mulliken's convention
-names otherwise, mapped to Mulliken's name of that row, and `returned`, what
-the multiplets it was read on carry together;
-`checks`, the declared characters against the measured ones, operation by
-operation, which a `declaration_breaks_group` refusal prints; `frame`, the name
-of every operation by index; `spin`, a declared spinor basis; `residual`, the
-worst row's; and `site_tables`, the site groups' character tables. A table can
-be indexed by orbital, as `rep.characters[0]`. Labellings that give every
+And of the table, under `numerical`: `checks`, the declared characters against
+the measured ones, operation by operation, which a `declaration_breaks_group`
+refusal prints; `residual`, the worst row's; `site_multiplets_determined_by`,
+whether the multiplets were measured or stated; and `accidental`, multiplets
+the Hamiltonian binds by an accident of its numbers. A table is indexed by row,
+as `r.wyckoff_orbits[0]`, and iterates over its rows. Labellings that give every
 orbital these same site irreps label the whole set of bands alike, and where
 they label a subset of it differently, as they do the occupied pair here, the
 [`HSPTable`](#hsptable) of that subset says so.
 
 ## `BandRepresentation`
 
-The band representation an orbit of orbitals induces, written in elementary band
-representations: one per orbit, in `rep.characters.band_representations`, its
-`summary()` the sum and the sums it is not distinguished from, a line each.
+A sum of site irreps at Wyckoff positions, the band representation they
+induce, written in elementary band representations: each row's
+`band_representation`, and the sums it is not distinguished from on its
+`numerical.alternatives`.
 
 ```python
-br = rep.characters.band_representations[0]
-print(br.summary())
-#  orbitals 0-1 at 2b (3m) induce the elementary band representation of -E1 at 2b (3m)   (.terms)
-print(br.orbitals, br.wyckoff, br.site_symmetry, br.terms, br.alternatives)
-#  (0, 1) 2b 3m ((1, '-E1↑G(4)', "2b(3m1',3m)"),) ()
-print(br.spelled())
-#  1 x -E1↑G(4)@2b(3m1',3m)
+br = o.band_representation
+print(br)
+#  BandRepresentation(-E1 at 2b (3m1'))
+print(br.terms, o.numerical.alternatives)
+#  (Term(multiplicity=1, irrep='-E1', wyckoff='2b', site_symmetry="3m1'", unitary_site_symmetry='3m'),) ()
+print(br.label)
+#  -E1 at 2b (3m1')
 ```
 
 The two orbitals at `2b` induce one elementary band representation, the `-E1`
 of `3m` induced to four bands, at their own position, so the table prints no
-line for it. `terms` are the multiplicity, the elementary band representation
-and its position for each term of the sum, each elementary band representation
-under the label the group's list gives it,
-[the band-representation key](../background/conventions.md#the-band-representation-key);
-`alternatives` the other sums with the same content and the same stable
-real-space invariants, which nothing read here distinguishes from it, and none
-where the group has no tabulated invariants; `note`, where no sum is returned,
-what is said in its place: that none carries the content, that several do and
-nothing read here says which is induced, or why the content could not be
-identified. `spelled()` writes a sum on one line in the list's labels, and
-`sentence()` writes it in words, the line the table prints for the orbit where
-it prints one. It is the band representation and nothing finer: which site
+line for it. `terms` are the rows of the sum, each a multiplicity, a site
+irrep, its Wyckoff position and the site-symmetry group with and without time
+reversal, the parts
+[the band-representation key](../background/conventions.md#the-band-representation-key)
+writes; `label` is the sum as printed, and two sums are equal where their terms
+are. The row's `numerical.alternatives` are the other sums with the same
+content and the same stable real-space invariants, which nothing read here
+distinguishes from it, and none where the group has no tabulated invariants.
+Where no sum carries the content, the terms are empty and a line under the
+table says why. It is the band representation and nothing finer: which site
 irrep goes to which term is a subduction the tables do not carry.
 
 ## `CharacterTable` and `CorepContent`
@@ -874,8 +784,8 @@ point, from the characters of the set, which `characters` returns as a table;
 the `summary()` of each reads it part by part:
 
 ```python
-hsp = tqc.high_symmetry_points(group)
-c = tqc.corep_content(rep, hsp["GM"], bands=2)
+hsp = tqc.high_symmetry_points(r.group)
+c = tqc.corep_content(r, hsp["GM"], bands=2)
 print(c)
 #  CorepContent(GM: -GM9, partition=(0,))
 print(c.summary())
@@ -977,7 +887,7 @@ returned; which bands are degenerate does not. The points `A`,
 | `thresholds` | per point, the zero thresholds in force |
 | `note` | where some energy multiplet of these bands, at a point the table labels, is labelled otherwise under another labelling the hoppings leave open, a one-dimensional character on a coupled part of the crystal: a sentence saying so, and that every such labelling keeps which bands are degenerate and the labels of all the bands together; empty otherwise |
 | `group_provenance` | the provenance of the group the labels are read in, as [`GroupData`](#groupdata) gives it: `"realized"` for a group measured on `H`, `"descended"` for one measured after the cell was lowered |
-| `rep` | the representation the table was read with, `r.rep`; `rep.group` is the group whose coreps the labels name, the one `decompose`, `symmetry_indicator`, `completeness_check`, `regular_completion` and `srsi_of_bands` read the table in, and a group or a `rep=` handed to them beside the table that is not this one raises `ValueError` |
+| `rep` | the representation the table was read with, `r.rep`, whose group is the one whose coreps the labels name, the one `decompose`, `symmetry_indicator`, `completeness_check`, `regular_completion` and `srsi_of_bands` read the table in, and a group or a `rep=` handed to them beside the table that is not this one raises `ValueError` |
 
 ## `EBRDecomposition`
 
@@ -997,7 +907,7 @@ print(dec.summary())
 #      -E1 at 1a (6mm)
 #    A, H and L lie out of the layer's plane: every corep there occurs in every elementary band representation as often as a measured one, so the verdict is exact   (.restriction, .completeness)
 #    necessary for an atomic limit, never sufficient: an obstruction beyond symmetry indicators can survive it   (.caveat)
-conduction = tqc.decompose(tqc.hsp_table(rep, bands=[2, 3]))
+conduction = tqc.decompose(tqc.hsp_table(r, bands=[2, 3]))
 print(conduction.summary())
 #  no sum of elementary band representations carries this content, so no atomic limit has it   (.verdict)
 #    the coreps at the high-symmetry points: -GM8 + -K4 + -K5 + -M5   (.content)
@@ -1186,7 +1096,7 @@ The tables of one group: `srsi_tables`, for a measured group or a space-group
 number with `spinor=`.
 
 ```python
-tables = tqc.srsi_tables(group)
+tables = tqc.srsi_tables(r.group)
 print(tables.summary())
 #  P6mm1' #183.186, double-valued: stable real-space invariants Z x Z x Z x Z x Z2   (.structure)
 #    each invariant, Z- or Z_n-valued, and the number of terms in its formula   (.rows)
@@ -1403,7 +1313,7 @@ hand, which carry no representation to build the stack from, is one:
 ```python
 refused = tqc.symmetry_indicator(dict(tf.counts), fs.group)
 print(refused)
-#  Refusal[indicator_not_evaluable]: the EBR rows ['-A10', '-A11', '-A12', '-A7', '-A8', '-A9', '-H8', '-H9', '-L5', '-L6'] of #191.234 sit at k-points this content does not cover, out of a 2D model's periodic plane or carrying no information, and they duplicate no row it does cover, so the symmetry data vector cannot be completed and the indicator has no value here. The rows can be measured on the decoupled stack of the layer, which is built from the representation the bands were read with, its model and declared characters, and the bands the content counts: pass the table hsp_table(rep, bands=...) returned, which carries them, and do not override points=. Completing missing content from the stable real-space invariants is future work.  (measured 10, threshold 0)
+#  Refusal[indicator_not_evaluable]: the EBR rows ['-A10', '-A11', '-A12', '-A7', '-A8', '-A9', '-H8', '-H9', '-L5', '-L6'] of #191.234 sit at k-points this content does not cover, out of a 2D model's periodic plane or carrying no information, and they duplicate no row it does cover, so the symmetry data vector cannot be completed and the indicator has no value here. The rows can be measured on the decoupled stack of the layer, which is built from the representation the bands were read with, its model and declared characters, and the bands the content counts: pass the table hsp_table(r, bands=...) returned, which carries them, and do not override points=. Completing missing content from the stable real-space invariants is future work.  (measured 10, threshold 0)
 #      context: completion, number_str, orphans, points, retained, stack
 print(bool(refused), refused.gate, refused.value, refused.threshold, refused.context["number_str"])
 #  False indicator_not_evaluable 10.0 0.0 191.234
@@ -1465,9 +1375,9 @@ line ending with the attribute that holds that part, as the records above do.
 | `HighSymmetryPoints` | `high_symmetry_points` | each tabulated point's coordinates in the model's own reduced cell, a mapping by name, with `out_of_plane`, the points out of a layer's plane |
 | `SiteReference` | `wyckoff_sites_tables` | one site's Wyckoff position in the tables' setting: its `wyckoff`, multiplicity and letter (`"8a"`), and `slides_onto`, the positions an orbital confined to its variety can be moved to |
 | `IrrepContent` | `groups.identify_from_characters`, and `CorepContent.content` | the identification of measured characters: each row's multiplicities before rounding, and how far they sat from integers |
-| `SpinBasis` | `spin_basis`, `spinless_presentation` | which orbitals of a spinless model are the up and down partners of one spinor Wannier function: `kind` and `pairs` |
-| `Symmetrization` | `RealizedGroup.symmetrization` | how far a near-symmetric model was moved onto its symmetric part ([above](#every-field)) |
-| `MultiplicitySpace`, `SiteMultiplets` | the atomic-limit table, `rep.multiplets` | a conserved pseudospin and the site content assigned its copies; the multiplets each site's orbitals are bound into |
+| `SpinBasis` | `spin_basis`, `spinless_presentation`, and `RealizedGroup.spin` | which orbitals of a spinless model are the up and down partners of one spinor Wannier function: `pairs` |
+| `Symmetrization` | `RealizedGroup.numerical.symmetrization` | how far a near-symmetric model was moved onto its symmetric part ([above](#every-field)) |
+| `SiteMultiplets` | taken by `realized_group`'s `site_multiplets=` | the multiplets each site's orbitals are bound into |
 | `Thresholds`, as `pythtqc.sewing.Thresholds` | `CorepContent.thresholds`, `HSPTable.thresholds` | the two zero thresholds at one `k`, flat for quantities built from `H(k)` alone and conditioned for those read off eigenvectors |
 
 The records inside the SRSI ones are reached as `pythtqc.srsi.<name>`: `SRSIRow`,

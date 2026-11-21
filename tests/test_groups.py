@@ -409,9 +409,9 @@ def test_the_group_is_independent_of_how_the_cell_is_written():
     def read(model, bands, **kw):
         r = G.realized_group(model, **kw)
         assert r, str(r)
-        t = tqc.hsp_table(r.rep, bands=bands)
+        t = tqc.hsp_table(r, bands=bands)
         return (r.group.name, r.group.number_str, tqc.format_counts(t.counts),
-                [(row.wyckoff, row.irrep) for row in r.rep.characters.orbitals])
+                [(row.wyckoff, row.irrep) for row in r.rep._characters.orbitals])
 
     def s_square(i, j, d):
         return {1.0: -1.0, 1.414214: -0.3}.get(round(float(np.linalg.norm(d)), 6), 0.0)
@@ -1791,12 +1791,12 @@ def test_validate_group_handles_antiunitary_operations():
     assert np.abs(H.conj() - H).max() > 1.0, "conjugation is not the identity on this H"
 
     v = _measure._validate_group(m, g, nk=6)
-    assert len(v.indices) == 48 and v.closed        # P6/mmm1' = 24 unitary + 24 antiunitary
+    assert len(v._indices) == 48 and v.closed        # P6/mmm1' = 24 unitary + 24 antiunitary
     # the kept operations as `operations(group)` writes them, keyed on the index
-    assert isinstance(v.operations, G.OperationTable) and list(v.operations) == \
-        sorted(v.indices)
-    assert sum(1 for s in v.operations.values() if s.antiunitary) == 24
-    assert max(v.residuals[i] for i in v.indices) <= 256 * _ULP * hmax
+    table = G.operations(g)
+    assert sorted(v.obeyed + v.undetermined) == sorted(v._indices)
+    assert sum(1 for i in v._indices if table[i].antiunitary) == 24
+    assert max(v.residuals[i] for i in v._indices) <= 256 * _ULP * hmax
 
     # h s_z on both sublattices: TR-odd, and odd under every operation that
     # reverses the z axis in the axial-vector sense.
@@ -1810,11 +1810,11 @@ def test_validate_group_handles_antiunitary_operations():
                                                if s.time_reversal}) == 12
 
     vz = _measure._validate_group(mz, g, nk=6)
-    assert set(vz.indices) == expect, "the axial-vector rule names the survivors"
-    assert vz.closed and len(vz.indices) == 24
-    assert sum(1 for s in vz.operations.values() if s.antiunitary) == 12
-    assert all(d["refuted_by"] == "no symmetry matrix" for d in vz.discrepancies)
-    assert max(vz.residuals[i] for i in vz.indices) <= 256 * _ULP * hmax
+    assert set(vz._indices) == expect, "the axial-vector rule names the survivors"
+    assert vz.closed and len(vz._indices) == 24
+    assert sum(1 for i in vz._indices if G.operations(g)[i].antiunitary) == 12
+    assert all(d.refuted_by == "no symmetry matrix" for d in vz.discrepancies)
+    assert max(vz.residuals[i] for i in vz._indices) <= 256 * _ULP * hmax
 
 
 @pytest.mark.slow
@@ -1837,12 +1837,12 @@ def test_the_validation_record_prints_what_a_survivor_count_alone_would_hide():
     layer = _layers._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.25))
     g2 = _spacegroup._group_of(layer)
     v2 = _measure._validate_group(layer, g2, nk=6)
-    assert g2.number_str == "191.234" and len(v2.indices) == 48 == g2._size
+    assert g2.number_str == "191.234" and len(v2._indices) == 48 == g2._size
     assert len(v2.undetermined) == 48, "every class on a flat cell has a partner"
 
     line = repr(v2)
     assert line.startswith("ValidatedGroup(") and line.endswith(")")
-    assert "P6/mmm1' #191.234" in line
+    assert "P6/mmm1' #191.234" not in line, "the group is printed where the record is read"
     assert ("48 of 48 coset representatives of the lattice translations obeyed, which "
             "form a group; they are the single-valued group's, each standing for itself "
             "and its negative in the double group") in line
@@ -1854,7 +1854,7 @@ def test_the_validation_record_prints_what_a_survivor_count_alone_would_hide():
     # nonsymmorphic diamond obeys all 48 operations of its cell, to roundoff
     m3 = diamond()
     v3 = _measure._validate_group(m3, _spacegroup._group_of(m3, include_TR=False), nk=4)
-    assert len(v3.indices) == 48 and v3.discrepancies == () and v3.closed
+    assert len(v3._indices) == 48 and v3.discrepancies == () and v3.closed
     assert max(v3.residuals.values()) < 1e-13
     assert v3.undetermined == (), \
         "every k-action class of a 3D primitive cell is a singleton"
@@ -2011,7 +2011,7 @@ def test_the_same_false_proof_on_the_one_orbital_tetragonal():
         m.hamiltonian(k_pts=k, flatten_spin_axis=True))).max())
 
     v = _measure._validate_group(m, g, nk=4)
-    assert len(v.indices) == 32 and v.discrepancies == () and v.closed
+    assert len(v._indices) == 32 and v.discrepancies == () and v.closed
     assert max(v.residuals.values()) <= _ROUNDOFF * h_scale
 
     seen = _census(m, g, k)
@@ -2055,7 +2055,7 @@ def test_vacuity_is_about_scalar_H_not_about_one_band():
         m.hamiltonian(k_pts=k, flatten_spin_axis=True))).max())
 
     v = _measure._validate_group(m, g, nk=8)
-    assert len(v.indices) == g._size and v.discrepancies == () and v.closed
+    assert len(v._indices) == g._size and v.discrepancies == () and v.closed
     assert max(v.residuals.values()) <= _ROUNDOFF * h_scale
     assert set(v._nullspace_dims.values()) == {4}, "nstate**2, the whole of M_2"
 
@@ -2104,8 +2104,8 @@ def test_a_genuinely_broken_operation_is_not_vacuous_at_any_number_of_states():
         assert max(float(sp.singular_values[-1]) for sp in held) < 1e-15 * h_scale
 
         v = _measure._validate_group(m, g, nk=8 if g._dim_k == 2 else 4)
-        assert len(v.indices) == len(held) and v.closed
-        assert all(d["refuted_by"] == "no symmetry matrix" for d in v.discrepancies)
+        assert len(v._indices) == len(held) and v.closed
+        assert all(d.refuted_by == "no symmetry matrix" for d in v.discrepancies)
         assert len(v.discrepancies) == len(broken)
 
 
@@ -2172,7 +2172,7 @@ def test_the_isotropic_square_passes_by_the_vacuity_test_not_by_luck():
             assert float(np.min(sp.residuals)) <= _ROUNDOFF * sp.scale
 
     v = _measure._validate_group(m2, g2, nk=8)
-    assert len(v.indices) == 16 and v.discrepancies == () and v.closed
+    assert len(v._indices) == 16 and v.discrepancies == () and v.closed
 
 
 def test_a_generic_multi_band_model_never_reaches_the_vacuity_branch():
@@ -2275,9 +2275,9 @@ def test_the_anisotropic_square_descends_from_the_cell_the_isotropic_one_allows(
     assert _spacegroup._group_of(square(ty=-0.5)).number_str == _spacegroup._group_of(square()).number_str \
         == "123.340", "the positions alone allow the isotropic square's group"
     assert (low.group.number_str, low.group._size) == ("47.250", 16)
-    assert low.descent["from"]["number_str"] == "123.340"
+    assert low.descent.cell_group.number_str == "123.340"
     assert low.group._provenance == "descended"
-    assert low.rep.group._provenance == "descended"
+    assert low.rep._group._provenance == "descended"
 
     # the same on a strongly skewed lattice basis.  CsCl written on a1, 6 a1 + a2,
     # 4 a1 + 9 a2 + a3 and read first with its two sites as one species is a
@@ -2292,9 +2292,9 @@ def test_the_anisotropic_square_descends_from_the_cell_the_isotropic_one_allows(
     def read(model, **kw):
         r = G.realized_group(model, **kw)
         assert r, str(r)
-        t = tqc.hsp_table(r.rep, bands=1)
+        t = tqc.hsp_table(r, bands=1)
         return (r.group.name, r.group.number_str, tqc.format_counts(t.counts),
-                [(row.wyckoff, row.irrep) for row in r.rep.characters.orbitals])
+                [(row.wyckoff, row.irrep) for row in r.rep._characters.orbitals])
 
     cscl = [[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]]
     usual = read(by_bond(np.eye(3), cscl, s_cscl))
@@ -2320,26 +2320,46 @@ def test_the_anisotropic_square_descends_from_the_cell_the_isotropic_one_allows(
 
 
 @pytest.mark.slow
-def test_the_realized_record_unpacks_by_value_and_is_read_by_name(p41_substrate):
-    """Five values unpack; everything else the record carries is read by name.
+@pytest.mark.parametrize("call", ["hsp_table", "corep_content", "characters", "sewing_matrix",
+                                  "srsi_of_model", "splitting"])
+def test_the_realized_record_is_read_by_name_and_taken_whole(p41_substrate, call):
+    """The record is read by name and handed whole to every call that reads it.
 
-    The unpacked names are the attributes of the same names — the unpacked
-    ``rep`` **is** ``r.rep``, one object under two spellings — and the record is
-    not a sequence beyond that: it has no length and no positional access, so a
-    position can never be read for a field it does not name.
+    It does not unpack and is not a sequence: it has no length and no
+    positional access, so a position can never be read for a field it does not
+    name.  The calls that label bands take the record itself, and its
+    representation or a tuple of its parts in its place raise ``TypeError``
+    saying what to pass; a refusal handed in comes back as it is.
     """
+    from pythtqc import srsi as tqr
+
     r = p41_substrate                   # the session's shared record of a layer
     assert r, str(r)
-
-    m, g, asg, val, rep = r
-    assert m is r.model and g is r.group and asg is r.assignment
-    assert val is r.validated and rep is r.rep
-    assert r.bundle == (r.model, r.group, r.assignment, r.validated, r.rep)
-
+    with pytest.raises(TypeError):
+        _model, _group = r
     with pytest.raises(TypeError):
         len(r)
     with pytest.raises(TypeError):
         r[4]
+
+    k = (0.0, 0.0, 0.0)
+    if call in ("srsi_of_model", "splitting"):
+        fn = getattr(tqr, call)
+        kw = {} if call == "srsi_of_model" else {"bands": 2}
+        parts = (r.model, r.group, r._assignment, r.rep)
+        with pytest.raises(TypeError, match=rf"{call}\(\): pass what realized_group "
+                                            r"returns, r, not a tuple of its parts"):
+            fn(parts, **kw)
+        assert fn(r, **kw) is not None
+        return
+    fn = getattr(tqc, call)
+    args = {"hsp_table": (), "corep_content": (k,), "characters": (k,),
+            "sewing_matrix": (1, k)}[call]
+    with pytest.raises(TypeError, match=rf"{call}\(\): pass what realized_group returns, "
+                                        r"as in .*, not r\.rep"):
+        fn(r.rep, *args, bands=2)
+    refusal = Refusal("tables_not_ready", "a refusal handed in")
+    assert fn(refusal, *args, bands=2) is refusal
 
 
 # ---------------------------------------------------------------------------
@@ -2374,15 +2394,15 @@ def test_realized_group_takes_a_3d_model_and_matches_the_hand_chain(realized):
     model = r.model
 
     assert (r.group.number_str, r.group._sg_number) == ("199.13", 199)
-    assert r.group._size == 24 and len(r.validated.indices) == 24
-    assert r.validated.broken == () and r.validated.closed
-    assert set(r.validated.verdicts.values()) == {"obeyed"}, \
+    assert r.group._size == 24 and len(r.numerical.validated._indices) == 24
+    assert r.numerical.validated.broken == () and r.numerical.validated.closed
+    assert set(r.numerical.validated._verdicts.values()) == {"obeyed"}, \
         "every k-action class of a fully periodic cell is a singleton"
-    assert r.group._provenance == "realized" and r.rep.group._provenance == "realized"
+    assert r.group._provenance == "realized" and r.rep._group._provenance == "realized"
 
-    assert r.model is r.source and r.cell is r.model
-    assert r.typat == [0, 0, 0, 0] and r.cell_typat == [0, 0, 0, 0]
-    assert r.presentation["c"] is None and r.presentation["n_check"] == 0
+    assert r.model is r.numerical.source and r._cell is r.model
+    assert r._typat == [0, 0, 0, 0] and r._cell_typat == [0, 0, 0, 0]
+    assert r.environment is None, "a crystal periodic in three directions is no layer"
     assert r.decoration is None, "nothing was added, so there is no recipe to report"
 
     # ... and the same answer as the four calls, measured against them, at the
@@ -2393,8 +2413,8 @@ def test_realized_group_takes_a_3d_model_and_matches_the_hand_chain(realized):
     rep = _build._build_rep(model, g, asg, validated=val)
     assert rep, str(rep)
     assert [s.ind for s in g._symmetries] == [s.ind for s in r.group._symmetries]
-    assert tuple(val.indices) == tuple(r.validated.indices)
-    assert asg.wyckoff_spglib == r.assignment.wyckoff_spglib
+    assert tuple(val._indices) == tuple(r.numerical.validated._indices)
+    assert asg.wyckoff_spglib == r._assignment.wyckoff_spglib
     assert set(rep.matrices) == set(r.rep.matrices)
     for ind, D in rep.matrices.items():
         assert np.allclose(D, r.rep.matrices[ind], atol=1e-12), ind
@@ -2413,9 +2433,9 @@ def test_realized_group_takes_a_3d_model_and_matches_the_hand_chain(realized):
     assert s, str(s)
     assert s.group.number_str == r.group.number_str
     assert np.allclose(s.group._shiftUC, r.group._shiftUC, rtol=0, atol=1e-12)
-    assert s.assignment.wyckoff_tables == r.assignment.wyckoff_tables
-    assert s.rep.characters.irreps == r.rep.characters.irreps
-    assert s.positions["frame"] == "model" and s.positions["max_move"] == 0.0
+    assert s._assignment.wyckoff_tables == r._assignment.wyckoff_tables
+    assert [o.label for o in s.wyckoff_orbits] == [o.label for o in r.wyckoff_orbits]
+    assert s.numerical.positions.frame == "model" and s.numerical.positions.max_move == 0.0
     assert float(np.abs(np.asarray(s.model.orb_vecs) - orb).max()) <= 8 * _ULP
     for ind, D in r.rep.matrices.items():
         assert np.allclose(s.rep.matrices[ind], D, rtol=0, atol=1e-12), ind
@@ -2515,7 +2535,7 @@ def test_time_reversal_is_measured_down_and_the_descent_is_on_the_record():
         warnings.simplefilter("always")
         grey = G.realized_group(square())
     assert grey, str(grey)
-    assert grey.time_reversal["outcome"] == "kept"
+    assert grey.time_reversal.outcome == "kept"
     scope = [w for w in caught if issubclass(w.category, MagneticScopeWarning)]
     assert scope == [], [str(w.message) for w in scope]
 
@@ -2535,17 +2555,17 @@ def test_time_reversal_is_measured_down_and_the_descent_is_on_the_record():
     assert magnetic.group.number_str == "143" and magnetic.group.name == "P3"
     assert not magnetic.group._include_TR and _spacegroup._magnetic_type(magnetic.group) == "I"
     tr = magnetic.time_reversal
-    assert tr["outcome"] == "measured broken"
-    assert tr["grey_number_str"] == "143.2" and tr["grey_name"] == "P31'"
-    assert (tr["n_antiunitary"], tr["n_broken"], tr["n_obeyed"]) == (3, 3, 0)
-    assert tr["number_str"] == "143" and tr["size"] == 3
-    assert (tr["number_str"], tr["name"], tr["size"]) == (
+    assert tr.outcome == "measured broken"
+    assert tr.grey_number_str == "143.2" and tr.grey_name == "P31'"
+    assert (tr.n_antiunitary, tr.n_broken, tr.n_obeyed) == (3, 3, 0)
+    assert tr.number_str == "143" and tr.size == 3
+    assert (tr.number_str, tr.name, tr.size) == (
         magnetic.group.number_str, magnetic.group.name, magnetic.group._size)
-    assert "time reversal measured broken" in tr["note"]
-    assert "the unitary group's own" in tr["note"]
+    assert "time reversal measured broken" in tr.note
+    assert "the unitary group's own" in tr.note
     assert magnetic.beyond_grey is None, "nothing antiunitary survived to warn about"
     assert "time reversal measured broken, descended from P31' #143.2" in repr(magnetic)
-    assert len(magnetic.validated.indices) == 3 and magnetic.validated.broken == ()
+    assert len(magnetic.numerical.validated._indices) == 3 and magnetic.numerical.validated.broken == ()
     assert magnetic.descent is None, "the decoration asked the right cell already"
 
     # the physics behind that descent, proved ansatz-free and separately: time
@@ -2640,34 +2660,35 @@ def test_a_surviving_antiunitary_operation_is_served_in_scope_and_warned_about()
         assert r, str(r)
         assert (r.group.name, r.group.number_str) == returned
         assert not r.group._include_TR and _spacegroup._magnetic_type(r.group) == "I"
-        assert r.time_reversal["outcome"] == "measured broken"
-        assert r.time_reversal["n_obeyed"] == 0, "the grey group measured holds no mirror"
+        assert r.time_reversal.outcome == "measured broken"
+        assert r.time_reversal.n_obeyed == 0, "the grey group measured holds no mirror"
         beyond = r.beyond_grey
         assert beyond is not None, "the primed mirrors hold"
-        assert beyond["magnetic_type"] == "III" and beyond["closed"]
-        assert (beyond["n_operations"], beyond["n_measured"]) == (len(primed), n_cell)
-        assert {o["name"] for o in beyond["operations"]} == primed
-        assert {o["of"] for o in beyond["operations"]} == {cell}
-        assert all(set(o) == {"ind", "name", "of", "rotation", "translation", "residual",
-                              "verdict"} for o in beyond["operations"])
-        assert all(o["verdict"] == "obeyed" and o["residual"] < 1e-12
-                   for o in beyond["operations"])
-        held = [np.asarray(o["rotation"], dtype=int) for o in beyond["operations"]]
+        assert beyond.magnetic_type == "III" and beyond.closed
+        assert (beyond.n_operations, beyond.n_measured) == (len(primed), n_cell)
+        assert {o.name for o in beyond.operations} == primed
+        assert {o.of for o in beyond.operations} == {cell}
+        assert all({f.name for f in dataclasses.fields(o)} == {
+            "index", "name", "of", "rotation", "translation", "residual", "verdict"}
+            for o in beyond.operations)
+        assert all(o.verdict == "obeyed" and o.residual < 1e-12
+                   for o in beyond.operations)
+        held = [np.asarray(o.rotation, dtype=int) for o in beyond.operations]
         assert all(np.array_equal(R @ R, np.eye(3, dtype=int)) and np.trace(R) == 1
                    and round(np.linalg.det(R)) == -1 for R in held), "each one a mirror"
         #  each one's mirror is broken, on the record of the same step
-        assert primed <= {b["name"] + "'" for b in r.descent["dropped"] if b["of"] == cell}
+        assert primed <= {b.name + "'" for b in r.descent.dropped if b.of == cell}
         #  the note says what holds and what is returned, and names no group
         #  that does not hold: the grey group the descent arrived at is not it
-        note = r.descent["note"]
-        assert r.descent["to"]["name"] not in note
+        note = r.descent.note
+        assert r.descent.subgroup.name not in note
         assert f"Only {returned[0]} #{returned[1]}, the unitary group, is returned" in note
         assert "time reversal, measured with them, is broken" in note
         for phrase in ("measured to hold", "largest one inside this package's validated",
                        "not validated here", "is therefore in scope",
                        "read once, against the group returned",
                        "make a corepresentation of the magnetic group it generates"):
-            assert phrase in beyond["note"], phrase
+            assert phrase in beyond.note, phrase
         assert (f"a larger magnetic group, of type III, is realized ({len(primed)} antiunitary "
                 "operations measured to hold) but is beyond the validated scope") in repr(r)
         if typat is None:
@@ -2682,20 +2703,20 @@ def test_a_surviving_antiunitary_operation_is_served_in_scope_and_warned_about()
             r = G.realized_group(_neel_chain(), typat=typat)
         assert r, str(r)
         assert (r.group.name, r.group.number_str) == returned
-        assert r.time_reversal["outcome"] == "measured broken"
-        assert "refuted by its site permutation" in r.time_reversal["note"]
-        assert (r.beyond_grey["n_operations"], r.beyond_grey["magnetic_type"]) == (held, kind)
-        names = {o["name"] for o in r.beyond_grey["operations"]}
+        assert r.time_reversal.outcome == "measured broken"
+        assert "refuted by its site permutation" in r.time_reversal.note
+        assert (r.beyond_grey.n_operations, r.beyond_grey.magnetic_type) == (held, kind)
+        names = {o.name for o in r.beyond_grey.operations}
         assert "E'" not in names and ("{E|1/2,0,0}'" in names) == (typat is None), names
     # ... and a layer: the same on a substrate and free-standing, so returned
     with pytest.warns(MagneticScopeWarning):
         layer = G.realized_group(_checkerboard_neel())
     assert layer, str(layer)
     assert (layer.group.name, layer.group.number_str) == ("P4bm", "100")
-    assert layer.cross_check["outcome"] == "agree"
-    assert layer.cross_check["free_standing"]["number_str"] == "127"
-    assert (layer.beyond_grey["n_operations"], layer.beyond_grey["magnetic_type"]) == (8, "IV")
-    assert "{E|1/2,1/2,0}'" in {o["name"] for o in layer.beyond_grey["operations"]}
+    assert layer.environment.cross_check.outcome == "agree"
+    assert layer.environment.cross_check.free_standing.number_str == "127"
+    assert (layer.beyond_grey.n_operations, layer.beyond_grey.magnetic_type) == (8, "IV")
+    assert "{E|1/2,1/2,0}'" in {o.name for o in layer.beyond_grey.operations}
 
     # THE MATRICES ARE READ, up to a one-dimensional character of P6: the
     # build hands back its representation relabelled by a complex one, and
@@ -2718,9 +2739,9 @@ def test_a_surviving_antiunitary_operation_is_served_in_scope_and_warned_about()
             patch_everywhere(mp, "_build_rep", build)
             with pytest.warns(MagneticScopeWarning):
                 again = G.realized_group(haldane(0.0, -1.0, 0.15), cross_check=False)
-        assert (again.beyond_grey or {"n_operations": 0})["n_operations"] == named
-        assert again.time_reversal["n_obeyed"] == 0
-        assert ("and no operation combined with time reversal" in again.descent["note"]) == (
+        assert (0 if again.beyond_grey is None else again.beyond_grey.n_operations) == named
+        assert again.time_reversal.n_obeyed == 0
+        assert ("and no operation combined with time reversal" in again.descent.note) == (
             not named)
 
     # PROVOKED, on the group time reversal is measured on: a g.T the detector
@@ -2743,8 +2764,9 @@ def test_a_surviving_antiunitary_operation_is_served_in_scope_and_warned_about()
         kept[group.number_str] = (keep, np.asarray(sym.rotation))
         killed = [int(s.ind) for s in au if int(s.ind) != keep]
         return dataclasses.replace(
-            out, indices=tuple(i for i in out.indices if i not in killed),
-            discrepancies=tuple({"ind": i, "refuted_by": "no symmetry matrix", "residual": 1.0}
+            out, _indices=tuple(i for i in out._indices if i not in killed),
+            discrepancies=tuple(G.Discrepancy(index=i, refuted_by="no symmetry matrix",
+                                              residual=1.0)
                                 for i in killed))
 
     with pytest.MonkeyPatch.context() as mp:
@@ -2758,7 +2780,7 @@ def test_a_surviving_antiunitary_operation_is_served_in_scope_and_warned_about()
     assert out.group.number_str == "191" and out.group.name == "P6/mmm"
     assert out.group._size == 24 and out.group._provenance == "realized"
     assert not out.group._include_TR and _spacegroup._magnetic_type(out.group) == "I"
-    assert out.validated.broken == () and len(out.rep.indices) == 24
+    assert out.numerical.validated.broken == () and len(out.rep._indices) == 24
     #  the one the fake kept is C2(z) with time reversal, and C2(z) holds
     _ind, rotation = kept["191.234"]
     assert np.array_equal(np.rint(rotation).astype(int), np.diag([-1, -1, 1]))
@@ -2766,14 +2788,14 @@ def test_a_surviving_antiunitary_operation_is_served_in_scope_and_warned_about()
 
     # ... and it counts nothing: with C2(z) it makes time reversal, refuted
     tr = out.time_reversal
-    assert tr["outcome"] == "measured broken" and tr["grey_number_str"] == "191.234"
-    assert (tr["n_broken"], tr["n_obeyed"]) == (24, 0)
-    assert tr["note"].startswith("time reversal measured broken: every operation of "
+    assert tr.outcome == "measured broken" and tr.grey_number_str == "191.234"
+    assert (tr.n_broken, tr.n_obeyed) == (24, 0)
+    assert tr.note.startswith("time reversal measured broken: every operation of "
                                  "P6/mmm1' #191.234 combined with time reversal is refuted")
     assert ("Of those, 1, a coset representative of the lattice translations, the "
             "single-valued group's, standing for itself and its negative in the double "
-            "group, has a symmetry matrix and fails the rule") in tr["note"]
-    assert "it generates time reversal with its own unitary part" in tr["note"]
+            "group, has a symmetry matrix and fails the rule") in tr.note
+    assert "it generates time reversal with its own unitary part" in tr.note
     assert out.beyond_grey is None
 
     # ... and printed: the grey group measured is named, nothing beyond it

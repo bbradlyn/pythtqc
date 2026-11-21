@@ -96,16 +96,7 @@ GATE = tqs.EXACT_TOL   # the exact floor of _build_rep's covariance gate
 
 
 def realized_bundle_2d(model, typat, **kwargs):
-    """``(model3d, group, assignment, validated, rep)`` in the *realized* group.
-
-    Phase A4 promoted this recipe into ``tqc.groups`` — ``_slab_presentation``
-    (which now *measures* the bit-identity of the re-presented ``H(k)``),
-    ``_decorated_cell`` (two different species at ``(0, 0, ±dz)``, removing the
-    ``σ_h``-composed operations a flat orbital point set only *looks*
-    symmetric under) and ``realized_group``, which chains them and whose
-    result unpacks as exactly the tuple these tests destructure.  This wrapper
-    is all that is left of the local copy.
-    """
+    """What ``realized_group`` returns for a layer, in the group it realizes."""
     out = tqg.realized_group(model, typat=typat, **kwargs)
     assert out, str(out)
     return out
@@ -117,8 +108,16 @@ solve_at = tqw.solve_at
 
 
 def rebuild(bundle, **kwargs):
-    """The same representation, with the declarations under test."""
-    model, group, assignment, validated, _ = bundle
+    """The same representation, with the declarations under test.
+
+    ``bundle`` is what ``realized_group`` returns, or ``(model, group,
+    assignment, validated, rep)`` built by hand.
+    """
+    if isinstance(bundle, tuple):
+        model, group, assignment, validated, _ = bundle
+    else:
+        model, group = bundle.model, bundle.group
+        assignment, validated = bundle._assignment, bundle.numerical.validated
     return _build._build_rep(model, group, assignment, validated=validated, **kwargs)
 
 
@@ -132,7 +131,7 @@ def same_matrices(a, b, atol=0.0):
     tests below say.  The one comparison that wants slack is the *negative*
     control, which passes ``atol=1e-9`` explicitly against a measured 2.0.
     """
-    return max(float(np.abs(a.matrices[i] - b.matrices[i]).max()) for i in a.indices) <= atol
+    return max(float(np.abs(a.matrices[i] - b.matrices[i]).max()) for i in a._indices) <= atol
 
 
 @pytest.fixture(scope="module")
@@ -164,10 +163,14 @@ def test_undeclared_orbitals_follow_the_lowest_l_rule_and_say_so(lin3g_undeclare
     is ``hamiltonian``.
     """
     rep = lin3g_undeclared.rep
-    rec = rep.characters
+    rec = rep._characters
+    table = lin3g_undeclared.wyckoff_orbits
 
     # (1) the rows: the atomic-limit table, and which rows the rule decides
-    assert max(rep.residuals.values()) <= GATE
+    assert max(rep.numerical.residuals.values()) <= GATE
+    assert [(o.wyckoff, o.orbitals, o.label, o.determined_by) for o in table] == [
+        ("1a", (0,), "-E1", "lowest-l"), ("1a", (1,), "-E2", "lowest-l"),
+        ("2c", (2, 3), "-E", "hamiltonian")]
     assert rec.residual < 1e-12, "the blocks factorize into character x internal factor"
     assert rec.irreps == ("-E1", "-E2", "-E", "-E")
     assert [o.function for o in rec.orbitals] == [""] * 4, \
@@ -182,11 +185,11 @@ def test_undeclared_orbitals_follow_the_lowest_l_rule_and_say_so(lin3g_undeclare
     again = rebuild(lin3g_undeclared)
     assert again, str(again)
     assert same_matrices(again, rep)
-    assert again.characters.orbitals == rec.orbitals
-    text = rec.summary()
+    assert again._characters.orbitals == rec.orbitals
+    text = table.summary()
     assert tqs._LOWEST_L_LEGEND in text, "the one sentence of legend, verbatim"
     assert "the hoppings fix how the orbitals transform relative to one another" in text
-    assert "lowest-l" in repr(rec)
+    assert "lowest-l" in repr(table)
     assert "global character" not in text and "twist" not in text
 
 
@@ -204,15 +207,15 @@ def test_declaring_nothing_and_declaring_the_truth_agree_bit_for_bit(
     ``realized_group``, the declaration ``["s", "dx2-y2", "s", "s"]`` returns the
     undeclared crystal's group and its matrices, entry for entry.
     """
-    _, _, _, _, rep = lin3g_undeclared
+    rep = lin3g_undeclared.rep
     for spec in ({2: "A1"}, {2: "s"}, {3: "s"}, ["s", "dx2-y2", "s", "s"],
                  ["A1", "B1", "A1", "A1"], {1: "dx2-y2"}, {1: "B1"}):
         out = rebuild(lin3g_undeclared, characters=spec)
         assert out, f"{spec}: {out}"
         assert same_matrices(rep, out), f"{spec} moved the representation"
-        assert out.characters.irreps == ("-E1", "-E2", "-E", "-E")
+        assert out._characters.irreps == ("-E1", "-E2", "-E", "-E")
         written = spec if isinstance(spec, list) else [spec.get(o) for o in range(4)]
-        assert [o.function for o in out.characters.orbitals] == \
+        assert [o.function for o in out._characters.orbitals] == \
             [tqc_sitechars.canonical_shorthand(w) for w in written], \
             f"{spec}: the declared function words, and nothing undeclared"
 
@@ -238,34 +241,34 @@ def test_a_declaration_fixes_the_labelling_as_far_as_its_site_symmetry_reaches(
     """
     away = rebuild(lin3g_undeclared, characters={2: "s"})
     assert away, str(away)
-    assert [o.determined_by for o in away.characters.orbitals] == \
+    assert [o.determined_by for o in away._characters.orbitals] == \
         ["lowest-l", "lowest-l", "declaration", "hamiltonian"], \
         "the 2c declaration leaves the 1a labelling open"
-    assert away.characters.orbitals[2].note.startswith("'s' resolved to A1"), \
+    assert away._characters.orbitals[2].note.startswith("'s' resolved to A1"), \
         "a declaration is echoed in the words it was written in"
 
     for spec in ({0: "dx2-y2"}, {1: "dx2-y2"}):
         fixed = rebuild(lin3g_undeclared, characters=spec)
         assert fixed, str(fixed)
-        rows = fixed.characters.orbitals
+        rows = fixed._characters.orbitals
         assert [o.determined_by for o in rows] == \
             ["declaration" if o.orbital in spec else "hamiltonian" for o in rows], spec
 
     anchored = rebuild(lin3g_undeclared, characters={2: "s"}, reference_orbital=2)
     assert anchored, str(anchored)
-    assert anchored.characters.orbitals[2].determined_by == "declaration"
+    assert anchored._characters.orbitals[2].determined_by == "declaration"
 
     out = rebuild(lin3g_undeclared, characters=["s", "dx2-y2", "s", "s"])
     assert out, str(out)
-    assert {o.determined_by for o in out.characters.orbitals} == {"declaration"}
-    assert all("status" not in d for d in out.characters.declarations)
+    assert {o.determined_by for o in out._characters.orbitals} == {"declaration"}
+    assert all("status" not in d for d in out._characters.declarations)
     # the checks table carries the measured-vs-declared comparison the verdict
     # made.  One row per (declaration, operation it constrains) -- and
     # `resolve_spec` constrains every operation of the site group, not one per
     # class
-    assert len(out.characters.checks) == 24, \
+    assert len(out._characters.checks) == 24, \
         "8+8 at the 4mm site, 4+4 at the two mm2 sites"
-    for row in out.characters.checks:
+    for row in out._characters.checks:
         assert abs(row["measured"] - row["declared"]) < 1e-9
         assert set(row) == {"orbitals", "ind", "name", "measured", "declared"}
 
@@ -336,7 +339,7 @@ def test_the_honeycomb_doublet_bonded_to_an_s_is_assigned_alike_in_either_order(
     out = realized(_pxpy_s_first, cross_check=False)
     assert out, str(out)
     assert out.group.number_str == "183.186"
-    rep, rec = out.rep, out.rep.characters
+    rep, rec = out.rep, out.rep._characters
     for a, b in ((1, 2), (3, 4)):
         assert rec[a].irrep == rec[b].irrep == "E"
         for ind in rec[a].site_group:
@@ -356,15 +359,15 @@ def test_the_honeycomb_doublet_bonded_to_an_s_is_assigned_alike_in_either_order(
                              for k, v in o.generator_character.items())))
 
     assert {perm[o.orbital]: row(o, perm.get) for o in rec.orbitals} == \
-        {o.orbital: row(o) for o in twin.rep.characters.orbitals}, \
+        {o.orbital: row(o) for o in twin.rep._characters.orbitals}, \
         "the two orders return one atomic-limit table"
     P = np.zeros((5, 5))
     for o, q in perm.items():
         P[q, o] = 1.0
-    assert tuple(twin.rep.indices) == tuple(rep.indices)
+    assert tuple(twin.rep._indices) == tuple(rep._indices)
     assert max(float(np.abs(P @ np.asarray(rep.matrices[i]) @ P.T
                             - np.asarray(twin.rep.matrices[i])).max())
-               for i in rep.indices) < 1e-12, "and one representation"
+               for i in rep._indices) < 1e-12, "and one representation"
 
 
 # ---------------------------------------------------------------------------
@@ -388,24 +391,26 @@ def test_declaring_either_orbital_of_the_pair_is_the_same_twist(lin3g_undeclared
     (measured 3e-16; asserted at 1e-14), and under that reference every corep
     label swaps wholesale while the phase-invariant partition stays where it was.
     """
-    model, group, assignment, validated, rep = lin3g_undeclared
+    model, group, rep = lin3g_undeclared.model, lin3g_undeclared.group, lin3g_undeclared.rep
+    assignment = lin3g_undeclared._assignment
+    validated = lin3g_undeclared.numerical.validated
     a = rebuild(lin3g_undeclared, characters={0: "B1"})
     assert a, str(a)
-    assert a.characters.irreps == ("-E2", "-E1", "-E", "-E"), \
+    assert a._characters.irreps == ("-E2", "-E1", "-E", "-E"), \
         "the declared content is the one returned, and the partner reads relative to it"
-    assert [o.determined_by for o in a.characters.orbitals] == \
+    assert [o.determined_by for o in a._characters.orbitals] == \
         ["declaration", "hamiltonian", "hamiltonian", "hamiltonian"]
 
     other = _build._build_rep(model, group, assignment, validated=validated, reference_orbital=1)
     assert max(float(np.abs(a.matrices[i] - other.matrices[i]).max())
-               for i in rep.indices) < 1e-14
+               for i in rep._indices) < 1e-14
     hsp = tqg.high_symmetry_points(group)
     for name, want, flip in (("GM", {"-GM6": 2, "-GM7": 1}, {"-GM7": 2, "-GM6": 1}),
                              ("M", {"-M6": 1, "-M7": 2}, {"-M7": 1, "-M6": 2}),
                              ("X", {"-X5": 3}, {"-X5": 3})):
         states = solve_at(model, hsp[name])
-        before = tqw.corep_content(rep, hsp[name], states=states, bands=6)
-        after = tqw.corep_content(other, hsp[name], states=states, bands=6)
+        before = tqw.corep_content(lin3g_undeclared, hsp[name], states=states, bands=6)
+        after = tqw._corep_content_rep(other, hsp[name], states=states, bands=6)
         assert before and after
         assert before.counts == want and after.counts == flip, name
         assert before.partition == after.partition, \
@@ -413,12 +418,12 @@ def test_declaring_either_orbital_of_the_pair_is_the_same_twist(lin3g_undeclared
 
     b = rebuild(lin3g_undeclared, characters={1: "A1"})
     assert b, str(b)
-    assert b.characters.irreps == a.characters.irreps, "one crystal, whichever was declared"
-    assert [o.determined_by for o in b.characters.orbitals] == \
+    assert b._characters.irreps == a._characters.irreps, "one crystal, whichever was declared"
+    assert [o.determined_by for o in b._characters.orbitals] == \
         ["hamiltonian", "declaration", "hamiltonian", "hamiltonian"], \
         "the undeclared reference is read relative to the declared partner"
     assert max(float(np.abs(a.matrices[i] - b.matrices[i]).max())
-               for i in rep.indices) < 1e-14
+               for i in rep._indices) < 1e-14
 
 
 # ---------------------------------------------------------------------------
@@ -467,7 +472,7 @@ def test_unknown_label_names_the_site_group_and_prints_the_frame(lin3g_undeclare
 
     patch_everywhere(monkeypatch, "_group_of", measured)
     with pytest.raises(ValueError, match="orbital 0 is named twice"):
-        tqg.realized_group(lin3g_undeclared.source, characters={0: "s", (0, 1): "E"})
+        tqg.realized_group(lin3g_undeclared.numerical.source, characters={0: "s", (0, 1): "E"})
     monkeypatch.undo()
 
     out = rebuild(lin3g_undeclared, characters={2: "E"})
@@ -561,7 +566,7 @@ def test_a_hoppings_forbidden_declaration_names_what_was_measured(lin3g_undeclar
     # the 1a pair changes hands
     consistent = rebuild(lin3g_undeclared, characters=["dx2-y2", "s", "s", "s"])
     assert consistent, str(consistent)
-    assert consistent.characters.irreps == ("-E2", "-E1", "-E", "-E")
+    assert consistent._characters.irreps == ("-E2", "-E1", "-E", "-E")
 
     clash = rebuild(lin3g_undeclared, characters=["dx2-y2", "dx2-y2", None, None])
     assert not clash and clash.gate == "declaration_breaks_group", \
@@ -592,7 +597,7 @@ def test_the_flat_list_refuses_when_it_cannot_group_a_multiplet(lin3g_undeclared
 
     patch_everywhere(monkeypatch, "_group_of", measured)
     with pytest.raises(ValueError, match=re.escape("names orbitals of sites")):
-        tqg.realized_group(lin3g_undeclared.source, typat=[0, 0, 1, 1],
+        tqg.realized_group(lin3g_undeclared.numerical.source, typat=[0, 0, 1, 1],
                            characters={(1, 3): "A1"})
 
 
@@ -639,7 +644,7 @@ def test_p4232_declares_a_two_dimensional_multiplet_jointly(p4232_decorated):
     the orbitals and not a second convention.
     """
     _, _, _, _, rep = p4232_decorated
-    rec = rep.characters
+    rec = rep._characters
     assert rec.irreps == ("1E2E",) * 4
     assert [o.dim for o in rec.orbitals] == [2, 2, 2, 2], (
         "the echo record's own reading of 'the site block is the two-dimensional "
@@ -655,21 +660,21 @@ def test_p4232_declares_a_two_dimensional_multiplet_jointly(p4232_decorated):
     for spec in ({(0, 1): "E"}, {0: "1E2E"}, {(0, 1): "dz2"}):
         out = rebuild(p4232_decorated, n_battery=4, characters=spec)
         assert out, f"{spec}: {out}"
-        assert out.characters.irreps == ("1E2E",) * 4, spec
+        assert out._characters.irreps == ("1E2E",) * 4, spec
         assert same_matrices(rep, out)
-        declared = {int(a) for d in out.characters.declarations for a in d["orbitals"]}
-        assert [o.determined_by for o in out.characters.orbitals] == [
+        declared = {int(a) for d in out._characters.declarations for a in d["orbitals"]}
+        assert [o.determined_by for o in out._characters.orbitals] == [
             "declaration" if o.orbital in declared else "hamiltonian"
-            for o in out.characters.orbitals], spec
+            for o in out._characters.orbitals], spec
 
-    assert len(rep.indices) == 48
-    assert rep.multiplets.by_site == (((0, 1),), ((2, 3),))
-    assert rep.multiplets.dims == ((2,), (2,))
+    assert len(rep._indices) == 48
+    assert rep._multiplets.by_site == (((0, 1),), ((2, 3),))
+    assert rep._multiplets.dims == ((2,), (2,))
     stated = rebuild(p4232_decorated, n_battery=4,
-                     multiplets=[list(chans) for chans in rep.multiplets.by_site])
+                     multiplets=[list(chans) for chans in rep._multiplets.by_site])
     assert stated, str(stated)
-    assert stated.multiplets.determined_by == "declaration"
-    assert stated.multiplets.by_site == rep.multiplets.by_site
+    assert stated._multiplets.determined_by == "declaration"
+    assert stated._multiplets.by_site == rep._multiplets.by_site
     assert same_matrices(rep, stated)
 
     wrong = rebuild(p4232_decorated, n_battery=4, characters={(0, 1): "A"})
@@ -695,7 +700,7 @@ def test_p4232_refuses_an_irrep_of_the_wrong_dimension_as_grammar(p4232_decorate
     declares three separate ``T`` orbitals instead.
     """
     model, group, assignment, validated, rep = p4232_decorated
-    table = rep.characters.site_tables[0]
+    table = rep._characters.site_tables[0]
     assert "T" in table.labels and dict(zip(table.labels, table.dims))["T"] == 3, \
         "the site group really does possess a three-dimensional irrep"
 
@@ -756,8 +761,8 @@ def test_kane_mele_covers_the_3m_site_group_family(km_realized):
     site both lift to: on an orbital the hoppings carry as ``A2`` it is
     carried as it is.
     """
-    _, group, _, _, rep = km_realized
-    rec = rep.characters
+    group, rep = km_realized.group, km_realized.rep
+    rec = rep._characters
     table = rec.site_tables[0]
     assert table.order == 6 and set(table.labels) == {"-E1", "-1E2E + -E1"}, (
         "the double-valued site coreps the tables name at this position: the two "
@@ -811,18 +816,18 @@ def test_kane_mele_covers_the_3m_site_group_family(km_realized):
         "A1 and A2 of 3m lift to the one -E1, so every labelling gives both rows -E1"
     same = rebuild(km_realized, characters={0: "s"})
     assert same and same_matrices(rep, same)
-    assert [o.determined_by for o in same.characters.orbitals] == \
+    assert [o.determined_by for o in same._characters.orbitals] == \
         ["declaration", "hamiltonian"], \
         "3m separates both characters, so the second row is fixed by the hoppings"
 
     twisted = rebuild(km_realized, characters={0: "A2"})
     assert twisted, str(twisted)
     assert not same_matrices(rep, twisted, atol=1e-9)
-    assert twisted.characters.irreps == ("-E1", "-E1"), (
+    assert twisted._characters.irreps == ("-E1", "-E1"), (
         "A1 and A2 of 3m are one double-valued site corep -- the same label off a "
         "different crystal, which the matrices below are what separates")
-    assert max(twisted.residuals.values()) <= GATE
-    assert twisted.product_residual < 1e-13
+    assert max(twisted.numerical.residuals.values()) <= GATE
+    assert twisted.numerical.product_residual < 1e-13
 
     # the corep's own name states the corep content alone: `-E1` on the second
     # sublattice, whose orbital the hoppings carry as A2 once the first is
@@ -830,10 +835,10 @@ def test_kane_mele_covers_the_3m_site_group_family(km_realized):
     corep = rebuild(km_realized, characters={0: "A2", 1: "-E1"})
     assert corep, str(corep)
     assert same_matrices(twisted, corep)
-    assert [o.determined_by for o in corep.characters.orbitals] == ["declaration"] * 2
-    assert [o.declared_irrep for o in corep.characters.orbitals] == ["A2", "-E1"], \
+    assert [o.determined_by for o in corep._characters.orbitals] == ["declaration"] * 2
+    assert [o.declared_irrep for o in corep._characters.orbitals] == ["A2", "-E1"], \
         "the corep declared is recorded as written"
-    assert round(corep.characters.orbitals[1].generator_character["m(x)"].real) == -1, \
+    assert round(corep._characters.orbitals[1].generator_character["m(x)"].real) == -1, \
         "and the orbital factor under it is the A2 the hoppings carry"
 
     clash = rebuild(km_realized, characters=["s", "A2"])
@@ -864,12 +869,11 @@ def test_generator_dicts_reproduce_the_label_form(lin3g_undeclared, km_realized,
     by_gens = rebuild(bundle, characters={0: gens})
     assert by_label and by_gens, f"{by_label}\n{by_gens}"
     assert same_matrices(by_label, by_gens)
-    assert by_gens.characters.orbitals[0].irrep == returned
-    assert "generator characters" in by_gens.characters.orbitals[0].note
+    assert by_gens._characters.orbitals[0].irrep == returned
+    assert "generator characters" in by_gens._characters.orbitals[0].note
     if bundle_name == "lin3g":
-        frame = bundle.rep.characters.frame
-        c4 = next(i for i, n in frame.items() if n == "C4(z)")
-        mx = next(i for i, n in frame.items() if n == "m(x)")
+        c4 = next(i for i, op in bundle.operations.items() if op.name == "C4(z)")
+        mx = next(i for i, op in bundle.operations.items() if op.name == "m(x)")
         by_ind = rebuild(bundle, characters={0: {c4: -1.0, mx: 1.0}})
         assert by_ind, str(by_ind)
         assert same_matrices(by_ind, by_label), \
@@ -882,14 +886,14 @@ def test_generator_dicts_reproduce_the_label_form(lin3g_undeclared, km_realized,
 
 def test_the_echo_record_covers_every_orbital_and_prints_the_frame(lin3g_undeclared):
     """The safety net: one row per orbital, each with its site group and frame."""
-    model, _, _, _, rep = lin3g_undeclared
-    rec = rep.characters
+    model, rep = lin3g_undeclared.model, lin3g_undeclared.rep
+    rec = rep._characters
     assert len(rec) == int(model.norb)
     assert [row.site for row in rec.orbitals] == [0, 0, 1, 2], (
         "the fixture's 1a/2c split, read off the record: orbitals 0 and 1 share "
         "the 1a site, orbitals 2 and 3 sit on the two 2c sites one each")
     for row in rec.orbitals:
-        assert set(row.site_group) <= set(rep.indices)
+        assert set(row.site_group) <= set(rep._indices)
         assert row.generator_character, "every row carries its own frame"
         assert row.dim == 2 * len(row.multiplet), (
             "`dim` is the dimension of what the label names -- the site irrep the "
@@ -936,57 +940,87 @@ def _axis_p_at_2c():
 
 
 @pytest.mark.slow
-def test_an_orbit_that_permutes_the_frame_reads_each_site_its_own_content(realized):
-    """``p`` along each ``3c`` site's own fourfold axis: ``A2u`` at every row.
+def test_an_orbit_reads_its_own_name_whichever_of_its_sites_is_listed_first(realized):
+    """A row of the atomic-limit table is a Wyckoff orbit, and it takes the orbit's name.
 
-    A Wyckoff orbit whose operations carry one site's orbital onto a *different*
-    function at the next is what a transported content is for: ``p_x`` at
-    ``(0,½,½)``, ``p_y`` at ``(½,0,½)`` and ``p_z`` at ``(½,½,0)``, one orbital
-    apiece, so every multiplet is one-dimensional.  Each row carries the ``A2u``
-    of its own site's ``4/mmm``, its characters named in that site's own axes,
-    named by the tables.  The hoppings refute the trivial labelling -- ``A2u``
-    is the restriction of no one-dimensional character of this group -- but not
-    the whole class ``{A2u, B2u, A2g, B2g}`` the labellings they leave open
-    give the row, so undeclared every row is ``lowest-l``, ``A2u`` its
-    lowest-``l`` member.
+    Two sites of one orbit that an operation exchanging two site irreps carries
+    into one another read conjugate site irreps: ``p_x`` at ``(½, 0, z)`` is
+    ``B1`` of its ``mm2`` and ``p_y`` at ``(0, ½, z)`` is ``B2`` of its own.  The
+    row is one for the orbit and reads ``B1``, the name the tables of
+    elementary band representations write at ``2c`` and the one
+    :func:`srsi_of_model` finds, for two like orbits at two heights in both
+    listings of the second's sites.  At ``4l`` of ``P4/mmm``, a position the
+    tables list no band representation at, each orbit reads the name the
+    tables of the stable real-space invariants give it, the same in both
+    listings of the four sites.
 
-    A transport read off hoppings known only to a precision reads the same, on
-    a square crystal with one: ``p_x`` at ``(½, 0)`` and ``p_y`` at
-    ``(0, ½)``, each along its own site's axis, which the fourfold carries
-    onto one another with a sign.  Jittered at ``1e-7`` with
-    ``precision=1e-6`` declared, each transported sign misses its exact value
-    by the model's own noise and is read as that sign within the precision: the
-    group is ``P4mm1'`` and each row the ``p`` along its own site's axis,
-    ``B1`` and ``B2``, the model projected onto its symmetric part by the size
-    of the jitter.
+    ``p`` along each ``3c`` site's own fourfold axis is one orbit too, the
+    operations carrying ``p_x`` at ``(0,½,½)`` onto ``p_y`` at ``(½,0,½)`` and
+    ``p_z`` at ``(½,½,0)``: one row, ``A2u`` of ``4/mmm``, named by the tables,
+    every orbital's characters named in its own site's axes.  The hoppings
+    refute the trivial labeling but not the whole class ``{A2u, B2u, A2g,
+    B2g}``, so undeclared the row is ``lowest-l``.  A transport read off
+    hoppings known only to a precision reads the same: ``p_x`` at ``(½, 0)``
+    and ``p_y`` at ``(0, ½)`` of a square crystal, jittered at ``1e-7`` with
+    ``precision=1e-6`` declared, is one orbit ``B1`` of ``P4mm1'``, each orbital
+    the ``p`` along its own site's axis.
     """
+    from pythtqc import srsi as tqr
+
+    for swap in (False, True):
+        model, functions, heights = tqc_models.p4mm_pxpy_two_heights(swap)
+        out = tqg.realized_group(model, typat=heights, characters=functions)
+        assert out, str(out)
+        assert out.group.name == "P4mm1'"
+        rows = [o for o in out.wyckoff_orbits if o.wyckoff == "2c"]
+        assert len(rows) == 2
+        model_srsi = tqr.srsi_of_model(out)
+        for row in rows:
+            assert row.label == "B1", (swap, row)
+            assert row.terms == (tqg.Term(1, "B1", "2c", "mm21'", "mm2"),)
+            assert row.site_symmetry == "mm21'" and row.unitary_site_symmetry == "mm2"
+            (orbit,) = [o for o in model_srsi.orbits if set(o.orbitals) == set(row.orbitals)]
+            assert {name.split("↑")[0] for _m, name, _w in orbit.chosen["terms"]} == {"B1"}
+        per_site = {o.irrep for o in out.rep._characters.orbitals}
+        assert per_site == {"B1", "B2"}, "the two sites of an orbit read conjugate site irreps"
+
+    read = []
+    for reverse in (False, True):
+        out = tqg.realized_group(tqc_models.p4mmm_4l_sp(reverse=reverse))
+        assert out, str(out)
+        assert out.group.number_str == "123.340"
+        read.append([(o.wyckoff, o.label, o.numerical.named_by) for o in out.wyckoff_orbits])
+    assert read[0] == read[1]
+    assert sorted(label for _w, label, _n in read[0]) == ["A1", "B2"]
+
     out = realized(cubic_3c_axis_p)
     assert out, str(out)
     assert (out.group.number_str, out.group._size) == ("221.93", 96)
-    assert len(out.validated.indices) == 96 and out.descent is None
-    rec = out.rep.characters
-    assert rec.irreps == ("A2u",) * 3
-    assert [o.named_by for o in rec.orbitals] == ["tables"] * 3
-    assert [(o.wyckoff, o.site_symmetry) for o in rec.orbitals] == [("3c", "4/mmm")] * 3
-    assert [o.determined_by for o in rec.orbitals] == ["lowest-l"] * 3
-    chi = rec.orbitals[0].generator_character
+    validated = out.numerical.validated
+    assert len(validated.obeyed) + len(validated.undetermined) == 96
+    assert out.descent is None
+    (row,) = out.wyckoff_orbits
+    assert (row.wyckoff, row.unitary_site_symmetry, row.orbitals) == ("3c", "4/mmm", (0, 1, 2))
+    assert row.label == "A2u" and row.numerical.named_by == "tables"
+    assert row.determined_by == "lowest-l"
+    chi = out.rep._characters.orbitals[0].generator_character
     assert complex(chi["C4(x)"]).real == pytest.approx(1.0, abs=1e-9)
     assert complex(chi["C2(y)"]).real == pytest.approx(-1.0, abs=1e-9), \
         "odd under a twofold perpendicular to its own axis, which is what A2u is"
-    assert max(out.rep.residuals.values()) <= GATE
-    assert out.rep.product_residual < 1e-13
+    assert max(out.rep.numerical.residuals.values()) <= GATE
+    assert out.rep.numerical.product_residual < 1e-13
 
     noisy = tqg.realized_group(jitter(_axis_p_at_2c(), rel=1e-7), precision=1e-6,
                                cross_check=False)
     assert noisy, str(noisy)
     assert (noisy.group.name, noisy.group._size) == ("P4mm1'", 16)
-    assert noisy.rep.characters.irreps == ("B1", "B2")
+    assert [o.label for o in noisy.wyckoff_orbits] == ["B1"]
     for row, own, other in ((0, "m(x)", "m(y)"), (1, "m(y)", "m(x)")):
-        chi = noisy.rep.characters.orbitals[row].generator_character
+        chi = noisy.rep._characters.orbitals[row].generator_character
         assert {k: complex(v).real for k, v in chi.items()} == pytest.approx(
             {"E": 1.0, "C2(z)": -1.0, own: -1.0, other: 1.0}), \
             "the p along its own site's axis: odd under the twofold and the mirror reversing it"
-    assert 0.0 < noisy.symmetrization.defect < 1e-6, \
+    assert 0.0 < noisy.numerical.symmetrization.defect < 1e-6, \
         "the hoppings moved by the jitter's own size and no more"
 
 
@@ -1042,14 +1076,14 @@ def test_the_returned_matrices_are_induced_from_the_returned_content(name, reali
         bundle = request.getfixturevalue("lin3g_undeclared")
     assert bundle, str(bundle)
     rep = bundle.rep
-    rows = rep.characters.orbitals
+    rows = rep._characters.orbitals
     if name == "perp_doublet":
         assert all(isinstance(v, complex) for o in rows
                    for v in (*o.character.values(), *o.generator_character.values()))
 
-    nspin = int(rep.model.nspin)
+    nspin = int(bundle.model.nspin)
     blocks, members = 0, 0
-    for ind in rep.indices:
+    for ind in rep._indices:
         sym = rep._operation(ind)
         D = np.asarray(rep.matrices[int(ind)])
         if not sym.time_reversal:
@@ -1066,13 +1100,13 @@ def test_the_returned_matrices_are_induced_from_the_returned_content(name, reali
                 assert abs(trace - copies * complex(row.character[int(ind)])) < 1e-9, \
                     f"{name}: #{ind} on {multiplet}"
                 blocks += 1
-        space = np.asarray(bundle.validated._bases[int(ind)])
+        space = np.asarray(bundle.numerical.validated._bases[int(ind)])
         A = space.reshape(space.shape[0], -1).T
         coef = np.linalg.lstsq(A, D.reshape(-1), rcond=None)[0]
         assert float(np.abs(A @ coef - D.reshape(-1)).max()) < 1e-9, \
             f"{name}: #{ind} is not the model's own"
         members += 1
-    assert members == len(rep.indices) and blocks >= len(rep.indices) // 2
+    assert members == len(rep._indices) and blocks >= len(rep._indices) // 2
 
     if name != "perp_doublet":
         return
@@ -1102,7 +1136,7 @@ def test_the_returned_matrices_are_induced_from_the_returned_content(name, reali
                                       ("S4", "m"))):
         declared = tqg.realized_group(cubic_3c_perp_doublet(), characters={(0, 1): matrices})
         assert declared and declared.group.number_str == "215.71", str(declared)
-        assert [o.determined_by for o in declared.rep.characters.orbitals][:2] == \
+        assert [o.determined_by for o in declared.rep._characters.orbitals][:2] == \
             ["declaration"] * 2
         for sym in [s for s in declared.group._symmetries if not s.time_reversal]:
             kind = declared.operations[int(sym.ind)].name.split("(")[0].split("^")[0]
@@ -1134,9 +1168,9 @@ def test_the_computed_character_tables_pass_their_own_orthogonality_check(
     for bundle, orders, n_merged in ((lin3g_undeclared, {8, 4}, 0),
                                      (km_realized, {6}, 0),
                                      (p4232_decorated, {12}, 2)):
-        _, _, _, _, rep = bundle
+        rep = bundle[4] if isinstance(bundle, tuple) else bundle.rep
         seen, merged_rows = set(), 0
-        for table in rep.characters.site_tables.values():
+        for table in rep._characters.site_tables.values():
             assert table.orthogonality < 1e-10, table.labels
             assert all(table.labels), "every row of these site groups is named"
             dims = np.asarray(table.dims, dtype=int)
@@ -1169,8 +1203,8 @@ def test_mirrors_are_named_by_their_normal(lin3g_undeclared):
     neither a rename nor a misread axis can leave the loop vacuous: the four
     vertical mirrors and their four time-reversed copies are all eight checked.
     """
-    _, group, _, _, rep = lin3g_undeclared
-    frame = rep.characters.frame
+    group, rep = lin3g_undeclared.group, lin3g_undeclared.rep
+    frame = rep._characters.frame
     lattice = np.asarray(group._lattice, dtype=float)
     pos = {int(s.ind): s for s in group._symmetries}
     assert set(frame) == set(pos) and len(frame) == 16, "the frame names every operation"
@@ -1211,7 +1245,7 @@ def test_group_provenance_rides_into_the_character_tables(lin3g_undeclared):
     """A table can be read without the group in hand: it carries the stamp.
 
     ``realized_group`` stamps its record before the representation is built, so
-    ``rep.group`` carries it and every table built from that representation
+    the representation carries it and every table built from it
     echoes it — which is the point of the field, since a symmetry data vector's
     labels mean one thing when the group was measured on ``H`` and another when
     a cell merely allowed it.
@@ -1234,16 +1268,16 @@ def test_group_provenance_rides_into_the_character_tables(lin3g_undeclared):
     distinction would be lying about where its labels came from.  Both values are
     asserted below, on one model and one served group.
     """
-    _, group, _, _, rep = lin3g_undeclared
-    assert group._provenance == "realized" and rep.group._provenance == "realized"
+    group, rep = lin3g_undeclared.group, lin3g_undeclared.rep
+    assert group._provenance == "realized" and rep._group._provenance == "realized"
     assert group.number_str == "99.164" and group._size == 16
 
     k = tqg.high_symmetry_points(group)["GM"]
-    table = tqw.characters(rep, k, bands=6)
+    table = tqw.characters(lin3g_undeclared, k, bands=6)
     assert isinstance(table, tqw.CharacterTable), str(table)
     assert table.group_provenance == group._provenance == "realized"
 
-    hsp = tqw.hsp_table(rep, bands=6)
+    hsp = tqw.hsp_table(lin3g_undeclared, bands=6)
     assert hsp.group_provenance == group._provenance == "realized"
     assert hsp.records, "the realized group resolves its high-symmetry points"
     assert all(rec.table.group_provenance == group._provenance
@@ -1251,15 +1285,15 @@ def test_group_provenance_rides_into_the_character_tables(lin3g_undeclared):
 
     # ... and the other stamp, on the same model and the same served group: the
     # free-standing cell is an upper bound the measurement had to cut
-    down = tqg.realized_group(lin3g_undeclared.source, typat=[0, 0, 1, 1],
+    down = tqg.realized_group(lin3g_undeclared.numerical.source, typat=[0, 0, 1, 1],
                               environment="free-standing")
     assert down, str(down)
     assert down.group.number_str == "99.164" and down.group._size == 16
-    assert down.descent["from"]["number_str"] == "123.340"
-    assert down.group._provenance == down.rep.group._provenance == "descended"
-    down_table = tqw.characters(down.rep, k, bands=6)
+    assert down.descent.cell_group.number_str == "123.340"
+    assert down.group._provenance == down.rep._group._provenance == "descended"
+    down_table = tqw.characters(down, k, bands=6)
     assert down_table.group_provenance == "descended"
-    assert tqw.hsp_table(down.rep, bands=6).group_provenance == "descended"
+    assert tqw.hsp_table(down, bands=6).group_provenance == "descended"
 
 
 # ---------------------------------------------------------------------------
@@ -1327,16 +1361,14 @@ def test_the_diamond_site_irreps_are_the_names_the_tables_print(spinless_diamond
     """
     r = spinless_diamond
     assert r.group.number_str == "227.129"
-    assert r.assignment.wyckoff_tables == ("a", "a")
-    table = r.rep.characters.site_tables[0]
+    assert r._assignment.wyckoff_tables == ("a", "a")
+    table = r.rep._characters.site_tables[0]
 
     assert set(table.labels) == {"A1", "A2", "E", "T1", "T2"}
     assert dict(zip(table.labels, (int(d) for d in table.dims))) == \
         {"A1": 1, "A2": 1, "E": 2, "T1": 3, "T2": 3}
     assert set(table.named_by) == {"tables"}, "every row of -43m at 8a is tabulated"
-    assert all(o.named_by == "tables" for o in r.rep.characters.orbitals)
-    assert all(" tables " in line for line in r.rep.characters.summary().splitlines()[1:3]), \
-        "the named-by column says where each printed name comes from"
+    assert all(o.numerical.named_by == "tables" for o in r.wyckoff_orbits)
 
     for spec, want, dim in (("s", "A1", 1), ("px", "T2", 3), ("py", "T2", 3),
                             ("pz", "T2", 3), ("dz2", "E", 2), ("dx2-y2", "E", 2)):
@@ -1351,19 +1383,20 @@ def test_the_diamond_site_irreps_are_the_names_the_tables_print(spinless_diamond
                                                           "orbital 0")
         assert (set(label.split(" + ")), got) == (want, dim), spec
 
-    assert r.rep.characters.irreps == ("A1", "A1"), "undeclared, the lowest-l rule's A1"
-    out = _build._build_rep(r.model, r.group, r.assignment, validated=r.validated,
+    assert [(o.orbitals, o.label) for o in r.wyckoff_orbits] == [((0, 1), "A1")], \
+        "undeclared, the lowest-l rule's A1"
+    out = _build._build_rep(r.model, r.group, r._assignment, validated=r.numerical.validated,
                          characters={0: "A2"})
     assert out, str(out)
-    assert out.characters.irreps == ("A2", "A2"), \
+    assert out._characters.irreps == ("A2", "A2"), \
         "both sites of the orbit carry what was declared on one of them"
 
-    gone = _build._build_rep(r.model, r.group, r.assignment, validated=r.validated,
+    gone = _build._build_rep(r.model, r.group, r._assignment, validated=r.numerical.validated,
                           characters={0: "A_b"})
     assert not gone and gone.gate == "unknown_label", "the placeholder names nothing"
     assert set(gone.context["irreps"]) == {"A1", "A2", "E", "T1", "T2"}
 
-    wide = _build._build_rep(r.model, r.group, r.assignment, validated=r.validated,
+    wide = _build._build_rep(r.model, r.group, r._assignment, validated=r.numerical.validated,
                           characters={0: "T2"})
     assert not wide and wide.gate == "ambiguous_multiplet", \
         "a three-dimensional irrep on a one-orbital channel is a dimension, not a name"
@@ -1379,7 +1412,7 @@ def test_the_diamond_site_irreps_are_the_names_the_tables_print(spinless_diamond
     spinful = fkm_undistorted
     assert spinful, str(spinful)
     assert spinful.group.number_str == "227.129" and spinful.group.spinor
-    dtable = spinful.rep.characters.site_tables[0]
+    dtable = spinful.rep._characters.site_tables[0]
     assert dict(zip(dtable.declarable, dtable.labels)) == {
         "A2": "-E2", "A1": "-E1", "E": "-F",
         "T1": "-E1 + -F", "T2": "-E2 + -F"}
@@ -1388,8 +1421,8 @@ def test_the_diamond_site_irreps_are_the_names_the_tables_print(spinless_diamond
         "-43m's own double-valued names, read at the origin of a symmorphic group "
         "and carried onto 8a of Fd-3m operation by operation, are the names the "
         "tables give every row there")
-    assert spinful.rep.characters.irreps == ("-E1", "-E1"), "an s orbital is -E1"
-    assert [o.dim for o in spinful.rep.characters.orbitals] == [2, 2]
+    assert [o.label for o in spinful.wyckoff_orbits] == ["-E1"], "an s orbital is -E1"
+    assert [o.dim for o in spinful.rep._characters.orbitals] == [2, 2]
 
     # The orbital factor is the same single-valued object whether or not the
     # states carry spin, so it carries the same name at the same position: row
@@ -1444,26 +1477,28 @@ def test_the_diamond_site_irreps_are_the_names_the_tables_print(spinless_diamond
                   else contextlib.nullcontext()):
                 got = tqg.realized_group(model, characters=declared)
             assert got, str(got)
-            assert (got.group.number_str, got.assignment.wyckoff_tables) == \
+            assert (got.group.number_str, got._assignment.wyckoff_tables) == \
                 (number, (letter,) * 4), title
-            rows = got.rep.characters.orbitals
-            assert got.rep.characters.irreps == ("A1",) * 4 + ("B2",) * 4, title
-            assert {o.named_by for o in rows} == {"invariants"}, title
+            orbits = {tuple(sorted(o.orbitals)): o for o in got.wyckoff_orbits}
+            assert {k: o.label for k, o in orbits.items()} == \
+                {(0, 1, 2, 3): "A1", (4, 5, 6, 7): "B2"}, title
+            assert {o.numerical.named_by for o in orbits.values()} == {"invariants"}, title
+            rows = got.rep._characters.orbitals
             assert all(tangential(o) == (-1, 1, -1) for o in rows[4:]), \
                 f"{title}: B2 is the p tangential to the bond, odd under the in-plane mirror"
             if declared:
-                assert {o.determined_by for o in rows[4:]} == {"declaration"}, title
+                assert orbits[4, 5, 6, 7].determined_by == "declaration", title
             seen[title, declared is None] = {
-                (tuple(np.round(got.assignment.site_positions[o.site], 6)), o.orbital // 4):
+                (tuple(np.round(got._assignment.site_positions[o.site], 6)), o.orbital // 4):
                 (o.irrep, o.named_by, tangential(o)) for o in rows}
     for declared in (True, False):
         assert seen["reversed", declared] == seen["time reversal", declared], \
             "every site reads the orbit's name, whichever site is listed first"
     spun = tqg.realized_group(tqc_models.p4mmm_4l_sp(spinful=True), characters=tangential_b2)
     assert spun and spun.group.number_str == "123.340" and spun.group.spinor
-    assert spun.rep.characters.irreps == ("-E",) * 8
+    assert [o.label for o in spun.wyckoff_orbits] == ["-E", "-E"]
     assert all(o.determined_by == "declaration" and tangential(o) == (-1, 1, -1)
-               for o in spun.rep.characters.orbitals[4:]), \
+               for o in spun.rep._characters.orbitals[4:]), \
         "with spin a declared B2 states the orbital a spinless B2 names"
 
     # 4i of P4/mmm: (0, 1/2, ±z) and (1/2, 0, ±z) are fixed by the same operations,
@@ -1483,10 +1518,10 @@ def test_the_diamond_site_irreps_are_the_names_the_tables_print(spinless_diamond
         got = tqg.realized_group(model, characters={k: functions[k % 4][0]
                                                     for k in range(16)})
         assert got and got.group.number_str == "123.340", str(got)
-        assert set(got.assignment.wyckoff_tables) == {"i"}
+        assert set(got._assignment.wyckoff_tables) == {"i"}
         names = {}
-        for o in got.rep.characters.orbitals:
-            line = "x" if abs(got.assignment.site_positions[o.site][1]) < 1e-6 else "y"
+        for o in got.rep._characters.orbitals:
+            line = "x" if abs(got._assignment.site_positions[o.site][1]) < 1e-6 else "y"
             names.setdefault((line, functions[o.orbital % 4][0]), set()).add(
                 (o.irrep, o.named_by))
         assert all(len(v) == 1 for v in names.values()), names
@@ -1521,13 +1556,13 @@ def test_a_tie_at_gamma_is_broken_at_the_other_high_symmetry_points():
     on_substrate = tqg.realized_group(m, environment="substrate")
     assert on_substrate, str(on_substrate)
     assert on_substrate.group.number_str == "99.164"
-    assert on_substrate.assignment.wyckoff_tables == ("c", "c")
+    assert on_substrate._assignment.wyckoff_tables == ("c", "c")
     ties = _naming._gamma_ties(on_substrate.group)
     assert {frozenset(names) for names in ties["2c(mm21',mm2)"]} == \
         {frozenset({"B1↑G(2)", "B2↑G(2)"})}, \
         "the tables say these two share their Γ content and nothing else does"
     assert set(ties) == {"2c(mm21',mm2)"}, "and this is the group's only tied position"
-    table = on_substrate.rep.characters.site_tables[0]
+    table = on_substrate.rep._characters.site_tables[0]
     assert set(table.labels) == {"A1", "A2", "B1", "B2"}
     assert set(table.named_by) == {"tables"}
 
@@ -1652,14 +1687,15 @@ def test_every_ebr_column_at_a_fixture_position_comes_from_its_computed_rows(key
     """
     r = _baseline_realized(key, realized)
     assert r, f"{key}: {r}"
-    group, assignment = r.group, r.assignment
+    group, assignment = r.group, r._assignment
     rows = _tables._ebr_rows(group)
     assert rows, f"{key}: {rows}"
     points = tqg.high_symmetry_points(group)
     assert points, f"{key}: {points}"
     syms = group._symmetries
     place = {int(s.ind): p for p, s in enumerate(syms)}
-    kept = {int(i) for i in r.validated.indices}
+    kept = {int(i) for i in (*r.numerical.validated.obeyed,
+                             *r.numerical.validated.undetermined)}
     lift = ({int(s.ind): complex(np.trace(np.asarray(s.spinor_rotation)))
              for s in syms} if group.spinor else None)
 

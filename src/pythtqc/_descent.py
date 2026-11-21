@@ -195,7 +195,7 @@ def _antiunitary_entry(group, validated, ind) -> dict:
             "translation": tuple(float(x) for x in
                                  np.asarray(sym.translation, dtype=float).reshape(-1)),
             "residual": float(validated.residuals.get(int(ind), float("nan"))),
-            "verdict": str(validated.verdicts.get(int(ind), "obeyed"))}
+            "verdict": str(validated._verdicts.get(int(ind), "obeyed"))}
 
 
 def _antiunitary_settled(group, validated, refuted, square, kept=None, *,
@@ -352,7 +352,7 @@ def _time_reversal_measured(group, validated, refuted=None, *, tolerances=EXACT)
     validated = _time_reversal_member(validated, square)
     obeyed = sorted(set(antiunitary) - broken)
     undetermined = tuple(i for i in obeyed
-                         if validated.verdicts.get(i) == "undetermined")
+                         if validated._verdicts.get(i) == "undetermined")
 
     record = {
         "n_antiunitary": len(antiunitary),
@@ -1020,7 +1020,7 @@ def _mirror_partners(group, validated, assignment) -> dict | None:
     Where every orbital of a layer lies in one plane, the horizontal mirror
     ``σ_h`` moves no orbital and no in-plane ``k``, so an operation ``g`` and
     its product ``σ_h·g`` act alike on everything a Hamiltonian without spin
-    has: they share an action on ``k`` (:attr:`ValidatedGroup.k_action_classes`)
+    has: they share an action on ``k`` (``ValidatedGroup._k_action_classes``)
     and a site permutation, one solution space holds the matrices of both, and
     the hoppings cannot tell them apart.  What does is the sign each orbital
     carries under ``σ_h`` (:func:`_mirror_sign`).
@@ -1043,7 +1043,7 @@ def _mirror_partners(group, validated, assignment) -> dict | None:
     perm = np.asarray(assignment.permutations, dtype=int)
     at = {int(s.ind): p for p, s in enumerate(group._symmetries)}
     partners = {}
-    for members in validated.k_action_classes:
+    for members in validated._k_action_classes:
         pair = [int(i) for i in members if int(i) in undetermined]
         if not pair:
             continue
@@ -1111,7 +1111,7 @@ def _class_members(group, validated, partners=None, sign=1):
     if bool(group.spinor) or any(bool(s.time_reversal) for s in syms):
         return None
     inds = [int(s.ind) for s in syms]
-    if set(inds) - {int(i) for i in validated.indices}:
+    if set(inds) - {int(i) for i in validated._indices}:
         return None
     partners = dict(partners or {})
     if {int(i) for i in validated.undetermined} - set(partners) - set(partners.values()):
@@ -1852,7 +1852,7 @@ def _ansatz_refuted(model, group, assignment, validated, *, layout, spin,
     The detector's verdicts are per **k-action class**, and a surviving class of
     more than one member proves only that *some* operator with that k-action is
     a symmetry: its members are marked ``"undetermined"``
-    (:attr:`ValidatedGroup.verdicts`) and are individually undetermined there.
+    (``ValidatedGroup._verdicts``) and are individually undetermined there.
     On a slab that is the whole horizontal-mirror family — every class is the
     pair ``{g, σ_h·g}``, the in-plane partner satisfies the intertwiner problem,
     and no presentation can change that, because a layer's ``H(k)`` does not
@@ -2140,7 +2140,7 @@ def _lattice_verdict(model, group, assignment, validated, refuted, tol, k_pts,
     detector's reason, ``"no symmetry matrix"`` or ``"covariance"``, when the
     detector's own measurement refuted the translation, the refuting
     measurement's own word where the verdicts that read the detector's spaces
-    refuted it -- ``"tensor structure"``, ``"declaration"``, ``"centres"`` --
+    refuted it -- ``"tensor structure"``, ``"declaration"``, ``"centers"`` --
     ``"translation"`` when none of them did and the Hamiltonian does not obey
     it, and ``None`` when it does), ``realized`` (the translations the
     Hamiltonian **obeys** — a supercell, if any), ``dressing`` (for each of
@@ -2154,7 +2154,7 @@ def _lattice_verdict(model, group, assignment, validated, refuted, tol, k_pts,
     if index <= 1:
         return {}
     broken = set(validated.broken)
-    reason_of = {int(d["ind"]): str(d["refuted_by"]) for d in validated.discrepancies}
+    reason_of = {int(d.index): str(d.refuted_by) for d in validated.discrepancies}
     refuted = dict(refuted or {})
     lattice = np.asarray(group._lattice, dtype=float)
     ident = np.eye(3, dtype=int)
@@ -2563,9 +2563,9 @@ def _declared_contents(model, group, assignment, validated, layout, *, spin, cha
     """
 
     kept_u = {int(s.ind) for s in group._symmetries
-              if int(s.ind) in set(validated.indices) and not s.time_reversal}
+              if int(s.ind) in set(validated._indices) and not s.time_reversal}
     kept_au = {int(s.ind) for s in group._symmetries
-               if int(s.ind) in set(validated.indices) and s.time_reversal}
+               if int(s.ind) in set(validated._indices) and s.time_reversal}
     try:
         tables = _site_tables(group, assignment, kept_u, kept_au,
                               range(len(assignment.site_orbitals)))
@@ -2709,7 +2709,7 @@ def _declaration_refuted(group, validated, *, refuted, verdict, tolerances=EXACT
     """
 
     syms = group._symmetries
-    standing = set(validated.indices) - set(refuted)
+    standing = set(validated._indices) - set(refuted)
     kept_u = [int(s.ind) for s in syms
               if int(s.ind) in standing and not s.time_reversal]
     got = verdict
@@ -2797,7 +2797,7 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
     ``"covariance"`` and ``"out of plane"`` per operation, antiunitary coset
     included.  So have the orbital **centres**, where a precision is declared:
     ``centres`` is their verdict (:func:`.._realized._centres_carried`), the operations they
-    are not carried by within the declared precision, ``"centres"``, which
+    are not carried by within the declared precision, ``"centers"``, which
     stands for each of them whatever else reads it and which every verdict below
     reads as already given.  Four measurements finish the verdict where those
     cannot decide.
@@ -2902,7 +2902,7 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
     blocks = _multiplet_blocks(
         model, group, assignment, spin, validated, layout,
         [p for p, s in enumerate(group._symmetries)
-         if int(s.ind) in set(validated.indices) and int(s.ind) not in own_form],
+         if int(s.ind) in set(validated._indices) and int(s.ind) not in own_form],
         ref_chan=int(np.asarray(layout._chan_of, dtype=int)[0]),
         max_candidates=max_candidates, sectors=sectors)
     if isinstance(blocks, Refusal):
@@ -2923,7 +2923,7 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
     # THE ONE READING of the solution spaces: the verdict on the declared
     # content and the choice the representation is built from, together, over
     # the operations that are still standing.
-    standing = set(validated.indices) - set(refuted)
+    standing = set(validated._indices) - set(refuted)
     positions = [p for p, sym in enumerate(syms)
                  if int(sym.ind) in standing and not sym.time_reversal]
     # the time reversal that anchors the phases a crystal of multiplets is read
@@ -2996,7 +2996,7 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
     r"""Lower one cell to the unitary operations the Hamiltonian was measured to obey.
 
     The kept set ``K`` is known before this runs — it is
-    :attr:`ValidatedGroup.indices` minus the antiunitary operations — so nothing
+    ``ValidatedGroup._indices`` minus the antiunitary operations — so nothing
     here searches for a group.  What the cell is *for* is the identification
     step: only ``_group_of`` (spglib + ``irrep`` on a point set) can **name** the
     subgroup, supply the setting transformation ``refUC``/``shiftUC`` and stamp
@@ -3022,7 +3022,7 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
 
     ``centres`` is the orbital centres' verdict under a declared precision
     (:func:`.._realized._centres_carried`), whose refuted operations are among ``refuted``
-    under ``refuted_by = "centres"`` and stand for them over the detector's
+    under ``refuted_by = "centers"`` and stand for them over the detector's
     reading: carried onto the step as ``centres``, the move the parent group
     asked of the centres, the operations that carry them within the
     precision and a note.
@@ -3072,7 +3072,7 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
     """
     refuted = dict(refuted or {})
     antiunitary = {int(s.ind) for s in group._symmetries if s.time_reversal}
-    keep = set(validated.indices) - antiunitary - set(refuted)
+    keep = set(validated._indices) - antiunitary - set(refuted)
     kept = [s for s in group._symmetries
             if int(s.ind) in keep and not s.time_reversal]
     lattice = np.asarray(group._lattice, dtype=float)
@@ -3130,7 +3130,7 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
         why = str(rec.get("refuted_by", "tensor structure"))
         base = {"ind": int(i), "name": _name(i), "refuted_by": why,
                 "step": int(step), "of": str(group.number_str)}
-        if why == "centres":
+        if why == "centers":
             # a verdict about where the centres are carries no residual of H:
             # what it rests on is how far the operation alone would move one
             return dict(base, residual=float("nan"), miss=float(rec["miss"]),
@@ -3155,13 +3155,13 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
     # the centres' verdict stands for the operations it refutes, whatever the
     # detector read on them: each broken operation is listed once, with its reason
     centred = {int(i) for i, r in refuted.items()
-               if isinstance(r, dict) and r.get("refuted_by") == "centres"}
+               if isinstance(r, dict) and r.get("refuted_by") == "centers"}
     broken = tuple(
-        {"ind": int(d["ind"]), "name": _name(d["ind"]),
-         "refuted_by": str(d["refuted_by"]),
-         "residual": float(d["residual"]),
+        {"ind": int(d.index), "name": _name(d.index),
+         "refuted_by": str(d.refuted_by),
+         "residual": float(d.residual),
          "step": int(step), "of": str(group.number_str)}
-        for d in validated.discrepancies if int(d["ind"]) not in centred) + tuple(
+        for d in validated.discrepancies if int(d.index) not in centred) + tuple(
         _entry(i) for i in sorted(refuted)) + left_out
 
     species = _DESCENT_SPECIES
@@ -3249,11 +3249,11 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
                 + " and ".join("{" + ", ".join(_name(i) for i in r) + "}" for r in readings)
                 + ". The one returned is the first by the tie rule `realized_group` states "
                 f"-- {_tie_rule_words(group)} -- since {_tie_reason(group, readings)}; "
-                "`descent['tied']` lists them in that order.")
+                "`descent.tied` lists them in that order.")
     if projective is not None:
         record["projective"] = dict(projective)
     if centres is not None:
-        record["centres"] = {"precision": float(centres.precision),
+        record["centers"] = {"precision": float(centres.precision),
                              "move": float(centres.move),
                              "kept": tuple(int(i) for i in centres.kept),
                              "tied": tuple(tuple(int(i) for i in c)
@@ -3266,7 +3266,7 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
 
 
 #: Each cause :func:`_descent_counts` counts, as the record's one-line summary says it.
-_DROPPED_BY_WORDS = {"centres": "by the centres", "hoppings": "by the hoppings",
+_DROPPED_BY_WORDS = {"centers": "by the centers", "hoppings": "by the hoppings",
                      "declaration": "by the declared content",
                      "closure": "left out to close a group", "tie": "by the tie rule",
                      "time reversal": "with time reversal",
@@ -3291,13 +3291,13 @@ def _descent_counts(steps, time_reversal) -> dict:
     """
     dropped = [str(b["refuted_by"]) for st in steps for b in st["dropped"]]
     named = {r: dropped.count(r)
-             for r in ("centres", "declaration", "closure", "tie", "projective class")}
+             for r in ("centers", "declaration", "closure", "tie", "projective class")}
     tr = time_reversal or {}
     between = sum(int(steps[k]["to"]["size"]) - int(steps[k + 1]["from"]["size"])
                   for k in range(len(steps) - 1)
                   if tr.get("outcome") == "measured broken"
                   and steps[k]["to"]["number_str"] == tr.get("grey_number_str"))
-    return {"centres": named["centres"], "hoppings": len(dropped) - sum(named.values()),
+    return {"centers": named["centers"], "hoppings": len(dropped) - sum(named.values()),
             "declaration": named["declaration"], "closure": named["closure"],
             "tie": named["tie"], "time reversal": int(between),
             "projective class": named["projective class"]}
@@ -3317,7 +3317,7 @@ def _descent_clauses(counts) -> tuple:
     operations that carries what each of them asks, and is ``None`` where the
     hoppings and the declared content alone did.
     """
-    d_cen, d_hop, d_decl = counts["centres"], counts["hoppings"], counts["declaration"]
+    d_cen, d_hop, d_decl = counts["centers"], counts["hoppings"], counts["declaration"]
     d_closure, d_tie = counts["closure"], counts["tie"]
     d_tr, d_proj = counts["time reversal"], counts["projective class"]
     # WHO BROKE WHAT.  The hoppings and the declared orbital content are two

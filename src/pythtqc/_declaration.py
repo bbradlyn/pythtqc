@@ -1066,7 +1066,7 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
     declared tolerance the multiplets were measured at in the same way.
 
     Returns the :class:`_Verdict`: the measured-versus-declared table in
-    :attr:`AtomicLimitTable.checks`'s own shape, the coupled parts, what each
+    :attr:`_OrbitalTable.checks`'s own shape, the coupled parts, what each
     operation asks of each part's character, the contents read together, the
     scalars the hoppings pin and the ones they leave open, the multiplets' own
     blocks (:func:`_multiplet_blocks`), what time reversal carries on each
@@ -1153,7 +1153,7 @@ def _anchor_read(model, group, assignment, spin, validated, layout, positions, *
     if layout._measured and not measured_of:
         got = _multiplet_blocks(model, group, assignment, spin, validated, layout,
                                 [p for p, s in enumerate(syms)
-                                 if int(s.ind) in set(validated.indices)],
+                                 if int(s.ind) in set(validated._indices)],
                                 ref_chan=ref, max_candidates=int(max_candidates))
         if isinstance(got, Refusal):
             return got

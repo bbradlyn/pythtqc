@@ -94,11 +94,10 @@ def atomic_limits(d):
 print("\n1. the undistorted crystal")
 undistorted = fu_kane_mele(T, SOC, [0.0, 0.0, 0.0, 0.0])     # every bond equal
 
-out = tqc.realized_group(undistorted, characters=DECLARE)
-model, group, assignment, validated, rep = out
-sites = tqc.wyckoff_sites_tables(group, assignment.site_positions)   # each site's Wyckoff position
+r = tqc.realized_group(undistorted, characters=DECLARE)
+group = r.group
 row("realized group", f"#{group.number_str} {group.name}, s orbitals at Wyckoff "
-    f"{sites[0].wyckoff}, {model.nstate} bands")
+    f"{r.wyckoff_orbits[0].wyckoff}, {r.model.nstate} bands")
 
 # the four energies at each high-symmetry point, and the gap at half filling
 hsp = tqc.high_symmetry_points(group)
@@ -110,13 +109,13 @@ for point in sorted(hsp):
     else:
         row(f"E at {point}", ", ".join(f"{x:+.6f}" for x in w) + f"   gap {gap:.6f}")
 
-table4 = tqc.hsp_table(rep, bands=4)          # the content of all four bands
+table4 = tqc.hsp_table(r, bands=4)          # the content of all four bands
 d4 = tqc.decompose(table4)
 row("all 4 bands", fmt(table4.counts))
 row(*atomic_limits(d4))
 
 # ... and the same table asked for the valence bands alone
-table2 = tqc.hsp_table(rep, bands=2)
+table2 = tqc.hsp_table(r, bands=2)
 row("valence content", f"not defined at {', '.join(sorted(table2.refusals))}, where all "
     "four bands meet")
 print("   the undistorted crystal is a semimetal")
@@ -127,10 +126,9 @@ print("\n2. delta_t = +0.4 on the [111] bond")
 m_strong = fu_kane_mele(T, SOC, [0.4, 0.0, 0.0, 0.0])        # one bond strengthened
 
 r_strong = tqc.realized_group(m_strong, characters=DECLARE)
-_m, g_strong, asg_strong, val_strong, rep_strong = r_strong
-sites_strong = tqc.wyckoff_sites_tables(g_strong, asg_strong.site_positions)
+g_strong = r_strong.group
 row("realized group", f"#{g_strong.number_str} {g_strong.name}, orbitals at Wyckoff "
-    f"{sites_strong[0].wyckoff}: the detuned bond lowers",
+    f"{r_strong.wyckoff_orbits[0].wyckoff}: the detuned bond lowers",
     f"{group.name} to {g_strong.name}, with no atom moved")
 
 hsp_strong = tqc.high_symmetry_points(g_strong)
@@ -138,7 +136,7 @@ for point in POINTS:
     w = np.asarray(solve_at(m_strong, hsp_strong[point])[0], dtype=float).reshape(-1)
     row(f"E at {point}", ", ".join(f"{x:+.6f}" for x in w) + f"   gap {w[2] - w[1]:.6f}")
 
-t2_strong = tqc.hsp_table(rep_strong, bands=2)
+t2_strong = tqc.hsp_table(r_strong, bands=2)
 row("valence content", fmt(t2_strong.counts))
 
 dec_strong = tqc.decompose(t2_strong)
@@ -150,10 +148,9 @@ print("\n3. delta_t = -0.4 on the same bond")
 m_weak = fu_kane_mele(T, SOC, [-0.4, 0.0, 0.0, 0.0])         # the same bond weakened
 
 r_weak = tqc.realized_group(m_weak, characters=DECLARE)
-_m, g_weak, asg_weak, val_weak, rep_weak = r_weak
-sites_weak = tqc.wyckoff_sites_tables(g_weak, asg_weak.site_positions)
+g_weak = r_weak.group
 row("realized group", f"#{g_weak.number_str} {g_weak.name}, orbitals at Wyckoff "
-    f"{sites_weak[0].wyckoff}")
+    f"{r_weak.wyckoff_orbits[0].wyckoff}")
 
 hsp_weak = tqc.high_symmetry_points(g_weak)
 gaps_weak = []
@@ -162,7 +159,7 @@ for point in POINTS:
     gaps_weak.append(w[2] - w[1])
 row("gaps GM/T/F/L", " / ".join(f"{g:.6f}" for g in gaps_weak))
 
-t2_weak = tqc.hsp_table(rep_weak, bands=2)
+t2_weak = tqc.hsp_table(r_weak, bands=2)
 row("valence content", fmt(t2_weak.counts))
 
 dec_weak = tqc.decompose(t2_weak)
@@ -174,10 +171,9 @@ print("\n4. three bonds cut: decoupled dimers along [111]")
 m_dimers = fu_kane_mele(T, SOC, [0.0, -1.0, -1.0, -1.0])     # three bonds cut
 
 r_dimers = tqc.realized_group(m_dimers, characters=DECLARE)
-_m, g_dimers, asg_dimers, val_dimers, rep_dimers = r_dimers
-sites_dimers = tqc.wyckoff_sites_tables(g_dimers, asg_dimers.site_positions)
+g_dimers = r_dimers.group
 row("realized group", f"#{g_dimers.number_str} {g_dimers.name}, orbitals at Wyckoff "
-    f"{sites_dimers[0].wyckoff}")
+    f"{r_dimers.wyckoff_orbits[0].wyckoff}")
 
 hsp_dimers = tqc.high_symmetry_points(g_dimers)
 gaps_dimers = []
@@ -186,7 +182,7 @@ for point in POINTS:
     gaps_dimers.append(w[2] - w[1])
 row("gaps GM/T/F/L", " / ".join(f"{g:.6f}" for g in gaps_dimers))
 
-t2_dimers = tqc.hsp_table(rep_dimers, bands=2)
+t2_dimers = tqc.hsp_table(r_dimers, bands=2)
 row("valence content", fmt(t2_dimers.counts))
 
 dec_dimers = tqc.decompose(t2_dimers)

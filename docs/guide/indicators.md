@@ -24,8 +24,7 @@ from pythtb.models import kane_mele
 from pythtqc import models
 
 r = tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1])
-model, group, assignment, validated, rep = r
-t = tqc.hsp_table(rep, bands=6)                    # the six lowest bands
+t = tqc.hsp_table(r, bands=6)                      # the six lowest bands
 si = tqc.symmetry_indicator(t)
 print(si)
 #  SymmetryIndicator(trivial indicator group, #99.164, trivial)
@@ -80,7 +79,7 @@ declared `s`:
 ```python
 km = kane_mele(0.0, -1.0, 0.3, 0.0)                # delta, t, soc, rashba
 free = tqc.realized_group(km, environment="free-standing", characters={0: "s"})
-t_free = tqc.hsp_table(free.rep, bands=2)          # the two lowest bands
+t_free = tqc.hsp_table(free, bands=2)              # the two lowest bands
 si_free = tqc.symmetry_indicator(t_free)
 print(si_free.summary())
 #  indicated nontrivial, in P6/mmm1' #191.234: no atomic limit has this content, nor any with atomic bands added   (.verdict)
@@ -147,11 +146,11 @@ is the one `realized_group` measured beside the substrate's:
 
 ```python
 sub = tqc.realized_group(km, characters={0: "s"})  # on a substrate, the default
-si_sub = tqc.symmetry_indicator(tqc.hsp_table(sub.rep, bands=2))
+si_sub = tqc.symmetry_indicator(tqc.hsp_table(sub, bands=2))
 print(sub.group.name, si_sub)
 #  P6mm1' SymmetryIndicator(trivial indicator group, #183.186, trivial)
-print(si_sub.completion, sub.rep.free_standing_group == sub.cross_check["free_standing"])
-#  None True
+print(si_sub.completion, sub.environment.cross_check.free_standing)
+#  None P6/mmm1' #191.234
 print(si_sub.summary())
 #  trivial indicator group, in P6mm1' #183.186: there is no class to read   (.verdict)
 #    the coreps at the high-symmetry points: -GM9 + -K6 + -M5   (.content)
@@ -169,7 +168,7 @@ row of its basis out of the plane repeats an in-plane one, so no stack is
 built and `completion` is `None`. The last line of the summary names the
 free-standing layer's group, `P6/mmm1'` `#191.234`, as `realized_group`
 measured it in the other environment and found it to agree
-(`r.rep.free_standing_group`), without using it; it is named where it is larger
+(`r.environment.cross_check.free_standing`), without using it; it is named where it is larger
 than the substrate's, and not at all where that environment was not measured
 (`cross_check=False`) or not compared, as for a declaration written in the
 substrate's site irreps. A decomposition of the free-standing presentation is
@@ -244,7 +243,7 @@ layer's counts written out by hand carry no representation to build the stack
 from, so its rows out of the plane go unmeasured:
 
 ```python
-print(tqc.symmetry_indicator({"-GM6": 1, "-M6": 1, "-X5": 2}, group).gate)
+print(tqc.symmetry_indicator({"-GM6": 1, "-M6": 1, "-X5": 2}, r.group).gate)
 #  not_a_band_structure
 print(tqc.symmetry_indicator(dict(t_free.counts), free.group).gate)
 #  indicator_not_evaluable

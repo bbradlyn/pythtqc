@@ -47,8 +47,8 @@ from pythtb.models import graphene
 even, offset = graphene(0.0, -1.0), graphene(0.5, -1.0)   # graphene(delta, t)
 print(tqc.realized_group(even).descent)                  # nothing broken
 #  None
-broken = tqc.realized_group(offset).descent["dropped"]
-print({b["name"]: b["refuted_by"] for b in broken}["C2(z)"])
+broken = tqc.realized_group(offset).descent.dropped
+print({b.name: b.refuted_by for b in broken}["C2(z)"])
 #  no symmetry matrix
 ```
 
@@ -137,9 +137,9 @@ measurement, as a descent:
 
 ```python
 print(repr(tqc.realized_group(even, typat=[0, 1])))
-#  RealizedGroup(P3m11' #156.50; on a substrate (the default), the free-standing group #187.210 agrees)
+#  RealizedGroup(P3m11' #156.50; on a substrate (the default), the free-standing group P-6m21' #187.210 agrees)
 print(repr(tqc.realized_group(offset)))
-#  RealizedGroup(P3m11' #156.50; descended from #183.186 (12 of 24 coset representatives of the lattice translations broken); on a substrate (the default), the free-standing group #187.210 agrees)
+#  RealizedGroup(P3m11' #156.50; descended from P6mm1' #183.186 (12 of 24 coset representatives of the lattice translations broken); on a substrate (the default), the free-standing group P-6m21' #187.210 agrees)
 ```
 
 A declaration the hoppings are not covariant under states a crystal with less
@@ -149,7 +149,7 @@ symmetry, and the group descends to it, each operation it broke recorded with
 A declaration
 that makes two sites of one orbit different lowers the cell before any hopping
 is read; that is a statement about the crystal and not a descent, and
-`.decoration["declared"]` records it. A site the declaration leaves out carries
+`.decoration.declared` records it. A site the declaration leaves out carries
 what the crystal's operations carry onto it, so a declaration made at some
 sites of an orbit and not at the others keeps the largest group whose every
 operation carries the declared content, the first by the tie rule where several
@@ -191,15 +191,13 @@ irreps are real. Graphene with nothing declared reads `s`-like, and declared
 `A2` its whole coupled part is relabelled at once:
 
 ```python
-print(tqc.realized_group(even).rep.characters.summary())
-#  orbital  Wyckoff  site symmetry  function  irrep  named by  determined by  orbital characters
-#        0       2b             3m               A1    tables       lowest-l  E=+1, C3(z)=+1, m(x)=+1
-#        1       2b             3m               A1    tables       lowest-l  E=+1, C3(z)=+1, m(x)=+1
+print(tqc.realized_group(even).wyckoff_orbits.summary())
+#  Wyckoff  site symmetry  orbitals  label  determined by  declared
+#       2b           3m1'       0-1     A1       lowest-l
 #    lowest-l: the hoppings fix how the orbitals transform relative to one another, not what they are; where several site irreps fit, the one carried by the lowest-angular-momentum functions is shown, and `characters=` states another.
-print(tqc.realized_group(even, characters={0: "A2"}).rep.characters.summary())
-#  orbital  Wyckoff  site symmetry  function  irrep  named by  determined by  orbital characters
-#        0       2b             3m               A2    tables    declaration  E=+1, C3(z)=+1, m(x)=-1
-#        1       2b             3m               A2    tables    hamiltonian  E=+1, C3(z)=+1, m(x)=-1
+print(tqc.realized_group(even, characters={0: "A2"}).wyckoff_orbits.summary())
+#  Wyckoff  site symmetry  orbitals  label  determined by  declared
+#       2b           3m1'       0-1     A2    declaration      A2/-
 ```
 
 The rule is deterministic, and it is a choice: the hoppings cannot make it, so
@@ -241,7 +239,7 @@ them the group's own table admits, and one that none of them carries lowers
 the group as any declaration does. With a spin the copies carry an ordinary
 representation, the double-valued factor system being the spin's own: two
 spinful `s` orbitals declared `E` at a `4mm` site hold `-E1 + -E2`.
-`rep.characters.multiplicity_spaces` names each such orbit with every site
+The row of each such orbit names, in `numerical.contents`, every site
 content the group's own table admits, and the atomic-limit table's summary
 prints a line for it.
 
@@ -385,7 +383,7 @@ each about how the model is written.
   fits them, and a shift of all of them together within it is removed with the
   move, so that the group is named on centres exact in the model's own frame.
   Centres further off are a real displacement: an operation that
-  would move one beyond the declaration is broken by the centres, and the group
+  would move one beyond the declaration is broken by the centers, and the group
   descends to the largest group of its operations that carries them within it,
   in which the bands are labelled. Centres noisier than the symmetry finder's
   own tolerance `symprec` are a less symmetric point set to it, and the group

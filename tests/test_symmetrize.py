@@ -226,7 +226,7 @@ def _pipeline(model, typat=None, *, tol, nk=6, decorations=None, spinor=None,
 def lin3g_clean(lin3g_declared_cross_checked):
     """lin3g in the group its Hamiltonian realizes, from exact numbers."""
     out = lin3g_declared_cross_checked
-    assert out.symmetrization is None, "an exact model has nothing to symmetrize"
+    assert out.numerical.symmetrization is None, "an exact model has nothing to symmetrize"
     return out
 
 
@@ -258,7 +258,7 @@ def km_odd_free_standing(realized):
     out = realized(km_z2_regime("odd"), typat=[0, 1], environment="free-standing",
                    characters={0: "A1"}, cross_check=False)
     assert out, str(out)
-    assert out.symmetrization is None, "an exact model has nothing to symmetrize"
+    assert out.numerical.symmetrization is None, "an exact model has nothing to symmetrize"
     return out
 
 
@@ -279,7 +279,7 @@ def test_the_three_classes_are_read_off_the_measured_residuals(lin3g, lin3g_jitt
     _out, model, tol = lin3g_jittered
     m3, group, _asg, val = _pipeline(model, [0, 0, 1, 1], tol=tol)
     classes = _classify_operations(val, tol)
-    assert set(classes) == set(val.indices)
+    assert set(classes) == set(val._indices)
     assert set(classes.values()) == {"exact", "near"}, classes
     # the identity is exact; every other operation carries the jitter
     assert sum(1 for c in classes.values() if c == "near") == len(classes) - 1
@@ -305,7 +305,7 @@ def test_the_jittered_lin3g_comes_back_as_the_clean_one(lin3g_clean, lin3g_jitte
     jitter moved it.
     """
     out, model, _tol = lin3g_jittered
-    rec = out.symmetrization
+    rec = out.numerical.symmetrization
     assert rec is not None
 
     # it moved by O(the residuals), and less than the jitter itself did
@@ -323,13 +323,13 @@ def test_the_jittered_lin3g_comes_back_as_the_clean_one(lin3g_clean, lin3g_jitte
     assert out.group.number_str == lin3g_clean.group.number_str == "99.164"
     assert out.rep._choice == lin3g_clean.rep._choice
     assert max(float(np.abs(out.rep.matrices[i] - lin3g_clean.rep.matrices[i]).max())
-               for i in lin3g_clean.rep.indices) == 0.0
-    assert out.rep.characters.irreps == lin3g_clean.rep.characters.irreps
+               for i in lin3g_clean.rep._indices) == 0.0
+    assert out.rep._characters.irreps == lin3g_clean.rep._characters.irreps
 
     # ... and so is everything the labels are for
     bands = (0, 1, 2, 3, 4, 5)
-    a = tqw.hsp_table(lin3g_clean.rep, bands=bands)
-    b = tqw.hsp_table(out.rep, bands=bands)
+    a = tqw.hsp_table(lin3g_clean, bands=bands)
+    b = tqw.hsp_table(out, bands=bands)
     assert a.complete and b.complete
     assert a.counts == b.counts == {"-GM6": 2, "-GM7": 1, "-M6": 1, "-M7": 2, "-X5": 3}
     assert a.partitions == b.partitions
@@ -359,8 +359,8 @@ def test_the_record_carries_the_measurements_that_license_it(lin3g_jittered):
     series was complete.
     """
     out, _model, _tol = lin3g_jittered
-    rec = out.symmetrization
-    assert len(rec.near) == len(rec.classes) - 1 and len(rec.exact) == 1
+    rec = out.numerical.symmetrization
+    assert len(rec.near) == len(rec._classes) - 1 and len(rec.exact) == 1
     assert rec.passes == 1, "the exact D of the representation route needs one pass"
     # the defect is O(the residuals that licensed it) -- measured 0.031 of the
     # bound below.  Not `<= tol`: `_symmetrize` refuses above `tol`, so that one
@@ -368,7 +368,7 @@ def test_the_record_carries_the_measurements_that_license_it(lin3g_jittered):
     worst = max(rec.residuals[i] for i in rec.near)
     assert rec.defect <= 10 * worst
     # the grid, derived from the model's own range and the group's reach
-    g = rec.grid
+    g = rec._grid
     assert g["R_max"] == (1, 1) and g["R_box"] == (2, 2)
     assert g["n"] == (7, 7) and g["dim_k"] == 2
     assert g["n_points"] == 49
@@ -379,34 +379,34 @@ def test_the_record_carries_the_measurements_that_license_it(lin3g_jittered):
     m3, group, asg, val = _pipeline(reach, tol=tol)
     fine, fine_rec = _symmetrize(m3, group, asg, val, tol=tol)
     cubic, cubic_rec = _symmetrize(m3, group, asg, val, tol=tol, k_grid=9)
-    assert fine_rec.grid["R_box"] == (3, 3, 1)
-    assert (fine_rec.grid["n"], fine_rec.grid["n_points"]) == ((9, 9, 5), 405)
-    assert (cubic_rec.grid["n"], cubic_rec.grid["n_points"]) == ((9, 9, 9), 729)
+    assert fine_rec._grid["R_box"] == (3, 3, 1)
+    assert (fine_rec._grid["n"], fine_rec._grid["n_points"]) == ((9, 9, 5), 405)
+    assert (cubic_rec._grid["n"], cubic_rec._grid["n_points"]) == ((9, 9, 9), 729)
     k = np.random.default_rng(5).uniform(-0.5, 0.5, size=(32, 3))
     a = np.asarray(fine.hamiltonian(k_pts=k, flatten_spin_axis=True))
     b = np.asarray(cubic.hamiltonian(k_pts=k, flatten_spin_axis=True))
     assert float(np.abs(a - b).max()) < 10 * _ULP * _max_H(reach), \
         "the same projection on either grid, to rounding"
     # the two exactness checks of the transform
-    assert rec.checks["outside_box"] < 1e-13
-    assert rec.checks["k_identity"] < 1e-12
-    assert rec.checks["hermiticity"] < 1e-13
-    assert rec.checks["covariance_residue"] < 1e-12
+    assert rec.checks.outside_box < 1e-13
+    assert rec.checks.k_identity < 1e-12
+    assert rec.checks.hermiticity < 1e-13
+    assert rec.checks.covariance_residue < 1e-12
     # the drop HAPPENED, which is what makes the two bounds after it a
     # statement: `_drop_threshold` returns `(0.0, inf)` when it cuts nothing,
     # and both are satisfied by that branch.  Measured: 552 rebuilt blocks
     # dropped, the cut at 6.7e-16 (0.25 ulp of max|H| = 12.375) under a gap of
     # 6.8e14 to the smallest coefficient kept -- so the drop is orbit-safe, at
     # a gap in the block norms rather than at an amplitude
-    assert rec.checks["n_dropped"] > 0
-    assert rec.checks["drop_threshold"] < 10 * _ULP * rec.scale
-    assert rec.checks["drop_gap"] > 1e10
-    assert rec.checks["n_hoppings"] == int(out.model.nhops) == 16
+    assert rec.checks.n_dropped > 0
+    assert rec.checks.drop_threshold < 10 * _ULP * rec.scale
+    assert rec.checks.drop_gap > 1e10
+    assert rec.checks.n_hoppings == int(out.model.nhops) == 16
     # the after-the-fact verification, at the DEFAULT tolerance
-    assert rec.verification["tol"] == 1e-8
-    assert rec.verification["n_kept"] == rec.verification["n_operations"]
-    assert rec.verification["worst_residual"] < 1e-12
-    assert rec.verification["near_kept"]
+    assert rec.verification.tol == 1e-8
+    assert rec.verification.n_kept == rec.verification.n_operations
+    assert rec.verification.worst_residual < 1e-12
+    assert rec.verification.near_kept
     assert "symmetrized (defect" in repr(out)
     assert "operations were near-symmetric" in rec.summary()
 
@@ -424,13 +424,13 @@ def test_the_operators_carry_none_of_the_models_noise(lin3g_jittered, lin3g_clea
     out, model, tol = lin3g_jittered
     m3, group, asg, val = _pipeline(model, [0, 0, 1, 1], tol=tol)
     prov = _build._build_rep(m3, group, asg, validated=val, tol=tol,
-                          internal_tol=10 * max(val.residuals[i] for i in val.indices)
+                          internal_tol=10 * max(val.residuals[i] for i in val._indices)
                           / _max_H(m3), characters=["s", "dx2-y2", "s", "s"])
     assert prov, str(prov)
     # the same declaration on the clean model
     exact = lin3g_clean
     assert max(float(np.abs(prov.matrices[i] - exact.rep.matrices[i]).max())
-               for i in exact.rep.indices) == 0.0
+               for i in exact.rep._indices) == 0.0
     # the provisional build's own covariance is the model's defect, and its
     # other two gates read machine zero on the assembled candidate
     assert prov._search["internal"] < 1e-14 and prov._search["product"] < 1e-14
@@ -496,7 +496,7 @@ def test_symmetrization_recovers_the_clean_answer_on_every_presentation(name, re
     clean = (request.getfixturevalue(shared[name]) if name in shared
              else realized(build, **kw))
     assert clean, str(clean)
-    assert clean.symmetrization is None
+    assert clean.numerical.symmetrization is None
     assert (clean.group.number_str, len(clean.operations),
             clean.group._provenance) == served[name]
 
@@ -505,13 +505,13 @@ def test_symmetrization_recovers_the_clean_answer_on_every_presentation(name, re
     # a layer's other environment is not read here; a crystal has none
     out = _realized._realize(jit, tol=tol, cross_check=False, **kw)
     assert out, str(out)
-    rec = out.symmetrization
+    rec = out.numerical.symmetrization
     assert rec is not None and rec.passes == 1
     assert rec.defect <= 10 * max(rec.residuals[i] for i in rec.near)
-    assert rec.defect_relative < 10 * JITTER
-    assert rec.checks["outside_box"] < 1e-13 and rec.checks["k_identity"] < 1e-12
-    assert rec.verification["near_kept"] and not rec.verification["broken"]
-    assert rec.verification["worst_residual"] < 1e-12
+    assert rec.defect / rec.scale < 10 * JITTER
+    assert rec.checks.outside_box < 1e-13 and rec.checks.k_identity < 1e-12
+    assert rec.verification.near_kept and not rec.verification.broken
+    assert rec.verification.worst_residual < 1e-12
 
     # the same group by the same route: the jitter moved neither the answer nor
     # how it was reached
@@ -520,15 +520,15 @@ def test_symmetrization_recovers_the_clean_answer_on_every_presentation(name, re
     assert out.group.number_str == clean.group.number_str
     assert (out.descent is None) == (clean.descent is None)
     if clean.descent is not None:
-        assert out.descent["from"] == clean.descent["from"]
-        assert out.descent["dropped_by"] == clean.descent["dropped_by"]
+        assert out.descent.cell_group == clean.descent.cell_group
+        assert out.descent.dropped_by == clean.descent.dropped_by
         # near is not broken: the jitter refutes nothing the clean descent did not
-        assert [(b["ind"], b["name"], b["refuted_by"]) for b in out.descent["dropped"]] \
-            == [(b["ind"], b["name"], b["refuted_by"]) for b in clean.descent["dropped"]]
+        assert [(b.index, b.name, b.refuted_by) for b in out.descent.dropped] \
+            == [(b.index, b.name, b.refuted_by) for b in clean.descent.dropped]
     assert out.rep._choice == clean.rep._choice
     assert max(float(np.abs(out.rep.matrices[i] - clean.rep.matrices[i]).max())
-               for i in clean.rep.indices) == 0.0
-    assert out.rep.characters.irreps == clean.rep.characters.irreps
+               for i in clean.rep._indices) == 0.0
+    assert out.rep._characters.irreps == clean.rep._characters.irreps
     # the presentation itself came back unchanged
     assert np.array_equal(np.asarray(out.model.orb_vecs),
                           np.asarray(clean.model.orb_vecs))
@@ -548,21 +548,21 @@ def test_a_declared_spinor_basis_symmetrizes_like_the_native_model():
     clean = tqg.realized_group(flat, typat=[0, 0, 1, 1], spin=sb, characters={0: "A1"},
                                cross_check=False)
     assert clean, str(clean)
-    assert clean.symmetrization is None
+    assert clean.numerical.symmetrization is None
 
     jit = jitter(flat)
     tol = TOL_FACTOR * JITTER * _max_H(flat)
     out = _realized._realize(jit, typat=[0, 0, 1, 1], spin=sb, tol=tol,
                              characters={0: "A1"}, cross_check=False)
     assert out, str(out)
-    rec = out.symmetrization
+    rec = out.numerical.symmetrization
     assert rec is not None
     assert rec.defect <= 10 * max(rec.residuals[i] for i in rec.near)
     assert int(out.model.nspin) == 1 and int(out.model.norb) == 4
     assert out.group.number_str == clean.group.number_str
-    assert out.rep.characters.irreps == clean.rep.characters.irreps
+    assert out.rep._characters.irreps == clean.rep._characters.irreps
     assert max(float(np.abs(out.rep.matrices[i] - clean.rep.matrices[i]).max())
-               for i in clean.rep.indices) == 0.0
+               for i in clean.rep._indices) == 0.0
 
 
 #: A chiral decoration: three atoms above and three below the plane in a C3
@@ -595,9 +595,9 @@ def test_a_magnetic_model_is_symmetrized_without_inventing_time_reversal():
                              characters={0: "A1"}, cross_check=False)
     assert out, str(out)
     assert out.group.number_str == "143" and out.group.magnetic_type == "I"
-    assert out.time_reversal["outcome"] == "measured broken"
-    rec = out.symmetrization
-    assert rec is not None and len(rec.operations) == 3
+    assert out.time_reversal.outcome == "measured broken"
+    rec = out.numerical.symmetrization
+    assert rec is not None and len(out.rep.matrices) == 3
     assert rec.defect <= 10 * max(rec.residuals[i] for i in rec.near)
 
     k = np.stack(np.meshgrid(*([np.linspace(0, 1, 6, endpoint=False)] * 2),
@@ -619,10 +619,10 @@ def test_a_magnetic_model_is_symmetrized_without_inventing_time_reversal():
     # model's spin degeneracy at 1e-7, so the sift's matrix for one of them,
     # read off eigenvectors at a few points, missed the gate by itself, and the
     # fit over the whole mesh among the operation's site forms meets it.
-    assert rec.checks["covariance_residue"] < 1e-12
+    assert rec.checks.covariance_residue < 1e-12
     again = _measure._validate_group(out.model, out.group, nk=6, solver="stacked")
     assert not again.broken and max(again.residuals.values()) < 1e-13
-    assert rec.verification["near_kept"], rec.verification["note"]
+    assert rec.verification.near_kept, rec.verification.note
 
 
 # ---------------------------------------------------------------------------
@@ -659,22 +659,22 @@ def test_a_genuine_distortion_is_descended_to_and_never_symmetrized_away(lin3g):
                              tol=1e-6,
                              characters=["s", "dx2-y2", "s", "s"], cross_check=False)
     assert out, str(out)
-    assert out.symmetrization is None, "broken is not near: nothing was projected"
+    assert out.numerical.symmetrization is None, "broken is not near: nothing was projected"
     assert (out.group.number_str, out.group.name, len(out.operations)) == ("25.58",
                                                                      "Pmm21'", 8)
     assert out.group._provenance == "descended"
-    assert out.descent["from"]["number_str"] == "123.340"
-    assert out.descent["from"]["name"] == "P4/mmm1'"
-    assert out.descent["from"]["size"] == 32
-    assert len(out.descent["dropped"]) == 24 and out.descent["iterations"] == 1
-    assert {b["name"] for b in out.descent["dropped"]} == {
+    assert out.descent.cell_group.number_str == "123.340"
+    assert out.descent.cell_group.name == "P4/mmm1'"
+    assert out.descent.cell_group.size == 32
+    assert len(out.descent.dropped) == 24 and out.descent.iterations == 1
+    assert {b.name for b in out.descent.dropped} == {
         "C4(z)", "C4^-1(z)", "m([110])", "m([1-10])", "C2(x)", "C2(y)",
         "C2([110])", "C2([1-10])", "S4(z)", "S4^-1(z)", "i", "m(z)",
         "C4(z)'", "C4^-1(z)'", "m([110])'", "m([1-10])'", "C2(x)'", "C2(y)'",
         "C2([110])'", "C2([1-10])'", "S4(z)'", "S4^-1(z)'", "i'", "m(z)'"}
-    assert {b["refuted_by"] for b in out.descent["dropped"]} == {
+    assert {b.refuted_by for b in out.descent.dropped} == {
         "no symmetry matrix", "tensor structure"}
-    assert out.descent["steps"][0]["refuted_by"] == {"no symmetry matrix": 16,
+    assert out.descent.steps[0].refuted_by == {"no symmetry matrix": 16,
                                                      "tensor structure": 8}
 
 
@@ -688,9 +688,9 @@ def test_symmetrize_refuses_an_operation_that_is_broken_rather_than_near(lin3g):
     """
     bad = distort(lin3g, rel=1e-2)
     m3, group, asg, val = _pipeline(bad, [0, 0, 1, 1], tol=1e-6)
-    assert len(val.indices) == 8
+    assert len(val._indices) == 8
     forced = dataclasses.replace(
-        val, indices=tuple(int(s.ind) for s in group._symmetries))
+        val, _indices=tuple(int(s.ind) for s in group._symmetries))
     got = _symmetrize(m3, group, asg, forced, tol=1e-6,
                       characters=["s", "dx2-y2", "s", "s"])
     assert not got and got.gate == "symmetrize_broken_operation"
@@ -807,10 +807,10 @@ def test_the_covariance_refusal_points_at_the_route_when_a_tolerance_was_declare
     runs = _realized._realize(model, typat=[0, 0, 1, 1], tol=tol, max_bytes=1.2e5,
                               characters=["s", "dx2-y2", "s", "s"], cross_check=False)
     assert runs, str(runs)
-    assert runs.symmetrization.grid == projected.symmetrization.grid
+    assert runs.numerical.symmetrization._grid == projected.numerical.symmetrization._grid
     # the grid is evaluated in chunks the budget sizes, so the same projection
     # agrees to rounding rather than bit for bit
-    assert runs.symmetrization.defect == pytest.approx(projected.symmetrization.defect,
+    assert runs.numerical.symmetrization.defect == pytest.approx(projected.numerical.symmetrization.defect,
                                                        rel=1e-6)
 
 
@@ -914,17 +914,17 @@ def test_a_multiplet_site_symmetrizes_through_the_representation_nearest_its_blo
     tol = TOL_FACTOR * JITTER * _max_H(p4232)
     asg = _tables._assign_orbitals(jit, group)
     val = _measure._validate_group(jit, group, nk=5, tol=tol)
-    assert len(val.indices) == 48, "the whole group survives at the declared tolerance"
+    assert len(val._indices) == 48, "the whole group survives at the declared tolerance"
     assert set(_classify_operations(val, tol).values()) == {"exact", "near"}
     assert asg.site_orbitals == ((0, 1), (2, 3))
 
     model, rec = _symmetrize(jit, group, asg, val, tol=tol)
     assert rec.passes == 1
-    assert rec.checks["covariance_residue"] < 1e-13
-    assert rec.checks["k_identity"] < 1e-13
-    assert 0.0 < rec.checks["per_pass"][0] < 10.0 * JITTER * _max_H(p4232), \
+    assert rec.checks.covariance_residue < 1e-13
+    assert rec.checks.k_identity < 1e-13
+    assert 0.0 < rec.checks.per_pass[0] < 10.0 * JITTER * _max_H(p4232), \
         "the hoppings moved by the model's own noise and no more"
-    assert 1e-9 < rec.operators["composition"] < 1e-5, \
+    assert 1e-9 < rec._operators["composition"] < 1e-5, \
         "the pairs' own blocks carried the noise the operators do not"
 
     flat, _basis = tqspin.spinless_presentation(tqc_models.r3m_s_6c())
@@ -933,11 +933,11 @@ def test_a_multiplet_site_symmetrizes_through_the_representation_nearest_its_blo
                                       precision=10 * noise)
         assert spinless, str(spinless)
         assert (spinless.group.name, spinless.group.number_str) == ("R-3m", "166")
-        assert spinless.rep.multiplets.by_site == (((0, 1),), ((2, 3),))
-        assert spinless.rep.characters.irreps == ("E",) * 4
-        assert spinless.symmetrization is not None
-        assert spinless.symmetrization.operators["composition"] > 1e-9
-        assert spinless.rep.product_residual < 1e-13
+        assert spinless.rep._multiplets.by_site == (((0, 1),), ((2, 3),))
+        assert spinless.rep._characters.irreps == ("E",) * 4
+        assert spinless.numerical.symmetrization is not None
+        assert spinless.numerical.symmetrization._operators["composition"] > 1e-9
+        assert spinless.rep.numerical.product_residual < 1e-13
 
     # blocks that compose to better than the canonical norm needs, and still
     # only to the model's noise, are made exact for the average as well: each
@@ -945,9 +945,9 @@ def test_a_multiplet_site_symmetrizes_through_the_representation_nearest_its_blo
     cubic = tqg.realized_group(jitter(cubic_3c_perp_doublet(), rel=1e-10))
     assert cubic, str(cubic)
     assert cubic.group.name == "P-43m1'"
-    assert 1e-10 < cubic.symmetrization.operators["composition"] < 1e-9
-    assert cubic.symmetrization.checks["k_identity"] < 1e-13
-    assert cubic.symmetrization.checks["covariance_residue"] < 1e-13
+    assert 1e-10 < cubic.numerical.symmetrization._operators["composition"] < 1e-9
+    assert cubic.numerical.symmetrization.checks.k_identity < 1e-13
+    assert cubic.numerical.symmetrization.checks.covariance_residue < 1e-13
 
 
 def _thick_slab(shifts=None):
@@ -1084,7 +1084,7 @@ def test_a_tied_orientation_branch_is_measured_the_same_representation():
     assert group and group.number_str == "2.5", str(group)
     asg = _tables._assign_orbitals(model, group, typat=typat)
     val = _measure._validate_group(model, group, nk=3, tol=tol)
-    assert len(val.indices) == 4, "the grey group survives the block jitter"
+    assert len(val._indices) == 4, "the grey group survives the block jitter"
 
     # the tie this test is about, now served rather than refused
     rep = _build._build_rep(model, group, asg, validated=val, tol=tol, internal_tol=1e-5)
@@ -1095,11 +1095,11 @@ def test_a_tied_orientation_branch_is_measured_the_same_representation():
                            orientation_branch=-1)
     assert other, str(other)
     assert max(float(np.abs(rep.matrices[i] - other.matrices[i]).max())
-               for i in rep.indices) == 0.0
+               for i in rep.matrices) == 0.0
 
     sym, rec = _symmetrize(model, group, asg, val, tol=tol)
-    assert rec.verification["near_kept"] and not rec.verification["broken"]
-    assert rec.verification["worst_residual"] < 1e-12
+    assert rec.verification.near_kept and not rec.verification.broken
+    assert rec.verification.worst_residual < 1e-12
     assert len(rec.near) == 2 and rec.defect > 1e-9
     # O(the residuals that licensed it) -- measured 0.016 of this bound
     assert rec.defect <= 10 * max(rec.residuals[i] for i in rec.near)
@@ -1159,49 +1159,49 @@ def test_a_declared_position_tol_snaps_the_centres_before_anything_else(
     assert out, str(out)
 
     # the measurement, and what it licensed
-    pos = out.positions
-    assert pos is not None and pos["adjusted"] is True
-    assert pos["position_tol"] == 1e-6
-    assert pos["defect"] == pytest.approx(2e-8, rel=1e-6, abs=0)
-    assert pos["max_move"] == pytest.approx(5e-9, rel=1e-6, abs=0), \
+    pos = out.numerical.positions
+    assert pos is not None and pos.adjusted is True
+    assert pos.position_tol == 1e-6
+    assert pos.defect == pytest.approx(2e-8, rel=1e-6, abs=0)
+    assert pos.max_move == pytest.approx(5e-9, rel=1e-6, abs=0), \
         "half the displacement each: the origin is fitted to the centres"
-    assert pos["defect_after"] < 1e-14, "the centres now satisfy the group exactly"
+    assert pos.defect_after < 1e-14, "the centres now satisfy the group exactly"
     # ... and the shift of both together the fit left is noise, removed: the
     # centres are the clean model's, the displaced one back by the whole 1e-8
-    assert pos["frame"] == "model"
-    assert pos["offset"] == pytest.approx((-5e-9, 0.0, 0.0), rel=1e-6, abs=1e-15)
+    assert pos.frame == "model"
+    assert pos.offset == pytest.approx((-5e-9, 0.0, 0.0), rel=1e-6, abs=1e-15)
     assert float(np.abs(np.asarray(out.model.orb_vecs)
                         - np.asarray(clean.model.orb_vecs)).max()) <= _FEW_ULP
     # the gauge identity, measured on eight random k: 1.3e-15
-    assert pos["n_check"] == 8 and 0.0 < pos["spectrum_residual"] < 1e-13, \
+    assert pos.n_check == 8 and 0.0 < pos.spectrum_residual < 1e-13, \
         "moving a centre is a gauge, not a change"
-    assert "centres moved" in repr(out)
+    assert "centers moved" in repr(out)
     # the slab presentation survives: the padded third coordinate has no group
     # average to move to (every decorated operation has R[2,2] = +1) and the
     # bit-identity is still measured against the presentation as BUILT
     assert np.all(np.asarray(out.model.orb_vecs)[:, 2] == 0.0)
-    assert out.presentation["residual"] == 0.0
+    assert out.environment.presentation.residual == 0.0
     assert list(out.model.periodic_dirs) == [0, 1]
 
     # ... and the hoppings needed nothing: every operation is exact afterwards
-    assert out.symmetrization is None
-    assert set(_classify_operations(out.validated, 1e-8).values()) == {"exact"}
-    assert max(out.validated.residuals[i] for i in out.validated.indices) < EXACT_GATE
-    assert len(out.validated.indices) == len(out.operations) == 12
+    assert out.numerical.symmetrization is None
+    assert set(_classify_operations(out.numerical.validated, 1e-8).values()) == {"exact"}
+    assert max(out.numerical.validated.residuals[i] for i in out.numerical.validated._indices) < EXACT_GATE
+    assert len(out.numerical.validated._indices) == len(out.operations) == 12
 
     # the physics is the clean model's, exactly -- the same group by the same
     # route, descent record and all
     assert out.group.number_str == clean.group.number_str == "156.50"
     assert out.group._provenance == clean.group._provenance == "descended"
-    assert out.descent["from"]["number_str"] == "187.210"
-    assert out.descent["from"] == clean.descent["from"]
-    assert len(out.descent["dropped"]) == len(clean.descent["dropped"]) == 12
+    assert out.descent.cell_group.number_str == "187.210"
+    assert out.descent.cell_group == clean.descent.cell_group
+    assert len(out.descent.dropped) == len(clean.descent.dropped) == 12
     assert out.rep._choice == clean.rep._choice
     assert max(float(np.abs(out.rep.matrices[i] - clean.rep.matrices[i]).max())
-               for i in clean.rep.indices) == 0.0
-    assert out.rep.characters.irreps == clean.rep.characters.irreps
-    a = tqw.hsp_table(clean.rep, bands=(0, 1))
-    b = tqw.hsp_table(out.rep, bands=(0, 1))
+               for i in clean.rep._indices) == 0.0
+    assert out.rep._characters.irreps == clean.rep._characters.irreps
+    a = tqw.hsp_table(clean, bands=(0, 1))
+    b = tqw.hsp_table(out, bands=(0, 1))
     assert a.complete and b.complete
     assert a.counts == b.counts == {"-GM6": 1, "-K5": 1, "-K6": 1, "-M3M4": 1}
     assert a.partitions == b.partitions
@@ -1224,8 +1224,8 @@ def test_a_declared_position_tol_snaps_the_centres_before_anything_else(
     prec = tqg.realized_group(displaced, environment="free-standing", typat=[0, 1],
                               characters={0: "A1"}, precision=1e-6, cross_check=False)
     assert prec, str(prec)
-    assert prec.positions == out.positions, "the centres moved exactly as position_tol does"
-    assert prec.symmetrization is None, "and the hoppings needed nothing, whatever tol"
+    assert prec.numerical.positions == out.numerical.positions, "the centres moved exactly as position_tol does"
+    assert prec.numerical.symmetrization is None, "and the hoppings needed nothing, whatever tol"
 
     # `position_tol=None` refuses before the detector runs: centres that miss the
     # group's action by 2e-8 cost H(k) a covariance residual of 3.7e-7, above
@@ -1284,30 +1284,30 @@ def test_the_position_pass_runs_before_the_hopping_projection(km_odd,
                              characters={0: "A1"}, tol=tol,
                              position_tol=1e-6, cross_check=False)
     assert out, str(out)
-    pos, rec = out.positions, out.symmetrization
-    assert pos["adjusted"] is True and pos["defect"] == pytest.approx(2e-8, rel=1e-6, abs=0)
-    assert pos["defect_after"] < 1e-14
+    pos, rec = out.numerical.positions, out.numerical.symmetrization
+    assert pos.adjusted is True and pos.defect == pytest.approx(2e-8, rel=1e-6, abs=0)
+    assert pos.defect_after < 1e-14
     assert rec is not None, "the hoppings still carry their own defect"
     # the ordering, as a number: the projection ran on exact centres, the moved
     # ones, which miss the group by rounding as the pass measured them
-    assert rec.operators["position_defect"] < 1e-14 and pos["defect_after"] < 1e-14
-    assert len(rec.near) == 11 and len(rec.classes) == 12
+    assert rec._operators["position_defect"] < 1e-14 and pos.defect_after < 1e-14
+    assert len(rec.near) == 11 and len(rec._classes) == 12
     assert rec.defect <= 10 * max(rec.residuals[i] for i in rec.near)
     assert rec.tol == tol and rec.passes == 1
-    assert rec.checks["outside_box"] < 1e-13 and rec.checks["k_identity"] < 1e-12
-    assert rec.verification["near_kept"] and not rec.verification["broken"]
-    assert "centres moved" in repr(out) and "symmetrized (defect" in repr(out)
+    assert rec.checks.outside_box < 1e-13 and rec.checks.k_identity < 1e-12
+    assert rec.verification.near_kept and not rec.verification.broken
+    assert "centers moved" in repr(out) and "symmetrized (defect" in repr(out)
 
     assert out.group.number_str == clean.group.number_str == "156.50"
     assert out.group._provenance == clean.group._provenance == "descended"
-    assert out.descent["from"] == clean.descent["from"]
-    assert len(out.operations) == len(rec.classes) == 12
+    assert out.descent.cell_group == clean.descent.cell_group
+    assert len(out.operations) == len(rec._classes) == 12
     assert out.rep._choice == clean.rep._choice
     assert max(float(np.abs(out.rep.matrices[i] - clean.rep.matrices[i]).max())
-               for i in clean.rep.indices) == 0.0
-    assert out.rep.characters.irreps == clean.rep.characters.irreps
-    a = tqw.hsp_table(clean.rep, bands=(0, 1))
-    b = tqw.hsp_table(out.rep, bands=(0, 1))
+               for i in clean.rep._indices) == 0.0
+    assert out.rep._characters.irreps == clean.rep._characters.irreps
+    a = tqw.hsp_table(clean, bands=(0, 1))
+    b = tqw.hsp_table(out, bands=(0, 1))
     assert a.complete and b.complete and a.counts == b.counts
     da = tqe.decompose(a, clean.group, rep=clean.rep, bands=2)
     db = tqe.decompose(b, out.group, rep=out.rep, bands=2)
@@ -1371,21 +1371,21 @@ def test_centres_too_far_from_symmetric_break_the_operations_they_miss(km_odd):
                              symprec=2e-3, position_tol=1e-6, cross_check=False)
     assert got, str(got)
     assert got.group.number_str == "1.2"
-    assert got.descent["from"]["number_str"] == "187.210"
-    assert got.descent["steps"][0]["refuted_by"] == {"centres": 20, "tensor structure": 2}
-    assert any("beyond the declared precision" in b["note"] for b in got.descent["dropped"]
-               if b["refuted_by"] == "centres")
+    assert got.descent.cell_group.number_str == "187.210"
+    assert got.descent.steps[0].refuted_by == {"centers": 20, "tensor structure": 2}
+    assert any("beyond the declared precision" in b.note for b in got.descent.dropped
+               if b.refuted_by == "centers")
     assert ("so the cell was lowered to the largest group of its operations that carry the "
             "orbital centres within the declared precision and that the Hamiltonian obeys"
-            ) in got.descent["note"], "the note says what dropped the twenty"
-    pos = got.positions
-    assert pos["adjusted"] is True and pos["position_tol"] == 1e-6
-    assert pos["defect"] == pytest.approx(1e-3, rel=1e-6, abs=0)
-    assert pos["move"] == pytest.approx(5e-4, rel=1e-6, abs=0), \
+            ) in got.descent.note, "the note says what dropped the twenty"
+    pos = got.numerical.positions
+    assert pos.adjusted is True and pos.position_tol == 1e-6
+    assert pos.defect == pytest.approx(1e-3, rel=1e-6, abs=0)
+    assert pos.move == pytest.approx(5e-4, rel=1e-6, abs=0), \
         "the move the whole group asks, the origin fitted: half the displacement"
-    assert pos["carried"] == 4 and pos["max_move"] == 0.0 and pos["n_moved"] == 0
-    assert "broken by the centres" in pos["note"]
-    row = got.rep.characters.orbitals[0]
+    assert pos.carried == 4 and pos.max_move == 0.0 and pos.n_moved == 0
+    assert "broken by the centers" in pos.note
+    row = got.rep._characters.orbitals[0]
     assert (row.site_symmetry, row.irrep, row.declared_irrep, row.determined_by) == (
         "1", "-AA", "A1", "declaration")
 
@@ -1412,10 +1412,10 @@ def test_centres_too_far_from_symmetric_break_the_operations_they_miss(km_odd):
                          [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
     thick = tqg.realized_group(noisy, precision=1e-3, cross_check=False)
     assert thick, str(thick)
-    assert (thick.group.number_str, thick.descent["from"]["number_str"]) == ("25.58", "123.340")
-    assert thick.descent["steps"][0]["refuted_by"] == {"centres": 24}
-    assert thick.positions["frame"] == "model" and thick.positions["defect_after"] < 1e-14
-    assert tqw.hsp_table(thick.rep, bands=2).counts, "the moved centres read in the group's frame"
+    assert (thick.group.number_str, thick.descent.cell_group.number_str) == ("25.58", "123.340")
+    assert thick.descent.steps[0].refuted_by == {"centers": 24}
+    assert thick.numerical.positions.frame == "model" and thick.numerical.positions.defect_after < 1e-14
+    assert tqw.hsp_table(thick, bands=2).counts, "the moved centres read in the group's frame"
 
     # 4. and the declaration itself is grammar: a non-positive one is a bug
     with pytest.raises(ValueError, match="position_tol must be"):
@@ -1544,7 +1544,7 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
     by_hand = _build._build_rep(m3, cell_group, asg, validated=val, tol=1e-6,
                              characters={0: "A1"})
     assert by_hand, str(by_hand)
-    orbits = by_hand.characters.band_representations
+    orbits = by_hand._characters.band_representations
     assert orbits and all(orbit.terms == () for orbit in orbits)
     assert all("miss the operations by 2e-08 (reduced)" in orbit.note for orbit in orbits)
     # the line says the note whole, which says no sum is written and why
@@ -1556,24 +1556,24 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
     out = tqg.realized_group(displaced, typat=[0, 1], characters={0: "A1"},
                              position_tol=1e-6)
     assert out, str(out)
-    assert out.positions["adjusted"] is True
+    assert out.numerical.positions.adjusted is True
     # declared, the centres are made exact before the setting is read: the
     # operations found on them close to rounding, and nothing is rebuilt
     assert out.group._closure_measured <= _FEW_ULP
     assert out.group._closure_repaired <= _FEW_ULP
-    assert out.positions["defect"] == pytest.approx(2e-8, rel=1e-6, abs=0)
-    assert out.positions["defect_after"] < 1e-14, "one step, not a stalled fixed point"
+    assert out.numerical.positions.defect == pytest.approx(2e-8, rel=1e-6, abs=0)
+    assert out.numerical.positions.defect_after < 1e-14, "one step, not a stalled fixed point"
     # the gauge identity, measured on eight random k: 1.8e-15
-    assert out.positions["n_check"] == 8
-    assert 0.0 < out.positions["spectrum_residual"] < 1e-13
-    assert out.symmetrization is None
-    assert max(out.validated.residuals[i] for i in out.validated.indices) < EXACT_GATE
-    assert len(out.validated.indices) == len(out.operations) == 12
+    assert out.numerical.positions.n_check == 8
+    assert 0.0 < out.numerical.positions.spectrum_residual < 1e-13
+    assert out.numerical.symmetrization is None
+    assert max(out.numerical.validated.residuals[i] for i in out.numerical.validated._indices) < EXACT_GATE
+    assert len(out.numerical.validated._indices) == len(out.operations) == 12
     assert out.rep._choice == clean.rep._choice
     assert max(float(np.abs(out.rep.matrices[i] - clean.rep.matrices[i]).max())
-               for i in clean.rep.indices) == 0.0
-    assert out.rep.characters.irreps == clean.rep.characters.irreps
-    table = tqw.hsp_table(out.rep, bands=2)         # this is what used to RAISE
+               for i in clean.rep._indices) == 0.0
+    assert out.rep._characters.irreps == clean.rep._characters.irreps
+    table = tqw.hsp_table(out, bands=2)         # this is what used to RAISE
     assert table.complete and set(table.counts.values()) == {1}
     assert tqe.decompose(table, out.group, rep=out.rep,
                          bands=2).verdict == "symmetry-indicated decomposable"
@@ -1589,12 +1589,12 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
                               characters={0: "A1"}, position_tol=1e-6, cross_check=False)
     assert ctrl, str(ctrl)
     assert np.allclose(np.asarray(ctrl.group._shiftUC), np.asarray(out.group._shiftUC))
-    assert ctrl.positions["max_move"] <= _FEW_ULP, "a rigid shift is no displacement"
+    assert ctrl.numerical.positions.max_move <= _FEW_ULP, "a rigid shift is no displacement"
     # one rigid shift between the two sets of centres, to a reduced coordinate out
     # of thirds arithmetic through a group average by two routes
     gap = np.asarray(out.model.orb_vecs) - np.asarray(ctrl.model.orb_vecs)
     assert float(np.abs(gap - gap[0]).max()) < _FEW_ULP, "the same crystal about another origin"
-    ref = tqw.hsp_table(ctrl.rep, bands=2)
+    ref = tqw.hsp_table(ctrl, bands=2)
     assert table.counts == ref.counts and table.partitions == ref.partitions
     assert ({p: dict(v) for p, v in table.content.items()}
             == {p: dict(v) for p, v in ref.content.items()})
@@ -1609,28 +1609,28 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
         noisy = tqg.realized_group(_rigid_shift(_tetragonal_pair(phase), (0.0, 0.0, 1e-5),
                                                 which=0), precision=1e-4)
         assert exact and noisy, str(noisy)
-        assert noisy.positions["adjusted"] is True
+        assert noisy.numerical.positions.adjusted is True
         # two centres are symmetric about their own midpoint: the origin fitted to
         # them is that midpoint, and neither moves; the midpoint sits 5e-6 off the
         # model's own origin, within the declaration, so both are shifted back
         # together and the pair is the exact one, its height grown by 5e-6
-        assert noisy.positions["max_move"] <= _FEW_ULP
-        assert noisy.positions["frame"] == "model"
-        assert noisy.positions["offset"] == pytest.approx((0.0, 0.0, -5e-6),
+        assert noisy.numerical.positions.max_move <= _FEW_ULP
+        assert noisy.numerical.positions.frame == "model"
+        assert noisy.numerical.positions.offset == pytest.approx((0.0, 0.0, -5e-6),
                                                           rel=1e-6, abs=1e-15)
         assert noisy.group.number_str == exact.group.number_str == number_str
-        assert noisy.descent["from"] == exact.descent["from"]
-        assert noisy.descent["from"]["number_str"] == "123.340"
-        assert len(noisy.descent["dropped"]) == len(exact.descent["dropped"]) == n_broken
-        assert noisy.time_reversal["outcome"] == exact.time_reversal["outcome"]
+        assert noisy.descent.cell_group == exact.descent.cell_group
+        assert noisy.descent.cell_group.number_str == "123.340"
+        assert len(noisy.descent.dropped) == len(exact.descent.dropped) == n_broken
+        assert noisy.time_reversal.outcome == exact.time_reversal.outcome
         # the moved centres satisfy the operations returned: measured 4.4e-16
-        _again, rec = _symmetrize_positions(noisy.model, noisy.group, noisy.assignment)
+        _again, rec = _symmetrize_positions(noisy.model, noisy.group, noisy._assignment)
         assert rec["defect_before"] <= _FEW_ULP, "nothing left for a second pass to move"
-        table = tqw.hsp_table(noisy.rep, bands=1)       # this is what used to RAISE
-        ref = tqw.hsp_table(exact.rep, bands=1)
+        table = tqw.hsp_table(noisy, bands=1)       # this is what used to RAISE
+        ref = tqw.hsp_table(exact, bands=1)
         assert table.complete and table.counts == ref.counts
         assert max(float(np.abs(noisy.rep.matrices[i] - exact.rep.matrices[i]).max())
-                   for i in exact.rep.indices) == 0.0
+                   for i in exact.rep._indices) == 0.0
         assert (set(tqe.decompose(table, noisy.group, rep=noisy.rep, bands=1).solution_strings())
                 == set(tqe.decompose(ref, exact.group, rep=exact.rep,
                                      bands=1).solution_strings()))
@@ -1817,17 +1817,18 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
     assert out, str(out)
 
     # 1. what the one number turned into -- measured, and on the record
-    rec = out.precision
-    assert set(rec) == {"precision", "max_h", "tol", "position_tol", "cut",
-                        "window", "symprec", "symprec_raised"}
-    assert rec["max_h"] == pytest.approx(17.41932, rel=1e-6, abs=0)
-    assert rec["tol"] == pytest.approx(1.741932e-4, rel=1e-6, abs=0)
-    assert rec["cut"] == pytest.approx(rec["tol"] / rec["max_h"], rel=1e-12, abs=0), \
+    rec = out.numerical.precision
+    assert {f.name for f in dataclasses.fields(rec)} == {
+        "precision", "max_h", "tol", "position_tol", "cut", "window", "symprec",
+        "symprec_raised"}
+    assert rec.max_h == pytest.approx(17.41932, rel=1e-6, abs=0)
+    assert rec.tol == pytest.approx(1.741932e-4, rel=1e-6, abs=0)
+    assert rec.cut == pytest.approx(rec.tol / rec.max_h, rel=1e-12, abs=0), \
         "the cut is the gate read against the Hamiltonian's own magnitude"
-    assert rec["cut"] == pytest.approx(1e-5, rel=1e-12, abs=0)
-    assert rec["window"] == pytest.approx(0.031623, rel=1e-4, abs=0)
-    assert rec["window"] == pytest.approx(10.0 * np.sqrt(rec["cut"]), rel=1e-12,
-                                          abs=0), \
+    assert rec.cut == pytest.approx(1e-5, rel=1e-12, abs=0)
+    assert rec.window == pytest.approx(0.031623, rel=1e-4, abs=0)
+    assert rec.window == pytest.approx(10.0 * np.sqrt(rec.cut), rel=1e-12,
+                                       abs=0), \
         "the window is the width the cut asks for, and 0.0316 is inside 1e-3 .. 0.3"
     # ... about the mean on-site energy, which a constant shift moves and no
     # residual sees
@@ -1836,29 +1837,30 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
                                 cross_check=False)
     assert lifted, str(lifted)
     for key in ("max_h", "tol", "cut", "window"):
-        assert lifted.precision[key] == pytest.approx(rec[key], rel=1e-12, abs=0), key
+        assert getattr(lifted.numerical.precision, key) == pytest.approx(
+            getattr(rec, key), rel=1e-12, abs=0), key
     assert lifted.group.number_str == "99.164"
-    assert lifted.rep.characters.irreps == out.rep.characters.irreps
-    assert out.symmetrization.tol == rec["tol"], "the detector ran at the derived tol"
-    assert out.positions["position_tol"] == 1e-6, "and the centres at the other one"
-    assert (rec["symprec"], rec["symprec_raised"]) == (1e-5, False), \
+    assert lifted.rep._characters.irreps == out.rep._characters.irreps
+    assert out.numerical.symmetrization.tol == rec.tol, "the detector ran at the derived tol"
+    assert out.numerical.positions.position_tol == 1e-6, "and the centres at the other one"
+    assert (rec.symprec, rec.symprec_raised) == (1e-5, False), \
         "1e-6 of noise on a lattice constant of 1 does not defeat a finder at 1e-5"
     assert "precision 1e-06 declared" in repr(out)
 
     # 2. the physics is the explicit call's -- and the clean model's, which the
     #    test above proves that call reproduces
-    assert out.symmetrization is not None and len(out.symmetrization.near) == 15
-    assert out.symmetrization.defect == pytest.approx(9.49e-7, rel=1e-2, abs=0)
+    assert out.numerical.symmetrization is not None and len(out.numerical.symmetrization.near) == 15
+    assert out.numerical.symmetrization.defect == pytest.approx(9.49e-7, rel=1e-2, abs=0)
     bands = (0, 1, 2, 3, 4, 5)
-    b = tqw.hsp_table(out.rep, bands=bands)
+    b = tqw.hsp_table(out, bands=bands)
     db = tqe.decompose(b, out.group, rep=out.rep, bands=6)
     for ref in (expl, lin3g_clean):
         assert out.group.number_str == ref.group.number_str == "99.164"
         assert out.rep._choice == ref.rep._choice
         assert max(float(np.abs(out.rep.matrices[i] - ref.rep.matrices[i]).max())
-                   for i in ref.rep.indices) == 0.0
-        assert out.rep.characters.irreps == ref.rep.characters.irreps
-        a = tqw.hsp_table(ref.rep, bands=bands)
+                   for i in ref.rep._indices) == 0.0
+        assert out.rep._characters.irreps == ref.rep._characters.irreps
+        a = tqw.hsp_table(ref, bands=bands)
         assert a.complete and b.complete
         assert a.counts == b.counts == {"-GM6": 2, "-GM7": 1, "-M6": 1, "-M7": 2,
                                         "-X5": 3}
@@ -1877,20 +1879,20 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
     per_orbital, joint = ["pz", "px", "py"], {0: "pz", (1, 2): "E"}
     whole = ({(0, 1, 2): "p"}, {(0, 1, 2): "A1 + E"})
     exact = tqg.realized_group(shell, **kw)
-    assert exact and exact.rep.multiplets.by_site == (((0, 1, 2),),), \
+    assert exact and exact.rep._multiplets.by_site == (((0, 1, 2),),), \
         "at the exact defaults the turned frame binds the shell into one multiplet"
-    content = tqw.hsp_table(exact.rep, bands=6).content
+    content = tqw.hsp_table(exact, bands=6).content
     for characters in (per_orbital, joint) + whole:
         # the content declared on the one measured multiplet is what it holds,
         # however the orbitals were partitioned: read on it, nothing descends
         said = tqg.realized_group(shell, characters=characters, **kw)
         assert said, f"{characters}: {said}"
-        assert (said.group.number_str, len(said.validated.indices)) == ("160.66", 12)
-        assert said.descent is None and said.rep.multiplets.by_site == (((0, 1, 2),),)
-        assert said.rep.characters.irreps == ("2x-E1 + -1E2E",) * 3
-        assert {o.determined_by for o in said.rep.characters.orbitals} == {"declaration"}
+        assert (said.group.number_str, len(said.numerical.validated._indices)) == ("160.66", 12)
+        assert said.descent is None and said.rep._multiplets.by_site == (((0, 1, 2),),)
+        assert said.rep._characters.irreps == ("2x-E1 + -1E2E",) * 3
+        assert {o.determined_by for o in said.rep._characters.orbitals} == {"declaration"}
         if characters in whole:
-            assert [o.function for o in said.rep.characters.orbitals] == \
+            assert [o.function for o in said.rep._characters.orbitals] == \
                 (["p"] if "p" in characters.values() else [""]) * 3, \
                 "the shell's word is a function, a sum of irreps is not"
     for precision in (None, 1e-6):
@@ -1900,9 +1902,9 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
         part = tqg.realized_group(shell, precision=precision, characters={(1, 2): "2x-E1"},
                                   **kw)
         assert part, f"{precision}: {part}"
-        assert (part.group.number_str, len(part.validated.indices)) == ("160.66", 12)
+        assert (part.group.number_str, len(part.numerical.validated._indices)) == ("160.66", 12)
         assert part.descent is None
-        rows = part.rep.characters.orbitals
+        rows = part.rep._characters.orbitals
         assert [o.determined_by for o in rows[1:]] == ["declaration"] * 2
         assert [o.declared_irrep for o in rows[1:]] == ["2x-E1"] * 2, \
             "the corep content declared, recorded as written"
@@ -1914,12 +1916,12 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
         # ... and a shell over the p_z and the pair measured apart is theirs together
         noisy = tqg.realized_group(shell, precision=1e-6, characters=characters, **kw)
         assert noisy, f"{characters}: {noisy}"
-        assert (noisy.group.number_str, len(noisy.validated.indices)) == ("160.66", 12)
-        assert noisy.rep.multiplets.by_site == (((0,), (1, 2)),)
-        assert noisy.rep.characters.irreps == ("-E1", "-1E2E + -E1", "-1E2E + -E1"), \
+        assert (noisy.group.number_str, len(noisy.numerical.validated._indices)) == ("160.66", 12)
+        assert noisy.rep._multiplets.by_site == (((0,), (1, 2)),)
+        assert noisy.rep._characters.irreps == ("-E1", "-1E2E + -E1", "-1E2E + -E1"), \
             "each row its own multiplet's, as the shell declared orbital by orbital reads"
-        assert {o.determined_by for o in noisy.rep.characters.orbitals} == {"declaration"}
-        assert ({p: dict(v) for p, v in tqw.hsp_table(noisy.rep, bands=6).content.items()}
+        assert {o.determined_by for o in noisy.rep._characters.orbitals} == {"declaration"}
+        assert ({p: dict(v) for p, v in tqw.hsp_table(noisy, bands=6).content.items()}
                 == {p: dict(v) for p, v in content.items()})
     for characters in (None, per_orbital, joint):
         noisy = tqg.realized_group(shell, precision=1e-6, characters=characters, **kw)
@@ -1927,38 +1929,38 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
         # (p_x, p_y) pair are measured apart, the declarations are read as
         # written, and nothing descends
         assert noisy, str(noisy)
-        assert (noisy.group.number_str, len(noisy.validated.indices)) == ("160.66", 12)
-        assert noisy.descent is None and noisy.rep.multiplets.by_site == (((0,), (1, 2)),)
+        assert (noisy.group.number_str, len(noisy.numerical.validated._indices)) == ("160.66", 12)
+        assert noisy.descent is None and noisy.rep._multiplets.by_site == (((0,), (1, 2)),)
         # ... every operation but the identity and time reversal near, exact to
         # the detector and missing H by the turn on the matrices the measured
         # multiplets anchor, and the multiplets holding only within the declared
         # precision: that is what projected, and by about the turn
-        rec = noisy.symmetrization
+        rec = noisy.numerical.symmetrization
         assert len(rec.near) == 10 and len(rec.exact) == 2
-        assert rec.multiplets["exact"] < rec.multiplets["mixing"] < rec.multiplets["declared"]
+        assert rec.site_multiplets.exact < rec.site_multiplets.mixing < rec.site_multiplets.declared
         assert 1e-9 < rec.defect < 1e-7
         assert "hold only within the declared precision" in rec.summary()
         assert "no-op" not in rec.summary()
-        assert max(noisy.rep.residuals.values()) < 1e-13
-        assert noisy.rep.product_residual < 1e-13
-        assert noisy.rep.characters.irreps == ("-E1", "-1E2E + -E1", "-1E2E + -E1")
+        assert max(noisy.rep.numerical.residuals.values()) < 1e-13
+        assert noisy.rep.numerical.product_residual < 1e-13
+        assert noisy.rep._characters.irreps == ("-E1", "-1E2E + -E1", "-1E2E + -E1")
     # ... and the same shell at both sites of 6c of R-3m
     pair = tqc_models.r3m_p_shell(angle=1e-8, spinful=True, pair=True)
     bare = tqg.realized_group(pair)
-    assert bare.rep.multiplets.by_site == (((0, 1, 2),), ((3, 4, 5),))
+    assert bare.rep._multiplets.by_site == (((0, 1, 2),), ((3, 4, 5),))
     both = tqg.realized_group(pair, precision=1e-6)
     assert both, str(both)
-    assert (both.group.number_str, len(both.validated.indices)) == ("166.98", 24)
-    assert both.rep.multiplets.by_site == (((0,), (1, 2)), ((3,), (4, 5)))
-    assert len(both.symmetrization.near) == 20 and both.symmetrization.multiplets
+    assert (both.group.number_str, len(both.numerical.validated._indices)) == ("166.98", 24)
+    assert both.rep._multiplets.by_site == (((0,), (1, 2)), ((3,), (4, 5)))
+    assert len(both.numerical.symmetrization.near) == 20 and both.numerical.symmetrization.site_multiplets
     # declared orbital by orbital or as the shell, at either precision: the same
     # crystal, and every subset of the bands reads the undeclared crystal's labels
-    labels = {n: {p: dict(v) for p, v in tqw.hsp_table(bare.rep, bands=n).content.items()}
+    labels = {n: {p: dict(v) for p, v in tqw.hsp_table(bare, bands=n).content.items()}
               for n in (2, 4, 6)}
     # the labellings that keep every site corep and label some band otherwise,
     # each by what set it aside
     def set_aside(out):
-        return [key for choice in out.rep.characters._labellings["choices"]
+        return [key for choice in out.rep._characters._labellings["choices"]
                 for key, _labels in choice["others"]]
     assert set_aside(bare) == ["content", "orbitals"]
     coreps = {(0, 1, 2): "2x-E1 + -1E2E", (3, 4, 5): "2x-E1 + -1E2E"}
@@ -1966,12 +1968,12 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
         for characters in (["pz", "px", "py"] * 2, {(0, 1, 2): "p", (3, 4, 5): "p"}, coreps):
             said = tqg.realized_group(pair, precision=precision, characters=characters)
             assert said, f"{precision}, {characters}: {said}"
-            assert (said.group.number_str, len(said.validated.indices)) == ("166.98", 24)
-            assert {o.determined_by for o in said.rep.characters.orbitals} == {"declaration"}
+            assert (said.group.number_str, len(said.numerical.validated._indices)) == ("166.98", 24)
+            assert {o.determined_by for o in said.rep._characters.orbitals} == {"declaration"}
             assert set_aside(said) == (["content", "orbitals"] if characters is coreps
                                        else ["orbitals"]), "a declared p shell pins its content"
             for n, want in labels.items():
-                got = tqw.hsp_table(said.rep, bands=n).content
+                got = tqw.hsp_table(said, bands=n).content
                 assert {p: dict(v) for p, v in got.items()} == want, (precision, characters, n)
     # ... and the pair as a spinor import whose spin frame is turned, read through
     # spin=: each operation's own form carries H within the covariance gate the
@@ -1986,20 +1988,20 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
             order="interleaved")
         imported = tqg.realized_group(flat, spin=sb, precision=precision)
         assert imported, str(imported)
-        assert (imported.group.number_str, len(imported.validated.indices)) == want
+        assert (imported.group.number_str, len(imported.numerical.validated._indices)) == want
         if named is None:
             # the turn within the gate is the model's own noise: H moved onto the
             # group by less than the turn
-            assert imported.descent is None and imported.symmetrization.defect < theta
+            assert imported.descent is None and imported.numerical.symmetrization.defect < theta
             continue
-        broken = imported.descent["dropped"]
-        assert len(broken) == 16 and {b["refuted_by"] for b in broken} == {"tensor structure"}
-        assert min(b["covariance"] for b in broken) > imported.validated.tol
-        assert f"a precision of {named} or coarser" in imported.descent["note"]
+        broken = imported.descent.dropped
+        assert len(broken) == 16 and {b.refuted_by for b in broken} == {"tensor structure"}
+        assert min(b.covariance for b in broken) > imported.numerical.validated.tol
+        assert f"a precision of {named} or coarser" in imported.descent.note
     # ... and the precision named holds them
     held = tqg.realized_group(flat, spin=sb, precision=float(named))
-    assert (held.group.number_str, len(held.validated.indices)) == ("166.98", 24)
-    assert held.symmetrization.defect < theta
+    assert (held.group.number_str, len(held.numerical.validated._indices)) == ("166.98", 24)
+    assert held.numerical.symmetrization.defect < theta
 
 
 def test_the_declaration_is_grammar(km_odd):
@@ -2059,40 +2061,40 @@ def test_the_finders_tolerance_is_raised_only_when_the_declaration_would_defeat_
         "and the padded coordinate carries no noise for a declaration to be about"
 
     # 1e-6 -- wannier90's own -- does not defeat a finder at 1e-5, so it stands
-    assert lin3g_clean.precision is None, "no declaration, no record"
+    assert lin3g_clean.numerical.precision is None, "no declaration, no record"
     at_w90 = tqg.realized_group(km_odd, typat=[0, 1], characters={0: "A1"},
                                 precision=1e-6, cross_check=False)
     assert at_w90, str(at_w90)
-    assert at_w90.precision["symprec_raised"] is False
-    assert at_w90.precision["symprec"] == 1e-5
+    assert at_w90.numerical.precision.symprec_raised is False
+    assert at_w90.numerical.precision.symprec == 1e-5
     assert "symprec raised" not in repr(at_w90)
     # ... and on this exact model the declaration changes nothing: the centres'
     # own defect is the thirds arithmetic of the honeycomb (measured 1.1e-16)
     # and the move with it (2.2e-16, one ulp of a reduced coordinate)
-    assert at_w90.symmetrization is None, "nothing was near, so nothing was projected"
-    assert at_w90.positions["defect"] <= _FEW_ULP
-    assert at_w90.positions["max_move"] <= _FEW_ULP
+    assert at_w90.numerical.symmetrization is None, "nothing was near, so nothing was projected"
+    assert at_w90.numerical.positions.defect <= _FEW_ULP
+    assert at_w90.numerical.positions.max_move <= _FEW_ULP
 
     # 1e-4 does, and the group is still the one the positions carry
     out = tqg.realized_group(km_odd, typat=[0, 1], characters={0: "A1"},
                              precision=1e-4, cross_check=False)
     assert out, str(out)
-    assert out.precision["symprec_raised"] is True
-    assert out.precision["symprec"] == pytest.approx(1e-3, rel=1e-12, abs=0)
-    assert out.group.number_str == "156.50" and len(out.validated.indices) == 12
-    assert max(out.validated.residuals[i] for i in out.validated.indices) < EXACT_GATE
-    assert out.symmetrization is None and out.positions["max_move"] < 1e-14
+    assert out.numerical.precision.symprec_raised is True
+    assert out.numerical.precision.symprec == pytest.approx(1e-3, rel=1e-12, abs=0)
+    assert out.group.number_str == "156.50" and len(out.numerical.validated._indices) == 12
+    assert max(out.numerical.validated.residuals[i] for i in out.numerical.validated._indices) < EXACT_GATE
+    assert out.numerical.symmetrization is None and out.numerical.positions.max_move < 1e-14
     assert "symprec raised to 0.001" in repr(out)
     assert out.rep._choice == at_w90.rep._choice
     assert max(float(np.abs(out.rep.matrices[i] - at_w90.rep.matrices[i]).max())
-               for i in at_w90.rep.indices) == 0.0, "raising the finder moved nothing"
+               for i in at_w90.rep._indices) == 0.0, "raising the finder moved nothing"
 
     # a symprec the caller declared above the noise is the floor, and stands
     floored = tqg.realized_group(km_odd, typat=[0, 1], characters={0: "A1"},
                                  precision=1e-4, symprec=1e-2, cross_check=False)
     assert floored, str(floored)
-    assert floored.precision["symprec_raised"] is False
-    assert floored.precision["symprec"] == 1e-2
+    assert floored.numerical.precision.symprec_raised is False
+    assert floored.numerical.precision.symprec == 1e-2
     assert floored.group.number_str == out.group.number_str
 
 
@@ -2126,16 +2128,16 @@ def test_a_defect_above_the_declaration_descends_as_the_explicit_knobs_do(km_odd
                               symprec=2e-3, position_tol=1e-6, cross_check=False)
     assert got and expl, (str(got), str(expl))
     assert got.group.number_str == expl.group.number_str == "1.2"
-    assert got.descent["from"]["number_str"] == expl.descent["from"]["number_str"] \
+    assert got.descent.cell_group.number_str == expl.descent.cell_group.number_str \
         == "156.50"
-    assert got.positions == expl.positions
-    assert got.descent["dropped_by"] == {"centres": 10}
-    assert got.positions["carried"] == 2 and got.positions["max_move"] == 0.0
+    assert got.numerical.positions == expl.numerical.positions
+    assert got.descent.dropped_by == {"centers": 10}
+    assert got.numerical.positions.carried == 2 and got.numerical.positions.max_move == 0.0
     # against the cell's group written about the origin fitted to the centres,
     # each of which then sits half the displacement off
-    assert got.positions["defect"] == pytest.approx(1e-3, rel=1e-6, abs=0)
-    assert got.rep.characters.irreps == expl.rep.characters.irreps == ("-AA", "-AA")
-    row = got.rep.characters.orbitals[0]
+    assert got.numerical.positions.defect == pytest.approx(1e-3, rel=1e-6, abs=0)
+    assert got.rep._characters.irreps == expl.rep._characters.irreps == ("-AA", "-AA")
+    row = got.rep._characters.orbitals[0]
     assert (row.irrep, row.declared_irrep, row.determined_by) == (
         "-AA", "A1", "declaration")
 
@@ -2172,7 +2174,7 @@ def test_a_defect_above_the_declaration_descends_as_the_explicit_knobs_do(km_odd
                                    symprec=2e-3, position_tol=1e-6)
         after = np.random.get_state()
         assert again and again.group.number_str == "1.2" and again.group._tables_ready
-        assert again.rep.characters.irreps == ("-AA", "-AA")
+        assert again.rep._characters.irreps == ("-AA", "-AA")
         assert unlucky.count(True) == unlucky.count(False) >= 2, \
             "each search failed at the first seed and read the tables at the next"
         assert np.array_equal(after[1], state[1]) and after[2:] == state[2:], \
@@ -2186,7 +2188,7 @@ def test_a_defect_above_the_declaration_descends_as_the_explicit_knobs_do(km_odd
         assert not blank.group._tables_ready
         assert "the accurcy is only 0.5" in blank.group._setup_note
         assert f"in {len(_spacegroup._SETTING_SEEDS)} searches" in blank.group._setup_note
-        for o in blank.rep.characters.orbitals:
+        for o in blank.rep._characters.orbitals:
             assert (o.irrep, o.named_by) == ("", "unnamed")
             assert "unavailable" in o.note and "the accurcy is only 0.5" in o.note
     finally:

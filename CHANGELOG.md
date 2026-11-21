@@ -2,6 +2,54 @@
 
 ## Unreleased
 
+- What `realized_group` returns is read by name and does not unpack: `r.model`, `r.group`,
+  `r.rep`, and `r.bundle` is gone. Its top level holds `group`, `operations`,
+  `wyckoff_orbits`, `descent`, `time_reversal`, `beyond_grey`, `conserved`, `environment`,
+  `decoration`, `model`, `rep` and `spin`, the spin pairs `spin=` declared. How the
+  measurement was made is `r.numerical`: `precision`, `positions`, `symmetrization`,
+  `validated` and `source`, the model as handed in. `r.numerical.summary()` prints the
+  precision declared, the centers moved and the projection of `H`, which `r.summary()` no
+  longer prints.
+- `r.wyckoff_orbits` is the atomic-limit table, a row per Wyckoff orbit of orbitals, in
+  place of `r.rep.characters` and its row per orbital. A row, a `WyckoffOrbit`, holds the
+  orbit's `wyckoff`, its `site_symmetry` with its `1'` where the group has time reversal
+  and `unitary_site_symmetry` without, its `orbitals`, its site irreps as `label` and as
+  `terms`, `determined_by`, what was `declared`, its `band_representation` and its
+  `site_multiplets`; how the row was read is `o.numerical`. A row takes the orbit's name,
+  the one the tables of elementary band representations write at its position, whichever
+  of its sites is listed first: `p_x` and `p_y` at `2c` of `P4mm1'` read one row `B1`,
+  where the two sites read `B1` and `B2`.
+- Each row's band representation is read on the row's own orbitals: two Wyckoff orbits at
+  one site each induce their own sum, the sums adding up to the one read for the site's
+  orbitals together. lin3g's two `1a` orbitals induce `-E1 at 1a (4mm1')` and
+  `-E2 at 1a (4mm1')`.
+- `BandRepresentation` is a sum of term rows with its printed `label`, compared by its
+  terms. `AtomicLimitRow`, `MultiplicitySpace` and `OrbitalAssignment` are no longer
+  exported, and `WyckoffOrbit` is.
+- Every mapping with fixed keys on what `realized_group` returns is a record, each key a
+  field of the same name: `r.descent`, its steps and the operations dropped,
+  `r.time_reversal`, `r.beyond_grey`, `r.conserved`, `r.decoration`,
+  `r.numerical.precision` and `r.numerical.positions`. A descent names its two groups
+  `cell_group` and `subgroup`, each a `NamedGroup` with `name`, `number_str` and `size`;
+  an operation is named by `index` and `antiunitary`; the centers are `"centers"` among
+  the causes of a descent. `r.environment` is a record for a layer, `kind`, `declared`,
+  `cross_check` and `presentation`, and `None` for a crystal periodic in three directions.
+  `repr(r)` names a second group by its name and number, `descended from Fd-3m1' #227.129`.
+- `hsp_table`, `corep_content`, `characters` and `sewing_matrix` take what
+  `realized_group` returns, `hsp_table(r, bands=6)`, and raise `TypeError` on `r.rep`.
+  `srsi_of_model` and `splitting` take it alone, and raise `TypeError` on a tuple of its
+  parts, where they took one.
+- `r.rep` holds the matrices, `antiunitary`, its methods and `r.rep.numerical`, the
+  residuals of its matrices; what repeats the record (`model`, `group`, `assignment`,
+  `operations`, `characters`, `multiplets`, `spin`, `environment`) is gone from it, with
+  `indices` and `antiunitary_operator`.
+- `r.numerical.validated` holds `obeyed`, `broken`, `undetermined`, `residuals`, `tol`,
+  `n_kpoints`, `closed` and `discrepancies`, each a row with `index`, `refuted_by` and
+  `residual`; `indices`, `verdicts`, `operations` and `group_label` are gone.
+  `r.numerical.symmetrization` holds `site_multiplets` where it held `multiplets`, and its
+  `checks`, `verification`, `copies`, `parts` and `shares` are records, `None` where empty.
+- A `SpinBasis` holds `pairs`; `kind`, `norb`, `spin_of_orbital` and its index tables are
+  gone, and its summary prints the pairs.
 - `realized_group` keeps an operation the Hamiltonian obeys within the tolerance in force
   where it read it as broken: an `F23` crystal of `s` orbitals whose hoppings carry a
   relative noise of `1e-11`, read with no precision declared, returns `F231'`, where it
@@ -48,7 +96,7 @@
 - `symmetrize`, `symmetrize_positions` and `classify_operations` are no longer exported:
   `realized_group(model, precision=...)` moves the orbital centers, projects the
   Hamiltonian and classifies each operation itself, and returns the projection's record
-  on `r.symmetrization`.
+  on `r.numerical.symmetrization`.
 - At a Wyckoff position where the tables list no band representation, a site irrep takes
   the name of the site irrep that the tables of the stable real-space invariants (Hwang et
   al., Nat. Commun. 17, 8564 (2026)) give the same invariants, alike with time-reversal

@@ -92,12 +92,11 @@ print("\n1. delta_t = +0.4 on the [111] bond, read from the bands")
 m_strong = fu_kane_mele(T, SOC, [0.4, 0.0, 0.0, 0.0])        # one bond strengthened
 
 r_strong = tqc.realized_group(m_strong, characters=DECLARE)
-_m, g_strong, asg_strong, val_strong, rep_strong = r_strong
-sites = tqc.wyckoff_sites_tables(g_strong, asg_strong.site_positions)
+g_strong = r_strong.group
 row("realized group", f"#{g_strong.number_str} {g_strong.name}, s orbitals at Wyckoff "
-    f"{sites[0].wyckoff}")
+    f"{r_strong.wyckoff_orbits[0].wyckoff}")
 
-t2_strong = tqc.hsp_table(rep_strong, bands=2)               # the valence bands
+t2_strong = tqc.hsp_table(r_strong, bands=2)               # the valence bands
 row("valence content", fmt(t2_strong.counts))
 
 # srsi_of_bands takes what decompose and symmetry_indicator take, the measured
@@ -134,7 +133,7 @@ for loc in orbit.localizations:
     terms = " + ".join(f"{n} x {name}@{at}" for n, name, at in loc["terms"])
     row(f"localized at {where}", f"{terms},", f"Z-valued {values(loc['theta_Z'])}")
 
-t4_strong = tqc.hsp_table(rep_strong, bands=4)
+t4_strong = tqc.hsp_table(r_strong, bands=4)
 b4_strong = tqc.srsi_of_bands(t4_strong)
 row("all 4 bands", f"Z-valued {values(b4_strong.theta_Z)}, read from the bands")
 row("the whole model", f"Z-valued {values(m_srsi.theta_Z)}, read from the orbitals")
@@ -147,25 +146,23 @@ print("\n3. delta_t = -0.4, and three bonds cut: decoupled dimers along [111]")
 m_weak = fu_kane_mele(T, SOC, [-0.4, 0.0, 0.0, 0.0])         # the same bond weakened
 
 r_weak = tqc.realized_group(m_weak, characters=DECLARE)
-_m, g_weak, asg_weak, val_weak, rep_weak = r_weak
-sites_weak = tqc.wyckoff_sites_tables(g_weak, asg_weak.site_positions)
-t2_weak = tqc.hsp_table(rep_weak, bands=2)
+g_weak = r_weak.group
+t2_weak = tqc.hsp_table(r_weak, bands=2)
 b_weak = tqc.srsi_of_bands(t2_weak)
 si_weak = tqc.symmetry_indicator(t2_weak)
 row("weak,   realized", f"#{g_weak.number_str} {g_weak.name}, orbitals at Wyckoff "
-    f"{sites_weak[0].wyckoff}")
+    f"{r_weak.wyckoff_orbits[0].wyckoff}")
 row("weak,   valence", fmt(t2_weak.counts))
 
 m_dimers = fu_kane_mele(T, SOC, [0.0, -1.0, -1.0, -1.0])     # three bonds cut
 
 r_dimers = tqc.realized_group(m_dimers, characters=DECLARE)
-_m, g_dimers, asg_dimers, val_dimers, rep_dimers = r_dimers
-sites_dimers = tqc.wyckoff_sites_tables(g_dimers, asg_dimers.site_positions)
-t2_dimers = tqc.hsp_table(rep_dimers, bands=2)
+g_dimers = r_dimers.group
+t2_dimers = tqc.hsp_table(r_dimers, bands=2)
 b_dimers = tqc.srsi_of_bands(t2_dimers)
 si_dimers = tqc.symmetry_indicator(t2_dimers)
 row("dimers, realized", f"#{g_dimers.number_str} {g_dimers.name}, orbitals at Wyckoff "
-    f"{sites_dimers[0].wyckoff}")
+    f"{r_dimers.wyckoff_orbits[0].wyckoff}")
 row("dimers, valence", fmt(t2_dimers.counts))
 
 # one line per phase: the class on the left, the invariants on the right

@@ -189,7 +189,7 @@ def _realized(model, *, typat=None, nk=6, **build_kw):
     """
     rg = _rz._realize(model, typat=typat, nk=nk, **build_kw)
     assert rg, str(rg)
-    return rg.group, rg.assignment, rg.validated, rg.rep, rg.time_reversal
+    return rg.group, rg._assignment, rg.numerical.validated, rg.rep, rg.time_reversal
 
 
 #: The three fixtures the theorem is measured on, with everything the native
@@ -235,11 +235,11 @@ def natives(request):
     out = {}
     for name, spec in FIXTURES.items():
         shared = request.getfixturevalue(spec["shared"]) if "shared" in spec else None
-        model = spec["build"]() if shared is None else shared.source
+        model = spec["build"]() if shared is None else shared.numerical.source
         assert int(model.nspin) == 2, f"{name} must be natively spinful"
         if shared is not None:
-            bundle = (shared.group, shared.assignment, shared.validated, shared.rep,
-                      shared.time_reversal)
+            bundle = (shared.group, shared._assignment, shared.numerical.validated,
+                      shared.rep, shared.time_reversal)
         elif spec["route"] == "realized":
             bundle = _realized(model, typat=spec["typat"], nk=spec["nk"],
                                characters=spec["characters"], **spec["build_kw"])
@@ -269,14 +269,14 @@ def reencoded(request, natives):
     assert not isinstance(made, Refusal), str(made)
     flat, basis = made
 
-    Pi = basis.permutation_matrix
+    Pi = basis._permutation_matrix
     rng = np.random.default_rng(4242)
     k = rng.uniform(-0.5, 0.5, size=(8, int(model.lattice.dim_k)))
     a = np.asarray(model.hamiltonian(k_pts=k, flatten_spin_axis=True))
     b = np.asarray(flat.hamiltonian(k_pts=k, flatten_spin_axis=True))
     identity = float(np.abs(b - Pi @ a @ Pi.T).max()) / float(np.abs(a).max())
 
-    chan = basis.pair_of_orbital
+    chan = basis._pair_of_orbital
     typat = (None if spec["typat"] is None
              else [spec["typat"][int(chan[a_])] for a_ in range(int(flat.norb))])
     characters = spec["characters"]
@@ -397,7 +397,7 @@ def test_a_paired_operator_is_the_permuted_spin_fast_one():
     kinds = ({"order": "interleaved"}, {"order": "blocked"}, {"pairs": [(1, 2), (3, 0)]})
     for kw in kinds:
         sb = tqsp.spin_basis(flat, **kw)
-        Pi = sb.permutation_matrix
+        Pi = sb._permutation_matrix
         for n in ((0.0, 0.0, 1.0), (1.0, 1.0, 0.0)):
             nvec = np.asarray(n, dtype=float)
             nsig = np.tensordot(nvec, sigma, axes=1) / np.linalg.norm(nvec)
@@ -459,19 +459,20 @@ def test_the_declaration_grammar_raises_rather_than_refusing():
 def test_the_basis_reads_back_what_it_declared():
     """The record a caller checks before trusting a label.
 
-    ``summary()`` names each pair's two orbitals; ``pair_of_orbital`` and
-    ``spin_of_orbital`` are the arrays the machinery uses, and
-    ``interleaved_index`` the permutation onto pythtb's spin-fast layout.
+    ``pairs`` and ``summary()`` name each pair's two orbitals, its spin up
+    first; the pair each orbital belongs to and the permutation onto pythtb's
+    spin-fast layout are what the machinery reads.
     """
     km = tqc_models.kane_mele_z2("odd")
     flat, _sb = tqsp.spinless_presentation(km)
 
     sb = tqsp.spin_basis(flat, pairs=[(1, 2), (3, 0)])
-    assert sb.kind == "pairs" and len(sb.pairs) == 2
+    assert sb._kind == "pairs" and len(sb.pairs) == 2
     assert sb.states(0) == (1, 2) and sb.states(1) == (3, 0)
-    assert list(sb.pair_of_orbital) == [1, 0, 0, 1]
-    assert list(sb.spin_of_orbital) == [-1, 1, -1, 1]
-    assert list(sb.interleaved_index) == [1, 2, 3, 0]
+    assert list(sb._pair_of_orbital) == [1, 0, 0, 1]
+    spin = {int(up): 1 for up, _dn in sb.pairs} | {int(dn): -1 for _up, dn in sb.pairs}
+    assert [spin[a] for a in range(4)] == [-1, 1, -1, 1]
+    assert list(sb._interleaved_index) == [1, 2, 3, 0]
     assert "pair 0: orbital 1 up, orbital 2 down" in sb.summary()
 
 
@@ -483,8 +484,8 @@ def test_the_basis_reads_back_what_it_declared():
 def test_the_declared_build_is_the_native_one_under_the_permutation(reencoded):
     """**The theorem.**  ``Pi^T D_flat Pi == D_native``, operation by operation.
 
-    Not "the labels agree" -- the *matrices*.  ``Pi`` is the permutation of
-    ``SpinBasis.interleaved_index``, the same object the presentation identity
+    Not "the labels agree" -- the *matrices*.  ``Pi`` is the permutation the
+    spin basis carries, the same object the presentation identity
     was measured with, so there is one permutation in play and no room for a
     second convention to hide in.  Measured worst over the fixture x layout
     pairs: ``7.29e-16`` (km, blocked).
@@ -516,7 +517,7 @@ def test_the_declared_build_is_the_native_one_under_the_permutation(reencoded):
     assert group.number_str == gN.number_str, f"{name}/{layout}"
     assert group.name == gN.name and int(group._size) == int(gN._size)
     assert bool(group.spinor) is True
-    assert tuple(validated.indices) == tuple(valN.indices)
+    assert tuple(validated._indices) == tuple(valN._indices)
     assert tuple(validated.broken) == tuple(valN.broken)
     # each spinful orbital's site now carries a whole (up, dn) pair
     site_of = np.asarray(assignment.site_of_orbital, dtype=int)
@@ -525,22 +526,21 @@ def test_the_declared_build_is_the_native_one_under_the_permutation(reencoded):
     assert len(assignment.site_orbitals) == len(asgN.site_orbitals)
     assert assignment.wyckoff_spglib == asgN.wyckoff_spglib
     if FIXTURES[name]["route"] == "realized":
-        assert tr["outcome"] == trN["outcome"] == "kept"
+        assert tr.outcome == trN.outcome == "kept"
 
     assert rep._search["n_survivors"] == 1
-    assert max(rep.residuals.values()) <= GATE
-    assert tuple(rep.indices) == tuple(repN.indices)
+    assert max(rep.numerical.residuals.values()) <= GATE
+    assert tuple(rep._indices) == tuple(repN._indices)
 
-    Pi = basis.permutation_matrix
+    Pi = basis._permutation_matrix
     worst = max(float(np.abs(Pi.T @ np.asarray(rep.matrices[i]) @ Pi
                              - np.asarray(repN.matrices[i])).max())
-                for i in repN.indices)
+                for i in repN._indices)
     assert worst <= REENCODE_TOL, f"{name}/{layout}: {worst:.3g}"
 
-    assert rep.spin is basis and rep.spin.kind == basis.kind
-    assert rep._reference["spin_pair"] == int(basis.pair_of_orbital[
+    assert rep._spin is basis and rep._spin._kind == basis._kind
+    assert rep._reference["spin_pair"] == int(basis._pair_of_orbital[
         rep._reference["orbital"]])
-    assert f"spinor basis ({basis.kind})" in repr(rep)
 
     # the gauge, fixed the same way: by the tables on #80, by time reversal elsewhere
     flags = {int(i): bool(r.table_anchored) for i, r in rep._normalization.items()}
@@ -548,7 +548,7 @@ def test_the_declared_build_is_the_native_one_under_the_permutation(reencoded):
                     for i, r in repN._normalization.items()}
     assert flags == native_flags, f"{name}/{layout}"
     if name == "i41":
-        assert rep.antiunitary_operator[0] is None and repN.antiunitary_operator[0] is None
+        assert rep._time_reversal is None and repN._time_reversal is None
         assert any(flags.values()), "the tables are what fixed this gauge"
         for r in rep._normalization.values():
             assert r.anchor_used is False, "there is no antiunitary operation to use"
@@ -557,7 +557,7 @@ def test_the_declared_build_is_the_native_one_under_the_permutation(reencoded):
         if layout == "blocked":
             assert worst == 0.0, "the anchored matrices are the native ones, exactly"
     else:
-        assert rep.antiunitary_operator[0] is not None, "grey: the antiunitary anchor does it"
+        assert rep._time_reversal is not None, "grey: the antiunitary anchor does it"
         assert not any(flags.values())
 
 
@@ -575,27 +575,27 @@ def test_the_pair_carries_the_orbitals_own_site_character(reencoded):
     name, layout, native, flat, basis, bundle, _identity = reencoded
     repN = native[4]
     rep = bundle[3]
-    chan = basis.pair_of_orbital
+    chan = basis._pair_of_orbital
 
-    assert len(rep.characters.irreps) == int(flat.norb)
+    assert len(rep._characters.irreps) == int(flat.norb)
     for a in range(int(flat.norb)):
-        row, native_row = rep.characters.orbitals[a], repN.characters.orbitals[int(chan[a])]
+        row, native_row = rep._characters.orbitals[a], repN._characters.orbitals[int(chan[a])]
         assert row.irrep == native_row.irrep, f"{name}/{layout} orbital {a}"
         assert row.determined_by == native_row.determined_by
         assert row.function == native_row.function
         assert set(row.multiplet) == set(basis.pairs[int(chan[a])])
         assert row.site_symmetry == native_row.site_symmetry
         assert len(row.site_group) == len(native_row.site_group)
-    assert rep.characters.spin is basis
+    assert rep._characters.spin is basis
 
     # the two members of a pair are one channel, and the summary says which is which
     for c, (up, dn) in enumerate(basis.pairs):
-        assert rep.characters.irreps[int(up)] == rep.characters.irreps[int(dn)]
-        assert rep.characters.orbitals[int(up)].multiplet \
-            == rep.characters.orbitals[int(dn)].multiplet
-        assert f"spin up of pair {c}" in rep.characters.orbitals[int(up)].note
-        assert f"spin down of pair {c}" in rep.characters.orbitals[int(dn)].note
-    text = rep.characters.summary()
+        assert rep._characters.irreps[int(up)] == rep._characters.irreps[int(dn)]
+        assert rep._characters.orbitals[int(up)].multiplet \
+            == rep._characters.orbitals[int(dn)].multiplet
+        assert f"spin up of pair {c}" in rep._characters.orbitals[int(up)].note
+        assert f"spin down of pair {c}" in rep._characters.orbitals[int(dn)].note
+    text = rep._characters.summary()
     assert "spin" in text.splitlines()[0] and " up " in text and " down " in text
 
 
@@ -625,8 +625,8 @@ def test_the_corep_content_and_the_ebr_verdict_are_the_native_ones(reencoded):
     group, rep = bundle[0], bundle[3]
     bands = FIXTURES[name]["bands"]
 
-    tabN = tqw.hsp_table(repN, bands=bands)
-    tab = tqw.hsp_table(rep, bands=bands)
+    tabN = tqw._hsp_table_rep(repN, bands=bands)
+    tab = tqw._hsp_table_rep(rep, bands=bands)
 
     # the native side carries content -- otherwise the three comparisons below
     # are `{} == {}` and the docstring's claim is not measured at all
@@ -732,9 +732,9 @@ def pxpy_spinor():
     model = _pxpy_spinor()
     native = tqg.realized_group(model)
     assert native, str(native)
-    assert (native.group.number_str, len(native.validated.indices)) == ("123.340", 32)
-    assert native.rep.multiplets.dims == ((2,),), "one orbital doublet"
-    assert native.conserved["dim"] == 0, "nothing but the identity commutes with H"
+    assert (native.group.number_str, len(native.numerical.validated._indices)) == ("123.340", 32)
+    assert native.rep._multiplets.dims == ((2,),), "one orbital doublet"
+    assert native.conserved.dim == 0, "nothing but the identity commutes with H"
     flat, basis = tqsp.spinless_presentation(model, order="interleaved")
     return native, flat, basis
 
@@ -803,8 +803,8 @@ def test_a_pair_split_across_two_sites_refuses(km_flat):
                               precision=1e-4)
     assert read, str(read)
     assert read.group.number_str == "156.50"
-    assert read.rep.characters.irreps == ("-E1",) * 4
-    assert tqw.hsp_table(read.rep, bands=2).counts == NATIVE_COUNTS["km"]
+    assert read.rep._characters.irreps == ("-E1",) * 4
+    assert tqw.hsp_table(read, bands=2).counts == NATIVE_COUNTS["km"]
 
 
 @pytest.fixture(scope="module")
@@ -839,7 +839,7 @@ def two_spinors_per_site():
     assert assignment.site_orbitals == ((0, 1, 2, 3), (4, 5, 6, 7))
     assert assignment.orbits == ((0, 1),), "the two sites are one orbit"
     validated = _measure._validate_group(flat, group, nk=4)
-    assert len(validated.indices) == 48 == group._size
+    assert len(validated._indices) == 48 == group._size
     return model, flat, group, assignment, validated
 
 
@@ -883,10 +883,10 @@ def test_a_pairing_is_read_pair_by_pair_and_a_wrong_one_descends(two_spinors_per
     read = tqg.realized_group(irregular, spin=basis)
     assert read, str(read)
     assert read.group.number_str == regular.group.number_str
-    assert len(read.validated.indices) == len(regular.validated.indices) == 24
-    assert read.rep.characters.irreps == regular.rep.characters.irreps == ("-E1",) * 8
-    assert (tqw.hsp_table(read.rep, bands=4).counts
-            == tqw.hsp_table(regular.rep, bands=4).counts)
+    assert len(read.numerical.validated._indices) == len(regular.numerical.validated._indices) == 24
+    assert read.rep._characters.irreps == regular.rep._characters.irreps == ("-E1",) * 8
+    assert (tqw.hsp_table(read, bands=4).counts
+            == tqw.hsp_table(regular, bands=4).counts)
 
     crossed = tqsp.spin_basis(flat, pairs=[(0, 1), (2, 3), (4, 7), (5, 6)])
     site_of = np.asarray(assignment.site_of_orbital, dtype=int)
@@ -900,12 +900,12 @@ def test_a_pairing_is_read_pair_by_pair_and_a_wrong_one_descends(two_spinors_per
         wrong = tqg.realized_group(flat, spin=crossed)
     assert wrong, str(wrong)
     assert (wrong.group.name, wrong.group.number_str) == ("P1", "1")
-    broken = {b["name"]: b["refuted_by"] for b in wrong.descent["dropped"]}
+    broken = {b.name: b.refuted_by for b in wrong.descent.dropped}
     assert set(broken.values()) == {"tensor structure"} and "E'" in broken
-    assert wrong.time_reversal["outcome"] == "measured broken"
-    assert "refuted by its spin lift" in wrong.time_reversal["note"]
-    assert wrong.beyond_grey["magnetic_type"] == "III"
-    assert [e["name"] for e in wrong.beyond_grey["operations"]] == ["m(x)'"]
+    assert wrong.time_reversal.outcome == "measured broken"
+    assert "refuted by its spin lift" in wrong.time_reversal.note
+    assert wrong.beyond_grey.magnetic_type == "III"
+    assert [e.name for e in wrong.beyond_grey.operations] == ["m(x)'"]
 
     one = TBModel(Lattice([[1.0, 0.0], [0.0, 1.0]], [[0.0, 0.0], [0.0, 0.0]],
                           periodic_dirs=[0, 1]), spinful=True)
@@ -920,9 +920,9 @@ def test_a_pairing_is_read_pair_by_pair_and_a_wrong_one_descends(two_spinors_per
         site = tqg.realized_group(one_flat, spin={"pairs": [(0, 3), (1, 2)]})
     assert site, str(site)
     assert (site.group.name, site.group.number_str) == ("P2", "3")
-    assert site.time_reversal["outcome"] == "measured broken"
-    assert site.beyond_grey["magnetic_type"] == "III"
-    assert sorted(e["name"] for e in site.beyond_grey["operations"]) == ["m(x)'", "m(y)'"]
+    assert site.time_reversal.outcome == "measured broken"
+    assert site.beyond_grey.magnetic_type == "III"
+    assert sorted(e.name for e in site.beyond_grey.operations) == ["m(x)'", "m(y)'"]
 
 
 @pytest.mark.slow
@@ -1032,20 +1032,20 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     assert (spinless.group.name, spinless.group.number_str, spinless.group._size) == (
         "R-3m", "166", 12)
     reversal = spinless.time_reversal
-    assert reversal["outcome"] == "measured broken" and reversal["grey_number_str"] == "166.98"
-    assert reversal["square"]["asked"] == 1
-    assert reversal["square"]["measured"] == pytest.approx(-1.0, abs=1e-12)
-    assert "a spinor's time reversal" in reversal["note"]
-    assert spinless.rep.characters.irreps == ("E",) * 4
-    assert spinless.rep.product_residual < 1e-12
+    assert reversal.outcome == "measured broken" and reversal.grey_number_str == "166.98"
+    assert reversal.square.asked == 1
+    assert reversal.square.measured == pytest.approx(-1.0, abs=1e-12)
+    assert "a spinor's time reversal" in reversal.note
+    assert spinless.rep._characters.irreps == ("E",) * 4
+    assert spinless.rep.numerical.product_residual < 1e-12
     assert spinless.descent is None, "the class of -3m is trivial: nothing descends"
     # each primed twofold and mirror makes time reversal with its own, which
     # holds: nothing of the grey group counts, and nothing beyond grey is named
     assert spinless.beyond_grey is None
-    assert (reversal["n_obeyed"], reversal["n_broken"]) == (0, 12)
+    assert (reversal.n_obeyed, reversal.n_broken) == (0, 12)
     assert ("Of those, 11, coset representatives of the lattice translations, have a "
-            "symmetry matrix") in reversal["note"]
-    assert "generates time reversal with its own unitary part" in reversal["note"]
+            "symmetry matrix") in reversal.note
+    assert "generates time reversal with its own unitary part" in reversal.note
     assert repr(spinless).endswith(
         "; time reversal measured broken, descended from R-3m1' #166.98: its square is -1, so "
         "the states carry half-integer spin, and spin= declares which orbitals are spin "
@@ -1053,9 +1053,9 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     native = tqg.realized_group(flat_r, spin="interleaved")
     assert native, str(native)
     assert (native.group.number_str, native.group._size) == ("166.98", 24)
-    assert native.time_reversal["outcome"] == "kept"
-    assert native.time_reversal["square"] == pytest.approx({"asked": -1, "measured": -1.0},
-                                                           abs=1e-12)
+    assert native.time_reversal.outcome == "kept"
+    square = native.time_reversal.square
+    assert (square.asked, square.measured) == pytest.approx((-1, -1.0), abs=1e-12)
 
     # the flattened doublet: the pairs that anticommute, and the descent they make
     _native, flat_p, _basis_p = pxpy_spinor
@@ -1063,55 +1063,55 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
         out = tqg.realized_group(flat_p)
     assert out, str(out)
     assert (out.group.name, out.group.number_str, out.group._size) == ("P4/m", "83", 8)
-    assert len(out.validated.indices) == 8 and out.group.spinor is False
+    assert len(out.numerical.validated._indices) == 8 and out.group.spinor is False
     reversal = out.time_reversal
-    assert reversal["outcome"] == "measured broken" and reversal["grey_number_str"] == "123.340"
-    assert reversal["square"]["asked"] == 1
-    assert reversal["square"]["measured"] == pytest.approx(-1.0, abs=1e-12)
-    assert "a spinor's time reversal" in reversal["note"] and "`spin=`" in reversal["note"]
+    assert reversal.outcome == "measured broken" and reversal.grey_number_str == "123.340"
+    assert reversal.square.asked == 1
+    assert reversal.square.measured == pytest.approx(-1.0, abs=1e-12)
+    assert "a spinor's time reversal" in reversal.note and "`spin=`" in reversal.note
     d = out.descent
-    assert (d["from"]["number_str"], d["to"]["number_str"]) == ("123", "83")
-    assert d["dropped_by"] == {"projective class": 8} and d["iterations"] == 1
+    assert (d.cell_group.number_str, d.subgroup.number_str) == ("123", "83")
+    assert d.dropped_by == {"projective class": 8} and d.iterations == 1
     assert any(row.seitz.startswith("{4+_001|") for row in out.operations.values()), \
         "the fourfold is kept"
-    for b in d["dropped"]:
-        assert b["refuted_by"] == "projective class" and np.isnan(b["residual"])
-        assert "C2(z)" in b["names"] and b["name"] in b["names"], "named beside the kept C2(z)"
-        assert b["commutation_phase"] == pytest.approx(-1.0, abs=1e-9)
-        assert b["spin_half"] is True and "spin-1/2" in b["note"]
-    assert sorted(b["name"] for b in d["dropped"]) == sorted(
+    for b in d.dropped:
+        assert b.refuted_by == "projective class" and np.isnan(b.residual)
+        assert "C2(z)" in b.names and b.name in b.names, "named beside the kept C2(z)"
+        assert b.commutation_phase == pytest.approx(-1.0, abs=1e-9)
+        assert b.spin_half is True and "spin-1/2" in b.note
+    assert sorted(b.name for b in d.dropped) == sorted(
         ["C2(x)", "C2(y)", "C2([110])", "C2([1-10])", "m(x)", "m(y)", "m([110])", "m([1-10])"])
-    step = d["steps"][0]["projective"]
+    step = d.steps[0].projective
     assert step["tied"] == (), "the largest subgroup of 4/mmm carrying one is unique"
     assert len(step["pairs"]) == 24 and all(w["spin_half"] for w in step["pairs"])
-    assert "anticommute" in d["note"] and "the largest subgroup" in d["note"]
+    assert "anticommute" in d.note and "the largest subgroup" in d.note
     # the note says the eight hold and carry no single-valued representation,
     # and what the operations kept carry
     assert ("8 of them, which the Hamiltonian obeys, carry no single-valued "
             "representation on these states, so the cell was lowered to the largest group "
             "of its operations on which these states carry a single-valued "
-            "representation, and re-identified as P4/m #83.") in d["note"], d["note"]
-    assert "measured to hold" not in d["note"]
+            "representation, and re-identified as P4/m #83.") in d.note, d.note
+    assert "measured to hold" not in d.note
     assert ("(8 of 16 coset representatives of the lattice translations dropped: 8 by the "
             "states' projective class)") in repr(out)
-    assert out.rep.antiunitary_operator[0] is None and out.rep.product_residual < 1e-12
-    assert out.rep.multiplets.dims == ((2, 2),), "the two spin-J_z pairs, now apart"
+    assert out.rep._time_reversal is None and out.rep.numerical.product_residual < 1e-12
+    assert out.rep._multiplets.dims == ((2, 2),), "the two spin-J_z pairs, now apart"
     # the eight left out, each combined with time reversal, measured on
     # P4/mmm1', the last group that asks them, and read once against the P4/m
     # returned: with it they make P4/mm'm', whose representation the states
     # carry; the seven others the detector kept there make time reversal with
     # their unitary part, which P4/m holds
     beyond = out.beyond_grey
-    assert beyond is not None and beyond["magnetic_type"] == "III" and beyond["closed"]
-    assert (beyond["n_operations"], beyond["n_measured"]) == (8, 16)
-    assert {o["of"] for o in beyond["operations"]} == {"123.340"}
-    assert sorted(o["name"] for o in beyond["operations"]) == sorted(
-        b["name"] + "'" for b in d["dropped"])
-    assert (reversal["n_obeyed"], reversal["n_broken"]) == (8, 8)
-    assert "Of those, 7 have a symmetry matrix" in reversal["note"]
+    assert beyond is not None and beyond.magnetic_type == "III" and beyond.closed
+    assert (beyond.n_operations, beyond.n_measured) == (8, 16)
+    assert {o.of for o in beyond.operations} == {"123.340"}
+    assert sorted(o.name for o in beyond.operations) == sorted(
+        b.name + "'" for b in d.dropped)
+    assert (reversal.n_obeyed, reversal.n_broken) == (8, 8)
+    assert "Of those, 7 have a symmetry matrix" in reversal.note
     assert "Each of them combines time reversal with an operation of the group" in (
-        reversal["note"])
-    assert "The other 8 hold by that rule" in reversal["note"]
+        reversal.note)
+    assert "The other 8 hold by that rule" in reversal.note
     assert repr(out).endswith("(8 antiunitary operations measured to hold) but is beyond "
                               "the validated scope)")
     assert "descended from P4/mmm1'" not in repr(out)
@@ -1136,16 +1136,16 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     with pytest.warns(MagneticScopeWarning):
         screw = tqg.realized_group(flat_s)
     assert screw, str(screw)
-    assert (screw.group.number_str, len(screw.validated.indices)) == ("80", 4)
-    again = _build._build_rep(screw.model, screw.group, screw.assignment,
-                           validated=screw.validated)
+    assert (screw.group.number_str, len(screw.numerical.validated._indices)) == ("80", 4)
+    again = _build._build_rep(screw.model, screw.group, screw._assignment,
+                           validated=screw.numerical.validated)
     assert again, str(again)
     assert again._search["strategy"] == "readoff", again._search["fallback_reason"]
     assert sum(abs(z - 1j) < 1e-9 for z in again._search["ratios"].values()) == 2
     assert max(float(np.abs(np.asarray(again.matrices[i])
                             - np.asarray(screw.rep.matrices[i])).max())
-               for i in screw.rep.indices) == 0.0
-    assert again.characters.irreps == screw.rep.characters.irreps
+               for i in screw.rep._indices) == 0.0
+    assert again._characters.irreps == screw.rep._characters.irreps
 
     # the tie: three 2/m of mmm carry one, and the rule keeps the one along c
     flat_o = pmmm_spinor
@@ -1153,30 +1153,30 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
         tie = tqg.realized_group(flat_o)
     assert tie, str(tie)
     assert (tie.group.name, tie.group.number_str, tie.group._size) == ("P2/m", "10", 4)
-    step = tie.descent["steps"][0]["projective"]
+    step = tie.descent.steps[0].projective
     parent = _spacegroup._group_of(flat_o, include_TR=False, spinor=False)
-    assert parent.number_str == "47" and tie.descent["from"]["number_str"] == "47"
+    assert parent.number_str == "47" and tie.descent.cell_group.number_str == "47"
     axes = _subgroups._setting_axes(parent)
     twofold = [next(axes[i][2] for i in s if axes[i][:2] == (1, 2)) for s in step["tied"]]
     assert twofold == [(0, 0, 1), (1, 0, 0), (0, 1, 0)], "c, then a, then b"
     assert tuple(step["kept"]) == step["tied"][0]
-    assert tie.descent["dropped_by"]["projective class"] == 4 and "the first of 3" in tie.descent["note"]
+    assert tie.descent.dropped_by["projective class"] == 4 and "the first of 3" in tie.descent.note
     assert ("since its principal axis, [001], comes before [100] in the conventional "
-            "cell") in tie.descent["note"], "the reason the first was kept, as every tie says"
-    assert tie.rep.product_residual < 1e-12
+            "cell") in tie.descent.note, "the reason the first was kept, as every tie says"
+    assert tie.rep.numerical.product_residual < 1e-12
     # ... and the four it leaves out, combined with time reversal, make with it
     # a magnetic group of type III
     beyond = tie.beyond_grey
-    assert beyond is not None and beyond["magnetic_type"] == "III"
-    assert (beyond["n_operations"], beyond["n_measured"]) == (4, 8)
-    assert sorted(o["name"] for o in beyond["operations"]) == sorted(
-        b["name"] + "'" for b in tie.descent["dropped"])
-    assert (tie.time_reversal["n_obeyed"], tie.time_reversal["n_broken"]) == (4, 4)
+    assert beyond is not None and beyond.magnetic_type == "III"
+    assert (beyond.n_operations, beyond.n_measured) == (4, 8)
+    assert sorted(o.name for o in beyond.operations) == sorted(
+        b.name + "'" for b in tie.descent.dropped)
+    assert (tie.time_reversal.n_obeyed, tie.time_reversal.n_broken) == (4, 4)
     declared = tqg.realized_group(flat_o, spin="interleaved")
     assert declared, str(declared)
-    assert (declared.group.number_str, len(declared.validated.indices)) == ("47.250", 16)
-    assert declared.descent is None and declared.time_reversal["outcome"] == "kept"
-    assert declared.conserved["dim"] == 0, "nothing but the identity commutes with H"
+    assert (declared.group.number_str, len(declared.numerical.validated._indices)) == ("47.250", 16)
+    assert declared.descent is None and declared.time_reversal.outcome == "kept"
+    assert declared.conserved.dim == 0, "nothing but the identity commutes with H"
     # ... and the sibling's bonds on the tetragonal cell descend in two steps:
     # the hoppings keep Pmmm1', time reversal is measured broken there by its
     # square, and the class lowers the unitary Pmmm.  The note counts what the
@@ -1187,7 +1187,7 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
         stepped = tqg.realized_group(stepped_flat)
     assert stepped, str(stepped)
     d = stepped.descent
-    assert [(st["from"]["number_str"], st["to"]["number_str"]) for st in d["steps"]] == [
+    assert [(st.cell_group.number_str, st.subgroup.number_str) for st in d.steps] == [
         ("123.340", "47.250"), ("47", "10")]
     assert ("the cell allowed P4/mmm1' #123.340 (32 coset representatives of the lattice "
             "translations) and the Hamiltonian broke 16 "
@@ -1196,8 +1196,8 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
             "no single-valued representation on these states, so the cell was lowered to the "
             "largest group of its unitary operations that the Hamiltonian obeys and on which "
             "these states carry a single-valued representation, and re-identified as P2/m "
-            "#10.") in d["note"], d["note"]
-    assert ("descended from #123.340 in 2 steps (28 of 32 coset representatives of the "
+            "#10.") in d.note, d.note
+    assert ("descended from P4/mmm1' #123.340 in 2 steps (28 of 32 coset representatives of the "
             "lattice translations dropped: 16 by the hoppings, 8 with time reversal, 4 by the "
             "states' projective class)") in repr(stepped)
     # ... and the operations a step leaves out to close a group, or that belong
@@ -1207,7 +1207,7 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
               "dropped": [{"refuted_by": why} for why in
                           ("no symmetry matrix",) * 3 + ("closure",) * 2 + ("tie",)]}]
     counts = _descent._descent_counts(steps, None)
-    assert counts == {"centres": 0, "hoppings": 3, "declaration": 0, "closure": 2, "tie": 1,
+    assert counts == {"centers": 0, "hoppings": 3, "declaration": 0, "closure": 2, "tie": 1,
                       "time reversal": 0, "projective class": 0}
     assert _descent._descent_clauses(counts) == (
         "the Hamiltonian broke 3 of them by its hoppings, and 2 more are left out so that the "
@@ -1228,29 +1228,30 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     assert free, str(free)
     assert (free.group.name, free.group.number_str, free.group._size) == ("P6/m", "175", 12)
     d = free.descent
-    assert (d["from"]["number_str"], d["dropped_by"]) == ("191", {"projective class": 12})
-    assert sorted(b["name"] for b in d["dropped"]) == sorted(
+    assert (d.cell_group.number_str, d.dropped_by) == ("191", {"projective class": 12})
+    assert sorted(b.name for b in d.dropped) == sorted(
         f"{kind}({axis})" for kind in ("C2", "m")
         for axis in ("x", "y", "[010]", "[110]", "[1-10]", "[2-10]"))
-    step = d["steps"][0]["projective"]
+    step = d.steps[0].projective
     assert step["horizontal_mirror"] == {"sign": 1, "determined_by": "lowest-l"}
     assert len(step["tied"]) == 3 and tuple(step["kept"]) == step["tied"][0], \
         "6/m before the two -6m2: the highest-order rotation"
-    assert "+1, the even one the lowest-angular-momentum rule assigns" in d["note"]
-    assert all(label.endswith("'") for label in free.rep.characters.irreps), "even under m(z)"
-    assert free.rep.product_residual < 1e-12
+    assert "+1, the even one the lowest-angular-momentum rule assigns" in d.note
+    assert all(label.endswith("'") for label in free.rep._characters.irreps), "even under m(z)"
+    assert free.rep.numerical.product_residual < 1e-12
     sub = tqg.realized_group(layer)
     assert sub, str(sub)
-    assert (sub.group.name, sub.group.number_str, sub.environment) == ("P6", "168", "substrate")
-    step = sub.descent["steps"][0]["projective"]
+    assert (sub.group.name, sub.group.number_str, sub.environment.kind) == \
+        ("P6", "168", "substrate")
+    step = sub.descent.steps[0].projective
     assert step["read_on"] == {"number_str": "191", "name": "P6/mmm", "size": 24, "kept": 12}
-    assert sorted(b["name"] for b in sub.descent["dropped"]) == sorted(
+    assert sorted(b.name for b in sub.descent.dropped) == sorted(
         f"m({axis})" for axis in ("x", "y", "[010]", "[110]", "[1-10]", "[2-10]"))
-    assert "The class is read on the free-standing layer, P6/mmm #191" in sub.descent["note"]
+    assert "The class is read on the free-standing layer, P6/mmm #191" in sub.descent.note
     assert "since its highest rotation is 6-fold where the next one's is 3-fold" in (
-        sub.descent["note"]), "the tie settled free-standing, and why"
-    assert sub.cross_check["outcome"] == "agree"
-    assert sub.cross_check["free_standing"]["number_str"] == "175"
+        sub.descent.note), "the tie settled free-standing, and why"
+    assert sub.environment.cross_check.outcome == "agree"
+    assert sub.environment.cross_check.free_standing.number_str == "175"
     # undeclared, each environment names its orbitals by the rule in its own site
     # groups (p_z and p_- on a substrate, p_+ and p_- where m(z) keeps p_z apart);
     # declared, nothing is left to the rule, and the free-standing reading
@@ -1261,14 +1262,14 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     sub_p = tqg.realized_group(layer, characters=pairs)
     assert free_p and sub_p, (str(free_p), str(sub_p))
     assert (free_p.group.number_str, sub_p.group.number_str) == ("175", "168")
-    assert sub_p.cross_check["outcome"] == "agree"
-    assert [(o.irrep, o.declared_irrep) for o in free_p.rep.characters.orbitals] == \
+    assert sub_p.environment.cross_check.outcome == "agree"
+    assert [(o.irrep, o.declared_irrep) for o in free_p.rep._characters.orbitals] == \
         [("2E'", "E'"), ("1E'", "E'")] * 2, \
         "each row its own multiplet's: the threefold carries a site's two orbitals as " \
         "the complex pair, and the p_x, p_y declared on them name the doublet they make"
-    assert sub_p.rep.characters.irreps == ("2E", "1E") * 2
-    k_free = tqw.hsp_table(free_p.rep, bands=2).records["K"].table
-    k_sub = tqw.hsp_table(sub_p.rep, bands=2).records["K"].table
+    assert sub_p.rep._characters.irreps == ("2E", "1E") * 2
+    k_free = tqw.hsp_table(free_p, bands=2).records["K"].table
+    k_sub = tqw.hsp_table(sub_p, bands=2).records["K"].table
     assert tuple(k_free.columns[:3]) == tuple(k_sub.columns) == (1, 2, 3), "E and the threefolds"
     assert np.abs(np.asarray(k_free.characters)[:, :3] - np.asarray(k_sub.characters)).max() < 1e-9
 
@@ -1281,12 +1282,13 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
         order="interleaved")[0]
     grey = tqg.realized_group(axes)
     assert grey, str(grey)
-    assert (grey.group.number_str, len(grey.validated.indices)) == ("47.250", 16)
-    assert grey.time_reversal["outcome"] == "kept" and grey.conserved["dim"] == 3
-    assert grey.time_reversal["square"]["measured"] == pytest.approx(1.0, abs=1e-12)
-    reversal = np.asarray(grey.rep.antiunitary_operator[1])
+    assert (grey.group.number_str, len(grey.numerical.validated._indices)) == ("47.250", 16)
+    assert grey.time_reversal.outcome == "kept" and grey.conserved.dim == 3
+    assert grey.time_reversal.square.measured == pytest.approx(1.0, abs=1e-12)
+    reversal = np.asarray(grey.rep.matrices[tqg.operation_index(grey.group, "{1|0,0,0}'")])
     assert np.allclose(reversal, reversal[0, 0] * np.diag([1, 1, -1, -1]), atol=1e-12)
-    assert max(grey.rep.residuals.values()) < 1e-13 and grey.rep.product_residual < 1e-12
+    assert max(grey.rep.numerical.residuals.values()) < 1e-13
+    assert grey.rep.numerical.product_residual < 1e-12
 
     # ... and the tetragonal doublet with its bonds along the axes alone: the same
     # pseudospin, on one fourfold multiplet, whose copies' representation moves
@@ -1295,26 +1297,31 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
         _pxpy_spinor(bonds=((1, 0, 0), (0, 1, 0), (0, 0, 1))), order="interleaved")[0]
     pseudo = tqg.realized_group(doublet)
     assert pseudo, str(pseudo)
-    assert (pseudo.group.number_str, len(pseudo.validated.indices)) == ("123.340", 32)
-    assert pseudo.time_reversal["square"]["measured"] == pytest.approx(1.0, abs=1e-12)
-    assert pseudo.rep.multiplets.dims == ((4,),) and pseudo.conserved["dim"] == 3
-    assert [(s["orbitals"], s["copies"], s["dim"]) for s in pseudo.conserved["sectors"]] == \
+    assert (pseudo.group.number_str, len(pseudo.numerical.validated._indices)) == ("123.340", 32)
+    assert pseudo.time_reversal.square.measured == pytest.approx(1.0, abs=1e-12)
+    assert pseudo.rep._multiplets.dims == ((4,),) and pseudo.conserved.dim == 3
+    assert [(s.orbitals, s.copies, s.dim) for s in pseudo.conserved.sectors] == \
         [((0, 1, 2, 3), 2, 2)], "the pseudospin: two identical copies of the p_x, p_y pair"
-    (space,) = pseudo.rep.characters.multiplicity_spaces
-    assert (space.orbitals, space.wyckoff, space.dim, space.n_representations,
-            space.determined_by) == ((0, 1, 2, 3), "1a", 2, 38, "lowest-l")
-    assert space.content == space.contents[0] == "2xEu" and len(space.contents) == 12
-    assert {"2xEg", "2xB2u + 2xA2u"} <= set(space.contents)
-    assert pseudo.rep.characters.irreps == ("Eu",) * 4
-    assert "twofold pseudospin" in pseudo.rep.characters.summary()
-    assert max(pseudo.rep.residuals.values()) < 1e-13 and pseudo.rep.product_residual < 1e-12
-    lowest = tqw.hsp_table(pseudo.rep, bands=2)
+    (orbit,) = pseudo.wyckoff_orbits
+    assert (orbit.orbitals, orbit.wyckoff, orbit.terms[0].multiplicity,
+            orbit.numerical.n_representations, orbit.determined_by) == \
+        ((0, 1, 2, 3), "1a", 2, 38, "lowest-l")
+    contents = [c.label for c in orbit.numerical.contents]
+    assert orbit.label == "2xEu" and contents[0] == "2xEu at 1a (4/mmm1')"
+    assert len(contents) == 12
+    assert {"2xEg at 1a (4/mmm1')", "2xB2u at 1a (4/mmm1') + 2xA2u at 1a (4/mmm1')"} \
+        <= set(contents)
+    assert pseudo.rep._characters.irreps == ("Eu",) * 4
+    assert "twofold pseudospin" in pseudo.wyckoff_orbits.summary()
+    assert max(pseudo.rep.numerical.residuals.values()) < 1e-13
+    assert pseudo.rep.numerical.product_residual < 1e-12
+    lowest = tqw.hsp_table(pseudo, bands=2)
     assert lowest.complete and lowest.counts == {"GM5-": 1, "A5-": 1, "M5-": 1, "R3-": 1,
                                                  "R4-": 1, "X3-": 1, "X4-": 1, "Z5-": 1}
     assert "pseudospin" in lowest.note and "2xEu" in lowest.note
     # ... and copies every representation of which gives one site content: a
     # labelling like any other, under the one sentence
-    note = tqw.hsp_table(tqg.realized_group(tqc_models.p1bar_s_copies()).rep, bands=2).note
+    note = tqw.hsp_table(tqg.realized_group(tqc_models.p1bar_s_copies()), bands=2).note
     assert note == tqw._ANOTHER_LABELLING_RELABELS, note
     # ... and copies none of whose representations is admitted: the build
     # refuses, saying how many sums of irreps of that dimension it weighed
@@ -1330,9 +1337,9 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     # out broken by the declaration
     false = tqg.realized_group(doublet, characters={(0, 1, 2, 3): "4xA1g"})
     assert false, str(false)
-    assert (false.group.number_str, len(false.validated.indices)) == ("47.250", 16)
-    assert false.descent["steps"][0]["refuted_by"] == {"declaration": 16}
-    assert {o.determined_by for o in false.rep.characters.orbitals} == {"declaration"}
+    assert (false.group.number_str, len(false.numerical.validated._indices)) == ("47.250", 16)
+    assert false.descent.steps[0].refuted_by == {"declaration": 16}
+    assert {o.determined_by for o in false.rep._characters.orbitals} == {"declaration"}
 
     zeeman = tqm.i41_atomic()
     zeeman.set_onsite([0.3 * np.diag([1.0, -1.0])] * int(zeeman.norb), mode="add")
@@ -1341,9 +1348,9 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     assert spin_free, str(spin_free)
     assert (spin_free.group.number_str, spin_free.group._size) == ("80", 4)
     reversal = spin_free.time_reversal
-    assert reversal["outcome"] == "measured broken" and reversal["square"]["asked"] == -1
-    assert reversal["square"]["measured"] == pytest.approx(1.0, abs=1e-12)
-    assert "a spin-free time reversal" in reversal["note"]
+    assert reversal.outcome == "measured broken" and reversal.square.asked == -1
+    assert reversal.square.measured == pytest.approx(1.0, abs=1e-12)
+    assert "a spin-free time reversal" in reversal.note
 
 
 @pytest.mark.slow
@@ -1369,23 +1376,23 @@ def test_every_spelling_of_spin_builds_the_same_representation(km_flat, pxpy_spi
     for spec in spellings:
         rep = _build._build_rep(flat, group, assignment, validated=validated, spin=spec)
         assert rep, f"{spec!r}: {rep}"
-        assert rep.spin.pairs == basis.pairs
+        assert rep._spin.pairs == basis.pairs
         built.append(rep)
     for rep in built[1:]:
         assert all(float(np.abs(np.asarray(rep.matrices[i])
                                 - np.asarray(built[0].matrices[i])).max()) == 0.0
-                   for i in built[0].indices)
-    assert built[2].spin.kind == "pairs", "the explicit form keeps its own name"
+                   for i in built[0]._indices)
+    assert built[2]._spin._kind == "pairs", "the explicit form keeps its own name"
 
     native, flat_p, basis_p = pxpy_spinor
-    want = tqw.hsp_table(native.rep, bands=2)
+    want = tqw.hsp_table(native, bands=2)
     assert want.complete, "the native content is read at every point"
     got = tqg.realized_group(flat_p, spin="interleaved")
     assert got, str(got)
-    assert (got.group.number_str, len(got.validated.indices)) == ("123.340", 32)
-    assert got.rep.spin.pairs == basis_p.pairs
-    assert got.rep.multiplets.dims == ((2,),), "one doublet of declared pairs"
-    assert dict(tqw.hsp_table(got.rep, bands=2).counts) == dict(want.counts)
+    assert (got.group.number_str, len(got.numerical.validated._indices)) == ("123.340", 32)
+    assert got.spin.pairs == basis_p.pairs
+    assert got.rep._multiplets.dims == ((2,),), "one doublet of declared pairs"
+    assert dict(tqw.hsp_table(got, bands=2).counts) == dict(want.counts)
 
 
 def test_a_wrong_basis_size_is_a_grammar_error(km_flat):
@@ -1398,7 +1405,7 @@ def test_a_wrong_basis_size_is_a_grammar_error(km_flat):
     km, flat, _basis, group, assignment, validated = km_flat
     other = tqsp.spin_basis(
         tqsp.spinless_presentation(tqc_models.lin3g())[0], order="interleaved")
-    assert other.norb == 8 != int(flat.norb)
+    assert other._norb == 8 != int(flat.norb)
     with pytest.raises(ValueError, match="8 orbitals and this one has 4"):
         _build._build_rep(flat, group, assignment, validated=validated, spin=other)
     with pytest.raises(ValueError, match="SpinBasis, the shorthand"):
@@ -1436,23 +1443,23 @@ def test_a_declared_pair_reads_the_native_content_and_site_irrep(km_flat):
     _km, flat, basis, _group, _assignment, _validated = km_flat
     got = tqg.realized_group(flat, spin=basis, typat=[0, 0, 1, 1],
                              environment="substrate")
-    assert got, f"{basis.kind}: {got}"
+    assert got, f"{basis._kind}: {got}"
     # the native spinful model's own record, read on a substrate
     assert got.group.number_str == "156.50" and got.group._size == 12
-    tab = tqw.hsp_table(got.rep, bands=2)
+    tab = tqw.hsp_table(got, bands=2)
     assert tab.complete
     assert dict(tab.counts) == {"-GM6": 1, "-K5": 1, "-K6": 1, "-M3M4": 1}
     assert {p: dict(v) for p, v in tab.content.items()} == {
         "GM": {"-GM6": 1}, "K": {"-K5": 1, "-K6": 1}, "M": {"-M3M4": 1}}
     assert dict(tab.partitions) == {"GM": (0,), "K": (0, 1), "M": (0,)}
-    assert got.rep.spin is basis
+    assert got.spin is basis
     assert got.rep._reference["spin_pair"] == 0
     # one pair on each site, a one-dimensional multiplet carrying the native site irrep
-    assert got.rep.multiplets.by_site == (((0, 1),), ((2, 3),))
-    assert got.rep.multiplets.dims == ((1,), (1,))
-    assert got.rep.characters.irreps == ("-E1",) * 4
-    assert [o.determined_by for o in got.rep.characters.orbitals] == ["hamiltonian"] * 4
-    assert got.rep.characters.residual < 1e-12
+    assert got.rep._multiplets.by_site == (((0, 1),), ((2, 3),))
+    assert got.rep._multiplets.dims == ((1,), (1,))
+    assert got.rep._characters.irreps == ("-E1",) * 4
+    assert [o.determined_by for o in got.rep._characters.orbitals] == ["hamiltonian"] * 4
+    assert got.rep._characters.residual < 1e-12
 
 
 @pytest.mark.slow
@@ -1477,37 +1484,37 @@ def test_a_declaration_on_a_declared_basis_is_about_the_pairs_spatial_character(
     assert native, str(native)
     ordered = _flat_rep(characters=["s", "s", "s", "s"])
     assert ordered, str(ordered)
-    assert ordered.characters.irreps == ("-E1",) * 4
-    assert native.characters.irreps == ("-E1", "-E1"), (
+    assert ordered._characters.irreps == ("-E1",) * 4
+    assert native._characters.irreps == ("-E1", "-E1"), (
         "both are named by their point group: `_build_rep` was handed the group the "
         "cell allows and represents only what the flat Hamiltonian obeys, so the "
         "site group here is a proper subgroup of the one the tables key 2c by, and "
         "the entries there name none of its rows")
-    assert {o.named_by for o in native.characters.orbitals + ordered.characters.orbitals} \
+    assert {o.named_by for o in native._characters.orbitals + ordered._characters.orbitals} \
         == {"point group"}
-    assert [o.determined_by for o in ordered.characters.orbitals] == ["declaration"] * 4
-    assert [o.determined_by for o in native.characters.orbitals] == ["declaration"] * 2, \
+    assert [o.determined_by for o in ordered._characters.orbitals] == ["declaration"] * 4
+    assert [o.determined_by for o in native._characters.orbitals] == ["declaration"] * 2, \
         "every orbital declared on both sides, so no row rests on the lowest-l rule"
 
     native_one = _build._build_rep(km, gN, asgN, validated=valN, characters={0: "s"})
     mapped = _flat_rep(characters={0: "s"})
     assert mapped, str(mapped)
-    assert [o.determined_by for o in mapped.characters.orbitals[::2]] == \
-        [o.determined_by for o in native_one.characters.orbitals]
-    assert mapped.characters.irreps[0] == native_one.characters.irreps[0]
+    assert [o.determined_by for o in mapped._characters.orbitals[::2]] == \
+        [o.determined_by for o in native_one._characters.orbitals]
+    assert mapped._characters.irreps[0] == native_one._characters.irreps[0]
     # the declaration reaches both members of the pair, and only that pair
-    assert mapped.characters.orbitals[0].determined_by == "declaration"
-    assert mapped.characters.orbitals[1].determined_by == "declaration"
-    assert mapped.characters.orbitals[1].declared_as == "s"
+    assert mapped._characters.orbitals[0].determined_by == "declaration"
+    assert mapped._characters.orbitals[1].determined_by == "declaration"
+    assert mapped._characters.orbitals[1].declared_as == "s"
 
     joint = _flat_rep(characters={(0, 1): "s"})
     assert joint, str(joint)
-    assert len(joint.characters.declarations) == 1
-    decl = joint.characters.declarations[0]
+    assert len(joint._characters.declarations) == 1
+    decl = joint._characters.declarations[0]
     assert decl["orbitals"] == (0, 1) and decl["dim"] == 1 and decl["declared_irrep"] == "A1"
     assert max(float(np.abs(np.asarray(joint.matrices[i])
                             - np.asarray(mapped.matrices[i])).max())
-               for i in mapped.indices) == 0.0, "one declaration, one representation"
+               for i in mapped._indices) == 0.0, "one declaration, one representation"
 
 
 def test_a_pair_given_two_different_characters_is_a_grammar_error(km_flat, monkeypatch):
@@ -1565,7 +1572,7 @@ def test_the_padded_slab_operations_are_represented_too():
     assert group and group.number_str == "191.234" and group._size == 48
     assignment = _tables._assign_orbitals(slab, group)
     validated = _measure._validate_group(slab, group, nk=4)
-    assert len(validated.indices) == 48
+    assert len(validated._indices) == 48
 
     native_slab = _layers._slab_presentation(km)
     ngroup = _spacegroup._group_of(native_slab, spinor=True)
@@ -1575,17 +1582,18 @@ def test_the_padded_slab_operations_are_represented_too():
     got = _build._build_rep(slab, group, assignment, validated=validated, spin=basis,
                          n_battery=4, include_vacuum_ops=True)
     assert got, str(got)
-    assert len(got.indices) == 48
-    assert max(got.residuals.values()) <= GATE
+    assert len(got._indices) == 48
+    assert max(got.numerical.residuals.values()) <= GATE
 
     want = _build._build_rep(native_slab, ngroup, nasg, validated=nval, n_battery=4,
                           include_vacuum_ops=True)
     assert want, str(want)
-    Pi = basis.permutation_matrix
+    Pi = basis._permutation_matrix
     worst = max(float(np.abs(Pi.T @ np.asarray(got.matrices[i]) @ Pi
-                             - np.asarray(want.matrices[i])).max()) for i in want.indices)
+                             - np.asarray(want.matrices[i])).max()) for i in want._indices)
     assert worst == 0.0
-    assert got.product_residual == pytest.approx(want.product_residual, abs=1e-15)
+    assert got.numerical.product_residual == pytest.approx(want.numerical.product_residual,
+                                                           abs=1e-15)
 
 
 @pytest.mark.slow
@@ -1605,7 +1613,7 @@ def test_the_indicator_class_of_fu_kane_mele_survives_the_re_encoding(realized):
     # the native record: the session's shared build of this call
     native = realized(fkm_regime("strong"), decorations=FKM_BOND, characters={0: "s"})
     assert native and native.group.number_str == "166.98", str(native)
-    tabN = tqw.hsp_table(native.rep, bands=2)
+    tabN = tqw.hsp_table(native, bands=2)
     want = tqe.symmetry_indicator(tabN, native.group, rep=native.rep, bands=2)
     assert want and want.values == (0, 1) and want.order == 4
     assert want.structure == "Z2 x Z4" and want.irreptables_named["z4"] == 3
@@ -1616,7 +1624,7 @@ def test_the_indicator_class_of_fu_kane_mele_survives_the_re_encoding(realized):
                                 characters={0: "s"})
     assert got_rg, str(got_rg)
     assert got_rg.group.number_str == "166.98"
-    tab = tqw.hsp_table(got_rg.rep, bands=2)
+    tab = tqw.hsp_table(got_rg, bands=2)
     assert dict(tab.counts) == dict(tabN.counts) and tab.partitions == tabN.partitions
 
     got = tqe.symmetry_indicator(tab, got_rg.group, rep=got_rg.rep, bands=2)
@@ -1625,10 +1633,10 @@ def test_the_indicator_class_of_fu_kane_mele_survives_the_re_encoding(realized):
     assert got.irreptables_named == want.irreptables_named
     assert got.verdict == want.verdict == "indicated nontrivial"
 
-    Pi = basis.permutation_matrix
+    Pi = basis._permutation_matrix
     worst = max(float(np.abs(Pi.T @ np.asarray(got_rg.rep.matrices[i]) @ Pi
                              - np.asarray(native.rep.matrices[i])).max())
-                for i in native.rep.indices)
+                for i in native.rep._indices)
     assert worst <= REENCODE_TOL
 
 
@@ -1719,20 +1727,20 @@ def test_the_transcription_in_pythtbs_convention_is_labelled_s_in_its_own_group(
 
     declared = tqg.realized_group(fixture, environment="substrate", characters={0: "s"})
     assert declared, str(declared)
-    assert (declared.group.number_str, len(declared.validated.indices)) == ("99.164", 16)
-    assert declared.rep.characters.irreps == ("-E", "-E")
+    assert (declared.group.number_str, len(declared.numerical.validated._indices)) == ("99.164", 16)
+    assert declared.rep._characters.irreps == ("-E", "-E")
 
     # the chiral pattern, on a substrate
     declared_down = tqg.realized_group(tqc_models.p41_flat_band(chiral=True),
                                        environment="substrate", characters={0: "s"})
     assert declared_down and declared_down.group.number_str == "75.2"
-    assert declared_down.rep.characters.irreps == ("-1E2E", "-1E2E")
+    assert declared_down.rep._characters.irreps == ("-1E2E", "-1E2E")
 
     on_the_layer = tqg.realized_group(paper, environment="free-standing",
                                       characters={0: "s"})
     assert on_the_layer, str(on_the_layer)
     assert on_the_layer.group.number_str == "115.284"
-    assert on_the_layer.rep.characters.irreps == ("-E", "-E")
+    assert on_the_layer.rep._characters.irreps == ("-E", "-E")
 
     # a spin frame turned by 1e-6 rad, under a precision of 1e-5
     n = np.array([0.3, -0.5, 0.81]) / np.linalg.norm([0.3, -0.5, 0.81])
@@ -1743,8 +1751,8 @@ def test_the_transcription_in_pythtbs_convention_is_labelled_s_in_its_own_group(
     assert read, str(read)
     assert (read.group.name, read.group.number_str, read.group._size) == (
         "P6mm1'", "183.186", 24)
-    assert read.descent is None and read.rep.characters.irreps == ("-E1", "-E1")
-    rec = read.symmetrization
+    assert read.descent is None and read.rep._characters.irreps == ("-E1", "-E1")
+    rec = read.numerical.symmetrization
     assert rec.near and 1e-7 < rec.defect < 1e-5, "H moved by about the turn"
 
 
@@ -1766,7 +1774,7 @@ def test_a_wrong_but_well_formed_pairing_dies_before_anything_is_built(km_flat):
     first and descends instead.
     """
     km, flat, sb, group, assignment, validated = km_flat
-    assert sb.kind == "interleaved" and sb.pairs == ((0, 1), (2, 3))
+    assert sb._kind == "interleaved" and sb.pairs == ((0, 1), (2, 3))
 
     good = _build._build_rep(flat, group, assignment, validated=validated, spin=sb)
     assert good and good._search["n_survivors"] == 1, str(good)

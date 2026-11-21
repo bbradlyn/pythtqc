@@ -64,7 +64,7 @@ _FEW_ULP = 8 * _ULP                # a few ulp: the rounding of an order-one mat
 # ---------------------------------------------------------------------------
 
 def _nspin(rep):
-    return int(rep.model.nspin)
+    return int(rep._model.nspin)
 
 
 def _rep_bundle(model, group=None, **kwargs):
@@ -96,7 +96,7 @@ def lin3g_rep_enum(lin3g_rep):
     measured against each other.
     """
     group, assignment, validated, rep = lin3g_rep
-    out = _build._build_rep(rep.model, group, assignment, validated=validated,
+    out = _build._build_rep(rep._model, group, assignment, validated=validated,
                          strategy="enumerate")
     assert out, str(out)
     return group, assignment, validated, out
@@ -170,7 +170,7 @@ def test_lin3g_rep_is_pinned_unique_of_32_by_covariance(lin3g_rep_enum):
     # the survivor is isolated by ~14 orders of magnitude, not by a hair
     assert rep._search["runner_up"] > 1e-3
 
-    assert max(rep.residuals.values()) <= GATE
+    assert max(rep.numerical.residuals.values()) <= GATE
 
     # the four machine-pinned orbital signs, against out101 [0b]'s (-1,-1,+1,+1)
     c4, mirror = rep._generators
@@ -187,7 +187,7 @@ def test_lin3g_rep_is_pinned_unique_of_32_by_covariance(lin3g_rep_enum):
     assert rep._choice["orientation"] == 1
 
     # the represented set is p4mm's double-group lift plus time reversal
-    assert len(rep.indices) == 16
+    assert len(rep._indices) == 16
     assert len(rep.antiunitary) == 8
 
     # the joint gate: covariance alone pins this model, the other two gates are
@@ -325,8 +325,8 @@ def test_lin3g_reps_reproduce_the_product_table_with_spinor_factors(lin3g_rep):
 
     assert set(np.unique(spf)) == {-1, 1}, "a spinful group must have both spinor factors"
     worst, seen = 0.0, set()
-    for a in rep.indices:
-        for b in rep.indices:
+    for a in rep._indices:
+        for b in rep._indices:
             pa, pb = pos[a], pos[b]
             c = int(group._symmetries[int(prod[pa, pb])].ind)
             assert c in rep.matrices, "the represented set is not closed"
@@ -341,7 +341,7 @@ def test_lin3g_reps_reproduce_the_product_table_with_spinor_factors(lin3g_rep):
     # value rather than another call of the routine that filled it.  Two routes
     # over the same pairs of the same matrices in one process, so the honest
     # tolerance is exact: measured 6.67378471839441e-16 on both sides.
-    assert rep.product_residual == pytest.approx(worst, abs=0.0)
+    assert rep.numerical.product_residual == pytest.approx(worst, abs=0.0)
 
     # canonical norms and the anchor, per operation, after normalization
     assert max(rep._norm_residuals.values()) < 1e-13
@@ -407,33 +407,33 @@ def test_kane_mele_at_191_pins_with_default_settings(km191_bundle):
     assert rep._choice["orientation"] == 1
     assert rep._branch_tie is False, "measured by the internal factor, not conventional"
     assert rep._search["branch_note"] is None
-    assert max(rep.residuals.values()) <= GATE
-    assert rep.product_residual < 1e-13 and rep.factor_residual < 1e-13
+    assert max(rep.numerical.residuals.values()) <= GATE
+    assert rep.numerical.product_residual < 1e-13 and rep.numerical.factor_residual < 1e-13
     # the s orbitals' A1 of the site group, returned on this spinful model as the corep -E1
-    assert rep.characters.irreps == ("-E1", "-E1") and rep.characters.residual < 1e-12
+    assert rep._characters.irreps == ("-E1", "-E1") and rep._characters.residual < 1e-12
 
     # ... and it is bit-for-bit what the old workaround produced
     old = _build._build_rep(model, group, assignment, validated=validated,
                          characters={0: "A1"}, orientation_branch=+1)
     assert old, str(old)
     assert max(float(np.abs(old.matrices[i] - rep.matrices[i]).max())
-               for i in rep.indices) == 0.0
+               for i in rep._indices) == 0.0
 
     # the losing branch alone, the internal-factor gate opened
     loser = _build._build_rep(model, group, assignment, validated=validated,
                            orientation_branch=-1, internal_tol=np.inf)
     assert loser, str(loser)
     assert loser._choice["orientation"] == -1
-    assert max(loser.residuals.values()) <= GATE, "exactly as covariant as the winner"
-    assert loser.product_residual < 1e-13, "and exactly as multiplicative"
-    assert loser.factor_residual < 1e-13
+    assert max(loser.numerical.residuals.values()) <= GATE, "exactly as covariant as the winner"
+    assert loser.numerical.product_residual < 1e-13, "and exactly as multiplicative"
+    assert loser.numerical.factor_residual < 1e-13
     assert max(loser._norm_residuals.values()) < 1e-13, "the canonical norms pass too"
     assert max(loser._anchor_residuals.values()) < 1e-13, "and so does the antiunitary anchor"
 
     assert loser._search["internal"] > 0.5, "the one measurement that separates them"
-    assert loser.characters.irreps == ("", ""), \
+    assert loser._characters.irreps == ("", ""), \
         "no row of the site table matches what these blocks measure"
-    assert abs(loser.characters.orbitals[0].generator_character["C3(z)"] + 0.5) < 1e-9
+    assert abs(loser._characters.orbitals[0].generator_character["C3(z)"] + 0.5) < 1e-9
 
     # with the gate at its default, that branch alone is a refusal, not a rep
     record = {}
@@ -582,14 +582,14 @@ def test_a_weakly_broken_4mm_model_restricts_to_its_parent_on_the_pinned_branch(
     # the session's shared record of that call
     parent = p41_substrate
     assert parent, str(parent)
-    assert (parent.group.number_str, len(parent.validated.indices)) == ("99.164", 16)
+    assert (parent.group.number_str, len(parent.numerical.validated._indices)) == ("99.164", 16)
     assert parent.rep._branch_tie is False, "a fourfold's lift settles its own branch"
 
     child = tqg.realized_group(_axially_split(1e-6), environment="substrate",
                                cross_check=False)
     assert child, str(child)
     assert (child.group.number_str, child.group.name) == ("25.58", "Pmm21'")
-    assert len(child.validated.indices) == 8 and child.symmetrization is None
+    assert len(child.numerical.validated._indices) == 8 and child.numerical.symmetrization is None
     assert child.rep._choice["orientation"] == 1
     assert child.rep._branch_tie is True
     assert child.rep._search["n_survivors"] == 2
@@ -607,19 +607,19 @@ def test_a_weakly_broken_4mm_model_restricts_to_its_parent_on_the_pinned_branch(
         "the child IS the parent's restriction: both are the induced representation " \
         "of the content they return"
     assert all(o.determined_by != "declaration"
-               for rep in (parent.rep, child.rep) for o in rep.characters.orbitals), \
+               for rep in (parent.rep, child.rep) for o in rep._characters.orbitals), \
         "nothing was declared, so neither record claims a declaration"
 
     worst = _deviation(child.rep, child.group, parent.rep, parent.group, rho)
     assert worst <= _FEW_ULP, f"roundoff, not a function of delta: got {worst:.3g}"
 
     # the branch is not what any of this is about
-    other = _build._build_rep(child.rep.model, child.group, child.assignment,
-                           validated=child.validated, orientation_branch=-1)
+    other = _build._build_rep(child.rep._model, child.group, child._assignment,
+                           validated=child.numerical.validated, orientation_branch=-1)
     assert other, str(other)
     assert other._choice["orientation"] == -1 and other._branch_tie is False
     assert max(float(np.abs(child.rep.matrices[i] - other.matrices[i]).max())
-               for i in child.rep.indices) <= _FEW_ULP
+               for i in child.rep._indices) <= _FEW_ULP
 
 
 def _square_s_layer(tx=0.30, ty=0.30, t2=0.07):
@@ -656,7 +656,7 @@ def test_the_spinless_4mm_model_never_tied_and_restricts_exactly():
     parent = tqg.realized_group(_square_s_layer(), environment="substrate",
                                 cross_check=False)
     assert parent, str(parent)
-    assert (parent.group.number_str, len(parent.validated.indices)) == ("99.164", 16)
+    assert (parent.group.number_str, len(parent.numerical.validated._indices)) == ("99.164", 16)
     assert parent.rep._branch_tie is False
     assert (parent.rep._search["n_candidates"], parent.rep._search["n_distinct"]) == (2, 1), \
         "both branches were built and they are the same matrices"
@@ -664,7 +664,7 @@ def test_the_spinless_4mm_model_never_tied_and_restricts_exactly():
     child = tqg.realized_group(_square_s_layer(ty=0.31), environment="substrate",
                                cross_check=False)
     assert child, str(child)
-    assert (child.group.number_str, len(child.validated.indices)) == ("25.58", 8)
+    assert (child.group.number_str, len(child.numerical.validated._indices)) == ("25.58", 8)
     assert child.rep._branch_tie is False
     assert (child.rep._search["n_candidates"], child.rep._search["n_distinct"]) == (2, 1)
 
@@ -824,23 +824,23 @@ def test_a_pure_ebr_is_the_induced_representation_in_the_tables_convention(
     got = tqg.realized_group(model, environment=environment, cross_check=False)
     assert got, str(got)
     assert (got.group.number_str, got.group.name) == ("25.58", "Pmm21'")
-    assert len(got.validated.indices) == 8
+    assert len(got.numerical.validated._indices) == 8
 
     rep = got.rep
     assert rep._choice["orientation"] == 1
     assert rep._branch_tie is True, "every element is an involution; no gate can choose"
     assert rep._search["n_survivors"] == 2
     assert "pinned by convention" in rep._search["branch_note"]
-    assert all(o.determined_by != "declaration" for o in rep.characters.orbitals), \
+    assert all(o.determined_by != "declaration" for o in rep._characters.orbitals), \
         "the labelling is a declaration's to fix and none was made"
-    (induces,) = rep.characters.band_representations
+    (induces,) = rep._characters.band_representations
     assert [(m, position.split("(")[0]) for m, _name, position in induces.terms] == \
         [(1 if orbit == "1a" else 2, "1a")]
     assert [[position.split("(")[0] for _m, _name, position in terms]
             for terms in induces.alternatives] == \
         ([] if orbit == "1a" else [["1b"], ["1c"], ["1d"]])
 
-    induced = _induced_rep(rep.model, got.group, got.assignment, set(rep.indices))
+    induced = _induced_rep(rep._model, got.group, got._assignment, set(rep._indices))
     measured, defect = {}, 0.0
     for ind, Dind in induced.items():
         r, res = _matrices._proportionality(np.asarray(rep.matrices[ind]), Dind)
@@ -868,10 +868,10 @@ def test_a_pure_ebr_is_the_induced_representation_in_the_tables_convention(
     assert worst <= _FEW_ULP, \
         f"measured 2.4e-16 (1a) / 3.1e-16 (2-fold), got {worst:.3g}"
 
-    other = _build._build_rep(rep.model, got.group, got.assignment,
-                           validated=got.validated, orientation_branch=-1)
+    other = _build._build_rep(rep._model, got.group, got._assignment,
+                           validated=got.numerical.validated, orientation_branch=-1)
     assert other, str(other)
-    shared = [i for i in rep.indices if i in other.matrices]
+    shared = [i for i in rep._indices if i in other.matrices]
     assert max(float(np.abs(rep.matrices[i] - other.matrices[i]).max())
                for i in shared) <= _FEW_ULP, \
         "the branch is not what lambda is (measured 2.4e-16 / 3.7e-16)"
@@ -886,10 +886,10 @@ def test_a_pure_ebr_is_the_induced_representation_in_the_tables_convention(
         b2_of = {int(s.ind): b2[_sitechars.operation_name(s, got.group._lattice)]
                  for s in got.group._symmetries if int(s.ind) in induced}
         declared = _build._build_rep(
-            rep.model, got.group, got.assignment, validated=got.validated,
+            rep._model, got.group, got._assignment, validated=got.numerical.validated,
             characters={0: "B2"})
         assert declared, str(declared)
-        assert [o.determined_by for o in declared.characters.orbitals][0] == "declaration"
+        assert [o.determined_by for o in declared._characters.orbitals][0] == "declaration"
         assert max(float(np.abs(np.asarray(declared.matrices[ind])
                                 - b2_of[ind] * Dind).max())
                    for ind, Dind in induced.items()) <= _FEW_ULP, \
@@ -949,15 +949,15 @@ def test_a_spinful_s_orbital_off_the_mirror_planes_is_the_tables_induced_represe
     assert got, str(got)
     assert got.group.number_str == number
     rep = got.rep
-    assert all(o.determined_by == "lowest-l" for o in rep.characters.orbitals), \
+    assert all(o.determined_by == "lowest-l" for o in rep._characters.orbitals), \
         "the other spinor fits the hoppings as well; the s labelling is the lowest-l rule's"
-    assert len(set(rep.characters.irreps)) == 1, "one orbit, one site label"
+    assert len(set(rep._characters.irreps)) == 1, "one orbit, one site label"
 
     # the served block against the tables' lift, transport included
     ref = int(rep._reference["orbital"])
-    perm = np.asarray(got.assignment.permutations, dtype=int)
-    site_orbs = got.assignment.site_orbitals
-    ref_site = int(np.asarray(got.assignment.site_of_orbital)[ref])
+    perm = np.asarray(got._assignment.permutations, dtype=int)
+    site_orbs = got._assignment.site_orbitals
+    ref_site = int(np.asarray(got._assignment.site_of_orbital)[ref])
     checked, moved, worst = 0, 0, 0.0
     for pos, s in enumerate(got.group._symmetries):
         ind = int(s.ind)
@@ -984,21 +984,21 @@ def test_a_spinful_s_orbital_off_the_mirror_planes_is_the_tables_induced_represe
                     out[str(lab)] = out.get(str(lab), 0) + int(v)
         return out
 
-    table = tqw.hsp_table(rep, bands=int(model.nstate))
+    table = tqw.hsp_table(got, bands=int(model.nstate))
     assert table.complete and table.refusals == {}, name
     counts = {str(k): int(v) for k, v in table.counts.items()}
     assert counts == total(rows), name
     assert counts != total(other_rows), "the two spinor rows differ, so the check has teeth"
 
     # ... and the other spinor is the declared odd / A2 orbital
-    declared = _build._build_rep(model, got.group, got.assignment, validated=got.validated,
+    declared = _build._build_rep(model, got.group, got._assignment, validated=got.numerical.validated,
                               characters={0: other})
     assert declared, str(declared)
     # the declaration fixes the character on the SITE group only; the group is
     # larger, so several global characters restrict to it, and the row it is
     # made about is the declaration's while the rest are measured against it
-    assert declared.characters.orbitals[0].determined_by == "declaration"
-    t2 = tqw.hsp_table(declared, bands=int(model.nstate))
+    assert declared._characters.orbitals[0].determined_by == "declaration"
+    t2 = tqw._hsp_table_rep(declared, bands=int(model.nstate))
     assert {str(k): int(v) for k, v in t2.counts.items()} == total(other_rows), name
 
 
@@ -1019,8 +1019,8 @@ def test_antiunitary_anchor_catches_a_planted_minus_i(lin3g_rep):
     its canonical norm ``T**2 = -1`` constrains none, and the record says so.
     """
     group, assignment, validated, rep = lin3g_rep
-    model = rep.model
-    c4 = next(ind for ind in rep.indices
+    model = rep._model
+    c4 = next(ind for ind in rep._indices
               if rep._operation(ind).angle_str.strip() == "1/2 pi"
               and not rep._operation(ind).time_reversal
               and not rep._operation(ind).inversion)
@@ -1092,7 +1092,7 @@ def test_normalize_rep_refuses_a_matrix_that_represents_nothing(lin3g_rep):
     benign = rep.matrices[c4].copy()
     benign[0, :] *= 1j
     assert np.abs(np.linalg.matrix_power(benign, 4)
-                  + np.eye(rep.model.nstate)).max() < 1e-13     # invisible
+                  + np.eye(rep._model.nstate)).max() < 1e-13     # invisible
 
     junk = rep.matrices[c4].copy()
     junk[0, :] *= np.exp(1j * np.pi / 3.0)
@@ -1116,11 +1116,11 @@ def test_normalize_rep_refuses_when_the_anchor_disagrees(lin3g_rep):
     c4 = rep._generators[0]
     tr = rep.antiunitary[0]
     T = rep.matrices[tr]
-    twist = np.kron(np.eye(rep.model.norb), np.diag([1.0, -1j]))
+    twist = np.kron(np.eye(rep._model.norb), np.diag([1.0, -1j]))
     spoiled = rep.matrices[c4] @ twist
-    assert np.abs(spoiled.conj().T @ spoiled - np.eye(rep.model.nstate)).max() < 1e-12
+    assert np.abs(spoiled.conj().T @ spoiled - np.eye(rep._model.nstate)).max() < 1e-12
     assert np.abs(np.linalg.matrix_power(spoiled, 4)
-                  + np.eye(rep.model.nstate)).max() < 1e-13    # the norm is satisfied
+                  + np.eye(rep._model.nstate)).max() < 1e-13    # the norm is satisfied
 
     anchor = tqs.RepAnchor(antiunitary=T, rows=(0, 1), cols=(0, 1))
     out = tqs.normalize_rep(spoiled, rep._operation(c4), group, anchor=anchor)
@@ -1145,9 +1145,9 @@ def test_bloch_covariance_battery_on_a_permuted_wyckoff_orbit(inline_rep):
     assert rep._search["n_survivors"] == 1
     # one orbital per site, so there is nothing at any site to bind: every
     # multiplet is one orbital, and every internal factor is the tables' lift
-    assert rep.multiplets.determined_by == "hamiltonian"
-    assert rep.multiplets.by_site == (((0,),), ((1,),), ((2,),))
-    assert rep.multiplets.dims == ((1,), (1,), (1,))
+    assert rep._multiplets.determined_by == "hamiltonian"
+    assert rep._multiplets.by_site == (((0,),), ((1,),), ((2,),))
+    assert rep._multiplets.dims == ((1,), (1,), (1,))
 
     # the orbit really is permuted, with a nonzero integer lattice shift
     pos = {int(s.ind): i for i, s in enumerate(group._symmetries)}
@@ -1160,7 +1160,7 @@ def test_bloch_covariance_battery_on_a_permuted_wyckoff_orbit(inline_rep):
     k = rng.uniform(-0.5, 0.5, size=(8, 2))
     H = np.asarray(model.hamiltonian(k_pts=k, flatten_spin_axis=True))
     worst_unwrapped = worst_wrapped = 0.0
-    for ind in rep.indices:
+    for ind in rep._indices:
         op = rep._operation(ind)
         kp = rep.transform_k(ind, k)
         # fold the image back by a *random nonzero* reciprocal-lattice vector, so the
@@ -1181,7 +1181,7 @@ def test_bloch_covariance_battery_on_a_permuted_wyckoff_orbit(inline_rep):
                             float(np.abs(Uw @ src @ np.conj(Uw.transpose(0, 2, 1)) - Hw).max()))
     assert worst_unwrapped <= GATE
     assert worst_wrapped <= GATE
-    assert rep.product_residual < 1e-13
+    assert rep.numerical.product_residual < 1e-13
 
 
 def test_bloch_operator_row_phases_follow_the_preimage(inline_rep):
@@ -1220,7 +1220,7 @@ def test_embedding_phase_sign_is_pinned_at_third_lattice_vectors(km_odd):
     H = np.asarray(km_odd.hamiltonian(k_pts=k, flatten_spin_axis=True))
     tau_state = np.repeat(tau, km_odd.nspin, axis=0)
     good = bad = 0.0
-    for ind in rep.indices:
+    for ind in rep._indices:
         op = rep._operation(ind)
         kp = rep.transform_k(ind, k)
         n = rng.integers(1, 3, size=kp.shape) * rng.choice([-1, 1], size=kp.shape)
@@ -1247,7 +1247,7 @@ def test_sewing_operators_commute_with_H_at_high_symmetry_points(lin3g_rep):
     by an integer reciprocal-lattice vector ``in_little_group`` returns.
     """
     group, assignment, validated, rep = lin3g_rep
-    model = rep.model
+    model = rep._model
     name, k = "M", [0.5, 0.5]
     little = rep.little_group(k)
     assert little, f"{name} has an empty little group"
@@ -1286,22 +1286,34 @@ def test_the_representation_commutes_with_H_at_k_points_the_build_never_saw(lin3
 # 7.  what a representation prints
 # ---------------------------------------------------------------------------
 
-def test_repr_smoke(lin3g_rep, lin3g_rep_enum):
-    """The repr names the group, the multiplets and the residuals.
+def test_repr_smoke(lin3g_rep, lin3g_rep_enum, realized):
+    """The repr names the states and the residuals; each Wyckoff orbit induces its own sum.
 
     How the one survivor was found is the search record's own business
     (``search["strategy"]``), not the line a representation prints: the
     read-off and the enumeration return one representation, and print it alike.
-    The group's symbol fixes how many operations it has, so no count is printed.
+
+    The band representation of each row of the atomic-limit table is read on
+    the row's own orbitals: lin3g's two ``1a`` orbitals, one Wyckoff orbit each,
+    induce ``-E1`` and ``-E2`` at ``1a`` apart, where the orbit of the ``1a``
+    site holds both, and the ``2c`` pair ``-E`` at ``2c``.
     """
     group, assignment, validated, rep = lin3g_rep
     text = repr(rep)
-    assert text.startswith(f"SpaceGroupRep({group.name} #{group.number_str}, ")
-    assert " ops" not in text and "antiunitary" not in text
-    assert " multiplets" in text and "covariance<=" in text and "product=" in text
+    assert text.startswith("SpaceGroupRep(8 states, ")
+    assert " ops" not in text and "antiunitary" not in text and group.name not in text
+    assert "covariance<=" in text and "product=" in text
     assert "1 of" not in text and "read off" not in text
     assert "NormalizedRep" in repr(rep._normalization[rep._generators[0]])
     assert repr(lin3g_rep_enum[3]) == text
+
+    r = realized(tqc_models.lin3g, typat=[0, 0, 1, 1])
+    assert r, str(r)
+    sums = [o.band_representation for o in r.wyckoff_orbits]
+    assert [s.label for s in sums] == ["-E1 at 1a (4mm1')", "-E2 at 1a (4mm1')",
+                                       "-E at 2c (mm21')"]
+    assert sums[0].terms == (tqg.Term(1, "-E1", "1a", "4mm1'", "4mm"),)
+    assert [len(s) for s in sums] == [1, 1, 1]
 
 
 # ---------------------------------------------------------------------------
@@ -1409,8 +1421,8 @@ def test_the_positivity_tie_is_what_left_the_unitary_gauge_free(i41_soc_unitary)
     trig = _spacegroup._group_of(flat, spinor=False, include_TR=False)
     assert (trig.number_str, trig._size, trig.spinor) == ("166", 12, False), str(trig)
     _trig, _tassign, tvalid, srep = _rep_bundle(flat, group=trig, nk=4)
-    assert len(tvalid.indices) == 12 and srep, str(srep)
-    assert srep.antiunitary_operator[0] is None and srep.multiplets.dims == ((2,), (2,)), \
+    assert len(tvalid._indices) == 12 and srep, str(srep)
+    assert srep._time_reversal is None and srep._multiplets.dims == ((2,), (2,)), \
         "each spinor is one measured doublet, and the group ships no T"
     six = next(int(i) for i in srep._generators if srep._normalization[int(i)].order == 6)
     two = next(int(i) for i in srep._generators if srep._normalization[int(i)].order == 2)
@@ -1422,7 +1434,7 @@ def test_the_positivity_tie_is_what_left_the_unitary_gauge_free(i41_soc_unitary)
     D6, D2 = np.asarray(srep.matrices[six]), np.asarray(srep.matrices[two])
     eye = np.eye(D6.shape[0])
     assert np.abs(D6 @ D2 @ D6 @ D2 - eye).max() < 1e-12, "(S3 C2')^2 = E"
-    states, ref = srep.multiplets._chan_states, int(srep._reference["multiplet"])
+    states, ref = srep._multiplets._chan_states, int(srep._reference["multiplet"])
     img = next(c for c in range(len(states))
                if np.abs(D6[np.ix_(states[c], states[ref])]).max() > 0.5)
     unpinned = tqs.normalize_rep(D6, srep._operation(six), trig, anchor=tqs.RepAnchor(
@@ -1434,11 +1446,11 @@ def test_the_positivity_tie_is_what_left_the_unitary_gauge_free(i41_soc_unitary)
     assert np.abs((lam * D6) @ D2 @ (lam * D6) @ D2 - eye).max() == pytest.approx(
         np.sqrt(3.0), abs=1e-9), "and what it misses the table by"
 
-    assert srep.product_residual < 1e-12
-    assert max(srep.residuals.values()) <= srep._search["gate"]
-    assert srep.characters.irreps == ("E",) * 4
-    assert {(o.wyckoff, o.site_symmetry) for o in srep.characters.orbitals} == {("6c", "3m")}
-    assert srep.characters.residual < 1e-12, "the site blocks close single-valued"
+    assert srep.numerical.product_residual < 1e-12
+    assert max(srep.numerical.residuals.values()) <= srep._search["gate"]
+    assert srep._characters.irreps == ("E",) * 4
+    assert {(o.wyckoff, o.site_symmetry) for o in srep._characters.orbitals} == {("6c", "3m")}
+    assert srep._characters.residual < 1e-12, "the site blocks close single-valued"
 
 
 def test_the_table_anchor_errors_rather_than_refusing(monkeypatch):
@@ -1611,7 +1623,7 @@ def test_the_skipped_reference_block_is_a_branch_covariance_has_already_killed()
     # statement that no test pins.
     rep = _build._build_rep(model, group, assignment, validated=validated, n_battery=5,
                          strategy="enumerate")
-    assert rep and rep.antiunitary_operator[0] is None, str(rep)
+    assert rep and rep._time_reversal is None, str(rep)
 
     gen = int(rep._generators[0])
     p = next(i for i, s in enumerate(group._symmetries) if int(s.ind) == gen)
@@ -1710,7 +1722,7 @@ def test_a_spinless_model_asked_with_double_valued_tables_refuses(
     which ask would not be refused.
     """
     model, group, assignment, validated = spinless_asked_double_valued
-    assert len(validated.indices) == 12 and len(validated.broken) == 12, \
+    assert len(validated._indices) == 12 and len(validated.broken) == 12, \
         "the Haldane mass and flux refute half of P6/mmm; the group still stands"
 
     try:
@@ -1898,12 +1910,12 @@ def test_the_readoff_returns_the_enumerations_representation(readoff_pairs, name
     assert ro._choice == en._choice, "the same signs and the same orientation branch"
     assert ro._generators == en._generators and tuple(ro._classes) == tuple(en._classes)
     worst = max(float(np.abs(np.asarray(ro.matrices[i]) - np.asarray(en.matrices[i])).max())
-                for i in en.indices)
+                for i in en._indices)
     assert worst == 0.0, f"bit-identical matrices, got {worst:.3g}"
 
-    for ind in en.indices:
-        assert ro.residuals[ind] == en.residuals[ind]
-    assert ro.product_residual == en.product_residual
+    for ind in en._indices:
+        assert ro.numerical.residuals[ind] == en.numerical.residuals[ind]
+    assert ro.numerical.product_residual == en.numerical.product_residual
     assert ro._search["internal"] == en._search["internal"]
     assert ro._search["product"] == en._search["product"]
     assert ro._search["n_survivors"] == en._search["n_survivors"] == 1
@@ -1942,7 +1954,7 @@ def test_an_enumeration_larger_than_max_candidates_is_refused_not_run(lin3g_rep)
     """
     group, assignment, validated, rep = lin3g_rep
 
-    out = _build._build_rep(rep.model, group, assignment, validated=validated,
+    out = _build._build_rep(rep._model, group, assignment, validated=validated,
                          strategy="enumerate", max_candidates=8)
     assert not out and out.gate == "rep_search_too_large", str(out)
     assert out.value == 32 and out.threshold == 8
@@ -1954,7 +1966,7 @@ def test_an_enumeration_larger_than_max_candidates_is_refused_not_run(lin3g_rep)
     assert "32 candidates" in out.reason.replace(",", "")
 
     # the read-off does not enumerate, so the same ceiling is no obstacle
-    fine = _build._build_rep(rep.model, group, assignment, validated=validated,
+    fine = _build._build_rep(rep._model, group, assignment, validated=validated,
                           max_candidates=1)
     assert fine, str(fine)
     assert fine._search["strategy"] == "readoff" and fine._choice == rep._choice
@@ -1962,10 +1974,10 @@ def test_an_enumeration_larger_than_max_candidates_is_refused_not_run(lin3g_rep)
 
     # nothing to read defers to the enumeration, which builds what the read-off
     # reads and records why it ran
-    lean = _measure._validate_group(rep.model, group, nk=6, keep_intertwiners=False)
+    lean = _measure._validate_group(rep._model, group, nk=6, keep_intertwiners=False)
     assert lean._intertwiners == {} and lean._bases == {}
-    assert set(rep.indices) <= set(lean.indices), "the same operations survive"
-    deferred = _build._build_rep(rep.model, group, assignment, validated=lean)
+    assert set(rep._indices) <= set(lean._indices), "the same operations survive"
+    deferred = _build._build_rep(rep._model, group, assignment, validated=lean)
     assert deferred, str(deferred)
     s = deferred._search
     assert s["strategy"] == "enumerate" and s["requested"] == "readoff"
@@ -1977,10 +1989,10 @@ def test_an_enumeration_larger_than_max_candidates_is_refused_not_run(lin3g_rep)
     assert deferred._choice == rep._choice
     assert max(float(np.abs(np.asarray(deferred.matrices[i])
                             - np.asarray(rep.matrices[i])).max())
-               for i in rep.indices) == 0.0, "the representation the read-off reads"
+               for i in rep._indices) == 0.0, "the representation the read-off reads"
 
     # ... and when the read-off defers, the ceiling is what it defers into
-    stuck = _build._build_rep(rep.model, group, assignment, validated=lean,
+    stuck = _build._build_rep(rep._model, group, assignment, validated=lean,
                            max_candidates=1)
     assert not stuck and stuck.gate == "rep_search_too_large", str(stuck)
     assert stuck.value == 32 and stuck.threshold == 1
@@ -2053,7 +2065,7 @@ def sc108_bundle():
     assignment = _tables._assign_orbitals(model, group, typat=typat)
     assert assignment, str(assignment)
     validated = _measure._validate_group(model, group, nk=3)
-    assert len(validated.indices) == 4, str(validated)
+    assert len(validated._indices) == 4, str(validated)
     return model, group, assignment, validated
 
 
@@ -2089,16 +2101,16 @@ def test_the_readoff_builds_what_the_enumeration_must_refuse(sc108_bundle):
     assert rep._search["strategy"] == "readoff"
     assert rep._search["n_candidates"] == 1 and rep._search["n_enumeration"] == 2 ** 26
     assert len(rep._choice["signs"]) == 26
-    assert rep.multiplets.determined_by == "hamiltonian" and all(
-        d == 1 for dims in rep.multiplets.dims for d in dims), \
+    assert rep._multiplets.determined_by == "hamiltonian" and all(
+        d == 1 for dims in rep._multiplets.dims for d in dims), \
         "one orbital per site: one multiplet per orbital, and no block to measure"
     # ``<= GATE`` would restate ``assert rep`` (the winner closed that gate to be
     # served at all), so the covariance is pinned where it landed instead
-    assert max(rep.residuals.values()) < 1e-14, \
-        f"measured 5.5e-16; got {max(rep.residuals.values()):.3g}"
-    assert rep.product_residual < 1e-12
+    assert max(rep.numerical.residuals.values()) < 1e-14, \
+        f"measured 5.5e-16; got {max(rep.numerical.residuals.values()):.3g}"
+    assert rep.numerical.product_residual < 1e-12
     assert rep._search["ansatz_defect"] < 1e-10
     assert max(rep._search["defects"].values()) < 1e-11
     print(f"\nn = 108: read-off build {seconds:.2f} s "
-          f"(measured 0.24 s), covariance {max(rep.residuals.values()):.1e}")
+          f"(measured 0.24 s), covariance {max(rep.numerical.residuals.values()):.1e}")
     assert seconds < 30.0, "measured 0.24 s; this bound is for a regression to minutes"

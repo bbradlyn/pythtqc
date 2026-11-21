@@ -595,7 +595,7 @@ def test_the_same_content_sweep_over_every_tabulated_system():
 
 def test_stably_equivalent_pairs_takes_a_measured_group_too(lin3g_declared_cross_checked):
     """A ``GroupData`` works as well as a table, and ``P4mm1'`` has no such pair."""
-    _model, group, _assignment, _validated, _rep = lin3g_declared_cross_checked
+    group = lin3g_declared_cross_checked.group
     assert tqr.stably_equivalent_pairs(group) == ()
     assert tqr.stably_equivalent_pairs(tqr.srsi_tables(group)) == ()
 
@@ -850,8 +850,8 @@ def test_the_band_set_is_one_keyword_on_both_routes(lin3g_declared_cross_checked
     with pytest.raises(TypeError, match="missing required argument"):
         tqr.splitting(record)
 
-    _model, group, _assignment, _validated, rep = record
-    table = tqw.hsp_table(rep, bands=4)
+    group, rep = record.group, record.rep
+    table = tqw.hsp_table(record, bands=4)
     by_list = tqr.srsi_of_bands(table, group, rep=rep, bands=[0, 1, 2, 3])
     assert by_list.n_bands == 4
     assert by_list.theta_Z == tqr.srsi_of_bands(table, group, rep=rep).theta_Z, \

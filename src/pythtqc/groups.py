@@ -56,11 +56,18 @@ from ._tables import (
     high_symmetry_points, identify_from_characters, indicator_group, k_grid,
     little_group, wyckoff_sites_tables)
 from ._layers import DECORATION_DZ, SLAB_C, STACK_C, stack_presentation
-from ._measure import ValidatedGroup
-from ._realized import RealizedGroup, realized_group
+from ._measure import Discrepancy, ValidatedGroup
+from ._realized import (
+    BeyondGrey, BeyondGreyOperation, Conserved, ConservedSector, CrossCheck,
+    CrossCheckOperation, CrossCheckRefusal, CrossCheckRow, DeclaredReduction, Decoration,
+    ExcludedOperation,
+    Descent, DescentCell, DescentStep, DroppedOperation, LayerEnvironment, NamedGroup,
+    Positions, Precision, Presentation, PresentationTilt, RealizedGroup,
+    RealizedGroupNumerical, StepCenters, StepDeclaration, StepTie, TimeReversal,
+    TimeReversalSquare, realized_group)
 
 __all__ = [
-    "GroupData", "LittleGroup", "OrbitalAssignment",
+    "GroupData", "LittleGroup",
     "IrrepContent", "KGrid", "ValidatedGroup", "HighSymmetryPoints",
     "Operation", "OperationTable", "Term", "EBRData", "EBRConvention",
     "tables_status",
@@ -69,6 +76,13 @@ __all__ = [
     "high_symmetry_points", "corep_table", "identify_from_characters", "ebr_data",
     "indicator_group", "decompose_ebrs", "k_grid",
     "RealizedGroup", "realized_group", "stack_presentation",
+    "RealizedGroupNumerical", "LayerEnvironment", "Descent", "DescentStep", "DescentCell",
+    "StepDeclaration", "StepCenters", "StepTie", "DroppedOperation", "NamedGroup",
+    "TimeReversal", "TimeReversalSquare", "BeyondGrey", "BeyondGreyOperation", "Conserved",
+    "ConservedSector", "CrossCheck", "CrossCheckRow", "CrossCheckOperation",
+    "CrossCheckRefusal", "Decoration", "DeclaredReduction", "ExcludedOperation", "Positions",
+    "Precision",
+    "Presentation", "PresentationTilt", "Discrepancy",
     "SLAB_C", "STACK_C",
     "DECORATION_DZ",
     "SiteReference", "wyckoff_sites_tables",

@@ -573,7 +573,7 @@ class Tolerances:
         return noise_floor(exact, self.matrix)
 
     def returned(self) -> dict | None:
-        r"""What a declared precision derived, as :attr:`..groups.RealizedGroup.precision` holds it.
+        r"""What a declared precision derived, as :attr:`.._realized.RealizedGroupNumerical.precision` holds it.
 
         Returns
         -------

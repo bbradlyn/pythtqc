@@ -305,12 +305,11 @@ chiral_model.set_hop(T_CHIRAL_A * PAULI_0, 1, 1, [1, -1], mode="add")
 chiral_model.set_hop(T_CHIRAL_B * PAULI_0, 1, 1, [1, 1], mode="add")
 
 realized = tqc.realized_group(chiral_model)
-model, group, assignment, validated, rep = realized
-sites = tqc.wyckoff_sites_tables(group, assignment.site_positions)   # each site's Wyckoff position
+group = realized.group
 row("chiral pattern", f"t_a = {T_CHIRAL_A} along (1,1) and t_b = {T_CHIRAL_B} along (1,-1) on "
     "the", "x site, the two swapped on the y site")
 row("with the pattern", f"realized group #{group.number_str} {group.name}, orbitals at Wyckoff "
-    f"{sites[0].wyckoff}, where the",
+    f"{realized.wyckoff_orbits[0].wyckoff}, where the",
     "paper puts its Kramers pairs, measured from the Hamiltonian with nothing declared")
 
 # ... and the pattern is a deformation of the supplement's model: the two band
@@ -360,9 +359,9 @@ row("with the pattern", f"bands 0 and 1 from {energies[:, :2].min():.6f} to "
     "from", f"{energies[:, 2].min():.6f} to {energies[:, 3].max():.6f}, moved at second order")
 row("bands 1 and 2", f"gap {energies[:, 2].min() - energies[:, 1].max():.6f} with the pattern")
 
-t_valence = tqc.hsp_table(rep, bands=[0, 1])
+t_valence = tqc.hsp_table(realized, bands=[0, 1])
 b_valence = tqc.srsi_of_bands(t_valence)
-t_conduction = tqc.hsp_table(rep, bands=[2, 3])
+t_conduction = tqc.hsp_table(realized, bands=[2, 3])
 b_conduction = tqc.srsi_of_bands(t_conduction)
 d_valence = tqc.decompose(t_valence)
 d_conduction = tqc.decompose(t_conduction)

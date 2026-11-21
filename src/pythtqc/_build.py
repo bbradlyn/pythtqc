@@ -31,7 +31,7 @@ from ._matrices import (
     covariance_gate)
 from ._grammar import _declaration_grammar
 from ._naming import _site_tables
-from .symmetry import MultiplicitySpace, SpaceGroupRep, _fold
+from .symmetry import _MultiplicitySpace, SpaceGroupRep, SpaceGroupRepNumerical, _fold
 from ._multiplets import (
     _channel_perms, _factor_said, _multiplet_blocks, _orbit_factor, _site_multiplets)
 from ._declaration import (
@@ -475,7 +475,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
 
     Returns one matrix ``D(g)`` per operation the Hamiltonian obeys: the
     representation induced from the site content
-    :attr:`SpaceGroupRep.characters` returns — each orbital's Wyckoff position,
+    ``SpaceGroupRep._characters`` holds — each orbital's Wyckoff position,
     site symmetry and site irrep — in the tables' convention (spin along
     ``+z``, a right-handed frame).  It is the object every corep label is read
     through.  The construction is the tensor
@@ -508,7 +508,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
        fixes, the block must be ``χ(g)·S(g)`` with ``S(g)`` the operation's own
        ``sym.spinor_rotation``: ``max ‖B(g) − χ(g)S(g)‖ ≤ internal_tol``, the
        same defect the site characters are read off
-       (:attr:`AtomicLimitTable.residual`).  A candidate that fails this
+       (:attr:`_OrbitalTable.residual`).  A candidate that fails this
        commutes with ``H`` exactly as the group demands but is **not the matrix
        set of these operations**, and no orbital of it has a site character to
        declare or to label.
@@ -563,7 +563,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
     image -- averages to, at the lowest angular momentum.  Then the band labels
     themselves: the candidate whose labels come first in the tables' order at
     the high-symmetry points.  Last the group's own order of operations, on
-    which no band label rests (:attr:`AtomicLimitRow.determined_by`, and
+    which no band label rests (:attr:`_OrbitalRow.determined_by`, and
     :func:`..sewing.hsp_table`'s note).  A part the hoppings leave free of
     the rest is brought to its own canonical norm, and the key reads it from
     its first orbital unless it holds the reference one.  Where the
@@ -573,7 +573,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
     copies carry is left open as well, and it moves the site content: the same
     key chooses it, the copies read copy by copy first, among the
     representations the group's own table admits
-    (:attr:`AtomicLimitTable.multiplicity_spaces`); so it chooses among every
+    (:attr:`_OrbitalTable.multiplicity_spaces`); so it chooses among every
     representation induced on uncoupled orbitals a symmetry exchanges, where
     those carry what no one-dimensional character gives.  Where the
     model's own blocks carry noise within a hundred times ``internal_tol`` the
@@ -583,7 +583,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
 
     This is one of the pieces :func:`..groups.realized_group` already ran, and
     it is re-runnable with different arguments on a group already in hand —
-    ``_build_rep(r.model, r.group, r.assignment, validated=r.validated,
+    ``_build_rep(r.model, r.group, r._assignment, validated=r.numerical.validated,
     multiplets=...)``, or with a different ``characters=`` or ``generators=``.
 
     Parameters
@@ -717,7 +717,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
         them either.  Whether a flat layer's own orbital content nevertheless
         determines the action is a question only a built representation answers,
         by covariance.  Left out, they are not in the representation's
-        :attr:`SpaceGroupRep.indices`.
+        ``SpaceGroupRep._indices``.
     strategy : {"readoff", "enumerate"}, optional
         How the candidates are **found**.  ``"readoff"`` (the default) measures
         the free factors off the detector's own solution space — when the tensor
@@ -780,7 +780,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
         The single surviving candidate: one matrix per represented operation,
         the record of what pinned every discrete choice, and the resolved site
         character of every orbital.  It records no environment
-        (:attr:`SpaceGroupRep.environment` is ``None``); the representation
+        (``SpaceGroupRep._environment`` is ``None``); the representation
         :func:`..groups.realized_group` returns keeps the environment it was
         read in.
 
@@ -950,13 +950,13 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
     * **The environment is not set here.**  Nothing in this construction knows
       whether a 2D model's layer is free-standing or substrate-bound — that is
       :func:`..groups.realized_group`'s resolved verdict, stamped on the record
-      it returns — so :attr:`SpaceGroupRep.environment` and
-      :attr:`SpaceGroupRep.free_standing_group` are ``None`` on a
+      it returns — so ``SpaceGroupRep._environment`` and
+      ``SpaceGroupRep._free_standing_group`` are ``None`` on a
       representation built here.  :func:`..ebr.symmetry_indicator` reads a
       layer's class in the group handed in either way.
-    * ``SpaceGroupRep.residuals`` (covariance), ``._norm_residuals``
+    * ``SpaceGroupRep.numerical.residuals`` (covariance), ``._norm_residuals``
       (``D^n = ζ``), ``._anchor_residuals`` (``T conj(D) T† = D``),
-      ``.product_residual`` and ``.factor_residual`` are all re-measured on the
+      ``.numerical.product_residual`` and ``.numerical.factor_residual`` are all re-measured on the
       returned matrices.
 
     Examples
@@ -965,9 +965,9 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
     site's orbitals stated as one multiplet instead of measured::
 
         r = tqc.realized_group(model, characters={0: "s"})
-        rep = _build_rep(r.model, r.group, r.assignment,
-                         validated=r.validated,
-                         multiplets=[[orbs] for orbs in r.assignment.site_orbitals])
+        rep = _build_rep(r.model, r.group, r._assignment,
+                         validated=r.numerical.validated,
+                         multiplets=[[orbs] for orbs in r._assignment.site_orbitals])
     """
     ops = _represented_operations(model, group, assignment, validated=validated,
                                   multiplets=multiplets, characters=characters, spin=spin,
@@ -1072,7 +1072,7 @@ def _represented_operations(model, group, assignment, *, validated, multiplets, 
     if spin is not None and not bool(group.spinor):
         raise ValueError(
             f"the orbitals were declared to carry spin (`spin=`, a "
-            f"{spin.kind!r} spinor basis on {spin.norb} orbitals) and #{group.number_str} "
+            f"{spin._kind!r} spinor basis on {spin._norb} orbitals) and #{group.number_str} "
             f"is a group of single-valued tables: states that carry spin-1/2 have a "
             f"double-valued content, which those tables do not describe.")
 
@@ -1153,7 +1153,7 @@ def _represented_operations(model, group, assignment, *, validated, multiplets, 
 
     # ---- 1. which operations are candidates for representation -------------
     if operations is None:
-        cand = [pos_of_ind[int(i)] for i in validated.indices]
+        cand = [pos_of_ind[int(i)] for i in validated._indices]
     else:
         cand = [pos_of_ind[int(i)] for i in operations]
     if ident not in cand:
@@ -1595,7 +1595,7 @@ def _candidate_battery(model, group, ops, mul, meas, *, k_pts, n_battery, seed, 
     # positivity) and propagate along the same BFS tree.  Written as a function
     # of the candidate rather than of the winner so that the product-table gate
     # can run on the matrices the object will carry: `search["product"]`
-    # and `SpaceGroupRep.product_residual` are then the same measurement rather
+    # and `SpaceGroupRep.numerical.product_residual` are then the same measurement rather
     # than two drafts of it.  Cheap enough because it runs only on candidates
     # that already closed the covariance and internal-factor gates.
     #
@@ -1904,8 +1904,8 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
     # dies here rather than in a dedicated gate.  Say so, or the model gets
     # debugged instead of the declaration.
     spin_hint = ("" if spin is None else
-                 f" A `spin=` declaration is in force ({spin.kind!r} spinor basis on "
-                 f"{spin.norb} orbitals); a wrong pairing -- partners swapped, up and down "
+                 f" A `spin=` declaration is in force ({spin._kind!r} spinor basis on "
+                 f"{spin._norb} orbitals); a wrong pairing -- partners swapped, up and down "
                  f"exchanged, or the wrong layout for this wannier90 file -- fails exactly "
                  f"here, so check the declaration against the file before the model.")
     # WHAT THE READ-OFF COULD NOT USE, said beside the enumeration's verdict:
@@ -1948,7 +1948,7 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
             value=float(spectrum[0]), threshold=float(tol),
             context={"n_candidates": int(search["n_candidates"]), "multiplets": layout,
                      "indices": tuple(int(syms[p].ind) for p in kept),
-                     **({} if spin is None else {"spin_kind": str(spin.kind)})})
+                     **({} if spin is None else {"spin_kind": str(spin._kind)})})
     if not consistent:
         return Refusal(
             "rep_internal_factor",
@@ -1962,7 +1962,7 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
             value=float(int_spectrum[0]), threshold=float(internal_tol),
             context={"n_candidates": int(search["n_candidates"]), "multiplets": layout,
                      "indices": tuple(int(syms[p].ind) for p in kept),
-                     **({} if spin is None else {"spin_kind": str(spin.kind)})})
+                     **({} if spin is None else {"spin_kind": str(spin._kind)})})
     if not survivors:
         stuck = [grp[0]["refusal"] for grp in consistent if "refusal" in grp[0]]
         if len(stuck) == len(consistent):
@@ -2254,24 +2254,26 @@ def _returned_representation(model, group, assignment, ops, mul, meas, bat, acc,
                         complex(winner["combo"][gi * len(free_cls) + j])
                         for gi in range(len(gens)) for j, c in enumerate(free_cls)}}
     built = SpaceGroupRep(
-        model=model, group=group, assignment=assignment,
-        indices=indices,
+        _model=model, _group=group, _assignment=assignment,
+        _indices=indices,
         _operations=tuple(syms[p] for p in sorted(kept)),
         matrices={int(syms[p].ind): D[p] for p in kept},
         antiunitary=tuple(int(syms[p].ind) for p in sorted(au_pos)),
-        residuals=residuals, _norm_residuals=norm_res, _anchor_residuals=anchor_res,
-        product_residual=float(product_residual), factor_residual=float(factor_residual),
+        _norm_residuals=norm_res, _anchor_residuals=anchor_res,
+        numerical=SpaceGroupRepNumerical(
+            residuals=residuals, product_residual=float(product_residual),
+            factor_residual=float(factor_residual)),
         _generators=tuple(int(syms[p].ind) for p in gens),
         _words={int(syms[p].ind): w for p, w in words.items()},
         _choice=choice, _search=search, _classes=classes,
         _reference=dict({"orbital": ref_orb, "multiplet": ref_chan,
                          "orbit": int(classes[ref_chan])},
                         **({} if spin is None else
-                           {"spin_pair": int(spin.pair_of_orbital[ref_orb])})),
+                           {"spin_pair": int(spin._pair_of_orbital[ref_orb])})),
         _failed=tuple(validated.discrepancies),
-        _battery=k_pts, multiplets=layout, _normalization=normalization,
+        _battery=k_pts, _multiplets=layout, _normalization=normalization,
         _time_reversal=None if T_pos is None else int(syms[T_pos].ind),
-        characters=limits, spin=spin, _branch_tie=bool(branch_tie),
+        _characters=limits, _spin=spin, _branch_tie=bool(branch_tie),
         _model_key=bloch.key)
     return _with_tables_unavailable(_with_band_representations(built) if _returned
                                     else built)
@@ -2961,7 +2963,7 @@ def _with_multiplicity_spaces(table, chosen, group, assignment):
         # or its declared spinor pairs
         on_site = set(int(o) for o in assignment.site_orbitals[site])
         held = sum(1 for o in rec.orbitals if int(o) in on_site)
-        spaces.append(MultiplicitySpace(
+        spaces.append(_MultiplicitySpace(
             orbitals=tuple(int(o) for o in rec.orbitals),
             wyckoff="" if here is None else f"{int(here.multiplicity)}{here.letter}",
             dim=int(rec.dim), content=_named_content(tab, got.content)[0],
@@ -2987,14 +2989,14 @@ def _with_band_representations(rep):
     content its states carry — so it is written once the matrices are
     (:func:`..srsi._band_representations`).
     """
-    table = rep.characters
+    table = rep._characters
     if table is None:
         return rep
 
     orbits = _srsi._band_representations(rep)
     if not orbits:
         return rep
-    return replace(rep, characters=replace(table, band_representations=orbits))
+    return replace(rep, _characters=replace(table, band_representations=orbits))
 
 
 def _with_tables_unavailable(rep):
@@ -3003,10 +3005,10 @@ def _with_tables_unavailable(rep):
     A group whose cell ``irrep`` could not match to the tables' standard
     setting is returned without tables (``GroupData._tables_ready``
     false on a primitive cell), so no row of it takes a name from them.  Each
-    row's :attr:`AtomicLimitRow.note` then says so, and why, in the words of the
+    row's :attr:`_OrbitalRow.note` then says so, and why, in the words of the
     group's own note, which carries ``irrep``'s message.
     """
-    table, group = rep.characters, rep.group
+    table, group = rep._characters, rep._group
     if (table is None or bool(group._tables_ready)
             or int(getattr(group, "_lattice_index", 1) or 1) > 1):
         return rep
@@ -3016,7 +3018,7 @@ def _with_tables_unavailable(rep):
                                   "setting"))
     rows = tuple(replace(o, note=(o.note + "; " if o.note else "") + why)
                  for o in table.orbitals)
-    return replace(rep, characters=replace(table, orbitals=rows))
+    return replace(rep, _characters=replace(table, orbitals=rows))
 
 
 #: What :func:`_build_rep` measures its covariance gate with when it is not told
@@ -3052,7 +3054,7 @@ def _exact_gate(model, group, validated, build_kw=None) -> float:
 
     syms = {int(s.ind): s for s in group._symmetries}
     ops = _given("operations")
-    indices = [int(i) for i in (validated.indices if ops is None else ops)]
+    indices = [int(i) for i in (validated._indices if ops is None else ops)]
     padded = bool(_given("include_vacuum_ops"))
     kept = [syms[i] for i in indices
             if padded or not _moves_padded(syms[i], group._vacuum_dirs)]

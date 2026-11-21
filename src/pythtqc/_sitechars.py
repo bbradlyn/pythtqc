@@ -28,7 +28,7 @@ group's own name: for a single-valued row the names of section 3 below, and for 
 double-valued one the name the tables give that irrep of the point group at the
 origin of a symmorphic space group, the one position where every point group is
 a site group whole (:mod:`.._naming`).  A row nothing names has **no name** — an
-empty label, :attr:`..symmetry.AtomicLimitRow.named_by` reading ``"unnamed"``,
+empty label, :attr:`..symmetry._OrbitalRow.named_by` reading ``"unnamed"``,
 and the generator characters as the whole statement.  Every label is echoed
 together with those characters (:func:`generator_frame`), which no naming
 convention touches.
@@ -66,7 +66,7 @@ written in — its rows sit at no Wyckoff position and no EBR entry names them �
 and what a single-valued site row keeps where neither the tables' entries at
 its position nor the tables' names for the point group settle it, and the
 symbol is a name rather than a placeholder
-(:attr:`..symmetry.AtomicLimitRow.named_by` reading ``"Mulliken"``):
+(:attr:`..symmetry._OrbitalRow.named_by` reading ``"Mulliken"``):
 
 * dimension 1 gives ``A`` when ``chi`` of the principal rotation (the proper
   rotation of highest order; ties broken towards ``z``) is ``+1`` and ``B``
@@ -333,9 +333,9 @@ class SiteGroupTable:
         model — and for a row those entries do not reach, the name the tables
         of the stable real-space invariants give it, or else the tables' name
         for that irrep of the point group, which a row nothing names lacks.
-        Never a returned name — :attr:`..symmetry.AtomicLimitRow.irrep` is always
+        Never a returned name — :attr:`..symmetry._OrbitalRow.irrep` is always
         from :attr:`labels`, and what the caller wrote is kept verbatim in
-        :attr:`..symmetry.AtomicLimitRow.declared_as`.
+        :attr:`..symmetry._OrbitalRow.declared_as`.
     """
 
     indices: tuple
@@ -955,7 +955,7 @@ def _declared_name(table, row) -> str:
 
     The row's **orbital-factor** spelling where it has one, because that is what
     a declaration states and the word it was written in; the returned label
-    otherwise.  :attr:`..symmetry.AtomicLimitRow.irrep` is the row's returned
+    otherwise.  :attr:`..symmetry._OrbitalRow.irrep` is the row's returned
     name either way, so the two sit side by side in the record and a spinful
     declaration can be read back in the words it was written in.
     """

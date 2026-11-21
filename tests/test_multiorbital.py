@@ -97,7 +97,7 @@ _solve_at = tqw.solve_at
 
 
 def _same_matrices(a, b, atol=1e-14):
-    return max(float(np.abs(a.matrices[i] - b.matrices[i]).max()) for i in a.indices) <= atol
+    return max(float(np.abs(a.matrices[i] - b.matrices[i]).max()) for i in a._indices) <= atol
 
 
 # ===========================================================================
@@ -139,11 +139,11 @@ def test_the_b1_twist_moves_every_label_and_no_wyckoff_position(
     (bit-identical here, 6.674e-16 both).  The nonsymmorphic factor system is
     asserted where it is substantive, on ``#199`` below.
     """
-    _, group, _, _, rep = lin3g_undeclared
+    group, rep = lin3g_undeclared.group, lin3g_undeclared.rep
     twisted = lin3g_twisted.rep
-    assert twisted.characters.irreps == ("-E2", "-E1", "-E", "-E")
-    assert max(twisted.residuals.values()) <= GATE
-    assert twisted.product_residual < 1e-13
+    assert twisted._characters.irreps == ("-E2", "-E1", "-E", "-E")
+    assert max(twisted.numerical.residuals.values()) <= GATE
+    assert twisted.numerical.product_residual < 1e-13
 
     swap = {"-E1": "-E2", "-E2": "-E1"}
 
@@ -163,8 +163,9 @@ def test_the_b1_twist_moves_every_label_and_no_wyckoff_position(
                              (list(P4), (("2c",), ("1a", "1a"), ("1b", "1b"))),
                              (list(P2), (("1b",),)),
                              (list(Q2), (("1b",),))):
-        a = tqe.decompose(tqw.hsp_table(rep, bands=bands), group, rep=rep, bands=bands)
-        b = tqe.decompose(tqw.hsp_table(twisted, bands=bands), group, rep=twisted,
+        a = tqe.decompose(tqw.hsp_table(lin3g_undeclared, bands=bands), group, rep=rep,
+                          bands=bands)
+        b = tqe.decompose(tqw.hsp_table(lin3g_twisted, bands=bands), group, rep=twisted,
                           bands=bands)
         assert a.decomposable and b.decomposable
         assert a.positions == b.positions == positions, (
@@ -182,11 +183,11 @@ def test_the_b1_twist_moves_every_label_and_no_wyckoff_position(
         "the relabelling is a relabelling and not a re-solve")
 
     # the standing example, spelled out: P2 and Q2 exchange their EBR rows
-    p2 = tqe.decompose(tqw.hsp_table(rep, bands=list(P2)), group, rep=rep,
+    p2 = tqe.decompose(tqw.hsp_table(lin3g_undeclared, bands=list(P2)), group, rep=rep,
                        bands=list(P2))
-    q2 = tqe.decompose(tqw.hsp_table(rep, bands=list(Q2)), group, rep=rep,
+    q2 = tqe.decompose(tqw.hsp_table(lin3g_undeclared, bands=list(Q2)), group, rep=rep,
                        bands=list(Q2))
-    p2t = tqe.decompose(tqw.hsp_table(twisted, bands=list(P2)), group, rep=twisted,
+    p2t = tqe.decompose(tqw.hsp_table(lin3g_twisted, bands=list(P2)), group, rep=twisted,
                         bands=list(P2))
     assert p2.solution_strings()[0].startswith("1 x -E2")
     assert q2.solution_strings()[0].startswith("1 x -E1")
@@ -194,17 +195,18 @@ def test_the_b1_twist_moves_every_label_and_no_wyckoff_position(
 
     # the twist in function words, and the site content of a build whose every
     # row is declared
-    model, group, assignment, validated, declared = lin3g_declared_cross_checked
-    alt = _build._build_rep(model, group, assignment, validated=validated,
+    r = lin3g_declared_cross_checked
+    group, declared = r.group, r.rep
+    alt = _build._build_rep(r.model, group, r._assignment, validated=r.numerical.validated,
                          characters=["dx2-y2", "s", "dx2-y2", "dx2-y2"])
     assert alt, str(alt)
-    assert alt.characters.irreps == twisted.characters.irreps, "the same twist"
-    assert [o.function for o in declared.characters.orbitals] == ["s", "dx2-y2", "s", "s"]
-    assert [o.function for o in alt.characters.orbitals] == \
+    assert alt._characters.irreps == twisted._characters.irreps, "the same twist"
+    assert [o.function for o in declared._characters.orbitals] == ["s", "dx2-y2", "s", "s"]
+    assert [o.function for o in alt._characters.orbitals] == \
         ["dx2-y2", "s", "dx2-y2", "dx2-y2"], \
         "the declared content is another labelling of the same hoppings"
-    d = tqe.decompose(tqw.hsp_table(declared, bands=P6), group, rep=declared)
-    assert d.site_content["irreps"] == declared.characters.irreps
+    d = tqe.decompose(tqw.hsp_table(r, bands=P6), group, rep=declared)
+    assert d.site_content["irreps"] == declared._characters.irreps
     assert d.site_content["determined_by"] == ("declaration",) * 4, \
         "this build's rows were all declared, and the site content says so"
     assert set(d.site_content) == {"number_str", "irreps", "determined_by", "residual"}
@@ -258,8 +260,9 @@ def pxpy_183():
                              environment="substrate", cross_check=False,
                              characters={(0, 1): "E"})
     assert out, str(out)
-    assert out.environment == "substrate"
-    assert len(out.validated.indices) == 24 == len(out.operations)
+    assert out.environment.kind == "substrate"
+    validated = out.numerical.validated
+    assert len(validated.obeyed + validated.undetermined) == 24 == len(out.operations)
     return out
 
 
@@ -284,7 +287,8 @@ def test_pxpy_one_channel_per_orbital_refuses_because_C3_mixes_px_into_py(pxpy_b
     candidate count and says what the read-off read, and the build hands its
     kill record back beside it.
     """
-    model, group, assignment, validated, _ = pxpy_bare
+    model, group, assignment = pxpy_bare.model, pxpy_bare.group, pxpy_bare._assignment
+    validated = pxpy_bare.numerical.validated
     singletons = [[(int(o),) for o in orbs] for orbs in assignment.site_orbitals]
     record = {}
     out = _build._build_rep(model, group, assignment, validated=validated,
@@ -360,11 +364,12 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
     the spin and an on-site ``L_z S_z`` no band label depends on the choice, and
     nothing is said.
     """
-    model, group, assignment, validated, rep = pxpy_bare
-    assert set(validated.verdicts.values()) == {"undetermined"}, (
+    model, group, assignment = pxpy_bare.model, pxpy_bare.group, pxpy_bare._assignment
+    validated, rep = pxpy_bare.numerical.validated, pxpy_bare.rep
+    assert validated.undetermined and not validated.obeyed and not validated.broken, (
         "the detector never resolves a sigma_h-composed operation on its own")
-    assert len(rep.indices) == 48
-    frame = {name: ind for ind, name in rep.characters.frame.items()}
+    assert len(rep.matrices) == 48
+    frame = {pxpy_bare.operations[ind].name: ind for ind in rep.matrices}
     mz = frame["m(z)"]
     D = rep.matrices[mz]
     eta = complex(D[0, 0])
@@ -374,15 +379,15 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
     prod = group._get_product_table(get_diff=False)
     pos = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     worst, pairs = 0.0, 0
-    for ind in rep.indices:
+    for ind in rep._indices:
         c = int(group._symmetries[int(prod[pos[mz], pos[ind]])].ind)
         assert c in rep.matrices
         worst = max(worst, float(np.abs(rep.matrices[c] - eta * rep.matrices[ind]).max()))
         pairs += 1
     assert pairs == 48 and worst < 1e-12
 
-    assert rep.characters.irreps == ("E'",) * 4
-    table = rep.characters.site_tables[0]
+    assert rep._characters.irreps == ("E'",) * 4
+    table = rep._characters.site_tables[0]
     assert table.order == 12
     assert set(table.labels) == {"A1'", "A2'", "A1''", "A2''", "E'", "E''"}
     i_ep, i_epp = table.labels.index("E'"), table.labels.index("E''")
@@ -393,14 +398,14 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
         "the served sigma_h must carry the declared parity"
     # and the record says what fixed it: the declared pair, and the other site's
     # pair read relative to it by the hoppings
-    assert [o.determined_by for o in rep.characters.orbitals] == \
+    assert [o.determined_by for o in rep._characters.orbitals] == \
         ["declaration"] * 2 + ["hamiltonian"] * 2
 
     other = _build._build_rep(model, group, assignment, validated=validated,
                            include_vacuum_ops=True, n_battery=4,
                            characters={(0, 1): "E''"})
     assert other, str(other)
-    assert other.characters.irreps == ("E''",) * 4
+    assert other._characters.irreps == ("E''",) * 4
     eta_other = complex(np.asarray(other.matrices[mz])[0, 0])
     assert eta_other == pytest.approx(complex(table.character_on(i_epp, mz)) / 2, abs=1e-9)
     assert eta_other == pytest.approx(-eta, abs=1e-9), "E'' is the other parity"
@@ -415,8 +420,8 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
     odd = {"GM": {"GM5-": 1}, "K": {"K6": 1}, "M": {"M3+": 1, "M4+": 1}}
     for name in even:
         states = _solve_at(model, hsp[name])
-        a = tqw.corep_content(rep, hsp[name], states=states, bands=2)
-        b = tqw.corep_content(other, hsp[name], states=states, bands=2)
+        a = tqw.corep_content(pxpy_bare, hsp[name], states=states, bands=2)
+        b = tqw._corep_content_rep(other, hsp[name], states=states, bands=2)
         assert a and b
         assert a.counts == even[name] and b.counts == odd[name], name
         # the valence pair is ONE multiplet at GM and at K, so ``(0,)`` is the
@@ -438,13 +443,13 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
         turned = tqg.realized_group(tqm.pxpy_honeycomb(turn=turn), typat=[0, 0, 0, 0],
                                     environment="free-standing", cross_check=False)
         assert turned, str(turned)
-        assert turned.rep.characters.irreps == ("E'",) * 4
-        valence = tqw.hsp_table(turned.rep, bands=2)
+        assert turned.rep._characters.irreps == ("E'",) * 4
+        valence = tqw.hsp_table(turned, bands=2)
         assert valence and valence.content == even, turn
-        assert [key for choice in turned.rep.characters._labellings["choices"]
+        assert [key for choice in turned.rep._characters._labellings["choices"]
                 for key, _labels in choice["others"]] == ["orbitals", "orbitals", "bands"]
         assert tqw._ANOTHER_LABELLING_RELABELS in valence.summary()
-        assert tqw.hsp_table(turned.rep, bands=4).note == tqw._ANOTHER_LABELLING_RELABELS
+        assert tqw.hsp_table(turned, bands=4).note == tqw._ANOTHER_LABELLING_RELABELS
 
     # The honeycomb with site group 3 -- the mirrors through the hexagon centre
     # exchanging the sublattices, P31m1' on a substrate and P-62m1' free-standing
@@ -459,9 +464,9 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
                                        typat=[0, 0, 0, 0], environment=environment,
                                        cross_check=False)
             assert site3, str(site3)
-            assert [key for choice in site3.rep.characters._labellings["choices"]
+            assert [key for choice in site3.rep._characters._labellings["choices"]
                     for key, _labels in choice["others"]] == ["bands"]
-            band = tqw.hsp_table(site3.rep, bands=1)
+            band = tqw.hsp_table(site3, bands=1)
             assert {p: band.content[p] for p in lowest} == lowest, \
                 (environment, turn_a, turn_b, band.content)
 
@@ -484,11 +489,11 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
                                      typat=[0] * 4)
             assert got, str(got)
             assert got.group.number_str == "150.26"
-            table = got.rep.characters
+            table = got.rep._characters
             assert [key for choice in table._labellings["choices"]
                     for key, _labels in choice["others"]] == decided, \
                 "the orbitals read alike under both: the band labels decide, or none rests on it"
-            lower = tqw.hsp_table(got.rep, bands=bands)
+            lower = tqw.hsp_table(got, bands=bands)
             assert lower and lower.complete
             read.add(tuple(sorted((p, tuple(sorted(c.items())))
                                   for p, c in lower.content.items())))
@@ -498,7 +503,7 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
                 assert lower.note == tqw._ANOTHER_LABELLING_RELABELS
             else:
                 assert not lower.note, "no band label depends on the choice"
-                assert not tqw.hsp_table(got.rep, bands=8).note, "nor over all the bands"
+                assert not tqw.hsp_table(got, bands=8).note, "nor over all the bands"
         assert len(read) == 1, (soc, read)
 
 
@@ -517,7 +522,8 @@ def test_pxpy_declares_its_two_dimensional_multiplet_jointly(pxpy_bare):
     orbital -- while ``E''`` at either site alone states that both pairs carry
     it: one crystal, whichever site it is written at.
     """
-    model, group, assignment, validated, rep = pxpy_bare
+    model, group, assignment = pxpy_bare.model, pxpy_bare.group, pxpy_bare._assignment
+    validated, rep = pxpy_bare.numerical.validated, pxpy_bare.rep
 
     def rebuild(spec):
         return _build._build_rep(model, group, assignment, validated=validated,
@@ -532,9 +538,9 @@ def test_pxpy_declares_its_two_dimensional_multiplet_jointly(pxpy_bare):
         out = rebuild(spec)
         assert out, f"{spec}: {out}"
         assert _same_matrices(rep, out), spec
-        assert out.characters.irreps == ("E'",) * 4
+        assert out._characters.irreps == ("E'",) * 4
         if isinstance(spec, list):
-            assert [o.determined_by for o in out.characters.orbitals] == \
+            assert [o.determined_by for o in out._characters.orbitals] == \
                 ["declaration"] * 4
 
     bare_e = rebuild({(0, 1): "E"})
@@ -580,16 +586,16 @@ def test_pxpy_declares_its_two_dimensional_multiplet_jointly(pxpy_bare):
     alone = rebuild({(2, 3): "E''"})
     mirror = rebuild({(0, 1): "E''"})
     assert alone and mirror, (str(alone), str(mirror))
-    assert alone.characters.irreps == mirror.characters.irreps == ("E''",) * 4
-    assert [o.determined_by for o in alone.characters.orbitals] == \
+    assert alone._characters.irreps == mirror._characters.irreps == ("E''",) * 4
+    assert [o.determined_by for o in alone._characters.orbitals] == \
         ["hamiltonian"] * 2 + ["declaration"] * 2
     assert _same_matrices(alone, mirror), "one crystal, whichever site was declared"
     whole = tqg.realized_group(tqm.pxpy_honeycomb(), typat=[0, 0, 0, 0],
                                environment="free-standing", cross_check=False,
                                characters={(2, 3): "E''"})
     assert whole, str(whole)
-    assert (whole.group.number_str, len(whole.validated.indices)) == ("191.234", 48)
-    assert whole.descent is None and whole.rep.characters.irreps == ("E''",) * 4
+    assert (whole.group.number_str, len(whole.numerical.validated._indices)) == ("191.234", 48)
+    assert whole.descent is None and whole.rep._characters.irreps == ("E''",) * 4
 
     # ... and `realized_group`, which lowers the cell where the two sites were
     # declared different content and then descends: the threefold with the
@@ -600,15 +606,15 @@ def test_pxpy_declares_its_two_dimensional_multiplet_jointly(pxpy_bare):
                               characters={(0, 1): "E'", (2, 3): "E''"})
     assert down, str(down)
     d = down.descent
-    assert d["from"]["number_str"] == "187.210" and len(down.operations) == 12
-    assert d["steps"][0]["refuted_by"] == {"declaration": 12}
-    note = d["steps"][0]["declaration"]["note"]
+    assert d.cell_group.number_str == "187.210" and len(down.operations) == 12
+    assert d.steps[0].refuted_by == {"declaration": 12}
+    note = d.steps[0].declaration.note
     assert "{E, C3(z), C3^-1(z), C2([2-10]), C2([1-20]), C2(x)}" in note
     assert "{E, C3(z), C3^-1(z), m([010]), m([100]), m(y)}" in note
     assert {"m(z)", "S6(z)", "S6^-1(z)", "m(z)'", "S6(z)'", "S6^-1(z)'"} <= \
-        {b["name"] for b in d["dropped"]}
-    assert [o.determined_by for o in down.rep.characters.orbitals] == ["declaration"] * 4
-    assert down.rep.characters.irreps == ("E",) * 4
+        {b.name for b in d.dropped}
+    assert [o.determined_by for o in down.rep._characters.orbitals] == ["declaration"] * 4
+    assert down.rep._characters.irreps == ("E",) * 4
 
 
 @pytest.mark.slow
@@ -626,8 +632,8 @@ def test_pxpy_each_branch_of_the_disconnected_ebr_is_a_difference_not_a_sum(pxpy
     winds: the obstruction lies beyond the symmetry indicators, which is
     exactly what this layer's verdict wording reserves room for.
     """
-    _, group, _, _, rep = pxpy_183
-    four = tqe.decompose(tqw.hsp_table(rep, bands=4), group, rep=rep, bands=4)
+    group, rep = pxpy_183.group, pxpy_183.rep
+    four = tqe.decompose(tqw.hsp_table(pxpy_183, bands=4), group, rep=rep, bands=4)
     assert four.decomposable and four.unique
     assert four.solution_strings() == ("1 x E↑G(4)@2b(3m1',3m)",)
     assert four.completeness["claim"] == "exact"
@@ -640,7 +646,7 @@ def test_pxpy_each_branch_of_the_disconnected_ebr_is_a_difference_not_a_sum(pxpy
                 if v and tqe.kpoint_of_label(lab) in points}
 
     a1_3c, a1_1a = ("A1", "3c"), ("A1", "1a")
-    valence = tqw.hsp_table(rep, bands=2)
+    valence = tqw.hsp_table(pxpy_183, bands=2)
     assert valence.counts == {"GM5": 1, "K3": 1, "M3": 1, "M4": 1}
     diff = {lab: in_plane(a1_3c).get(lab, 0) - in_plane(a1_1a).get(lab, 0)
             for lab in set(in_plane(a1_3c)) | set(in_plane(a1_1a))}
@@ -649,7 +655,7 @@ def test_pxpy_each_branch_of_the_disconnected_ebr_is_a_difference_not_a_sum(pxpy
 
     for bands, counts in ((2, {"GM5": 1, "K3": 1, "M3": 1, "M4": 1}),
                           ((2, 3), {"GM6": 1, "K1": 1, "K2": 1, "M1": 1, "M2": 1})):
-        table = tqw.hsp_table(rep, bands=bands)
+        table = tqw.hsp_table(pxpy_183, bands=bands)
         assert table.counts == counts
         d = tqe.decompose(table, group, rep=rep, bands=bands)
         assert d.verdict == "none" and d.solutions == ()
@@ -680,10 +686,10 @@ def test_pxpy_the_191_presentation_refines_the_labels_and_decomposes_in_the_laye
     on them every such row repeats an in-plane one: the four
     bands decompose, exactly, as the orbitals' own ``E'`` at ``2c``.
     """
-    _model, group, _, _, rep = pxpy_bare
+    group, rep = pxpy_bare.group, pxpy_bare.rep
     restriction = tqe.in_plane_restriction(group)
     assert not restriction and restriction.gate == "restriction_not_exact"
-    out = tqe.decompose(tqw.hsp_table(rep, bands=4), group, rep=rep)
+    out = tqe.decompose(tqw.hsp_table(pxpy_bare, bands=4), group, rep=rep)
     assert out, str(out)
     assert out.solution_strings() == ("1 x E'↑G(4)@2c(-6m21',-6m2)",)
     assert out.completeness["claim"] == "exact"
@@ -725,11 +731,12 @@ def test_pxpy_declared_content_is_the_hand_derived_induced_character(pxpy_bare):
     the declaration's matrices untwisted -- which is what used to happen --
     cannot pass this.
     """
-    model, group, assignment, _, rep = pxpy_bare
+    model, group, assignment = pxpy_bare.model, pxpy_bare.group, pxpy_bare._assignment
+    rep = pxpy_bare.rep
     hsp = tqg.high_symmetry_points(group)
     sites = np.asarray(assignment.site_positions, float)
     assert sites.shape == (2, 3)
-    assert rep.characters.irreps == ("E'",) * 4, "the build serves the declaration"
+    assert rep._characters.irreps == ("E'",) * 4, "the build serves the declaration"
 
     # `_induced_character` keys its answer by position in `ops`, counting from
     # 1, which for this group is the unitary half's own index order
@@ -742,7 +749,7 @@ def test_pxpy_declared_content_is_the_hand_derived_induced_character(pxpy_bare):
     stab = set(assignment.site_group[0])
     assert stab == set(assignment.site_group[1])
 
-    table = rep.characters.site_tables[0]
+    table = rep._characters.site_tables[0]
 
     def induced(label, name):
         i = table.labels.index(label)
@@ -763,7 +770,7 @@ def test_pxpy_declared_content_is_the_hand_derived_induced_character(pxpy_bare):
     want = {"GM": {"GM6-": 1, "GM5+": 1}, "K": {"K5": 1, "K4": 1, "K1": 1},
             "M": {"M2+": 1, "M1+": 1, "M4-": 1, "M3-": 1}}
     for name, counts in want.items():
-        served = tqw.corep_content(rep, hsp[name], states=_solve_at(model, hsp[name]),
+        served = tqw.corep_content(pxpy_bare, hsp[name], states=_solve_at(model, hsp[name]),
                                    bands=4)
         assert served, f"{name}: {served}"
         # the oracle first: `want` below restates the same answer as a literal,
@@ -825,7 +832,7 @@ def test_i213_site_permutations_follow_the_measured_action(i213_bundle):
     assert len(validated._intertwiners) == 24
     assert worst < 1e-12, "the Hamiltonian's own intertwiners confirm the permutation"
 
-    for ind in rep.indices:
+    for ind in rep._indices:
         support = np.zeros((4, 4), bool)
         support[perms[pos[int(ind)]], np.arange(4)] = True
         D = rep.matrices[int(ind)]
@@ -852,7 +859,7 @@ def test_i213_site_permutations_follow_the_measured_action(i213_bundle):
     syms = group._symmetries
     prod = group._get_product_table(get_diff=False)
     assert any(int(prod[a][b]) not in held for a in held for b in held), "not a group"
-    layout = rep.multiplets
+    layout = rep._multiplets
     cperm = _multiplets._channel_perms(model, assignment, syms, held, layout, None)
     classes, ncls = _matrices._channel_classes(cperm, held, layout._nchan)
     assert ncls == 1 and classes.tolist() == [0, 0, 0, 0]
@@ -876,8 +883,8 @@ def test_i213_rep_reproduces_the_nonsymmorphic_factor_system(i213_bundle):
     per = list(group.periodic_dirs)
     k = np.array([[0.13, -0.27, 0.41]])
     worst, checked = 0.0, 0
-    for a in rep.indices:
-        for b in rep.indices:
+    for a in rep._indices:
+        for b in rep._indices:
             pa, pb = pos[a], pos[b]
             if not np.any(tdiff[pa, pb] != 0):
                 continue
@@ -910,7 +917,7 @@ def test_i213_operation_naming_in_the_T_family_is_sane(i213_bundle):
     checking it is fixed -- which is the only thing the name is claiming.
     """
     _, group, _, _, rep = i213_bundle
-    frame = rep.characters.frame
+    frame = rep._characters.frame
     pos = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     lattice = np.asarray(group._lattice, float)
     axes = {"x": [1, 0, 0], "y": [0, 1, 0], "z": [0, 0, 1]}
@@ -972,14 +979,14 @@ def test_i213_declares_the_trivial_site_irrep_the_appendix_uses(i213_bundle):
         return _build._build_rep(model, group, assignment, validated=validated,
                               n_battery=5, characters=spec)
 
-    table = rep.characters.site_tables[0]
+    table = rep._characters.site_tables[0]
     assert table.order == 3
     assert set(table.labels) == {"A1", "1E2E"}
     assert dict(zip(table.labels, table.dims)) == {"A1": 1, "1E2E": 2}
     assert table.orthogonality < 1e-10
-    assert rep.characters.irreps == ("A1",) * 4
+    assert rep._characters.irreps == ("A1",) * 4
     axes = set()
-    for row in rep.characters.orbitals:
+    for row in rep._characters.orbitals:
         assert row.irrep == "A1" and row.dim == 1
         assert len(row.site_group) == 3           # the represented unitary '.3.'
         names = set(row.generator_character)
@@ -997,8 +1004,8 @@ def test_i213_declares_the_trivial_site_irrep_the_appendix_uses(i213_bundle):
         out = rebuild(spec)
         assert out, f"{spec}: {out}"
         assert _same_matrices(rep, out)
-        assert out.characters.irreps == ("A1",) * 4
-        assert all(o.determined_by != "lowest-l" for o in out.characters.orbitals), \
+        assert out._characters.irreps == ("A1",) * 4
+        assert all(o.determined_by != "lowest-l" for o in out._characters.orbitals), \
             "a declaration on this site group leaves no row to the lowest-l rule"
 
     doublet = rebuild({0: "1E2E"})
@@ -1064,7 +1071,7 @@ def test_i213_P_and_PA_identify_and_keep_their_chirality(i213_bundle):
     np.testing.assert_allclose(A @ A.conj().T / 12.0, np.eye(3), atol=1e-4)
 
     # the transported characters ARE the measured ones, not their absolute values
-    ch = tqw.characters(rep, k, states=_solve_at(model, k), bands=4)
+    ch = tqw._characters_rep(rep, k, states=_solve_at(model, k), bands=4)
     assert ch.multiplets == ((0, 1), (2, 3)) and ch.dims == (2, 2)
     meas = np.asarray(ch.characters)
     for row, label in ((0, "P1"), (1, "P3")):
@@ -1086,10 +1093,10 @@ def test_i213_P_and_PA_identify_and_keep_their_chirality(i213_bundle):
     r2 = _build._build_rep(alt, g2, a2, validated=v2, n_battery=5)
     assert r2, str(r2)
     p2 = tqg.high_symmetry_points(g2)
-    assert tqw.corep_content(r2, p2["GM"], states=_solve_at(alt, p2["GM"]), bands=4).counts \
+    assert tqw._corep_content_rep(r2, p2["GM"], states=_solve_at(alt, p2["GM"]), bands=4).counts \
         == {"GM1": 1, "GM4": 1}
     for name, counts in want.items():
-        got = tqw.corep_content(r2, p2[name], states=_solve_at(alt, p2[name]), bands=4)
+        got = tqw._corep_content_rep(r2, p2[name], states=_solve_at(alt, p2[name]), bands=4)
         assert got, f"{name}: {got}"
         assert got.counts == counts, name
 
@@ -1220,7 +1227,7 @@ def test_p3121_screw_point_content_is_the_hand_derived_induced_character(
     assert table, str(table)
     assert _decompose_against(table, chi) == {"A1": 1, "A3": 1}
 
-    measured = tqw.corep_content(rep, hsp["A"], states=_solve_at(model, hsp["A"]),
+    measured = tqw._corep_content_rep(rep, hsp["A"], states=_solve_at(model, hsp["A"]),
                                  bands=list(range(3)))
     assert measured, str(measured)
     assert measured.counts == {"A1": 1, "A3": 1}
@@ -1228,7 +1235,7 @@ def test_p3121_screw_point_content_is_the_hand_derived_induced_character(
     # and the *other* orbit, whose row is the discriminating one
     chi_b = _induced_character(tqm.p3121_sites()[1], tqm.P3121_OPS, hsp["A"])
     assert _decompose_against(table, chi_b) == {"A2": 1, "A3": 1}
-    other = tqw.corep_content(rep, hsp["A"], states=_solve_at(model, hsp["A"]),
+    other = tqw._corep_content_rep(rep, hsp["A"], states=_solve_at(model, hsp["A"]),
                               bands=list(range(3, 6)))
     assert other and other.counts == {"A2": 1, "A3": 1}
 
@@ -1282,7 +1289,7 @@ def test_screw_fixture_content_is_its_own_EBR_row_at_every_point(
 
     for slot, (bands, key_prefix) in enumerate(((list(range(occ)), rows[0]),
                                                 (list(range(occ, model.norb)), rows[1]))):
-        table = tqw.hsp_table(rep, bands=bands)
+        table = tqw._hsp_table_rep(rep, bands=bands)
         assert table.complete is True and table.refusals == {}, table.refusals
         key = (key_prefix.split("↑")[0], key_prefix.split("@")[1])
         name = next(k for k in _tables._ebr_rows(group) if k.startswith(key_prefix))
@@ -1321,12 +1328,12 @@ def test_screw_points_refuse_without_the_whole_character_conjugation(
     hsp = tqg.high_symmetry_points(group)
     assert set(points) <= set(hsp)
     bands = list(range(occ))
-    before = {name: tqw.corep_content(rep, hsp[name], states=_solve_at(model, hsp[name]),
+    before = {name: tqw._corep_content_rep(rep, hsp[name], states=_solve_at(model, hsp[name]),
                                       bands=bands).counts for name in hsp}
 
     patch_everywhere(monkeypatch, "_conjugated_kpoints", lambda *a, **k: frozenset())
     for name in hsp:
-        out = tqw.corep_content(rep, hsp[name], states=_solve_at(model, hsp[name]),
+        out = tqw._corep_content_rep(rep, hsp[name], states=_solve_at(model, hsp[name]),
                                 bands=bands)
         if name in points:
             assert not out and out.gate == "integer_multiplicity", (name, str(out))
@@ -1336,7 +1343,7 @@ def test_screw_points_refuse_without_the_whole_character_conjugation(
             assert out and out.counts == before[name], (
                 f"{name} moved, and only the conjugated points may")
 
-    table = tqw.hsp_table(rep, bands=bands)
+    table = tqw._hsp_table_rep(rep, bands=bands)
     assert table.complete is False and set(table.refusals) == set(points)
     got = tqe.decompose(table, group, rep=rep, bands=bands)
     assert not got and got.gate == "incomplete_content", str(got)
@@ -1422,7 +1429,7 @@ def test_reglue_atomic_content_is_its_own_EBR_row_at_every_point(
     """
     model, group, _, _, rep = request.getfixturevalue(fixture)
     all_rows = tqe.ebr_rows(group)
-    table = tqw.hsp_table(rep, bands=list(range(occ)))
+    table = tqw._hsp_table_rep(rep, bands=list(range(occ)))
     assert table.complete is True and table.refusals == {}, table.refusals
     key = (row.split("↑")[0], letter)
     name = next(k for k in _tables._ebr_rows(group) if k.startswith(row))
@@ -1505,7 +1512,7 @@ def test_the_reglued_labels_and_the_EBR_transport_need_the_lift(
         b_model, b_group, _ba, _bv, b_rep = bundle
         b_hsp = tqg.high_symmetry_points(b_group)
         before[b_group.number_str] = {
-            name: tqw.corep_content(b_rep, b_hsp[name],
+            name: tqw._corep_content_rep(b_rep, b_hsp[name],
                                     states=_solve_at(b_model, b_hsp[name]),
                                     bands=list(range(occ))).counts
             for name in b_hsp}
@@ -1538,13 +1545,13 @@ def test_the_reglued_labels_and_the_EBR_transport_need_the_lift(
         assert sorted(tqg.corep_table(group, hsp["P"])) == ["-P3P3", "-P4"]
         data = tqg.ebr_data(group)
         assert not data and data.gate == "ebr_convention", str(data)
-        table = tqw.hsp_table(rep, bands=list(range(4)))
+        table = tqw._hsp_table_rep(rep, bands=list(range(4)))
         assert table.complete is True, "identification itself does not refuse"
         assert table.counts["-P4"] == 2 and table.counts["-P3P3"] == 1
         got = tqe.decompose(table, group, rep=rep, bands=4)
         assert not got, str(got)
         for name in hsp:       # only P may have moved
-            out = tqw.corep_content(rep, hsp[name], states=_solve_at(model, hsp[name]),
+            out = tqw._corep_content_rep(rep, hsp[name], states=_solve_at(model, hsp[name]),
                                     bands=list(range(4)))
             assert out, (name, str(out))
             if name == "P":
@@ -1557,19 +1564,19 @@ def test_the_reglued_labels_and_the_EBR_transport_need_the_lift(
         # the levels spin-orbit coupling resolves at P, under BCS's gluing
         assert sorted(tqg.corep_table(soc_group, P)) == ["-P3P3", "-P4"]
         for block in ((0,), (3,)):
-            out = tqw.corep_content(soc_rep, P, states=states, bands=list(block))
+            out = tqw._corep_content_rep(soc_rep, P, states=states, bands=list(block))
             assert not out and out.gate == "integer_multiplicity", (block, str(out))
             assert float(out.value) == pytest.approx(0.5, abs=1e-4), block
             assert tuple(out.context["labels"]) == ("-P3P3", "-P4")
             np.testing.assert_allclose(np.asarray(out.context["multiplicities"]).ravel(),
                                        [0.5, 0.0], atol=1e-4)
-        doublet = tqw.corep_content(soc_rep, P, states=states, bands=[1, 2])
+        doublet = tqw._corep_content_rep(soc_rep, P, states=states, bands=[1, 2])
         assert doublet, str(doublet)
         assert doublet.counts == {"-P4": 2}, "mislabelled as two lone coreps"
-        whole = tqw.corep_content(soc_rep, P, states=states, bands=[0, 1, 2, 3])
+        whole = tqw._corep_content_rep(soc_rep, P, states=states, bands=[0, 1, 2, 3])
         assert not whole and whole.gate == "integer_multiplicity", str(whole)
         assert list(whole.context["rows"]) == [0, 2]
-        soc_table = tqw.hsp_table(soc_rep, bands=[0, 1, 2, 3])
+        soc_table = tqw._hsp_table_rep(soc_rep, bands=[0, 1, 2, 3])
         assert soc_table.complete is False and set(soc_table.refusals) == {"P"}
         assert set(soc_table.content) == {"GM", "M", "N", "X"}, "only P moves"
 
@@ -1581,11 +1588,11 @@ def test_the_reglued_labels_and_the_EBR_transport_need_the_lift(
         for name in sorted(after):
             for ind in after[name]:
                 assert abs(after[name][ind] - p62_before[name][ind]) < 1e-9
-        counts = tqw.corep_content(rep, hsp["H"], states=_solve_at(model, hsp["H"]),
+        counts = tqw._corep_content_rep(rep, hsp["H"], states=_solve_at(model, hsp["H"]),
                                    bands=list(range(6))).counts
         assert counts == {"-H4": 2, "-H5H6": 2}, counts
         for name in hsp:       # nothing at all may move in #171
-            got = tqw.corep_content(rep, hsp[name], states=_solve_at(model, hsp[name]),
+            got = tqw._corep_content_rep(rep, hsp[name], states=_solve_at(model, hsp[name]),
                                     bands=list(range(6)))
             assert got, (name, str(got))
             assert got.counts == before["171.122"][name], (
@@ -1672,17 +1679,17 @@ def test_the_unitary_build_of_i41_soc_is_the_grey_build(i41_soc_bundle,
     _model, grey_group, _a, _v, grey = i41_soc_bundle
     _model_u, u_group, _au, _vu, urep = i41_soc_unitary_bundle
     assert grey_group.number_str == "80.30" and u_group.number_str == "80"
-    assert urep.antiunitary_operator[0] is None and grey.antiunitary_operator[0] is not None
+    assert urep._time_reversal is None and grey._time_reversal is not None
 
     def key(op):
         return (tuple(np.asarray(op.rotation, dtype=int).ravel()),
                 tuple(np.round(np.asarray(op.translation) % 1.0, 6)))
 
-    grey_of = {key(grey._operation(i)): i for i in grey.indices
+    grey_of = {key(grey._operation(i)): i for i in grey._indices
                if not grey._operation(i).time_reversal}
-    assert len(grey_of) == len(urep.indices) == 4
+    assert len(grey_of) == len(urep._indices) == 4
     worst = 0.0
-    for i in urep.indices:
+    for i in urep._indices:
         j = grey_of[key(urep._operation(i))]
         worst = max(worst, float(np.abs(np.asarray(urep.matrices[i])
                                         - np.asarray(grey.matrices[j])).max()))
@@ -1690,7 +1697,7 @@ def test_the_unitary_build_of_i41_soc_is_the_grey_build(i41_soc_bundle,
 
     # the record says which condition did it in each build.  `anchor_used is
     # False` on the unitary side would only restate the premise -- it is assigned
-    # inside `if T is not None`, and `urep.antiunitary_operator[0] is None` is asserted
+    # inside `if T is not None`, and `urep._time_reversal is None` is asserted
     # above -- so what stands in its place is the two builds' `accepted` sets:
     # two different arguments narrowing the same generator to the same pair.
     assert len(urep._generators) == len(grey._generators) == 1, (urep._generators,
@@ -1786,16 +1793,16 @@ def test_the_unitary_build_names_P_and_GM_the_way_the_grey_one_does(
 
     want = ({"-P3": 1}, {"-P4": 2}, {"-P3": 1})     # the unitary spelling of (f)'s answer
     for block, counts in zip(mult, want):
-        u_out = tqw.corep_content(urep, P, states=states, bands=list(block))
-        g_out = tqw.corep_content(grey, P, states=states, bands=list(block))
+        u_out = tqw._corep_content_rep(urep, P, states=states, bands=list(block))
+        g_out = tqw._corep_content_rep(grey, P, states=states, bands=list(block))
         assert u_out and g_out, (block, str(u_out), str(g_out))
         assert u_out.counts == counts, (block, u_out.counts)
         np.testing.assert_allclose(np.asarray(u_out.table.characters).ravel(),
                                    np.asarray(g_out.table.characters).ravel(), atol=1e-9)
-    assert tqw.corep_content(grey, P, states=states, bands=[1, 2]).counts == {"-P4P4": 1}
+    assert tqw._corep_content_rep(grey, P, states=states, bands=[1, 2]).counts == {"-P4P4": 1}
 
-    u_table = tqw.hsp_table(urep, bands=[0, 1, 2, 3])
-    g_table = tqw.hsp_table(grey, bands=[0, 1, 2, 3])
+    u_table = tqw._hsp_table_rep(urep, bands=[0, 1, 2, 3])
+    g_table = tqw._hsp_table_rep(grey, bands=[0, 1, 2, 3])
     assert u_table.complete is True and u_table.refusals == {}, u_table.refusals
     assert u_table.content["P"] == {"-P3": 2, "-P4": 2}
     assert g_table.content["P"] == {"-P3": 2, "-P4P4": 1}
@@ -1913,7 +1920,7 @@ def _induced_matrices(model, group, assignment, rep):
     syms = list(group._symmetries)
     pos = {int(s.ind): p for p, s in enumerate(syms)}
     out = {}
-    for ind in rep.indices:
+    for ind in rep._indices:
         p = pos[int(ind)]
         cperm = _matrices._orbital_permutation(assignment, p, model)
         S = (np.asarray(syms[p].spinor_rotation, dtype=complex) if nspin == 2
@@ -1984,13 +1991,13 @@ def test_a_declared_B_site_irrep_on_the_unitary_tables_is_its_own_induced_rep(
     assert u_group.number_str == "152" and grey_group.number_str == "152.34"
 
     # the site group really does carry a B, and the A2 labelling is what supplies it
-    tab = u_default.characters.site_tables[0]
+    tab = u_default._characters.site_tables[0]
     assert set(tab.labels) == {"A", "B"} and int(tab.order) == 2
-    assert u_declared.characters.irreps == ("B",) * 6
-    assert [o.determined_by for o in u_declared.characters.orbitals] == \
+    assert u_declared._characters.irreps == ("B",) * 6
+    assert [o.determined_by for o in u_declared._characters.orbitals] == \
         ["declaration"] + ["hamiltonian"] * 5, \
         "one declaration fixes the labelling, and the hoppings carry it to every row"
-    assert all(o.determined_by == "lowest-l" for o in u_default.characters.orbitals), \
+    assert all(o.determined_by == "lowest-l" for o in u_default._characters.orbitals), \
         "nothing was declared, so every row rests on the lowest-l rule"
 
     # the anchor is load-bearing here and only here
@@ -2023,8 +2030,8 @@ def test_a_declared_B_site_irrep_on_the_unitary_tables_is_its_own_induced_rep(
         assert _decompose_against(table, {i: chi_b[i] for i in little}) == b_counts, point
 
         states = _solve_at(model, k)
-        got_a = tqw.corep_content(u_default, k, states=states, bands=[0, 1, 2])
-        got_b = tqw.corep_content(u_declared, k, states=states, bands=[0, 1, 2])
+        got_a = tqw._corep_content_rep(u_default, k, states=states, bands=[0, 1, 2])
+        got_b = tqw._corep_content_rep(u_declared, k, states=states, bands=[0, 1, 2])
         assert got_a and got_b, (point, str(got_a), str(got_b))
         assert got_a.counts == a_counts, (point, got_a.counts)
         assert got_b.counts == b_counts, (point, got_b.counts)
@@ -2035,8 +2042,8 @@ def test_a_declared_B_site_irrep_on_the_unitary_tables_is_its_own_induced_rep(
     assert grey_declared, str(grey_declared)
 
     def _echo(rep):
-        return (rep.characters.irreps,
-                tuple((o.function, o.determined_by) for o in rep.characters.orbitals))
+        return (rep._characters.irreps,
+                tuple((o.function, o.determined_by) for o in rep._characters.orbitals))
 
     assert _echo(u_declared) == _echo(grey_declared), "the echo record, entry for entry"
     assert _echo(u_default) == _echo(grey_default)
@@ -2047,11 +2054,11 @@ def test_a_declared_B_site_irrep_on_the_unitary_tables_is_its_own_induced_rep(
                 tuple(np.round(np.asarray(op.translation) % 1.0, 6)))
 
     for urep, grep in ((u_default, grey_default), (u_declared, grey_declared)):
-        grey_of = {_key(grep._operation(i)): i for i in grep.indices
+        grey_of = {_key(grep._operation(i)): i for i in grep._indices
                    if not grep._operation(i).time_reversal}
         worst = max(float(np.abs(np.asarray(urep.matrices[i])
                                  - np.asarray(grep.matrices[grey_of[_key(urep._operation(i))]])
-                                 ).max()) for i in urep.indices)
+                                 ).max()) for i in urep._indices)
         assert worst == 0.0, "declared or not, the two anchors are the same anchor"
 
 
@@ -2099,7 +2106,7 @@ def test_the_operation_no_site_group_contains_is_pinned_by_induction(request, fi
     u_assign = _tables._assign_orbitals(model, u_group)
     urep = _build._build_rep(model, u_group, u_assign, n_battery=5,
                           validated=_measure._validate_group(model, u_group, nk=4))
-    assert urep and urep.antiunitary_operator[0] is None, str(urep)
+    assert urep and urep._time_reversal is None, str(urep)
 
     # no occupied site group contains the four-fold
     site_groups = {s: tuple(int(i) for i in u_assign.site_group[s])
@@ -2119,7 +2126,7 @@ def test_the_operation_no_site_group_contains_is_pinned_by_induction(request, fi
                for i in range(1, 5)}
         np.testing.assert_allclose([chi[i] for i in range(1, 5)], [12, 0, 0, 0],
                                    atol=1e-9)
-        out = tqw.corep_content(urep, k, states=_solve_at(model, k), bands=list(range(12)))
+        out = tqw._corep_content_rep(urep, k, states=_solve_at(model, k), bands=list(range(12)))
         assert out, (point, str(out))
         measured = np.asarray(out.table.characters).sum(axis=0)
         np.testing.assert_allclose(measured, [chi[i] for i in out.table.columns],
@@ -2129,7 +2136,7 @@ def test_the_operation_no_site_group_contains_is_pinned_by_induction(request, fi
     # (2) the matrix route -- the induced rep of the declared content, on all four
     induced = _induced_matrices(model, u_group, u_assign, urep)
     worst = {int(i): float(np.abs(np.asarray(urep.matrices[int(i)]) - induced[int(i)]).max())
-             for i in urep.indices}
+             for i in urep._indices}
     assert max(worst.values()) <= 16 * _ULP, worst
     assert worst[four] <= 16 * _ULP, "including the one no site group contains"
     assert urep._choice["orientation"] == 1
@@ -2142,7 +2149,7 @@ def test_the_operation_no_site_group_contains_is_pinned_by_induction(request, fi
     grey = bundle[4]
     grey_induced = _induced_matrices(model, bundle[1], bundle[2], grey)
     assert max(float(np.abs(np.asarray(grey.matrices[int(i)]) - grey_induced[int(i)]).max())
-               for i in grey.indices
+               for i in grey._indices
                if not grey._operation(int(i)).time_reversal) <= 16 * _ULP
 
 
@@ -2178,36 +2185,36 @@ def test_the_twist_no_site_group_separates_is_a_genuine_equivalence(i41_soc_bund
     u_valid = _measure._validate_group(model, u_group, nk=4)
     default = _build._build_rep(model, u_group, u_assign, validated=u_valid, n_battery=5)
     assert default, str(default)
-    assert all(o.determined_by == "hamiltonian" for o in default.characters.orbitals), \
+    assert all(o.determined_by == "hamiltonian" for o in default._characters.orbitals), \
         "B is trivial on every occupied site group, so both labellings give each row " \
         "the same site irrep"
-    assert default.characters.irreps == ("-1E + -2E", "-1E + -2E") + ("2x-A",) * 4
+    assert default._characters.irreps == ("-1E + -2E", "-1E + -2E") + ("2x-A",) * 4
 
     # the equivalence, measured: twist by B and nothing anywhere moves
     def _B(op):                       # B(g) = -1 exactly on the two four-folds
         return -1.0 if abs(float(np.trace(np.asarray(op.rotation, dtype=float))) - 1.0) \
             < 1e-9 else 1.0
 
-    chi_B = {int(i): _B(default._operation(int(i))) for i in default.indices}
+    chi_B = {int(i): _B(default._operation(int(i))) for i in default._indices}
     assert sorted(chi_B.values()) == [-1.0, -1.0, 1.0, 1.0]
     twisted = dataclasses.replace(
         default, matrices={i: chi_B[int(i)] * np.asarray(default.matrices[i])
-                           for i in default.indices})
+                           for i in default._indices})
     pos = {int(s.ind): p for p, s in enumerate(u_group._symmetries)}
     prod, _tdiff, spf = u_group._get_product_table(get_diff=True)
     assert float(_matrices._product_table_residual(
-        {pos[int(i)]: twisted.matrices[i] for i in twisted.indices},
-        [pos[int(i)] for i in twisted.indices], u_group._symmetries, prod, spf)) < 1e-13
+        {pos[int(i)]: twisted.matrices[i] for i in twisted._indices},
+        [pos[int(i)] for i in twisted._indices], u_group._symmetries, prod, spf)) < 1e-13
 
     for bands in ([0, 1, 2, 3], list(range(12))):
-        ta = tqw.hsp_table(default, bands=bands)
-        tb = tqw.hsp_table(twisted, bands=bands)
+        ta = tqw._hsp_table_rep(default, bands=bands)
+        tb = tqw._hsp_table_rep(twisted, bands=bands)
         assert ta.complete is tb.complete is True
         assert ta.content == tb.content, (bands, ta.content, tb.content)
     P, states, _w, mult = _P_valence(i41_soc_bundle)
     for block in mult:
-        a_out = tqw.corep_content(default, P, states=states, bands=list(block))
-        b_out = tqw.corep_content(twisted, P, states=states, bands=list(block))
+        a_out = tqw._corep_content_rep(default, P, states=states, bands=list(block))
+        b_out = tqw._corep_content_rep(twisted, P, states=states, bands=list(block))
         assert a_out and b_out and a_out.counts == b_out.counts, (block, a_out.counts)
 
 
@@ -2279,38 +2286,40 @@ def test_the_declared_twist_and_the_table_anchor_compose_exactly_once(
     twisted = _build._build_rep(model, u_group, u_assign, validated=u_valid, n_battery=5,
                              characters={0: "B1"})
     assert base and twisted, (str(base), str(twisted))
-    assert len(base.indices) == 8 and base.antiunitary_operator[0] is None
-    assert len(twisted.indices) == 8
+    assert len(base._indices) == 8 and base._time_reversal is None
+    assert len(twisted._indices) == 8
 
-    assert twisted.characters.irreps == ("-E2", "-E1", "-E", "-E"), (
+    assert twisted._characters.irreps == ("-E2", "-E1", "-E", "-E"), (
         "the 2c rows are named by their point group here: this group carries no "
         "antiunitary operation, and its own EBR entries list nothing at that letter, "
         "every double-valued site irrep there inducing a composite band representation")
-    assert [o.named_by for o in twisted.characters.orbitals] == \
+    assert [o.named_by for o in twisted._characters.orbitals] == \
         ["tables", "tables", "point group", "point group"]
     # ... which the atomic-limit table writes out, in the elementary band
     # representations at 1a, on the closure of the mirror plane through 2c
-    doublet, pair = twisted.characters.band_representations
+    first, second, pair = twisted._characters.band_representations
+    assert (first.orbitals, second.orbitals) == ((0,), (1,))
     assert (pair.orbitals, pair.wyckoff) == ((2, 3), "2c")
     assert [(m, name, position.split("(")[0]) for m, name, position in pair.terms] == \
         [(1, "-E1↑G(2)", "1a"), (1, "-E2↑G(2)", "1a")]
-    summary = twisted.characters.summary()
-    assert pair.sentence() in summary and doublet.sentence() not in summary
+    summary = twisted._characters.summary()
+    assert pair.sentence() in summary
+    assert first.sentence() not in summary and second.sentence() not in summary
     # B1, by name: -1 on the fourfold and on the two diagonal mirrors
-    frame = twisted.characters.frame
+    frame = twisted._characters.frame
     b1 = {"E": 1.0, "C2(z)": 1.0, "C4(z)": -1.0, "C4^-1(z)": -1.0,
           "m(y)": 1.0, "m(x)": 1.0, "m([110])": -1.0, "m([1-10])": -1.0}
-    chi = {int(i): b1[frame[int(i)]] for i in base.indices}
+    chi = {int(i): b1[frame[int(i)]] for i in base._indices}
 
     worst = max(float(np.abs(np.asarray(twisted.matrices[i])
                              - complex(chi[int(i)]) * np.asarray(base.matrices[i])).max())
-                for i in base.indices)
+                for i in base._indices)
     assert worst == 0.0, "applied once, exactly, and after normalization"
     for gen in base._generators:
         before, after = base._normalization[int(gen)], twisted._normalization[int(gen)]
         assert after.factor == pytest.approx(before.factor, abs=1e-15), gen
         assert after.table_anchored is before.table_anchored, gen
-    assert base.product_residual < 1e-13 and twisted.product_residual < 1e-13
+    assert base.numerical.product_residual < 1e-13 and twisted.numerical.product_residual < 1e-13
 
     four = next(int(i) for i in base._generators if base._normalization[int(i)].order == 4)
     S = np.asarray(base._operation(four).spinor_rotation, dtype=complex)
@@ -2348,38 +2357,38 @@ def test_the_declared_twist_and_the_table_anchor_compose_exactly_once(
     # the content, on all four band blocks
     swap = {"-GM6": "-GM7", "-GM7": "-GM6", "-M6": "-M7", "-M7": "-M6", "-X5": "-X5"}
     for bands in (P6, list(P4), list(P2), list(Q2)):
-        ta = tqw.hsp_table(base, bands=bands)
-        tb = tqw.hsp_table(twisted, bands=bands)
+        ta = tqw._hsp_table_rep(base, bands=bands)
+        tb = tqw._hsp_table_rep(twisted, bands=bands)
         assert ta.complete is tb.complete is True
         assert set(ta.content) == set(tb.content) == {"GM", "M", "X"}
         for point in ta.content:
             assert {swap[n]: c for n, c in ta.content[point].items()} == tb.content[point], \
                 (bands, point, ta.content[point], tb.content[point])
-    assert tqw.hsp_table(base, bands=P6).content["GM"] == {"-GM6": 2, "-GM7": 1}
-    assert tqw.hsp_table(twisted, bands=P6).content["GM"] == {"-GM7": 2, "-GM6": 1}
+    assert tqw._hsp_table_rep(base, bands=P6).content["GM"] == {"-GM6": 2, "-GM7": 1}
+    assert tqw._hsp_table_rep(twisted, bands=P6).content["GM"] == {"-GM7": 2, "-GM6": 1}
 
     # and the grey build of the same declaration -- section (a)'s own fixture
     grey = lin3g_twisted.rep
-    assert [(o.function, o.determined_by) for o in grey.characters.orbitals] == \
-        [(o.function, o.determined_by) for o in twisted.characters.orbitals], \
+    assert [(o.function, o.determined_by) for o in grey._characters.orbitals] == \
+        [(o.function, o.determined_by) for o in twisted._characters.orbitals], \
         "the echo record is the same in both presentations, row for row"
-    assert grey.characters.irreps == twisted.characters.irreps
-    assert [o.named_by for o in grey.characters.orbitals[2:]] == ["tables"] * 2, (
+    assert grey._characters.irreps == twisted._characters.irreps
+    assert [o.named_by for o in grey._characters.orbitals[2:]] == ["tables"] * 2, (
         "the one thing that does differ: a site irrep is named by the entries the "
         "group's own EBR table carries, and the grey group and its unitary subgroup "
         "are two groups with two tables")
     assert [(m, name, position.split("(")[0]) for m, name, position
-            in grey.characters.band_representations[1].terms] == [(1, "-E↑G(4)", "2c")]
+            in grey._characters.band_representations[2].terms] == [(1, "-E↑G(4)", "2c")]
 
     def _key(op):
         return (tuple(np.asarray(op.rotation, dtype=int).ravel()),
                 tuple(np.round(np.asarray(op.translation) % 1.0, 6)))
 
-    grey_of = {_key(grey._operation(i)): i for i in grey.indices
+    grey_of = {_key(grey._operation(i)): i for i in grey._indices
                if not grey._operation(i).time_reversal}
     assert max(float(np.abs(np.asarray(twisted.matrices[i])
                             - np.asarray(grey.matrices[grey_of[_key(twisted._operation(i))]])
-                            ).max()) for i in twisted.indices) == 0.0
+                            ).max()) for i in twisted._indices) == 0.0
 
 
 # ===========================================================================
@@ -2455,13 +2464,13 @@ def test_the_square_pxpy_doublet_is_measured_against_a_torus_of_a_commutant():
     out = tqg.realized_group(_square_pxpy(), typat=[0, 0], cross_check=False)
     assert out, str(out)
     assert out.group.number_str == "99.164" and len(out.operations) == 16
-    assert len(out.validated.indices) == 16 and out.descent is None
+    assert len(out.numerical.validated._indices) == 16 and out.descent is None
 
-    multiplets = out.rep.multiplets
+    multiplets = out.rep._multiplets
     assert multiplets.by_site == (((0, 1),),) and multiplets.dims == ((2,),)
     assert multiplets.accidental == ()
 
-    rec = out.rep.characters
+    rec = out.rep._characters
     assert rec.irreps == ("E", "E")
     assert [o.determined_by for o in rec.orbitals] == ["lowest-l"] * 2
     assert [o.dim for o in rec.orbitals] == [2, 2]
@@ -2469,8 +2478,8 @@ def test_the_square_pxpy_doublet_is_measured_against_a_torus_of_a_commutant():
     chi = rec.orbitals[0].character
     assert complex(chi[frame["C4(z)"]]).real == pytest.approx(0.0, abs=1e-9)
     assert complex(chi[frame["m(x)"]]).real == pytest.approx(0.0, abs=1e-9)
-    assert max(out.rep.residuals.values()) <= GATE
-    assert out.rep.product_residual < 1e-13
+    assert max(out.rep.numerical.residuals.values()) <= GATE
+    assert out.rep.numerical.product_residual < 1e-13
     # every operation, the antiunitary ones too, acts on the pair as its rotation
     # acts on (x, y): the tables' E on (p_x, p_y), whatever the reading drew
     syms = {int(s.ind): s for s in out.group._symmetries}
@@ -2486,8 +2495,8 @@ def test_the_square_pxpy_doublet_is_measured_against_a_torus_of_a_commutant():
                                   characters={(0, 1): "E"})
     assert declared, str(declared)
     assert declared.group.number_str == "99.164" and declared.descent is None
-    assert declared.rep.characters.irreps == ("E", "E")
-    assert [o.determined_by for o in declared.rep.characters.orbitals] == \
+    assert declared.rep._characters.irreps == ("E", "E")
+    assert [o.determined_by for o in declared.rep._characters.orbitals] == \
         ["declaration"] * 2
     assert _same_matrices(out.rep, declared.rep, atol=0.0)
 
@@ -2499,7 +2508,7 @@ def test_the_square_pxpy_doublet_is_measured_against_a_torus_of_a_commutant():
     split = tqg.realized_group(_square_pxpy(), typat=[0, 0], site_multiplets=stated)
     assert split, str(split)
     assert split.group.number_str == "25.58" and split.descent is not None
-    assert split.rep.multiplets.by_site == (((0,), (1,)),)
+    assert split.rep._multiplets.by_site == (((0,), (1,)),)
     free = tqg.realized_group(_square_pxpy(), typat=[0, 0], site_multiplets=stated,
                               environment="free-standing", cross_check=False)
     assert free and free.group.number_str == "47.250", str(free)
@@ -2540,13 +2549,23 @@ def _held(out):
     and carries one orbital's states of it, so each row adds the terms of its
     label weighted by ``nspin / dim`` and a multiplet adds its content once.
     """
-    per_row = int(out.rep.model.nspin)
+    per_row = int(out.model.nspin)
     held = {}
-    for o in out.rep.characters.orbitals:
+    for o in out.rep._characters.orbitals:
         for term, k in _text._label_terms(o.irrep):
             here = held.setdefault(o.site, {})
             here[term] = here.get(term, 0.0) + k * per_row / o.dim
     return {s: {term: round(n, 9) for term, n in terms.items()} for s, terms in held.items()}
+
+
+def _induced(out):
+    """``{(irrep, wyckoff): multiplicity}`` -- the band representations of the rows, added up."""
+    total = {}
+    for o in out.wyckoff_orbits:
+        for term in o.band_representation:
+            key = (term.irrep, term.wyckoff)
+            total[key] = total.get(key, 0) + term.multiplicity
+    return total
 
 
 _R3M_TURN = 0.71      # radians, about a direction of no symmetry
@@ -2734,14 +2753,14 @@ def test_a_site_s_operations_bind_its_orbitals_and_copies_of_one_irrep_are_one(c
     out = realize(build(), **kwargs)
     assert out, str(out)
     assert out.group.number_str == number and out.descent is None
-    assert len(out.validated.indices) == len(out.operations)
-    multiplets = out.rep.multiplets
+    assert len(out.numerical.validated._indices) == len(out.operations)
+    multiplets = out.rep._multiplets
     assert multiplets.by_site == by_site
     # a multiplet's dimension counts its spinors where the spin is declared in pairs
-    pair = 1 if out.rep.spin is None else 2
+    pair = 1 if out.spin is None else 2
     assert multiplets.dims == tuple(tuple(len(ch) // pair for ch in site) for site in by_site)
     assert multiplets.accidental == ()
-    rows = out.rep.characters.orbitals
+    rows = out.rep._characters.orbitals
     for o in rows:
         # every row carries its own irrep's characters, a copy's and not the
         # multiplet's -- the orbital factor's, half the states' where they carry spin
@@ -2754,21 +2773,22 @@ def test_a_site_s_operations_bind_its_orbitals_and_copies_of_one_irrep_are_one(c
         assert all(o.function == "" for o in turned), \
             "nothing was declared for a copy, so no function is returned for it"
     if labels is not None:
-        assert out.rep.characters.irreps == labels
-    # every orbit's band representation is on the record: its rows' own
+        assert out.rep._characters.irreps == labels
+    # every Wyckoff orbit's band representation is on the record: its rows' own
     # elementary ones at its own position where the tables name its rows there,
     # and otherwise a sum written elsewhere, printed under the table
-    table = out.rep.characters
-    assert sorted(a for orbit in table.band_representations for a in orbit.orbitals) == \
-        [o.orbital for o in rows]
-    for orbit in table.band_representations:
-        own = all(rows[a].named_by == "tables" for a in orbit.orbitals)
-        assert all(rows[a].named_by == ("tables" if own else "point group"
+    orbits = out.wyckoff_orbits
+    assert sorted(a for o in orbits for a in o.orbitals) == [o.orbital for o in rows]
+    summary = orbits.summary()
+    for o in orbits:
+        own = o.numerical.named_by == "tables"
+        assert o.numerical.named_by == ("tables" if own else "point group"
                                         if out.group.spinor else "invariants")
-                   for a in orbit.orbitals)
-        assert own == all(position.split("(")[0] == orbit.wyckoff
-                          for _m, _name, position in orbit.terms)
-        assert (orbit.sentence() in table.summary()) is not own
+        assert own == all(term.wyckoff == o.wyckoff for term in o.band_representation)
+        line = (f"  {o.wyckoff}, {_text._orbitals_named(o.orbitals)}: they induce "
+                f"{o.band_representation.label}   (.band_representation)")
+        assert (line in summary) is not own
+    table = out.rep._characters
     if case in _INDUCED:
         assert [tuple((m, name, position.split("(")[0]) for m, name, position in orbit.terms)
                 for orbit in table.band_representations] == _INDUCED[case]
@@ -2780,18 +2800,21 @@ def test_a_site_s_operations_bind_its_orbitals_and_copies_of_one_irrep_are_one(c
         twin = realize(aligned(), **kwargs)
         assert twin, str(twin)
         assert twin.group.number_str == number and twin.descent is None
-        assert len(twin.rep.multiplets.by_site[0]) == 2, "p_z apart from the (p_x, p_y) pair"
-        assert [(o.named_by, o.function) for o in twin.rep.characters.orbitals] == \
+        assert len(twin.rep._multiplets.by_site[0]) == 2, "p_z apart from the (p_x, p_y) pair"
+        assert [(o.named_by, o.function) for o in twin.rep._characters.orbitals] == \
             [(o.named_by, "") for o in rows], "nor on an aligned one: nothing was declared"
-        assert twin.rep.characters.band_representations == table.band_representations
+        # the aligned shell's Wyckoff orbits, p_z and the (p_x, p_y) pair apart,
+        # induce together the band representation the turned shell induces whole
+        assert len(twin.wyckoff_orbits) > len(orbits)
+        assert _induced(twin) == _induced(out)
         assert _held(twin) == held
         # one band content, on all the bands and on every subset of them: a
         # subset's labels rest on the functions the orbitals read as between
         # the sites, the shell's however it is split into multiplets
-        nstate = int(out.rep.model.nstate)
+        nstate = int(out.model.nstate)
         for bands in sorted(set(range(2, nstate, 2)) | {nstate}):
-            here = tqw.hsp_table(out.rep, bands=bands)
-            there = tqw.hsp_table(twin.rep, bands=bands)
+            here = tqw.hsp_table(out, bands=bands)
+            there = tqw.hsp_table(twin, bands=bands)
             assert here and there and here.complete == there.complete, bands
             assert here.content == there.content, bands
             if bands == nstate:
@@ -2802,7 +2825,7 @@ def test_a_site_s_operations_bind_its_orbitals_and_copies_of_one_irrep_are_one(c
     # of its own, a subset of the bands that reads differently under another
     # says so, with every site's shell aligned and with one site's turned
     for apart in _LABELS_REST_ON.get(case, ()):
-        note = tqw.hsp_table(realize(apart(), **kwargs).rep, bands=6).note
+        note = tqw.hsp_table(realize(apart(), **kwargs), bands=6).note
         assert note == tqw._ANOTHER_LABELLING_RELABELS, note
     # the covariance gate is the larger of the exact floor, the rounding the
     # representation's own arithmetic carries, |G| N eps max|H| on its battery, and
@@ -2812,16 +2835,16 @@ def test_a_site_s_operations_bind_its_orbitals_and_copies_of_one_irrep_are_one(c
     # closes it; the matrices multiply as the group does to the same rounding,
     # on entries the size of a unitary matrix's
     rep = out.rep
-    scale = float(np.abs(np.asarray(rep.model.hamiltonian(
+    scale = float(np.abs(np.asarray(out.model.hamiltonian(
         k_pts=rep._battery, flatten_spin_axis=True))).max())
-    arithmetic = tqs.covariance_gate(len(rep.indices), int(rep.model.nstate), scale)
-    phases = _matrices._phase_rounding(_bloch.evaluator(rep.model), rep.group,
+    arithmetic = tqs.covariance_gate(len(rep._indices), int(out.model.nstate), scale)
+    phases = _matrices._phase_rounding(_bloch.evaluator(out.model), out.group,
                                        rep._operations, rep._battery)
-    gate = tqs.covariance_gate(len(rep.indices), int(rep.model.nstate), scale, phases)
-    assert rep._search["gate"] == gate and (arithmetic > GATE) == (len(rep.indices) == 96)
-    assert max(rep.residuals.values()) <= gate
-    assert rep.product_residual <= tqs.covariance_gate(len(rep.indices),
-                                                       int(rep.model.nstate), 1.0)
+    gate = tqs.covariance_gate(len(rep._indices), int(out.model.nstate), scale, phases)
+    assert rep._search["gate"] == gate and (arithmetic > GATE) == (len(rep._indices) == 96)
+    assert max(rep.numerical.residuals.values()) <= gate
+    assert rep.numerical.product_residual <= tqs.covariance_gate(len(rep._indices),
+                                                                 int(out.model.nstate), 1.0)
 
 
 def _spin_lift_defect(rep):
@@ -2832,7 +2855,7 @@ def _spin_lift_defect(rep):
     order: zero to rounding where every matrix is an orbital factor times the
     operation's own spin lift.
     """
-    syms = {int(s.ind): s for s in rep.group._symmetries}
+    syms = {int(s.ind): s for s in rep._group._symmetries}
     worst = 0.0
     for ind, D in rep.matrices.items():
         if syms[int(ind)].time_reversal:
@@ -2897,14 +2920,14 @@ def test_two_decoupled_sublattices_are_measured_and_the_convention_names_the_res
                                cross_check=False)
     assert split, str(split)
     assert split.group.number_str == "99.164" and split.descent is None
-    assert len(split.validated.indices) == len(split.operations) == 16
-    assert split.rep.multiplets.by_site == (((0, 1),), ((2, 3),))
-    assert split.rep.characters.irreps == ("E", "E", "E", "E")
-    assert all(o.determined_by == "lowest-l" for o in split.rep.characters.orbitals)
-    assert split.conserved["dim"] == 7, "the decoupling, stated rather than refused"
+    assert len(split.numerical.validated._indices) == len(split.operations) == 16
+    assert split.rep._multiplets.by_site == (((0, 1),), ((2, 3),))
+    assert split.rep._characters.irreps == ("E", "E", "E", "E")
+    assert all(o.determined_by == "lowest-l" for o in split.rep._characters.orbitals)
+    assert split.conserved.dim == 7, "the decoupling, stated rather than refused"
     assert "additional commuting matrices: 7" in repr(split)
-    assert max(split.rep.residuals.values()) < 1e-13
-    assert split.rep.product_residual < 1e-13
+    assert max(split.rep.numerical.residuals.values()) < 1e-13
+    assert split.rep.numerical.product_residual < 1e-13
 
     # a conserved spin on a site of two orbitals: the operation's own lift
     for soc, rotations in ((None, 3), ("LzSz", 1)):
@@ -2918,18 +2941,18 @@ def test_two_decoupled_sublattices_are_measured_and_the_convention_names_the_res
                     environment=environment)
                 assert spun, str(spun)
                 assert spun.group.number_str == number
-                assert len(spun.validated.indices) == len(spun.operations)
-                assert spun.cross_check["outcome"] == "agree"
-                assert spun.conserved["dim"] == rotations
-                assert [(s["copies"], s["dim"]) for s in spun.conserved["sectors"]] == \
+                assert len(spun.numerical.validated._indices) == len(spun.operations)
+                assert spun.environment.cross_check.outcome == "agree"
+                assert spun.conserved.dim == rotations
+                assert [(s.copies, s.dim) for s in spun.conserved.sectors] == \
                     [(1, 4)], "a conserved spin rotation is no sector: the orbitals' one"
                 assert f"additional commuting matrices: {rotations}" in repr(spun)
                 assert _spin_lift_defect(spun.rep) < 1e-12, "D(g) = O(g) (x) S(g)"
-                table = spun.rep.characters
+                table = spun.rep._characters
                 assert table.irreps == (rows,) * 4 and table.multiplicity_spaces == ()
                 assert all(o.determined_by == how for o in table.orbitals)
                 read.append(([b.spelled() for b in table.band_representations],
-                             {n: tqw.hsp_table(spun.rep, bands=n) for n in (2, 4, 6)}))
+                             {n: tqw.hsp_table(spun, bands=n) for n in (2, 4, 6)}))
             (terms, bands), (terms_turned, bands_turned) = read
             assert terms_turned == terms
             for n in (2, 4, 6):

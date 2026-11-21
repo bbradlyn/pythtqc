@@ -256,13 +256,13 @@ def test_the_dimerized_chain_descends_to_the_bond_centred_p4mmm(dimerized):
     r = dimerized
     assert not isinstance(r, Refusal), str(r)
     assert (r.group.number_str, r.group.name) == ("123.340", "P4/mmm1'")
-    assert (len(r.validated.indices), len(r.operations)) == (32, 32)
+    assert (len(r.numerical.validated._indices), len(r.operations)) == (32, 32)
     assert r.group._provenance == "descended"
     assert r.group._lattice_index == 1 and r.group._tables_ready is True
-    assert r.assignment.wyckoff_tables == ("g", "g")
-    assert r.assignment.wyckoff_spglib == ("g",)
+    assert r._assignment.wyckoff_tables == ("g", "g")
+    assert r._assignment.wyckoff_spglib == ("g",)
 
-    step = dimerized.descent["lattice"]
+    step = dimerized.descent.lattice
     assert step["index"] == 2
     assert step["fractional_translations"] == ((0.5, 0.0, 0.0),)
     assert step["realized"] == ()
@@ -273,11 +273,11 @@ def test_the_dimerized_chain_descends_to_the_bond_centred_p4mmm(dimerized):
     assert tau["refuted_by"] == "tensor structure"
     assert tau["scaled"] == pytest.approx(1.0, abs=1e-9)
     assert tau["residual"] == pytest.approx(1.0, abs=1e-9)
-    assert dimerized.descent["steps"][0]["refuted_by"] == {"tensor structure": 32}
+    assert dimerized.descent.steps[0].refuted_by == {"tensor structure": 32}
     assert "lattice supergroup of index 2" in step["note"]
     # the composed note is the lattice step's sentence plus the unitary descent's,
     # and what the concatenation adds is the group that ended up being served
-    assert "re-identified as P4/mmm1' #123.340." in dimerized.descent["note"]
+    assert "re-identified as P4/mmm1' #123.340." in dimerized.descent.note
 
 
 @pytest.mark.slow
@@ -293,7 +293,7 @@ def test_the_tables_served_are_the_descended_groups(dimerized):
     assert not isinstance(hsp, Refusal), str(hsp)
     for point, counts in (("GM", {"GM1+": 1, "GM3-": 1}), ("X", {"X1+": 1, "X2-": 1})):
         k = np.asarray(hsp[point])
-        out = tqsew.corep_content(dimerized.rep, k,
+        out = tqsew.corep_content(dimerized, k,
                                   states=tqsew.solve_at(dimerized.model, k), bands=2)
         assert not isinstance(out, Refusal), str(out)
         assert dict(out.counts) == counts, point
@@ -312,11 +312,11 @@ def test_a_declared_position_tol_moves_nothing_on_the_dimerized_chain(dimerized)
     m = cubic_2x1x1(1.0, 0.5)
     r = tqg.realized_group(m, position_tol=1e-6)
     assert not isinstance(r, Refusal), str(r)
-    assert (r.group.number_str, len(r.validated.indices)) == ("123.340", 32)
-    assert r.descent["lattice"]["index"] == 2
-    assert r.positions["defect"] == pytest.approx(0.0, abs=1e-15)
-    assert r.positions["max_move"] == pytest.approx(0.0, abs=1e-15)
-    assert r.symmetrization is None
+    assert (r.group.number_str, len(r.numerical.validated._indices)) == ("123.340", 32)
+    assert r.descent.lattice["index"] == 2
+    assert r.numerical.positions.defect == pytest.approx(0.0, abs=1e-15)
+    assert r.numerical.positions.max_move == pytest.approx(0.0, abs=1e-15)
+    assert r.numerical.symmetrization is None
     assert dimerized.group.number_str == r.group.number_str
 
 
@@ -405,11 +405,11 @@ def test_a_translation_obeyed_with_each_sites_orbitals_turned_is_a_supercell():
 
     # control 1: a genuine weak dimerization is broken in every basis
     dimer = _realized._realize(cubic_2x1x1(10.0, 10.0 + 8e-5), tol=1e-4)
-    assert dimer and (dimer.group.number_str, len(dimer.validated.indices)) == ("123.340", 32)
-    (tau_d,) = dimer.descent["lattice"]["operations"]
+    assert dimer and (dimer.group.number_str, len(dimer.numerical.validated._indices)) == ("123.340", 32)
+    (tau_d,) = dimer.descent.lattice["operations"]
     assert tau_d["refuted_by"] == "tensor structure" and tau_d["scaled"] == pytest.approx(1.0, abs=1e-9)
     assert tau_d["residual"] == pytest.approx(1.6e-4, rel=1e-6, abs=0), "1.6 x tol"
-    assert dimer.descent["lattice"]["dressing"] == ()
+    assert dimer.descent.lattice["dressing"] == ()
 
     # control 2: two decoupled copies a quarter turn apart, shifted by half a cell
     copies = tqg.realized_group(uncoupled_screw_chain())
@@ -439,14 +439,14 @@ def test_a_translation_obeyed_with_each_sites_orbitals_turned_is_a_supercell():
                      ({0: "px", 1: "py"}, ["declaration"] * 2 + ["lowest-l"] * 2)):
         screw = tqg.realized_group(screw_chain(), characters=said, cross_check=False)
         assert screw and (screw.group.number_str, screw.group.name) == ("131.436", "P4_2/mmc1'")
-        assert len(screw.validated.indices) == 32 and screw.descent["steps"][0]["n_dropped"] == 32
-        (tau_s,) = screw.descent["lattice"]["operations"]
+        assert len(screw.numerical.validated._indices) == 32 and screw.descent.steps[0].n_dropped == 32
+        (tau_s,) = screw.descent.lattice["operations"]
         assert tau_s["translation"] == (0.0, 0.0, 0.5) and tau_s["refuted_by"] == "tensor structure"
         partners = [np.rint(np.asarray(s.rotation)).astype(int) for s in screw.group._symmetries
                     if not s.time_reversal and abs(float(s.translation[2]) % 1.0 - 0.5) < 1e-9]
         assert len(partners) == 8 and all(abs(R[0, 1]) == 1 for R in partners), \
             "the screws, diagonal twofolds, S4 and c-glides: every rotation exchanging x and y"
-        rows = screw.rep.characters.orbitals
+        rows = screw.rep._characters.orbitals
         assert [o.irrep for o in rows] == ["B3u", "B2u", "B3u", "B2u"], said
         assert {o.site_symmetry for o in rows} == {"mmm"}
         assert [o.determined_by for o in rows] == by, said
@@ -474,9 +474,9 @@ def test_p4232_both_routes_give_the_same_group_and_letters(route, request):
         # `realized_group(m208)`, the session's shared record
         r = request.getfixturevalue("p4232_descended")
         assert not isinstance(r, Refusal), str(r)
-        group, assignment, validated = r.group, r.assignment, r.validated
+        group, assignment, validated = r.group, r._assignment, r.numerical.validated
         assert group._provenance == "descended"
-        step = r.descent["lattice"]
+        step = r.descent.lattice
         assert step["index"] == 2
         assert step["fractional_translations"] == ((0.5, 0.5, 0.5),)
         assert step["realized"] == ()
@@ -492,7 +492,7 @@ def test_p4232_both_routes_give_the_same_group_and_letters(route, request):
             "p4232_decorated")
         assert group._lattice_index == 1
     assert (group.number_str, group.name, group._size) == ("208.45", "P4_2321'", 48)
-    assert len(validated.indices) == 48
+    assert len(validated._indices) == 48
     assert assignment.wyckoff_tables == ("a", "a")
 
 
@@ -577,9 +577,9 @@ def test_the_square_cells_hamiltonian_breaks_the_centring():
                            cross_check=False)
     assert not isinstance(r, Refusal), str(r)
     assert (r.group.number_str, r.group.name) == ("38.188", "Amm21'")
-    assert (len(r.validated.indices), len(r.operations)) == (8, 8)
+    assert (len(r.numerical.validated._indices), len(r.operations)) == (8, 8)
     assert r.group._provenance == "descended"
-    step = r.descent["lattice"]
+    step = r.descent.lattice
     assert step["index"] == 2 and step["realized"] == ()
     assert step["operations"][0]["translation"] == (0.5, 0.5, 0.0)
     assert step["operations"][0]["refuted_by"] == "tensor structure"
@@ -592,15 +592,15 @@ def test_the_square_cells_hamiltonian_breaks_the_centring():
     # translation refuted at the same residual from a cell half the size
     plain = tqg.realized_group(square_two_orbitals())
     assert not isinstance(plain, Refusal), str(plain)
-    assert plain.environment == "substrate" and plain.environment_declared is False
+    assert plain.environment.kind == "substrate" and plain.environment.declared is False
     assert (plain.group.number_str, plain.group.name) == ("8.33", "Cm1'")
-    assert (len(plain.validated.indices), len(plain.operations)) == (4, 4)
-    assert plain.descent["from"]["number_str"] == "99.164"
-    assert plain.descent["lattice"]["index"] == 2
-    assert plain.descent["lattice"]["coset_partners_refuted"] == 13
-    assert plain.descent["lattice"]["operations"][0]["residual"] == pytest.approx(
+    assert (len(plain.numerical.validated._indices), len(plain.operations)) == (4, 4)
+    assert plain.descent.cell_group.number_str == "99.164"
+    assert plain.descent.lattice["index"] == 2
+    assert plain.descent.lattice["coset_partners_refuted"] == 13
+    assert plain.descent.lattice["operations"][0]["residual"] == pytest.approx(
         2.0, abs=1e-9)
-    assert plain.cross_check["outcome"] == "agree"
+    assert plain.environment.cross_check.outcome == "agree"
 
 
 # ---------------------------------------------------------------------------
@@ -826,23 +826,23 @@ def test_the_flat_p41_cell_reaches_the_lattice_descent_and_holds_each_operation_
     r = p41_free_standing
     assert not isinstance(r, Refusal), str(r)
     assert (r.group.number_str, r.group.name) == ("99.164", "P4mm1'")
-    assert (len(r.validated.indices), len(r.operations)) == (16, 16)
+    assert (len(r.numerical.validated._indices), len(r.operations)) == (16, 16)
     assert r.group._provenance == "descended"
     # the s orbitals, assigned by the lowest-angular-momentum rule: A1 of the site group,
     # returned on this spinful model as the corep -E
-    assert r.rep.characters.irreps == ("-E", "-E")
-    assert r.assignment.wyckoff_spglib == ("c",)
+    assert r.rep._characters.irreps == ("-E", "-E")
+    assert r._assignment.wyckoff_spglib == ("c",)
 
     d = r.descent
-    assert d["from"] == {"number_str": "123.340", "name": "P4/mmm1'", "size": 64}
-    assert d["to"] == {"number_str": "99.164", "name": "P4mm1'", "size": 16}
-    assert d["steps"][0]["n_dropped"] == 48
-    assert d["steps"][0]["refuted_by"] == {"tensor structure": 48}
-    assert {b["refuted_by"] for b in d["dropped"]
-            if b["name"] in ("S4(z)", "S4^-1(z)")} == {"tensor structure"}
-    assert d["steps"][0]["kept"] == (1, 5, 9, 13, 19, 23, 27, 31)
+    assert d.cell_group == tqg.NamedGroup(number_str="123.340", name="P4/mmm1'", size=64)
+    assert d.subgroup == tqg.NamedGroup(number_str="99.164", name="P4mm1'", size=16)
+    assert d.steps[0].n_dropped == 48
+    assert d.steps[0].refuted_by == {"tensor structure": 48}
+    assert {b.refuted_by for b in d.dropped
+            if b.name in ("S4(z)", "S4^-1(z)")} == {"tensor structure"}
+    assert d.steps[0].kept == (1, 5, 9, 13, 19, 23, 27, 31)
 
-    step = d["lattice"]
+    step = d.lattice
     assert step["index"] == 2 and step["realized"] == ()
     assert step["coset_partners_refuted"] == 23
     (tau,) = step["operations"]
@@ -1071,19 +1071,19 @@ def test_magnetic_translations_leave_the_cell_its_bare_subgroup():
     assert (r.group.number_str, r.group.name, len(r.operations)) == ("51.290", "Pmma1'", 16)
     assert r.group._lattice_index == 1, "the cell's own translations are the lattice"
     d = r.descent
-    assert d["from"]["number_str"] == "123.340" and d["to"]["number_str"] == "51.290"
-    assert d["steps"][0]["n_dropped"] == 112 and d["steps"][0]["refuted_by"] == {"tensor structure": 112}
+    assert d.cell_group.number_str == "123.340" and d.subgroup.number_str == "51.290"
+    assert d.steps[0].n_dropped == 112 and d.steps[0].refuted_by == {"tensor structure": 112}
 
     # the three translations: kept by the detector, refused by the ansatz at exactly 1
     # (a sign per site inside the one channel class has no component along the ansatz),
     # and the direct check -- 4t, a whole sign on every x hop -- was never needed
-    ops = {e["translation"]: e for e in d["lattice"]["operations"]}
+    ops = {e["translation"]: e for e in d.lattice["operations"]}
     assert set(ops) == taus
     for e in ops.values():
         assert e["refuted_by"] == "tensor structure", e
         assert e["scaled"] == pytest.approx(1.0, abs=1e-12), e
         assert e["residual"] == pytest.approx(4.0, rel=1e-12, abs=0), e
-    assert d["lattice"]["refuted"] == {} and d["lattice"]["realized"] == ()
+    assert d.lattice["refuted"] == {} and d.lattice["realized"] == ()
 
     # the oracle: the operations under which the sign pattern is invariant as written
     served = set()
@@ -1095,15 +1095,15 @@ def test_magnetic_translations_leave_the_cell_its_bare_subgroup():
         served.add((tuple(map(tuple, R.tolist())), t))
     bare = _bare_symmetries_of_the_sign_pattern(PI_FLUX_SX, PI_FLUX_SY)
     assert len(bare) == 8 and served == bare
-    assert r.time_reversal["outcome"] == "kept"
+    assert r.time_reversal.outcome == "kept"
 
     # the control: the same flux in Landau gauge, where the dressing is a boost
     landau = tqg.realized_group(pi_flux_landau_2x1())
     assert landau, str(landau)
     assert (landau.group.number_str, len(landau.operations)) == ("47.250", 16)
     dl = landau.descent
-    assert dl["from"]["number_str"] == "123.340" and dl["steps"][0]["n_dropped"] == 48
-    assert dl["steps"][0]["refuted_by"] == {"no symmetry matrix": 32, "tensor structure": 16}
-    [tau] = dl["lattice"]["operations"]
+    assert dl.cell_group.number_str == "123.340" and dl.steps[0].n_dropped == 48
+    assert dl.steps[0].refuted_by == {"no symmetry matrix": 32, "tensor structure": 16}
+    [tau] = dl.lattice["operations"]
     assert tau["refuted_by"] == "tensor structure" and tau["scaled"] == pytest.approx(1.0, abs=1e-12)
     assert tau["residual"] == pytest.approx(4.0, rel=1e-12, abs=0)

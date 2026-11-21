@@ -195,8 +195,8 @@ def wyckoff_sites_tables(
     A letter is a table key, and settings disagree about it: the Fu–Kane–Mele
     diamond's orbit is ``8a`` here and ``8b`` in spglib's setting, and a site
     irrep at two positions can carry the same content at every k-point and
-    different real-space invariants.  The orbitals' own letters are in
-    ``realized_group(model).assignment.wyckoff_tables``.
+    different real-space invariants.  The orbitals' own positions are the rows'
+    ``wyckoff`` of ``r.wyckoff_orbits``.
 
     Parameters
     ----------
@@ -355,7 +355,7 @@ def _assign_orbitals(model, group: GroupData, *, typat=None,
                      symprec=None) -> OrbitalAssignment | Refusal:
     """Which site orbit each orbital sits on, and how the operations move them.
 
-    Returned as :attr:`RealizedGroup.assignment`.  Each operation's image
+    Held as ``RealizedGroup._assignment``.  Each operation's image
     ``R·τ + t`` is looked up among the
     sites of the same species, and the permutation that comes out — with the
     integer lattice shift beside it, which is what fixes a permuting

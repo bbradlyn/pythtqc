@@ -186,7 +186,7 @@ def _character_text(value) -> str:
 def _operation_name(rep, ind) -> str:
     """One operation's name in the model's frame, as the operation table writes it."""
     op = rep._operation(int(ind))
-    return (_sitechars.operation_name(op, np.asarray(rep.group._lattice, dtype=float))
+    return (_sitechars.operation_name(op, np.asarray(rep._group._lattice, dtype=float))
             + ("'" if op.time_reversal else ""))
 
 

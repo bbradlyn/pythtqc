@@ -27,16 +27,16 @@ from pythtb import WFArray
 from pythtqc import models
 
 r = tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1])
-model, group, assignment, validated, rep = r
+model, group = r.model, r.group
 hsp = tqc.high_symmetry_points(group)              # the tables' k-points, in this cell
-table = tqc.characters(rep, hsp["GM"], bands=6)    # the six lowest bands at Gamma
+table = tqc.characters(r, hsp["GM"], bands=6)    # the six lowest bands at Gamma
 print(table, table.multiplets)
 #  CharacterTable(k=[0.0, 0.0], bands 0-5 in 3 multiplets, group=realized) ((0, 1), (2, 3), (4, 5))
 print(np.round(table.characters.real, 3) + 0.0)
 #  [[ 2.     0.    -1.414 -1.414  0.     0.     0.     0.   ]
 #   [ 2.     0.     1.414  1.414  0.     0.     0.     0.   ]
 #   [ 2.     0.    -1.414 -1.414  0.     0.     0.     0.   ]]
-content = tqc.corep_content(rep, hsp["GM"], bands=6)
+content = tqc.corep_content(r, hsp["GM"], bands=6)
 print(content, content.labels)
 #  CorepContent(GM: 2×-GM6 + -GM7, partition=(0, 1, 0)) ({'-GM6': 1}, {'-GM7': 1}, {'-GM6': 1})
 print(round(content.isolation, 2))
@@ -107,9 +107,9 @@ elsewhere:
 print({name: k.tolist() for name, k in hsp.items()}, hsp.out_of_plane)
 #  {'GM': [0.0, 0.0], 'M': [0.5, 0.5], 'X': [0.0, 0.5]} ('A', 'R', 'Z')
 # X's partner in its star, (1/2, 0), is not the tabulated point
-print(tqc.corep_content(rep, [0.5, 0.0], bands=6).gate)
+print(tqc.corep_content(r, [0.5, 0.0], bands=6).gate)
 #  kpoint_not_tabulated
-t = tqc.hsp_table(rep, bands=6)
+t = tqc.hsp_table(r, bands=6)
 print(t.summary())
 #  bands 0-5   (.bands)
 #    their coreps at each high-symmetry point, GM being Γ   (.content)
@@ -150,7 +150,7 @@ from pythtb.models import haldane
 hal = tqc.realized_group(haldane(0.3, -1.0, 0.15, 0.5))
 print(hal.group.name, list(tqc.high_symmetry_points(hal.group)))
 #  P3 ['GM', 'K', 'KA', 'M']
-print(tqc.hsp_table(hal.rep, bands=1).summary())
+print(tqc.hsp_table(hal, bands=1).summary())
 #  band 0   (.bands)
 #    their coreps at each high-symmetry point, GM being Γ   (.content)
 #      GM: GM1
@@ -175,9 +175,9 @@ cuts one is refused, `multiplet_split`, with the multiplet and its energies
 named; at Γ the fifth band is half of a doublet:
 
 ```python
-print(tqc.corep_content(rep, hsp["GM"], bands=4))
+print(tqc.corep_content(r, hsp["GM"], bands=4))
 #  CorepContent(GM: -GM6 + -GM7, partition=(0, 1))
-cut = tqc.corep_content(rep, hsp["GM"], bands=5)
+cut = tqc.corep_content(r, hsp["GM"], bands=5)
 print(bool(cut), cut.gate, cut.context["multiplet"])
 #  False multiplet_split (4, 5)
 ```
@@ -193,7 +193,7 @@ isolated content; `isolation` is returned either way.
 Each call above solved the model at its point itself. To read several sets of
 bands at one point, solve once and hand the states in. `sewing_matrix`,
 `characters`, `corep_content` and `hsp_table` all take them as `states=`, in
-pythtb's own forms: `None` (the default) or `rep.model`, to solve at `k` and
+pythtb's own forms: `None` (the default) or `r.model`, to solve at `k` and
 keep nothing; a solved `pythtb.WFArray`, whose states at `k` are used as they
 stand; or, at one point, the `(evals, evecs)` pair of `tqc.solve_at`.
 
@@ -202,11 +202,11 @@ gm = tqc.solve_at(model, hsp["GM"])                # energies and eigenvectors, 
 print(tqc.multiplets(gm[0]))
 #  ((0, 1), (2, 3), (4, 5), (6, 7))
 for bands in (2, [4, 5], [6, 7]):
-    print(bands, tqc.corep_content(rep, hsp["GM"], states=gm, bands=bands))
+    print(bands, tqc.corep_content(r, hsp["GM"], states=gm, bands=bands))
 #  2 CorepContent(GM: -GM6, partition=(0,))
 #  [4, 5] CorepContent(GM: -GM6, partition=(0,))
 #  [6, 7] CorepContent(GM: -GM7, partition=(0,))
-print(tqc.corep_content(rep, hsp["M"], states=gm, bands=2).gate)
+print(tqc.corep_content(r, hsp["M"], states=gm, bands=2).gate)
 #  states_not_at_k
 ```
 
@@ -226,7 +226,7 @@ print(tqc.k_grid(group, 4), tqc.k_grid(group, 5), sep="\n")
 #  KGrid(5x5x1 mesh, symmetric; samples GM; misses M, X)
 wf = WFArray(model.lattice, tqc.k_grid(group, 5).mesh, spinful=True)
 wf.solve_model(model)
-print(tqc.hsp_table(rep, states=wf, bands=6).summary())
+print(tqc.hsp_table(r, states=wf, bands=6).summary())
 #  bands 0-5   (.bands)
 #    their coreps at each high-symmetry point, GM being Γ   (.content)
 #      GM: 2×-GM6 + -GM7
@@ -292,7 +292,7 @@ quarter = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
 print(c4, [(op.index, op.name, op.translation.tolist(), op.antiunitary)
            for op in r.operations.values() if np.allclose(op.rotation_cartesian, quarter)])
 #  3 [(3, 'C4(z)', [0.0, 0.0, 0.0], False), (11, "C4(z)'", [0.0, 0.0, 0.0], True)]
-B = tqc.sewing_matrix(rep, c4, hsp["M"], bands=2)
+B = tqc.sewing_matrix(r, c4, hsp["M"], bands=2)
 print(np.round(B.trace, 6))
 #  (-1.414214+0j)
 print(np.round(r.operations[c4].spin_lift, 6) + 0)
@@ -344,11 +344,11 @@ allow, and their rows say so. Declaring orbital 0 a `d_{x²−y²}`, the irrep
 describe:
 
 ```python
-print([(row.wyckoff, row.irrep, row.determined_by) for row in rep.characters.orbitals])
-#  [('1a', '-E1', 'lowest-l'), ('1a', '-E2', 'lowest-l'), ('2c', '-E', 'hamiltonian'), ('2c', '-E', 'hamiltonian')]
-other = tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1], characters={0: "dx2-y2"}).rep
-print(other.characters.irreps)
-#  ('-E2', '-E1', '-E', '-E')
+print([(o.wyckoff, o.label, o.determined_by) for o in r.wyckoff_orbits])
+#  [('1a', '-E1', 'lowest-l'), ('1a', '-E2', 'lowest-l'), ('2c', '-E', 'hamiltonian')]
+other = tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1], characters={0: "dx2-y2"})
+print(tuple(o.label for o in other.wyckoff_orbits))
+#  ('-E2', '-E1', '-E')
 relabelled = tqc.corep_content(other, hsp["GM"], bands=6)
 print(relabelled, relabelled.partition == content.partition)
 #  CorepContent(GM: -GM6 + 2×-GM7, partition=(0, 1, 0)) True

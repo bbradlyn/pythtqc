@@ -57,43 +57,32 @@ class SpinBasis:
 
     :func:`spin_basis` and :func:`spinless_presentation` return it;
     ``spin=`` on :func:`..groups.realized_group` takes it, as does
-    :func:`spin_operator`; and the representation carries it as
-    :attr:`..symmetry.SpaceGroupRep.spin`.  ``sb.summary()`` prints the pairs.
+    :func:`spin_operator`; and what ``realized_group`` returns reads it back as
+    ``r.spin``.  ``sb.summary()`` prints the pairs.
 
     Attributes
     ----------
-    norb : int
-        The number of orbitals of the model it describes.
-    kind : {"interleaved", "blocked", "pairs"}
-        How it was written: ``(0↑, 0↓, 1↑, 1↓, …)``, ``(0↑, 1↑, …, 0↓, 1↓, …)``,
-        or pair by pair.
     pairs : tuple of (int, int)
         ``(up, down)`` for each spinor Wannier function, every orbital in one
         pair: the spin states along ``+z`` and ``−z`` of the model's Cartesian
         frame, as a native pythtb spinor's are.
     """
 
-    norb: int
-    kind: str
+    # the number of orbitals of the model it describes
+    _norb: int
+    # how it was written: "interleaved", (0↑, 0↓, 1↑, 1↓, …); "blocked",
+    # (0↑, 1↑, …, 0↓, 1↓, …); or "pairs", pair by pair
+    _kind: str
     pairs: tuple
 
     # -- what the declaration knows ----------------------------------------
     @property
-    def pair_of_orbital(self) -> np.ndarray:
+    def _pair_of_orbital(self) -> np.ndarray:
         """The pair each orbital belongs to, by orbital."""
-        out = -np.ones(int(self.norb), dtype=int)
+        out = -np.ones(int(self._norb), dtype=int)
         for c, (up, dn) in enumerate(self.pairs):
             out[int(up)] = c
             out[int(dn)] = c
-        return out
-
-    @property
-    def spin_of_orbital(self) -> np.ndarray:
-        """Each orbital's spin along ``z``, by orbital: ``+1`` up, ``−1`` down."""
-        out = np.zeros(int(self.norb), dtype=int)
-        for up, dn in self.pairs:
-            out[int(up)] = 1
-            out[int(dn)] = -1
         return out
 
     def states(self, c) -> tuple:
@@ -101,7 +90,7 @@ class SpinBasis:
         return tuple(int(x) for x in self.pairs[int(c)])
 
     @property
-    def interleaved_index(self) -> np.ndarray:
+    def _interleaved_index(self) -> np.ndarray:
         """``P``, with ``P[2c + s]`` the orbital that holds pair ``c``'s spin ``s``, ``0`` up and ``1`` down.
 
         A native spinful model stores that state at ``2c + s``, so with ``Π``
@@ -115,9 +104,9 @@ class SpinBasis:
         return P
 
     @property
-    def permutation_matrix(self) -> np.ndarray:
-        """``Π``, with ``Π[P[j], j] = 1`` for ``P`` the :attr:`interleaved_index`: the spinless model's ``H(k)`` is ``Π H_native(k) Πᵀ``."""
-        P = self.interleaved_index
+    def _permutation_matrix(self) -> np.ndarray:
+        """``Π``, with ``Π[P[j], j] = 1`` for ``P`` the interleaved index: the spinless model's ``H(k)`` is ``Π H_native(k) Πᵀ``."""
+        P = self._interleaved_index
         M = np.zeros((P.size, P.size))
         M[P, np.arange(P.size)] = 1.0
         return M
@@ -125,15 +114,13 @@ class SpinBasis:
     # -- reading it back ----------------------------------------------------
     def summary(self) -> str:
         """The pairing, pair by pair, to read back before trusting a label."""
-        kind = {"pairs": "listed pair by pair"}.get(self.kind, self.kind)
-        lines = [f"{kind}, on {self.norb} orbitals   (.kind, .norb)",
-                 "  each pair one Wannier function, its spin up and down along z   (.pairs)"]
-        lines += [f"    pair {c}: orbital {int(up)} up, orbital {int(dn)} down"
+        lines = ["each pair one Wannier function, its spin up and down along z   (.pairs)"]
+        lines += [f"  pair {c}: orbital {int(up)} up, orbital {int(dn)} down"
                   for c, (up, dn) in enumerate(self.pairs)]
         return "\n".join(lines)
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
-        return f"SpinBasis({self.kind}, norb={self.norb}, {len(self.pairs)} pairs)"
+        return f"SpinBasis({len(self.pairs)} pairs)"
 
 
 def spin_basis(model, *, order="interleaved", pairs=None) -> SpinBasis:
@@ -173,10 +160,9 @@ def spin_basis(model, *, order="interleaved", pairs=None) -> SpinBasis:
     >>> from pythtb.models import kane_mele                         # doctest: +SKIP
     >>> flat, _ = spinless_presentation(kane_mele(1.0, -1.0, 0.3, 0.25))   # doctest: +SKIP
     >>> print(spin_basis(flat).summary())                            # doctest: +SKIP
-    interleaved, on 4 orbitals   (.kind, .norb)
-      each pair one Wannier function, its spin up and down along z   (.pairs)
-        pair 0: orbital 0 up, orbital 1 down
-        pair 1: orbital 2 up, orbital 3 down
+    each pair one Wannier function, its spin up and down along z   (.pairs)
+      pair 0: orbital 0 up, orbital 1 down
+      pair 1: orbital 2 up, orbital 3 down
     """
     if int(model.nspin) != 1:
         raise ValueError(
@@ -196,7 +182,7 @@ def spin_basis(model, *, order="interleaved", pairs=None) -> SpinBasis:
             raise ValueError(
                 f"pairs must partition all orbital indices 0..{norb - 1} exactly once "
                 f"(norb={norb}); got {sorted(arr.reshape(-1).tolist())}.")
-        return SpinBasis(norb=norb, kind="pairs",
+        return SpinBasis(_norb=norb, _kind="pairs",
                          pairs=tuple((int(u), int(d)) for u, d in arr))
 
     if norb % 2 != 0:
@@ -210,7 +196,7 @@ def spin_basis(model, *, order="interleaved", pairs=None) -> SpinBasis:
         made = tuple((i, N + i) for i in range(N))
     else:
         raise ValueError(f"order must be 'interleaved' or 'blocked'; got {order!r}.")
-    return SpinBasis(norb=norb, kind=str(order), pairs=made)
+    return SpinBasis(_norb=norb, _kind=str(order), pairs=made)
 
 
 def spin_operator(spin, n=(0.0, 0.0, 1.0)) -> np.ndarray:
@@ -252,11 +238,11 @@ def spin_operator(spin, n=(0.0, 0.0, 1.0)) -> np.ndarray:
     # the two regular layouts as Kronecker products and explicit pairs
     # scattered, each the expression `spin_operator_spinless` evaluates, so
     # that the two agree bit for bit
-    if spin.kind == "interleaved":
+    if spin._kind == "interleaved":
         return np.kron(np.eye(N, dtype=complex), nsig)
-    if spin.kind == "blocked":
+    if spin._kind == "blocked":
         return np.kron(nsig, np.eye(N, dtype=complex))
-    O = np.zeros((int(spin.norb), int(spin.norb)), dtype=complex)
+    O = np.zeros((int(spin._norb), int(spin._norb)), dtype=complex)
     for up, dn in spin.pairs:
         O[np.ix_((int(up), int(dn)), (int(up), int(dn)))] = nsig
     return O
@@ -311,8 +297,8 @@ def spinless_presentation(model, *, order="interleaved", pairs=None, params=None
     --------
     >>> from pythtb.models import kane_mele                         # doctest: +SKIP
     >>> flat, sb = spinless_presentation(kane_mele(1.0, -1.0, 0.3, 0.25))  # doctest: +SKIP
-    >>> flat.norb, sb.kind                                           # doctest: +SKIP
-    (4, 'interleaved')
+    >>> flat.norb, sb.pairs                                          # doctest: +SKIP
+    (4, ((0, 1), (2, 3)))
     """
     from pythtb import Lattice, TBModel
 
@@ -391,7 +377,7 @@ def spinless_presentation(model, *, order="interleaved", pairs=None, params=None
     # here is measured on: the amplitudes are copied, and the phases are
     # evaluated once per orbital, 2N of them here against the model's N
     # repeated for the spin, so the two agree to the rounding of the phases
-    Pi = sb.permutation_matrix
+    Pi = sb._permutation_matrix
     k = np.random.default_rng(_bloch.CHECK_SEED).uniform(
         -0.5, 0.5, size=(_bloch.CHECK_K, int(model.lattice.dim_k)))
     a = np.asarray(_bloch.hamiltonian(model, k))

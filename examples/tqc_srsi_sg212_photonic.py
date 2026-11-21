@@ -167,7 +167,7 @@ print(r.summary())
 # hsp_table reads the coreps of the 8 bands at every high-symmetry point; each
 # point's record lists them by degenerate multiplet, lowest first.
 print("\n2. the coreps of all 8 bands at the high-symmetry points")
-table = tqc.hsp_table(r.rep, bands=8)
+table = tqc.hsp_table(r, bands=8)
 for record in table.records.values():
     print(record.summary())
 

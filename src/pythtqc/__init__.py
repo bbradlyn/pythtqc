@@ -5,7 +5,7 @@ From a model's own Hamiltonian, pythTQC measures:
 1. the space group it obeys, each orbital's Wyckoff position and site irrep,
    and the model's representation of the group: ``realized_group(model)``;
 2. the corep content of its bands at every high-symmetry point:
-   ``hsp_table(rep, bands=n)``;
+   ``hsp_table(r, bands=n)``;
 3. whether that content could be an atomic limit: ``decompose``;
 4. its symmetry-indicator class and its stable real-space invariants:
    ``symmetry_indicator``, ``srsi_of_bands``, ``srsi_of_model``, and whether a
@@ -17,8 +17,8 @@ A first call::
     from pythtb.models import kane_mele
 
     r = tqc.realized_group(kane_mele(0.0, -1.0, 0.3, 0.0), characters={0: "s"})
-    print(r.summary())            # the group, and the orbitals by Wyckoff position
-    print(tqc.hsp_table(r.rep, bands=2).counts)
+    print(r.summary())            # the group, and the orbitals by Wyckoff orbit
+    print(tqc.hsp_table(r, bands=2).counts)
 
 A call that cannot complete returns a ``Refusal`` in its place, which prints
 the check that stopped it and what it measured there.  A refusal is falsy, and
@@ -47,7 +47,7 @@ from .ebr import (CompletenessReport, EBRDecomposition, RegularCompletion, Restr
                   ebr_rows, in_plane_restriction, regular_completion, subtract,
                   symmetry_indicator)
 from .groups import (GroupData, HighSymmetryPoints, IrrepContent, KGrid, LittleGroup,
-                     Operation, OperationTable, OrbitalAssignment, RealizedGroup,
+                     Operation, OperationTable, RealizedGroup,
                      SiteReference, ValidatedGroup,
                      corep_table, ebr_data, high_symmetry_points, k_grid,
                      little_group, operation_index, operations, realized_group,
@@ -63,15 +63,15 @@ from .srsi import (BandSRSIs, ModelSRSIs, Realizations, SRSITables, Splitting,
                    srsi_of_bands, srsi_of_columns, srsi_of_model, srsi_tables,
                    stably_equivalent_pairs)
 from .symmetrization import Symmetrization
-from .symmetry import (AtomicLimitRow, AtomicLimitTable, BandRepresentation, SiteMultiplets,
-                       MultiplicitySpace, SpaceGroupRep)
+from .symmetry import (AtomicLimitTable, BandRepresentation, SiteMultiplets, SpaceGroupRep,
+                       WyckoffOrbit)
 
 __all__ = [
     "ebr", "groups", "models", "refusal", "sewing", "spin", "srsi", "symmetrization",
     "symmetry", "utils",
     "Refusal", "RefusalError", "MagneticScopeWarning",
     "GroupData", "HighSymmetryPoints", "IrrepContent", "KGrid", "LittleGroup",
-    "Operation", "OperationTable", "OrbitalAssignment",
+    "Operation", "OperationTable",
     "ValidatedGroup", "RealizedGroup",
     "SiteReference", "wyckoff_sites_tables",
     "tables_status",
@@ -82,7 +82,7 @@ __all__ = [
     "stack_presentation",
     "realized_group",
     "SpaceGroupRep", "InternalError",
-    "AtomicLimitRow", "AtomicLimitTable", "BandRepresentation", "MultiplicitySpace",
+    "AtomicLimitTable", "WyckoffOrbit", "BandRepresentation",
     "SiteMultiplets",
     "SpinBasis", "spin_basis", "spin_operator", "spinless_presentation",
     "SRSITables", "BandSRSIs", "ModelSRSIs", "Splitting", "Realizations", "StablePair",

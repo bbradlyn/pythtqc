@@ -103,20 +103,21 @@ The space group obeyed by H, obtained by descent from the space group of the lat
 
 **Returns**
 
-- `RealizedGroup or Refusal`: `r.summary()` prints what was measured.  The record unpacks as
-  `model, group, assignment, validated, rep = r`: the group, its
-  operations by Seitz symbol in `r.operations`; each orbital's Wyckoff
-  position; the verdict on each operation; and the representation, which
-  labels bands (`hsp_table(r.rep, bands=n)`) and holds each orbital's
-  site irrep (`r.rep.characters`).  By name: `r.descent`, what was
-  broken; `r.time_reversal`; `r.environment` and `r.cross_check`,
-  for a layer; `r.beyond_grey`, operations combined with time reversal
-  that hold where time reversal does not; `r.precision`,
-  `r.positions` and `r.symmetrization`, for a numerical model;
-  `r.conserved`, symmetry beyond the crystal's.  For a parameterized
+- `RealizedGroup or Refusal`: `r.summary()` prints what was measured, each line with the field
+  that holds it.  `r.group` is the group, its operations by Seitz
+  symbol in `r.operations`; `r.wyckoff_orbits` the orbitals, a row
+  per Wyckoff orbit, with their site irreps and the band representation
+  they induce; `r.rep` the matrices that label the bands, read through
+  the record itself, `hsp_table(r, bands=n)`.  `r.descent` is what
+  was broken; `r.time_reversal`; `r.environment`, for a layer;
+  `r.beyond_grey`, operations combined with time reversal that hold
+  where time reversal does not; `r.conserved`, symmetry beyond the
+  crystal's; `r.spin`, the spin pairs declared; `r.numerical`, how
+  the measurement was made: the precision declared, the centers moved,
+  `H` projected, the verdict on each operation.  For a parameterized
   model, `r.model` is the model with its parameters evaluated at
-  `params`, and `r.source` the model as handed in.  A `Refusal` in
-  its place is falsy and names what stopped the call.
+  `params`, and `r.numerical.source` the model as handed in.  A
+  `Refusal` in its place is falsy and names what stopped the call.
 
 **Refusals**
 
@@ -563,7 +564,7 @@ The energies and eigenvectors at one k, from one diagonalization.
 
 ```text
 sewing_matrix(
-    rep, operation=None, k=None, *, states=None, bands=None, atol=1e-08,
+    realized, operation=None, k=None, *, states=None, bands=None, atol=1e-08,
     degeneracy_tol=1e-08, mesh_tol=1e-09, check=True, **kwargs
 )
 ```
@@ -572,7 +573,7 @@ The matrix of one operation on a set of bands, at a k-point the operation leaves
 
 **Parameters**
 
-- **`rep`** (`SpaceGroupRep`): The model's representation, `r.rep` from [`realized_group`](#realized_group).
+- **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned, `r`.
 
 - **`operation`** (`int`): The operation, by its index: `r.operations` lists them, and
   [`operation_index`](#operation_index) finds one by its Seitz symbol.
@@ -623,7 +624,8 @@ The matrix of one operation on a set of bands, at a k-point the operation leaves
 
 ```text
 characters(
-    rep, k, *, states=None, bands=None, degeneracy_tol=1e-08, atol=1e-08, mesh_tol=1e-09
+    realized, k, *, states=None, bands=None, degeneracy_tol=1e-08, atol=1e-08,
+    mesh_tol=1e-09
 )
 ```
 
@@ -631,7 +633,7 @@ The characters of a set of bands at one k: the trace of each unitary operation o
 
 **Parameters**
 
-- **`rep`** (`SpaceGroupRep`): The model's representation, `r.rep` from [`realized_group`](#realized_group).
+- **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned, `r`.
 
 - **`k`** (`array_like, shape (dim_k,)`): A k-point, in reduced coordinates; only a tabulated high-symmetry point
   is labelled ([`corep_content`](#corep_content)).
@@ -659,7 +661,7 @@ The characters of a set of bands at one k: the trace of each unitary operation o
 
 **Refusals**
 
-A refusal handed in as `rep` is returned unchanged, and one from
+A refusal handed in as `realized` is returned unchanged, and one from
 [`little_group`](#little_group) as it is.
 
 - **`multiplet_split`**: the set of bands cuts a degenerate multiplet at `k`.
@@ -672,7 +674,7 @@ A refusal handed in as `rep` is returned unchanged, and one from
 
 ```text
 corep_content(
-    rep, k, *, states=None, bands=None, degeneracy_tol=1e-08, label_tol=0.001,
+    realized, k, *, states=None, bands=None, degeneracy_tol=1e-08, label_tol=0.001,
     ktol=1e-05, kpname=None, atol=1e-08, mesh_tol=1e-09
 )
 ```
@@ -681,7 +683,7 @@ The coreps a set of bands carries at one high-symmetry point, and which of its d
 
 **Parameters**
 
-- **`rep`** (`SpaceGroupRep`): The model's representation, `r.rep` from [`realized_group`](#realized_group).
+- **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned, `r`.
 
 - **`k`** (`array_like`): A tabulated high-symmetry point, in the model's reduced coordinates, as
   [`high_symmetry_points`](#high_symmetry_points) gives it: `hsp["GM"]`.
@@ -718,7 +720,7 @@ The coreps a set of bands carries at one high-symmetry point, and which of its d
 
 **Refusals**
 
-A refusal handed in as `rep` is returned unchanged.
+A refusal handed in as `realized` is returned unchanged.
 
 - **`multiplet_split`**: the set of bands cuts a degenerate multiplet at `k`: label the
   multiplets whole.
@@ -737,8 +739,8 @@ A refusal handed in as `rep` is returned unchanged.
 
 ```text
 hsp_table(
-    rep, *, states=None, bands=None, degeneracy_tol=1e-08, label_tol=0.001, ktol=1e-05,
-    atol=1e-08, mesh_tol=1e-09
+    realized, *, states=None, bands=None, degeneracy_tol=1e-08, label_tol=0.001,
+    ktol=1e-05, atol=1e-08, mesh_tol=1e-09
 )
 ```
 
@@ -746,7 +748,7 @@ The coreps a set of bands carries at every high-symmetry point of the group: its
 
 **Parameters**
 
-- **`rep`** (`SpaceGroupRep`): The model's representation, `r.rep` from [`realized_group`](#realized_group).
+- **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned, `r`.
 
 - **`bands`** (`int or sequence of int`): The set of bands: `n` the lowest `n` bands, or the band indices,
   whole degenerate multiplets at every point.  Required.
@@ -765,7 +767,7 @@ The coreps a set of bands carries at every high-symmetry point of the group: its
 - `HSPTable or Refusal`: `t.summary()` prints the coreps at each point.  The table is what
   [`decompose`](#decompose), [`symmetry_indicator`](#symmetry_indicator) and
   [`srsi_of_bands`](#srsi_of_bands) take, `decompose(t)`, in the group it
-  was read in, which it carries as `t.rep.group`; `t.counts` is its
+  was read in, which it carries; `t.counts` is its
   symmetry data vector, `t.content` the coreps point by point;
   `t.complete` whether every
   point resolved, and `t.refusals` each point that did not, with its own
@@ -775,7 +777,7 @@ The coreps a set of bands carries at every high-symmetry point of the group: its
 
 **Refusals**
 
-A refusal handed in as `rep` is returned unchanged.  A point that refuses
+A refusal handed in as `realized` is returned unchanged.  A point that refuses
 is collected in `refusals`.
 
 - **`tables_not_ready`**: the group's tables cannot be read in this cell.
@@ -843,7 +845,7 @@ Every sum of elementary band representations, with nonnegative integer multiplic
   which must be complete, or `{corep: multiplicity}` written out.
 
 - **`group`** (`GroupData, optional`): The group the content was read in, `r.group`.  A table carries its
-  own, `t.rep.group`, and is read in it; a content written out by hand
+  own and is read in it; a content written out by hand
   takes the group beside it.
 
 - **`rep`** (`SpaceGroupRep, optional`): The representation the content was read with, `r.rep`: it says how
@@ -1087,7 +1089,7 @@ The symmetry-indicator class of a band set's content: the class of its symmetry 
   complete.
 
 - **`group`** (`GroupData, optional`): The group the content was read in, `r.group`.  A table carries its
-  own, `t.rep.group`, and is read in it; a content written out by hand
+  own and is read in it; a content written out by hand
   takes the group beside it.
 
 - **`rep`** (`SpaceGroupRep, optional`): The representation the content was read with, `r.rep`; a table
@@ -1270,7 +1272,7 @@ The $`\mathbb{Z}`$-valued stable real-space invariants of a band set, from its s
   [`symmetry_indicator`](#symmetry_indicator) takes it.
 
 - **`group`** (`GroupData, optional`): The grey group the content was read in, `r.group`, with tables.  A
-  table carries its own, `t.rep.group`, and is read in it; a content
+  table carries its own and is read in it; a content
   written out by hand takes the group beside it.
 
 - **`rep`** (`SpaceGroupRep, optional`): The model's representation, `r.rep`, for [`symmetry_indicator`](#symmetry_indicator),
@@ -1307,9 +1309,7 @@ A model's stable real-space invariants, read off its orbitals.
 
 **Parameters**
 
-- **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned, or its parts
-  `(model, group, assignment, rep)` or
-  `(model, group, assignment, validated, rep)`.
+- **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned, `r`.
 
 - **`rep`** (`SpaceGroupRep, optional`): A representation to read in place of the one `realized` holds.
 
@@ -1343,8 +1343,7 @@ Whether the bands asked for and the rest of a model's bands can both be atomic i
 
 **Parameters**
 
-- **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned, or the parts
-  [`srsi_of_model`](#srsi_of_model) takes.
+- **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned, `r`.
 
 - **`bands`** (`int or sequence of int`): The bands asked for, `V`: an `int` is the lowest *n*, a sequence
   those bands.  Required.

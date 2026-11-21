@@ -19,14 +19,12 @@ from pythtb.models import checkerboard, fu_kane_mele, graphene, haldane, kane_me
 
 r = tqc.realized_group(graphene(0.0, -1.0))     # graphene(delta, t): no sublattice offset
 print(repr(r))
-#  RealizedGroup(P6mm1' #183.186; on a substrate (the default), the free-standing group #191.234 agrees)
-model, group, assignment, validated, rep = r
-print(group.name, group.number_str)
+#  RealizedGroup(P6mm1' #183.186; on a substrate (the default), the free-standing group P6/mmm1' #191.234 agrees)
+print(r.group.name, r.group.number_str)
 #  P6mm1' 183.186
-print(assignment)
-#  OrbitalAssignment(2 orbitals on 2 sites: sites (0, 1), letter b, site symmetry 3m)
-print(group is r.group, rep is r.rep)
-#  True True
+for o in r.wyckoff_orbits:
+    print(repr(o))
+#  WyckoffOrbit(2b (3m1'): orbitals 0-1, A1)
 ```
 
 ## How to read it
@@ -38,24 +36,23 @@ print(group is r.group, rep is r.rep)
   ([the primer](../background/tqc-primer.md#little-groups-irreps-and-coreps)).
   Graphene is a layer, so its group is a slab's: the wallpaper group `p6mm`,
   with vacuum along the layer's normal ([a 2D model](layers.md)).
-- **`on a substrate (the default), the free-standing group #191.234 agrees`**:
+- **`on a substrate (the default), the free-standing group P6/mmm1' #191.234 agrees`**:
   a layer's model says nothing about what lies under it. Told nothing, the call
   reads the layer on a substrate, measures it free-standing as well, and checks
   that the two agree ([a 2D model](layers.md)).
 
-The record unpacks into five of its own attributes, so the unpacked `rep` is
-`r.rep` itself: `r.model`, the model measured and the one every later call takes
+The record is read by name: `r.model`, the model measured and the one every later call takes
 (for a layer, its slab presentation, with the same `H(k)`; for a parameterized model,
 the model with the values of its parameters in place); `r.group`, the
-group, written in the model's own reduced coordinates; `r.assignment`, the
+group, written in the model's own reduced coordinates; `r.wyckoff_orbits`, the
 Wyckoff orbit of each orbital, here one orbit at letter `b`, site symmetry
-`3m`; `r.validated`, the verdict on each operation; and `r.rep`, the matrix of
+`3m`; `r.numerical.validated`, the verdict on each operation; and `r.rep`, the matrix of
 each operation on the orbitals, which every band label is read through
 ([labelling the bands](labels.md)). Everything else the call measured is
 reached by name, so keep the record: `.descent`, `.time_reversal` and
-`.conserved` are read below, `.environment` and `.cross_check` in
-[a 2D model](layers.md), `.precision` and `.positions` in
-[numerical models](numerical.md), and `.source` is the model as it was handed
+`.conserved` are read below, `.environment` in
+[a 2D model](layers.md), `.numerical.precision` and `.numerical.positions` in
+[numerical models](numerical.md), and `.numerical.source` is the model as it was handed
 in. [The records reference](../reference/records.md) lists every field.
 
 Every operation carries an index in the tables' own order, which everything
@@ -75,24 +72,25 @@ positions still allow the diamond's full group; the Hamiltonian does not.
 diamond = fu_kane_mele(1.0, 0.125, [0.4, 0, 0, 0])  # t, soc, one of four bonds detuned
 rd = tqc.realized_group(diamond)
 print(repr(rd))
-#  RealizedGroup(R-3m1' #166.98; descended from #227.129 (72 of 96 coset representatives of the lattice translations broken; these are the single-valued group's, each standing for itself and its negative in the double group))
+#  RealizedGroup(R-3m1' #166.98; descended from Fd-3m1' #227.129 (72 of 96 coset representatives of the lattice translations broken; these are the single-valued group's, each standing for itself and its negative in the double group))
 d = rd.descent
-print(d["from"]["name"], "->", d["to"]["name"], d["dropped_by"],
-      sorted({b["refuted_by"] for b in d["dropped"]}))
+print(d.cell_group.name, "->", d.subgroup.name, d.dropped_by,
+      sorted({b.refuted_by for b in d.dropped}))
 #  Fd-3m1' -> R-3m1' {'hoppings': 72} ['no symmetry matrix']
-print(sorted({b["name"] for b in d["dropped"]})[:4])
+print(sorted({b.name for b in d.dropped})[:4])
 #  ['C2(x)', "C2(x)'", 'C2(y)', "C2(y)'"]
-print(sorted({b["name"] for b in d["dropped"]})[-2:])
+print(sorted({b.name for b in d.dropped})[-2:])
 #  ['{m(z)|1/4,1/4,1/4}', "{m(z)|1/4,1/4,1/4}'"]
-print(rd.assignment)
-#  OrbitalAssignment(2 orbitals on 2 sites: sites (0, 1), letter c, site symmetry 3m)
+for o in rd.wyckoff_orbits:
+    print(repr(o))
+#  WyckoffOrbit(6c (3m1'): orbitals 0-1, -E1)
 ```
 
 The positions allow `Fd-3m1'`; the Hamiltonian obeys a quarter of its
 operations, so the cell was lowered to them and identified again as
 `R-3m1' #166.98`, the only group returned and the one everything downstream is
-read in. `rd.descent` is the measurement, `None` where nothing broke: `from`,
-`to`, `dropped_by`, and for each operation dropped its `name` in the model's
+read in. `rd.descent` is the measurement, `None` where nothing broke: `cell_group`,
+`subgroup`, `dropped_by`, and for each operation dropped its `name` in the model's
 Cartesian frame and `refuted_by`. A name carries the operation's translation
 where that is not a lattice vector of the cell: the operations that exchange
 the diamond's two atoms, its glides among them, carry a quarter of the cell's
@@ -133,8 +131,8 @@ hopping:
 hal = haldane(0.0, -1.0, 0.15)                  # delta, t1, t2; the flux phase phi = pi/2
 rh = tqc.realized_group(hal)
 print(repr(rh))
-#  RealizedGroup(P6 #168; time reversal measured broken; descended from #183.186 (12 of 24 coset representatives of the lattice translations broken); on a substrate (the default), the free-standing group #175 agrees -- a larger magnetic group, of type III, is realized (6 antiunitary operations measured to hold) but is beyond the validated scope)
-print(rh.time_reversal["outcome"])
+#  RealizedGroup(P6 #168; time reversal measured broken; descended from P6mm1' #183.186 (12 of 24 coset representatives of the lattice translations broken); on a substrate (the default), the free-standing group P6/m #175 agrees -- a larger magnetic group, of type III, is realized (6 antiunitary operations measured to hold) but is beyond the validated scope)
+print(rh.time_reversal.outcome)
 #  measured broken
 print(rh.operations)
 #  P6 #168: one operation per coset of the lattice translations
@@ -159,7 +157,7 @@ combined with time reversal that hold.
 
 ```python
 b = rh.beyond_grey
-print(b["n_operations"], "of", b["n_measured"], b["magnetic_type"], [o["name"] for o in b["operations"]])
+print(b.n_operations, "of", b.n_measured, b.magnetic_type, [o.name for o in b.operations])
 #  6 of 12 III ["m([010])'", "m(x)'", "m([1-10])'", "m([2-10])'", "m(y)'", "m([110])'"]
 ```
 
@@ -192,13 +190,13 @@ spins.
 
 ```python
 km = tqc.realized_group(kane_mele(0.0, -1.0, 0.3, 0.0))    # delta, t, soc, rashba
-print(km.conserved["dim"])
+print(km.conserved.dim)
 #  1
-print(tqc.realized_group(kane_mele(0.0, -1.0, 0.3, 0.25)).conserved["dim"])
+print(tqc.realized_group(kane_mele(0.0, -1.0, 0.3, 0.25)).conserved.dim)
 #  0
 ```
 
-`conserved["dim"]` counts the commuting matrices beyond the identity, and the
+`conserved.dim` counts the commuting matrices beyond the identity, and the
 record's printout carries it as `additional commuting matrices: 1`; every
 operation's solutions then form a two-dimensional space, its own matrix times
 anything conserved. A residual spin rotation like this one, a sublattice the
@@ -231,9 +229,11 @@ print(out.gate, out.context["index"], out.context["translations"])
 #  supercell 2 ((0.5, 0.5, 0.0),)
 rc = tqc.realized_group(checkerboard(0.5, -1.0))
 print(repr(rc))
-#  RealizedGroup(P4mm1' #99.164; descended from #99.164 (16 of 32 coset representatives of the lattice translations broken); on a substrate (the default), the free-standing group #123.340 agrees)
-print(rc.assignment)
-#  OrbitalAssignment(2 orbitals on 2 sites: sites (0,), letter a, site symmetry 4mm; sites (1,), letter b, site symmetry 4mm)
+#  RealizedGroup(P4mm1' #99.164; descended from P4mm1' #99.164 (16 of 32 coset representatives of the lattice translations broken); on a substrate (the default), the free-standing group P4/mmm1' #123.340 agrees)
+for o in rc.wyckoff_orbits:
+    print(repr(o))
+#  WyckoffOrbit(1a (4mm1'): orbital 0, A1)
+#  WyckoffOrbit(1b (4mm1'): orbital 1, A1)
 ```
 
 The symbol stays `P4mm1'`, now on the model's own lattice, with the sublattices
@@ -249,7 +249,7 @@ square = TBModel(Lattice([[0.5, 0.5], [-0.5, 0.5]], [[0.0, 0.0]], periodic_dirs=
 for step in ([1, 0], [0, 1]):
     square.set_hop(-1.0, 0, 0, step)
 print(repr(tqc.realized_group(square)))
-#  RealizedGroup(P4mm1' #99.164; on a substrate (the default), the free-standing group #123.340 agrees)
+#  RealizedGroup(P4mm1' #99.164; on a substrate (the default), the free-standing group P4/mmm1' #123.340 agrees)
 ```
 
 The copies need not be written alike. A chain of `(p_x, p_y)` sites whose
@@ -274,7 +274,7 @@ evaluated. pythTQC identifies the group of a parameterized model through the
 `params=` argument of `realized_group`, which takes the value of each
 parameter by name. The model is read at those values: the group, the
 representation and `r.model` are those of the model with the numbers in
-place, and the calls that follow take `r.rep` as for any other model. Each
+place, and the calls that follow take `r` as for any other model. Each
 set of values is one call. A parameter takes a number, so a hopping that
 acts on spin is written as a function of its parameter that returns the
 `2×2` block.
@@ -293,7 +293,7 @@ for site, R, nu in ((0, [0, 1], -1), (0, [1, 0], 1), (0, [1, -1], -1),
     named.set_hop(lambda lam, nu=nu: 1j * lam * nu * sz, site, site, R)   # i lam nu sigma_z
 for lam in (0.06, 0.3):
     r = tqc.realized_group(named, params={"lam": lam}, environment="free-standing")
-    si = tqc.symmetry_indicator(tqc.hsp_table(r.rep, bands=2))
+    si = tqc.symmetry_indicator(tqc.hsp_table(r, bands=2))
     print(lam, r.group.name, r.group.number_str, si.values)
 #  0.06 P-6m21' 187.210 (0, 0)
 #  0.3 P-6m21' 187.210 (2, 0)

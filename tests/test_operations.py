@@ -357,8 +357,8 @@ def test_a_kpoint_is_taken_by_its_tabulated_name(realized):
 def test_the_lookups_take_the_group_and_raise_on_anything_else(realized):
     """Every lookup takes ``r.group``; ``r`` and ``r.rep`` raise ``TypeError`` naming it.
 
-    ``r.operations`` and ``rep.operations`` are the table the group's
-    operations make, every operation of the group being represented.
+    ``r.operations`` is the table the group's operations make, every
+    operation of the group being represented.
     """
     out = record(realized, "km_odd")
     group = out.group
@@ -377,4 +377,5 @@ def test_the_lookups_take_the_group_and_raise_on_anything_else(realized):
             with pytest.raises(TypeError, match=rf"^{name}\(\): .*r\.group"):
                 call(wrong)
     assert tqg.operation_index(group, "{m_100|0,0,0}") == 5
-    assert out.operations == tqg.operations(group) == out.rep.operations
+    assert out.operations == tqg.operations(group)
+    assert sorted(out.rep.matrices) == sorted(out.operations)

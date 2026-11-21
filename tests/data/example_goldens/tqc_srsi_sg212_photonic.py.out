@@ -4,9 +4,8 @@ Bands are counted from 0, as pythtb counts them.
 1. the symmetry group of the Hamiltonian
 P4_3321' #212.60   (.group)
   its operations, by index and Seitz symbol   (.operations)
-  the orbitals, by Wyckoff position   (.rep.characters)
-    4a (32): orbitals 0-7, E
-  H symmetrized by 3e-14   (.positions, .symmetrization)
+  the orbitals, by Wyckoff orbit   (.wyckoff_orbits)
+    4a (321'): orbitals 0-7, E
 
 2. the coreps of all 8 bands at the high-symmetry points
 bands 0-7 at GM (Γ): GM3 + GM4 + GM5   (.table.bands, .kpname, .counts)

@@ -560,8 +560,8 @@ Returned by `pythtqc.srsi.name_correspondence`.
 
 #### `wyckoff_enumeration`
 
-Returned by no call: where the enumeration fails, the orbital's letter in spglib's setting,
-`wyckoff_spglib` on `r.assignment`, is left empty.
+Returned by no call: where the enumeration fails, the orbital's letter in spglib's setting
+is left empty.
 
 - **What it means.** The Wyckoff positions of the group could not be enumerated; the reason
   quotes `irrep`'s own message.

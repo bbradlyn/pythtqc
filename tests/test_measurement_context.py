@@ -136,19 +136,19 @@ def test_a_context_changes_nothing_validate_group_measures(name):
     ctx = _measure._MeasurementContext()
     shared = _measure._validate_group(model, group, nk=4, context=ctx)
 
-    assert shared.indices == plain.indices
+    assert shared._indices == plain._indices
     assert shared.closed == plain.closed
-    assert shared.k_action_classes == plain.k_action_classes
-    assert shared.verdicts == plain.verdicts
+    assert shared._k_action_classes == plain._k_action_classes
+    assert shared._verdicts == plain._verdicts
     assert shared._nullspace_dims == plain._nullspace_dims
-    assert shared.tol == plain.tol and shared.n_kpts == plain.n_kpts
+    assert shared.tol == plain.tol and shared.n_kpoints == plain.n_kpoints
     assert set(shared.residuals) == set(plain.residuals)
     for ind, value in plain.residuals.items():
         assert shared.residuals[ind] == value or (
             np.isinf(value) and np.isinf(shared.residuals[ind]))
     assert len(shared.discrepancies) == len(plain.discrepancies) == n_refuted
     for a, b in zip(shared.discrepancies, plain.discrepancies):
-        assert a["ind"] == b["ind"] and a["refuted_by"] == b["refuted_by"]
+        assert a.index == b.index and a.refuted_by == b.refuted_by
     assert set(shared._records) == set(plain._records)
     for ind, rec in plain._records.items():
         got = shared._records[ind]
@@ -167,9 +167,9 @@ def test_a_context_changes_nothing_validate_group_measures(name):
     # the context's serving is measured by the next test, where a second call
     # can hit.  (Until 2026-09-09 these two lines were read as "solved once and
     # served to the rest"; `hits` is 0 here, so nothing was served.)
-    assert (ctx.hits, ctx.misses) == (0, len(plain.k_action_classes))
+    assert (ctx.hits, ctx.misses) == (0, len(plain._k_action_classes))
     assert ctx.rebuilds == 1
-    assert len(ctx.spaces) == len(plain.k_action_classes)
+    assert len(ctx.spaces) == len(plain._k_action_classes)
 
 
 def test_a_second_measurement_of_the_same_group_is_all_hits(monkeypatch):
@@ -205,7 +205,7 @@ def test_a_second_measurement_of_the_same_group_is_all_hits(monkeypatch):
 
     first = _measure._validate_group(model, group, nk=4, context=ctx)
     solved = int(ctx.misses)
-    assert solved == len(first.k_action_classes) > 1
+    assert solved == len(first._k_action_classes) > 1
     assert len(solves) == solved, "the first call solves each class exactly once"
     hits_before = int(ctx.hits)
 
@@ -213,9 +213,9 @@ def test_a_second_measurement_of_the_same_group_is_all_hits(monkeypatch):
     assert len(solves) == solved, (
         f"the second measurement solved {len(solves) - solved} problems again")
     assert ctx.misses == solved, "nothing was solved a second time"
-    assert ctx.hits == hits_before + len(first.k_action_classes)
+    assert ctx.hits == hits_before + len(first._k_action_classes)
     assert ctx.rebuilds == 1, "the model did not move, so nothing was rebuilt"
-    assert second.indices == first.indices
+    assert second._indices == first._indices
     for ind, basis in first._bases.items():
         assert second._bases[ind] is basis, f"#{ind}: a new array, so a new solve"
 
@@ -373,8 +373,9 @@ def test_the_position_pass_and_the_projection_both_invalidate_the_context():
     shared = _realized._realize(dirty, precision=1e-8, characters={0: "pz"},
                           cross_check=False, context=ctx)
     assert not isinstance(shared, Refusal), str(shared)
-    assert shared.positions is not None and shared.positions["adjusted"] is True
-    assert shared.symmetrization is not None, "the projection ran"
+    positions = shared.numerical.positions
+    assert positions is not None and positions.adjusted is True
+    assert shared.numerical.symmetrization is not None, "the projection ran"
     assert ctx.rebuilds == 3, (
         "the input, the moved centres and the projected hoppings are three "
         f"different Hamiltonians: {ctx.record()}")
@@ -395,12 +396,13 @@ def test_the_position_pass_and_the_projection_both_invalidate_the_context():
                                  params={"t": -1.0})
         want = tqg.realized_group(named.with_parameters(t=-1.0), characters={0: "s"},
                                   precision=1e-6)
-        assert got.positions["adjusted"] is True, str(got)
+        assert got.numerical.positions.adjusted is True, str(got)
         assert _bloch.model_key(got.model) == _bloch.model_key(want.model)
         assert got.summary() == want.summary()
+        assert got.numerical.summary() == want.numerical.summary()
         assert got.operations.summary() == want.operations.summary()
-        assert str(got.rep.characters) == str(want.rep.characters)
-        assert got.source is named
+        assert str(got.wyckoff_orbits) == str(want.wyckoff_orbits)
+        assert got.numerical.source is named
 
 
 # ---------------------------------------------------------------------------

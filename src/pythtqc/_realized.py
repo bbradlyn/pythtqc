@@ -8,6 +8,7 @@ record :func:`realized_group` returns.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+from dataclasses import fields as dataclass_fields
 from typing import Any
 import warnings
 
@@ -32,7 +33,7 @@ from ._grammar import _declaration_grammar, _names_joint_keys
 from ._centres import (
     _cell_sites, _frame_defect, _geometry, _moved_extras, _moves_of,
     _rational_offset, _site_action, _symmetric_sites)
-from .symmetry import _content_by_position
+from .symmetry import _declaration_checks, _wyckoff_orbit_table
 from ._sectors import read_sectors, sector_action
 from ._multiplets import _site_multiplets
 from ._layers import (
@@ -56,239 +57,1203 @@ from ._descent import (
     _shared_origin, _supercell_refusal, _time_reversal_measured,
     _time_reversal_member, _time_reversal_square)
 
-__all__ = ["RealizedGroup", "realized_group"]
+__all__ = ["RealizedGroup", "RealizedGroupNumerical", "LayerEnvironment", "Descent",
+           "DescentStep", "DescentCell", "StepDeclaration", "StepCenters", "StepTie",
+           "DroppedOperation", "NamedGroup", "TimeReversal", "TimeReversalSquare",
+           "BeyondGrey", "BeyondGreyOperation", "Conserved", "ConservedSector",
+           "CrossCheck", "CrossCheckRow", "CrossCheckOperation", "CrossCheckRefusal",
+           "Decoration", "DeclaredReduction", "ExcludedOperation", "Positions", "Precision",
+           "Presentation",
+           "PresentationTilt", "realized_group"]
+
+
+# --------------------------------------------------------------------------
+# the records on what realized_group returns
+# --------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class NamedGroup:
+    """A group written by its name, its number and its size.
+
+    Attributes
+    ----------
+    name : str
+        The group's Hermann–Mauguin symbol, ``"Fd-3m1'"``.
+    number_str : str
+        Its number, ``"227.129"``.
+    size : int
+        Its operations, one per coset of the lattice translations.
+    """
+
+    name: str
+    number_str: str
+    size: int
+
+    def __str__(self) -> str:
+        return f"{self.name} #{self.number_str}"
+
+
+@dataclass(frozen=True)
+class DescentCell:
+    """The cell a descent step built to carry the operations kept: one free orbit of a new species.
+
+    Attributes
+    ----------
+    generic_point : tuple of float
+        The point the orbit was grown from, in reduced coordinates.
+    orbit : tuple of tuple of float
+        The orbit's points.
+    species : str
+        The species the orbit's points carry.
+    """
+
+    generic_point: tuple
+    orbit: tuple
+    species: str
+
+
+@dataclass(frozen=True)
+class DroppedOperation:
+    """One operation a descent dropped, and why.
+
+    Attributes
+    ----------
+    index : int
+        The operation, by index in the group it was dropped from.
+    name : str
+        Its name in the model's frame.
+    refuted_by : str
+        What dropped it: ``"no symmetry matrix"`` or ``"covariance"``, the
+        hoppings; ``"tensor structure"``, the hoppings read in the operation's
+        own form; ``"declaration"``, the declared content; ``"centers"``, the
+        orbital centers; ``"translation"``; ``"projective class"``;
+        ``"closure"``, ``"tie"`` or ``"out of plane"``.
+    residual : float or None
+        Its covariance residual in the units of ``H``; ``nan`` where the verdict
+        rests on no residual.
+    step : int or None
+        The descent step that dropped it.
+    of : str or None
+        The number of the group it was dropped from.
+    note : str or None
+        Why, in words, where the verdict says more than its cause.
+    orbitals : tuple of int or None
+        Where the declared content dropped it, the orbitals declared.
+    declared, measured : complex or None
+        Where the declared content dropped it, the character declared and the
+        one the hoppings measure.
+    miss : float or None
+        Where the centers dropped it, how far the operation alone would move
+        one, in reduced coordinates.
+    precision : float or None
+        Where the centers dropped it, the precision declared.
+    covariance : float or None
+        How far its own form carries ``H``, where that was measured.
+    pair, names : tuple or None
+        Where the states' projective class dropped it, the two operations that
+        commute while their matrices do not, by index and by name.
+    commutation_phase : complex or None
+        The phase their matrices commute up to.
+    spin_half : bool or None
+        Whether that phase is the sign their spin-1/2 lifts carry.
+    rows : tuple of ..symmetry.DeclarationCheck or None
+        Where the declared content dropped it, the declaration against the
+        operation.
+    """
+
+    index: int
+    refuted_by: str
+    name: Any = None
+    residual: Any = None
+    step: Any = None
+    of: Any = None
+    note: Any = None
+    orbitals: Any = None
+    declared: Any = None
+    measured: Any = None
+    miss: Any = None
+    precision: Any = None
+    covariance: Any = None
+    pair: Any = None
+    names: Any = None
+    commutation_phase: Any = None
+    spin_half: Any = None
+    rows: Any = None
+
+
+@dataclass(frozen=True)
+class StepDeclaration:
+    """What the declared content kept at one descent step.
+
+    Attributes
+    ----------
+    subgroup : tuple of int
+        The operations the declared content is carried by, by index.
+    tied : tuple
+        Where the declared content is carried by several largest subgroups,
+        none holding another, each one's operations in the tie rule's order,
+        the one kept first; empty otherwise.
+    rows : tuple of ..symmetry.DeclarationCheck
+        The declaration against each operation measured.
+    names : tuple or None
+        The tied subgroups by their operations' names.
+    note : str or None
+        Where subgroups tie, which one was kept and why.
+    """
+
+    subgroup: tuple
+    tied: tuple
+    rows: tuple
+    names: Any = None
+    note: Any = None
+
+
+@dataclass(frozen=True)
+class StepCenters:
+    """What the orbital centers kept at one descent step, under a declared precision.
+
+    Attributes
+    ----------
+    precision : float
+        The precision declared.
+    move : float
+        How far the centers were moved onto the group kept.
+    kept : tuple of int
+        The operations kept, by index.
+    tied : tuple
+        Where several groups carry the centers alike, each by its operations.
+    note : str
+        Which was kept and why.
+    """
+
+    precision: float
+    move: float
+    kept: tuple
+    tied: tuple
+    note: str
+
+
+@dataclass(frozen=True)
+class StepTie:
+    """Where the operations measured to hold at one descent step do not close, and the largest subgroups inside them tie.
+
+    Attributes
+    ----------
+    tied : tuple
+        Each tied subgroup's operations, in the tie rule's order.
+    kept : tuple
+        The one kept, the first.
+    note : str
+        Which was kept and why.
+    """
+
+    tied: tuple
+    kept: tuple
+    note: str
+
+
+@dataclass(frozen=True)
+class DescentStep:
+    """One step of a descent: the group the cell allowed, the group it was lowered to, and what dropped each operation.
+
+    Attributes
+    ----------
+    step : int
+        The step's number, from 1.
+    cell_group, subgroup : NamedGroup
+        The group the step lowered, and the group it lowered it to.
+    dropped : tuple of DroppedOperation
+        The operations dropped.
+    n_dropped : int
+        How many.
+    refuted_by : dict
+        How many each cause dropped.
+    kept : tuple of int
+        The operations kept, by index in ``cell_group``.
+    pairs : tuple
+        Each kept operation paired with its image in ``subgroup``.
+    cell : DescentCell
+        The cell built to carry the operations kept.
+    declaration : StepDeclaration or None
+        What the declared content kept, where one was declared.
+    centers : StepCenters or None
+        What the orbital centers kept, under a declared precision.
+    tie : StepTie or None
+        Where the operations measured to hold do not close and subgroups tie.
+    projective : dict or None
+        Where the states' projective class lowered the group, the pairs that
+        name it and what was kept.
+    lattice : dict or None
+        Where the cell is not primitive, the pure translations measured.
+    """
+
+    step: int
+    cell_group: NamedGroup
+    subgroup: NamedGroup
+    dropped: tuple
+    n_dropped: int
+    refuted_by: dict
+    kept: tuple
+    pairs: tuple
+    cell: DescentCell
+    declaration: StepDeclaration | None = None
+    centers: StepCenters | None = None
+    tie: StepTie | None = None
+    projective: dict | None = None
+    lattice: dict | None = None
+
+
+@dataclass(frozen=True)
+class Descent:
+    """The operations of the cell the Hamiltonian did not keep, what dropped each, and the group the descent arrived at.
+
+    ``r.descent``; ``None`` where nothing was dropped.
+
+    Attributes
+    ----------
+    cell_group : NamedGroup
+        The group the cell allowed.
+    subgroup : NamedGroup
+        The group the descent arrived at.
+    dropped : tuple of DroppedOperation
+        Every operation dropped, every step's together.
+    dropped_by : dict
+        How many each cause dropped, by cause.
+    tied : tuple
+        Where the declared content was carried by several largest subgroups,
+        each one's operations in the tie rule's order.
+    cell : DescentCell
+        The cell the last step built.
+    iterations : int
+        The number of steps.
+    steps : tuple of DescentStep
+        The steps, in order.
+    lattice : dict or None
+        Where the cell was not primitive, the pure translations measured.
+    note : str
+        What was dropped and why, and the group arrived at, in words.
+    """
+
+    cell_group: NamedGroup
+    subgroup: NamedGroup
+    dropped: tuple
+    dropped_by: dict
+    tied: tuple
+    cell: DescentCell
+    iterations: int
+    steps: tuple
+    lattice: dict | None
+    note: str
+
+
+@dataclass(frozen=True)
+class TimeReversalSquare:
+    """Time reversal's square on the states: what the tables read here ask for and what the Hamiltonian measures.
+
+    Attributes
+    ----------
+    asked : int
+        ``+1`` for the single-valued tables, ``-1`` for the double-valued ones.
+    measured : float
+        The square measured.
+    """
+
+    asked: int
+    measured: float
+
+
+@dataclass(frozen=True)
+class TimeReversal:
+    """How time reversal was measured.
+
+    ``r.time_reversal``.
+
+    Attributes
+    ----------
+    outcome : str
+        ``"kept"``, or ``"measured broken"``.
+    n_antiunitary, n_obeyed, n_broken : int or None
+        How many operations combined with time reversal were measured, held
+        and broken.
+    undetermined : tuple or None
+        Those the representation settled.
+    grey_name, grey_number_str : str or None
+        The grey group of the unitary operations kept, with time reversal
+        adjoined.
+    square : TimeReversalSquare or None
+        Time reversal's square.
+    note : str or None
+        The verdict in words.
+    name, number_str : str or None
+        Where time reversal is measured broken, the group measured.
+    size : int or None
+        Its operations.
+    """
+
+    outcome: Any = None
+    n_antiunitary: Any = None
+    n_obeyed: Any = None
+    n_broken: Any = None
+    undetermined: Any = None
+    grey_name: Any = None
+    grey_number_str: Any = None
+    square: TimeReversalSquare | None = None
+    note: Any = None
+    name: Any = None
+    number_str: Any = None
+    size: Any = None
+
+
+@dataclass(frozen=True)
+class BeyondGreyOperation:
+    """One operation combined with time reversal that holds where time reversal is broken.
+
+    Attributes
+    ----------
+    index : int
+        The operation, by index in the cell's group.
+    name : str
+        Its name in the model's frame.
+    of : str
+        The number of that group.
+    rotation, translation : tuple
+        Its rotation and translation.
+    residual : float
+        Its covariance residual in the units of ``H``.
+    verdict : str
+        ``"obeyed"`` or ``"undetermined"``.
+    """
+
+    index: int
+    name: str
+    of: Any = None
+    rotation: Any = None
+    translation: Any = None
+    residual: Any = None
+    verdict: Any = None
+
+
+@dataclass(frozen=True)
+class BeyondGrey:
+    """Operations combined with time reversal that hold while time reversal is broken: a magnetic group beyond the one returned.
+
+    ``r.beyond_grey``; ``None`` where none holds.
+
+    Attributes
+    ----------
+    operations : tuple of BeyondGreyOperation
+        The operations.
+    n_operations, n_measured : int
+        How many hold, of how many measured.
+    magnetic_type : str
+        The type of the magnetic group they make with the group returned,
+        ``"III"`` or ``"IV"``.
+    closed : bool
+        Whether they close into that group.
+    note : str
+        What they are, in words.
+    """
+
+    operations: tuple
+    n_operations: int
+    n_measured: int
+    magnetic_type: Any
+    closed: Any
+    note: Any
+
+
+@dataclass(frozen=True)
+class ConservedSector:
+    """One sector the conserved matrices acting within sites split the states into.
+
+    Attributes
+    ----------
+    orbitals : tuple of int
+        Its orbitals.
+    sites : tuple of int
+        The sites they sit at.
+    copies, dim : int
+        That many identical copies of a set of that many orbitals, every matrix
+        on the copies conserved.
+    """
+
+    orbitals: tuple
+    sites: tuple
+    copies: int
+    dim: int
+
+
+@dataclass(frozen=True)
+class Conserved:
+    """Symmetry beyond the crystal's own: the matrices that commute with ``H(k)`` at every ``k``.
+
+    ``r.conserved``.
+
+    Attributes
+    ----------
+    dim : int
+        How many such matrices there are beyond the identity: ``0`` for a
+        generic model and ``1`` for Kane–Mele without its Rashba term, which
+        conserves ``s_z``.  The labels, elementary band representations and
+        indicators returned are the crystalline group's all the same; where it
+        is above ``0`` a decoupled multiplet's site irreps can be a choice, and
+        each row's ``determined_by`` says whether a declaration or the
+        lowest-angular-momentum rule made it.
+    note : str
+        The same in words.
+    sectors : tuple of ConservedSector or None
+        How the conserved matrices acting within sites split the states;
+        ``None`` where they were too many to read.
+    images : dict or None
+        For each operation, by index, the sector it carries each sector onto.
+    """
+
+    dim: int
+    note: str
+    sectors: tuple | None = None
+    images: dict | None = None
+
+
+@dataclass(frozen=True)
+class CrossCheckRow:
+    """One operation of the substrate group, paired with the free-standing one it is.
+
+    Attributes
+    ----------
+    substrate : int
+        The operation, by index in the substrate group.
+    free_standing : int or None
+        The same operation by index in the free-standing group; ``None`` where
+        it has none.
+    name : str
+        Its name in the model's frame.
+    rotation, translation : tuple
+        Its rotation and translation.
+    antiunitary : bool
+        Whether it is combined with time reversal.
+    """
+
+    substrate: int
+    free_standing: Any
+    name: str
+    rotation: Any
+    translation: Any
+    antiunitary: bool
+
+
+@dataclass(frozen=True)
+class CrossCheckOperation:
+    """One operation the cross-check names: missing from a group, extra in it, turning the layer over, or not a layer operation.
+
+    Attributes
+    ----------
+    index : int
+        The operation, by index.
+    name : str
+        Its name in the model's frame.
+    group : str or None
+        Which group it is in, ``"substrate"`` or ``"free-standing"``, where
+        that is not said by the list it is in.
+    environment : str or None
+        Which environment's tie it is, in a list of ties.
+    """
+
+    index: int
+    name: str
+    group: Any = None
+    environment: Any = None
+
+
+@dataclass(frozen=True)
+class CrossCheckRefusal:
+    """The refusal the other environment met, which is not a mismatch.
+
+    Attributes
+    ----------
+    gate : str
+        The refusal's gate.
+    reason : str
+        Its reason.
+    environment : str
+        The environment it was met in.
+    """
+
+    gate: str
+    reason: str
+    environment: str
+
+
+@dataclass(frozen=True)
+class CrossCheck:
+    """A layer's other environment, measured and held against this one: the substrate group is the free-standing one's operations that keep the layer's side.
+
+    ``r.environment.cross_check``.
+
+    Attributes
+    ----------
+    free_standing, substrate : NamedGroup or None
+        The two groups measured; ``None`` where the other was not.
+    agrees : bool or None
+        Whether the statement holds; ``None`` where the two were not compared.
+    outcome : str or None
+        ``"agree"``, ``"ambiguous"``, ``"refused"`` or ``"not compared"``.
+    rows : tuple of CrossCheckRow
+        Each substrate operation, paired.
+    missing, extra, flipping, unmapped : tuple of CrossCheckOperation
+        The operations the statement fails on: a substrate operation the
+        free-standing group lacks, a free-standing one keeping the layer's side
+        the substrate group lacks, a substrate operation turning the layer
+        over, and an operation that is no layer operation.
+    tie : tuple of CrossCheckOperation
+        Where a group was the tie rule's choice, the operations it left out.
+    refusal : CrossCheckRefusal or None
+        Where the other environment refused.
+    note : str
+        The outcome in words.
+    """
+
+    free_standing: NamedGroup | None
+    substrate: NamedGroup | None
+    agrees: Any
+    outcome: Any
+    rows: tuple
+    missing: tuple
+    extra: tuple
+    flipping: tuple
+    unmapped: tuple
+    tie: tuple
+    refusal: CrossCheckRefusal | None
+    note: str
+
+
+@dataclass(frozen=True)
+class Presentation:
+    """How a layer was set in a slab, and the check that ``H(k)`` is unchanged.
+
+    ``r.environment.presentation``.
+
+    Attributes
+    ----------
+    c : float or None
+        The slab's height; ``None`` for a crystal periodic in three directions.
+    residual : float
+        How far the slab's ``H(k)`` misses the layer's.
+    n_check : int
+        The ``k``-points that was measured at.
+    tilted : PresentationTilt or None
+        Where the slab's non-periodic lattice vector was tilted off the layer's
+        normal and put on it.
+    """
+
+    c: Any
+    residual: float
+    n_check: int
+    tilted: Any = None
+
+
+@dataclass(frozen=True)
+class PresentationTilt:
+    """A slab's non-periodic lattice vector put on the layer's normal, every orbital kept where it was.
+
+    Attributes
+    ----------
+    tilt : tuple of float
+        The vector's in-plane part, on the periodic directions.
+    max_move : float
+        How far an orbital moved.
+    n_moved : int
+        How many orbitals moved.
+    spectrum_residual : float
+        How far the spectrum moved.
+    note : str
+        The same in words.
+    """
+
+    tilt: tuple
+    max_move: float
+    n_moved: int
+    spectrum_residual: Any
+    note: str
+
+
+@dataclass(frozen=True)
+class LayerEnvironment:
+    """A layer's environment, whether it was declared, and the other environment measured beside it.
+
+    ``r.environment``; ``None`` for a crystal periodic in three directions.
+
+    Attributes
+    ----------
+    kind : str
+        ``"substrate"``, no operation turning the layer over, or
+        ``"free-standing"``, the whole layer group.
+    declared : bool
+        Whether ``environment=`` declared it.
+    cross_check : CrossCheck or None
+        The other environment, measured and compared; ``None`` with
+        ``cross_check=False``.
+    presentation : Presentation
+        How the layer was set in a slab.
+    """
+
+    kind: str
+    declared: bool
+    cross_check: CrossCheck | None
+    presentation: Presentation
+
+
+@dataclass(frozen=True)
+class ExcludedOperation:
+    """One operation the declared content takes out of the cell, and why.
+
+    Attributes
+    ----------
+    index : int
+        The operation, by index in the cell's group.
+    name : str
+        Its name in the model's frame.
+    reason : str
+        Why the declared content is not carried by it.
+    sites : tuple of int
+        The site it was read at, and the site it carries that one onto.
+    orbitals : tuple of int
+        The orbitals declared there.
+    note : str
+        The same in words.
+    """
+
+    index: int
+    name: str
+    reason: str
+    sites: tuple
+    orbitals: tuple
+    note: str
+
+
+@dataclass(frozen=True)
+class DeclaredReduction:
+    """What the declared content took out of the cell before any hopping was read.
+
+    Attributes
+    ----------
+    cell_group, subgroup : NamedGroup
+        The cell's group, and the group of the crystal that was declared.
+    excluded : tuple of ExcludedOperation
+        The operations the declared content excludes, each with why.
+    n_excluded : int
+        How many.
+    kept : tuple of int
+        The operations kept, by index.
+    generic_point : tuple of float
+        The point of the orbit added to carry what is kept.
+    orbit : tuple
+        The orbit's points.
+    species : str
+        The species they carry.
+    pairs : tuple
+        Each kept operation paired with its image in ``subgroup``.
+    """
+
+    cell_group: NamedGroup
+    subgroup: NamedGroup
+    excluded: tuple
+    n_excluded: int
+    kept: tuple
+    generic_point: Any
+    orbit: Any
+    species: Any
+    pairs: Any
+
+
+@dataclass(frozen=True)
+class Decoration:
+    """What was added to the cell before its group was found.
+
+    ``r.decoration``; ``None`` for a crystal read on its own point set.
+
+    Attributes
+    ----------
+    dz : float or None
+        The depth of a substrate's shadow sites under the layer; ``None`` where
+        no substrate was built.
+    typat : tuple
+        The species added.
+    n_atoms : int
+        How many points were added.
+    declared : DeclaredReduction or None
+        What the declared content took out of the cell, where it took anything.
+    recipe : str
+        What was added and why, in words.
+    """
+
+    dz: Any
+    typat: tuple
+    n_atoms: int
+    declared: DeclaredReduction | None
+    recipe: str
+
+
+@dataclass(frozen=True)
+class Positions:
+    """How far the orbital centers were moved onto the positions the group carries.
+
+    ``r.numerical.positions``.
+
+    Attributes
+    ----------
+    defect : float
+        How far the centers missed the group's own action.
+    position_tol : float
+        The tolerance they were moved within.
+    adjusted : bool
+        Whether they were moved.
+    defect_before, defect_after : float
+        The miss before and after.
+    max_move : float
+        The largest move, in reduced coordinates.
+    offset : tuple
+        The common shift removed.
+    frame : object
+        The frame the move was made in.
+    spectrum_residual : float
+        How far the spectrum moved, which a move of the centers leaves as it is.
+    n_check : int
+        The ``k``-points that was measured at.
+    n_moved : int
+        How many orbitals moved.
+    move : float or None
+        Where the centers could not be made exact under the whole group and
+        were moved onto the largest group of its operations that carries them,
+        the largest move the whole group asks of a center, in reduced
+        coordinates.
+    carried : int or None
+        Where they were, how many operations that group holds.
+    note : str or None
+        The move in words.
+    """
+
+    defect: Any = None
+    position_tol: Any = None
+    adjusted: Any = None
+    defect_before: Any = None
+    defect_after: Any = None
+    max_move: Any = None
+    offset: Any = None
+    frame: Any = None
+    spectrum_residual: Any = None
+    n_check: Any = None
+    n_moved: Any = None
+    move: Any = None
+    carried: Any = None
+    note: Any = None
+
+
+@dataclass(frozen=True)
+class Precision:
+    """The tolerances a declared precision set against the Hamiltonian's magnitude.
+
+    ``r.numerical.precision``; ``None`` where no precision was declared.
+
+    Attributes
+    ----------
+    precision : float
+        The precision declared.
+    max_h : float
+        The largest entry of ``H(k)`` measured.
+    tol : float
+        The tolerance on each operation's covariance residual, in the units of
+        ``H``.
+    position_tol : float
+        The tolerance on the centers, in reduced coordinates.
+    cut, window : float
+        The detector's relative numbers.
+    symprec : float
+        The symmetry finder's tolerance.
+    symprec_raised : bool
+        Whether the precision raised it.
+    """
+
+    precision: float
+    max_h: float
+    tol: float
+    position_tol: float
+    cut: float
+    window: float
+    symprec: float
+    symprec_raised: bool
+
+
+@dataclass(frozen=True)
+class RealizedGroupNumerical:
+    """How the measurement was made: the tolerances declared, the centers moved, ``H`` projected, and the verdict on each operation.
+
+    ``r.numerical``; ``summary()`` prints it.
+
+    Attributes
+    ----------
+    precision : Precision or None
+        The tolerances a declared precision set.
+    positions : Positions or None
+        How far the centers were moved.
+    symmetrization : ..symmetrization.Symmetrization or None
+        How far ``H`` was projected onto its symmetric part.
+    validated : ..groups.ValidatedGroup
+        The verdict on each operation of the group.
+    source : pythtb.TBModel
+        The model as it was handed in.
+    """
+
+    precision: Precision | None
+    positions: Positions | None
+    symmetrization: Any
+    validated: ValidatedGroup
+    source: Any
+
+    def _lines(self, *, head=True) -> list:
+        """The lines :meth:`summary` prints, without the indentation of the first."""
+        lines = []
+        pr = self.precision
+        if pr is not None:
+            lines.append(f"precision {pr.precision:.3g} declared, max|H| {pr.max_h:.4g}: tol "
+                         f"{pr.tol:.3g}, cut {pr.cut:.3g}, window {pr.window:.3g}, "
+                         f"position_tol {pr.position_tol:.3g}"
+                         + (f", symprec raised to {pr.symprec:.3g}" if pr.symprec_raised else "")
+                         + "   (.precision)")
+        ps = self.positions
+        if ps is not None and ps.adjusted and not within(ps.max_move or 0.0, 0.0):
+            lines.append(f"centers moved by {ps.max_move:.3g}   (.positions)")
+        sz = self.symmetrization
+        if sz is not None:
+            lines.append(f"H symmetrized by {sz.defect:.3g}, "
+                         f"{sz._relative:.3g} of its size"
+                         "   (.symmetrization)")
+        lines.append(self.validated._counted() + "   (.validated)")
+        return lines
+
+    def summary(self) -> str:
+        """How the measurement was made, a line for each part that applies, with the attribute that holds it."""
+        lines = self._lines()
+        return "\n".join([lines[0]] + ["  " + line for line in lines[1:]])
+
+    def __repr__(self) -> str:  # pragma: no cover - convenience only
+        return "RealizedGroupNumerical(" + "; ".join(
+            line.split("   (")[0] for line in self._lines()) + ")"
+
+
+#: Each field of a mapping the measurement builds, by the record it becomes: the
+#: field each key is read into where the two differ.
+_RENAMED = {"from": "cell_group", "to": "subgroup", "ind": "index",
+            "time_reversal": "antiunitary"}
+
+
+def _record(cls, mapping, **built):
+    """One mapping the measurement builds, read into ``cls``: each key the field of its name.
+
+    ``built`` are the fields already read, a nested record among them; a key no
+    field of ``cls`` takes is the package disagreeing with itself and raises.
+    """
+    if mapping is None:
+        return None
+    names = {f.name for f in dataclass_fields(cls)}
+    out = {}
+    for key, value in dict(mapping).items():
+        name = _RENAMED.get(key, key)
+        if name in built:
+            continue
+        if name not in names:
+            raise InternalError(
+                f"the record {cls.__name__} has no field for the key {key!r} the "
+                "measurement wrote: a key the measurement writes and its record does not "
+                "read is a defect in this package.")
+        out[name] = value
+    out.update(built)
+    return cls(**out)
+
+
+def _named(mapping) -> NamedGroup | None:
+    """A group written ``{"number_str", "name", "size"}`` as a :class:`NamedGroup`."""
+    if mapping is None:
+        return None
+    return NamedGroup(name=str(mapping["name"]), number_str=str(mapping["number_str"]),
+                      size=int(mapping["size"]))
+
+
+def _dropped(entry) -> DroppedOperation:
+    """One operation dropped, or excluded by the declared content."""
+    rows = entry.get("rows")
+    return _record(DroppedOperation, entry,
+                   **({} if rows is None else {"rows": _declaration_checks(rows)}))
+
+
+def _causes(counts) -> dict:
+    """How many each cause dropped, by cause."""
+    return {str(cause): int(n) for cause, n in dict(counts).items()}
+
+
+def _step(rec) -> DescentStep:
+    """One descent step's mapping as a :class:`DescentStep`."""
+    decl = rec.get("declaration")
+    return _record(
+        DescentStep, rec, cell_group=_named(rec["from"]), subgroup=_named(rec["to"]),
+        dropped=tuple(_dropped(d) for d in rec["dropped"]),
+        refuted_by=_causes(rec["refuted_by"]),
+        cell=_record(DescentCell, rec["cell"]),
+        declaration=(None if decl is None else _record(
+            StepDeclaration, decl, rows=_declaration_checks(decl.get("rows", ())))),
+        centers=_record(StepCenters, rec.get("centers")),
+        tie=_record(StepTie, rec.get("tie")),
+        projective=(None if rec.get("projective") is None else dict(rec["projective"])),
+        lattice=(None if rec.get("lattice") is None else dict(rec["lattice"])))
+
+
+def _descent_record(descent) -> Descent | None:
+    """The descent's mapping as a :class:`Descent`."""
+    if descent is None:
+        return None
+    return _record(
+        Descent, descent, cell_group=_named(descent["from"]),
+        subgroup=_named(descent["to"]),
+        dropped=tuple(_dropped(d) for d in descent["dropped"]),
+        dropped_by=_causes(descent["dropped_by"]),
+        tied=tuple(descent.get("tied", ())),
+        cell=_record(DescentCell, descent["cell"]),
+        steps=tuple(_step(s) for s in descent["steps"]),
+        lattice=(None if descent.get("lattice") is None else dict(descent["lattice"])))
+
+
+def _time_reversal_record(tr) -> TimeReversal:
+    """The time-reversal verdict as a :class:`TimeReversal`."""
+    tr = dict(tr or {})
+    return _record(TimeReversal, tr,
+                   square=_record(TimeReversalSquare, tr.get("square")))
+
+
+def _beyond_grey_record(bg) -> BeyondGrey | None:
+    """The operations beyond the grey group as a :class:`BeyondGrey`."""
+    if not bg:
+        return None
+    return _record(BeyondGrey, bg, operations=tuple(
+        _record(BeyondGreyOperation, o) for o in bg.get("operations", ())))
+
+
+def _cross_check_record(cc) -> CrossCheck | None:
+    """A layer's cross-check as a :class:`CrossCheck`."""
+    if cc is None:
+        return None
+
+    def ops(rows):
+        return tuple(_record(CrossCheckOperation, o) for o in rows or ())
+
+    return _record(
+        CrossCheck, cc, free_standing=_named(cc.get("free_standing")),
+        substrate=_named(cc.get("substrate")),
+        rows=tuple(_record(CrossCheckRow, o) for o in cc.get("rows") or ()),
+        missing=ops(cc.get("missing")), extra=ops(cc.get("extra")),
+        flipping=ops(cc.get("flipping")), unmapped=ops(cc.get("unmapped")),
+        tie=ops(cc.get("tie")), refusal=_record(CrossCheckRefusal, cc.get("refusal")))
+
+
+def _decoration_record(dec) -> Decoration | None:
+    """What was added to the cell as a :class:`Decoration`."""
+    if dec is None:
+        return None
+    red = dec.get("declared")
+    return _record(Decoration, dec, declared=(None if red is None else _record(
+        DeclaredReduction, red, cell_group=_named(red["from"]), subgroup=_named(red["to"]),
+        excluded=tuple(_record(ExcludedOperation, d) for d in red.get("excluded", ())))))
 
 
 @dataclass(frozen=True)
 class RealizedGroup:
-    """The space group a Hamiltonian obeys, with each orbital's Wyckoff position and the representation that labels the bands.
+    """The space group a Hamiltonian obeys, with its orbitals by Wyckoff orbit and the representation that labels the bands.
 
-    What :func:`realized_group` returns.  ``summary()`` prints what was
-    measured, each line ending with the attribute that holds it, and
-    ``model, group, assignment, validated, rep = r`` unpacks the five fields
-    every later call takes; the rest are read by name.
+    What :func:`realized_group` returns, read by name: ``summary()`` prints
+    what was measured, each line ending with the field that holds it.  The
+    calls that label bands take it whole, ``hsp_table(r, bands=n)``.
 
     Attributes
     ----------
-    model : pythtb.TBModel
-        The model every later call takes: a layer's slab; a three-dimensional
-        model itself, or with the values of its parameters in place; or ``H``
-        symmetrized.
-    source : pythtb.TBModel
-        The model as it was handed in.
     group : GroupData
         The space group the Hamiltonian obeys, every operation measured to hold.
     operations : OperationTable
         The group's operations by index, with their Seitz symbols and names.
-    assignment : OrbitalAssignment
-        Each orbital's site and Wyckoff position, and how operations move sites.
-    validated : ValidatedGroup
-        The verdict on each operation of the group, and how well it holds.
-    rep : SpaceGroupRep
-        The matrices that label the bands; ``rep.characters``, the site irreps.
-    conserved : dict
-        Symmetry beyond the crystal's: ``dim`` more matrices commute with ``H``.
-    descent : dict or None
+    wyckoff_orbits : ..symmetry.AtomicLimitTable
+        The model's orbitals, a row per Wyckoff orbit: its position, its
+        site-symmetry group, its site irreps and the band representation they
+        induce.
+    descent : Descent or None
         The operations of the cell ``H`` did not keep, and what dropped each.
-    time_reversal : dict
+    time_reversal : TimeReversal
         How time reversal was measured: ``"kept"`` or ``"measured broken"``.
-    beyond_grey : dict or None
-        Operations with time reversal that hold while time reversal is broken.
-    environment, environment_declared : str or None, and bool
-        A layer's ``"substrate"`` or ``"free-standing"``, and whether declared.
-    cross_check : dict or None
-        A layer's other environment, measured and compared with this one.
-    precision : dict or None
-        The tolerances a declared ``precision`` set against ``H``'s magnitude.
-    positions : dict or None
-        How far the orbital centres were moved onto the group's positions.
-    symmetrization : Symmetrization or None
-        How far ``H`` was moved onto its symmetric part, and why.
-    decoration : dict or None
-        What was added to the cell; in ``declared``, its reduction by content.
-    presentation : dict
-        How a layer was set in a slab, and the check that ``H(k)`` is unchanged.
-    cell, typat, cell_typat : pythtb.TBModel and list
-        The point set the group was found on; the orbitals' and its species.
-    bundle : tuple
-        ``(model, group, assignment, validated, rep)``, what unpacking gives.
+    beyond_grey : BeyondGrey or None
+        Operations combined with time reversal that hold while time reversal
+        is broken.
+    conserved : Conserved
+        Symmetry beyond the crystal's: the matrices that commute with ``H(k)``
+        at every ``k``.
+    environment : LayerEnvironment or None
+        A layer's environment, ``"substrate"`` or ``"free-standing"``, whether
+        it was declared, and the other environment measured beside it; ``None``
+        for a crystal periodic in three directions.
+    decoration : Decoration or None
+        What was added to the cell before its group was found; in
+        ``declared``, what the declared content took out of it.
+    model : pythtb.TBModel
+        The model every later call reads: a layer's slab; a three-dimensional
+        model itself, or with the values of its parameters in place; or ``H``
+        symmetrized.
+    rep : ..symmetry.SpaceGroupRep
+        The matrices that label the bands.
+    spin : ..spin.SpinBasis or None
+        The spin pairs ``spin=`` declared; ``None`` where none were.
+    numerical : RealizedGroupNumerical
+        How the measurement was made: a declared precision, the centers moved,
+        ``H`` projected, the verdict on each operation, and the model as it was
+        handed in.
     """
 
-    model: Any
-    source: Any
-    cell: Any
-    typat: list
-    cell_typat: list
     group: GroupData
-    assignment: OrbitalAssignment
-    validated: ValidatedGroup
+    wyckoff_orbits: Any
+    time_reversal: TimeReversal
+    model: Any
     rep: Any
-    presentation: dict = field(default_factory=dict)
-    decoration: dict | None = field(default_factory=dict)
-    time_reversal: dict = field(default_factory=dict)
-    descent: dict | None = None
-    beyond_grey: dict | None = None
-    symmetrization: Any = None
-    positions: dict | None = None
-    precision: dict | None = None
-    environment: str | None = None
-    environment_declared: bool = False
-    cross_check: dict | None = None
+    numerical: RealizedGroupNumerical
+    descent: Descent | None = None
+    beyond_grey: BeyondGrey | None = None
+    environment: LayerEnvironment | None = None
+    decoration: Decoration | None = None
+    spin: Any = None
+    # the point set the group was found on, the orbitals' species and its own
+    _cell: Any = field(default=None, repr=False, compare=False)
+    _typat: Any = field(default=None, repr=False, compare=False)
+    _cell_typat: Any = field(default=None, repr=False, compare=False)
+    # each orbital's site and Wyckoff position, and how the operations move sites
+    _assignment: OrbitalAssignment | None = field(default=None, repr=False, compare=False)
     # the sectors the conserved matrices acting within sites split the states
     # into, read once where the model entered, and what the operations of the
     # group returned do to them: read on `conserved`
     _sectors: Any = field(default=None, repr=False, compare=False)
 
     @property
-    def conserved(self) -> dict:
+    def conserved(self) -> Conserved:
         """Symmetry beyond the crystal's own: the matrices that commute with ``H(k)`` at every ``k``.
 
         Returns
         -------
-        dict
-            ``dim``: how many such matrices there are beyond the identity, ``0``
-            for a generic model and ``1`` for Kane–Mele without its Rashba
-            term, which conserves ``s_z``; the labels, elementary band
-            representations and indicators returned are the crystalline
-            group's all the same, as the ``note`` says.  ``sectors``: how the
-            conserved matrices acting within sites split the states, each
-            sector naming its ``orbitals``, the ``sites`` they sit at, and its
-            ``copies`` and ``dim``, that many identical copies of a set of that
-            many orbitals, every matrix on the copies conserved; ``images``: per
-            operation by index, the sector it carries each sector onto.  Both
-            are ``None`` where the conserved matrices were too many to read.
-            Where ``dim`` is above ``0`` a decoupled multiplet's content can be
-            a choice, and the atomic-limit table's ``determined_by`` says
-            whether a declaration or the lowest-angular-momentum rule made it.
+        Conserved
+            ``dim``, how many there are beyond the identity; ``sectors``, how
+            those acting within sites split the states; ``images``, the sector
+            each operation carries each sector onto.
         """
+        validated = self.numerical.validated
         ident = next((int(s.ind) for s in self.group._symmetries
                       if not s.time_reversal
                       and np.array_equal(np.rint(np.asarray(s.rotation)).astype(int),
                                          np.eye(3, dtype=int))
                       and np.allclose(np.asarray(s.translation) % 1.0, 0.0, atol=1e-8)),
                      None)
-        n = int((self.validated._nullspace_dims or {}).get(int(ident), 1) or 1) \
+        n = int((validated._nullspace_dims or {}).get(int(ident), 1) or 1) \
             if ident is not None else 1
         dim = max(0, n - 1)
         reading, action = self._sectors if self._sectors is not None else (None, None)
         sectors = images = None
         if reading is not None:
-            site_of = np.asarray(self.assignment.site_of_orbital, dtype=int)
+            site_of = np.asarray(self._assignment.site_of_orbital, dtype=int)
             sectors = []
             for sector in reading.sectors:
                 orbitals = tuple(sorted(int(o) for a in sector.atoms
                                         for o in reading.atoms[int(a)]))
-                sectors.append({"orbitals": orbitals,
-                                "sites": tuple(sorted({int(site_of[o]) for o in orbitals})),
-                                "copies": int(sector.copies), "dim": int(sector.dim)})
+                sectors.append(ConservedSector(
+                    orbitals=orbitals,
+                    sites=tuple(sorted({int(site_of[o]) for o in orbitals})),
+                    copies=int(sector.copies), dim=int(sector.dim)))
             sectors = tuple(sectors)
             images = ({} if action is None else
                       {int(i): tuple(int(j) for j in got)
                        for i, got in sorted(action.images.items())})
-        return {"dim": int(dim),
-                "note": (f"additional commuting matrices: {dim} -- this Hamiltonian "
-                         f"commutes with {dim} matrix{'' if dim == 1 else 'es'} beyond "
-                         "the identity at every k, so it has that much symmetry beyond "
-                         "the crystal's own; the labels, EBR rows and indicators "
-                         "returned here are the crystalline group's."
-                         if dim else
-                         "additional commuting matrices: 0 -- no matrix beyond the "
-                         "identity commutes with this Hamiltonian at every k, so its "
-                         "symmetry is the crystal's own."),
-                "sectors": sectors, "images": images}
+        return Conserved(
+            dim=int(dim),
+            note=(f"additional commuting matrices: {dim} -- this Hamiltonian "
+                  f"commutes with {dim} matrix{'' if dim == 1 else 'es'} beyond "
+                  "the identity at every k, so it has that much symmetry beyond "
+                  "the crystal's own; the labels, EBR rows and indicators "
+                  "returned here are the crystalline group's."
+                  if dim else
+                  "additional commuting matrices: 0 -- no matrix beyond the "
+                  "identity commutes with this Hamiltonian at every k, so its "
+                  "symmetry is the crystal's own."),
+            sectors=sectors, images=images)
 
     @property
     def operations(self) -> OperationTable:
         """Every operation of :attr:`group` by index, with its Seitz symbol and name: ``r.operations[5].seitz``."""
         return operations(self.group)
 
-    @property
-    def bundle(self) -> tuple:
-        """``(model, group, assignment, validated, rep)``, what unpacking the record gives."""
-        return (self.model, self.group, self.assignment, self.validated, self.rep)
-
-    def __iter__(self):
-        """Unpack as ``model, group, assignment, validated, rep``."""
-        return iter(self.bundle)
-
     def summary(self) -> str:
-        """What was measured, a line for each part, with the attribute that holds it."""
+        """What was measured, a line for each part, with the field that holds it."""
         g = self.group
+        kind = None if self.environment is None else self.environment.kind
         where = {"substrate": ", on a substrate", "free-standing": ", free-standing"}.get(
-            self.environment, "")
-        lines = [f"{g.name} #{g.number_str}{where}   (.group)",
+            kind, "")
+        lines = [f"{g.name} #{g.number_str}{where}   "
+                 + ("(.group)" if kind is None else "(.group, .environment.kind)"),
                  "  its operations, by index and Seitz symbol   (.operations)"]
-
-        table = getattr(self.rep, "characters", None)
-        by_position = (_content_by_position(table, int(self.model.nspin))
-                       if table is not None else [])
-        if by_position:
-            lines.append("  the orbitals, by Wyckoff position   (.rep.characters)")
-            lines += ["    " + line for line in by_position]
-
-        tr = self.time_reversal or {}
-        if tr.get("outcome") == "measured broken":
-            square = tr.get("square") or {}
-            if (square.get("asked", 0) > 0 and np.isfinite(square.get("measured", np.nan))
-                    and square["measured"] < 0):
+        if len(self.wyckoff_orbits):
+            lines.append("  the orbitals, by Wyckoff orbit   (.wyckoff_orbits)")
+            lines += ["    " + o._line() for o in self.wyckoff_orbits]
+        if self.spin is not None:
+            lines.append(f"  the orbitals in {len(self.spin.pairs)} declared spinor pairs"
+                         "   (.spin)")
+        tr = self.time_reversal
+        if tr.outcome == "measured broken":
+            square = tr.square
+            if (square is not None and square.asked > 0 and np.isfinite(square.measured)
+                    and square.measured < 0):
                 lines.append("  time reversal broken: its square is -1, so the states carry "
                              "half-integer spin; spin= declares the spin pairs   "
                              "(.time_reversal)")
-        if self.beyond_grey:
-            names = [str(o.get("name", "")) for o in self.beyond_grey.get("operations", ())]
+        if self.beyond_grey is not None:
+            names = [str(o.name) for o in self.beyond_grey.operations]
             shown = ", ".join(names[:6]) + (f" and {len(names) - 6} more" if len(names) > 6
                                             else "")
             lines.append(f"  also obeyed: {shown}, making a magnetic group of type "
-                         f"{self.beyond_grey['magnetic_type']}, which is not returned   "
+                         f"{self.beyond_grey.magnetic_type}, which is not returned   "
                          "(.beyond_grey)")
-
-        moved = []
-        if (self.positions or {}).get("adjusted") and not within(
-                self.positions.get("max_move", 0.0), 0.0):
-            moved.append(f"centres moved by {self.positions['max_move']:.2g}")
-        if self.symmetrization is not None:
-            moved.append(f"H symmetrized by {self.symmetrization.defect:.2g}")
-        if self.precision:
-            lines.append(f"  precision {self.precision['precision']:.3g}"
-                         + (": " + ", ".join(moved) if moved else "")
-                         + "   (.precision, .positions, .symmetrization)")
-        elif moved:
-            lines.append("  " + ", ".join(moved) + "   (.positions, .symmetrization)")
-
-        dim = int((self.conserved or {}).get("dim", 0))
+        dim = int(self.conserved.dim)
         if dim:
             lines.append(("  one more matrix commutes" if dim == 1
                           else f"  {dim} more matrices commute")
-                         + " with H(k) at every k   (.conserved)")
+                         + " with H(k) at every k   (.conserved.dim)")
         return "\n".join(lines)
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
-        tr = self.time_reversal or {}
-        pr = self.precision or {}
-        red = (self.decoration or {}).get("declared")
+        tr = self.time_reversal
+        pr = self.numerical.precision
+        positions = self.numerical.positions
+        symmetrization = self.numerical.symmetrization
+        red = None if self.decoration is None else self.decoration.declared
         # time reversal read single-valued, its square measured -1: the states
         # carry half-integer spin, and the line names what reads them so
-        square = tr.get("square") or {}
-        spinor = (square.get("asked", 0) > 0 and np.isfinite(square.get("measured", np.nan))
-                  and square["measured"] < 0)
+        square = tr.square
+        spinor = (square is not None and square.asked > 0 and np.isfinite(square.measured)
+                  and square.measured < 0)
         # the other environment, as the cross-check left it
-        cc = self.cross_check or {}
-        if self.cross_check is None:
+        env = self.environment
+        cc = None if env is None else env.cross_check
+        if cc is None:
             compared = ""
-        elif cc.get("agrees"):
-            compared = (", the free-standing group #"
-                        + str((cc.get("free_standing") or {}).get("number_str"))
-                        if self.environment == "substrate" else
-                        ", the substrate group #"
-                        + str((cc.get("substrate") or {}).get("number_str"))) + " agrees"
-        elif cc.get("outcome") == "not compared":
+        elif cc.agrees:
+            other = cc.free_standing if env.kind == "substrate" else cc.substrate
+            compared = (", the free-standing group " if env.kind == "substrate"
+                        else ", the substrate group ") + f"{other} agrees"
+        elif cc.outcome == "not compared":
             compared = (", not compared with the free-standing layer: the declaration is "
                         "written in the substrate's site irreps"
-                        if self.environment == "substrate" else
+                        if env.kind == "substrate" else
                         ", not compared with the substrate: the declaration is written in "
                         "the free-standing layer's site irreps")
         else:
-            compared = ", the other environment " + str(cc.get("outcome"))
+            compared = ", the other environment " + str(cc.outcome)
         # the operations a clause counts are coset representatives of the
         # lattice translations, and a spinful group's are the single-valued
         # group's: the first count of the line says so, once
@@ -302,94 +1267,90 @@ class RealizedGroup:
             return f" {_PER_COSET}", (f"; these are {_DOUBLE_GROUP}" if double else "")
 
         declared = ""
-        if red:
+        if red is not None:
             u, d = unit()
-            declared = (f"; cell lowered by the declared content from "
-                        f"#{red['from']['number_str']} ({red['n_excluded']} of "
-                        f"{red['from']['size']}{u} excluded{d})")
+            declared = (f"; cell lowered by the declared content from {red.cell_group} "
+                        f"({red.n_excluded} of {red.cell_group.size}{u} excluded{d})")
         descended = ""
-        if self.descent and len(self.descent.get("steps", ())) > 1:
+        descent = self.descent
+        if descent is not None and len(descent.steps) > 1:
             # a descent of several steps is counted whole, by cause, as its
             # note counts it
-            counts = self.descent["dropped_by"]
+            counts = descent.dropped_by
             u, d = unit()
-            descended = (f"; descended from #{self.descent['from']['number_str']} in "
-                         f"{len(self.descent['steps'])} steps ({sum(counts.values())} of "
-                         f"{self.descent['from']['size']}{u} dropped: "
+            descended = (f"; descended from {descent.cell_group} in "
+                         f"{len(descent.steps)} steps ({sum(counts.values())} of "
+                         f"{descent.cell_group.size}{u} dropped: "
                          + ", ".join(f"{n} {_DROPPED_BY_WORDS[cause]}"
                                      for cause, n in counts.items())
                          + f"{d})")
-        elif self.descent:
-            counts = self.descent["dropped_by"]
+        elif descent is not None:
+            counts = descent.dropped_by
             n_all = sum(counts.values())
             u, d = unit()
-            if set(counts) <= {"hoppings", "declaration", "centres"}:
+            if set(counts) <= {"hoppings", "declaration", "centers"}:
                 # every operation dropped was broken -- by the hoppings, the
-                # declared content or the centres -- and the clause says so
+                # declared content or the centers -- and the clause says so
                 n_h, n_c, n_d = (int(counts.get(cause, 0))
-                                 for cause in ("hoppings", "centres", "declaration"))
+                                 for cause in ("hoppings", "centers", "declaration"))
                 parts = ([f"{n_h} by the hoppings"] if n_h else []) + (
-                    [f"{n_c} by the centres"] if n_c else []) + (
+                    [f"{n_c} by the centers"] if n_c else []) + (
                     [f"{n_d} by the declared content"] if n_d else [])
                 why = ("" if not n_d and not n_c else
                        " by the declared content" if n_d == n_all else
-                       " by the centres" if n_c == n_all else
+                       " by the centers" if n_c == n_all else
                        ": " + ", ".join(parts))
-                descended = (f"; descended from #{self.descent['from']['number_str']} "
-                             f"({n_all} of {self.descent['from']['size']}{u} broken"
-                             f"{why}{d})")
+                descended = (f"; descended from {descent.cell_group} "
+                             f"({n_all} of {descent.cell_group.size}{u} broken{why}{d})")
             else:
                 # operations the Hamiltonian obeys are among them -- the states'
                 # projective class, a closure, the tie rule -- so they were
                 # dropped, not broken, and each cause is counted
-                descended = (f"; descended from #{self.descent['from']['number_str']} "
-                             f"({n_all} of {self.descent['from']['size']}{u} dropped: "
+                descended = (f"; descended from {descent.cell_group} "
+                             f"({n_all} of {descent.cell_group.size}{u} dropped: "
                              + ", ".join(f"{n} {_DROPPED_BY_WORDS[cause]}"
                                          for cause, n in counts.items())
                              + f"{d})")
         beyond = ""
-        if self.beyond_grey:
-            n_b = int(self.beyond_grey["n_operations"])
+        if self.beyond_grey is not None:
+            n_b = int(self.beyond_grey.n_operations)
             u, d = unit()
             beyond = (f" -- a larger magnetic group, of type "
-                      f"{self.beyond_grey['magnetic_type']}, is realized ("
+                      f"{self.beyond_grey.magnetic_type}, is realized ("
                       + (f"{n_b} antiunitary operation{'' if n_b == 1 else 's'}" if not u
                          else f"{n_b} operation{'' if n_b == 1 else 's'} combined with "
                          f"time reversal,{u},")
                       + f" measured to hold{d}) but is beyond the validated scope")
+        moved = (positions is not None and positions.adjusted
+                 and not within(positions.max_move or 0.0, 0.0))
         return (f"RealizedGroup({self.group.name} #{self.group.number_str}"
-                + (f"; precision {pr['precision']:.3g} declared -> tol "
-                   f"{pr['tol']:.3g} (cut {pr['cut']:.3g}, window "
-                   f"{pr['window']:.3g}), "
-                   f"position_tol {pr['position_tol']:.3g} "
-                   f"(measured max|H| {pr['max_h']:.4g})"
-                   + (f", symprec raised to {pr['symprec']:.3g}"
-                      if pr.get("symprec_raised") else "")
-                   if pr else "")
+                + (f"; precision {pr.precision:.3g} declared -> tol "
+                   f"{pr.tol:.3g} (cut {pr.cut:.3g}, window "
+                   f"{pr.window:.3g}), "
+                   f"position_tol {pr.position_tol:.3g} "
+                   f"(measured max|H| {pr.max_h:.4g})"
+                   + (f", symprec raised to {pr.symprec:.3g}" if pr.symprec_raised else "")
+                   if pr is not None else "")
                 + (("; time reversal measured broken"
                     # the grey group of the unitary operations kept is named only where
                     # it was the candidate: where antiunitary operations of the cell held
                     # with time reversal broken, they are what held, on `beyond_grey`
-                    + ("" if self.beyond_grey else
-                       f", descended from {tr['grey_name']} #{tr['grey_number_str']}")
+                    + ("" if self.beyond_grey is not None else
+                       f", descended from {tr.grey_name} #{tr.grey_number_str}")
                     + (": its square is -1, so the states carry half-integer spin, and "
                        "spin= declares which orbitals are spin partners" if spinor else ""))
-                   if tr.get("outcome") == "measured broken" else "")
+                   if tr.outcome == "measured broken" else "")
                 + declared
                 + descended
-                + (f"; additional commuting matrices: {self.conserved['dim']}"
-                   if self.conserved.get("dim") else "")
-                + (f"; centres moved {self.positions['max_move']:.3g}"
-                   if (self.positions or {}).get("adjusted")
-                   and not within(self.positions.get("max_move", 0.0), 0.0)
-                   else "")
-                + (f"; symmetrized (defect {self.symmetrization.defect:.3g})"
-                   if self.symmetrization is not None else "")
-                + (("; on a substrate" if self.environment == "substrate"
-                    else f"; {self.environment}")
-                   + ("" if self.environment_declared else " (the default)")
+                + (f"; additional commuting matrices: {self.conserved.dim}"
+                   if self.conserved.dim else "")
+                + (f"; centers moved {positions.max_move:.3g}" if moved else "")
+                + (f"; symmetrized (defect {symmetrization.defect:.3g})"
+                   if symmetrization is not None else "")
+                + (("; on a substrate" if env.kind == "substrate" else f"; {env.kind}")
+                   + ("" if env.declared else " (the default)")
                    + compared
-                   if self.environment is not None else "")
+                   if env is not None else "")
                 + beyond + ")")
 
 
@@ -469,20 +1430,21 @@ def realized_group(model, *, typat=None, environment=None, cross_check=True,
     Returns
     -------
     RealizedGroup or Refusal
-        ``r.summary()`` prints what was measured.  The record unpacks as
-        ``model, group, assignment, validated, rep = r``: the group, its
-        operations by Seitz symbol in ``r.operations``; each orbital's Wyckoff
-        position; the verdict on each operation; and the representation, which
-        labels bands (``hsp_table(r.rep, bands=n)``) and holds each orbital's
-        site irrep (``r.rep.characters``).  By name: ``r.descent``, what was
-        broken; ``r.time_reversal``; ``r.environment`` and ``r.cross_check``,
-        for a layer; ``r.beyond_grey``, operations combined with time reversal
-        that hold where time reversal does not; ``r.precision``,
-        ``r.positions`` and ``r.symmetrization``, for a numerical model;
-        ``r.conserved``, symmetry beyond the crystal's.  For a parameterized
+        ``r.summary()`` prints what was measured, each line with the field
+        that holds it.  ``r.group`` is the group, its operations by Seitz
+        symbol in ``r.operations``; ``r.wyckoff_orbits`` the orbitals, a row
+        per Wyckoff orbit, with their site irreps and the band representation
+        they induce; ``r.rep`` the matrices that label the bands, read through
+        the record itself, ``hsp_table(r, bands=n)``.  ``r.descent`` is what
+        was broken; ``r.time_reversal``; ``r.environment``, for a layer;
+        ``r.beyond_grey``, operations combined with time reversal that hold
+        where time reversal does not; ``r.conserved``, symmetry beyond the
+        crystal's; ``r.spin``, the spin pairs declared; ``r.numerical``, how
+        the measurement was made: the precision declared, the centers moved,
+        ``H`` projected, the verdict on each operation.  For a parameterized
         model, ``r.model`` is the model with its parameters evaluated at
-        ``params``, and ``r.source`` the model as handed in.  A ``Refusal`` in
-        its place is falsy and names what stopped the call.
+        ``params``, and ``r.numerical.source`` the model as handed in.  A
+        ``Refusal`` in its place is falsy and names what stopped the call.
 
     Raises
     ------
@@ -553,11 +1515,11 @@ def realized_group(model, *, typat=None, environment=None, cross_check=True,
     >>> r = realized_group(kane_mele(1.0, -1.0, 0.3, 0.25), typat=[0, 1],
     ...                    characters={0: "A1"})                    # doctest: +SKIP
     >>> print(r.summary())                                          # doctest: +SKIP
-    P3m11' #156.50, on a substrate   (.group)
+    P3m11' #156.50, on a substrate   (.group, .environment.kind)
       its operations, by index and Seitz symbol   (.operations)
-      the orbitals, by Wyckoff position   (.rep.characters)
-        1c (3m): orbital 0, -E1
-        1b (3m): orbital 1, -E1
+      the orbitals, by Wyckoff orbit   (.wyckoff_orbits)
+        1c (3m1'): orbital 0, -E1
+        1b (3m1'): orbital 1, -E1
     """
     bound = _bloch.bound(model, params)
     got = _realize(bound, typat=typat, environment=environment,
@@ -569,7 +1531,7 @@ def realized_group(model, *, typat=None, environment=None, cross_check=True,
                    max_candidates=max_candidates)
     # `source` is the model exactly as it was handed in, its parameters still free
     if bound is not model and isinstance(got, RealizedGroup):
-        got = replace(got, source=model)
+        got = replace(got, numerical=replace(got.numerical, source=model))
     return got
 
 
@@ -1415,8 +2377,8 @@ def _representation_built(res, sld, *, selection_only, build_kw):
     free_standing_group = None
     if environment == "substrate" and cross and cross.get("outcome") == "agree":
         free_standing_group = dict(cross["free_standing"])
-    rep = replace(rep, environment=(None if environment is None else str(environment)),
-                  free_standing_group=free_standing_group)
+    rep = replace(rep, _environment=(None if environment is None else str(environment)),
+                  _free_standing_group=free_standing_group)
 
     # THE OPERATIONS COMBINED WITH TIME REVERSAL, read once, here: where time
     # reversal is broken, every one of the cell's that a round measured -- each
@@ -1469,7 +2431,7 @@ def _descent_said(model, res, sld, rpd):
     # the DECLARED decoration, which is what this record is about, together with
     # the orbit step 1 added where the declared content reduced the cell: the
     # descent's own species are the descent's business and are on
-    # `descent["cell"]`.
+    # `descent.cell`.
     reduction = sel.reduction
     bare_3d = three_d and not extras and reduction is None
     base_typat = sel.base_typat
@@ -1545,7 +2507,7 @@ def _descent_said(model, res, sld, rpd):
         ties = "".join(
             " " + note[:1].upper() + note[1:]
             for st in steps
-            for note in ((st.get("centres") or {}).get("note"),
+            for note in ((st.get("centers") or {}).get("note"),
                          (st.get("tie") or {}).get("note"),
                          (st.get("declaration") or {}).get("note"))
             if note)
@@ -1617,7 +2579,7 @@ def _descent_said(model, res, sld, rpd):
                 f"from #{reduction['from']['number_str']} to "
                 f"#{reduction['to']['number_str']}: {reduction['n_excluded']} operations "
                 "the crystal that was declared does not have, which is not a descent and "
-                "is on `decoration['declared']`.") if reduction is not None else "")
+                "is on `decoration.declared`.") if reduction is not None else "")
             + ties
             + projective
             + precise,
@@ -1680,28 +2642,37 @@ def _realized_record(model, res, sld, rpd, dsc, *, dz, c, n_check):
     reduction = dsc.reduction
     shadow_recipe = dsc.shadow_recipe
 
+    # what the slab presentation measured, by its own identity check: the
+    # layer's H(k) against the slab's, carried back through the move where a
+    # tilted non-periodic vector was put on the layer's normal
+    tilted = presented["tilted"]
+    presentation = Presentation(
+        c=None if three_d else float(c), residual=float(presented["residual"]),
+        n_check=0 if three_d else int(n_check),
+        tilted=None if tilted is None else _record(PresentationTilt, tilted))
+    precision = tolerances.returned()
+    # the dictionaries the measurement built, each read once into its record
     return RealizedGroup(
-        model=m3, source=model, cell=cell, typat=labels, cell_typat=list(cell_typat),
-        group=group, assignment=assignment, validated=validated, rep=rep,
-        time_reversal=time_reversal, beyond_grey=beyond_grey, descent=descent,
-        symmetrization=symmetrization, positions=positions,
-        precision=tolerances.returned(),
-        environment=(None if environment is None else str(environment)),
-        environment_declared=bool(environment_declared), cross_check=cross,
+        model=m3, _cell=cell, _typat=labels, _cell_typat=list(cell_typat),
+        group=group, _assignment=assignment, rep=rep, spin=rep._spin,
+        wyckoff_orbits=_wyckoff_orbit_table(rep),
+        time_reversal=_time_reversal_record(time_reversal),
+        beyond_grey=_beyond_grey_record(beyond_grey),
+        descent=_descent_record(descent),
+        environment=(None if environment is None else LayerEnvironment(
+            kind=str(environment), declared=bool(environment_declared),
+            cross_check=_cross_check_record(cross), presentation=presentation)),
+        numerical=RealizedGroupNumerical(
+            precision=_record(Precision, precision) if precision else None,
+            positions=_record(Positions, positions) if positions else None,
+            symmetrization=symmetrization, validated=validated, source=model),
         _sectors=sectors,
-        # what the slab presentation measured, by its own identity check: the
-        # layer's H(k) against the slab's, carried back through the move where
-        # a tilted non-periodic vector was put on the layer's normal
-        presentation={"c": None if three_d else float(c),
-                      "residual": float(presented["residual"]),
-                      "n_check": 0 if three_d else int(n_check),
-                      "tilted": presented["tilted"]},
         # `dz` is the sigma_h recipe's own parameter: it is recorded when that
         # recipe ran and `None` when it did not, rather than reporting a number
         # that had no part in the group.  `typat` and `n_atoms` count the
         # whole addition, base and extras alike, so the recipe names both when
         # both are there.
-        decoration=None if bare_3d else
+        decoration=None if bare_3d else _decoration_record(
         {"dz": (float(dz) if shadow_recipe else None),
          "typat": tuple(base_typat[len(labels):]),
          "n_atoms": int(n_extra),
@@ -1721,7 +2692,7 @@ def _realized_record(model, res, sld, rpd, dsc, *, dz, c, n_check):
           if not extras and not three_d else
           "caller-supplied decoration" if extras else
           "none: the cell is the model's own point set")
-         + ("" if reduction is None else _declared_recipe(reduction, group.spinor))})
+         + ("" if reduction is None else _declared_recipe(reduction, group.spinor))}))
 
 
 def _declared_recipe(reduction, spinor=False) -> str:
@@ -1737,7 +2708,7 @@ def _declared_recipe(reduction, spinor=False) -> str:
         f"was declared and are gone from the cell before any hopping is read, so the "
         f"cell was identified as {reduction['to']['name']} "
         f"#{reduction['to']['number_str']} instead. Each excluded operation says why "
-        "under `declared['excluded']`. This is a statement about what the orbitals are, "
+        "under `declared.excluded`. This is a statement about what the orbitals are, "
         "not a descent: `descent` carries what the Hamiltonian broke.")
 
 
@@ -2077,7 +3048,7 @@ def _environment_ties(records) -> tuple:
                     ("declaration", (step.get("declaration") or {}).get("tied", ()),
                      "the declared content has more than one reading of the largest "
                      "order, " + " and ".join("{" + ", ".join(r) + "}" for r in names)),
-                    ("centres", (step.get("centres") or {}).get("tied", ()),
+                    ("centers", (step.get("centers") or {}).get("tied", ()),
                      "more than one subgroup of the largest order carries the orbital "
                      "centres within the declared precision"),
                     ("projective class", (step.get("projective") or {}).get("tied", ()),
@@ -2137,7 +3108,7 @@ def _environment_candidates(rec) -> tuple:
     seen = {frozenset(kept)}
     for cause, ranked in (("tie", (step.get("tie") or {}).get("tied", ())),
                           ("declaration", (step.get("declaration") or {}).get("tied", ())),
-                          ("centres", (step.get("centres") or {}).get("tied", ())),
+                          ("centers", (step.get("centers") or {}).get("tied", ())),
                           ("projective class", (step.get("projective") or {}).get("tied", ()))):
         # what the choice alone left out: the operations the round measured to
         # hold and broke by this tie, or by a closure that follows from the one
@@ -2351,7 +3322,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
     # the inner identification is a cell identification, but the flow that owns
     # this record measured it: the outer stamp wins, and it is applied *here* so
     # that everything downstream -- the assignment, the detector, and above all
-    # `rep.group`, which is what `characters()` echoes -- carries it.
+    # `rep._group`, which is what `characters()` echoes -- carries it.
     group = replace(group, _provenance="realized")
 
     # The cell as described, kept for the whole call: every descent below
@@ -2672,7 +3643,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
             if left.n:
                 asked.append(left)
             parents.append(group)
-            held.append(frozenset(int(i) for i in validated.indices))
+            held.append(frozenset(int(i) for i in validated._indices))
             group, cell, cell_typat, record = got
             steps.append(record)
             group = _stamp(group)
@@ -2814,7 +3785,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                 if provisional:
                     classes = _classify_operations(
                         validated, tolerances.energy, exact_gate=exact_gate,
-                        anchored=provisional.residuals)
+                        anchored=provisional.numerical.residuals)
             if (any(c == "near" for c in classes.values())
                     or layout._near or coupled or alike):
                 got = _symmetrized(model, group, assignment, validated,
@@ -3022,7 +3993,7 @@ def _exact_centres(model, cell, cell_typat, *, extras, rebuild, tolerances):
     group's positions, which names the group the cell allows and nothing else,
     and the measurement moves them onto the largest group of its operations
     that carries them within ``p`` (:func:`_position_pass`), every operation
-    outside it broken by the centres.  Where the centres cannot be read as a
+    outside it broken by the centers.  Where the centres cannot be read as a
     symmetric set at all -- the operations read off them do not act on the
     sites as a group does, as when two sites of one species sit closer together
     than the finder can tell apart -- nothing is projected, the cell is
@@ -3145,7 +4116,7 @@ def _centres_carried(group, frame, perm, shift, rotations, ind_of_row,
     refuted.  Where it does not, the centres carry the **largest subgroup**
     that does -- the first by the tie rule every such choice is made by
     (:func:`_tie_ranked`) where several of that order tie, never their
-    intersection -- and every operation outside it is broken by the centres,
+    intersection -- and every operation outside it is broken by the centers,
     its primed partner with it, since time reversal moves no centre.  This is
     the centres' verdict on each operation, read as the declaration's is
     (:func:`.._descent._declaration_refuted`): each operation is told why, in its own
@@ -3159,7 +4130,7 @@ def _centres_carried(group, frame, perm, shift, rotations, ind_of_row,
     Returns the :class:`_CentresVerdict`: the move the whole group asks, the
     ``.ind`` of the operations kept (all of them
     where the whole group carries the centres), the refuted operations keyed by
-    ``.ind`` (``refuted_by = "centres"``, with ``miss``, ``precision`` and
+    ``.ind`` (``refuted_by = "centers"``, with ``miss``, ``precision`` and
     ``note``), the tied subgroups in the rule's order where several tied, and
     a note, empty where nothing is refuted.
     """
@@ -3236,7 +4207,7 @@ def _centres_carried(group, frame, perm, shift, rotations, ind_of_row,
             note = (f"it carries the centres within the declared precision {p:.3g} on its "
                     f"own (a move of {own_move:.3g}), but no group holding it and the "
                     f"operations kept, {kept_names}, carries them within it")
-        rec = {"ind": int(u), "refuted_by": "centres", "miss": own_move, "precision": p,
+        rec = {"ind": int(u), "refuted_by": "centers", "miss": own_move, "precision": p,
                "note": note}
         refuted[int(u)] = rec
         if u in partner:
@@ -3251,7 +4222,7 @@ def _centres_carried(group, frame, perm, shift, rotations, ind_of_row,
             + ("which carries them where they are"
                if within(moves[kept], 0.0) else
                f"which moves none by more than {moves[kept]:.3g}")
-            + ", and every operation outside it is broken by the centres"
+            + ", and every operation outside it is broken by the centers"
             + (f"; {len(ranked)} such groups tie, and the one kept is the first by the tie "
                f"rule `realized_group` states -- {_tie_rule_words(group)} -- since "
                f"{_tie_reason(group, ranked)}" if len(ranked) > 1 else "")
@@ -3431,7 +4402,7 @@ def _quote_position_defect(refusal, positions, symmetrization) -> Refusal:
     only in a record the refusal replaces.  Under a declared precision the
     centres are always moved within it, so the one way to have one is no
     declaration at all, with the hopping pass measuring one anyway
-    (:attr:`..symmetrization.Symmetrization.operators`\\ ``["position_defect"]``),
+    (:attr:`..symmetrization.Symmetrization._operators`\\ ``["position_defect"]``),
     in which case the route is to declare one.
 
     Anything else — no measurement, or a defect that *was* removed — is returned
@@ -3441,13 +4412,13 @@ def _quote_position_defect(refusal, positions, symmetrization) -> Refusal:
     if not isinstance(refusal, Refusal):
         return refusal
     if (positions is None and symmetrization is not None
-            and float(symmetrization.operators.get("position_defect", 0.0))
+            and float(symmetrization._operators.get("position_defect", 0.0))
             > EXACT_GATE):
         # `EXACT_GATE` is the exact pipeline's own rounding scale rather than a
         # gate on this number (which is reduced-coordinate, not in units of H):
         # it is what separates "the centres are exact" from "the centres are a
         # measurement of their own", and the message is the only consequence.
-        defect = float(symmetrization.operators["position_defect"])
+        defect = float(symmetrization._operators["position_defect"])
         note = (
             f"No precision was declared for the centres, and the hopping projection "
             f"measured this model's centres to miss the group's own action by "
@@ -3504,24 +4475,24 @@ def _cell_group_not_realized(group, validated, three_d, refuted=None) -> Refusal
     classed = {i for i, r in refuted.items()
                if isinstance(r, dict) and r.get("refuted_by") == "projective class"}
     centred = {i for i, r in refuted.items()
-               if isinstance(r, dict) and r.get("refuted_by") == "centres"}
+               if isinstance(r, dict) and r.get("refuted_by") == "centers"}
     structural = {i: r for i, r in refuted.items() if i not in classed | centred}
     lifted = sum(1 for r in structural.values()
                  if isinstance(r, dict) and bool(r.get("spin_lift")))
     reasons = {}
     for d in validated.discrepancies:
-        if int(d["ind"]) not in centred:
-            reasons[d["refuted_by"]] = reasons.get(d["refuted_by"], 0) + 1
+        if int(d.index) not in centred:
+            reasons[d.refuted_by] = reasons.get(d.refuted_by, 0) + 1
     if structural:
         reasons["tensor structure"] = len(structural)
     if classed:
         reasons["projective class"] = len(classed)
     if centred:
-        reasons["centres"] = len(centred)
+        reasons["centers"] = len(centred)
     n_broken = len(set(validated.broken) | set(refuted))
-    n_obeyed = len(set(validated.indices) - set(refuted))
+    n_obeyed = len(set(validated._indices) - set(refuted))
     proven = reasons.get("no symmetry matrix", 0)
-    counts = [f"{n} {_DROPPED_BY_WORDS['centres']}" if why == "centres" else f"{n} by {why}"
+    counts = [f"{n} {_DROPPED_BY_WORDS['centers']}" if why == "centers" else f"{n} by {why}"
               for why, n in reasons.items()]
     by = (", ".join(counts[:-1]) + " and " + counts[-1]) if len(counts) > 1 else \
         "".join(counts)
@@ -3529,7 +4500,7 @@ def _cell_group_not_realized(group, validated, three_d, refuted=None) -> Refusal
     # would only repeat the total
     if len(reasons) == 1 and sum(reasons.values()) == n_broken:
         why = next(iter(reasons))
-        by = ("every one " + (_DROPPED_BY_WORDS["centres"] if why == "centres"
+        by = ("every one " + (_DROPPED_BY_WORDS["centers"] if why == "centers"
                               else f"by {why}"))
 
     def the(n, said):
@@ -3579,9 +4550,9 @@ def _cell_group_not_realized(group, validated, three_d, refuted=None) -> Refusal
                              "they are not operations of the spinless crystal; `spin=` "
                              "reads the same states in the double group.")
            if classed else "")
-        + (the(len(centred), "broken by the centres do not carry the orbital centres "
+        + (the(len(centred), "broken by the centers do not carry the orbital centers "
                              "onto one another within the declared precision: moving the "
-                             "centres onto the positions they put them at would move one "
+                             "centers onto the positions they put them at would move one "
                              "further than the precision allows.")
            if centred else "")
         + lattice

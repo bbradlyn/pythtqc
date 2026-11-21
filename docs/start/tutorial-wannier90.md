@@ -46,7 +46,7 @@ terms once: nothing is cut.
 
 ```python
 r0 = tqc.realized_group(si)
-print(r0.group.name, r0.group.number_str, "|", r0.time_reversal["outcome"])
+print(r0.group.name, r0.group.number_str, "|", r0.time_reversal.outcome)
 #  P1 1 | measured broken
 print(f"largest imaginary hopping: {max(abs(np.imag(h['amplitude'])) for h in si.hoppings):.1e} eV")
 #  largest imaginary hopping: 4.2e-04 eV
@@ -75,7 +75,7 @@ about silicon.
 ```python
 r = tqc.realized_group(si, precision=1e-4)
 print(repr(r))
-#  RealizedGroup(R-3m1' #166.98; precision 0.0001 declared -> tol 0.00487 (cut 0.001, window 0.3), position_tol 0.0001 (measured max|H| 4.872), symprec raised to 0.00382; descended from #227.129 (72 of 96 coset representatives of the lattice translations broken); centres moved 7.94e-06; symmetrized (defect 0.0014))
+#  RealizedGroup(R-3m1' #166.98; precision 0.0001 declared -> tol 0.00487 (cut 0.001, window 0.3), position_tol 0.0001 (measured max|H| 4.872), symprec raised to 0.00382; descended from Fd-3m1' #227.129 (72 of 96 coset representatives of the lattice translations broken); centers moved 7.94e-06; symmetrized (defect 0.0014))
 ```
 
 `precision` is the relative precision of the model's own numbers, a
@@ -93,10 +93,10 @@ record prints after it is derived from it or measured with it.
 - `symprec raised to 0.00382` is the finder's tolerance in Å,
   `10 × precision × L` with `L` = 3.82 Å the longest lattice vector, so that
   centres noisy at the declared level do not hide the cell's operations.
-- `descended from #227.129`: with that tolerance the cell is diamond's,
+- `descended from Fd-3m1' #227.129`: with that tolerance the cell is diamond's,
   `Fd-3m1'`. The Hamiltonian broke 72 of its 96 coset representatives, and the
   24 that hold make up the group returned, `R-3m1' #166.98`.
-- `centres moved 7.94e-06`: before the cell's group was named and before any
+- `centers moved 7.94e-06`: before the cell's group was named and before any
   hopping was touched, the centres were moved onto the positions the cell's
   operations put them at, by up to 7.94e-6 in reduced coordinates, within the
   declared 1e-4, about an origin fitted to them, since a shift of every centre
@@ -112,11 +112,11 @@ The centres' move, in Å, is the measurement the undeclared call was missing:
 
 ```python
 lattice = np.asarray(si.lat_vecs)
-together = np.asarray(r.positions["offset"])                    # the shift of all of them
+together = np.asarray(r.numerical.positions.offset)                    # the shift of all of them
 moved = np.asarray(r.model.orb_vecs) - np.asarray(si.orb_vecs)
 own = np.linalg.norm((moved - together) @ lattice, axis=1)
 print(f"largest move of a centre: {own.max():.1e} Å, then all of them together by "
-      f"{np.linalg.norm(together @ lattice):.1e} Å; symprec raised to {r.precision['symprec']:.1e} Å")
+      f"{np.linalg.norm(together @ lattice):.1e} Å; symprec raised to {r.numerical.precision.symprec:.1e} Å")
 #  largest move of a centre: 2.8e-05 Å, then all of them together by 3.9e-05 Å; symprec raised to 3.8e-03 Å
 ```
 
@@ -150,12 +150,12 @@ the operations it finds.
 
 ```python
 d = r.descent
-print(d["from"]["name"], d["from"]["size"], "->", d["to"]["name"], d["to"]["size"],
-      sorted({b["refuted_by"] for b in d["dropped"]}))
+print(d.cell_group.name, d.cell_group.size, "->", d.subgroup.name, d.subgroup.size,
+      sorted({b.refuted_by for b in d.dropped}))
 #  Fd-3m1' 96 -> R-3m1' 24 ['no symmetry matrix']
-s = r.symmetrization
+s = r.numerical.symmetrization
 worst = max(s.residuals[i] for i in s.near)
-print(f"{len(s.near)} of {len(s.operations)} near-symmetric, worst at {worst:.1e} eV "
+print(f"{len(s.near)} of {len(r.rep.matrices)} near-symmetric, worst at {worst:.1e} eV "
       f"against tol {s.tol:.1e} eV; H moved by {s.defect:.1e} eV")
 #  23 of 24 near-symmetric, worst at 4.4e-03 eV against tol 4.9e-03 eV; H moved by 1.4e-03 eV
 ```
@@ -174,8 +174,8 @@ group looks right:
 ```python
 for p in (1e-5, 1e-3):
     rp = tqc.realized_group(si, precision=p)
-    print(f"precision {p:.0e}: tol {rp.precision['tol']:.2g} eV -> {rp.group.name} "
-          f"#{rp.group.number_str}, time reversal {rp.time_reversal['outcome']}")
+    print(f"precision {p:.0e}: tol {rp.numerical.precision.tol:.2g} eV -> {rp.group.name} "
+          f"#{rp.group.number_str}, time reversal {rp.time_reversal.outcome}")
 #  precision 1e-05: tol 0.00049 eV -> P1 #1, time reversal measured broken
 #  precision 1e-03: tol 0.049 eV -> R-3m1' #166.98, time reversal kept
 ```
@@ -251,17 +251,11 @@ mesh makes the loss smaller. This calculation was made with version 1.2.
 ## The bands, labelled in the model's group
 
 ```python
-for row in r.rep.characters.orbitals:
-    print(row.orbital, row.wyckoff, row.site_symmetry, row.irrep, row.determined_by)
-#  0 6c 3m A1 lowest-l
-#  1 18h m A' lowest-l
-#  2 18h m A' lowest-l
-#  3 18h m A' lowest-l
-#  4 6c 3m A1 lowest-l
-#  5 18h m A' lowest-l
-#  6 18h m A' lowest-l
-#  7 18h m A' lowest-l
-valence = tqc.hsp_table(r.rep, bands=4)                        # the four occupied bands
+for o in r.wyckoff_orbits:
+    print(o.orbitals, o.wyckoff, o.unitary_site_symmetry, o.label, o.determined_by)
+#  (0, 4) 6c 3m A1 lowest-l
+#  (1, 2, 3, 5, 6, 7) 18h m A' lowest-l
+valence = tqc.hsp_table(r, bands=4)                        # the four occupied bands
 print(valence.summary())
 #  bands 0-3   (.bands)
 #    their coreps at each high-symmetry point, GM being Γ   (.content)
@@ -338,7 +332,7 @@ it. The [indicator group](../guide/indicators.md) of `R-3m1'` without spin is
   which pythtb imports as a spinless model with the spin inside the orbital
   index, declared with `spin=`.
 - [The records reference](../reference/records.md#every-field): every field of
-  the record's `precision`, `positions` and `symmetrization`.
+  the record's `numerical.precision`, `numerical.positions` and `numerical.symmetrization`.
 - [Labelling the bands](../guide/labels.md),
   [atomic limits](../guide/atomic-limits.md) and
   [symmetry indicators](../guide/indicators.md): the calls of the last section.

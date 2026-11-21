@@ -24,10 +24,10 @@ km = kane_mele(1.0, -1.0, 0.3, 0.25)            # delta, t, soc, rashba: two orb
 r = tqc.realized_group(km, typat=[0, 1], characters={0: "s"})
 print(r.group.name, r.group.number_str)
 #  P3m11' 156.50
-print(r.rep.characters.summary())
-#  orbital  Wyckoff  site symmetry  function  irrep  named by  determined by  orbital characters
-#        0       1c             3m         s    -E1    tables    declaration  E=+1, C3(z)=+1, m(x)=+1
-#        1       1b             3m              -E1    tables    hamiltonian  E=+1, C3(z)=+1, m(x)=+1
+print(r.wyckoff_orbits.summary())
+#  Wyckoff  site symmetry  orbitals  label  determined by  declared
+#       1c           3m1'         0    -E1    declaration         s
+#       1b           3m1'         1    -E1    hamiltonian
 ```
 
 ## How to read it
@@ -38,56 +38,51 @@ reversal adjoined, the trailing `1'`: the two sublattices declared different
 atoms, on a substrate, the default for a layer ([layers](layers.md)). Under
 it is the model's
 [atomic-limit table](../reference/records.md#the-atomic-limit-table), one row
-per orbital:
+per Wyckoff orbit:
 
 - **Wyckoff**, **site symmetry**: the Wyckoff position, multiplicity and
   letter, in the setting of the tables the labels come from
   ([conventions](../background/conventions.md)), and its site-symmetry group:
-  `1c` and `1b`, each `3m`.
-- **function**: the word declared, spelled as `characters=` takes it; blank
-  where no function was declared.
-- **irrep**: the site irrep the states carry, an irreducible representation of
+  `1c` and `1b`, each `3m1'`.
+- **orbitals**: the model's orbitals on the orbit's sites.
+- **label**: the site irrep the states carry, an irreducible representation of
   the site group. With spin it is the double-valued site
   [corep](../background/tqc-primer.md#little-groups-irreps-and-coreps), marked
   by its leading `-`: `-E1` is `A1` of `3m`, what an `s` orbital carries,
   times the spinor. A declaration names the orbital factor, `s` or `A1`, or
   the corep, `-E1`.
-- **named by**: `tables`: the tables list the
-  [band representation](../background/tqc-primer.md#band-representations-and-atomic-limits)
-  these states induce at that position, and the name is the one they give the
-  site irrep there.
-- **determined by**: how the irrep is known. Orbital 1 reads `hamiltonian`:
+- **determined by**: how the label is known. Orbital 1 reads `hamiltonian`:
   nothing was declared for it, and the hoppings carry it relative to orbital 0,
   so the one declaration fixed both. A declaration speaks for every orbital the
   hoppings couple to it.
-- **orbital characters**: the orbital factor's character on one operation of
-  each class, in the model's Cartesian frame (`m(x)` is the mirror whose normal
-  is x). It is single-valued with or without spin, and it says which function
-  was meant.
+- **declared**: the word declared, spelled as `characters=` takes it; blank
+  where nothing was declared.
 
-Each column is a field of the row, and beside the rows the table holds, for
-each orbit, the band representation it induces:
+Each column is a field of the row, and the row holds besides the band
+representation its orbit induces:
 
 ```python
-row = r.rep.characters.orbitals[0]
-print(repr(row.function), row.named_by, row.generator_character["m(x)"].real)
+o = r.wyckoff_orbits[0]
+mirror = next(i for i, op in r.operations.items() if op.name == "m(x)")
+print(repr(o.declared), o.numerical.named_by, o.numerical.characters[0][mirror].real)
 #  's' tables 1.0
-for br in r.rep.characters.band_representations:
-    print(br.orbitals, br.wyckoff, br.terms)
-#  (0,) 1c ((1, '-E1↑G(2)', "1c(3m1',3m)"),)
-#  (1,) 1b ((1, '-E1↑G(2)', "1b(3m1',3m)"),)
+for o in r.wyckoff_orbits:
+    print(o.orbitals, o.wyckoff, o.band_representation.terms)
+#  (0,) 1c (Term(multiplicity=1, irrep='-E1', wyckoff='1c', site_symmetry="3m1'", unitary_site_symmetry='3m'),)
+#  (1,) 1b (Term(multiplicity=1, irrep='-E1', wyckoff='1b', site_symmetry="3m1'", unitary_site_symmetry='3m'),)
 ```
 
-`function` is the word declared, empty on orbital 1. `generator_character` is
-the orbital characters column as a mapping, from the name of one operation per
-class to the orbital factor's character on it, a complex number: `+1` on
-`m(x)`, under which an `s` orbital is even. A
-[band representation](../reference/records.md#bandrepresentation) holds its
-orbit's orbitals and Wyckoff position, and as `terms` the sum they induce, each
-term a multiplicity, an elementary band representation and its position. Each
-sublattice induces the one `-E1↑G(2)` at its own position, an entry of the
-tables, and the row takes the name that entry gives its site irrep: `tables`
-in `named_by`. An orbit at a position where the tables list no band
+`declared` is the word declared, `None` on orbital 1. `numerical.characters`
+holds, for each orbital of the row, the orbital factor's character on each
+operation of the site group, by index, a complex number, in the model's
+Cartesian frame: `+1` on `m(x)`, the mirror whose normal is x, under which an
+`s` orbital is even. It is single-valued with or without spin, and it says
+which function was meant. A row's
+[band representation](../reference/records.md#bandrepresentation) is the sum
+its orbitals induce, as `terms`, each term a multiplicity, a site irrep and its
+Wyckoff position. Each sublattice induces the one `-E1` at its own position,
+an entry of the tables, and the row takes the name that entry gives its site
+irrep: `tables` in `numerical.named_by`. An orbit at a position where the tables list no band
 representation takes, without spin, the name the tables of the stable
 real-space invariants give it, `invariants` in `named_by`; with spin, or where
 those tables do not tell it apart, it is named by its `point group`, and its
@@ -116,20 +111,20 @@ sub = tqc.realized_group(km0, typat=[0, 0])                                 # on
 free = tqc.realized_group(km0, typat=[0, 0], environment="free-standing")
 pz = tqc.realized_group(km0, typat=[0, 0], environment="free-standing", characters={0: "pz"})
 for rec in (sub, free, pz):
-    rows = rec.rep.characters
-    print(rec.group.number_str, rows.irreps, [row.determined_by for row in rows.orbitals],
-          tqc.hsp_table(rec.rep, bands=2).counts)
-#  183.186 ('-E1', '-E1') ['hamiltonian', 'hamiltonian'] {'-GM9': 1, '-K6': 1, '-M5': 1}
-#  191.234 ('-E1', '-E1') ['lowest-l', 'lowest-l'] {'-GM9': 1, '-K8': 1, '-M6': 1}
-#  191.234 ('-E2', '-E2') ['declaration', 'hamiltonian'] {'-GM12': 1, '-K9': 1, '-M5': 1}
+    rows = rec.wyckoff_orbits
+    print(rec.group.number_str, [o.label for o in rows], [o.determined_by for o in rows],
+          tqc.hsp_table(rec, bands=2).counts)
+#  183.186 ['-E1'] ['hamiltonian'] {'-GM9': 1, '-K6': 1, '-M5': 1}
+#  191.234 ['-E1'] ['lowest-l'] {'-GM9': 1, '-K8': 1, '-M6': 1}
+#  191.234 ['-E2'] ['declaration'] {'-GM12': 1, '-K9': 1, '-M5': 1}
 ```
 
 On a substrate (`P6mm1'`, `183.186`) no mirror lies in the layer's plane, so
 an `s` and a `p_z` orbital carry the same characters on every operation of the
 site group `3m`; with spin, every site irrep the hoppings leave possible
-becomes the one corep `-E1`, both rows read `hamiltonian`, and declaring `pz`
+becomes the one corep `-E1`, the row reads `hamiltonian`, and declaring `pz`
 there changes nothing. Free-standing (`P6/mmm1'`, `191.234`) the site group
-`-6m2` holds the horizontal mirror, which tells the two apart: the rows read
+`-6m2` holds the horizontal mirror, which tells the two apart: the row reads
 `lowest-l`, and the rule takes `s`. A honeycomb of carbon is a `p_z` crystal,
 and declaring it returns `-E2` and renames the two lowest bands at every
 high-symmetry point. Their [symmetry-indicator class](indicators.md) moves
@@ -137,7 +132,7 @@ with them:
 
 ```python
 for rec in (free, pz):
-    si = tqc.symmetry_indicator(tqc.hsp_table(rec.rep, bands=2))
+    si = tqc.symmetry_indicator(tqc.hsp_table(rec, bands=2))
     print(si.structure, si.values, si.order, {name: si.canonical[name] for name in ("z2w,3", "z4")})
 #  Z6 x Z12 (1, 0) 6 {'z2w,3': 1, 'z4': 2}
 #  Z6 x Z12 (5, 0) 6 {'z2w,3': 1, 'z4': 2}
@@ -163,12 +158,11 @@ Declared as an `s` and a `d_{x²−y²}` at `1a` and an `s` on each `2c` site:
 ```python
 lin = tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1],
                          characters=["s", "dx2-y2", "s", "s"])
-print(lin.rep.characters.summary())
-#  orbital  Wyckoff  site symmetry  function  irrep  named by  determined by  orbital characters
-#        0       1a            4mm         s    -E1    tables    declaration  E=+1, C2(z)=+1, C4(z)=+1, m(x)=+1, m([110])=+1
-#        1       1a            4mm    dx2-y2    -E2    tables    declaration  E=+1, C2(z)=+1, C4(z)=-1, m(x)=+1, m([110])=-1
-#        2       2c            mm2         s     -E    tables    declaration  E=+1, C2(z)=+1, m(y)=+1, m(x)=+1
-#        3       2c            mm2         s     -E    tables    declaration  E=+1, C2(z)=+1, m(y)=+1, m(x)=+1
+print(lin.wyckoff_orbits.summary())
+#  Wyckoff  site symmetry  orbitals  label  determined by  declared
+#       1a          4mm1'         0    -E1    declaration         s
+#       1a          4mm1'         1    -E2    declaration    dx2-y2
+#       2c          mm21'       2-3     -E    declaration         s
 ```
 
 A declaration has several spellings, and the same call reads each:
@@ -176,22 +170,22 @@ A declaration has several spellings, and the same call reads each:
 ```python
 def irreps(characters):                         # lin3g, its orbitals declared again
     rec = tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1], characters=characters)
-    return rec.rep.characters.irreps
+    return tuple(o.label for o in rec.wyckoff_orbits)
 
 print(irreps(["s", "dx2-y2", "s", "s"]))        # one word per orbital
-#  ('-E1', '-E2', '-E', '-E')
+#  ('-E1', '-E2', '-E')
 print(irreps(["A1", "B1", None, None]))         # site irreps; None claims nothing
-#  ('-E1', '-E2', '-E', '-E')
+#  ('-E1', '-E2', '-E')
 print(irreps(["-E1", "-E2", None, None]))       # site coreps
-#  ('-E1', '-E2', '-E', '-E')
+#  ('-E1', '-E2', '-E')
 print(irreps({1: "dx2-y2"}))                    # a mapping: only the orbitals named
-#  ('-E1', '-E2', '-E', '-E')
+#  ('-E1', '-E2', '-E')
 print(irreps({(0, 1): "A1 + B1"}))              # what two orbitals hold together
-#  ('-E1', '-E2', '-E', '-E')
+#  ('-E1', '-E2', '-E')
 print(irreps({0: {"C4(z)": -1, "m(x)": +1}}))   # characters on one operation per class
-#  ('-E2', '-E1', '-E', '-E')
+#  ('-E2', '-E1', '-E')
 print(irreps({0: {3: 1, 6: 1}}))                # the operations by their index: A1 again
-#  ('-E1', '-E2', '-E', '-E')
+#  ('-E1', '-E2', '-E')
 print(lin.operations[3].name, lin.operations[6].name)
 #  C4(z) m(x)
 ```
@@ -225,18 +219,19 @@ With spin, a mis-oriented declaration need not change any label. `B1` and
 `B2` of `4mm` differ only on the mirrors, where a spinor's character is zero,
 so both become `-E2`: a `B2` written for orbital 1's `B1` returns the same site
 coreps and the same labels at every high-symmetry point, and only the
-orbital characters column shows what was stated:
+declared column shows what was stated:
 
 ```python
-b2 = tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1], characters={1: "B2"}).rep
-print(b2.characters.irreps, tqc.hsp_table(b2, bands=6).counts == tqc.hsp_table(lin.rep, bands=6).counts)
-#  ('-E1', '-E2', '-E', '-E') True
-print(b2.characters.summary().splitlines()[2])
-#        1       1a            4mm              -E2    tables    declaration  E=+1, C2(z)=+1, C4(z)=-1, m(x)=-1, m([110])=+1
+b2 = tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1], characters={1: "B2"})
+print(tuple(o.label for o in b2.wyckoff_orbits),
+      tqc.hsp_table(b2, bands=6).counts == tqc.hsp_table(lin, bands=6).counts)
+#  ('-E1', '-E2', '-E') True
+print(b2.wyckoff_orbits.summary().splitlines()[2])
+#       1a          4mm1'         1    -E2    declaration        B2
 ```
 
-Whatever the form, that column of the table returned is where to check what
-was stated.
+Whatever the form, that column of the table returned, and a row's
+`numerical.characters`, are where to check what was stated.
 
 The words are function shorthands (`s`, `px`, `py`, `pz`, `dxy`, `dyz`,
 `dzx`, `dx2-y2`, `dz2`), shells by their angular momentum (`s`, `p`, `d`, `f`:
@@ -262,7 +257,7 @@ multiplet, and `["pz", "px", "py"]`, `{0: "pz", (1, 2): "E"}` and
 matrices staying the Hamiltonian's own blocks. Where the hoppings keep the
 shell's `p_z` apart from its pair, every spelling reads `A1`, `E`, `E`, each
 row its own multiplet's, and the shell declared whole keeps its `A1 + E` as
-each row's `declared_irrep`. A word on one orbital, at a site with several,
+each row's `numerical.declared_irrep`. A word on one orbital, at a site with several,
 states part of what the site holds: `{1: "A1"}` on that shell says it holds
 an `A1`, which its `p_z` is. A content the site does not hold under any
 labelling the hoppings leave open lowers the group: `s` and
@@ -292,23 +287,23 @@ for bond, hop in (([1, 0], [[1.0, 0.0], [0.0, 0.3]]), ([0, 1], [[0.3, 0.0], [0.0
             if hop[a][b]:
                 pair.set_hop(hop[a][b], a, b, bond, mode="add")
 bare = tqc.realized_group(pair)
-print(bare.rep.characters.irreps, [row.determined_by for row in bare.rep.characters.orbitals])
-#  ('E', 'E') ['hamiltonian', 'hamiltonian']
-print(tqc.hsp_table(bare.rep, bands=1).note)
+print(tuple(o.label for o in bare.wyckoff_orbits), [o.determined_by for o in bare.wyckoff_orbits])
+#  ('E',) ['hamiltonian']
+print(tqc.hsp_table(bare, bands=1).note)
 #  another labelling the hoppings leave open keeps every site irrep and labels some energy multiplets of these bands differently; it keeps which bands are degenerate and the labels of all the model's bands together
 ```
 
-The rows read `hamiltonian`, and the label of the lower band rests on a
+The row reads `hamiltonian`, and the label of the lower band rests on a
 choice, as the note says ([labelling the bands](labels.md)). Words and
 generator characters are read through characters, which are the same in every
 basis, so they leave the choice open; generator matrices make it. The
 operations they name are those of the multiplet's site group, which a row's
-`site_group` lists by index:
+`numerical.characters` lists by index:
 
 ```python
-row = bare.rep.characters.orbitals[0]
+o = bare.wyckoff_orbits[0]
 ops = bare.operations
-for i in row.site_group:
+for i in o.numerical.characters[0]:
     print(i, ops[i].name, ops[i].seitz)
 #  1 E {1|0,0,0}
 #  2 C2(z) {2_001|0,0,0}
@@ -322,18 +317,18 @@ for i in row.site_group:
 
 An operation is named by its name or its index. The matrix the returned
 representation gives operation `i` on the multiplet is
-`rep.sewing_operator(i, k)` on its orbitals, at a `k` the operation fixes.
+`r.rep.sewing_operator(i, k)` on its orbitals, at a `k` the operation fixes.
 
 ```python
 pxpy = {"C4(z)": [[0, -1], [1, 0]], "m(x)": [[-1, 0], [0, 1]]}
 for matrices in (pxpy, {**pxpy, "m(x)": [[1, 0], [0, -1]]}):
     rec = tqc.realized_group(pair, characters={(0, 1): matrices})
     mirror = next(i for i, op in rec.operations.items() if op.name == "m(x)")
-    print(rec.rep.characters.irreps, rec.rep.characters.orbitals[0].determined_by,
+    print(tuple(o.label for o in rec.wyckoff_orbits), rec.wyckoff_orbits[0].determined_by,
           (np.real(rec.rep.sewing_operator(mirror, [0, 0])) + 0).tolist(),
-          tqc.hsp_table(rec.rep, bands=1).counts)
-#  ('E', 'E') declaration [[-1.0, 0.0], [0.0, 1.0]] {'X3': 1}
-#  ('E', 'E') declaration [[1.0, 0.0], [0.0, -1.0]] {'X4': 1}
+          tqc.hsp_table(rec, bands=1).counts)
+#  ('E',) declaration [[-1.0, 0.0], [0.0, 1.0]] {'X3': 1}
+#  ('E',) declaration [[1.0, 0.0], [0.0, -1.0]] {'X4': 1}
 ```
 
 The first is the `p` pair's own: `C4(z)` carries `p_x` onto `p_y` and `p_y`
@@ -357,10 +352,10 @@ its Rashba term kept, with its two sublattices declared `A1` and `A2` of `3m`
 km_r = kane_mele(0.0, -1.0, 0.3, 0.25)          # no stagger; the Rashba term breaks m(z)
 lowered = tqc.realized_group(km_r, characters={0: "A1", 1: "A2"})
 print(repr(lowered))
-#  RealizedGroup(P31' #143.2; cell lowered by the declared content from #183.186 (12 of 24 coset representatives of the lattice translations excluded; these are the single-valued group's, each standing for itself and its negative in the double group); descended from #156.50 (6 of 12 broken by the declared content); on a substrate (the default), the free-standing group #143.2 agrees)
+#  RealizedGroup(P31' #143.2; cell lowered by the declared content from P6mm1' #183.186 (12 of 24 coset representatives of the lattice translations excluded; these are the single-valued group's, each standing for itself and its negative in the double group); descended from P3m11' #156.50 (6 of 12 broken by the declared content); on a substrate (the default), the free-standing group P31' #143.2 agrees)
 broke = lowered.descent
-print(broke["from"]["number_str"], "->", broke["to"]["number_str"],
-      sorted({b["name"] for b in broke["dropped"]}), {b["refuted_by"] for b in broke["dropped"]})
+print(broke.cell_group.number_str, "->", broke.subgroup.number_str,
+      sorted({b.name for b in broke.dropped}), {b.refuted_by for b in broke.dropped})
 #  156.50 -> 143.2 ['m([010])', "m([010])'", 'm([1-10])', "m([1-10])'", 'm(x)', "m(x)'"] {'declaration'}
 ```
 
@@ -369,7 +364,7 @@ print(broke["from"]["number_str"], "->", broke["to"]["number_str"],
   partitioned, are different sites, as a different `typat` would make them,
   so the cell is identified without the operations that exchange the
   sublattices: *cell lowered by the declared content*. Nothing is charged to
-  the Hamiltonian; the reduction is kept on `decoration["declared"]`. A
+  the Hamiltonian; the reduction is kept on `decoration.declared`. A
   layer's contents are compared in its own site groups, the horizontal mirror
   among them, in either environment: `s` and `p_z` are different sites on a
   substrate too, where each becomes `A1` of `3m`.
@@ -388,22 +383,21 @@ itself, the mirror as `−p_x`.
 ```python
 px = tqc.realized_group(km_r, typat=[0, 1], characters={0: "px"})
 print(repr(px), px.descent)
-#  RealizedGroup(Cm1' #8.33; cell lowered by the declared content from #156.50 (8 of 12 coset representatives of the lattice translations excluded; these are the single-valued group's, each standing for itself and its negative in the double group); on a substrate (the default), the free-standing group #8.33 agrees) None
-print(px.rep.characters.summary())
-#  orbital  Wyckoff  site symmetry  function  irrep  named by  determined by  orbital characters
-#        0       2a              m        px  -1E2E    tables    declaration  E=+1, m(x)=-1
-#        1       2a              m            -1E2E    tables    hamiltonian  E=+1, m(x)=-1
-#    orbital 0: declared 'px' (A''), read at the 3m in P3m11' #156.50; the declared content lowered the cell before any hopping was read and resolves as A'' of the m in Cm1' #8.33; returned as -1E2E of m   (.declarations)
+#  RealizedGroup(Cm1' #8.33; cell lowered by the declared content from P3m11' #156.50 (8 of 12 coset representatives of the lattice translations excluded; these are the single-valued group's, each standing for itself and its negative in the double group); on a substrate (the default), the free-standing group Cm1' #8.33 agrees) None
+print(px.wyckoff_orbits.summary())
+#  Wyckoff  site symmetry  orbitals  label  determined by  declared
+#       2a            m1'         0  -1E2E    declaration        px
+#       2a            m1'         1  -1E2E    hamiltonian
 ```
 
 Nothing was broken (`descent` is `None`): the declared crystal has only the
 operations of `Cm1'`. `A''` is the irrep of the mirror group `m` that `p_x`
 carries, odd under its mirror, and `-1E2E` the site corep it becomes with
 spin. A spinor's character is zero on a mirror, so `A'` and `A''` both become
-`-1E2E`, and it is `m(x)=-1` in the orbital characters column that says which.
-The line under the table is where the printout sets the declared label beside
-the returned one; each row keeps both, as `declared_irrep`, `declared_in` and
-`reduced_in` beside `irrep`.
+`-1E2E`, and it is the character `-1` on `m(x)` in the row's
+`numerical.characters` that says which. Each row keeps the declared label
+beside the returned one, as `numerical.declared_irrep`, `declared_in` and
+`reduced_in` beside `label`.
 
 Without `typat=`, the two sublattices are one orbit and the declaration says
 nothing about the second: an operation carrying the first site onto it carries
@@ -418,25 +412,25 @@ group carries onto it:
 ```python
 orbit = tqc.realized_group(km_r, characters={0: "px"})
 print(repr(orbit))
-#  RealizedGroup(Cmm21' #35.166; cell lowered by the declared content from #183.186 (16 of 24 coset representatives of the lattice translations excluded; these are the single-valued group's, each standing for itself and its negative in the double group); on a substrate (the default), the free-standing group #35.166 agrees)
+#  RealizedGroup(Cmm21' #35.166; cell lowered by the declared content from P6mm1' #183.186 (16 of 24 coset representatives of the lattice translations excluded; these are the single-valued group's, each standing for itself and its negative in the double group); on a substrate (the default), the free-standing group Cmm21' #35.166 agrees)
 ```
 
 Of the six operations exchanging the sublattices, `Cmm21'` keeps the twofold
 axis and one mirror, which carry `p_x` onto `±p_x` at the second site. The two
-sixfolds and the other two mirrors are on `decoration["declared"]` beside the
+sixfolds and the other two mirrors are on `decoration.declared` beside the
 four that carry `p_x` out of itself at its own site: the declared content is
 carried by each on its own, and not by every product of it with the operations
 kept.
 
 The two sites sit at `4e` of `Cmm21'`, whose site group is the mirror `m`, and
-the tables list no band representation there: the rows are named by the
+the tables list no band representation there: the row is named by the
 `point group`, and the sum the orbit induces is written at the positions it can
 be moved onto.
 
 ```python
-br, = orbit.rep.characters.band_representations
-print([row.named_by for row in orbit.rep.characters.orbitals], br.wyckoff, br.terms, br.alternatives)
-#  ['point group', 'point group'] 4e ((2, '-E↑G(2)', "2a(mm21',mm2)"),) (((2, '-E↑G(2)', "2b(mm21',mm2)"),),)
+o, = orbit.wyckoff_orbits
+print(o.numerical.named_by, o.wyckoff, o.band_representation.terms, o.numerical.alternatives)
+#  point group 4e (Term(multiplicity=2, irrep='-E', wyckoff='2a', site_symmetry="mm21'", unitary_site_symmetry='mm2'),) (BandRepresentation(2x-E at 2b (mm21')),)
 ```
 
 Twice `-E` at `2a`, and as `alternatives` the same sum at `2b`, which the

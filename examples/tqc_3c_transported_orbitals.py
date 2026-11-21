@@ -87,15 +87,31 @@ def atomic_limits(d):
     return "atomic limits", f"{len(sums)} sums of elementary band representations"
 
 
+def characters(table):
+    """Every orbital's character under every operation of its site, by orbital and operation index."""
+    return {(i, g): complex(v) for o in table
+            for i, chi in o.numerical.characters.items() for g, v in chi.items()}
+
+
 def differing(table, other):
-    """Where another atomic-limit table differs: its rows, by orbital, and the lines under them."""
+    """Where another atomic-limit table differs: its rows, by Wyckoff orbit, the lines
+    under them, and the characters."""
     first, second = table.summary().splitlines(), other.summary().splitlines()
-    rows = [str(i) for i in range(len(table))
+    rows = [o.wyckoff for i, o in enumerate(table)
             if i + 1 >= len(second) or first[i + 1] != second[i + 1]]
-    named = "the row of orbital " if len(rows) == 1 else "the rows of orbitals "
+    named = "the row of " if len(rows) == 1 else "the rows of "
     parts = ([named + ", ".join(rows)] if rows else []) + (
         ["the lines under the rows"] if first[len(table) + 1:] != second[len(table) + 1:] else [])
+    if not same_characters(table, other):
+        parts.append("the characters")
     return " and ".join(parts) or "the line naming its columns"
+
+
+def same_characters(table, other):
+    """Whether two atomic-limit tables give every orbital the same characters, to rounding."""
+    chi, chi_other = characters(table), characters(other)
+    return chi.keys() == chi_other.keys() and all(
+        abs(chi[key] - chi_other[key]) < 1e-9 for key in chi)
 
 
 ########### 1. the model ###########
@@ -122,16 +138,15 @@ row("hoppings", f"{len(model.hoppings)}, random, to every orbital within one lat
 print("\n2. the group: what the point set allows, and what the hoppings obey")
 r = tqc.realized_group(model)
 group = r.group
-wyckoff = tqc.wyckoff_sites_tables(group, r.assignment.site_positions)   # each site's position
-allowed = r.descent["from"]
-row("point set allows", f"#{allowed['number_str']} {allowed['name']}")
+allowed = r.descent.cell_group          # the group the cell's point set allows
+row("point set allows", f"#{allowed.number_str} {allowed.name}")
 row("realized group", f"#{group.number_str} {group.name}, orbitals at Wyckoff "
-    f"{' and '.join(dict.fromkeys(s.wyckoff for s in wyckoff))}")
+    f"{' and '.join(dict.fromkeys(o.wyckoff for o in r.wyckoff_orbits))}")
 
 # The descent names every operation the hoppings break.  The unitary ones are
 # counted here by kind, each kind shown by its first member: C4^-1(z) counts as
 # a C4, and "6 like C2([110])" is the six twofolds about the face diagonals.
-lost = [b["name"] for b in r.descent["dropped"] if not b["name"].endswith("'")]
+lost = [b.name for b in r.descent.dropped if not b.name.endswith("'")]
 kinds = {}
 for name in lost:
     kind = name.split("(")[0].split("^")[0]
@@ -140,7 +155,7 @@ census = [names[0] if len(names) == 1 else f"{len(names)} like {names[0]}"
           for names in sorted(kinds.values(), key=len)]
 kept = [op.name for op in r.operations.values() if not op.antiunitary]
 row("broken", ", ".join(census) + ",",
-    f"each also with time reversal: {len(r.descent['dropped'])} of the {allowed['size']} "
+    f"each also with time reversal: {len(r.descent.dropped)} of the {allowed.size} "
     "coset representatives",
     "of the lattice translations")
 
@@ -156,21 +171,26 @@ print("   rotation about its own axis and keeps the -4 rotoinversion about it")
 
 ########### 3. the atomic-limit table ###########
 
-print("\n3. r.rep.characters: the atomic-limit table, what each orbital carries")
-rec = r.rep.characters
+print("\n3. r.wyckoff_orbits: the atomic-limit table, what each Wyckoff orbit carries")
+rec = r.wyckoff_orbits
 print(textwrap.indent(rec.summary(), "   "))
+orbit = rec[0]                         # the one Wyckoff orbit, 3c
 
-# Each site's characters, one operation per class of its own -42m, each named in
-# the frame of the site it fixes, which is a different frame at each site: the
+# Each site's characters under the operations of its own -42m, each named in the
+# frame of the site it fixes, which is a different frame at each site: the
 # twofold about the site's own axis is the one the threefold below carries from
-# site to site.
+# site to site.  orbit.site_multiplets lists, site by site, the orbitals bound
+# together there, and orbit.numerical.positions each site's position.
 chars_of = {}
-# r.assignment.site_orbitals lists, site by site, the orbitals that sit there
-for pair in r.assignment.site_orbitals:
-    site = tuple(float(x) for x in positions[pair[0]])
-    axis = axes[sites.index(site)]
-    chi = {name: complex(v).real for name, v in rec.orbitals[pair[0]].generator_character.items()}
+for pair, site in zip(orbit.site_multiplets, orbit.numerical.positions):
+    axis = axes[sites.index(tuple(float(x) for x in site))]
+    chi = {r.operations[g].name: complex(v).real
+           for g, v in orbit.numerical.characters[pair[0]].items()}
     chars_of[axis] = chi
+    nonzero = [f"{name}={chi[name]:+.0f}" for name in chi if abs(chi[name]) > 1e-6]
+    zero = len(chi) - len(nonzero)
+    row(coords(site), f"{', '.join(nonzero)}, 0 under the other {zero} operations of its "
+        f"{orbit.unitary_site_symmetry}")
 
 # The threefold along [111] carries each site onto the next, and each site's
 # own axis onto the next site's: its matrix sends each site's pair into the
@@ -181,8 +201,8 @@ M3 = np.asarray(r.rep.matrices[c3])
 R3 = np.asarray(r.operations[c3].rotation_cartesian, dtype=float)
 unit = {"x": np.eye(3)[0], "y": np.eye(3)[1], "z": np.eye(3)[2]}
 row(r.operations[c3].name, "carries each site onto the next, and its axis onto the next site's")
-for pair in r.assignment.site_orbitals:
-    site = tuple(float(x) for x in positions[pair[0]])
+for pair, site in zip(orbit.site_multiplets, orbit.numerical.positions):
+    site = tuple(float(x) for x in site)
     axis = axes[sites.index(site)]
     target = int(np.argmax(np.abs(M3[:, pair[0]])))     # an orbital of the image site
     there = tuple(float(x) for x in positions[target])
@@ -190,23 +210,24 @@ for pair in r.assignment.site_orbitals:
     row(coords(site), f"onto {coords(there)}, axis {axis} onto {turned}, C2({axis}) onto "
         f"C2({turned}), character {chars_of[axis][f'C2({axis})']:+.0f} at both")
 print("   each site's characters are the first site's, carried by the operations of the orbit,")
-print(f"   and each row is the {rec.irreps[0]} of its own site's {rec.orbitals[0].site_symmetry}")
+print(f"   and each site carries the {orbit.label} of its own {orbit.unitary_site_symmetry}")
 
 ########### 4. the same model in a rotated basis ###########
 
 print(f"\n4. the same model, every pair rotated inside itself by {THETA} rad")
 rotated = cubic_3c_perp_doublet(angle=THETA)
 r_rot = tqc.realized_group(rotated)
-rec_rot = r_rot.rep.characters
+rec_rot = r_rot.wyckoff_orbits
 row("realized group", f"#{r_rot.group.number_str} {r_rot.group.name}")
-# the rotated model's atomic-limit table, compared line for line with section 3's
-if rec_rot.summary() == rec.summary():
-    row("rep.characters", "section 3's atomic-limit table, line for line")
+# the rotated model's atomic-limit table, compared line for line with section 3's,
+# and every orbital's characters with section 3's
+if rec_rot.summary() == rec.summary() and same_characters(rec, rec_rot):
+    row("wyckoff_orbits", "section 3's atomic-limit table, line for line, and its characters")
 else:
-    row("rep.characters", "section 3's atomic-limit table but for " + differing(rec, rec_rot))
+    row("wyckoff_orbits", "section 3's atomic-limit table but for " + differing(rec, rec_rot))
 
-table = tqc.hsp_table(r.rep, bands=6)          # the six bands, at every point
-table_rot = tqc.hsp_table(r_rot.rep, bands=6)
+table = tqc.hsp_table(r, bands=6)          # the six bands, at every point
+table_rot = tqc.hsp_table(r_rot, bands=6)
 row("all 6 bands", fmt(table.counts))
 row("all 6, rotated", fmt(table_rot.counts))
 print("   the rotation is a change of orbital basis inside each pair, a choice of Wannier gauge,")
@@ -226,7 +247,7 @@ bands = np.asarray(model.solve_ham(kv))
 bands_rot = np.asarray(rotated.solve_ham(kv))
 row("both bases", f"largest energy difference {np.abs(bands - bands_rot).max():.6f} along "
     f"{'-'.join(NODES)}, the figure's path")
-print(f"   {rec.irreps[0]} at {rec.band_representations[0].wyckoff} of {group.name} is one of the known exceptions to "
+print(f"   {orbit.label} at {orbit.wyckoff} of {group.name} is one of the known exceptions to "
       "an irrep at a maximal")
 print("   Wyckoff position inducing an elementary band representation")
 
@@ -251,8 +272,8 @@ ax.set_ylim(bands.min() - 0.20 * (bands.max() - bands.min()),
             bands.max() + 0.14 * (bands.max() - bands.min()))
 ax.set_ylabel("$E$", fontsize=15)
 ax.legend(loc="upper center", fontsize=9)
-ax.set_title(f"#{group.number_str} {group.name}: {rec.irreps[0]} at "
-             f"{rec.orbitals[0].wyckoff} of {rec.orbitals[0].site_symmetry}, the six "
+ax.set_title(f"#{group.number_str} {group.name}: {orbit.label} at "
+             f"{orbit.wyckoff} of {orbit.unitary_site_symmetry}, the six "
              f"bands\n{d6.solution_strings()[0]}", fontsize=10)
 fig.tight_layout(pad=0.6)
 # save_figure writes the PDF without its creation date, so a rerun gives the same file

@@ -21,25 +21,23 @@ are one another's images.
    the operations broken are inversion times those kept: each site loses the fourfold
    rotation about its own axis and keeps the -4 rotoinversion about it
 
-3. r.rep.characters: the atomic-limit table, what each orbital carries
-   orbital  Wyckoff  site symmetry  function  irrep     named by  determined by  orbital characters
-         0       3c           -42m                E  point group    hamiltonian  E=+2, C2(y)=0, C2(x)=-2, m([011])=0, S4(x)=0
-         1       3c           -42m                E  point group    hamiltonian  E=+2, C2(y)=0, C2(x)=-2, m([011])=0, S4(x)=0
-         2       3c           -42m                E  point group    hamiltonian  E=+2, C2(x)=0, C2(y)=-2, m([101])=0, S4(y)=0
-         3       3c           -42m                E  point group    hamiltonian  E=+2, C2(x)=0, C2(y)=-2, m([101])=0, S4(y)=0
-         4       3c           -42m                E  point group    hamiltonian  E=+2, C2(z)=-2, C2(x)=0, m([110])=0, S4(z)=0
-         5       3c           -42m                E  point group    hamiltonian  E=+2, C2(z)=-2, C2(x)=0, m([110])=0, S4(z)=0
-     orbitals 0-5 at 3c induce the elementary band representations of T1 at 1b (-43m) + T2 at 1b (-43m)   (.band_representations)
+3. r.wyckoff_orbits: the atomic-limit table, what each Wyckoff orbit carries
+   Wyckoff  site symmetry  orbitals  label  determined by  declared
+        3c         -42m1'       0-5      E    hamiltonian
+     3c, orbitals 0-5: they induce T1 at 1b (-43m1') + T2 at 1b (-43m1')   (.band_representation)
+   (0, 0.5, 0.5)    : E=+2, C2(x)=-2, 0 under the other 6 operations of its -42m
+   (0.5, 0, 0.5)    : E=+2, C2(y)=-2, 0 under the other 6 operations of its -42m
+   (0.5, 0.5, 0)    : E=+2, C2(z)=-2, 0 under the other 6 operations of its -42m
    C3([111])        : carries each site onto the next, and its axis onto the next site's
    (0, 0.5, 0.5)    : onto (0.5, 0, 0.5), axis x onto y, C2(x) onto C2(y), character -2 at both
    (0.5, 0, 0.5)    : onto (0.5, 0.5, 0), axis y onto z, C2(y) onto C2(z), character -2 at both
    (0.5, 0.5, 0)    : onto (0, 0.5, 0.5), axis z onto x, C2(z) onto C2(x), character -2 at both
    each site's characters are the first site's, carried by the operations of the orbit,
-   and each row is the E of its own site's -42m
+   and each site carries the E of its own -42m
 
 4. the same model, every pair rotated inside itself by 0.37 rad
    realized group   : #215.71 P-43m1'
-   rep.characters   : section 3's atomic-limit table, line for line
+   wyckoff_orbits   : section 3's atomic-limit table, line for line, and its characters
    all 6 bands      : GM4 + GM5 + M1 + M2 + 2×M5 + R4 + R5 + X1 + X2 + 2×X5
    all 6, rotated   : GM4 + GM5 + M1 + M2 + 2×M5 + R4 + R5 + X1 + X2 + 2×X5
    the rotation is a change of orbital basis inside each pair, a choice of Wannier gauge,

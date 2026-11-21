@@ -20,7 +20,7 @@ from .refusal import InternalError, Refusal
 from ._tolerance import ASSEMBLED, CHARACTER
 from ._sitechars import _L_MAX, _content_shells
 from ._matrices import _atom_blocks, _lift_of, _proportionality, bloch_operator
-from .symmetry import AtomicLimitRow, AtomicLimitTable, _NOT_CARRIED
+from .symmetry import _OrbitalRow, _OrbitalTable, _NOT_CARRIED
 from ._declaration import (
     _copies_of_one_irrep, _declared_atoms, _declared_needs, _distance_from_trivial,
     _holds_part, _lead_of, _meets, _named_content, _one_copy, _returned_rows)
@@ -458,7 +458,7 @@ def _held_sets(sectors, layout, model, group, assignment, spin, validated):
     held = _sectors.held_sectors(sectors, layout, tol=sectors.tol)
     if not sectors.su2 and any(len(h) > 1 for h in held):
         syms = group._symmetries
-        kept = [p for p, s in enumerate(syms) if int(s.ind) in set(validated.indices)]
+        kept = [p for p, s in enumerate(syms) if int(s.ind) in set(validated._indices)]
         action = _sectors.sector_action(sectors, model, group, assignment, spin, validated,
                                         tol=sectors.tol)
         found = _sectors.sector_orbits(sectors, action, group, layout, kept, tol=sectors.tol)
@@ -1164,7 +1164,7 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
     :func:`_labelling`'s; this writes them down.  A row's site irrep is what
     its multiplet carries under the labelling returned, named from the
     tables (:func:`_named_content`).  How it is known
-    (:attr:`AtomicLimitRow.determined_by`) is ``"declaration"`` for a declared
+    (:attr:`_OrbitalRow.determined_by`) is ``"declaration"`` for a declared
     row the returned matrices carry, ``"declaration not carried"`` for one they
     do not -- a declaration the measurement could not read, such as a content
     declared on part of what a multiplet holds, which no labelling of these
@@ -1176,7 +1176,7 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
     ``a``'s, and ``layout._chan_orbs[c]`` its orbitals); the record is still one
     row per model orbital, so a declared spinor pair's two orbitals report the
     one character of the pair, each flagged ``up``/``down`` in the note and in
-    :meth:`AtomicLimitTable.summary`.
+    :meth:`_OrbitalTable.summary`.
     """
     chan_of, chan_orbs = layout._chan_of, layout._chan_orbs
     lattice = np.asarray(group._lattice, dtype=float)
@@ -1318,7 +1318,7 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
                 "reads `named_by = \"unnamed\"`. The two disagreeing is a defect in "
                 "this package, not a tolerance to loosen.")
         here = wyckoff.get(s)
-        rows.append(AtomicLimitRow(
+        rows.append(_OrbitalRow(
             orbital=int(a), site=s,
             wyckoff="" if here is None else f"{int(here.multiplicity)}{here.letter}",
             site_symmetry=site_symbols.get(s, ""), function=functions.get(a, ""),
@@ -1337,7 +1337,7 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
             declaration_broke=() if content is None else tuple(content.broke),
             note=note_a, residual=float(worst)))
 
-    return AtomicLimitTable(
+    return _OrbitalTable(
         orbitals=tuple(rows),
         declarations=tuple({"orbitals": tuple(d["orbitals"]), "declared_as": d["spec"],
                             "declared_irrep": d["label"], "dim": d["dim"],

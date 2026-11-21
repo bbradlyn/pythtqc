@@ -129,7 +129,7 @@ def test_wyckoff_tables_reads_the_letters_the_tables_are_keyed_by(
     fixtures = {"FKM diamond": fkm_undistorted, "lin3g": lin3g_declared_cross_checked,
                 "Kane-Mele odd": km_realized["odd"], "FKM strong": fkm_strong}
     for name, realized in fixtures.items():
-        _model, group, assignment, _validated, _rep = realized
+        group, assignment = realized.group, realized._assignment
         want_tables, want_spglib, want_dataset = WYCKOFF_LETTERS[name]
         assert assignment.wyckoff_tables == want_tables, name
         assert assignment.wyckoff_spglib == want_spglib, name
@@ -163,8 +163,8 @@ def test_the_distorted_orbit_sits_on_the_6c_line_between_3a_and_3b(fkm_strong):
     ``pyxtal``'s varieties, and it is what licenses the adiabatic shift the SRSI
     evaluation makes.
 
-    The atomic-limit table says the same.  Each row is the spinor doublet
-    ``-E1`` of the ``3m`` site, named by the point group because the tables list
+    The atomic-limit table says the same.  Its one row, the orbit, is the spinor
+    doublet ``-E1`` of the ``3m`` site, named by the point group because the tables list
     no site irrep at ``6c``; and the orbit's band representation, written at
     ``3a``, the first letter of the closure, is the localization the SRSIs are
     evaluated on there, printed under the table because it sits at another
@@ -172,7 +172,7 @@ def test_the_distorted_orbit_sits_on_the_6c_line_between_3a_and_3b(fkm_strong):
     line, carries the same symmetry content and the same SRSIs, so the table
     names it as the sum nothing it reads distinguishes from the one at ``3a``.
     """
-    _model, group, assignment, _validated, rep = fkm_strong
+    group, assignment = fkm_strong.group, fkm_strong._assignment
     sites = tqg.wyckoff_sites_tables(group)
     orbit_sites = [site for site in sites if site.wyckoff not in site.slides_onto]
     assert len(orbit_sites) == 2
@@ -187,21 +187,21 @@ def test_the_distorted_orbit_sits_on_the_6c_line_between_3a_and_3b(fkm_strong):
     assert [(site.wyckoff, site.slides_onto) for site in decoration] == [("3a", ("3a",))]
     assert assignment.wyckoff_tables == ("c", "c")
 
-    table = rep.characters
-    assert [(o.wyckoff, o.site_symmetry, o.irrep, o.named_by)
-            for o in table.orbitals] == [("6c", "3m", "-E1", "point group")] * 2
-    (orbit,) = table.band_representations
-    assert (orbit.orbitals, orbit.wyckoff, orbit.site_symmetry) == ((0, 1), "6c", "3m")
+    table = fkm_strong.wyckoff_orbits
+    (orbit,) = table
+    assert (orbit.wyckoff, orbit.unitary_site_symmetry, orbit.orbitals, orbit.label,
+            orbit.numerical.named_by) == ("6c", "3m", (0, 1), "-E1", "point group")
     at_a = [loc for loc in tqr.srsi_of_model(fkm_strong).orbits[0].localizations
             if loc["letter"] == "a"]
-    assert [(m, name, position.split("(")[0]) for m, name, position in orbit.terms] == \
-        [(m, name, position.split("(")[0]) for m, name, position in at_a[0]["terms"]] == \
-        [(1, "-E1g↑G(2)", "3a"), (1, "-E1u↑G(2)", "3a")]
-    assert [[(m, name, position.split("(")[0]) for m, name, position in terms]
-            for terms in orbit.alternatives] == \
-        [[(1, "-E1g↑G(2)", "3b"), (1, "-E1u↑G(2)", "3b")]]
-    assert "not distinguished by the stable real-space invariants from" in orbit.sentence()
-    assert orbit.sentence() in table.summary()
+    assert [(t.multiplicity, t.irrep, t.wyckoff) for t in orbit.band_representation] == \
+        [(m, name.split("↑")[0], position.split("(")[0])
+         for m, name, position in at_a[0]["terms"]] == \
+        [(1, "-E1g", "3a"), (1, "-E1u", "3a")]
+    assert [[(t.multiplicity, t.irrep, t.wyckoff) for t in alternative]
+            for alternative in orbit.numerical.alternatives] == \
+        [[(1, "-E1g", "3b"), (1, "-E1u", "3b")]]
+    assert ("not told apart from -E1g at 3b (-3m1') + -E1u at 3b (-3m1') by any stable "
+            "real-space invariant") in table.summary()
 
 
 @pytest.mark.data
@@ -414,11 +414,11 @@ def test_a_model_s_z_srsis_are_the_band_route_s_on_all_of_its_bands(request, nam
     to the literals of ``Z_ROW_NAMES`` instead.
     """
     realized = _record(request, name)
-    _model, group, _assignment, _validated, rep = realized
+    group, rep = realized.group, realized.rep
     model_srsis = tqr.srsi_of_model(realized)
     assert model_srsis, str(model_srsis)
     n_bands = ALL_BANDS[name]
-    bands = tqr.srsi_of_bands(tqw.hsp_table(rep, bands=n_bands), group, rep=rep,
+    bands = tqr.srsi_of_bands(tqw.hsp_table(realized, bands=n_bands), group, rep=rep,
                               bands=n_bands)
     assert bands, str(bands)
     assert tuple(model_srsis.theta_Z) == tuple(bands.theta_Z), name
@@ -446,7 +446,7 @@ def test_the_safety_gate_can_tell_a_setting_problem_from_a_modelling_one(
     maximal pair.  A geometry saying ``a`` against a content that fits only at
     ``b`` is exactly the disagreement the gate names.
     """
-    _model, group, _assignment, _validated, _rep = lin3g_declared_cross_checked
+    group = lin3g_declared_cross_checked.group
     data = _tables._ebr_data(group)
     labels = list(data["labels_physics_convention"])
     matrix = np.asarray(data["matrix"], dtype=int)
@@ -466,19 +466,6 @@ def test_the_safety_gate_can_tell_a_setting_problem_from_a_modelling_one(
     assert tqr._letters_that_do_fit(data, {labels[0]: 1}, points, 4) == ()
 
 
-def test_srsi_of_model_takes_a_realized_group_or_the_plain_tuple(
-        lin3g_declared_cross_checked):
-    """The unpacking a caller already has, in either shape."""
-    model, group, assignment, validated, rep = lin3g_declared_cross_checked
-    want = tqr.srsi_of_model(lin3g_declared_cross_checked)
-    assert want
-    assert tqr.srsi_of_model((model, group, assignment, rep)).theta_Z == want.theta_Z
-    assert tqr.srsi_of_model((model, group, assignment, validated, rep)).theta_Z == \
-        want.theta_Z
-    with pytest.raises(ValueError, match="RealizedGroup"):
-        tqr.srsi_of_model((model, group, assignment))
-
-
 # ---------------------------------------------------------------------------
 # 3.  a band subset -> its Z-SRSIs
 # ---------------------------------------------------------------------------
@@ -491,8 +478,8 @@ def test_srsi_of_bands_reproduces_the_fu_kane_mele_anchors(fkm_strong):
     whose class has order 4.  The record carries both halves, so the statement
     can be read off one object.
     """
-    _model, group, _assignment, _validated, rep = fkm_strong
-    content = tqw.hsp_table(rep, bands=2)
+    group, rep = fkm_strong.group, fkm_strong.rep
+    content = tqw.hsp_table(fkm_strong, bands=2)
     got = tqr.srsi_of_bands(content, group, rep=rep, bands=2)
     assert got, str(got)
     assert got.indicator.values == (0, 1) and got.indicator.order == 4
@@ -528,10 +515,11 @@ def test_srsi_of_bands_reproduces_the_lin3g_and_kane_mele_anchors(
     the **premise** that makes it a statement about linearity is that the three
     blocks' measured symmetry data vectors add, and that is what is asserted.
     """
-    _model, group, _assignment, _validated, rep = lin3g_declared_cross_checked
+    group, rep = lin3g_declared_cross_checked.group, lin3g_declared_cross_checked.rep
     blocks = {}
     for name, bands in (("P6", P6), ("P4", list(P4)), ("P2", list(P2))):
-        got = tqr.srsi_of_bands(tqw.hsp_table(rep, bands=bands), group, rep=rep)
+        got = tqr.srsi_of_bands(tqw.hsp_table(lin3g_declared_cross_checked, bands=bands),
+                                group, rep=rep)
         assert got, (name, str(got))
         blocks[name] = got
         assert not got.stable, name
@@ -547,8 +535,9 @@ def test_srsi_of_bands_reproduces_the_lin3g_and_kane_mele_anchors(
 
     got = {}
     for regime in ("odd", "even"):
-        _m, km_group, _a, _v, km_rep = km_realized[regime]
-        out = tqr.srsi_of_bands(tqw.hsp_table(km_rep, bands=2), km_group, rep=km_rep,
+        km = km_realized[regime]
+        km_group, km_rep = km.group, km.rep
+        out = tqr.srsi_of_bands(tqw.hsp_table(km, bands=2), km_group, rep=km_rep,
                                 bands=2)
         assert out, (regime, str(out))
         got[regime] = tuple(str(v) for v in out.theta_Z)

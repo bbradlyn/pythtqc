@@ -23,17 +23,15 @@ flat, basis = tqc.spinless_presentation(km)     # the same crystal as wannier90 
 print(flat.nspin, flat.norb)
 #  1 4
 r = tqc.realized_group(flat, typat=[0, 0, 1, 1], spin="interleaved", characters={0: "A1"})
-print(r.group.name, r.group.number_str, tqc.hsp_table(r.rep, bands=2).counts)
+print(r.group.name, r.group.number_str, tqc.hsp_table(r, bands=2).counts)
 #  P3m11' 156.50 {'-GM6': 1, '-K5': 1, '-K6': 1, '-M3M4': 1}
 native = tqc.realized_group(km, typat=[0, 1], characters={0: "A1"})
-print(native.group.name, native.group.number_str, tqc.hsp_table(native.rep, bands=2).counts)
+print(native.group.name, native.group.number_str, tqc.hsp_table(native, bands=2).counts)
 #  P3m11' 156.50 {'-GM6': 1, '-K5': 1, '-K6': 1, '-M3M4': 1}
-print(r.rep.characters.summary())
-#  orbital  Wyckoff  site symmetry  function  spin  irrep  named by  determined by  orbital characters
-#        0       1c             3m              up    -E1    tables    declaration  E=+1, C3(z)=+1, m(x)=+1
-#        1       1c             3m            down    -E1    tables    declaration  E=+1, C3(z)=+1, m(x)=+1
-#        2       1b             3m              up    -E1    tables    hamiltonian  E=+1, C3(z)=+1, m(x)=+1
-#        3       1b             3m            down    -E1    tables    hamiltonian  E=+1, C3(z)=+1, m(x)=+1
+print(r.wyckoff_orbits.summary())
+#  Wyckoff  site symmetry  orbitals  label  determined by  declared
+#       1c           3m1'       0-1    -E1    declaration        A1
+#       1b           3m1'       2-3    -E1    hamiltonian
 ```
 
 ## How to read it
@@ -55,9 +53,10 @@ print(r.rep.characters.summary())
 - The two group lines agree: `P3m11'`, and the same corep content of the two
   lowest bands at every high-symmetry point (`hsp_table`,
   [labelling the bands](labels.md)), for the import and for the native model.
-- The atomic-limit table grows a `spin` column, which member of its pair each
-  row is; the two members carry the pair's one site corep
-  ([reading the table](orbitals.md#how-to-read-it)).
+- The atomic-limit table holds the two members of a pair in one row, which
+  carries the pair's one site corep
+  ([reading the table](orbitals.md#how-to-read-it)); `r.spin` is the pairing
+  declared.
 
 ## The convention, in the model's numbers
 
@@ -138,8 +137,8 @@ print(np.allclose(km.solve_ham(k), minus_z.solve_ham(k), atol=1e-12))
 #  True
 wrong = tqc.realized_group(minus_z, typat=[0, 1], characters={0: "A1"})
 print(repr(wrong))
-#  RealizedGroup(Cm1' #8.33; descended from #156.50 (8 of 12 coset representatives of the lattice translations broken; these are the single-valued group's, each standing for itself and its negative in the double group); on a substrate (the default), the free-standing group #8.33 agrees)
-print({b["refuted_by"] for b in wrong.descent["dropped"]})
+#  RealizedGroup(Cm1' #8.33; descended from P3m11' #156.50 (8 of 12 coset representatives of the lattice translations broken; these are the single-valued group's, each standing for itself and its negative in the double group); on a substrate (the default), the free-standing group Cm1' #8.33 agrees)
+print({b.refuted_by for b in wrong.descent.dropped})
 #  {'tensor structure'}
 back = tqc.realized_group(respun(minus_z, W), typat=[0, 1], characters={0: "A1"})
 print(back.group.name, back.group.number_str)
@@ -187,19 +186,17 @@ wannier90 order, as `spin_basis(model, pairs=…)` or the mapping
 
 ```python
 print(basis.summary())
-#  interleaved, on 4 orbitals   (.kind, .norb)
-#    each pair one Wannier function, its spin up and down along z   (.pairs)
-#      pair 0: orbital 0 up, orbital 1 down
-#      pair 1: orbital 2 up, orbital 3 down
+#  each pair one Wannier function, its spin up and down along z   (.pairs)
+#    pair 0: orbital 0 up, orbital 1 down
+#    pair 1: orbital 2 up, orbital 3 down
 blocked, _ = tqc.spinless_presentation(km, order="blocked")
 rb = tqc.realized_group(blocked, typat=[0, 1, 0, 1], spin="blocked", characters={0: "A1"})
-print(rb.group.number_str, tqc.hsp_table(rb.rep, bands=2).counts)
+print(rb.group.number_str, tqc.hsp_table(rb, bands=2).counts)
 #  156.50 {'-GM6': 1, '-K5': 1, '-K6': 1, '-M3M4': 1}
 print(tqc.spin_basis(flat, pairs=[(0, 1), (2, 3)]).summary())
-#  listed pair by pair, on 4 orbitals   (.kind, .norb)
-#    each pair one Wannier function, its spin up and down along z   (.pairs)
-#      pair 0: orbital 0 up, orbital 1 down
-#      pair 1: orbital 2 up, orbital 3 down
+#  each pair one Wannier function, its spin up and down along z   (.pairs)
+#    pair 0: orbital 0 up, orbital 1 down
+#    pair 1: orbital 2 up, orbital 3 down
 ```
 
 With the pairing declared, each pair is one spinor Wannier function, keeping
@@ -223,9 +220,9 @@ Without any declaration the model is what `nspin = 1` says, a spinless one:
 
 ```python
 bare = tqc.realized_group(flat, typat=[0, 0, 1, 1])     # no spin=: read as nspin = 1 says
-print(bare.group.name, bare.group.number_str, bare.time_reversal["outcome"],
-      bare.time_reversal["square"]["measured"], bare.rep.characters.irreps)
-#  P3m1 156 measured broken -1.0 ('E', 'E', 'E', 'E')
+print(bare.group.name, bare.group.number_str, bare.time_reversal.outcome,
+      bare.time_reversal.square.measured, tuple(o.label for o in bare.wyckoff_orbits))
+#  P3m1 156 measured broken -1.0 ('E', 'E')
 ```
 
 Its time reversal, measured, squares to `−1`, a spinor's, which the

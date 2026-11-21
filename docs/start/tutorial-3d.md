@@ -32,10 +32,9 @@ fkm = fu_kane_mele(1.0, 0.125, [0.0, 0.0, 0.0, 0.0])      # every bond equal
 r = tqc.realized_group(fkm, characters={0: "s"})         # orbital 0 is an s orbital
 print(repr(r))
 #  RealizedGroup(Fd-3m1' #227.129)
-print(r.rep.characters.summary())
-#  orbital  Wyckoff  site symmetry  function  irrep  named by  determined by  orbital characters
-#        0       8a           -43m         s    -E1    tables    declaration  E=+1, C2(x)=+1, C3([111])=+1, m([001])=+1, S4(x)=+1
-#        1       8a           -43m              -E1    tables    hamiltonian  E=+1, C2(x)=+1, C3([111])=+1, m([001])=+1, S4(x)=+1
+print(r.wyckoff_orbits.summary())
+#  Wyckoff  site symmetry  orbitals  label  determined by  declared
+#       8a         -43m1'       0-1    -E1    declaration       s/-
 ```
 
 `realized_group` measures which operations `H(k)` obeys and returns the group
@@ -49,18 +48,16 @@ and where it obeys fewer, the record names the group it descended from, as it
 does below. A three-dimensional model needs no preparation: its own positions
 are the cell the group is identified on.
 
-The table is the model's **atomic-limit table**, one row per orbital. Both
+The table is the model's **atomic-limit table**, one row per Wyckoff orbit. Both
 orbitals sit at Wyckoff `8a`, the two atoms of the diamond structure, whose site
-symmetry is the tetrahedral group `-43m`. A pythtb orbital carries no symmetry
-character of its own: the hoppings fix how the orbitals transform relative to
-one another, not what they are. So orbital 0 is `s` because `characters=` said
-so (`determined by: declaration`), and orbital 1 is fixed relative to it by the
-hoppings (`hamiltonian`). The `irrep` column is the site corep the orbital
-carries with its spin, `-E1`, where the leading `-` marks a double-valued
-label; the `orbital characters` are the orbital's own, without its spin, on one
-operation of each class of the site group, all `+1` for an `s` orbital, and
-`named by: tables` says the tables of band representations name that corep at
-`8a`. Every column is in
+symmetry is the tetrahedral group `-43m`, `-43m1'` with time reversal. A pythtb
+orbital carries no symmetry character of its own: the hoppings fix how the
+orbitals transform relative to one another, not what they are. So orbital 0 is
+`s` because `characters=` said so (`declared: s/-`, orbital 1 declared nothing),
+orbital 1 is fixed relative to it by the hoppings, and the row's site irreps
+rest on that declaration (`determined by: declaration`). The `label` column is
+the site irrep the orbitals carry with their spin, `-E1`, where the leading `-`
+marks a double-valued label. Every column is in
 [the records reference](../reference/records.md#the-atomic-limit-table).
 
 ## A semimetal at X
@@ -84,13 +81,13 @@ is a semimetal: its two lower bands are not separated from the upper two, so at
 `X` there is no set of valence bands to label. The package says so:
 
 ```python
-all4 = tqc.hsp_table(r.rep, bands=4)
+all4 = tqc.hsp_table(r, bands=4)
 print(tqc.format_counts(all4.counts))
 #  -GM6 + -GM9 + -L8 + -L9 + -W5W6 + -W7 + -X5
 print(tqc.decompose(all4).solution_strings())
 #  ("1 x -E1↑G(4)@8a(-43m1',-43m)",)
 
-pair = tqc.hsp_table(r.rep, bands=2)                     # the two lowest bands alone
+pair = tqc.hsp_table(r, bands=2)                         # the two lowest bands alone
 print(pair)
 #  HSPTable(bands=(0, 1), 3 points resolved, 1 refused, group=realized)
 print(pair.refusals["X"].gate, pair.refusals["X"].context["multiplet"])
@@ -133,10 +130,10 @@ still allow all of `Fd-3m`; the Hamiltonian does not.
 strong = fu_kane_mele(1.0, 0.125, [0.4, 0.0, 0.0, 0.0])  # the [111] bond strengthened
 rs = tqc.realized_group(strong, characters={0: "s"})
 print(repr(rs))
-#  RealizedGroup(R-3m1' #166.98; descended from #227.129 (72 of 96 coset representatives of the lattice translations broken; these are the single-valued group's, each standing for itself and its negative in the double group))
+#  RealizedGroup(R-3m1' #166.98; descended from Fd-3m1' #227.129 (72 of 96 coset representatives of the lattice translations broken; these are the single-valued group's, each standing for itself and its negative in the double group))
 d = rs.descent
-print(d["from"]["name"], "->", d["to"]["name"], d["dropped_by"],
-      sorted({b["refuted_by"] for b in d["dropped"]}))
+print(d.cell_group.name, "->", d.subgroup.name, d.dropped_by,
+      sorted({b.refuted_by for b in d.dropped}))
 #  Fd-3m1' -> R-3m1' {'hoppings': 72} ['no symmetry matrix']
 for op in rs.operations.values():
     if not op.seitz.endswith("'"):                       # those without time reversal
@@ -153,15 +150,14 @@ for op in rs.operations.values():
 #  10  {m_110|0,0,0}     m([01-1])
 #  11  {m_100|0,0,0}     m([10-1])
 #  12  {m_010|0,0,0}     m([1-10])
-for row in rs.rep.characters.orbitals:
-    print(row.orbital, row.wyckoff, row.site_symmetry, row.irrep, row.determined_by)
-#  0 6c 3m -E1 declaration
-#  1 6c 3m -E1 hamiltonian
+for o in rs.wyckoff_orbits:
+    print(o.orbitals, o.wyckoff, o.unitary_site_symmetry, o.label, o.determined_by)
+#  (0, 1) 6c 3m -E1 declaration
 ```
 
 Read the record clause by clause. `R-3m1' #166.98` is the group returned: the
 rhombohedral grey group whose threefold axis is the strengthened bond.
-`descended from #227.129` is how it was reached: the positions offered
+`descended from Fd-3m1' #227.129` is how it was reached: the positions offered
 diamond's group, the Hamiltonian broke 72 of its 96 coset representatives, and
 the 24 that hold were identified again as a group. Nothing downstream is ever
 read in a group the model does not have.
@@ -190,7 +186,7 @@ read both names in full).
 The orbitals move with the group. In `Fd-3m` they were the orbit `8a`, with
 site symmetry `-43m`; in `R-3m` they are `6c`, whose site symmetry is the
 threefold about the bond and the three mirrors that contain it, `3m`. The site
-corep is still `-E1`, now of `3m`, and the one declaration still fixes both rows.
+corep is still `-E1`, now of `3m`, and the one declaration still fixes both orbitals.
 
 ## Three phases, and the ℤ₄ indicator
 
@@ -213,7 +209,7 @@ phases = {
     "dimers": tqc.realized_group(fu_kane_mele(1.0, 0.125, [0.0, -1.0, -1.0, -1.0]),
                                  characters={0: "s"}),
 }
-tables = {name: tqc.hsp_table(rr.rep, bands=2) for name, rr in phases.items()}
+tables = {name: tqc.hsp_table(rr, bands=2) for name, rr in phases.items()}
 indicators = {name: tqc.symmetry_indicator(tables[name])
               for name, rr in phases.items()}
 print(f"X_BS of #{rs.group.number_str} {rs.group.name}: {indicators['strong'].structure}")
@@ -255,7 +251,7 @@ pair there, has the trace `2ξ`.
 trim = [np.array(n) / 2 for n in itertools.product((0, 1), repeat=3)]   # the eight TRIM
 for name, rr in phases.items():
     inversion = tqc.operation_index(rr.group, "{-1|0,0,0}")
-    parity = [round(tqc.sewing_matrix(rr.rep, inversion, k, bands=2).trace.real / 2)
+    parity = [round(tqc.sewing_matrix(rr, inversion, k, bands=2).trace.real / 2)
               for k in trim]                             # +1 or -1 for the one Kramers pair
     nu0 = int(np.prod(parity) < 0)
     weak = [int(np.prod([p for p, k in zip(parity, trim) if k[i] == 0.5]) < 0)

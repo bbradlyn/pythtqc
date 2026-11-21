@@ -2748,6 +2748,62 @@ def p4mmm_4l_sp(*, imag=0.0, origin=(0.0, 0.0, 0.0), spinful=False, reverse=Fals
                           else origin)
 
 
+def p4mm_pxpy_two_heights(swap=False):
+    """Two like orbits at ``2c`` of ``P4mm``, at two heights: ``p_x`` at ``(1/2, 0, z)`` and ``p_y`` at ``(0, 1/2, z)``.
+
+    Each orbit is one ``p`` along its own site's twofold-free axis, the
+    fourfold carrying ``p_x`` at ``(1/2, 0, z)`` onto ``p_y`` at ``(0, 1/2, z)``:
+    the two sites of an orbit read conjugate site irreps, ``B1`` and ``B2`` of
+    ``mm2``, and the orbit's name is ``B1``, the one the tables of elementary
+    band representations write at ``2c``.  The orbits sit at ``z = 0.1`` and
+    ``z = 0.37`` of a cell ``diag(1, 1, 1.3)``, joined by ``pi`` hoppings
+    between like orbitals, so the hoppings obey ``P4mm1'`` (#99.164).
+
+    Parameters
+    ----------
+    swap : bool, default False
+        Whether the second orbit is listed with its ``(0, 1/2, z)`` site first:
+        the same crystal.
+
+    Returns
+    -------
+    tuple
+        The spinless 3D model, 4 orbitals; the functions to declare, one per
+        orbital; and the species, one per orbital, by height.
+    """
+    z1, z2 = 0.1, 0.37
+    first = [("px", [0.5, 0.0, z1], 0), ("py", [0.0, 0.5, z1], 0)]
+    second = [("px", [0.5, 0.0, z2], 1), ("py", [0.0, 0.5, z2], 1)]
+    if swap:
+        second = second[::-1]
+    orbs = first + second
+    lattice = Lattice([[1, 0, 0], [0, 1, 0], [0, 0, 1.3]], [p for _n, p, _l in orbs],
+                      periodic_dirs=[0, 1, 2])
+    m = TBModel(lattice, spinful=False)
+    m.set_onsite([0.0, 0.0, 0.7, 0.7])
+    at = {(n, layer): i for i, (n, _p, layer) in enumerate(orbs)}
+    hops = {0: (1.0, -0.3, 0.45), 1: (0.8, -0.2, 0.3)}
+    for layer in (0, 1):
+        ts, tp, tc = hops[layer]
+        ix, iy = at[("px", layer)], at[("py", layer)]
+        m.set_hop(ts, ix, ix, [1, 0, 0])
+        m.set_hop(tp, ix, ix, [0, 1, 0])
+        m.set_hop(ts, iy, iy, [0, 1, 0])
+        m.set_hop(tp, iy, iy, [1, 0, 0])
+        for R in ([0, 0, 0], [1, 0, 0], [0, -1, 0], [1, -1, 0]):
+            d = np.array([0.0, 0.5]) + np.array(R[:2]) - np.array([0.5, 0.0])
+            s = np.sign(d[0] * d[1])
+            if ix < iy:
+                m.set_hop(tc * s, ix, iy, R)
+            else:
+                m.set_hop(tc * s, iy, ix, list(-np.array(R)))
+    for name in ("px", "py"):
+        i, j = at[(name, 0)], at[(name, 1)]
+        m.set_hop(0.25, i, j, [0, 0, 0])
+        m.set_hop(0.15, i, j, [0, 0, -1])
+    return m, [n for n, _p, _l in orbs], [layer for _n, _p, layer in orbs]
+
+
 # ---------------------------------------------------------------------------
 # a (p_x, p_y) pair at every site of an orbit whose site group is 3
 # ---------------------------------------------------------------------------

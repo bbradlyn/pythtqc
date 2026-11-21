@@ -322,7 +322,7 @@ def _site_multiplets(model, group, assignment, spin, validated, declared=None, t
     # substitute a partition for a verdict.  How far a member may sit from that
     # form and still be realizable is noise, so it reads the declared tolerance
     # too: a model symmetric only within its precision has every member that far off.
-    positions = [pos_of_ind[int(i)] for i in validated.indices
+    positions = [pos_of_ind[int(i)] for i in validated._indices
                  if int(i) in bases and int(i) in pos_of_ind]
     coarse = _ansatz_defects(model, group, assignment, validated, positions,
                              layout=site_layout, spin=spin,
@@ -1156,7 +1156,7 @@ def _ansatz_defects(model, group, assignment, validated, positions, *,
     The detector answers about a **k-action class**, not about an operation:
     two operations acting identically on reduced ``k`` pose the identical
     intertwiner problem and share one verdict, and on a slab every class is the
-    pair ``{g, σ_h·g}`` (:attr:`..groups.ValidatedGroup.verdicts`).  A surviving
+    pair ``{g, σ_h·g}`` (``ValidatedGroup._verdicts``).  A surviving
     multi-member class therefore proves only that *some* operator with that
     k-action is a symmetry, and which member it is, is a statement about the
     **tensor structure** of the representation rather than about ``H(k)``'s
@@ -1243,7 +1243,7 @@ def _ansatz_defects(model, group, assignment, validated, positions, *,
     # cannot afford on a wannier90 Hamiltonian.
     got = blocks if blocks is not None else _multiplet_blocks(
         model, group, assignment, spin, validated, layout,
-        [p for p, s in enumerate(syms) if int(s.ind) in set(validated.indices)],
+        [p for p, s in enumerate(syms) if int(s.ind) in set(validated._indices)],
         ref_chan=ref_chan, max_candidates=max_candidates)
     if isinstance(got, Refusal):
         return got
@@ -1600,7 +1600,7 @@ def _spin_lift_defects(model, group, validated, positions, *, spin=None, tol=Non
     if int(model.nspin) == 2:
         order = np.arange(int(model.nstate))
     elif spin is not None:
-        order = np.asarray(spin.interleaved_index, dtype=int)
+        order = np.asarray(spin._interleaved_index, dtype=int)
     else:
         return {}
     if not bool(getattr(group, "spinor", True)):

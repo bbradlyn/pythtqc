@@ -111,7 +111,7 @@ def _product_table_residual(D, positions, syms, prod, spf):
     :func:`.._build._build_rep` applies it **inside** the uniqueness gate (a candidate that
     is Hamiltonian-covariant but does not multiply is not a representation of
     the group, whatever its covariance says) and again at the end to fill
-    :attr:`SpaceGroupRep.product_residual`.  The two agree to the last bit:
+    :attr:`SpaceGroupRepNumerical.product_residual`.  The two agree to the last bit:
     the only thing that happens in between is the multiplication by the
     one-dimensional character ``χ``, a homomorphism with ``χ = ±1``, so it
     cancels out of the identity.
@@ -1292,9 +1292,9 @@ def _resolve_spin(spin, model):
             "(nspin=2) and carries its own spin axis, which every measurement here "
             "uses. Drop `spin=`.")
     if isinstance(spin, SpinBasis):
-        if int(spin.norb) != int(model.norb):
+        if int(spin._norb) != int(model.norb):
             raise ValueError(
-                f"the spinor basis describes a model with {int(spin.norb)} orbitals and "
+                f"the spinor basis describes a model with {int(spin._norb)} orbitals and "
                 f"this one has {int(model.norb)}; a declaration is only valid for the "
                 f"model it was written for.")
         return spin
@@ -1352,7 +1352,7 @@ def _spin_pair_split(spin, site_orbitals, site_positions, lattice):
                      "sites": (su, sd),
                      "positions": (tuple(float(x) for x in pos[su]),
                                    tuple(float(x) for x in pos[sd])),
-                     "spin_kind": str(spin.kind)})
+                     "spin_kind": str(spin._kind)})
     return None
 
 
@@ -1376,7 +1376,7 @@ def _spin_channel_permutation(assignment, p, model, spin, order=None):
     """
     orb = _orbital_permutation(assignment, p, model,
                                order=order or _pair_order(assignment.site_orbitals, spin))
-    chan_of = spin.pair_of_orbital
+    chan_of = spin._pair_of_orbital
     image = np.empty(len(spin.pairs), dtype=int)
     for c, (up, dn) in enumerate(spin.pairs):
         cu, cd = int(chan_of[int(orb[int(up)])]), int(chan_of[int(orb[int(dn)])])
@@ -1426,8 +1426,7 @@ class SiteMultiplets:
     from site to site of an orbit are one multiplet too, each of its rows
     naming that irrep.  Each multiplet's matrices are the model's own blocks,
     in whatever basis its orbitals are written, and a declaration is read on
-    the multiplets without changing them.  ``rep.multiplets.summary()`` prints
-    them.
+    the multiplets without changing them.  ``summary()`` prints them.
 
     Attributes
     ----------
@@ -1581,7 +1580,7 @@ def _atoms_of_site(site_orbs, spin):
     """
     if spin is None:
         return [[(int(o),) for o in orbs] for orbs in site_orbs]
-    pair_of = np.asarray(spin.pair_of_orbital, dtype=int)
+    pair_of = np.asarray(spin._pair_of_orbital, dtype=int)
     out = []
     for orbs in site_orbs:
         seen, atoms = [], []
@@ -1793,7 +1792,7 @@ def _site_spaces(model, group, assignment, spin, validated, *, tol=None):
     bases = (getattr(validated, "_bases", None) or {}) if validated is not None else {}
     pos_of_ind = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     spaces, mixing = {}, {}
-    for ind in (validated.indices if validated is not None else ()):
+    for ind in (validated._indices if validated is not None else ()):
         ind = int(ind)
         if ind not in bases or ind not in pos_of_ind:
             continue
@@ -2133,7 +2132,7 @@ def _real_characters(kept, gens, words, parent, au_of, prod, ident, tol=1e-9):
     the model sees it, and it carries every orbital assigned ``s`` onto every
     orbital assigned the ``s ⊗ chi`` content.  A declaration fixes the
     labelling by site symmetry; without one, :func:`.._build._build_rep` takes the one
-    the lowest-``l`` rule picks, and :attr:`AtomicLimitRow.determined_by` says
+    the lowest-``l`` rule picks, and :attr:`_OrbitalRow.determined_by` says
     which rows that choice decides.  The characters themselves stay inside
     the build.
 

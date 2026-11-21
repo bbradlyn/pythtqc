@@ -20,10 +20,9 @@ km2 = kane_mele(1.0, -1.0, 0.3, 0.25)           # 2D spinful honeycomb, 4 bands
 r = tqc.realized_group(km2, typat=[0, 1],       # typat: the type of each atom -- the A and
                                                 # B sublattices are different atoms
                        characters={0: "A1"})    # ... and orbital 0 IS an s: A1 of its site group
-model, group, assignment, validated, rep = r
-sites = tqc.wyckoff_sites_tables(group, assignment.site_positions)
+group = r.group
 print(f"#{group.number_str} {group.name}, orbitals at Wyckoff "
-      + " and ".join(s.wyckoff for s in sites))
+      + " and ".join(o.wyckoff for o in r.wyckoff_orbits))
 #  #156.50 P3m11', orbitals at Wyckoff 1c and 1b
 ```
 
@@ -36,9 +35,9 @@ antiunitary operations, and its name spells out the unitary irreps time
 reversal glues together. The two sublattices land on `1c` and `1b`, so the
 hexagon centre `1a` carries no orbital; that matters two calls below.
 
-The record the call returns unpacks into five: the model, the group, the
-orbitals' assignment to its sites, the verdict on each operation, and the
-representation. A call that cannot complete returns a `Refusal` in place of
+The record the call returns is read by name: `r.group`, the group;
+`r.wyckoff_orbits`, the orbitals on their Wyckoff positions; `r.rep`, the
+representation; and the rest of what was measured. A call that cannot complete returns a `Refusal` in place of
 its record, a falsy record whose printout names what was being measured and
 what stopped it; [the reference](../reference/functions.md) lists every call's
 refusals, and no call on this page meets one.
@@ -48,14 +47,14 @@ refusals, and no call on this page meets one.
 A pythtb orbital carries no symmetry character: the hoppings fix how the
 orbitals transform relative to one another, not what they are. `characters=`
 states what they are, exactly as `typat=` states what the atoms are, and
-`rep.characters` is the model's atomic-limit table, one row per orbital, whose
+`r.wyckoff_orbits` is the model's atomic-limit table, one row per Wyckoff orbit, whose
 `summary()` reads the declaration back:
 
 ```python
-print(rep.characters.summary())
-#  orbital  Wyckoff  site symmetry  function  irrep  named by  determined by  orbital characters
-#        0       1c             3m              -E1    tables    declaration  E=+1, C3(z)=+1, m(x)=+1
-#        1       1b             3m              -E1    tables    hamiltonian  E=+1, C3(z)=+1, m(x)=+1
+print(r.wyckoff_orbits.summary())
+#  Wyckoff  site symmetry  orbitals  label  determined by  declared
+#       1c           3m1'         0    -E1    declaration        A1
+#       1b           3m1'         1    -E1    hamiltonian
 ```
 
 A declaration states the **orbital** factor: `A1` is the irrep of the site
@@ -80,7 +79,7 @@ and the group **descends**. Read the echo back every time: a mis-oriented
 declaration relabels the coreps at once and nothing else complains. With spin
 it can relabel none, since a spinor's character vanishes on every mirror and twofold
 rotation: `B1` and `B2` of `4mm`, which differ only on the mirrors, become one
-site corep, and the table's `orbital characters` column is where the difference
+site corep, and the table's `declared` column is where the difference
 shows ([the forms a declaration takes](../guide/orbitals.md#the-forms-a-declaration-takes)).
 A `wannier90` spinor import needs a second declaration of the same kind, since
 pythtb's importer returns `nspin = 1` whatever the calculation did: `spin=`
@@ -94,7 +93,7 @@ Now the corep content of the two occupied bands, at each high-symmetry point:
 ```python
 hsp = tqc.high_symmetry_points(group)           # in THIS cell's reduced coordinates
 for name in ("GM", "K", "M"):
-    content = tqc.corep_content(rep, hsp[name], bands=2)
+    content = tqc.corep_content(r, hsp[name], bands=2)
     print(content)
 #  CorepContent(GM: -GM6, partition=(0,))
 #  CorepContent(K: -K5 + -K6, partition=(0, 1))
@@ -124,7 +123,7 @@ induces from its Wyckoff position, where that band set is no sum of others —
 or says that no such sum exists:
 
 ```python
-t = tqc.hsp_table(rep, bands=2)                 # the same content everywhere, one solve
+t = tqc.hsp_table(r, bands=2)                   # the same content everywhere, one solve
 print(tqc.format_counts(t.counts))
 #  -GM6 + -K5 + -K6 + -M3M4
 

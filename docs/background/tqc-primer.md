@@ -135,7 +135,7 @@ print(strong.group.name, M.shape, np.linalg.matrix_rank(M))
 #  R-3m1' (12, 12) 8
 print(np.diag(D), np.array_equal(U @ M @ V, D))
 #  [1 1 1 1 1 1 2 4 0 0 0 0] True
-t = tqc.hsp_table(strong.rep, bands=2)           # the valence pair's content
+t = tqc.hsp_table(strong, bands=2)               # the valence pair's content
 print(tqc.format_counts(t.counts))
 #  -GM9 + -F5F6 + -L5L6 + -T8
 y = np.array([t.counts.get(label, 0) for label in data.corep_names])

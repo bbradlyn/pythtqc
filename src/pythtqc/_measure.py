@@ -22,54 +22,69 @@ from ._detector import (
 from ._matrices import _identity_position, _unitarized
 from ._multiplets import _own_form_spaces
 
-__all__ = ["ValidatedGroup"]
+__all__ = ["ValidatedGroup", "Discrepancy"]
+
+
+@dataclass(frozen=True)
+class Discrepancy:
+    """One operation the Hamiltonian breaks, and how the measurement refuted it.
+
+    Attributes
+    ----------
+    index : int
+        The operation, by index.
+    refuted_by : str
+        ``"no symmetry matrix"`` where no matrix with its action on ``k``
+        carries ``H(k)`` onto itself, a proof; ``"covariance"`` where the
+        nearest one misses by more than the tolerance; or ``"out of plane"``
+        for an operation of a layer's slab that the model's ``k`` cannot
+        represent.
+    residual : float
+        Its covariance residual in the units of ``H``, infinite where no matrix
+        exists.
+    """
+
+    index: int
+    refuted_by: str
+    residual: float
 
 
 @dataclass(frozen=True)
 class ValidatedGroup:
     """The verdict of the Hamiltonian on each operation of a group, with how well each one holds.
 
-    The record ``realized_group(model).validated`` holds, and the one a
-    ``cell_group_not_realized`` refusal carries in ``context["validated"]``;
-    ``summary()`` prints it.
+    ``r.numerical.validated`` of what :func:`..groups.realized_group` returns,
+    and the record a ``cell_group_not_realized`` refusal carries in
+    ``context["validated"]``; ``summary()`` prints it.
 
     Attributes
     ----------
-    verdicts : dict
-        ``{ind: verdict}``: ``"obeyed"``; ``"broken"``; or ``"undetermined"``,
-        a verdict shared with another operation that acts on ``k`` alike, as an
-        operation and its product with the horizontal mirror do on a
-        free-standing layer, which the representation then settles.
-    indices : tuple of int
-        The operations kept, those obeyed and those undetermined.
-    obeyed, undetermined, broken : tuple of int
-        The indices with each verdict.
-    operations : OperationTable
-        The operations kept, by index, with their Seitz symbols and names.
-    discrepancies : tuple of dict
-        One entry per broken operation: its ``ind``; ``refuted_by``, ``"no
-        symmetry matrix"`` where no matrix with its action on ``k`` carries
-        ``H(k)`` onto itself, a proof, ``"covariance"`` where the nearest one
-        misses by more than ``tol``, or ``"out of plane"`` for an operation of
-        a layer's slab that the model's ``k`` cannot represent; and its
-        ``residual``.
+    obeyed : tuple of int
+        The operations obeyed, by index, each the only one of its class to act
+        on ``k`` as it does.
+    broken : tuple of int
+        The operations the Hamiltonian breaks, by index.
+    undetermined : tuple of int
+        The operations kept whose verdict another operation, acting on ``k``
+        alike, shares, as an operation and its product with the horizontal
+        mirror do on a free-standing layer: the measurement says one of the
+        class holds, and the representation settles which.
     residuals : dict
-        ``{ind: residual}``: each operation's covariance residual,
+        ``{index: residual}``: each operation's covariance residual,
         ``max_k ‖U H(k) U† − H(Rk)‖`` in the units of ``H``, infinite where no
         matrix exists.
-    tol, n_kpts : float and int
-        The tolerance the residuals are read against, in the units of ``H``,
-        and the number of ``k``-points they are measured on.
-    k_action_classes : tuple of tuple of int
-        The operations grouped by their action on ``k`` and whether they carry
-        time reversal: one measurement settles a class.
+    tol : float
+        The tolerance the residuals are read against, in the units of ``H``.
+    n_kpoints : int
+        The number of ``k``-points they are measured on.
     closed : bool
         Whether the operations kept form a group.
-    group_label : str
-        The group measured, ``"P6/mmm1' #191.234"``.
+    discrepancies : tuple of Discrepancy
+        One row per broken operation, with how it was refuted.
     """
 
-    indices: tuple
+    # the operations kept, those obeyed and those undetermined
+    _indices: tuple
     discrepancies: tuple
     residuals: dict
     # the dimension of each operation's space of solutions, the identity's
@@ -81,10 +96,14 @@ class ValidatedGroup:
     _intertwiners: dict
     closed: bool
     tol: float
-    n_kpts: int
-    k_action_classes: tuple = ()
-    verdicts: dict = field(default_factory=dict)
-    group_label: str = ""
+    n_kpoints: int
+    # the operations grouped by their action on k and whether they carry time
+    # reversal: one measurement settles a class
+    _k_action_classes: tuple = ()
+    # `{ind: verdict}`: "obeyed", "broken" or "undetermined"
+    _verdicts: dict = field(default_factory=dict)
+    # the group measured, "P6/mmm1' #191.234"
+    _group_label: str = ""
     # what each verdict rests on, per operation solved: the space's dimension,
     # the residual, the solver's own report, the tolerance, cut and window it
     # was read at, and `solved_on`, the operation whose solve this one is
@@ -104,34 +123,14 @@ class ValidatedGroup:
     _own_form: Any = field(default=None, repr=False, compare=False)
 
     @property
-    def operations(self) -> OperationTable:
-        """The operations kept, by index, as :func:`.._seitz.operations` writes them.
-
-        Returns
-        -------
-        OperationTable or Refusal
-            A row for each entry of :attr:`indices`.
-
-        Refusals
-        --------
-        ``tables_not_ready``
-            The group has no conventional setting to write a Seitz symbol in.
-        """
-        table = _operation_rows(self._group)
-        if isinstance(table, Refusal):
-            return table
-        return OperationTable((table[int(i)] for i in sorted(self.indices)),
-                              name=table.name, number_str=table.number_str)
-
-    @property
     def broken(self) -> tuple:
         """The indices of the operations the Hamiltonian breaks."""
-        return tuple(d["ind"] for d in self.discrepancies)
+        return tuple(d.index for d in self.discrepancies)
 
     @property
     def obeyed(self) -> tuple:
         """The indices of the operations obeyed, each the only one of its class to act on ``k`` as it does."""
-        return tuple(i for i in self.indices if self.verdicts.get(i) == "obeyed")
+        return tuple(i for i in self._indices if self._verdicts.get(i) == "obeyed")
 
     @property
     def undetermined(self) -> tuple:
@@ -140,15 +139,21 @@ class ValidatedGroup:
         The measurement says some operation of the class holds; the
         representation settles which.
         """
-        return tuple(i for i in self.indices
-                     if self.verdicts.get(i) == "undetermined")
+        return tuple(i for i in self._indices
+                     if self._verdicts.get(i) == "undetermined")
+
+    def _counted(self) -> str:
+        """``"16 of 16 coset representatives of the lattice translations obeyed"``."""
+        n_kept = len(self._indices)
+        return f"{n_kept} of {n_kept + len(self.discrepancies)} {_PER_COSET} obeyed"
 
     def summary(self) -> str:
         """The verdicts, a line for each part, with the attribute that holds it."""
-        n_kept = len(self.indices)
-        lines = [(f"{self.group_label}: " if self.group_label else "")
-                 + f"{n_kept} of {n_kept + len(self.discrepancies)} {_PER_COSET} obeyed   "
-                 "(.indices, .verdicts)"]
+        n_broken, shared = len(self.discrepancies), len(self.undetermined)
+        lines = [self._counted() + ", "
+                 + ("none broken" if not n_broken else f"{n_broken} broken") + ", "
+                 + ("none undetermined" if not shared else f"{shared} undetermined")
+                 + "   (.obeyed, .broken, .undetermined)"]
         if bool(getattr(self._group, "spinor", False)):
             lines.append(f"  {_DOUBLE_GROUP}")
         if self.discrepancies:
@@ -156,28 +161,26 @@ class ValidatedGroup:
             names = [(table[int(i)].name if not isinstance(table, Refusal)
                       and int(i) in table else f"#{int(i)}") for i in self.broken]
             lines.append(f"  broken: {_names_text(names)}   (.broken, .discrepancies)")
-        shared = len(self.undetermined)
         if shared:
+            n_kept = len(self._indices)
             lines.append(("  every one acts on k as another does"
                           if shared == n_kept else
                           f"  {shared} act on k as another does")
                          + ", so H alone does not say which of each pair holds, and the "
-                         "representation decides   (.undetermined, .k_action_classes)")
+                         "representation decides   (.undetermined)")
         if not self.closed:
             lines.append("  those obeyed do not form a group   (.closed)")
-        held = [float(self.residuals[i]) for i in self.indices
+        held = [float(self.residuals[i]) for i in self._indices
                 if i in self.residuals and np.isfinite(self.residuals[i])]
         if held:
             lines.append(f"  each one's covariance residual, at most {max(held):.2g} against "
-                         f"the tolerance {float(self.tol):.2g}, on {int(self.n_kpts)} k-points   "
-                         "(.residuals, .tol, .n_kpts)")
+                         f"the tolerance {float(self.tol):.2g}, on {int(self.n_kpoints)} "
+                         "k-points   (.residuals, .tol, .n_kpoints)")
         return "\n".join(lines)
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
         shared = len(self.undetermined)
-        return (f"ValidatedGroup({self.group_label + ', ' if self.group_label else ''}"
-                f"{len(self.indices)} of {len(self.indices) + len(self.discrepancies)} "
-                f"{_PER_COSET} obeyed, which "
+        return (f"ValidatedGroup({self._counted()}, which "
                 + ("form a group" if self.closed else "do not form a group")
                 + (f"; they are {_DOUBLE_GROUP}"
                    if bool(getattr(self._group, "spinor", False)) else "")
@@ -361,7 +364,7 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
                     assignment=None, _floor=None) -> ValidatedGroup | Refusal:
     """Which operations of a group ``H(k)`` obeys, one residual each.
 
-    Returned as :attr:`.._realized.RealizedGroup.validated`; the descent and the
+    Returned as :attr:`.._realized.RealizedGroupNumerical.validated`; the descent and the
     symmetric projection put the same question to a group at a tighter ``tol``,
     on a different mesh, or to a subgroup assembled by hand.  Each candidate operation goes to
     :func:`.._detector._find_intertwiners`, which solves ``X H(k) = H(Rk) X`` (or
@@ -647,11 +650,15 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
             else:
                 verdicts[ind] = "obeyed" if len(members) == 1 else "undetermined"
 
-    return ValidatedGroup(indices=tuple(keep), discrepancies=tuple(disc),
+    return ValidatedGroup(_indices=tuple(keep),
+                          discrepancies=tuple(Discrepancy(index=int(d["ind"]),
+                                                          refuted_by=str(d["refuted_by"]),
+                                                          residual=float(d["residual"]))
+                                              for d in disc),
                           residuals=residuals, _nullspace_dims=dims, _intertwiners=intertwiners,
-                          closed=closed, tol=float(tol), n_kpts=int(k_pts.shape[0]),
-                          k_action_classes=classes, verdicts=verdicts,
-                          group_label=f"{group.name} #{group.number_str}",
+                          closed=closed, tol=float(tol), n_kpoints=int(k_pts.shape[0]),
+                          _k_action_classes=classes, _verdicts=verdicts,
+                          _group_label=f"{group.name} #{group.number_str}",
                           _records=records, _bases=bases, _group=group)
 
 
@@ -719,7 +726,7 @@ def _own_form_read(model, group, assignment, spin, validated, *, tolerances, cov
     :func:`.._build._build_rep`, handed it, reads it as it stands.
     """
 
-    kept = set(validated.indices)
+    kept = set(validated._indices)
     positions = [p for p, s in enumerate(group._symmetries) if int(s.ind) in kept]
     spaces, records = _own_form_spaces(model, group, assignment, validated, positions,
                                        spin=spin, tol=tolerances.matrix or None,
@@ -768,7 +775,7 @@ def _own_form_once(model, group, assignment, spin, validated, *, tol=None):
     if getattr(validated, "_own_form", None) is not None:
         return validated
     dim = max(int(group._dim_k), 1)
-    side = max(2, int(round(float(max(int(validated.n_kpts), 1)) ** (1.0 / dim))))
+    side = max(2, int(round(float(max(int(validated.n_kpoints), 1)) ** (1.0 / dim))))
     covariance = _grid_covariance(model, group, nk=side)
     tolerances = replace(EXACT, matrix=float(tol or 0.0))
     got, _refuted = _own_form_read(model, group, assignment, spin, validated,

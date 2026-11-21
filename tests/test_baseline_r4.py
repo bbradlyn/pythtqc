@@ -228,17 +228,20 @@ def _descent_summary(r):
     d = r.descent
     if d is None:
         return None
+    def named(g):
+        return {"number_str": _num(g.number_str), "name": _num(g.name), "size": _num(g.size)}
+
     return {
-        "from": {k: _num(v) for k, v in d["from"].items()},
-        "to": {k: _num(v) for k, v in d["to"].items()},
-        "n_dropped": len(d["dropped"]),
-        "iterations": int(d["iterations"]),
+        "from": named(d.cell_group),
+        "to": named(d.subgroup),
+        "n_dropped": len(d.dropped),
+        "iterations": int(d.iterations),
         "steps": [{"refuted_by": {str(k): int(v) for k, v in
-                                  (s.get("refuted_by") or {}).items()},
-                   "from": str(s["from"]["number_str"]),
-                   "to": str(s["to"]["number_str"]),
-                   "n_dropped": int(s["n_dropped"])}
-                  for s in d["steps"]],
+                                  (s.refuted_by or {}).items()},
+                   "from": str(s.cell_group.number_str),
+                   "to": str(s.subgroup.number_str),
+                   "n_dropped": int(s.n_dropped)}
+                  for s in d.steps],
     }
 
 
@@ -246,12 +249,15 @@ def snapshot(r, occ):
     """Every served field of one ``realized_group`` answer, as the file holds it."""
     out = {
         "number_str": str(r.group.number_str), "name": str(r.group.name),
-        "size": len(r.group._symmetries), "kept": len(r.validated.indices),
-        "labels": list(r.rep.characters.irreps),
-        "product_residual": float(r.rep.product_residual),
-        "time_reversal": r.time_reversal.get("outcome"),
+        "size": len(r.group._symmetries),
+        "kept": len(r.numerical.validated.obeyed) + len(r.numerical.validated.undetermined),
+        # a label per orbital, the per-orbital table the rows by Wyckoff orbit are
+        # listed from
+        "labels": list(r.rep._characters.irreps),
+        "product_residual": float(r.rep.numerical.product_residual),
+        "time_reversal": r.time_reversal.outcome,
         "orb": np.round(np.asarray(r.model.orb_vecs, float), 12).tolist(),
-        "environment": None if r.environment is None else str(r.environment),
+        "environment": None if r.environment is None else str(r.environment.kind),
         # the orientation branch is pinned by whether the build settled the
         # tie between the two branches by convention (both True and False occur)
         "branch_tie": _num(getattr(r.rep, "_branch_tie", None)),
@@ -259,22 +265,21 @@ def snapshot(r, occ):
         # invariant, not three independent facts (see the module docstring)
         "n_ops_represented": len(getattr(r.rep, "matrices", {}) or {}),
     }
-    w = r.cross_check
+    w = None if r.environment is None else r.environment.cross_check
     out["cross_check"] = None if w is None else {
-        "outcome": None if w.get("outcome") is None else str(w["outcome"]),
-        "agrees": w.get("agrees"),
-        "free_standing": (None if w.get("free_standing") is None
-                          else str(w["free_standing"]["number_str"])),
-        "substrate": (None if w.get("substrate") is None
-                      else str(w["substrate"]["number_str"])),
-        "n_rows": len(w.get("rows") or ()),
-        "missing": len(w.get("missing") or ()), "extra": len(w.get("extra") or ()),
-        "flipping": len(w.get("flipping") or ()),
-        "unmapped": len(w.get("unmapped") or ()),
-        "refusal_gate": (None if not w.get("refusal") else str(w["refusal"]["gate"])),
+        "outcome": None if w.outcome is None else str(w.outcome),
+        "agrees": w.agrees,
+        "free_standing": (None if w.free_standing is None
+                          else str(w.free_standing.number_str)),
+        "substrate": (None if w.substrate is None else str(w.substrate.number_str)),
+        "n_rows": len(w.rows or ()),
+        "missing": len(w.missing or ()), "extra": len(w.extra or ()),
+        "flipping": len(w.flipping or ()),
+        "unmapped": len(w.unmapped or ()),
+        "refusal_gate": (None if w.refusal is None else str(w.refusal.gate)),
     }
     out["descent"] = _descent_summary(r)
-    t = tqw.hsp_table(r.rep, bands=occ)
+    t = tqw.hsp_table(r, bands=occ)
     if isinstance(t, Refusal):
         out["content"] = {"__refusal__": str(t.gate)}
         out["indicator"] = {"__refusal__": str(t.gate)}
@@ -585,7 +590,7 @@ def _srsi_case(key, realized):
         r = realized(build, **kw)
         if isinstance(r, Refusal):
             return {"__refusal__": str(r.gate)}
-        t2 = tqw.hsp_table(r.rep, bands=2)
+        t2 = tqw.hsp_table(r, bands=2)
         return {"srsi_of_model": _srsi_model_record(tqr.srsi_of_model(r)),
                 "srsi_of_bands_2": _srsi_bands_record(
                     tqr.srsi_of_bands(t2, r.group, rep=r.rep, bands=2)),
@@ -604,7 +609,7 @@ def _srsi_case(key, realized):
         r = realized(LAYER_2D["p41_chiral"][0])
         if isinstance(r, Refusal):
             return {"__refusal__": str(r.gate)}
-        tv = tqw.hsp_table(r.rep, bands=2)
+        tv = tqw.hsp_table(r, bands=2)
         return {"number_str": str(r.group.number_str),
                 "srsi_of_model": _srsi_model_record(tqr.srsi_of_model(r)),
                 "srsi_of_bands_2": _srsi_bands_record(

@@ -160,7 +160,7 @@ def _atoms_of(model, spin):
         return atoms, np.arange(int(model.nstate)), True
     if spin is not None:
         return (tuple(tuple(int(o) for o in pair) for pair in spin.pairs),
-                np.asarray(spin.interleaved_index, dtype=int), True)
+                np.asarray(spin._interleaved_index, dtype=int), True)
     return tuple((int(o),) for o in range(int(model.norb))), None, False
 
 def _orthonormal(members, tol):

@@ -29,7 +29,7 @@ flowchart TD
     model -. "spin in the<br/>orbital index" .-> spin -. "spin=" .-> groups
     groups <-. "precision=" .-> symmetrization
     groups -- "builds r.rep" --> symmetry
-    symmetry -- "r.rep" --> sewing
+    groups -- "r" --> sewing
     sewing -- "t" --> ebr
     sewing -- "t" --> srsi
     groups -- "r.group" --> ebr
@@ -38,7 +38,7 @@ flowchart TD
 ```
 
 Each box is a module, with the calls it holds. Every call after `realized_group`
-takes what it returned, `r`: `hsp_table(r.rep, bands=n)` returns the table `t` of
+takes what it returned, `r`: `hsp_table(r, bands=n)` returns the table `t` of
 the bands' coreps, which `decompose`, `symmetry_indicator` and `srsi_of_bands`
 each read in the group it carries, as `decompose(t)`, and
 `srsi_of_model(r)` and `splitting(r, bands=n)` take the record whole. The group's
@@ -78,8 +78,8 @@ flowchart TD
     subgraph g_fields ["the records a RealizedGroup holds"]
         direction LR
         g_group[["r.group, GroupData: the space group, written in the model's own cell"]]
-        g_assignment[["r.assignment, OrbitalAssignment: where the orbitals sit, and how the operations move their sites"]]
-        g_validated[["r.validated, ValidatedGroup: the Hamiltonian's verdict on each operation, and how well each holds"]]
+        g_orbits[["r.wyckoff_orbits, AtomicLimitTable: the orbitals by Wyckoff orbit, and the site irreps each carries, from the symmetry module"]]
+        g_validated[["r.numerical.validated, ValidatedGroup: the Hamiltonian's verdict on each operation, and how well each holds"]]
         g_rep[["r.rep, SpaceGroupRep: the group's representation on the orbitals, from the symmetry module"]]
     end
 
@@ -110,21 +110,19 @@ orbitals ([how do I say what my orbitals are?](../guide/orbitals.md)).
 flowchart TD
     s_realized(["r = realized_group(model), from the groups module"])
     s_rep[["r.rep, SpaceGroupRep: each operation's matrix on the orbitals"]]
-    s_table[["AtomicLimitTable: each orbital's Wyckoff position and the site irrep it carries, a row per orbital"]]
-    s_mult[["SiteMultiplets: the multiplets the Hamiltonian binds each site's orbitals into"]]
+    s_table[["r.wyckoff_orbits, AtomicLimitTable: each Wyckoff orbit of orbitals and the site irreps it carries, a row per Wyckoff orbit"]]
 
     s_realized -- "builds r.rep" --> s_rep
-    s_rep -- ".characters" --> s_table
-    s_rep -- ".multiplets" --> s_mult
+    s_realized -- ".wyckoff_orbits" --> s_table
     s_table --> s_parts
     s_rep --> s_calls
     s_parts ~~~ s_calls
 
-    subgraph s_parts ["what an AtomicLimitTable holds"]
+    subgraph s_parts ["what a row of the AtomicLimitTable holds"]
         direction LR
-        s_row[["[i], AtomicLimitRow: orbital i's Wyckoff position, its site irrep, and how the irrep is known"]]
-        s_br[[".band_representations, BandRepresentation: the band representation each orbit of orbitals induces"]]
-        s_ms[[".multiplicity_spaces, MultiplicitySpace: a pseudospin the Hamiltonian conserves on an orbit of orbitals, and the site content assigned its copies"]]
+        s_row[["[i], WyckoffOrbit: one Wyckoff orbit's orbitals, the site irreps they carry, and how those are known"]]
+        s_br[[".band_representation, BandRepresentation: the band representation the orbit induces"]]
+        s_mult([".site_multiplets: the multiplets the Hamiltonian binds each site's orbitals into"])
     end
 
     subgraph s_calls ["calls on r.rep"]
@@ -161,7 +159,7 @@ flowchart TD
 ```
 
 Given `spin="interleaved"`, `"blocked"` or the pairs, `realized_group` calls
-`spin_basis` itself, and the representation keeps the basis on `r.rep.spin`.
+`spin_basis` itself, and keeps the basis on `r.spin`.
 
 ### `symmetrization`
 
@@ -176,14 +174,14 @@ flowchart TD
 
     subgraph y_fields ["fields of r"]
         direction LR
-        y_positions["r.positions"] --> y_moved(["the orbital centres moved onto the nearest positions the group carries"])
-        y_symmetrization["r.symmetrization"] --> y_sym[["Symmetrization: how far the model was moved onto its symmetric part, and why"]]
+        y_positions["r.numerical.positions"] --> y_moved(["the orbital centres moved onto the nearest positions the group carries"])
+        y_symmetrization["r.numerical.symmetrization"] --> y_sym[["Symmetrization: how far the model was moved onto its symmetric part, and why"]]
     end
 ```
 
 `realized_group` moves the centres and projects the Hamiltonian itself where
-`precision=` asks, and keeps the centres' correction on `r.positions` and the
-projection on `r.symmetrization`.
+`precision=` asks, and keeps the centres' correction on `r.numerical.positions`
+and the projection on `r.numerical.symmetrization`.
 
 ### `sewing`
 
@@ -192,19 +190,19 @@ eigenvectors ([which coreps do these bands carry?](../guide/labels.md)).
 
 ```mermaid
 flowchart TD
-    w_rep(["r.rep, from realized_group"])
+    w_rep(["r, from realized_group"])
     w_next(["decompose, symmetry_indicator and srsi_of_bands, which read t"])
 
     w_rep --> w_calls
     w_calls -- "t, from hsp_table" --> w_next
     w_next ~~~ w_tools
 
-    subgraph w_calls ["calls on r.rep"]
+    subgraph w_calls ["calls on r"]
         direction LR
-        w_ht["hsp_table(r.rep, bands=n)"] --> w_HT[["t, an HSPTable: the coreps the bands carry at every high-symmetry point, their symmetry data vector"]]
-        w_cc["corep_content(r.rep, k, bands=n)"] --> w_CC[["CorepContent: the coreps the bands carry at one high-symmetry point, multiplet by multiplet"]]
-        w_ch["characters(r.rep, k, bands=n)"] --> w_CT[["CharacterTable: the trace of each operation of the little group over each degenerate multiplet of the bands at k"]]
-        w_sm["sewing_matrix(r.rep, op, k, bands=n)"] --> w_SM[["SewingMatrix: the matrix of one operation on the bands at a k it leaves invariant, B(g,k)"]]
+        w_ht["hsp_table(r, bands=n)"] --> w_HT[["t, an HSPTable: the coreps the bands carry at every high-symmetry point, their symmetry data vector"]]
+        w_cc["corep_content(r, k, bands=n)"] --> w_CC[["CorepContent: the coreps the bands carry at one high-symmetry point, multiplet by multiplet"]]
+        w_ch["characters(r, k, bands=n)"] --> w_CT[["CharacterTable: the trace of each operation of the little group over each degenerate multiplet of the bands at k"]]
+        w_sm["sewing_matrix(r, op, k, bands=n)"] --> w_SM[["SewingMatrix: the matrix of one operation on the bands at a k it leaves invariant, B(g,k)"]]
     end
 
     subgraph w_tools ["calls on a spectrum"]
@@ -320,7 +318,7 @@ above it in this table, the public ones among them.
 | `_grammar` | the grammar of `characters=` and `site_multiplets=`, read where a call starts |
 | `_centres` | the orbital centres against the group's action: where the operations put them, and how far they miss |
 | `_naming` | site irreps named off the tables, each by the elementary band representation it induces |
-| `symmetry` | the representation's records: each operation's matrix on the model's states, the atomic-limit table and each orbital's row |
+| `symmetry` | the representation's records: each operation's matrix on the model's states, the atomic-limit table and each Wyckoff orbit's row |
 | `_sectors` | the sectors the conserved matrices acting within sites split the states into |
 | `_multiplets` | the multiplets the Hamiltonian binds each site's orbitals into, and the block of every operation on each |
 | `_declaration` | what a declaration states, read on the measured multiplets, and the verdict per operation it gives |

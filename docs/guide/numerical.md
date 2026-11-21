@@ -29,7 +29,7 @@ for h in clean.hoppings:
 rn = tqc.realized_group(noisy, typat=[0, 0, 1, 1], characters=["s", "dx2-y2", "s", "s"],
                         precision=1e-7)
 print(repr(rn))
-#  RealizedGroup(P4mm1' #99.164; precision 1e-07 declared -> tol 1.74e-05 (cut 1e-06, window 0.01), position_tol 1e-07 (measured max|H| 17.42); symmetrized (defect 5.54e-07); on a substrate (the default), the free-standing group #99.164 agrees)
+#  RealizedGroup(P4mm1' #99.164; precision 1e-07 declared -> tol 1.74e-05 (cut 1e-06, window 0.01), position_tol 1e-07 (measured max|H| 17.42); symmetrized (defect 5.54e-07); on a substrate (the default), the free-standing group P4mm1' #99.164 agrees)
 ```
 
 ## How to read it
@@ -69,13 +69,13 @@ print(repr(rn))
   projection of `H` onto its group-invariant part, which moved it by `5.54e-7` in the units
   of `H` ([then symmetrize](#then-symmetrize)).
 
-Every derived number is on the record's `precision` field:
+Every derived number is on the record's `numerical.precision` field:
 
 ```python
-p = rn.precision
-print(f"max|H| {p['max_h']:.4g}: tol {p['tol']:.3g}, cut {p['cut']:.3g}, window {p['window']:.3g}")
+p = rn.numerical.precision
+print(f"max|H| {p.max_h:.4g}: tol {p.tol:.3g}, cut {p.cut:.3g}, window {p.window:.3g}")
 #  max|H| 17.42: tol 1.74e-05, cut 1e-06, window 0.01
-print(f"position_tol {p['position_tol']:.0e}, symprec {p['symprec']:.0e}, raised: {p['symprec_raised']}")
+print(f"position_tol {p.position_tol:.0e}, symprec {p.symprec:.0e}, raised: {p.symprec_raised}")
 #  position_tol 1e-07, symprec 1e-05, raised: False
 ```
 
@@ -93,7 +93,7 @@ covariance check's tolerance for a model built from exact numbers:
 
 ```python
 print(repr(tqc.realized_group(noisy, typat=[0, 0, 1, 1], characters=["s", "dx2-y2", "s", "s"])))
-#  RealizedGroup(P11' #1.2; descended from #99.164 (14 of 16 coset representatives of the lattice translations broken; these are the single-valued group's, each standing for itself and its negative in the double group); on a substrate (the default), the free-standing group #1.2 agrees)
+#  RealizedGroup(P11' #1.2; descended from P4mm1' #99.164 (14 of 16 coset representatives of the lattice translations broken; these are the single-valued group's, each standing for itself and its negative in the double group); on a substrate (the default), the free-standing group P11' #1.2 agrees)
 ```
 
 The noise breaks every operation but the identity and time reversal, and the group returned
@@ -120,9 +120,9 @@ it, and near to the second, which does not, and the projection turns the Hamilto
 
 ```python
 from collections import Counter
-s = rn.symmetrization
-print(Counter(s.classes.values()), f"exact up to {s.exact_gate:.2g}, near up to {s.tol:.3g}")
-#  Counter({'near': 14, 'exact': 2}) exact up to 3.5e-13, near up to 1.74e-05
+s = rn.numerical.symmetrization
+print(f"{len(s.near)} near, {len(s.exact)} exact, near up to {s.tol:.3g}")
+#  14 near, 2 exact, near up to 1.74e-05
 ```
 
 The two exact operations are the identity and time reversal, which a real rescaling of each
@@ -173,12 +173,12 @@ Declaring the centres' tolerance is the fix:
 ```python
 fixed = tqc.realized_group(moved, characters={0: "A1"}, position_tol=1e-6)
 print(repr(fixed))
-#  RealizedGroup(P6mm1' #183.186; centres moved 5e-09; on a substrate (the default), the free-standing group #183.186 agrees)
-pos = fixed.positions
-print(f"{pos['defect_before']:.1e} -> {pos['defect_after']:.1e}, spectrum moved "
-      f"{pos['spectrum_residual']:.1e}; symmetrized: {fixed.symmetrization}")
+#  RealizedGroup(P6mm1' #183.186; centers moved 5e-09; on a substrate (the default), the free-standing group P6mm1' #183.186 agrees)
+pos = fixed.numerical.positions
+print(f"{pos.defect_before:.1e} -> {pos.defect_after:.1e}, spectrum moved "
+      f"{pos.spectrum_residual:.1e}; symmetrized: {fixed.numerical.symmetrization}")
 #  2.0e-08 -> 2.2e-16, spectrum moved 1.8e-15; symmetrized: None
-print(pos["frame"], f"each moved {pos['max_move']:.0e}, then both {abs(pos['offset'][0]):.0e};",
+print(pos.frame, f"each moved {pos.max_move:.0e}, then both {abs(pos.offset[0]):.0e};",
       "back where Kane-Mele has them:", np.allclose(fixed.model.orb_vecs[:, :2], km.orb_vecs,
                                                    rtol=0, atol=1e-15))
 #  model each moved 5e-09, then both 5e-09; back where Kane-Mele has them: True
@@ -198,18 +198,18 @@ declaration runs both steps, in this order.
 A declared precision is believed, and it bounds each centre. Centres the group's
 operations do not carry within it are not a defective copy of a symmetric set but a
 different set: an operation that would move a centre further than the declaration allows
-is broken by the centres, as one the hoppings break is, and the group descends to the
+is broken by the centers, as one the hoppings break is, and the group descends to the
 largest group of its operations that carries them within it. The centres are moved onto
 that group's positions before any hopping is read:
 
 ```python
 below = tqc.realized_group(moved, characters={0: "A1"}, position_tol=1e-9)
 print(repr(below))
-#  RealizedGroup(P21' #3.2; descended from #183.186 (20 of 24 coset representatives of the lattice translations broken by the centres; these are the single-valued group's, each standing for itself and its negative in the double group); on a substrate (the default), the free-standing group #3.2 agrees)
-print(f"{below.positions['move']:.1e} asked of a centre by the whole group, "
-      f"{below.positions['carried']} of its coset representatives carry them")
+#  RealizedGroup(P21' #3.2; descended from P6mm1' #183.186 (20 of 24 coset representatives of the lattice translations broken by the centers; these are the single-valued group's, each standing for itself and its negative in the double group); on a substrate (the default), the free-standing group P21' #3.2 agrees)
+print(f"{below.numerical.positions.move:.1e} asked of a centre by the whole group, "
+      f"{below.numerical.positions.carried} of its coset representatives carry them")
 #  5.0e-09 asked of a centre by the whole group, 4 of its coset representatives carry them
-print(tqc.hsp_table(below.rep, bands=2).counts)
+print(tqc.hsp_table(below, bands=2).counts)
 #  {'-GM3GM4': 1, '-A3A4': 1, '-B3B4': 1, '-Y3Y4': 1}
 ```
 
@@ -217,10 +217,10 @@ The whole group would have moved a centre by `5e-9`, five times the declared `1e
 twofold rotation through the midpoint of the two centres carries any pair of points, so it
 and time reversal are what the centres keep, and the group returned carries them exactly:
 its bands are labelled in it. Each broken operation is on the record's `descent`,
-`refuted_by = "centres"`, with how far it alone would move a centre and why.
+`refuted_by = "centers"`, with how far it alone would move a centre and why.
 The shift of both centres together that would write them in the model's own frame, `5e-9`,
 is beyond the declared `1e-9` as well, so it is no noise: the centres stay where they are,
-about the origin fitted to them, `positions["frame"]` reads `"fitted"`, and the labels are
+about the origin fitted to them, `numerical.positions.frame` reads `"fitted"`, and the labels are
 read about the twofold axis nearest the model's own origin.
 
 ### Centres noisier than `symprec`
@@ -234,9 +234,9 @@ low as `P1`, with no refusal at all:
 rng = np.random.default_rng(3)
 blurred = with_centres(km, km.orb_vecs + 5e-5 * rng.normal(size=(2, 2)))  # every centre off
 print(repr(tqc.realized_group(blurred)))
-#  RealizedGroup(P21' #3.2; on a substrate (the default), the free-standing group #3.2 agrees)
+#  RealizedGroup(P21' #3.2; on a substrate (the default), the free-standing group P21' #3.2 agrees)
 print(repr(tqc.realized_group(blurred, precision=1e-3)))
-#  RealizedGroup(P6mm1' #183.186; precision 0.001 declared -> tol 0.0297 (cut 0.01, window 0.3), position_tol 0.001 (measured max|H| 2.969), symprec raised to 0.01; centres moved 4.97e-05; on a substrate (the default), the free-standing group #183.186 agrees)
+#  RealizedGroup(P6mm1' #183.186; precision 0.001 declared -> tol 0.0297 (cut 0.01, window 0.3), position_tol 0.001 (measured max|H| 2.969), symprec raised to 0.01; centers moved 4.97e-05; on a substrate (the default), the free-standing group P6mm1' #183.186 agrees)
 ```
 
 Kane–Mele's two centres, each displaced at random on the scale of `5e-5` in reduced
@@ -254,23 +254,23 @@ low with nothing declared wants `precision=` before anything else.
 A near operation is one the declaration already calls symmetric within noise, so
 projecting `H` onto its group-invariant part moves it by about the residual, inside that
 same declaration, and the model that comes back passes the exact checks. `realized_group`
-runs the projection itself, where a declared precision calls for it, and the record's `symmetrization`
+runs the projection itself, where a declared precision calls for it, and the record's `numerical.symmetrization`
 says how far the Hamiltonian moved:
 
 ```python
 print(f"{len(s.near)} near, {len(s.exact)} exact; H moved by {s.defect:.2e}, "
-      f"{s.defect_relative:.1e} relative")
+      f"{s.defect / s.scale:.1e} relative")
 #  14 near, 2 exact; H moved by 5.54e-07, 3.4e-08 relative
-print(rn.source is noisy, rn.model is noisy)
+print(rn.numerical.source is noisy, rn.model is noisy)
 #  True False
 rc = tqc.realized_group(clean, typat=[0, 0, 1, 1], characters=["s", "dx2-y2", "s", "s"])
 print(rc.group.name == rn.group.name,
-      tqc.hsp_table(rn.rep, bands=6).counts == tqc.hsp_table(rc.rep, bands=6).counts,
+      tqc.hsp_table(rn, bands=6).counts == tqc.hsp_table(rc, bands=6).counts,
       max(np.abs(rn.rep.matrices[i] - rc.rep.matrices[i]).max() for i in rc.rep.matrices))
 #  True True 0.0
 ```
 
-The average moved `H` by `5.5e-7`, `3.4e-8` of its size. `rn.source` is the model handed in
+The average moved `H` by `5.5e-7`, `3.4e-8` of its size. `rn.numerical.source` is the model handed in
 and `rn.model` the symmetrized one, which every later call takes. The noisy model is
 returned the clean model's group, the clean model's band content at every high-symmetry
 point, and representation matrices identical to the clean model's.
@@ -281,7 +281,7 @@ tight-binding `H(k)` is a finite Fourier series, so the average goes back to a h
 exactly, with no fit. The projection also runs with no operation near, where the
 [multiplets](../reference/glossary.md#words-the-pages-use) a site's orbitals form hold only
 within the declared precision, as when a Wannier basis is turned inside its site by less
-than the precision: `symmetrization.multiplets` says how far they mix, and the projection
+than the precision: `symmetrization.site_multiplets` says how far they mix, and the projection
 removes that mixing and nothing else, so the orientation of the orbitals inside each
 multiplet stays the model's own. It runs, too, where
 [parts of the crystal](../background/measurement.md#what-the-hoppings-fix) are coupled to
@@ -314,13 +314,13 @@ for n, h in enumerate(clean.hoppings):
 rb = tqc.realized_group(one, typat=[0, 0, 1, 1], characters=["s", "dx2-y2", "s", "s"],
                         precision=1e-7)
 print(repr(rb))
-#  RealizedGroup(Pmm21' #25.58; precision 1e-07 declared -> tol 1.74e-05 (cut 1e-06, window 0.01), position_tol 1e-07 (measured max|H| 17.42); descended from #99.164 (8 of 16 coset representatives of the lattice translations broken; these are the single-valued group's, each standing for itself and its negative in the double group); on a substrate (the default), the free-standing group #25.58 agrees)
-print(rb.symmetrization, sorted({b["name"] for b in rb.descent["dropped"]}))
+#  RealizedGroup(Pmm21' #25.58; precision 1e-07 declared -> tol 1.74e-05 (cut 1e-06, window 0.01), position_tol 1e-07 (measured max|H| 17.42); descended from P4mm1' #99.164 (8 of 16 coset representatives of the lattice translations broken; these are the single-valued group's, each standing for itself and its negative in the double group); on a substrate (the default), the free-standing group Pmm21' #25.58 agrees)
+print(rb.numerical.symmetrization, sorted({b.name for b in rb.descent.dropped}))
 #  None ['C4(z)', "C4(z)'", 'C4^-1(z)', "C4^-1(z)'", 'm([1-10])', "m([1-10])'", 'm([110])', "m([110])'"]
 ```
 
 The fourfold rotations and the diagonal mirrors, each with its partner combined with time
-reversal, are broken and named on the record's `descent`, and `symmetrization` is `None`. The
+reversal, are broken and named on the record's `descent`, and `numerical.symmetrization` is `None`. The
 declared precision is what separates near from broken, which is why it is declared.
 
 ## A large model
@@ -370,6 +370,6 @@ A spinor calculation arrives from pythtb's importer as a spinless model with the
 the orbital index, and `spin=` beside `precision=` declares which orbitals are the up and
 down states of one Wannier function ([a wannier90 spinor import](spin.md#a-wannier90-spinor-import)).
 Every argument: [`realized_group`](../reference/functions.md#realized_group). Every field of the record's
-`precision`, `positions` and `symmetrization`: [the records reference](../reference/records.md).
+`numerical.precision`, `numerical.positions` and `numerical.symmetrization`: [the records reference](../reference/records.md).
 Every tolerance, with its unit and default: [the glossary](../reference/glossary.md). A real
 material on this route: [silicon from wannier90](../start/tutorial-wannier90.md).

@@ -109,11 +109,10 @@ def direct_gaps(gaps):
 print("\n1. SG 199: the group, and the levels of the four bands")
 m199 = tqm.i213_flicker2018()
 
-out199 = tqc.realized_group(m199, characters=DECLARE)
-_m, g199, asg199, val199, rep199 = out199
-sites199 = tqc.wyckoff_sites_tables(g199, asg199.site_positions)   # each site's Wyckoff position
+r199 = tqc.realized_group(m199, characters=DECLARE)
+g199 = r199.group
 row("realized group", f"#{g199.number_str} {g199.name}, s orbitals at Wyckoff "
-    f"{' and '.join(dict.fromkeys(s.wyckoff for s in sites199))}, "
+    f"{' and '.join(dict.fromkeys(o.wyckoff for o in r199.wyckoff_orbits))}, "
     f"{m199.nstate} bands")
 
 # one diagonalization per high-symmetry point: corep_content reads the
@@ -123,7 +122,7 @@ hsp199 = tqc.high_symmetry_points(g199)
 levels199 = []                     # (k-point, energy, corep label, degeneracy)
 for point in sorted(hsp199):
     k = hsp199[point]
-    out = tqc.corep_content(rep199, k, states=solve_at(m199, k), bands=4)
+    out = tqc.corep_content(r199, k, states=solve_at(m199, k), bands=4)
     rows = []
     for multiplet, dim, counts in zip(out.table.multiplets, out.table.dims, out.labels):
         energy = float(out.table.spectrum[multiplet[0]])
@@ -136,7 +135,7 @@ print(f"   {' and '.join(threefold)} are threefold: the spin-1 fermions")
 ########### 2. SG 199: one elementary band representation, and the gaps ###########
 
 print("\n2. SG 199: the four bands together, and the three inter-band gaps")
-t199 = tqc.hsp_table(rep199, bands=4)          # the content at every point, in one table
+t199 = tqc.hsp_table(r199, bands=4)          # the content at every point, in one table
 d199 = tqc.decompose(t199)
 row("all 4 bands", fmt(t199.counts))
 row(*atomic_limits(d199))
@@ -166,11 +165,10 @@ field = [(p.tolist(), int(t)) for p, t in zip(cell["positions"], cell["typat"])
 # site-symmetry group 23, so they are one two-dimensional multiplet: the
 # doublet a d_z2, d_x2-y2 pair carries there, whose matrices are those two
 # functions' own.
-out208 = tqc.realized_group(m208, decorations=field)
-_m, g208, asg208, val208, rep208 = out208
-sites208 = tqc.wyckoff_sites_tables(g208, asg208.site_positions)
+r208 = tqc.realized_group(m208, decorations=field)
+g208 = r208.group
 row("realized group", f"#{g208.number_str} {g208.name}, orbitals at Wyckoff "
-    f"{' and '.join(dict.fromkeys(s.wyckoff for s in sites208))}, "
+    f"{' and '.join(dict.fromkeys(o.wyckoff for o in r208.wyckoff_orbits))}, "
     f"{m208.nstate} bands")
 row("crystal field", f"{len(field)} atoms that carry no orbital, the paper's own device")
 
@@ -178,7 +176,7 @@ hsp208 = tqc.high_symmetry_points(g208)
 levels208 = []
 for point in sorted(hsp208):
     k = hsp208[point]
-    out = tqc.corep_content(rep208, k, states=solve_at(m208, k), bands=4)
+    out = tqc.corep_content(r208, k, states=solve_at(m208, k), bands=4)
     rows = []
     for multiplet, dim, counts in zip(out.table.multiplets, out.table.dims, out.labels):
         energy = float(out.table.spectrum[multiplet[0]])
@@ -189,7 +187,7 @@ for point in sorted(hsp208):
 ########### 4. SG 208: one elementary band representation, and the gaps ###########
 
 print("\n4. SG 208: the four bands together, and the three inter-band gaps")
-t208 = tqc.hsp_table(rep208, bands=4)
+t208 = tqc.hsp_table(r208, bands=4)
 d208 = tqc.decompose(t208)
 row("all 4 bands", fmt(t208.counts))
 row(*atomic_limits(d208))
@@ -209,12 +207,12 @@ print("\n5. SG 208: each half of the split on its own")
 
 # hsp_table takes the indices of the bands to read, so each half is asked
 # exactly as the whole set was in section 4.
-table_lo = tqc.hsp_table(rep208, bands=(0, 1))
+table_lo = tqc.hsp_table(r208, bands=(0, 1))
 d_lo = tqc.decompose(table_lo)
 row("bands 0 and 1", fmt(table_lo.counts))
 row(*atomic_limits(d_lo))
 
-table_hi = tqc.hsp_table(rep208, bands=(2, 3))
+table_hi = tqc.hsp_table(r208, bands=(2, 3))
 d_hi = tqc.decompose(table_hi)
 row("bands 2 and 3", fmt(table_hi.counts))
 row(*atomic_limits(d_hi))

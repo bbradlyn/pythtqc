@@ -98,13 +98,11 @@ def atomic_limits(d):
 
 print("\n1. the model, its two site orbits and all eight bands")
 r = tqc.realized_group(lin3g(), typat=TYPAT, characters=DECLARE)
-model, group, assignment, validated, rep = r
-sites = tqc.wyckoff_sites_tables(group, assignment.site_positions)   # each site's Wyckoff position
-letters = []
-for site in sites:
-    label = site.wyckoff
-    if label not in letters:
-        letters.append(label)
+model, group = r.model, r.group
+letters = []                       # each Wyckoff orbit's position, in the model's order
+for orbit in r.wyckoff_orbits:
+    if orbit.wyckoff not in letters:
+        letters.append(orbit.wyckoff)
 row("realized group", f"#{group.number_str} {group.name}, orbitals at Wyckoff "
     f"{' and '.join(letters)}, {model.nstate} bands")
 
@@ -114,7 +112,7 @@ first, second = m_srsi.orbits[0], m_srsi.orbits[1]
 row(f"the {first.multiplicity}{first.letter} orbit", fmt(first.content))
 row(f"the {second.multiplicity}{second.letter} orbit", fmt(second.content))
 
-t8 = tqc.hsp_table(rep, bands=8)
+t8 = tqc.hsp_table(r, bands=8)
 d8 = tqc.decompose(t8)
 own_terms = [" + ".join(f"{n} x {name}@{where}" for n, name, where in orbit.chosen["terms"])
              for orbit in (first, second)]
@@ -133,7 +131,7 @@ print("   atomic insulator, not the one whose splittings the supplement tabulate
 ########### 2. bands 4 and 5: where the Z2-valued invariants come from ###########
 
 print("\n2. bands 4 and 5: the Z2-valued invariants come from the orbitals, not the bands")
-p2 = tqc.hsp_table(rep, bands=[4, 5])
+p2 = tqc.hsp_table(r, bands=[4, 5])
 d2 = tqc.decompose(p2)
 row("bands 4 and 5", fmt(p2.counts))
 row(*atomic_limits(d2))

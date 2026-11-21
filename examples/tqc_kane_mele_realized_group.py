@@ -142,15 +142,14 @@ def indicator(si):
 print("\n1. delta = 1.0, rashba = 0.25")
 m1 = kane_mele(1.0, T, SOC, 0.25)
 
-out1 = tqc.realized_group(m1, typat=TYPAT, characters=DECLARE)
-model1, g1, asg1, val1, rep1 = out1
-sites1 = tqc.wyckoff_sites_tables(g1, asg1.site_positions)   # each site's Wyckoff position
-seats1 = list(dict.fromkeys(s.wyckoff for s in sites1))
+r1 = tqc.realized_group(m1, typat=TYPAT, characters=DECLARE)
+g1 = r1.group
+seats1 = list(dict.fromkeys(o.wyckoff for o in r1.wyckoff_orbits))   # each orbit's Wyckoff position
 row("realized group", f"#{g1.number_str} {g1.name}, orbitals at Wyckoff "
-    f"{' and '.join(seats1)}, {model1.nstate} bands")
+    f"{' and '.join(seats1)}, {r1.model.nstate} bands")
 
-t_val1 = tqc.hsp_table(rep1, bands=(0, 1))
-t_con1 = tqc.hsp_table(rep1, bands=(2, 3))
+t_val1 = tqc.hsp_table(r1, bands=(0, 1))
+t_con1 = tqc.hsp_table(r1, bands=(2, 3))
 d_val1 = tqc.decompose(t_val1)
 d_con1 = tqc.decompose(t_con1)
 
@@ -177,15 +176,14 @@ print(f"   symmetry indicator tells bands 0 and 1 from an atomic limit at {seat1
 print("\n2. delta = 2.5, rashba = 0.25")
 m2 = kane_mele(2.5, T, SOC, 0.25)          # delta past the K-point gap closing
 
-out2 = tqc.realized_group(m2, typat=TYPAT, characters=DECLARE)
-_m, g2, asg2, val2, rep2 = out2
-sites2 = tqc.wyckoff_sites_tables(g2, asg2.site_positions)
-seats2 = list(dict.fromkeys(s.wyckoff for s in sites2))
+r2 = tqc.realized_group(m2, typat=TYPAT, characters=DECLARE)
+g2 = r2.group
+seats2 = list(dict.fromkeys(o.wyckoff for o in r2.wyckoff_orbits))
 row("realized group", f"#{g2.number_str} {g2.name}, orbitals at Wyckoff "
     f"{' and '.join(seats2)}")
 
-t_val2 = tqc.hsp_table(rep2, bands=(0, 1))
-t_con2 = tqc.hsp_table(rep2, bands=(2, 3))
+t_val2 = tqc.hsp_table(r2, bands=(0, 1))
+t_con2 = tqc.hsp_table(r2, bands=(2, 3))
 d_val2 = tqc.decompose(t_val2)
 d_con2 = tqc.decompose(t_con2)
 
@@ -205,15 +203,14 @@ print(f"   moves from {seat1} to {seat2}")
 print("\n3. delta = 0, rashba = 0")
 m3 = kane_mele(0.0, T, SOC, 0.0)           # no staggering, no Rashba
 
-out3 = tqc.realized_group(m3, characters=DECLARE)     # one species: delta = 0
-_m, g3, asg3, val3, rep3 = out3
-sites3 = tqc.wyckoff_sites_tables(g3, asg3.site_positions)
-seats3 = list(dict.fromkeys(s.wyckoff for s in sites3))
+r3 = tqc.realized_group(m3, characters=DECLARE)     # one species: delta = 0
+g3 = r3.group
+seats3 = list(dict.fromkeys(o.wyckoff for o in r3.wyckoff_orbits))
 row("realized group", f"#{g3.number_str} {g3.name}, orbitals at Wyckoff "
     f"{' and '.join(seats3)}")
 
-t_val3 = tqc.hsp_table(rep3, bands=(0, 1))
-t_con3 = tqc.hsp_table(rep3, bands=(2, 3))
+t_val3 = tqc.hsp_table(r3, bands=(0, 1))
+t_con3 = tqc.hsp_table(r3, bands=(2, 3))
 d_val3 = tqc.decompose(t_val3)
 d_con3 = tqc.decompose(t_con3)
 
@@ -232,15 +229,14 @@ print(f"   lowers this group to #{g1.number_str}")
 print("\n4. delta = 0, rashba = 0.25")
 m4 = kane_mele(0.0, T, SOC, 0.25)          # the same crystal, Rashba turned on
 
-out4 = tqc.realized_group(m4, characters=DECLARE)
-_m, g4, asg4, val4, rep4 = out4
-sites4 = tqc.wyckoff_sites_tables(g4, asg4.site_positions)
-seats4 = list(dict.fromkeys(s.wyckoff for s in sites4))
+r4 = tqc.realized_group(m4, characters=DECLARE)
+g4 = r4.group
+seats4 = list(dict.fromkeys(o.wyckoff for o in r4.wyckoff_orbits))
 row("realized group", f"#{g4.number_str} {g4.name}, orbitals at Wyckoff "
     f"{' and '.join(seats4)}")
 
-t_val4 = tqc.hsp_table(rep4, bands=(0, 1))
-t_con4 = tqc.hsp_table(rep4, bands=(2, 3))
+t_val4 = tqc.hsp_table(r4, bands=(0, 1))
+t_con4 = tqc.hsp_table(r4, bands=(2, 3))
 d_val4 = tqc.decompose(t_val4)
 d_con4 = tqc.decompose(t_con4)
 
@@ -257,7 +253,7 @@ energies_k4 = np.asarray(states_k4[0], dtype=float).reshape(-1)
 multiplets_k4 = tqc.multiplets(energies_k4, degeneracy_tol=1e-6)
 levels_k4 = []
 for multiplet in multiplets_k4:
-    content = tqc.corep_content(rep4, hsp4["K"], states=states_k4, bands=list(multiplet))
+    content = tqc.corep_content(r4, hsp4["K"], states=states_k4, bands=list(multiplet))
     levels_k4.append((content, float(np.mean(energies_k4[list(multiplet)])),
                       len(multiplet)))
 row("coreps at K", *(f"{fmt(c.counts)} at E = {e:+.6f}, dimension {n}"
@@ -271,7 +267,7 @@ print(f"\n5. the conserved operators, read off H(k) on a {NK_MESH}x{NK_MESH} mes
 # realized_group tests each operation g on H(k) over its 6 x 6 mesh, solving
 # X H(k) = H(gk) X at every k at once.  For the identity that is X H(k) = H(k) X,
 # whose solutions are the operators the Hamiltonian conserves, and
-# conserved["dim"] counts them beyond the identity; the call is told nothing
+# conserved.dim counts them beyond the identity; the call is told nothing
 # about spin.  The commutator with s_z says which operator it is.
 kx = np.arange(NK_MESH) / NK_MESH
 ks = np.stack(np.meshgrid(kx, kx, indexing="ij"), -1).reshape(-1, 2)
@@ -282,9 +278,9 @@ comm3 = float(np.abs(sz @ h3 - h3 @ sz).max())
 h4 = np.asarray(m4.hamiltonian(k_pts=ks, flatten_spin_axis=True))
 comm4 = float(np.abs(sz @ h4 - h4 @ sz).max())
 row("delta, rashba", f"{'beyond the identity':<22}max |[s_z, H(k)]|")
-row("0, 0", f"{out3.conserved['dim']:<22}{comm3:.6f}")
-row("0, 0.25", f"{out4.conserved['dim']:<22}{comm4:.6f}")
-row("1.0, 0.25", f"{out1.conserved['dim']:<22}not measured")
+row("0, 0", f"{r3.conserved.dim:<22}{comm3:.6f}")
+row("0, 0.25", f"{r4.conserved.dim:<22}{comm4:.6f}")
+row("1.0, 0.25", f"{r1.conserved.dim:<22}not measured")
 print("   at rashba = 0 the one conserved operator beyond the identity is s_z, whose")
 print("   conservation the Rashba term breaks")
 
@@ -320,7 +316,7 @@ row_mid = [f"{z.real:+.0f}" if abs(z.imag) < 1e-9 else
 row_hi = [f"{z.real:+.0f}" if abs(z.imag) < 1e-9 else
           (f"{z.imag:+.0f}i" if abs(z.real) < 1e-9 else f"{z:+.3f}")
           for z in chi_hi]
-names = [out4.operations[i].name for i in c_mid.table.columns]
+names = [r4.operations[i].name for i in c_mid.table.columns]
 widths = [max(len(a), len(b), len(c)) for a, b, c in zip(names, row_mid, row_hi)]
 for label, cells in (("operations at K", names), (fmt(c_mid.counts), row_mid),
                      (fmt(c_hi.counts), row_hi)):
@@ -348,14 +344,12 @@ _e, vectors = deep.solve_ham(k_pts=deep.k_uniform_mesh([12, 12]), return_eigvecs
 weight = (np.abs(vectors[:, :2]) ** 2).sum(axis=(0, 1, -1))
 weight = weight / weight.sum()             # the weight of bands 0 and 1 per orbital
 
-out_deep = tqc.realized_group(deep, typat=TYPAT, characters=DECLARE)
-_m, g_deep, asg_deep, _v, rep_deep = out_deep
-sites_deep = tqc.wyckoff_sites_tables(g_deep, asg_deep.site_positions)
-t_deep = tqc.hsp_table(rep_deep, bands=2)
+r_deep = tqc.realized_group(deep, typat=TYPAT, characters=DECLARE)
+t_deep = tqc.hsp_table(r_deep, bands=2)
 d_deep = tqc.decompose(t_deep)
-# the assignment's site_of_orbital names the site each orbital sits on
-heavy = sites_deep[int(asg_deep.site_of_orbital[int(np.argmax(weight))])]
-light = sites_deep[int(asg_deep.site_of_orbital[int(np.argmin(weight))])]
+# the Wyckoff orbit each orbital belongs to, read off the rows of the atomic-limit table
+heavy = next(o for o in r_deep.wyckoff_orbits if int(np.argmax(weight)) in o.orbitals)
+light = next(o for o in r_deep.wyckoff_orbits if int(np.argmin(weight)) in o.orbitals)
 row("bands 0 and 1", by_point(t_deep))
 limits(d_deep)
 row("orbital weight", f"{100 * weight.max():.2f} % on the orbital at Wyckoff "

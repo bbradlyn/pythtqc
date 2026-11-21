@@ -74,7 +74,7 @@ import pytest
 from pythtqc import ebr as tqe
 from pythtqc import groups as tqg
 from pythtqc import srsi as tqr
-from pythtqc.refusal import Refusal
+from pythtqc.refusal import MagneticScopeWarning, Refusal
 from pythtqc import _smith
 from pythtqc import _spacegroup
 from pythtqc import _srsitables
@@ -730,13 +730,17 @@ def test_the_shipped_rows_generate_the_group_their_structure_names(every_table):
 # the loader's gates
 # ---------------------------------------------------------------------------
 
-def test_srsi_tables_refuses_a_unitary_group(lin3g, lin3g_declared_cross_checked):
+def test_srsi_tables_refuses_a_unitary_group(lin3g):
     """The tables are the time-reversal-symmetric ones, and the type is measured.
 
     And every route that stands on the tables returns the same refusal for a
     unitary group rather than an answer: the band route, the model route, the
-    splitting and the pairs the SRSIs do not distinguish.
+    splitting and the pairs the SRSIs do not distinguish.  The model routes read
+    Haldane's model, whose hoppings break time reversal, so that its group is the
+    unitary ``P6 #168``.
     """
+    from pythtb.models import haldane
+
     group = _spacegroup._group_of(lin3g, include_TR=False)
     assert group, str(group)
     out = tqr.srsi_tables(group)
@@ -744,11 +748,13 @@ def test_srsi_tables_refuses_a_unitary_group(lin3g, lin3g_declared_cross_checked
     assert out.context["magnetic_type"] == "I"
     assert "type-II" in out.reason
 
-    model, _grey, assignment, _validated, rep = lin3g_declared_cross_checked
+    with pytest.warns(MagneticScopeWarning):
+        broken = tqg.realized_group(haldane(0.0, -1.0, 0.15), cross_check=False)
+    assert broken and broken.group.magnetic_type == "I", str(broken)
     for route, refused in (
             ("srsi_of_bands", tqr.srsi_of_bands({}, group)),
-            ("srsi_of_model", tqr.srsi_of_model((model, group, assignment, rep))),
-            ("splitting", tqr.splitting((model, group, assignment, rep), bands=4)),
+            ("srsi_of_model", tqr.srsi_of_model(broken)),
+            ("splitting", tqr.splitting(broken, bands=1)),
             ("stably_equivalent_pairs", tqr.stably_equivalent_pairs(group))):
         assert not refused and refused.gate == "srsi_scope", (route, str(refused))
         assert refused.context["magnetic_type"] == "I", route
@@ -770,7 +776,7 @@ def test_srsi_tables_refuses_a_stale_ebr_basis_and_names_both_lists(
     ``lru_cache``d, so editing the record in place would leak into every later
     ``_build``.
     """
-    _model, group, _asg, _val, _rep = lin3g_declared_cross_checked
+    group = lin3g_declared_cross_checked.group
     valuedness = "double" if group.spinor else "single"
     real = _srsitables._document(valuedness)
     doctored = dict(real, groups=dict(real["groups"]))
@@ -809,7 +815,7 @@ def test_srsi_of_columns_accepts_a_table_or_a_group_and_refuses_a_wrong_length(
     and both halves of its reading are pinned before the three routes are
     compared on it.
     """
-    _model, group, _asg, _val, rep = lin3g_declared_cross_checked
+    group = lin3g_declared_cross_checked.group
     table = tqr.srsi_tables(group)
     p = [0] * len(table.ebrs)
     p[0], p[-1] = 2, 1
@@ -902,7 +908,7 @@ def test_srsi_tables_takes_a_number_or_a_group_and_serves_the_same_table(
     What discriminates here is the rest: the two :class:`ValueError`\\ s, the
     number string, the row and site-key counts and the structure string.
     """
-    _model, group, _asg, _val, _rep = lin3g_declared_cross_checked
+    group = lin3g_declared_cross_checked.group
     assert group.number_str == "99.164" and group.spinor
 
     by_group = tqr.srsi_tables(group)

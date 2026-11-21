@@ -18,34 +18,33 @@ What each thing is called where a call returns it.
 |---|---|---|
 | the space group the Hamiltonian obeys | `name`, its Hermann–Mauguin symbol (`"P6/mmm1'"`); `number_str`, the label the tables file it under (`"191.234"`) | `r.group`, and `number_str` on every record read in it |
 | an operation | `index`, its index in the tables' order; `seitz`, its Seitz symbol `{R\|t}` in the tables' conventional setting; `name`, its name in the model's Cartesian frame, `C3(z)` or `m(x)`, primed where it carries time reversal | `r.operations`, `operation_index` |
-| the verdict on each operation | `verdicts`: `"obeyed"`, `"broken"` or `"undetermined"`; `indices`, the operations kept | `r.validated` |
-| the group the cell allowed, and the group the descent arrived at | `descent["from"]` and `descent["to"]` | `r.descent` |
-| what dropped an operation | `refuted_by` | `r.descent["dropped"]` |
-| what a declaration excluded before any hopping was read | `decoration["declared"]` | `r.decoration` |
-| what lies under a layer | `environment`: `"substrate"` or `"free-standing"`; `environment_declared`, whether anybody said | `r.environment`; the `environment=` argument |
-| the other environment's group | `cross_check` | `r.cross_check` |
-| time reversal, as measured | `time_reversal["outcome"]`: `"kept"` or `"measured broken"` | `r.time_reversal` |
-| symmetry beyond the crystal's own | `conserved["dim"]`, printed `additional commuting matrices` | `r.conserved` |
-| how the conserved matrices acting within sites split the states | `conserved["sectors"]`, each sector's `orbitals`, `sites`, `copies` and `dim`; `conserved["images"]`, where each operation carries each sector | `r.conserved` |
+| the verdict on each operation | `obeyed`, `broken` and `undetermined`, the operations by index | `r.numerical.validated` |
+| the group the cell allowed, and the group the descent arrived at | `descent.cell_group` and `descent.subgroup` | `r.descent` |
+| what dropped an operation | `refuted_by` | `r.descent.dropped` |
+| what a declaration excluded before any hopping was read | `decoration.declared` | `r.decoration` |
+| what lies under a layer | `kind`: `"substrate"` or `"free-standing"`; `declared`, whether anybody said | `r.environment`; the `environment=` argument |
+| the other environment's group | `cross_check` | `r.environment` |
+| time reversal, as measured | `time_reversal.outcome`: `"kept"` or `"measured broken"` | `r.time_reversal` |
+| symmetry beyond the crystal's own | `conserved.dim`, printed `additional commuting matrices` | `r.conserved` |
+| how the conserved matrices acting within sites split the states | `conserved.sectors`, each sector's `orbitals`, `sites`, `copies` and `dim`; `conserved.images`, where each operation carries each sector | `r.conserved` |
 
 ### The orbitals
 
 | what it is | its name | where |
 |---|---|---|
 | the Wyckoff position | `wyckoff`, multiplicity and letter (`"6c"`); `letter`, the letter alone | `wyckoff` on the atomic-limit table and on `wyckoff_sites_tables`' positions; `letter` on the SRSI records |
-| the Wyckoff letter, in the tables' setting and in spglib's | `wyckoff_tables`, the letter a table is read with; `wyckoff_spglib` and `wyckoff_spglib_dataset`, spglib's standardization, which are information and never a table key | `r.assignment` |
-| the sites the group's operations carry onto one another, all at one Wyckoff position | `orbits` | `r.assignment` |
-| the site-symmetry group | `site_symmetry`, its Hermann–Mauguin symbol (`"-42m"`); `site_group`, the indices of its operations | the atomic-limit table; `r.assignment` |
-| the orbital function | `function`, the word a declaration wrote, spelled as `characters=` takes it; blank on a row nothing declared a function for | the atomic-limit table |
-| the site irrep | `irrep`, and `declared_irrep` for what a declaration resolved to | the atomic-limit table; `rep.characters.irreps`, one per orbital |
+| the sites the group's operations carry onto one another, all at one Wyckoff position | a Wyckoff orbit: a row, its `orbitals`, and its sites' positions as `numerical.positions` | the atomic-limit table, `r.wyckoff_orbits` |
+| the site-symmetry group | `site_symmetry`, its Hermann–Mauguin symbol (`"-42m1'"`); `unitary_site_symmetry`, without time reversal (`"-42m"`) | the atomic-limit table |
+| the orbital function | `declared`, the word a declaration wrote, spelled as `characters=` takes it; `None` on a row nothing was declared for | the atomic-limit table |
+| the site irrep | `label`, and `numerical.declared_irrep` for what a declaration resolved to | the atomic-limit table |
 | how a site irrep is known | `determined_by`: `declaration`, `declaration not carried`, `hamiltonian` or `lowest-l` | the atomic-limit table |
-| where its name comes from | `named_by`: `tables`, `invariants`, `point group`, `Mulliken` or `unnamed` | the atomic-limit table |
-| the orbitals the Hamiltonian binds into one carrier of a site irrep | a multiplet: `multiplet` on a row; per site, `rep.multiplets` | the atomic-limit table; `r.rep` |
+| where its name comes from | `numerical.named_by`: `tables`, `invariants`, `point group`, `Mulliken` or `unnamed` | the atomic-limit table |
+| the orbitals the Hamiltonian binds into one carrier of a site irrep | a multiplet: per site, `site_multiplets` on a row | the atomic-limit table |
 | a choice of the one-dimensional characters the hoppings leave open, one on each coupled part | a labelling: a declaration fixes it, and the lowest-ℓ rule makes it otherwise; `determined_by` says which rows rest on it, and `note` which band sets' labels | the atomic-limit table; `hsp_table` |
-| a conserved pseudospin, and the site content assigned its copies | `multiplicity_spaces`, one `MultiplicitySpace` per orbit: its `content` the one assigned, `contents` every one the group's table admits, `n_representations` how many representations of the copies it admits | the atomic-limit table |
-| the band representation an orbit induces | `band_representations`, one `BandRepresentation` per orbit, its `terms` the elementary band representations it is the sum of | the atomic-limit table |
+| a conserved pseudospin, and the site content assigned its copies | on a row, `label` the one assigned, `numerical.contents` every one the group's table admits, `numerical.n_representations` how many representations of the copies it admits | the atomic-limit table |
+| the band representation a Wyckoff orbit induces | `band_representation`, a `BandRepresentation` on each row, its `terms` the elementary band representations it is the sum of | the atomic-limit table |
 | the matrix of each operation on the orbitals | `matrices`, keyed on the operation's index | `r.rep` |
-| a declared spinor basis on a spinless model | `spin`, a `SpinBasis` | `r.rep.spin`; the `spin=` argument |
+| a declared spinor basis on a spinless model | `spin`, a `SpinBasis` | `r.spin`; the `spin=` argument |
 
 ### The bands
 
@@ -80,10 +79,10 @@ What each thing is called where a call returns it.
 
 | what it is | its name | where |
 |---|---|---|
-| the model's own relative precision | `precision`, and the tolerances it derives | the `precision=` argument; `r.precision` |
-| how far the orbital centres miss the group's own action, and their correction | `defect`, `adjusted`, `max_move`, `offset`, `frame` | `r.positions` |
-| an operation measured against a declared tolerance | `"exact"`, `"near"` or `"broken"` | `r.symmetrization.classes`, which holds the first two |
-| how far the symmetrization moved `H` | `defect`, in the units of `H`; `defect_relative` | `r.symmetrization` |
+| the model's own relative precision | `precision`, and the tolerances it derives | the `precision=` argument; `r.numerical.precision` |
+| how far the orbital centres miss the group's own action, and their correction | `defect`, `adjusted`, `max_move`, `offset`, `frame` | `r.numerical.positions` |
+| an operation measured against a declared tolerance | `"exact"`, `"near"` or `"broken"` | `r.numerical.symmetrization`, whose `exact` and `near` hold the first two |
+| how far the symmetrization moved `H` | `defect`, in the units of `H`; `scale`, the size of `H` it is read against | `r.numerical.symmetrization` |
 
 ### A refusal
 
@@ -95,9 +94,8 @@ What each thing is called where a call returns it.
 
 ## Words the pages use
 
-**Assignment.** Where the orbitals sit: `r.assignment`, the `OrbitalAssignment`
-that places each orbital on its site and Wyckoff position and says how the
-operations carry the sites onto one another. What the orbitals carry there is
+**Assignment.** Where the orbitals sit: `r.wyckoff_orbits`, a row per Wyckoff
+orbit, placing each orbital on its site and Wyckoff position. What the orbitals carry there is
 a labelling.
 
 **Atomic limit.** A band set carried by exponentially localized, symmetric
@@ -154,7 +152,7 @@ its decoupled stack.
 **Descent.** The cell lowered to a group of the operations that hold, and
 identified again; `r.descent`. A **reduction** is the cell lowered by declared
 content before any hopping is read, which is not a descent and is on
-`r.decoration["declared"]`.
+`r.decoration.declared`.
 
 **Diagnosed topological.** A splitting for which no pair of atomic
 realizations of its two sides adds up to the whole's `ℤ_n`-valued invariants,
@@ -274,7 +272,9 @@ multiplet at each site, with a spin or without; a declaration states what they
 carry, and the lowest-ℓ rule assigns it otherwise, the copies read copy by copy
 first. With a spin they carry an ordinary representation and the spin its own
 lift.
-`multiplicity_spaces` on the atomic-limit table names each one.
+A row of `r.wyckoff_orbits` whose orbitals hold a conserved pseudospin lists the
+site irreps its copies can carry in `numerical.contents`, and
+`numerical.n_representations` counts the representations of the copies.
 
 **Real-space invariant.** A combination of the multiplicities of site irreps at
 Wyckoff positions that no symmetric deformation of the Wannier functions can

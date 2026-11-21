@@ -113,16 +113,15 @@ def atomic_limits(d):
 print("\n1. the spinful atomic limit")
 atomic = tqm.i41_atomic()
 
-out = tqc.realized_group(atomic, characters=DECLARE)
-model, group, assignment, validated, rep = out
-sites = tqc.wyckoff_sites_tables(group, assignment.site_positions)   # each site's Wyckoff position
+r = tqc.realized_group(atomic, characters=DECLARE)
+group = r.group
 row("realized group", f"#{group.number_str} {group.name}, s orbitals at Wyckoff "
-    f"{' and '.join(dict.fromkeys(s.wyckoff for s in sites))}, "
-    f"{model.nstate} bands")
+    f"{' and '.join(dict.fromkeys(o.wyckoff for o in r.wyckoff_orbits))}, "
+    f"{atomic.nstate} bands")
 
 # the operation each character below belongs to, by index, with its name in the
 # model's own frame
-operations = out.operations
+operations = r.operations
 
 hsp = tqc.high_symmetry_points(group)
 P = hsp["P"]
@@ -133,7 +132,7 @@ row("P", f"({', '.join(str(x) for x in np.round(P, 4).tolist())}) in the primiti
 # eigenvectors; every label below is read off that one diagonalization.
 states = solve_at(atomic, P)
 w = np.asarray(states[0], dtype=float).reshape(-1)
-content = tqc.corep_content(rep, P, states=states, bands=[0, 1, 2, 3])
+content = tqc.corep_content(r, P, states=states, bands=[0, 1, 2, 3])
 chi = np.asarray(content.table.characters).ravel()
 row("P valence levels", ", ".join(str(x) for x in np.round(w[:4], 6).tolist()))
 row(f"χ({', '.join(operations[i].name for i in content.table.columns)})", characters(chi))
@@ -174,8 +173,8 @@ print("   observable")
 print(f"\n3. i41_soc('generic', lam={LAM}): one group-averaged spin-orbit bond set")
 soc = tqm.i41_soc("generic", lam=LAM)
 
-out_soc = tqc.realized_group(soc, characters=DECLARE)
-_m, g_soc, asg_soc, val_soc, rep_soc = out_soc
+r_soc = tqc.realized_group(soc, characters=DECLARE)
+g_soc = r_soc.group
 row("realized group", f"#{g_soc.number_str} {g_soc.name}")
 
 P_soc = tqc.high_symmetry_points(g_soc)["P"]
@@ -191,7 +190,7 @@ row("degeneracies", f"{' + '.join(str(len(b)) for b in mult)}, level gaps "
 print("\n4. the three levels, each labelled from that one diagonalization")
 labels, chis = [], []
 for multiplet in mult:
-    out_b = tqc.corep_content(rep_soc, P_soc, states=states, bands=list(multiplet))
+    out_b = tqc.corep_content(r_soc, P_soc, states=states, bands=list(multiplet))
     chi_b = np.asarray(out_b.table.characters).ravel()
     labels.append(next(iter(out_b.counts)))
     chis.append(chi_b)
@@ -215,7 +214,7 @@ print("   accidental degeneracy")
 ########### 5. the four valence bands as an elementary band representation ###########
 
 print("\n5. the four valence bands as an elementary band representation")
-table_soc = tqc.hsp_table(rep_soc, bands=[0, 1, 2, 3])   # the content at every point
+table_soc = tqc.hsp_table(r_soc, bands=[0, 1, 2, 3])   # the content at every point
 d = tqc.decompose(table_soc)
 row("valence content", fmt(table_soc.counts))
 row(*atomic_limits(d))
@@ -226,12 +225,11 @@ print(f"   {label_mid} belongs to a labelling of the whole set, not a choice mad
 print("\n6. the control: P6_2 at H")
 p62 = tqm.p62_atomic()
 
-out62 = tqc.realized_group(p62, characters=DECLARE)
-_m, g62, asg62, val62, rep62 = out62
-sites62 = tqc.wyckoff_sites_tables(g62, asg62.site_positions)
-operations62 = out62.operations
+r62 = tqc.realized_group(p62, characters=DECLARE)
+g62 = r62.group
+operations62 = r62.operations
 row("realized group", f"#{g62.number_str} {g62.name}, s orbitals at Wyckoff "
-    f"{' and '.join(dict.fromkeys(s.wyckoff for s in sites62))}, "
+    f"{' and '.join(dict.fromkeys(o.wyckoff for o in r62.wyckoff_orbits))}, "
     f"{p62.nstate} bands")
 
 H = tqc.high_symmetry_points(g62)["H"]
@@ -243,7 +241,7 @@ for label in sorted(page62):
     print(f"      {label:<8} dim {int(round(abs(complex(entry[ops62[0]])))):d}   "
           f"{characters(entry[i] for i in ops62)}")
 
-cH = tqc.corep_content(rep62, H, states=solve_at(p62, H), bands=list(range(6)))
+cH = tqc.corep_content(r62, H, states=solve_at(p62, H), bands=list(range(6)))
 row("lowest 6 bands", f"{fmt(cH.counts)} at H")
 doubled62 = max(page62, key=lambda lab: abs(complex(page62[lab][ops62[0]])))
 print(f"   {doubled62} glues two different irreps; at P {label_mid} glues one to itself")

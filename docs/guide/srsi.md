@@ -192,8 +192,8 @@ from pythtqc import models
 from pythtb.models import fu_kane_mele
 
 r = tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1])
-model, group, assignment, validated, rep = r
-six = tqc.srsi_of_bands(tqc.hsp_table(rep, bands=6))
+group = r.group
+six = tqc.srsi_of_bands(tqc.hsp_table(r, bands=6))
 print(six.summary())
 #  P4mm1' #99.164, double-valued: the Z-valued stable real-space invariants of 6 bands   (.theta_Z)
 #      theta_1 =        1
@@ -207,7 +207,7 @@ diamond = {name: tqc.realized_group(fu_kane_mele(1.0, 0.125, dt), characters={0:
            for name, dt in phases.items()}
 valence = {}                                       # each phase's valence pair
 for name, rd in diamond.items():
-    b = valence[name] = tqc.srsi_of_bands(tqc.hsp_table(rd.rep, bands=2))
+    b = valence[name] = tqc.srsi_of_bands(tqc.hsp_table(rd, bands=2))
     print(name, b.line())                          # the record on one line
 #  strong theta_Z = (-1/4, 0, 1/2, 1, 1/4, -1/2, -1/4, 1/4), fractional with common denominator 4; class (0, 1) in Z2 x Z4, of order 4
 #  weak theta_Z = (0, 0, 1, 1, 1/2, 0, -1/2, 0), fractional with common denominator 2; class (1, 0) in Z2 x Z4, of order 2
@@ -273,7 +273,7 @@ for orbit in mo.orbits:
     print(f"{orbit.multiplicity}{orbit.letter}:", tqc.format_counts(orbit.content))
 #  1a: -GM6 + -GM7 + -M6 + -M7 + 2×-X5
 #  2c: -GM6 + -GM7 + -M6 + -M7 + 2×-X5
-eight = tqc.srsi_of_bands(tqc.hsp_table(rep, bands=8))
+eight = tqc.srsi_of_bands(tqc.hsp_table(r, bands=8))
 print(eight.theta_Z == mo.theta_Z)
 #  True
 ```
@@ -337,7 +337,7 @@ fragile pair with the content of the EBR `-E2↑G(2)@1b`
 show it:
 
 ```python
-t45 = tqc.hsp_table(rep, bands=[4, 5])
+t45 = tqc.hsp_table(r, bands=[4, 5])
 b45 = tqc.srsi_of_bands(t45)
 tables = tqc.srsi_tables(group)
 print(tables.ebrs)
@@ -363,13 +363,12 @@ setting: one site irrep at `8a` and at `8b` of `Fd-3m`, the undistorted
 diamond's group, carries different invariants. `Fd-3m` has two origin choices,
 and the tables use the one that puts `8a` at `(⅛, ⅛, ⅛)` of the conventional
 cell; the diamond's orbitals are `8a` there
-([the 3D tutorial](../start/tutorial-3d.md)). The record measures three
-letters:
+([the 3D tutorial](../start/tutorial-3d.md)). Each row of the atomic-limit
+table carries its Wyckoff position in that setting:
 
 ```python
-print(assignment.wyckoff_tables, assignment.wyckoff_spglib,
-      assignment.wyckoff_spglib_dataset)
-#  ('a', 'c', 'c') ('a', 'c') ('a', 'f', 'f')
+print([o.wyckoff for o in r.wyckoff_orbits])
+#  ['1a', '1a', '2c']
 t227 = tqc.srsi_tables(227, spinor=True)           # Fd-3m with spin-orbit coupling
 for letter in "ab":
     print(letter, [str(x) for x in t227.theta({("-E1", letter): 1})[0]])
@@ -377,14 +376,12 @@ for letter in "ab":
 #  b ['0', '0', '0', '1', '0', '0', '0', '0']
 ```
 
-`wyckoff_tables`, one letter per site, is in the setting the tables are written
-in, and every table lookup uses it. `wyckoff_spglib`, one per orbit, is the
-same group's letter in spglib's standardization. `wyckoff_spglib_dataset` is
-spglib's letter for the orbital positions alone, whose group can be larger than
-the Hamiltonian's: lin3g's positions have the mirror through the layer's plane,
-which its spin–orbit hoppings break, and in that larger group the edge centres
-are `2f`. Only the first is a table key; `wyckoff_sites_tables(group)` returns
-its full record.
+`wyckoff`, one per Wyckoff orbit, is in the setting the tables are written in,
+and every table lookup uses it. spglib's letter for the orbital positions alone
+belongs to a group that can be larger than the Hamiltonian's: lin3g's positions
+have the mirror through the layer's plane, which its spin–orbit hoppings break,
+and in that larger group the edge centres are `2f`. Only the tables' letter is a
+table key; `wyckoff_sites_tables(group)` returns its full record.
 
 Two site irreps at one maximal position can be indistinguishable to everything
 this package measures: their EBRs have identical symmetry data vectors, and their
@@ -537,7 +534,7 @@ absent = tqc.srsi_tables(1, spinor=True)
 print(absent.gate, len(absent.context["omitted_groups"]))
 #  srsi_table_absent 13
 rs = diamond["strong"]
-fractional = tqc.srsi_of_bands(tqc.hsp_table(rs.rep, bands=2))
+fractional = tqc.srsi_of_bands(tqc.hsp_table(rs, bands=2))
 print(tqc.atomic_realizations(tqc.srsi_tables(rs.group), fractional.theta_Z).gate)
 #  srsi_not_atomic
 ```

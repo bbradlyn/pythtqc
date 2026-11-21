@@ -281,11 +281,11 @@ def test_p4232_hamiltonian_realizes_exactly_space_group_208(p4232_candidate_grou
     """
     g, v = p4232_candidate_group, p4232_validated
     assert (g._sg_number, g.name, g._size) == (223, "Pm-3n1'", 96)   # 48 unitary + 48 antiunitary
-    # record echoes, not behaviour: `n_kpts` is `8**dim_k` off `_detection_grid`
+    # record echoes, not behaviour: `n_kpoints` is `8**dim_k` off `_detection_grid`
     # and `tol` is the argument copied back.  Pinned so a changed default shows up
-    assert v.n_kpts == 512 and v.tol == 1e-8      # 8**3, the 3D defaults
+    assert v.n_kpoints == 512 and v.tol == 1e-8      # 8**3, the 3D defaults
 
-    survivors = [s for s in g._symmetries if int(s.ind) in v.indices]
+    survivors = [s for s in g._symmetries if int(s.ind) in v._indices]
     unitary = [s for s in survivors if not s.time_reversal]
     antiunitary = [s for s in survivors if s.time_reversal]
     assert len(unitary) == 24                     # point group O -- the SG 208 content
@@ -302,18 +302,18 @@ def test_p4232_hamiltonian_realizes_exactly_space_group_208(p4232_candidate_grou
     assert len(screws) == 12
     # roundoff: measured worst 1.6e-15 on arm64/OpenBLAS 0.3.33 (3.5e-15 where the
     # lock was captured), 64x clear of the bound
-    assert max(v.residuals[i] for i in v.indices) < 1e-13
+    assert max(v.residuals[i] for i in v._indices) < 1e-13
 
     # every inversion-composed candidate dies, and with a proof
     assert len(v.discrepancies) == 48                            # 24 unitary + 24 antiunitary
-    assert all(d["refuted_by"] == "no symmetry matrix" for d in v.discrepancies)
-    assert all(round(np.linalg.det(g._symmetries[d["ind"] - 1].rotation)) == -1 for d in v.discrepancies)
-    assert sum(1 for d in v.discrepancies if g._symmetries[d["ind"] - 1].time_reversal) == 24
-    smallest = [v._records[d["ind"]]["smallest_singular_value"] for d in v.discrepancies]
+    assert all(d.refuted_by == "no symmetry matrix" for d in v.discrepancies)
+    assert all(round(np.linalg.det(g._symmetries[d.index - 1].rotation)) == -1 for d in v.discrepancies)
+    assert sum(1 for d in v.discrepancies if g._symmetries[d.index - 1].time_reversal) == 24
+    smallest = [v._records[d.index]["smallest_singular_value"] for d in v.discrepancies]
     # re-measured 2026-09-09 on arm64/OpenBLAS 0.3.33: 0.7822 for all 48 (the
     # spread over them is 1e-15), against the 1e-8 nullspace cut
     assert min(smallest) > 1e-2
-    assert all(v._nullspace_dims[d["ind"]] == 0 for d in v.discrepancies)
+    assert all(v._nullspace_dims[d.index] == 0 for d in v.discrepancies)
 
 
 # ---------------------------------------------------------------------------
@@ -335,26 +335,26 @@ def test_kane_mele_hamiltonian_keeps_exactly_the_Pminus6m2_subgroup(km_odd, km_o
     """
     g, v = km_odd_group, km_odd_validated
     assert (g._sg_number, g._size) == (191, 24)     # the cell's maximal group
-    assert len(v.indices) == 12 and v.closed
-    assert all(d["refuted_by"] == "no symmetry matrix" for d in v.discrepancies)
+    assert len(v._indices) == 12 and v.closed
+    assert all(d.refuted_by == "no symmetry matrix" for d in v.discrepancies)
     # the broken constraints' smallest singular value: 0.0223 for all twelve
     # (spread below 1e-15), re-measured 2026-09-09 on arm64/OpenBLAS 0.3.33 --
     # the 0.42 the lock used to record is not reproducible here.  Not a roundoff
     # quantity; the bound only has to stay decades above the 1e-8 nullspace cut,
     # which is what makes "no symmetry matrix" a proof rather than a tolerance verdict
-    assert min(v._records[d["ind"]]["smallest_singular_value"] for d in v.discrepancies) > 1e-3
+    assert min(v._records[d.index]["smallest_singular_value"] for d in v.discrepancies) > 1e-3
     # a covariance residual at 1e-14 is roundoff, and this one travels: measured
     # 2.3e-14 on arm64/OpenBLAS 0.3.33 against 4.4e-15 where the lock was
     # captured, a factor 5 on the same code.  1e-13 left it 4.4x clear, which a
     # different BLAS could cross; 1e-12 is two decades of headroom
-    assert max(v.residuals[i] for i in v.indices) < 1e-12
+    assert max(v.residuals[i] for i in v._indices) < 1e-12
 
     # the survivors are the P-6m2 operations, matched by rotation and translation;
     # the cell typed apart reads that group, the number the fixture records
     staggered = _spacegroup._group_of(km_odd, include_TR=False, typat=[0, 1])
     assert (staggered._sg_number, staggered.name, staggered._size) == (187, "P-6m2", 12)
     assert tqm.KANE_MELE["odd"].slab_sg_number == 187
-    survivors = [s for s in g._symmetries if int(s.ind) in v.indices]
+    survivors = [s for s in g._symmetries if int(s.ind) in v._indices]
     assert op_keys(survivors) == op_keys(staggered._symmetries)
 
     # C3 survives (both nontrivial powers), and it is what the honeycomb keeps
@@ -368,10 +368,10 @@ def test_kane_mele_hamiltonian_keeps_exactly_the_Pminus6m2_subgroup(km_odd, km_o
     vertical = [s for s in g._symmetries if not s.time_reversal
                 and round(np.linalg.det(s.rotation)) == -1 and round(s.rotation[2, 2]) == 1]
     assert len(vertical) == 6                     # P6/mmm has 6 vertical mirrors
-    assert sum(1 for s in vertical if int(s.ind) in v.indices) == 3
+    assert sum(1 for s in vertical if int(s.ind) in v._indices) == 3
     horizontal = [s for s in g._symmetries if not s.time_reversal
                   and np.array_equal(np.rint(s.rotation), np.diag([1, 1, -1]))]
-    assert len(horizontal) == 1 and int(horizontal[0].ind) in v.indices
+    assert len(horizontal) == 1 and int(horizontal[0].ind) in v._indices
 
 
 def test_kane_mele_sigma_h_survives_only_because_the_slab_hides_it(km_odd, km_odd_group,
@@ -404,10 +404,10 @@ def test_kane_mele_sigma_h_survives_only_because_the_slab_hides_it(km_odd, km_od
         # the inherited verdict, re-measured on sigma_h * g's own k-action
         own[b] = own_solve(km_odd, g, b)
         assert own[b][0] == v._nullspace_dims[b] == v._nullspace_dims[a]
-        assert own[b][1] == (b in v.indices) == (a in v.indices)
+        assert own[b][1] == (b in v._indices) == (a in v._indices)
     # so the decidable content is 6 of the 12 in-plane classes: the p3m1 wallpaper
     # group -- and the independent solves split 6/6 the same way
-    assert sum(1 for inds in classes.values() if inds[0] in v.indices) == 6
+    assert sum(1 for inds in classes.values() if inds[0] in v._indices) == 6
     assert sum(1 for dim, survives in own.values() if survives) == 6
     assert tqm.KANE_MELE["odd"].group == "p3m1"
 
@@ -585,7 +585,7 @@ def test_slab_goldens_annotate_sigma_h_partners_as_shared(lin3g_validated,
     """
     for validated, n_ops, n_classes in ((lin3g_validated, 32, 16),
                                         (km_odd_validated, 24, 12)):
-        classes = validated.k_action_classes
+        classes = validated._k_action_classes
         assert sum(len(c) for c in classes) == n_ops
         assert len(classes) == n_classes
         assert all(len(c) == 2 for c in classes)
@@ -593,27 +593,27 @@ def test_slab_goldens_annotate_sigma_h_partners_as_shared(lin3g_validated,
         # and nothing is lost on the way in: an `out_of_plane` discrepancy never
         # reaches `verdicts` at all (neither golden has one, and the guard that
         # used to hide it is gone)
-        assert set(validated.undetermined) == set(validated.indices)
-        assert set(validated.broken) <= set(validated.verdicts)
+        assert set(validated.undetermined) == set(validated._indices)
+        assert set(validated.broken) <= set(validated._verdicts)
 
     # lin3g: everything survives, so `undetermined` == all 32 and `broken` is
     # empty -- a failure's word has no subject here
-    assert len(lin3g_validated.indices) == 32
+    assert len(lin3g_validated._indices) == 32
     assert lin3g_validated.broken == ()
     # Kane-Mele: 12 die
     km = km_odd_validated
     assert len(set(km.broken)) == 12
     # the words a slab carries: the survivors undetermined, the dead broken, and
     # `obeyed` and `undetermined` the two halves of `indices`
-    assert set(km.verdicts.values()) == {"broken", "undetermined"}
+    assert set(km._verdicts.values()) == {"broken", "undetermined"}
     assert km.obeyed == ()
-    assert km.undetermined == km.indices and len(km.undetermined) == 12
+    assert km.undetermined == km._indices and len(km.undetermined) == 12
 
     # the negative control: singleton classes, every verdict the operation's own
     v = p4232_validated
-    assert sum(len(c) for c in v.k_action_classes) == 96
-    assert len(v.k_action_classes) == 96
-    assert all(len(c) == 1 for c in v.k_action_classes)
-    assert set(v.verdicts.values()) == {"obeyed", "broken"}
-    assert v.obeyed == v.indices and len(v.obeyed) == 48
+    assert sum(len(c) for c in v._k_action_classes) == 96
+    assert len(v._k_action_classes) == 96
+    assert all(len(c) == 1 for c in v._k_action_classes)
+    assert set(v._verdicts.values()) == {"obeyed", "broken"}
+    assert v.obeyed == v._indices and len(v.obeyed) == 48
     assert v.undetermined == ()
