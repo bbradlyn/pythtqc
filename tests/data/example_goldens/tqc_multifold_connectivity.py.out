@@ -13,7 +13,7 @@ Bands are counted from 0, as pythtb counts them.
    GM4 and H4 are threefold: the spin-1 fermions
 
 2. SG 199: the four bands together, and the three inter-band gaps
-   all 4 bands      : GM1 + GM4 + H1 + H4 + 2×N1 + 2×N2 + P1 + P3 + PA1 + PA3
+   all 4 bands      : GM1 + GM4 + H1 + H4 + 2xN1 + 2xN2 + P1 + P3 + PA1 + PA3
    atomic limit     : 1 x A1↑G(4)@8a(31',3)
    bands 0 and 1    : smallest direct gap 0.000000 over a 13x13x13 mesh
    bands 1 and 2    : smallest direct gap 0.000000
@@ -30,7 +30,7 @@ Bands are counted from 0, as pythtb counts them.
    X                : X5(2) at -0.258199, X5(2) at +0.258199
 
 4. SG 208: the four bands together, and the three inter-band gaps
-   all 4 bands      : 2×GM3 + 2×M5 + 2×R3 + 2×X5
+   all 4 bands      : 2xGM3 + 2xM5 + 2xR3 + 2xX5
    atomic limit     : 1 x 1E2E↑G(4)@2a(231',23)
    bands 0 and 1    : smallest direct gap 0.000000 over a 13x13x13 mesh
    bands 1 and 2    : smallest direct gap 0.256971

@@ -6,7 +6,7 @@ Bands are counted from 0, as pythtb counts them.
    realized group   : #156.50 P3m11', orbitals at Wyckoff 1c and 1b, 4 bands
    bands 0 and 1    : GM: -GM6   K: -K5 + -K6   M: -M3M4
    atomic limit     : 1 x -E1↑G(2)@1a(3m1',3m), a position no orbital sits on
-   bands 2 and 3    : GM: -GM6   K: 2×-K4   M: -M3M4
+   bands 2 and 3    : GM: -GM6   K: 2x-K4   M: -M3M4
    atomic limits    : none
    a signed sum     : -1 x -E1↑G(2)@1a(3m1',3m) + 1 x -E1↑G(2)@1b(3m1',3m)
                       + 1 x -E1↑G(2)@1c(3m1',3m)

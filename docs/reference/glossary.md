@@ -51,12 +51,11 @@ What each thing is called where a call returns it.
 | what it is | its name | where |
 |---|---|---|
 | the bands asked for | `bands=`: an integer is the lowest that many, a sequence exactly those band indices; `bands` on a record, the indices themselves | every call that reads bands |
-| a degenerate multiplet of bands at one `k` | a row of a character table: `multiplets`, `dims`, `energies` | `characters`; `CorepContent.table` |
-| the coreps of a set of bands at one point | `labels`, one reading per multiplet; `counts`, summed over the set | `corep_content` |
-| which rows of a set of bands carry the same characters | `partition`; per point, `partitions` | `corep_content`; `hsp_table` |
-| the symmetry data vector of a band set | `counts`; per point, `content` | `hsp_table` |
-| the gap from a set of bands to the nearest band outside it | `isolation`, in the units of `H` | `corep_content` |
-| a high-symmetry point | its name in the tables (`"GM"`, `"K"`) and its coordinates in the model's own reduced cell | `high_symmetry_points`; `points` on an `HSPTable` |
+| a degenerate multiplet of bands at one `k` | a row of `multiplets`: its `bands`, its `energy`, and its `characters` or its coreps | `characters`; `coreps_at`; `hsp_table` |
+| the coreps of a set of bands at one point | `corep_names` and `label` on each row of `multiplets`; `coreps`, summed over the set | `coreps_at` |
+| the symmetry data vector of a band set | `symmetry_data`; per point, the rows of `multiplets` | `hsp_table` |
+| the gap from a set of bands to the nearest band outside it | `isolation`, in the units of `H` | `coreps_at` |
+| a high-symmetry point | its name in the tables (`"GM"`, `"K"`) and its coordinates in the model's own reduced cell | `high_symmetry_points`; `kpoints` on an `HSPTable` |
 | tabulated points a layer's zone does not have | `out_of_plane` | `high_symmetry_points(group).out_of_plane` |
 
 ### What the content says
@@ -256,10 +255,6 @@ table's `function` column, and never a measurement; where nothing is declared,
 the lowest-ℓ rule assigns the lowest-ℓ representation the hoppings allow.
 [What the hoppings fix](../background/measurement.md#what-the-hoppings-fix).
 
-**Partition.** Which multiplets of a set of bands carry the same characters, as
-numbers: two rows share a number exactly when their characters agree. It
-survives every labelling of the orbitals and every phase convention.
-
 **Precision.** The relative precision of a numerical model's own numbers, the
 one declaration a fitted model makes about itself; every tolerance it needs is
 derived from it.
@@ -369,11 +364,8 @@ Cartesian length.
 | `window` | the matching window inside which two eigenvectors are paired at the first `k` (`realized_group`) | dimensionless, relative to `max\|H − μ\|`, `μ` the mean on-site energy | `clip(10·sqrt(tol), 1e-3, 0.3)`; `clip(10·sqrt(cut), 1e-3, 0.3)` under `precision` |
 | `position_tol` | how far an orbital centre may miss where the group puts it, about the origin that fits the centres, and still be moved onto it, and how far a shift of every centre together may reach and still be removed, so that the centres are written in the model's own frame (`realized_group`); a variety's width (`wyckoff_sites_tables`) | reduced coordinates of the cell | `None`; `1e-4` in `wyckoff_sites_tables` |
 | `symprec` | spglib's tolerance for finding the group from the positions (`realized_group`) | Cartesian length, in the model's units | `1e-5` |
-| `degeneracy_tol` | which bands are one degenerate multiplet, and so the rows of every character table (`characters`, `corep_content`, `hsp_table`, `sewing_matrix`, `multiplets`) | energy | `1e-8` |
-| `label_tol` | how far a fitted corep multiplicity may sit from an integer, and how close two rows' characters must be to share a partition class (`corep_content`, `hsp_table`) | dimensionless | `1e-3` |
-| `ktol` | matching a `k` to a tabulated high-symmetry point (`corep_content`, `hsp_table`) | reduced reciprocal coordinates | `1e-5` |
-| `atol` | whether an operation leaves `k` invariant up to a reciprocal lattice vector (`characters`, `corep_content`, `hsp_table`, `sewing_matrix`) | reduced reciprocal coordinates | `1e-8` |
-| `mesh_tol` | finding a requested `k` among a solved mesh's points (`characters`, `corep_content`, `hsp_table`, `sewing_matrix`) | reduced reciprocal coordinates | `1e-9` |
+| `degeneracy_tol` | which bands are one degenerate multiplet, and so the rows of every character table (`characters`, `coreps_at`, `hsp_table`, `sewing_matrix`, `multiplets`) | energy | `1e-8` |
+| `label_tol` | how far a fitted corep multiplicity may sit from an integer (`coreps_at`, `hsp_table`) | dimensionless | `1e-3` |
 
 The covariance check's tolerance a representation is built at is an energy, as
 `tol` is: the larger of `5e-14` and `|G|·N·ε·max|H|`, the rounding a
@@ -392,10 +384,10 @@ import pythtqc as tqc
 required = inspect.Parameter.empty
 for call, names in [(tqc.realized_group, "position_tol precision symprec"),
                     (tqc.wyckoff_sites_tables, "position_tol"),
-                    (tqc.corep_content, "degeneracy_tol label_tol ktol atol mesh_tol"),
-                    (tqc.hsp_table, "degeneracy_tol label_tol ktol atol mesh_tol"),
-                    (tqc.characters, "degeneracy_tol atol mesh_tol"),
-                    (tqc.sewing_matrix, "degeneracy_tol atol mesh_tol"),
+                    (tqc.coreps_at, "degeneracy_tol label_tol"),
+                    (tqc.hsp_table, "degeneracy_tol label_tol"),
+                    (tqc.characters, "degeneracy_tol"),
+                    (tqc.sewing_matrix, "degeneracy_tol"),
                     (tqc.multiplets, "degeneracy_tol")]:
     parameters = inspect.signature(call).parameters
     print(f"{call.__name__:<22}", ", ".join(
@@ -403,10 +395,10 @@ for call, names in [(tqc.realized_group, "position_tol precision symprec"),
         for n in names.split()))
 #  realized_group         position_tol=None, precision=None, symprec=1e-05
 #  wyckoff_sites_tables   position_tol=0.0001
-#  corep_content          degeneracy_tol=1e-08, label_tol=0.001, ktol=1e-05, atol=1e-08, mesh_tol=1e-09
-#  hsp_table              degeneracy_tol=1e-08, label_tol=0.001, ktol=1e-05, atol=1e-08, mesh_tol=1e-09
-#  characters             degeneracy_tol=1e-08, atol=1e-08, mesh_tol=1e-09
-#  sewing_matrix          degeneracy_tol=1e-08, atol=1e-08, mesh_tol=1e-09
+#  coreps_at              degeneracy_tol=1e-08, label_tol=0.001
+#  hsp_table              degeneracy_tol=1e-08, label_tol=0.001
+#  characters             degeneracy_tol=1e-08
+#  sewing_matrix          degeneracy_tol=1e-08
 #  multiplets             degeneracy_tol=1e-08
 ```
 

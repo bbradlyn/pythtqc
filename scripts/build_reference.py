@@ -58,8 +58,8 @@ GROUPS = (
     ("Labelling the bands",
      "the states at one k-point, and the sewing matrices, characters and corep "
      "content of a set of bands, at one high-symmetry point or at all of them",
-     ("solve_at", "sewing_matrix", "characters", "corep_content", "hsp_table",
-      "format_counts", "multiplets")),
+     ("solve_at", "sewing_matrix", "characters", "coreps_at", "hsp_table",
+      "format_coreps", "multiplets")),
     ("Atomic limits",
      "whether a symmetry data vector is a sum of elementary band representations, "
      "and the counting beside it",

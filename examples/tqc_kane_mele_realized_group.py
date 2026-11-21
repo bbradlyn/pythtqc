@@ -28,6 +28,7 @@
 
 import os
 import sys
+from collections import Counter
 
 import matplotlib
 
@@ -38,7 +39,7 @@ from pythtb.models import kane_mele
 
 import _path  # noqa: F401  (in-repo runs: puts src/ on sys.path)
 import pythtqc as tqc
-from pythtqc import format_counts as fmt
+from pythtqc import format_coreps as fmt
 from pythtqc import solve_at
 from pythtqc.utils import save_figure
 
@@ -96,9 +97,14 @@ def listed(words):
     return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
 
 
+def coreps_of(table, point):
+    """The coreps a table's bands carry at one point, as {corep: multiplicity}."""
+    return Counter(name for m in table.multiplets[point] for name in m.corep_names)
+
+
 def by_point(table):
-    """A band set's content at GM, K and M, each as format_counts writes it."""
-    return "   ".join(f"{p}: {fmt(table.content[p])}" for p in POINTS)
+    """A band set's content at GM, K and M, each as format_coreps writes it."""
+    return "   ".join(f"{p}: {fmt(coreps_of(table, p))}" for p in POINTS)
 
 
 
@@ -246,17 +252,17 @@ row("bands 2 and 3", by_point(t_con4))
 limits(d_con4)
 
 # the coreps at K level by level: multiplets groups the energies into degenerate
-# levels, and corep_content names the corep of each whole level.
+# levels, and coreps_at names the corep of each whole level.
 hsp4 = tqc.high_symmetry_points(g4)
 states_k4 = solve_at(m4, hsp4["K"])
 energies_k4 = np.asarray(states_k4[0], dtype=float).reshape(-1)
 multiplets_k4 = tqc.multiplets(energies_k4, degeneracy_tol=1e-6)
 levels_k4 = []
 for multiplet in multiplets_k4:
-    content = tqc.corep_content(r4, hsp4["K"], states=states_k4, bands=list(multiplet))
+    content = tqc.coreps_at(r4, hsp4["K"], states=states_k4, bands=list(multiplet))
     levels_k4.append((content, float(np.mean(energies_k4[list(multiplet)])),
                       len(multiplet)))
-row("coreps at K", *(f"{fmt(c.counts)} at E = {e:+.6f}, dimension {n}"
+row("coreps at K", *(f"{fmt(c.coreps)} at E = {e:+.6f}, dimension {n}"
                      for c, e, n in levels_k4))
 
 ########### 5. the conserved operators, read off H(k) ###########
@@ -308,18 +314,23 @@ for point, off, on in shapes:
 # attach these labels to -k, so an operation taking k to -k interchanges the two
 # names; the characters are what is measured.
 (c_lo, e_lo, n_lo), (c_mid, e_mid, _n2), (c_hi, e_hi, _n3) = levels_k4
-chi_mid = np.asarray(c_mid.table.characters).ravel()
-chi_hi = np.asarray(c_hi.table.characters).ravel()
+# the characters of each level, on the unitary operations of the little group at K
+level_mid, level_hi = (tqc.characters(r4, hsp4["K"], states=states_k4,
+                                      bands=list(multiplets_k4[i])).multiplets[0]
+                       for i in (1, 2))
+columns = tuple(level_mid.characters)
+chi_mid = [level_mid.characters[i] for i in columns]
+chi_hi = [level_hi.characters[i] for i in columns]
 row_mid = [f"{z.real:+.0f}" if abs(z.imag) < 1e-9 else
            (f"{z.imag:+.0f}i" if abs(z.real) < 1e-9 else f"{z:+.3f}")
            for z in chi_mid]
 row_hi = [f"{z.real:+.0f}" if abs(z.imag) < 1e-9 else
           (f"{z.imag:+.0f}i" if abs(z.real) < 1e-9 else f"{z:+.3f}")
           for z in chi_hi]
-names = [r4.operations[i].name for i in c_mid.table.columns]
+names = [r4.operations[i].name for i in columns]
 widths = [max(len(a), len(b), len(c)) for a, b, c in zip(names, row_mid, row_hi)]
-for label, cells in (("operations at K", names), (fmt(c_mid.counts), row_mid),
-                     (fmt(c_hi.counts), row_hi)):
+for label, cells in (("operations at K", names), (fmt(c_mid.coreps), row_mid),
+                     (fmt(c_hi.coreps), row_hi)):
     row(label, "   ".join(f"{cell:<{w}}" for cell, w in zip(cells, widths)).rstrip())
 
 splits = []
@@ -330,9 +341,9 @@ for rashba in RASHBA_SWEEP:
 row("bands 2 and 3", f"split at K by {listed(f'{s:.6f}' for _r, s in splits)}",
     f"at rashba = {listed(rashba for rashba, _s in splits)}")
 row("split / rashba", listed(f"{s / r:.6f}" for r, s in splits))
-print(f"   the {fmt(c_mid.counts)} and {fmt(c_hi.counts)} rows are complex conjugates, "
+print(f"   the {fmt(c_mid.coreps)} and {fmt(c_hi.coreps)} rows are complex conjugates, "
       "two distinct one-dimensional coreps")
-print(f"   that s_z holds together at rashba = 0, while {fmt(c_lo.counts)}, of dimension "
+print(f"   that s_z holds together at rashba = 0, while {fmt(c_lo.coreps)}, of dimension "
       f"{n_lo}, stays one level")
 
 ########### 7. the deep atomic limit ###########
@@ -373,10 +384,10 @@ for x in kn:
 # offset below it clears both bands; the conduction labels go above
 for point, x in zip(NODES, kn):
     j = int(np.argmin(np.abs(kd - x)))
-    axes[0].annotate(fmt(t_val1.content[point]), xy=(x, bands[j, 1]), xytext=(0, -16),
+    axes[0].annotate(fmt(coreps_of(t_val1, point)), xy=(x, bands[j, 1]), xytext=(0, -16),
                      textcoords="offset points", ha="center", fontsize=7.5,
                      color="tab:blue")
-    axes[0].annotate(fmt(t_con1.content[point]), xy=(x, bands[j, 2]), xytext=(0, 8),
+    axes[0].annotate(fmt(coreps_of(t_con1, point)), xy=(x, bands[j, 2]), xytext=(0, 8),
                      textcoords="offset points", ha="center", fontsize=7.5,
                      color="tab:red")
 axes[0].set_xticks(kn)
@@ -397,10 +408,10 @@ for x in kn:
     axes[1].axvline(x, color="0.75", lw=0.7)
 for point, x in zip(NODES, kn):
     j = int(np.argmin(np.abs(kd - x)))
-    axes[1].annotate(fmt(t_val2.content[point]), xy=(x, bands[j, 1]), xytext=(0, -16),
+    axes[1].annotate(fmt(coreps_of(t_val2, point)), xy=(x, bands[j, 1]), xytext=(0, -16),
                      textcoords="offset points", ha="center", fontsize=7.5,
                      color="tab:blue")
-    axes[1].annotate(fmt(t_con2.content[point]), xy=(x, bands[j, 2]), xytext=(0, 8),
+    axes[1].annotate(fmt(coreps_of(t_con2, point)), xy=(x, bands[j, 2]), xytext=(0, 8),
                      textcoords="offset points", ha="center", fontsize=7.5,
                      color="tab:red")
 axes[1].set_xticks(kn)
@@ -421,10 +432,10 @@ for x in kn:
     axes[2].axvline(x, color="0.75", lw=0.7)
 for point, x in zip(NODES, kn):
     j = int(np.argmin(np.abs(kd - x)))
-    axes[2].annotate(fmt(t_val3.content[point]), xy=(x, bands[j, 1]), xytext=(0, -16),
+    axes[2].annotate(fmt(coreps_of(t_val3, point)), xy=(x, bands[j, 1]), xytext=(0, -16),
                      textcoords="offset points", ha="center", fontsize=7.5,
                      color="tab:blue")
-    axes[2].annotate(fmt(t_con3.content[point]), xy=(x, bands[j, 2]), xytext=(0, 8),
+    axes[2].annotate(fmt(coreps_of(t_con3, point)), xy=(x, bands[j, 2]), xytext=(0, 8),
                      textcoords="offset points", ha="center", fontsize=7.5,
                      color="tab:red")
 axes[2].set_xticks(kn)
@@ -444,17 +455,17 @@ for x in kn:
     axes[3].axvline(x, color="0.75", lw=0.7)
 for point, x in zip(NODES, kn):
     j = int(np.argmin(np.abs(kd - x)))
-    axes[3].annotate(fmt(t_val4.content[point]), xy=(x, bands[j, 1]), xytext=(0, -16),
+    axes[3].annotate(fmt(coreps_of(t_val4, point)), xy=(x, bands[j, 1]), xytext=(0, -16),
                      textcoords="offset points", ha="center", fontsize=7.5,
                      color="tab:blue")
     if point != "K":                     # K is resolved level by level instead
-        axes[3].annotate(fmt(t_con4.content[point]), xy=(x, bands[j, 2]),
+        axes[3].annotate(fmt(coreps_of(t_con4, point)), xy=(x, bands[j, 2]),
                          xytext=(0, 8), textcoords="offset points", ha="center",
                          fontsize=7.5, color="tab:red")
 x_k = kn[NODES.index("K")]
-axes[3].annotate(fmt(c_hi.counts), xy=(x_k, e_hi), xytext=(0, 7),
+axes[3].annotate(fmt(c_hi.coreps), xy=(x_k, e_hi), xytext=(0, 7),
                  textcoords="offset points", ha="center", fontsize=7.5, color="tab:red")
-axes[3].annotate(fmt(c_mid.counts), xy=(x_k, e_mid), xytext=(0, -14),
+axes[3].annotate(fmt(c_mid.coreps), xy=(x_k, e_mid), xytext=(0, -14),
                  textcoords="offset points", ha="center", fontsize=7.5, color="tab:red")
 axes[3].annotate("", xy=(x_k, e_mid), xytext=(x_k, e_hi),
                  arrowprops=dict(arrowstyle="<->", color="0.25", lw=1.3))
@@ -467,7 +478,7 @@ axes[3].set_xlim(kd[0] - 0.07 * kd[-1], kd[-1] * 1.07)
 axes[3].set_ylim(bands.min() - 0.30 * (bands.max() - bands.min()),
                  bands.max() + 0.22 * (bands.max() - bands.min()))
 axes[3].set_title(f"delta = 0, rashba = 0.25\n#{g4.number_str} {g4.name}\n"
-                  f"{fmt(c_mid.counts)} and {fmt(c_hi.counts)} split at K",
+                  f"{fmt(c_mid.coreps)} and {fmt(c_hi.coreps)} split at K",
                   fontsize=9.5)
 
 fig.suptitle("Kane-Mele on the honeycomb: the four bands along GM-K-M-GM, the valence "

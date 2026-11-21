@@ -8,35 +8,31 @@ P4_3321' #212.60   (.group)
     4a (321'): orbitals 0-7, E
 
 2. the coreps of all 8 bands at the high-symmetry points
-bands 0-7 at GM (Γ): GM3 + GM4 + GM5   (.table.bands, .kpname, .counts)
-  by degenerate multiplet, from the lowest   (.labels)
-    bands 0-2 at -6.4: GM5, class 0
-    bands 3-5 at 0: GM4, class 1
-    bands 6-7 at 4.8: GM3, class 2
-  multiplets of one class carry the same characters, under any labelling of the orbitals   (.partition)
-bands 0-7 at M: M1M4 + M2M3 + 2×M5   (.table.bands, .kpname, .counts)
-  by degenerate multiplet, from the lowest   (.labels)
-    bands 0-1 at -7.654: M5, class 0
-    bands 2-3 at -0.8: M1M4, class 1
-    bands 4-5 at 1.254: M5, class 0
-    bands 6-7 at 2.4: M2M3, class 2
-  multiplets of one class carry the same characters, under any labelling of the orbitals   (.partition)
-bands 0-7 at R: R1R2 + R3   (.table.bands, .kpname, .counts)
-  by degenerate multiplet, from the lowest   (.labels)
-    bands 0-3 at -4.8: R3, class 0
-    bands 4-7 at 2.4: R1R2, class 1
-  multiplets of one class carry the same characters, under any labelling of the orbitals   (.partition)
-bands 0-7 at X: 2×X1 + 2×X2   (.table.bands, .kpname, .counts)
-  by degenerate multiplet, from the lowest   (.labels)
-    bands 0-1 at -7.261: X1, class 0
-    bands 2-3 at -2.9: X2, class 1
-    bands 4-5 at 2.599: X1, class 0
-    bands 6-7 at 2.762: X2, class 1
-  multiplets of one class carry the same characters, under any labelling of the orbitals   (.partition)
+bands 0-7 at GM (0, 0, 0): GM3 + GM4 + GM5   (.bands, .kpoint, .k, .coreps)
+  by degenerate multiplet, from the lowest   (.multiplets)
+    bands 0-2 at -6.4: GM5
+    bands 3-5 at 0: GM4
+    bands 6-7 at 4.8: GM3
+bands 0-7 at M (1/2, 1/2, 0): M1M4 + M2M3 + 2xM5   (.bands, .kpoint, .k, .coreps)
+  by degenerate multiplet, from the lowest   (.multiplets)
+    bands 0-1 at -7.654: M5
+    bands 2-3 at -0.8: M1M4
+    bands 4-5 at 1.254: M5
+    bands 6-7 at 2.4: M2M3
+bands 0-7 at R (1/2, 1/2, 1/2): R1R2 + R3   (.bands, .kpoint, .k, .coreps)
+  by degenerate multiplet, from the lowest   (.multiplets)
+    bands 0-3 at -4.8: R3
+    bands 4-7 at 2.4: R1R2
+bands 0-7 at X (0, 1/2, 0): 2xX1 + 2xX2   (.bands, .kpoint, .k, .coreps)
+  by degenerate multiplet, from the lowest   (.multiplets)
+    bands 0-1 at -7.261: X1
+    bands 2-3 at -2.9: X2
+    bands 4-5 at 2.599: X1
+    bands 6-7 at 2.762: X2
 
 3. the symmetry data vector of all 8 bands, and of the elementary band representation of E at 4a
-all 8 bands:        GM3 + GM4 + GM5 + M1M4 + M2M3 + 2×M5 + R1R2 + R3 + 2×X1 + 2×X2
-E↑G(8)@4a(321',32): GM3 + GM4 + GM5 + M1M4 + M2M3 + 2×M5 + R1R2 + R3 + 2×X1 + 2×X2
+all 8 bands:        GM3 + GM4 + GM5 + M1M4 + M2M3 + 2xM5 + R1R2 + R3 + 2xX1 + 2xX2
+E↑G(8)@4a(321',32): GM3 + GM4 + GM5 + M1M4 + M2M3 + 2xM5 + R1R2 + R3 + 2xX1 + 2xX2
 
 4. the auxiliary bands: the elementary band representation induced from A1 at either 4a or 4b
 A1↑G(4)@4a(321',32): GM1 + GM5 + M1M4 + M5 + R3 + X1 + X2

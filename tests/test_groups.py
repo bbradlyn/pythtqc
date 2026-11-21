@@ -410,7 +410,7 @@ def test_the_group_is_independent_of_how_the_cell_is_written():
         r = G.realized_group(model, **kw)
         assert r, str(r)
         t = tqc.hsp_table(r, bands=bands)
-        return (r.group.name, r.group.number_str, tqc.format_counts(t.counts),
+        return (r.group.name, r.group.number_str, tqc.format_coreps(t.symmetry_data),
                 [(row.wyckoff, row.irrep) for row in r.rep._characters.orbitals])
 
     def s_square(i, j, d):
@@ -955,12 +955,14 @@ def test_graphene_gamma_content_and_the_phase_invariant_partition():
     chars = bloch_characters(m, g, asg, np.zeros(2), [[0], [1]])
     out = G.identify_from_characters(g, np.zeros(2), chars, multiplet_dims=[1, 1])
     assert out, out
+    assert isinstance(out, G.CorepIdentification) and out.kpoint == "GM"
     assert out.labels == ({"GM1+": 1}, {"GM4-": 1})
-    assert out.partition == (0, 1), "the two bands carry different content"
+    assert out.labels[0] != out.labels[1], "the two bands carry different content"
+    assert G.identify_from_characters(g, "GM", chars, multiplet_dims=[1, 1]).labels == out.labels
 
     same = G.identify_from_characters(g, np.zeros(2), np.vstack([chars[0], chars[0]]),
                                       multiplet_dims=[1, 1])
-    assert same.partition == (0, 0), "identical character rows are the same content"
+    assert same.labels[0] == same.labels[1], "identical character rows are the same content"
 
 
 def test_identify_refuses_a_k_point_the_tables_do_not_carry():
@@ -2293,7 +2295,7 @@ def test_the_anisotropic_square_descends_from_the_cell_the_isotropic_one_allows(
         r = G.realized_group(model, **kw)
         assert r, str(r)
         t = tqc.hsp_table(r, bands=1)
-        return (r.group.name, r.group.number_str, tqc.format_counts(t.counts),
+        return (r.group.name, r.group.number_str, tqc.format_coreps(t.symmetry_data),
                 [(row.wyckoff, row.irrep) for row in r.rep._characters.orbitals])
 
     cscl = [[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]]
@@ -2320,7 +2322,7 @@ def test_the_anisotropic_square_descends_from_the_cell_the_isotropic_one_allows(
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("call", ["hsp_table", "corep_content", "characters", "sewing_matrix",
+@pytest.mark.parametrize("call", ["hsp_table", "coreps_at", "characters", "sewing_matrix",
                                   "srsi_of_model", "splitting"])
 def test_the_realized_record_is_read_by_name_and_taken_whole(p41_substrate, call):
     """The record is read by name and handed whole to every call that reads it.
@@ -2353,7 +2355,7 @@ def test_the_realized_record_is_read_by_name_and_taken_whole(p41_substrate, call
         assert fn(r, **kw) is not None
         return
     fn = getattr(tqc, call)
-    args = {"hsp_table": (), "corep_content": (k,), "characters": (k,),
+    args = {"hsp_table": (), "coreps_at": (k,), "characters": (k,),
             "sewing_matrix": (1, k)}[call]
     with pytest.raises(TypeError, match=rf"{call}\(\): pass what realized_group returns, "
                                         r"as in .*, not r\.rep"):

@@ -270,9 +270,9 @@ print(mo.summary())
 #      orbitals 0-1 at 1a, 1 (-E1)_a + 1 (-E2)_a: Z-valued (1, 1, 0), mod 2 (0, 0)
 #      orbitals 2-3 at 2c, 1 (-E)_c: Z-valued (1, 1, 0), mod 2 (0, 1)
 for orbit in mo.orbits:
-    print(f"{orbit.multiplicity}{orbit.letter}:", tqc.format_counts(orbit.content))
-#  1a: -GM6 + -GM7 + -M6 + -M7 + 2×-X5
-#  2c: -GM6 + -GM7 + -M6 + -M7 + 2×-X5
+    print(f"{orbit.multiplicity}{orbit.letter}:", tqc.format_coreps(orbit.content))
+#  1a: -GM6 + -GM7 + -M6 + -M7 + 2x-X5
+#  2c: -GM6 + -GM7 + -M6 + -M7 + 2x-X5
 eight = tqc.srsi_of_bands(tqc.hsp_table(r, bands=8))
 print(eight.theta_Z == mo.theta_Z)
 #  True

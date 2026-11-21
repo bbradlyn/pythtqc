@@ -101,6 +101,28 @@ from conftest import FKM_BOND, fkm_regime, patch_everywhere
 # recipe the layer tests turn a spin frame with
 from test_layer import spin_blocks_turned
 
+
+def coreps_by_point(table):
+    """``{kpoint: {corep: multiplicity}}``, read off a table's rows."""
+    out = {}
+    for kpoint, rows in table.multiplets.items():
+        here = {}
+        for m in rows:
+            for name in m.corep_names:
+                here[name] = here.get(name, 0) + 1
+        out[kpoint] = here
+    return out
+
+
+def patterns(table):
+    """``{kpoint: pattern}``: which rows at each point carry the same coreps."""
+    out = {}
+    for kpoint, rows in table.multiplets.items():
+        seen = {}
+        out[kpoint] = tuple(seen.setdefault(tuple(m.corep_names), len(seen)) for m in rows)
+    return out
+
+
 GATE = tqs.EXACT_TOL   # the exact floor of _build_rep's covariance gate
 
 #: How far a re-encoded representation may differ from the native one.  It is a
@@ -214,7 +236,7 @@ FIXTURES = {
 
 #: What each fixture's native ``hsp_table`` holds, on the route above.  Every
 #: one of them is complete, which is what makes the corep comparison in
-#: ``test_the_corep_content_and_the_ebr_verdict_are_the_native_ones`` a
+#: ``test_the_coreps_and_the_ebr_verdict_are_the_native_ones`` a
 #: measurement on every parameter rather than ``{} == {}`` on some.
 NATIVE_COUNTS = {
     "km": {"-GM6": 1, "-K5": 1, "-K6": 1, "-M3M4": 1},
@@ -600,7 +622,7 @@ def test_the_pair_carries_the_orbitals_own_site_character(reencoded):
 
 
 @pytest.mark.slow
-def test_the_corep_content_and_the_ebr_verdict_are_the_native_ones(reencoded):
+def test_the_coreps_and_the_ebr_verdict_are_the_native_ones(reencoded):
     """Downstream, unchanged: sewing, coreps and the EBR arithmetic.
 
     Nothing below ``_build_rep`` was taught anything about a spinor basis, and
@@ -631,16 +653,16 @@ def test_the_corep_content_and_the_ebr_verdict_are_the_native_ones(reencoded):
     # the native side carries content -- otherwise the three comparisons below
     # are `{} == {}` and the docstring's claim is not measured at all
     assert tabN.complete and not tabN.refusals, f"{name}: {dict(tabN.refusals)}"
-    assert dict(tabN.counts) == NATIVE_COUNTS[name], f"{name}"
-    resolved = set(tabN.points)
-    assert set(tabN.content) == set(tabN.partitions) == resolved and len(resolved) >= 3
-    assert all(tabN.content[p] and tabN.partitions[p] for p in resolved)
+    assert dict(tabN.symmetry_data) == NATIVE_COUNTS[name], f"{name}"
+    resolved = set(tabN.kpoints)
+    assert set(tabN.multiplets) == resolved and len(resolved) >= 3
+    assert all(tabN.multiplets[p] for p in resolved)
 
-    assert sorted(tab.points) == sorted(tabN.points), f"{name}/{layout}"
+    assert sorted(tab.kpoints) == sorted(tabN.kpoints), f"{name}/{layout}"
     assert tab.complete is tabN.complete
-    assert dict(tab.counts) == dict(tabN.counts)
-    assert tab.content == tabN.content
-    assert tab.partitions == tabN.partitions
+    assert dict(tab.symmetry_data) == dict(tabN.symmetry_data)
+    assert coreps_by_point(tab) == coreps_by_point(tabN)
+    assert patterns(tab) == patterns(tabN)
     assert sorted(tab.refusals) == sorted(tabN.refusals)
 
     got = tqe.decompose(tab, group, rep=rep)
@@ -804,7 +826,7 @@ def test_a_pair_split_across_two_sites_refuses(km_flat):
     assert read, str(read)
     assert read.group.number_str == "156.50"
     assert read.rep._characters.irreps == ("-E1",) * 4
-    assert tqw.hsp_table(read, bands=2).counts == NATIVE_COUNTS["km"]
+    assert tqw.hsp_table(read, bands=2).symmetry_data == NATIVE_COUNTS["km"]
 
 
 @pytest.fixture(scope="module")
@@ -885,8 +907,8 @@ def test_a_pairing_is_read_pair_by_pair_and_a_wrong_one_descends(two_spinors_per
     assert read.group.number_str == regular.group.number_str
     assert len(read.numerical.validated._indices) == len(regular.numerical.validated._indices) == 24
     assert read.rep._characters.irreps == regular.rep._characters.irreps == ("-E1",) * 8
-    assert (tqw.hsp_table(read, bands=4).counts
-            == tqw.hsp_table(regular, bands=4).counts)
+    assert (tqw.hsp_table(read, bands=4).symmetry_data
+            == tqw.hsp_table(regular, bands=4).symmetry_data)
 
     crossed = tqsp.spin_basis(flat, pairs=[(0, 1), (2, 3), (4, 7), (5, 6)])
     site_of = np.asarray(assignment.site_of_orbital, dtype=int)
@@ -1268,10 +1290,12 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
         "each row its own multiplet's: the threefold carries a site's two orbitals as " \
         "the complex pair, and the p_x, p_y declared on them name the doublet they make"
     assert sub_p.rep._characters.irreps == ("2E", "1E") * 2
-    k_free = tqw.hsp_table(free_p, bands=2).records["K"].table
-    k_sub = tqw.hsp_table(sub_p, bands=2).records["K"].table
-    assert tuple(k_free.columns[:3]) == tuple(k_sub.columns) == (1, 2, 3), "E and the threefolds"
-    assert np.abs(np.asarray(k_free.characters)[:, :3] - np.asarray(k_sub.characters)).max() < 1e-9
+    k_free = tqw.hsp_table(free_p, bands=2)._records["K"]._characters
+    k_sub = tqw.hsp_table(sub_p, bands=2)._records["K"]._characters
+    assert tuple(k_free.multiplets[0].characters)[:3] == tuple(k_sub.multiplets[0].characters) \
+        == (1, 2, 3), "E and the threefolds"
+    assert np.abs(tqw._character_matrix(k_free)[:, :3]
+                  - tqw._character_matrix(k_sub)).max() < 1e-9
 
     # ... and with its bonds along the axes alone, a pseudospin the hoppings
     # conserve: the commutant supplies a time reversal of square +1, so the
@@ -1316,7 +1340,7 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     assert max(pseudo.rep.numerical.residuals.values()) < 1e-13
     assert pseudo.rep.numerical.product_residual < 1e-12
     lowest = tqw.hsp_table(pseudo, bands=2)
-    assert lowest.complete and lowest.counts == {"GM5-": 1, "A5-": 1, "M5-": 1, "R3-": 1,
+    assert lowest.complete and lowest.symmetry_data == {"GM5-": 1, "A5-": 1, "M5-": 1, "R3-": 1,
                                                  "R4-": 1, "X3-": 1, "X4-": 1, "Z5-": 1}
     assert "pseudospin" in lowest.note and "2xEu" in lowest.note
     # ... and copies every representation of which gives one site content: a
@@ -1392,7 +1416,7 @@ def test_every_spelling_of_spin_builds_the_same_representation(km_flat, pxpy_spi
     assert (got.group.number_str, len(got.numerical.validated._indices)) == ("123.340", 32)
     assert got.spin.pairs == basis_p.pairs
     assert got.rep._multiplets.dims == ((2,),), "one doublet of declared pairs"
-    assert dict(tqw.hsp_table(got, bands=2).counts) == dict(want.counts)
+    assert dict(tqw.hsp_table(got, bands=2).symmetry_data) == dict(want.symmetry_data)
 
 
 def test_a_wrong_basis_size_is_a_grammar_error(km_flat):
@@ -1448,10 +1472,10 @@ def test_a_declared_pair_reads_the_native_content_and_site_irrep(km_flat):
     assert got.group.number_str == "156.50" and got.group._size == 12
     tab = tqw.hsp_table(got, bands=2)
     assert tab.complete
-    assert dict(tab.counts) == {"-GM6": 1, "-K5": 1, "-K6": 1, "-M3M4": 1}
-    assert {p: dict(v) for p, v in tab.content.items()} == {
+    assert dict(tab.symmetry_data) == {"-GM6": 1, "-K5": 1, "-K6": 1, "-M3M4": 1}
+    assert coreps_by_point(tab) == {
         "GM": {"-GM6": 1}, "K": {"-K5": 1, "-K6": 1}, "M": {"-M3M4": 1}}
-    assert dict(tab.partitions) == {"GM": (0,), "K": (0, 1), "M": (0,)}
+    assert patterns(tab) == {"GM": (0,), "K": (0, 1), "M": (0,)}
     assert got.spin is basis
     assert got.rep._reference["spin_pair"] == 0
     # one pair on each site, a one-dimensional multiplet carrying the native site irrep
@@ -1625,7 +1649,8 @@ def test_the_indicator_class_of_fu_kane_mele_survives_the_re_encoding(realized):
     assert got_rg, str(got_rg)
     assert got_rg.group.number_str == "166.98"
     tab = tqw.hsp_table(got_rg, bands=2)
-    assert dict(tab.counts) == dict(tabN.counts) and tab.partitions == tabN.partitions
+    assert dict(tab.symmetry_data) == dict(tabN.symmetry_data)
+    assert patterns(tab) == patterns(tabN)
 
     got = tqe.symmetry_indicator(tab, got_rg.group, rep=got_rg.rep, bands=2)
     assert got, str(got)

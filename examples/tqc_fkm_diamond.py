@@ -21,6 +21,7 @@
 
 import os
 import sys
+from collections import Counter
 
 import matplotlib
 
@@ -31,7 +32,7 @@ from pythtb.models import fu_kane_mele
 
 import _path  # noqa: F401  (in-repo runs: puts src/ on sys.path)
 import pythtqc as tqc
-from pythtqc import format_counts as fmt
+from pythtqc import format_coreps as fmt
 from pythtqc import solve_at
 from pythtqc.utils import save_figure
 
@@ -89,6 +90,11 @@ def atomic_limits(d):
     return "atomic limits", f"{len(sums)} sums of elementary band representations"
 
 
+def coreps_of(table, point):
+    """The coreps a table's bands carry at one point, as {corep: multiplicity}."""
+    return Counter(name for m in table.multiplets[point] for name in m.corep_names)
+
+
 ########### 1. the undistorted crystal ###########
 
 print("\n1. the undistorted crystal")
@@ -111,7 +117,7 @@ for point in sorted(hsp):
 
 table4 = tqc.hsp_table(r, bands=4)          # the content of all four bands
 d4 = tqc.decompose(table4)
-row("all 4 bands", fmt(table4.counts))
+row("all 4 bands", fmt(table4.symmetry_data))
 row(*atomic_limits(d4))
 
 # ... and the same table asked for the valence bands alone
@@ -137,7 +143,7 @@ for point in POINTS:
     row(f"E at {point}", ", ".join(f"{x:+.6f}" for x in w) + f"   gap {w[2] - w[1]:.6f}")
 
 t2_strong = tqc.hsp_table(r_strong, bands=2)
-row("valence content", fmt(t2_strong.counts))
+row("valence content", fmt(t2_strong.symmetry_data))
 
 dec_strong = tqc.decompose(t2_strong)
 row(*atomic_limits(dec_strong))
@@ -160,7 +166,7 @@ for point in POINTS:
 row("gaps GM/T/F/L", " / ".join(f"{g:.6f}" for g in gaps_weak))
 
 t2_weak = tqc.hsp_table(r_weak, bands=2)
-row("valence content", fmt(t2_weak.counts))
+row("valence content", fmt(t2_weak.symmetry_data))
 
 dec_weak = tqc.decompose(t2_weak)
 row(*atomic_limits(dec_weak))
@@ -183,7 +189,7 @@ for point in POINTS:
 row("gaps GM/T/F/L", " / ".join(f"{g:.6f}" for g in gaps_dimers))
 
 t2_dimers = tqc.hsp_table(r_dimers, bands=2)
-row("valence content", fmt(t2_dimers.counts))
+row("valence content", fmt(t2_dimers.symmetry_data))
 
 dec_dimers = tqc.decompose(t2_dimers)
 row(*atomic_limits(dec_dimers))
@@ -214,13 +220,13 @@ row("k-orbits", ", ".join(f"{p} ({stars[p]})" for p in POINTS)
 
 # the strong phase against the dimers, point by point, and then the weak one
 changed_strong = sorted(p for p in POINTS
-                        if t2_strong.content.get(p) != t2_dimers.content.get(p))
+                        if coreps_of(t2_strong, p) != coreps_of(t2_dimers, p))
 n_strong = sum(stars[p] for p in changed_strong)
 row("strong vs dimers", f"the content changes at {' and '.join(changed_strong)}, "
     f"{n_strong} of the {n_trim} TRIM")
 
 changed_weak = sorted(p for p in POINTS
-                      if t2_weak.content.get(p) != t2_dimers.content.get(p))
+                      if coreps_of(t2_weak, p) != coreps_of(t2_dimers, p))
 n_weak = sum(stars[p] for p in changed_weak)
 row("weak vs dimers", f"the content changes at {' and '.join(changed_weak)}, "
     f"{n_weak} of the {n_trim} TRIM")
@@ -279,7 +285,7 @@ for x in kn:
 # dispersion runs underneath it
 for point, x in zip(NODES, kn):
     j = int(np.argmin(np.abs(kd - x)))
-    axes[0].annotate(fmt(t2_strong.content[point]), xy=(x, bands[j, 0]),
+    axes[0].annotate(fmt(coreps_of(t2_strong, point)), xy=(x, bands[j, 0]),
                      xytext=(0, -16), textcoords="offset points", ha="center",
                      fontsize=8.5, color="tab:blue", zorder=5,
                      bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="none",
@@ -302,7 +308,7 @@ for x in kn:
     axes[1].axvline(x, color="0.82", lw=0.7)
 for point, x in zip(NODES, kn):
     j = int(np.argmin(np.abs(kd - x)))
-    axes[1].annotate(fmt(t2_weak.content[point]), xy=(x, bands[j, 0]),
+    axes[1].annotate(fmt(coreps_of(t2_weak, point)), xy=(x, bands[j, 0]),
                      xytext=(0, -16), textcoords="offset points", ha="center",
                      fontsize=8.5, color="tab:blue", zorder=5,
                      bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="none",
@@ -324,7 +330,7 @@ for x in kn:
     axes[2].axvline(x, color="0.82", lw=0.7)
 for point, x in zip(NODES, kn):
     j = int(np.argmin(np.abs(kd - x)))
-    axes[2].annotate(fmt(t2_dimers.content[point]), xy=(x, bands[j, 0]),
+    axes[2].annotate(fmt(coreps_of(t2_dimers, point)), xy=(x, bands[j, 0]),
                      xytext=(0, -16), textcoords="offset points", ha="center",
                      fontsize=8.5, color="tab:blue", zorder=5,
                      bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="none",

@@ -93,21 +93,21 @@ Now the corep content of the two occupied bands, at each high-symmetry point:
 ```python
 hsp = tqc.high_symmetry_points(group)           # in THIS cell's reduced coordinates
 for name in ("GM", "K", "M"):
-    content = tqc.corep_content(r, hsp[name], bands=2)
+    content = tqc.coreps_at(r, hsp[name], bands=2)
     print(content)
-#  CorepContent(GM: -GM6, partition=(0,))
-#  CorepContent(K: -K5 + -K6, partition=(0, 1))
-#  CorepContent(M: -M3M4, partition=(0,))
+#  CorepsAt(GM: -GM6)
+#  CorepsAt(K: -K5 + -K6)
+#  CorepsAt(M: -M3M4)
 ```
 
 Read those three lines as physics. At `GM` the two occupied bands are one
-two-dimensional corep `-GM6` — a single Kramers level, `partition=(0,)` saying
-both bands sit in the same row; the leading `-` marks a double-valued, spinful
-label. At `K` they split into two one-dimensional coreps, `partition=(0, 1)`
-saying the two rows differ. At `M` they are `-M3M4`: two
+two-dimensional corep `-GM6` — a single Kramers level, both bands in one
+multiplet; the leading `-` marks a double-valued, spinful
+label. At `K` they split into two one-dimensional coreps, two
+multiplets whose characters differ. At `M` they are `-M3M4`: two
 one-dimensional unitary irreps, `M3` and `M4`, that time reversal glues into
-one physically irreducible level. The partition is the statement that survives
-every phase convention; the labels are canonical only relative to the declared
+one physically irreducible level. Which multiplets carry the same characters
+survives every phase convention; the labels are canonical only relative to the declared
 characters. With no `states=` given, the states are left to the call: one
 diagonalization per k-point, reused by every operation there, since a second
 one returns a different basis inside a degenerate multiplet and changes the
@@ -124,7 +124,7 @@ or says that no such sum exists:
 
 ```python
 t = tqc.hsp_table(r, bands=2)                   # the same content everywhere, one solve
-print(tqc.format_counts(t.counts))
+print(tqc.format_coreps(t.symmetry_data))
 #  -GM6 + -K5 + -K6 + -M3M4
 
 d = tqc.decompose(t)
@@ -144,7 +144,7 @@ Every argument of each call above, what it returns and how it refuses are in
 the reference: [`realized_group`](../reference/functions.md#realized_group),
 [`wyckoff_sites_tables`](../reference/functions.md#wyckoff_sites_tables),
 [`high_symmetry_points`](../reference/functions.md#high_symmetry_points),
-[`corep_content`](../reference/functions.md#corep_content),
+[`coreps_at`](../reference/functions.md#coreps_at),
 [`hsp_table`](../reference/functions.md#hsp_table),
-[`format_counts`](../reference/functions.md#format_counts) and
+[`format_coreps`](../reference/functions.md#format_coreps) and
 [`decompose`](../reference/functions.md#decompose).

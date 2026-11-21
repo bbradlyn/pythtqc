@@ -29,6 +29,7 @@
 
 import os
 import sys
+from collections import Counter
 
 import matplotlib
 
@@ -39,7 +40,7 @@ from pythtb.models import kane_mele
 
 import _path  # noqa: F401  (in-repo runs: puts src/ on sys.path)
 import pythtqc as tqc
-from pythtqc import format_counts as fmt
+from pythtqc import format_coreps as fmt
 from pythtqc.utils import save_figure
 
 # The tables name some indicators with π (z3m,π); a Windows console cannot print
@@ -100,9 +101,14 @@ def values(theta):
     return "(" + ", ".join(str(v) for v in theta) + ")"
 
 
+def coreps_of(table, point):
+    """The coreps a table's bands carry at one point, as {corep: multiplicity}."""
+    return Counter(name for m in table.multiplets[point] for name in m.corep_names)
+
+
 def by_point(table, points):
-    """A band set's content at each point, as format_counts writes it."""
-    return "   ".join(f"{p}: {fmt(table.content[p])}" for p in points)
+    """A band set's content at each point, as format_coreps writes it."""
+    return "   ".join(f"{p}: {fmt(coreps_of(table, p))}" for p in points)
 
 
 def indicator(si):
@@ -302,7 +308,7 @@ for x in kn:
 # clears both bands
 for point, x in zip(NODES, kn):
     j = int(np.argmin(np.abs(kd - x)))
-    axes[0].annotate(fmt(table_b.content[point]), xy=(x, bands_2d[j, 1]),
+    axes[0].annotate(fmt(coreps_of(table_b, point)), xy=(x, bands_2d[j, 1]),
                      xytext=(0, -16), textcoords="offset points", ha="center",
                      fontsize=8, color="tab:blue")
 axes[0].set_xticks(kn)
@@ -330,7 +336,7 @@ for x in kn0:
     axes[1].axvline(x, color="0.75", lw=0.7)
 for point, x in zip(("A", "H", "L", "A"), kn0):
     j = int(np.argmin(np.abs(kd0 - x)))
-    axes[1].annotate(fmt(six.content[point]), xy=(x, bands_kzh[j, 1]), xytext=(0, -16),
+    axes[1].annotate(fmt(coreps_of(six, point)), xy=(x, bands_kzh[j, 1]), xytext=(0, -16),
                      textcoords="offset points", ha="center", fontsize=8,
                      color="tab:blue")
 axes[1].set_xticks(kn0)

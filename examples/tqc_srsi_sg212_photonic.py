@@ -164,12 +164,12 @@ print(r.summary())
 
 ########### 2. the coreps at the high-symmetry points, and the band structure ###########
 
-# hsp_table reads the coreps of the 8 bands at every high-symmetry point; each
-# point's record lists them by degenerate multiplet, lowest first.
+# hsp_table reads the coreps of the 8 bands at every high-symmetry point, and
+# coreps_at those at one point, by degenerate multiplet, lowest first.
 print("\n2. the coreps of all 8 bands at the high-symmetry points")
 table = tqc.hsp_table(r, bands=8)
-for record in table.records.values():
-    print(record.summary())
+for point in table.multiplets:
+    print(tqc.coreps_at(r, point, bands=8).summary())
 
 # The bands along GM-X-M-GM-R-X-M-R, each multiplet at a high-symmetry point
 # labelled with its corep: the 4 lowest bands, below zero away from Γ, are the
@@ -186,10 +186,11 @@ ax.plot(k_dist, evals[:, :4], color="gray")
 ax.plot(k_dist, evals[:, 4:], color="red")
 ax.axhline(0, color="black", lw=0.5, ls="--")
 for name, x in zip(path, k_node):
-    energies = table.records[name].table.energies
-    for i, label in enumerate(table.records[name].labels):
+    multiplets = table.multiplets[name]
+    energies = [m.energy for m in multiplets]
+    for i, m in enumerate(multiplets):
         below = i + 1 < len(energies) and energies[i + 1] - energies[i] < 0.5
-        ax.annotate(tqc.format_counts(label), xy=(x, energies[i]), ha="center",
+        ax.annotate(m.label, xy=(x, energies[i]), ha="center",
                     va="top" if below else "bottom", xytext=(0, -4 if below else 4),
                     textcoords="offset points", bbox=dict(fc="white", ec="none", pad=0.5))
 ax.set_xticks(k_node, labels=["Γ", "X", "M", "Γ", "R", "X", "M", "R"])
@@ -206,8 +207,8 @@ plt.close(fig)
 print("\n3. the symmetry data vector of all 8 bands, and of the elementary band "
       "representation of E at 4a")
 ebrs = tqc.ebr_rows(r.group)
-print("all 8 bands:       ", tqc.format_counts(table.counts))
-print("E↑G(8)@4a(321',32):", tqc.format_counts(ebrs["E", "4a"]))
+print("all 8 bands:       ", tqc.format_coreps(table.symmetry_data))
+print("E↑G(8)@4a(321',32):", tqc.format_coreps(ebrs["E", "4a"]))
 
 ########### 4. the auxiliary bands ###########
 
@@ -217,8 +218,8 @@ print("E↑G(8)@4a(321',32):", tqc.format_counts(ebrs["E", "4a"]))
 # Their GM1 corresponds to the longitudinal subspace of the GM4 triplet at zero.
 # The physical bands, all 8 less the auxiliary 4, carry GM4 - GM1 at Γ.
 print("\n4. the auxiliary bands: the elementary band representation induced from A1 at either 4a or 4b")
-print("A1↑G(4)@4a(321',32):", tqc.format_counts(ebrs["A1", "4a"]))
-print("A1↑G(4)@4b(321',32):", tqc.format_counts(ebrs["A1", "4b"]))
+print("A1↑G(4)@4a(321',32):", tqc.format_coreps(ebrs["A1", "4a"]))
+print("A1↑G(4)@4b(321',32):", tqc.format_coreps(ebrs["A1", "4b"]))
 
 ########### 5. the stable real-space invariants ###########
 

@@ -36,7 +36,7 @@ import numpy as np
 import _path  # noqa: F401  (in-repo runs: puts src/ on sys.path)
 import pythtqc as tqc
 from pythtqc import models as tqm
-from pythtqc import format_counts as fmt
+from pythtqc import format_coreps as fmt
 from pythtqc import solve_at
 from pythtqc.utils import save_figure
 
@@ -115,19 +115,18 @@ row("realized group", f"#{g199.number_str} {g199.name}, s orbitals at Wyckoff "
     f"{' and '.join(dict.fromkeys(o.wyckoff for o in r199.wyckoff_orbits))}, "
     f"{m199.nstate} bands")
 
-# one diagonalization per high-symmetry point: corep_content reads the
+# one diagonalization per high-symmetry point: coreps_at reads the
 # characters of each level off its eigenvectors and names the corep it carries;
 # each level is printed as its corep, its dimension in parentheses, and its energy.
 hsp199 = tqc.high_symmetry_points(g199)
 levels199 = []                     # (k-point, energy, corep label, degeneracy)
 for point in sorted(hsp199):
     k = hsp199[point]
-    out = tqc.corep_content(r199, k, states=solve_at(m199, k), bands=4)
+    out = tqc.coreps_at(r199, k, states=solve_at(m199, k), bands=4)
     rows = []
-    for multiplet, dim, counts in zip(out.table.multiplets, out.table.dims, out.labels):
-        energy = float(out.table.spectrum[multiplet[0]])
-        levels199.append((point, energy, fmt(counts), int(dim)))
-        rows.append(f"{fmt(counts)}({int(dim)}) at {energy:+.6f}")
+    for m in out.multiplets:
+        levels199.append((point, m.energy, m.label, len(m.bands)))
+        rows.append(f"{m.label}({len(m.bands)}) at {m.energy:+.6f}")
     row(point, ", ".join(rows))
 threefold = sorted({lab for _p, _e, lab, dim in levels199 if dim == 3})
 print(f"   {' and '.join(threefold)} are threefold: the spin-1 fermions")
@@ -137,7 +136,7 @@ print(f"   {' and '.join(threefold)} are threefold: the spin-1 fermions")
 print("\n2. SG 199: the four bands together, and the three inter-band gaps")
 t199 = tqc.hsp_table(r199, bands=4)          # the content at every point, in one table
 d199 = tqc.decompose(t199)
-row("all 4 bands", fmt(t199.counts))
+row("all 4 bands", fmt(t199.symmetry_data))
 row(*atomic_limits(d199))
 
 mesh199 = m199.k_uniform_mesh([NK_MESH] * 3)
@@ -176,12 +175,11 @@ hsp208 = tqc.high_symmetry_points(g208)
 levels208 = []
 for point in sorted(hsp208):
     k = hsp208[point]
-    out = tqc.corep_content(r208, k, states=solve_at(m208, k), bands=4)
+    out = tqc.coreps_at(r208, k, states=solve_at(m208, k), bands=4)
     rows = []
-    for multiplet, dim, counts in zip(out.table.multiplets, out.table.dims, out.labels):
-        energy = float(out.table.spectrum[multiplet[0]])
-        levels208.append((point, energy, fmt(counts), int(dim)))
-        rows.append(f"{fmt(counts)}({int(dim)}) at {energy:+.6f}")
+    for m in out.multiplets:
+        levels208.append((point, m.energy, m.label, len(m.bands)))
+        rows.append(f"{m.label}({len(m.bands)}) at {m.energy:+.6f}")
     row(point, ", ".join(rows))
 
 ########### 4. SG 208: one elementary band representation, and the gaps ###########
@@ -189,7 +187,7 @@ for point in sorted(hsp208):
 print("\n4. SG 208: the four bands together, and the three inter-band gaps")
 t208 = tqc.hsp_table(r208, bands=4)
 d208 = tqc.decompose(t208)
-row("all 4 bands", fmt(t208.counts))
+row("all 4 bands", fmt(t208.symmetry_data))
 row(*atomic_limits(d208))
 
 mesh208 = m208.k_uniform_mesh([NK_MESH] * 3)
@@ -209,12 +207,12 @@ print("\n5. SG 208: each half of the split on its own")
 # exactly as the whole set was in section 4.
 table_lo = tqc.hsp_table(r208, bands=(0, 1))
 d_lo = tqc.decompose(table_lo)
-row("bands 0 and 1", fmt(table_lo.counts))
+row("bands 0 and 1", fmt(table_lo.symmetry_data))
 row(*atomic_limits(d_lo))
 
 table_hi = tqc.hsp_table(r208, bands=(2, 3))
 d_hi = tqc.decompose(table_hi)
-row("bands 2 and 3", fmt(table_hi.counts))
+row("bands 2 and 3", fmt(table_hi.symmetry_data))
 row(*atomic_limits(d_hi))
 print("   each isolated half is topological")
 

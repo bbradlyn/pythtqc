@@ -20,7 +20,7 @@ words are [the glossary's](glossary.md).
   [`SpaceGroupRep`](#spacegrouprep)
 - [The atomic-limit table](#the-atomic-limit-table), and
   [`BandRepresentation`](#bandrepresentation)
-- [`CharacterTable` and `CorepContent`](#charactertable-and-corepcontent),
+- [`BandCharacters` and `CorepsAt`](#bandcharacters-and-corepsat),
   [`HSPTable`](#hsptable)
 - [`EBRDecomposition`](#ebrdecomposition), and
   [`CompletenessReport` and `RegularCompletion`](#completenessreport-and-regularcompletion)
@@ -621,9 +621,10 @@ combined with time reversal, the pure time reversal being operation 13.
 | `antiunitary` | which of them are antiunitary |
 | `numerical` | `residuals`, `product_residual` and `factor_residual`: the covariance each matrix achieves; how far the matrices miss multiplying as the group does; the same for the Bloch operators, translations included |
 
-Its methods act with one operation: `k_action(ind)`,
+Its methods act with one operation:
 `transform_k(ind, k)`, `in_little_group(ind, k)`, `little_group(k)`,
-`bloch_operator(ind, k)`, `sewing_operator(ind, k)` and `covariance(k_pts)`.
+`bloch_operator(ind, k)`, `sewing_operator(ind, k)` and `covariance(kpoints)`;
+`k` is a tabulated name, `"GM"`, or coordinates.
 
 ## The atomic-limit table
 
@@ -777,79 +778,74 @@ Where no sum carries the content, the terms are empty and a line under the
 table says why. It is the band representation and nothing finer: which site
 irrep goes to which term is a subduction the tables do not carry.
 
-## `CharacterTable` and `CorepContent`
+## `BandCharacters` and `CorepsAt`
 
-`corep_content` reads the coreps a set of bands carries at one high-symmetry
-point, from the characters of the set, which `characters` returns as a table;
-the `summary()` of each reads it part by part:
+`coreps_at` reads the coreps a set of bands carries at one high-symmetry
+point, from the characters of the set, which `characters` returns; the
+`summary()` of each reads it part by part:
 
 ```python
 hsp = tqc.high_symmetry_points(r.group)
-c = tqc.corep_content(r, hsp["GM"], bands=2)
+c = tqc.coreps_at(r, hsp["GM"], bands=2)
 print(c)
-#  CorepContent(GM: -GM9, partition=(0,))
+#  CorepsAt(GM: -GM9)
 print(c.summary())
-#  bands 0-1 at GM (Γ): -GM9   (.table.bands, .kpname, .counts)
+#  bands 0-1 at GM (0, 0): -GM9   (.bands, .kpoint, .k, .coreps)
 #    6 from these bands to the nearest other band, in the units of H   (.isolation)
-print(c.labels, c.counts, c.partition, round(float(c.isolation), 3))
-#  ({'-GM9': 1},) {'-GM9': 1} (0,) 6.0
-print(c.table)
-#  CharacterTable(k=[0.0, 0.0], bands 0-1 in 1 multiplet, group=realized)
-print(c.table.summary())
-#  bands 0-1 at k = (0, 0)   (.bands, .k)
-#    the trace of each unitary operation of the little group, by index, over each degenerate multiplet   (.characters, .columns)
-#      bands             0-1   (.multiplets)
-#      energy             -3   (.energies)
-#        1  E              2
-#        2  C3(z)          1
-#        3  C3^-1(z)       1
-#        4  C2(z)          0
-#        5  C6^-1(z)   1.732
-#        6  C6(z)      1.732
-#        7  m([010])       0
-#        8  m(x)           0
-#        9  m([1-10])      0
-#       10  m([2-10])      0
-#       11  m(y)           0
-#       12  m([110])       0
-#    the operations combined with time reversal are left out: a corep table holds no characters for them   (.antiunitary)
-#    the sewing matrices unitary to 5.6e-16, the operators commuting with H(k) to 9.9e-16, the states solving H(k) to 0   (.unitarity, .commutators, .residual)
-print(c.table.columns, c.table.multiplets, c.table.dims)
-#  (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12) ((0, 1),) (2,)
+print([m.corep_names for m in c.multiplets], c.coreps, round(float(c.isolation), 3))
+#  [('-GM9',)] {'-GM9': 1} 6.0
+ch = tqc.characters(r, hsp["GM"], bands=2)
+print(ch)
+#  BandCharacters(GM (0, 0), bands 0-1 in 1 multiplet)
+print(ch.summary())
+#  bands 0-1 at GM (0, 0)   (.bands, .kpoint, .k)
+#    the trace of each unitary operation of the little group, by index, over each degenerate multiplet   (.multiplets: characters of each; .operations)
+#      bands                  0-1   (.multiplets: bands of each)
+#      energy                  -3   (.multiplets: energy of each)
+#        1  {1|0,0,0}           2
+#        2  {3+_001|0,0,0}      1
+#        3  {3-_001|0,0,0}      1
+#        4  {2_001|0,0,0}       0
+#        5  {6-_001|0,0,0}  1.732
+#        6  {6+_001|0,0,0}  1.732
+#        7  {m_110|0,0,0}       0
+#        8  {m_100|0,0,0}       0
+#        9  {m_010|0,0,0}       0
+#       10  {m_1-10|0,0,0}      0
+#       11  {m_120|0,0,0}       0
+#       12  {m_210|0,0,0}       0
+print(ch.numerical.summary())
+#  the sewing matrices unitary to 1e-15, the operators commuting with H(k) to 6.7e-16, the states solving H(k) to 0   (.unitarity, .commutators, .residual)
+print(tuple(ch.multiplets[0].characters), [m.bands for m in ch.multiplets],
+      [len(m.bands) for m in ch.multiplets])
+#  (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12) [(0, 1)] [2]
 ```
 
 At `GM` the two occupied bands are one Kramers doublet carrying `-GM9`, one
-multiplet, its partition a single class, and `6.0`, in the units of `H`, from
-the nearest band outside the set. The character table has one row, that
-doublet, and a column for each unitary operation of the little group, by index;
-its summary prints each column as a line, the operation's index, name and trace.
+multiplet, and `6.0`, in the units of `H`, from the nearest band outside the
+set. The characters have one row, that doublet, with the trace of each unitary
+operation of the little group, by index; the summary prints each operation as a
+line, its index, Seitz symbol and trace.
 
-A `CorepContent` holds:
+A `CorepsAt` holds:
 
 | field | what it holds |
 |---|---|
-| `kpname`, `k` | the tabulated point, and its coordinates in the model's reduced cell |
-| `labels` | one reading per degenerate multiplet of the set of bands: each corep and its multiplicity |
-| `counts` | the same summed over the set of bands: its symmetry data vector at this point |
-| `partition` | which multiplets carry the same characters, as numbers: two rows share a number exactly when their characters agree. It survives every labelling of the orbitals and every phase convention, which the labels do not |
+| `kpoint`, `k` | the tabulated point, and its coordinates in the model's reduced cell |
+| `bands` | the set of bands |
+| `multiplets` | one row per degenerate multiplet of the set of bands, lowest first: its bands, its mean energy, the coreps it carries as `corep_names`, and the same on one line as `label` |
+| `coreps` | the coreps summed over the set of bands: its symmetry data vector at this point |
 | `isolation` | the gap from the set of bands to the nearest band outside it, in the units of `H` |
-| `table` | the `CharacterTable` the labels were read from |
-| `content` | the identification's own record: the multiplicities before rounding, and how far they sat from integers |
-| `thresholds` | the zero thresholds in force at this `k`, which widen where multiplets crowd |
+| `numerical` | the zero thresholds in force at this `k`, which widen where multiplets crowd, as `thresholds`; and the identification's own record, the multiplicities before rounding and how far they sat from integers, as `identification` |
 
-and a `CharacterTable`:
+and a `BandCharacters`:
 
 | field | what it holds |
 |---|---|
-| `k`, `bands` | the point, and the set of bands |
-| `multiplets`, `dims`, `energies` | the rows: the degenerate multiplets of the set of bands, their degeneracies and their mean energies |
-| `columns` | the indices of the unitary operations of the little group, in the tables' order |
-| `characters` | the trace of each operation over each multiplet |
-| `antiunitary` | the antiunitary operations of the little group, reported and never used: the tables carry no characters for them |
-| `unitarity`, `commutators`, `residual`, `spread` | how far each sewing matrix is from unitary, how far each operator is from commuting with `H(k)`, how far the states are from eigenstates at this `k`, and the largest energy spread inside a multiplet |
-| `thresholds`, `disagreements` | the zero thresholds at this `k`, and the numbers the two thresholds classify differently |
-| `spectrum`, `degeneracy_tol` | the whole spectrum the table was built from, and the energy tolerance its multiplets were grouped at |
-| `group_provenance` | the provenance of the group the columns belong to: `"realized"` for a group measured on `H`, `"descended"` for one measured after the cell was lowered |
+| `kpoint`, `k`, `bands` | the point, its coordinates, and the set of bands; `kpoint` is `None` at a point with no tabulated name |
+| `multiplets` | the rows: each degenerate multiplet of the set of bands, with its bands, its mean energy, and its `characters`, the trace of each unitary operation of the little group by index |
+| `operations` | the operations of the little group, unitary and antiunitary, by index, each with its Seitz symbol; the tables carry no characters for the antiunitary ones |
+| `numerical` | `unitarity`, `commutators`, `residual`, `spread`: how far each sewing matrix is from unitary, how far each operator is from commuting with `H(k)`, how far the states are from eigenstates at this `k`, and the largest energy spread inside a multiplet; `thresholds`, `disagreements`: the zero thresholds at this `k`, and the numbers the two thresholds classify differently; `spectrum`, `degeneracy_tol`: the whole spectrum the characters were read from, and the energy tolerance its multiplets were grouped at |
 
 ## `HSPTable`
 
@@ -858,15 +854,15 @@ each point read off one diagonalization: `hsp_table`.
 
 ```python
 print(t)
-#  HSPTable(bands=(0, 1), 3 points resolved, 0 refused, group=realized)
+#  HSPTable(bands 0-1, 3 k-points measured, 0 refused)
 print(t.summary())
 #  bands 0-1   (.bands)
-#    their coreps at each high-symmetry point, GM being Γ   (.content)
+#    their coreps at each high-symmetry point   (.symmetry_data)
 #      GM: -GM9
 #      K: -K6
 #      M: -M5
-#    another labelling the hoppings leave open keeps every site irrep and labels some energy multiplets of these bands differently; it keeps which bands are degenerate and the labels of all the model's bands together   (.note)
-print(t.complete, t.counts, hsp.out_of_plane)
+#    another labeling the hoppings leave open keeps every site irrep and labels some energy multiplets of these bands differently; it keeps which bands are degenerate and the labels of all the model's bands together   (.note)
+print(t.complete, t.symmetry_data, hsp.out_of_plane)
 #  True {'-GM9': 1, '-K6': 1, '-M5': 1} ('A', 'H', 'L')
 ```
 
@@ -879,15 +875,13 @@ returned; which bands are degenerate does not. The points `A`,
 | field | what it holds |
 |---|---|
 | `bands` | the band indices of the set, ascending |
-| `points` | every tabulated point in the model's periodic plane, with its coordinates |
-| `content`, `partitions` | per point, the coreps and their multiplicities, and the partition |
-| `counts` | the coreps summed over every point resolved: the symmetry data vector, which `decompose` and `symmetry_indicator` take |
+| `group` | the group whose coreps the labels name, `r.group`: the one `decompose`, `symmetry_indicator`, `completeness_check`, `regular_completion` and `srsi_of_bands` read the table in; a group or a `rep=` handed to them beside the table that is not this one raises `ValueError` |
+| `kpoints` | every tabulated point in the model's periodic plane, with its coordinates |
+| `symmetry_data` | the coreps summed over every point resolved: the symmetry data vector, which `decompose` and `symmetry_indicator` take |
+| `multiplets` | per point resolved, one row per degenerate multiplet, lowest first: its bands, its mean energy and the coreps it carries, as `coreps_at` returns them |
 | `complete` | whether every point resolved; a table that is not complete is refused by the calls that need all of it |
-| `records`, `refusals` | per point, the `CorepContent` read there, and the `Refusal` returned there |
-| `thresholds` | per point, the zero thresholds in force |
+| `refusals` | per point, the `Refusal` returned there |
 | `note` | where some energy multiplet of these bands, at a point the table labels, is labelled otherwise under another labelling the hoppings leave open, a one-dimensional character on a coupled part of the crystal: a sentence saying so, and that every such labelling keeps which bands are degenerate and the labels of all the bands together; empty otherwise |
-| `group_provenance` | the provenance of the group the labels are read in, as [`GroupData`](#groupdata) gives it: `"realized"` for a group measured on `H`, `"descended"` for one measured after the cell was lowered |
-| `rep` | the representation the table was read with, `r.rep`, whose group is the one whose coreps the labels name, the one `decompose`, `symmetry_indicator`, `completeness_check`, `regular_completion` and `srsi_of_bands` read the table in, and a group or a `rep=` handed to them beside the table that is not this one raises `ValueError` |
 
 ## `EBRDecomposition`
 
@@ -983,10 +977,10 @@ print(cr.summary())
 rc = tqc.regular_completion(t, bands=12)
 print(rc.summary())
 #  one copy of the regular band representation, the one the regular representation of a site group induces: 12 bands at every k   (.copies, .bands_per_copy)
-#    the coreps the missing bands carry: 2×-GM7 + 2×-GM8 + -GM9 + 2×-K4 + 2×-K5 + 3×-K6 + 5×-M5   (.padding)
+#    the coreps the missing bands carry: 2x-GM7 + 2x-GM8 + -GM9 + 2x-K4 + 2x-K5 + 3x-K6 + 5x-M5   (.padding)
 #    the orbitals they would be, each the site irrep at its Wyckoff position (site symmetry)   (.decomposition)
 #      -E2 at 1a (6mm) + -E3 at 1a (6mm) + -E at 3c (mm2)
-#      -E1 at 1a (6mm) + 2×-E2 at 1a (6mm) + 2×-E3 at 1a (6mm)
+#      -E1 at 1a (6mm) + 2x-E2 at 1a (6mm) + 2x-E3 at 1a (6mm)
 print(rc.decomposition.solution_strings()[0])
 #  1 x -E2↑G(2)@1a(6mm1',6mm) + 1 x -E3↑G(2)@1a(6mm1',6mm) + 1 x -E↑G(6)@3c(mm21',mm2)
 ```
@@ -1311,7 +1305,7 @@ indicator of the free-standing layer's pair, asked of its counts written out by
 hand, which carry no representation to build the stack from, is one:
 
 ```python
-refused = tqc.symmetry_indicator(dict(tf.counts), fs.group)
+refused = tqc.symmetry_indicator(dict(tf.symmetry_data), fs.group)
 print(refused)
 #  Refusal[indicator_not_evaluable]: the EBR rows ['-A10', '-A11', '-A12', '-A7', '-A8', '-A9', '-H8', '-H9', '-L5', '-L6'] of #191.234 sit at k-points this content does not cover, out of a 2D model's periodic plane or carrying no information, and they duplicate no row it does cover, so the symmetry data vector cannot be completed and the indicator has no value here. The rows can be measured on the decoupled stack of the layer, which is built from the representation the bands were read with, its model and declared characters, and the bands the content counts: pass the table hsp_table(r, bands=...) returned, which carries them, and do not override points=. Completing missing content from the stable real-space invariants is future work.  (measured 10, threshold 0)
 #      context: completion, number_str, orphans, points, retained, stack
@@ -1369,16 +1363,16 @@ line ending with the attribute that holds that part, as the records above do.
 
 | record | returned by | what it is |
 |---|---|---|
-| `SewingMatrix` | `sewing_matrix` | the matrix of one operation in the basis of a set of bands at an invariant `k`, `B(g,k) = V† U(g;k) V`: its `matrix`, `trace`, `eigenvalues` and `angles`, and its checks |
+| `SewingMatrix` | `sewing_matrix` | the matrix of one operation in the basis of a set of bands at an invariant `k`, `B(g,k) = V† U(g;k) V`: its `operation` and `seitz`, `matrix` and `eigenvalues`, the reciprocal lattice vector `G` the operation carries `k` by, and its checks under `numerical` |
 | `KGrid` | `k_grid` | a mesh, as pythtb's own `Mesh` (`mesh`), with which high-symmetry points it samples (`contains`) |
 | `LittleGroup` | `little_group` | the operations that leave a `k` invariant up to a reciprocal lattice vector, unitary and antiunitary, and for each unitary one that vector, `G` |
 | `HighSymmetryPoints` | `high_symmetry_points` | each tabulated point's coordinates in the model's own reduced cell, a mapping by name, with `out_of_plane`, the points out of a layer's plane |
 | `SiteReference` | `wyckoff_sites_tables` | one site's Wyckoff position in the tables' setting: its `wyckoff`, multiplicity and letter (`"8a"`), and `slides_onto`, the positions an orbital confined to its variety can be moved to |
-| `IrrepContent` | `groups.identify_from_characters`, and `CorepContent.content` | the identification of measured characters: each row's multiplicities before rounding, and how far they sat from integers |
+| `CorepIdentification` | `groups.identify_from_characters`, and `CorepsAt.numerical.identification` | the identification of measured characters: each row's multiplicities before rounding, and how far they sat from integers |
 | `SpinBasis` | `spin_basis`, `spinless_presentation`, and `RealizedGroup.spin` | which orbitals of a spinless model are the up and down partners of one spinor Wannier function: `pairs` |
 | `Symmetrization` | `RealizedGroup.numerical.symmetrization` | how far a near-symmetric model was moved onto its symmetric part ([above](#every-field)) |
 | `SiteMultiplets` | taken by `realized_group`'s `site_multiplets=` | the multiplets each site's orbitals are bound into |
-| `Thresholds`, as `pythtqc.sewing.Thresholds` | `CorepContent.thresholds`, `HSPTable.thresholds` | the two zero thresholds at one `k`, flat for quantities built from `H(k)` alone and conditioned for those read off eigenvectors |
+| `Thresholds`, as `pythtqc.sewing.Thresholds` | `CorepsAt.numerical.thresholds`, `BandCharacters.numerical.thresholds` | the two zero thresholds at one `k`, flat for quantities built from `H(k)` alone and conditioned for those read off eigenvectors |
 
 The records inside the SRSI ones are reached as `pythtqc.srsi.<name>`: `SRSIRow`,
 one invariant with its modulus and terms; `SRSIIndicator`, one tabulated

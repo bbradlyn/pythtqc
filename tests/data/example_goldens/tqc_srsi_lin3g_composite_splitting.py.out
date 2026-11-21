@@ -4,9 +4,9 @@ Bands are counted from 0, as pythtb counts them.
 
 1. the model, its two site orbits and all eight bands
    realized group   : #99.164 P4mm1', orbitals at Wyckoff 1a and 2c, 8 bands
-   the 1a orbit     : -GM6 + -GM7 + -M6 + -M7 + 2×-X5
-   the 2c orbit     : -GM6 + -GM7 + -M6 + -M7 + 2×-X5
-   all 8 bands      : 2×-GM6 + 2×-GM7 + 2×-M6 + 2×-M7 + 4×-X5
+   the 1a orbit     : -GM6 + -GM7 + -M6 + -M7 + 2x-X5
+   the 2c orbit     : -GM6 + -GM7 + -M6 + -M7 + 2x-X5
+   all 8 bands      : 2x-GM6 + 2x-GM7 + 2x-M6 + 2x-M7 + 4x-X5
    atomic limits    : 6 sums of elementary band representations, at
                       1a+1a+1a+1a, 1a+1a+1b+1b, 1a+1a+2c, 1b+1b+1b+1b, 1b+1b+2c, 2c+2c
    the model's own  : 1a+1a+2c, 1 x -E1↑G(2)@1a(4mm1',4mm) + 1 x -E2↑G(2)@1a(4mm1',4mm)

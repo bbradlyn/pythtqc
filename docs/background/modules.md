@@ -129,8 +129,8 @@ flowchart TD
         direction LR
         s_bloch["r.rep.bloch_operator(ind, k)"] --> s_bloch_out(["the Bloch operator of operation ind at k"])
         s_sew["r.rep.sewing_operator(ind, k)"] --> s_sew_out(["the Bloch operator of an operation that leaves k invariant, folded back to k"])
-        s_little["r.rep.little_group(k), in_little_group(ind, k), transform_k(ind, k), k_action(ind)"] --> s_little_out(["which operations leave k invariant, and where each operation carries k"])
-        s_cov["r.rep.covariance(k_pts)"] --> s_cov_out(["for each operation, the largest ‖D H(k) D† − H(Rk)‖ over the k-points, H(k) the Bloch Hamiltonian"])
+        s_little["r.rep.little_group(k), in_little_group(ind, k), transform_k(ind, k)"] --> s_little_out(["which operations leave k invariant, and where each operation carries k"])
+        s_cov["r.rep.covariance(kpoints)"] --> s_cov_out(["for each operation, the largest ‖D H(k) D† − H(Rk)‖ over the k-points, H(k) the Bloch Hamiltonian"])
     end
 ```
 
@@ -200,8 +200,8 @@ flowchart TD
     subgraph w_calls ["calls on r"]
         direction LR
         w_ht["hsp_table(r, bands=n)"] --> w_HT[["t, an HSPTable: the coreps the bands carry at every high-symmetry point, their symmetry data vector"]]
-        w_cc["corep_content(r, k, bands=n)"] --> w_CC[["CorepContent: the coreps the bands carry at one high-symmetry point, multiplet by multiplet"]]
-        w_ch["characters(r, k, bands=n)"] --> w_CT[["CharacterTable: the trace of each operation of the little group over each degenerate multiplet of the bands at k"]]
+        w_cc["coreps_at(r, k, bands=n)"] --> w_CC[["CorepsAt: the coreps the bands carry at one high-symmetry point, multiplet by multiplet"]]
+        w_ch["characters(r, k, bands=n)"] --> w_CT[["BandCharacters: the trace of each operation of the little group over each degenerate multiplet of the bands at k"]]
         w_sm["sewing_matrix(r, op, k, bands=n)"] --> w_SM[["SewingMatrix: the matrix of one operation on the bands at a k it leaves invariant, B(g,k)"]]
     end
 
@@ -209,12 +209,12 @@ flowchart TD
         direction LR
         w_solve["solve_at(model, k)"] --> w_solve_out(["the energies and eigenvectors at k, from one diagonalization"])
         w_mult["multiplets(energies, tol)"] --> w_mult_out(["which bands are one degenerate level, at the energy tolerance tol"])
-        w_fmt["format_counts(counts)"] --> w_fmt_out(["the coreps and their multiplicities on one line, 2×-GM6 + -GM7"])
+        w_fmt["format_coreps(coreps)"] --> w_fmt_out(["the coreps and their multiplicities on one line, 2x-GM6 + -GM7"])
     end
 ```
 
-An `HSPTable` holds the `CorepContent` read at each point on `.records`, and a
-`CorepContent` the `CharacterTable` its labels were read from on `.table`.
+An `HSPTable` holds the rows `coreps_at` returns at each point on `.multiplets`, each
+multiplet with the coreps it carries.
 
 ### `ebr`
 
@@ -246,8 +246,8 @@ flowchart TD
 ```
 
 A table's labels name the coreps of the group it was read in, and the table
-carries that representation as `t.rep`, so each call reads it there with nothing
-else handed in; a group or a `rep=` handed in beside it that is not the table's
+carries that group as `t.group`, with the representation it was read with, so each
+call reads them there with nothing else handed in; a group or a `rep=` handed in beside it that is not the table's
 own raises `ValueError`. The representation says how each site irrep is known
 and, on a layer, which Wyckoff positions lie within it. An `EBRDecomposition` and
 a `SymmetryIndicator` hold the `Restriction` they were read with on

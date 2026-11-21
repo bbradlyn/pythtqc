@@ -113,7 +113,7 @@ pz = tqc.realized_group(km0, typat=[0, 0], environment="free-standing", characte
 for rec in (sub, free, pz):
     rows = rec.wyckoff_orbits
     print(rec.group.number_str, [o.label for o in rows], [o.determined_by for o in rows],
-          tqc.hsp_table(rec, bands=2).counts)
+          tqc.hsp_table(rec, bands=2).symmetry_data)
 #  183.186 ['-E1'] ['hamiltonian'] {'-GM9': 1, '-K6': 1, '-M5': 1}
 #  191.234 ['-E1'] ['lowest-l'] {'-GM9': 1, '-K8': 1, '-M6': 1}
 #  191.234 ['-E2'] ['declaration'] {'-GM12': 1, '-K9': 1, '-M5': 1}
@@ -224,7 +224,7 @@ declared column shows what was stated:
 ```python
 b2 = tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1], characters={1: "B2"})
 print(tuple(o.label for o in b2.wyckoff_orbits),
-      tqc.hsp_table(b2, bands=6).counts == tqc.hsp_table(lin, bands=6).counts)
+      tqc.hsp_table(b2, bands=6).symmetry_data == tqc.hsp_table(lin, bands=6).symmetry_data)
 #  ('-E1', '-E2', '-E') True
 print(b2.wyckoff_orbits.summary().splitlines()[2])
 #       1a          4mm1'         1    -E2    declaration        B2
@@ -290,7 +290,7 @@ bare = tqc.realized_group(pair)
 print(tuple(o.label for o in bare.wyckoff_orbits), [o.determined_by for o in bare.wyckoff_orbits])
 #  ('E',) ['hamiltonian']
 print(tqc.hsp_table(bare, bands=1).note)
-#  another labelling the hoppings leave open keeps every site irrep and labels some energy multiplets of these bands differently; it keeps which bands are degenerate and the labels of all the model's bands together
+#  another labeling the hoppings leave open keeps every site irrep and labels some energy multiplets of these bands differently; it keeps which bands are degenerate and the labels of all the model's bands together
 ```
 
 The row reads `hamiltonian`, and the label of the lower band rests on a
@@ -326,7 +326,7 @@ for matrices in (pxpy, {**pxpy, "m(x)": [[1, 0], [0, -1]]}):
     mirror = next(i for i, op in rec.operations.items() if op.name == "m(x)")
     print(tuple(o.label for o in rec.wyckoff_orbits), rec.wyckoff_orbits[0].determined_by,
           (np.real(rec.rep.sewing_operator(mirror, [0, 0])) + 0).tolist(),
-          tqc.hsp_table(rec, bands=1).counts)
+          tqc.hsp_table(rec, bands=1).symmetry_data)
 #  ('E',) declaration [[-1.0, 0.0], [0.0, 1.0]] {'X3': 1}
 #  ('E',) declaration [[1.0, 0.0], [0.0, -1.0]] {'X4': 1}
 ```

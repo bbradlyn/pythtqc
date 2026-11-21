@@ -284,7 +284,7 @@ def snapshot(r, occ):
         out["content"] = {"__refusal__": str(t.gate)}
         out["indicator"] = {"__refusal__": str(t.gate)}
         return out
-    out["content"] = {str(k): int(v) for k, v in t.counts.items()}
+    out["content"] = {str(k): int(v) for k, v in t.symmetry_data.items()}
     try:
         si = tqe.symmetry_indicator(t, r.group, rep=r.rep,
                                     bands=occ if isinstance(occ, int) else None)

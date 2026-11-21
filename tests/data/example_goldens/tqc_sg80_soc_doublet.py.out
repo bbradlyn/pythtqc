@@ -39,7 +39,7 @@ Bands are counted from 0, as pythtb counts them.
    accidental degeneracy
 
 5. the four valence bands as an elementary band representation
-   valence content  : -GM5GM7 + -GM6GM8 + -M5M7 + -M6M8 + 2×-N2N2 + 2×-P3 + -P4P4 + 2×-X3X4
+   valence content  : -GM5GM7 + -GM6GM8 + -M5M7 + -M6M8 + 2x-N2N2 + 2x-P3 + -P4P4 + 2x-X3X4
    atomic limit     : 1 x -1E2E↑G(4)@4a(21',2)
    -P4P4 belongs to a labelling of the whole set, not a choice made at P
 
@@ -48,7 +48,7 @@ Bands are counted from 0, as pythtb counts them.
    the little group at H, χ(E, C3(z), C3^-1(z)):
       -H4      dim 1   (1, −1, 1)
       -H5H6    dim 2   (2, 1, −1)
-   lowest 6 bands   : 2×-H4 + 2×-H5H6 at H
+   lowest 6 bands   : 2x-H4 + 2x-H5H6 at H
    -H5H6 glues two different irreps; at P -P4P4 glues one to itself
 
 7. the same P-point levels against the spin-orbit strength λ

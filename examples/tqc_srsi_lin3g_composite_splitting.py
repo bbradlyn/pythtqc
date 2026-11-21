@@ -32,7 +32,7 @@ import numpy as np
 
 import _path  # noqa: F401  (in-repo runs: puts src/ on sys.path)
 import pythtqc as tqc
-from pythtqc import format_counts as fmt
+from pythtqc import format_coreps as fmt
 from pythtqc.models import lin3g
 from pythtqc.utils import save_figure
 
@@ -117,7 +117,7 @@ d8 = tqc.decompose(t8)
 own_terms = [" + ".join(f"{n} x {name}@{where}" for n, name, where in orbit.chosen["terms"])
              for orbit in (first, second)]
 index = list(d8.solution_strings()).index(" + ".join(own_terms))   # the orbitals' own sum
-row("all 8 bands", fmt(t8.counts))
+row("all 8 bands", fmt(t8.symmetry_data))
 row("atomic limits", f"{atomic_limits(d8)[1]}, at",
     ", ".join("+".join(where) for where in sorted(d8.positions)))
 row("the model's own", f"{'+'.join(d8.positions[index])}, {own_terms[0]}",
@@ -133,7 +133,7 @@ print("   atomic insulator, not the one whose splittings the supplement tabulate
 print("\n2. bands 4 and 5: the Z2-valued invariants come from the orbitals, not the bands")
 p2 = tqc.hsp_table(r, bands=[4, 5])
 d2 = tqc.decompose(p2)
-row("bands 4 and 5", fmt(p2.counts))
+row("bands 4 and 5", fmt(p2.symmetry_data))
 row(*atomic_limits(d2))
 
 b2 = tqc.srsi_of_bands(p2)

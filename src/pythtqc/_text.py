@@ -9,7 +9,6 @@ from fractions import Fraction
 
 import numpy as np
 
-from . import _sitechars
 from ._tolerance import CHARACTER, _LATTICE_TOL
 
 
@@ -66,14 +65,14 @@ _SHOWN = 6
 
 
 def _term_words(multiplicity, name, position) -> str:
-    """One term of a sum as the site irrep at its Wyckoff position: ``2×-E2 at 1b (4mm)``."""
+    """One term of a sum as the site irrep at its Wyckoff position: ``2x-E2 at 1b (4mm)``."""
     irrep = str(name).split("↑")[0]
     position = str(position)
     letter = position.split("(")[0]
     if "(" in position:
         site = position[position.index("(") + 1:position.rindex(")")].split(",")[-1]
         letter = f"{letter} ({site})"
-    count = f"{int(multiplicity)}×" if int(multiplicity) != 1 else ""
+    count = f"{int(multiplicity)}x" if int(multiplicity) != 1 else ""
     return f"{count}{irrep} at {letter}"
 
 
@@ -181,13 +180,6 @@ def _character_text(value) -> str:
     if abs(z.real) <= CHARACTER:
         return imaginary
     return part(z.real) + ("" if imaginary.startswith("-") else "+") + imaginary
-
-
-def _operation_name(rep, ind) -> str:
-    """One operation's name in the model's frame, as the operation table writes it."""
-    op = rep._operation(int(ind))
-    return (_sitechars.operation_name(op, np.asarray(rep._group._lattice, dtype=float))
-            + ("'" if op.time_reversal else ""))
 
 
 # --------------------------------------------------------------------------

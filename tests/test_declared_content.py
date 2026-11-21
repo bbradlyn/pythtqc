@@ -663,15 +663,15 @@ def test_the_square_doublet_declared_s_and_d_keeps_the_fourfold():
     assert twisted.rep._characters.irreps == ("E", "E")
     for name in ("m(x)", "m(y)", "m([110])", "m([1-10])"):
         assert np.allclose(_matrix_of(twisted, name), -_matrix_of(plain, name)), name
-    assert (tqw.hsp_table(twisted, bands=1).content["X"]
-            != tqw.hsp_table(plain, bands=1).content["X"])
+    assert (tqw.hsp_table(twisted, bands=1)._records["X"].coreps
+            != tqw.hsp_table(plain, bands=1)._records["X"].coreps)
     turn = np.array([[1.0, -1.0], [1.0, 1.0]]) / np.sqrt(2.0)
     turned = tqg.realized_group(_square_pxpy(np.pi / 4), cross_check=False, characters={
         (0, 1): {name: (turn @ np.asarray(M, dtype=float) @ turn.T).tolist()
                  for name, M in pxpy.items()}})
     for bands in (1, 2):
-        assert (tqw.hsp_table(turned, bands=bands).counts
-                == tqw.hsp_table(plain, bands=bands).counts), bands
+        assert (tqw.hsp_table(turned, bands=bands).symmetry_data
+                == tqw.hsp_table(plain, bands=bands).symmetry_data), bands
     # ... and the matrices of p_x +- i p_y, a basis the hoppings do not carry
     rotating = {(0, 1): {"C4(z)": [[1j, 0], [0, -1j]], "m(x)": [[0, 1], [1, 0]]}}
     apart = tqg.realized_group(_square_pxpy(), cross_check=False, characters=rotating)
@@ -867,9 +867,9 @@ def test_a_declaration_a_complex_twist_serves_is_served_with_it():
     assert [key for choice in out._characters._labellings["choices"]
             for key, _labels in choice["others"]] == ["bands"]
     lowest = tqw._hsp_table_rep(out, bands=2)
-    assert lowest.content["GM"] == {"-GM5": 1, "-GM8": 1}
-    assert list(lowest.counts) == ["-GM5", "-GM8", "-M6", "-M7", "-N2", "-X3", "-X4"]
-    assert list(lowest.records["M"].labels[0]) == ["-M6", "-M7"]
+    assert lowest._records["GM"].coreps == {"-GM5": 1, "-GM8": 1}
+    assert list(lowest.symmetry_data) == ["-GM5", "-GM8", "-M6", "-M7", "-N2", "-X3", "-X4"]
+    assert list(lowest.multiplets["M"][0].corep_names) == ["-M6", "-M7"]
     assert lowest.note == tqw._ANOTHER_LABELLING_RELABELS
     assert all(abs(abs(v) - 1.0) < 1e-9 for v in twist.values())
     assert max(out.numerical.residuals.values()) < 1e-13 and out.numerical.product_residual < 1e-13, \
@@ -881,10 +881,10 @@ def test_a_declaration_a_complex_twist_serves_is_served_with_it():
     w = np.asarray(states[0], dtype=float).reshape(-1)[:4]
     got = []
     for block in tqw.multiplets(w):
-        a = tqw._corep_content_rep(default, P, states=states, bands=list(block))
-        b = tqw._corep_content_rep(out, P, states=states, bands=list(block))
+        a = tqw._coreps_at_rep(default, P, states=states, bands=list(block))
+        b = tqw._coreps_at_rep(out, P, states=states, bands=list(block))
         assert a and b, (block, str(a), str(b))
-        got.append((a.counts, b.counts))
+        got.append((a.coreps, b.coreps))
     assert got == [({"-P3": 1}, {"-P4": 1}),
                    ({"-P4": 2}, {"-P3": 2}),
                    ({"-P3": 1}, {"-P4": 1})], got

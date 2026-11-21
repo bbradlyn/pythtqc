@@ -104,6 +104,18 @@ import tqc_models as tqm                                            # noqa: F401
 from conftest import FKM_BOND, fkm_regime, patch_everywhere
 
 
+def coreps_by_point(table):
+    """``{kpoint: {corep: multiplicity}}``, read off a table's rows."""
+    out = {}
+    for kpoint, rows in table.multiplets.items():
+        here = {}
+        for m in rows:
+            for name in m.corep_names:
+                here[name] = here.get(name, 0) + 1
+        out[kpoint] = here
+    return out
+
+
 def anisotropic_stack(tx=-1.0, ty=-0.6, tz=-0.4):
     """The same square layer stacked on a tetragonal lattice: a 3D crystal.
 
@@ -225,9 +237,8 @@ def test_the_descent_and_the_decoration_agree_on_the_strong_and_weak_phases(fkm_
         a = tqw.hsp_table(down, bands=2)
         b = tqw.hsp_table(told, bands=2)
         assert a.complete and b.complete, name
-        assert a.counts == b.counts, name
-        assert {p: dict(v) for p, v in a.content.items()} == \
-               {p: dict(v) for p, v in b.content.items()}, name
+        assert a.symmetry_data == b.symmetry_data, name
+        assert coreps_by_point(a) == coreps_by_point(b), name
         sa = tqe.symmetry_indicator(a, down.group, rep=down.rep, bands=2)
         sb = tqe.symmetry_indicator(b, told.group, rep=told.rep, bands=2)
         assert sa and sb, str(sa if not sa else sb)

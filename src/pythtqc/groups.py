@@ -48,7 +48,7 @@ from __future__ import annotations
 
 from ._tolerance import WYCKOFF_REFERENCE_TOL
 from ._spacegroup import (
-    GroupData, IrrepContent, KGrid, LittleGroup, OrbitalAssignment, SiteReference, Term,
+    GroupData, CorepIdentification, KGrid, LittleGroup, OrbitalAssignment, SiteReference, Term,
     tables_status)
 from ._seitz import Operation, OperationTable, operation_index, operations
 from ._tables import (
@@ -68,7 +68,7 @@ from ._realized import (
 
 __all__ = [
     "GroupData", "LittleGroup",
-    "IrrepContent", "KGrid", "ValidatedGroup", "HighSymmetryPoints",
+    "CorepIdentification", "KGrid", "ValidatedGroup", "HighSymmetryPoints",
     "Operation", "OperationTable", "Term", "EBRData", "EBRConvention",
     "tables_status",
     "operations", "operation_index",

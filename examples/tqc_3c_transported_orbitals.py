@@ -23,6 +23,7 @@
 
 import os
 import sys
+from collections import Counter
 import textwrap
 
 import matplotlib
@@ -33,7 +34,7 @@ import numpy as np
 
 import _path  # noqa: F401  (in-repo runs: puts src/ on sys.path)
 import pythtqc as tqc
-from pythtqc import format_counts as fmt
+from pythtqc import format_coreps as fmt
 from pythtqc.models import cubic_3c_perp_doublet
 from pythtqc.utils import save_figure
 
@@ -85,6 +86,11 @@ def atomic_limits(d):
     if len(sums) == 1:
         return "atomic limit", sums[0]
     return "atomic limits", f"{len(sums)} sums of elementary band representations"
+
+
+def coreps_of(table, point):
+    """The coreps a table's bands carry at one point, as {corep: multiplicity}."""
+    return Counter(name for m in table.multiplets[point] for name in m.corep_names)
 
 
 def characters(table):
@@ -228,8 +234,8 @@ else:
 
 table = tqc.hsp_table(r, bands=6)          # the six bands, at every point
 table_rot = tqc.hsp_table(r_rot, bands=6)
-row("all 6 bands", fmt(table.counts))
-row("all 6, rotated", fmt(table_rot.counts))
+row("all 6 bands", fmt(table.symmetry_data))
+row("all 6, rotated", fmt(table_rot.symmetry_data))
 print("   the rotation is a change of orbital basis inside each pair, a choice of Wannier gauge,")
 print("   and a character is a trace, which no change of basis moves")
 
@@ -262,7 +268,7 @@ for x in kn:
     ax.axvline(x, color="0.82", lw=0.7)
 low = bands.min() - 0.06 * (bands.max() - bands.min())
 for point, x in zip(NODES, kn):
-    ax.annotate(fmt(table.content[point]), xy=(x, low), ha="center", va="top",
+    ax.annotate(fmt(coreps_of(table, point)), xy=(x, low), ha="center", va="top",
                 fontsize=8.5, color="tab:blue",
                 bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="none", alpha=0.85))
 ax.set_xticks(kn)

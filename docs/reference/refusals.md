@@ -253,7 +253,7 @@ Returned by the same calls as `srsi_scope`.
 
 #### `multiplet_split`
 
-Returned by `characters`, `corep_content` and `sewing_matrix`; `hsp_table` keeps it
+Returned by `characters`, `coreps_at` and `sewing_matrix`; `hsp_table` keeps it
 for each point it refuses at.
 
 - **What it means.** The set of bands asked for cuts a degenerate multiplet at `k`, so its
@@ -266,7 +266,7 @@ for each point it refuses at.
 
 #### `integer_multiplicity`
 
-Returned by `corep_content`.
+Returned by `coreps_at`.
 
 - **What it means.** The multiplicities of the coreps fitted to the characters at a point are
   not non-negative integers within `label_tol`, `1e-3` by default.
@@ -280,7 +280,7 @@ Returned by `corep_content`.
 
 #### `multiplet_dimension`
 
-Returned by `corep_content`, through its identification of the coreps.
+Returned by `coreps_at`, through its identification of the coreps.
 
 - **What it means.** The coreps identified from a multiplet's characters do not add up to
   the multiplet's degeneracy, so the grouping of levels and the characters disagree.
@@ -487,7 +487,7 @@ Returned by `realized_group`, `ebr_data`, `ebr_rows`, `decompose`, `symmetry_ind
 #### `tables_not_ready`
 
 Returned by `operations`, `operation_index`, `high_symmetry_points`, `little_group`,
-`corep_table`, `corep_content`, `hsp_table`, `wyckoff_sites_tables`,
+`corep_table`, `coreps_at`, `hsp_table`, `wyckoff_sites_tables`,
 `in_plane_restriction` and `srsi_of_model`.
 
 - **What it means.** The group was identified, but its cell could not be matched to the
@@ -637,7 +637,7 @@ Returned by `operation_index`.
 
 #### `kpoint_not_tabulated`
 
-Returned by `corep_content` and `corep_table`.
+Returned by `coreps_at` and `corep_table`.
 
 - **What it means.** The k-point is not one of the group's tabulated high-symmetry points in
   this cell, or a name the tables do not hold. A point in the star of a tabulated one, but
@@ -647,8 +647,9 @@ Returned by `corep_content` and `corep_table`.
 
 #### `out_of_plane`
 
-Returned by `little_group`, `corep_table`, `pythtqc.groups.identify_from_characters` and
-`regular_content`.
+Returned by `little_group`, `corep_table`, `coreps_at`, `characters`, `sewing_matrix`, the
+methods of `SpaceGroupRep` that take a k-point, `pythtqc.groups.identify_from_characters`
+and `regular_content`.
 
 - **What it means.** The k-point has a component out of a layer's periodic plane, where the
   model has no dispersion.
@@ -664,7 +665,7 @@ Returned by `sewing_matrix` and `SpaceGroupRep.sewing_operator`.
 
 #### `states_not_at_k`
 
-Returned by `characters`, `corep_content` and `sewing_matrix`.
+Returned by `characters`, `coreps_at` and `sewing_matrix`.
 
 - **What it means.** The energies and states handed in do not diagonalize `H(k)` at the
   k-point asked. Characters read off states from another point, or another model, come
@@ -674,7 +675,7 @@ Returned by `characters`, `corep_content` and `sewing_matrix`.
 
 #### `k_not_on_mesh`
 
-Returned by `characters`, `corep_content` and `sewing_matrix`.
+Returned by `characters`, `coreps_at` and `sewing_matrix`.
 
 - **What it means.** A mesh of states handed in does not contain the k-point asked, and a
   second diagonalization there would corrupt the character.
@@ -801,7 +802,7 @@ Returned by `pythtqc.symmetry.normalize_rep`.
 
 #### `little_group_mismatch`
 
-Returned by `corep_content`.
+Returned by `coreps_at`.
 
 - **What it means.** The operations of the little group measured at a point do not match
   the tables' list for it, so no label would be meaningful.

@@ -583,8 +583,8 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
     assert not isinstance(fitted, Refusal), str(fitted)
     assert (fitted.group.number_str, len(fitted.operations)) == ("75.2", 8)
     assert fitted.rep._characters.irreps == r.rep._characters.irreps
-    assert (tqw.hsp_table(fitted, bands=2).counts
-            == tqw.hsp_table(r, bands=2).counts)
+    assert (tqw.hsp_table(fitted, bands=2).symmetry_data
+            == tqw.hsp_table(r, bands=2).symmetry_data)
     assert fitted.numerical.positions.frame == "model"
     assert float(np.abs(np.asarray(fitted.model.orb_vecs)[:, :2]
                         - np.asarray(exact.orb_vecs)).max()) <= _FEW_ULP
@@ -980,7 +980,7 @@ def test_a_buckled_honeycomb_is_read_from_its_real_geometry():
                              bands=4).theta_Z == tqr.srsi_of_model(r).theta_Z
 
     def labels(realized, bands):
-        return tqw.hsp_table(realized, bands=bands).counts
+        return tqw.hsp_table(realized, bands=bands).symmetry_data
 
     layer = buckled(kane_mele(0.0, -1.0, 0.3, 0.0))
     lat = np.asarray(layer.lat_vecs, dtype=float)
@@ -1175,8 +1175,8 @@ def test_the_translation_conjugate_p4mm_is_the_one_the_hamiltonian_realizes(p41_
     assert fitted.group.number_str == paper.group.number_str
     assert _tau(fitted.group, "C4(z)") == (0.0, 0.0, 0.0)
     assert fitted._assignment.wyckoff_tables == ("c", "c")
-    assert (tqw.hsp_table(fitted, bands=2).counts
-            == tqw.hsp_table(paper, bands=2).counts)
+    assert (tqw.hsp_table(fitted, bands=2).symmetry_data
+            == tqw.hsp_table(paper, bands=2).symmetry_data)
 
 
 # ---------------------------------------------------------------------------
@@ -1550,8 +1550,8 @@ def test_the_opposite_axis_transcription_on_a_substrate_is_the_axial_mm2():
     assert rigid and rigid.descent is None, str(rigid)
     assert (rigid.group.number_str, len(rigid.numerical.validated._indices)) == ("166.98", 24)
     assert rigid.rep._characters.irreps == written.rep._characters.irreps
-    assert (tqw.hsp_table(rigid, bands=[0, 1]).counts
-            == tqw.hsp_table(written, bands=[0, 1]).counts)
+    assert (tqw.hsp_table(rigid, bands=[0, 1]).symmetry_data
+            == tqw.hsp_table(written, bands=[0, 1]).symmetry_data)
 
 
 @pytest.mark.slow

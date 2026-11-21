@@ -294,7 +294,7 @@ class EBRDecomposition:
             lines = ["no sum of elementary band representations carries this content, so no "
                      "atomic limit has it   (.verdict)"]
         lines.append("  the coreps at the high-symmetry points: "
-                     f"{_sewing.format_counts(self.content)}   (.content)")
+                     f"{_sewing.format_coreps(self.content)}   (.content)")
         if self.terms:
             lines.append("  every sum, each elementary band representation written as the site "
                          "irrep inducing it at its Wyckoff position (site symmetry)   (.terms)")
@@ -490,7 +490,7 @@ class RegularCompletion:
             lines.append("  nothing is missing: the bands carry that content already   (.padding)")
             return "\n".join(lines)
         lines.append("  the coreps the missing bands carry: "
-                     f"{_sewing.format_counts(self.padding)}   (.padding)")
+                     f"{_sewing.format_coreps(self.padding)}   (.padding)")
         if self.decomposition.terms:
             lines.append("  the orbitals they would be, each the site irrep at its Wyckoff "
                          "position (site symmetry)   (.decomposition)")
@@ -719,7 +719,7 @@ class SymmetryIndicator:
                          + ", the same indicators as the irreptables package names "
                          "them   (.irreptables_named)")
         lines.append("  the coreps at the high-symmetry points: "
-                     f"{_sewing.format_counts(self.content)}   (.content)")
+                     f"{_sewing.format_coreps(self.content)}   (.content)")
         if self.reconstructed:
             points = sorted({kpoint_of_label(label) for label in self.reconstructed},
                             key=_tables.point_order)
@@ -805,8 +805,7 @@ def content_of(content) -> dict | Refusal:
         an entry is negative: no band set has it, and a difference of two band
         sets is one only where one contains the other.
     """
-    counts = getattr(content, "counts", None)
-    src = counts if counts is not None else content
+    src = content.symmetry_data if isinstance(content, _sewing.HSPTable) else content
     if not isinstance(src, Mapping):
         raise TypeError("content must be an HSPTable or a {label: multiplicity} mapping, "
                         f"got {type(content).__name__}")
@@ -961,28 +960,19 @@ def _layer_reading(group, data, rep=None):
     letters cannot be read in the group's cell: every position is then kept,
     and the rows say whether the plane suffices.
     """
-    padded = tuple(int(d) for d in (getattr(group, "_vacuum_dirs", ()) or ()))
-    if int(getattr(group, "_dim_k", 3)) >= 3 or len(padded) != 1:
+    reading = _sewing._layer_height(group)
+    if reading is None:
         return None
     if isinstance(_tables._sites_in_tables_setting(group), Refusal):
         return None              # the letters are keys only once the settings agree
-    normal_dir = padded[0]
-    lattice = np.asarray(group._lattice, dtype=float)
-    plane = [d for d in range(3) if d != normal_dir]
-    normal = np.cross(lattice[plane[0]], lattice[plane[1]])
-    scale = float(lattice[normal_dir] @ normal) / float(np.linalg.norm(normal))
-
-    def height(z):
-        """A reduced coordinate along the vacuum direction as a height from the middle plane."""
-        return ((float(z) + 0.5) % 1.0 - 0.5) * scale
+    normal_dir, height = reading
 
     model = getattr(rep, "_model", None)
     if model is not None:
-
         where = _orb_positions_3d(model, group)
     else:
         where = np.asarray(group._site_positions, dtype=float)
-    own = [height(z) for z in np.atleast_2d(where)[:, normal_dir]]
+    own = list(_sewing._orbital_heights(group, where))
     lowest, highest = min(own), max(own)
     margin = float(group._symprec)
     refuc = np.asarray(group._refUC, dtype=float)
@@ -1056,7 +1046,7 @@ def _table_binding(content, group, rep, *, where):
     nothing to contradict: :func:`_read_in` then reads the table's own.  A
     content written out by hand carries nothing and takes its group as given.
     """
-    own = getattr(content, "rep", None) if hasattr(content, "counts") else None
+    own = content._rep if isinstance(content, _sewing.HSPTable) else None
     if own is None:
         return
     if group is not None and not _same_group(group, own._group):
@@ -1069,28 +1059,28 @@ def _table_binding(content, group, rep, *, where):
     if rep is not None and not _same_rep(rep, own):
         raise ValueError(
             f"{where}(): rep= is not the representation the table was read with, which "
-            "the table carries as t.rep: its group, its operations or its matrices differ. "
-            "The labels were read off t.rep, so another representation says nothing about "
-            "them; pass t.rep, or read the bands again with hsp_table(r, bands=...).")
+            "the table carries: its group, its operations or its matrices differ. The "
+            "labels were read off that representation, so another one says nothing about "
+            "them; leave rep= out, or read the bands again with hsp_table(r, bands=...).")
 
 def _read_in(content, group, rep, *, where):
     """The group and the representation a content is read in, ``(group, rep)``.
 
     An :class:`~.sewing.HSPTable` carries the representation it was read with,
-    ``t.rep``, whose group is the one its labels name: a table is read in its
+    whose group, ``t.group``, is the one its labels name: a table is read in its
     own, and needs neither handed in; one handed in is held to the table's by
     :func:`_table_binding`.  A content written out by hand carries nothing, so
     its group is passed beside it, and ``TypeError`` is raised where it is not,
     as for any argument a call cannot do without.
     """
-    own = getattr(content, "rep", None) if hasattr(content, "counts") else None
+    own = content._rep if isinstance(content, _sewing.HSPTable) else None
     if own is None:
         if group is None:
             raise TypeError(
                 f"{where}() missing required argument 'group': the content carries no "
                 "representation, so the group whose coreps its labels name is passed "
-                "beside it. A table hsp_table(r, bands=...) returned carries its own "
-                "as t.rep, and is read in that group with none passed.")
+                "beside it. A table hsp_table(r, bands=...) returned carries its own, "
+                "t.group, and is read in that group with none passed.")
         return group, rep
     _table_binding(content, group, rep, where=where)
     return (own._group if group is None else group), (own if rep is None else rep)
@@ -1107,8 +1097,8 @@ def _table_nstate(table):
     any one of them is the state count the band block is read against.
     ``None`` when nothing resolved.
     """
-    for record in (getattr(table, "records", None) or {}).values():
-        spectrum = getattr(getattr(record, "table", None), "spectrum", None)
+    for record in (getattr(table, "_records", None) or {}).values():
+        spectrum = record._characters.numerical.spectrum
         if spectrum is not None and len(spectrum):
             return int(len(spectrum))
     return None
@@ -1138,7 +1128,7 @@ def _bands_of(content, bands, *, where):
     against and ``bands=`` states which bands the content counts.  Sorted band
     indices come back, or ``None`` when neither names a block.
     """
-    table = content if hasattr(content, "counts") else None
+    table = content if isinstance(content, _sewing.HSPTable) else None
     if table is None:
         return _as_block(bands, None)
     nstate = _table_nstate(table)
@@ -1165,7 +1155,7 @@ def _resolved_points(table, points, *, where):
     contradicts states something about the measurement that the measurement
     denies, and neither one may silently win.
     """
-    resolved = None if table is None else tuple(table.content)
+    resolved = None if table is None else tuple(table.multiplets)
     if points is None:
         return resolved
     asked = tuple(str(p) for p in points)
@@ -1263,18 +1253,6 @@ def _terms(solutions, ebrs):
                          for j, m in enumerate(s) if m))
     return tuple(out)
 
-def _site_content_record(rep):
-    """The site content a record's labels rest on, or ``None`` without a ``rep``."""
-    if rep is None:
-        return None
-    ch = getattr(rep, "_characters", None)
-    if ch is None:
-        return None
-    return {"number_str": str(rep._group.number_str),
-            "irreps": tuple(str(x) for x in ch.irreps),
-            "determined_by": tuple(str(o.determined_by) for o in ch.orbitals),
-            "residual": float(ch.residual)}
-
 # --------------------------------------------------------------------------
 # the public solvers
 # --------------------------------------------------------------------------
@@ -1301,7 +1279,7 @@ def decompose(content, group=None, *, rep=None, points=None, allow_incomplete=Fa
     rep : .symmetry.SpaceGroupRep, optional
         The representation the content was read with, ``r.rep``: it says how
         each site irrep is known, and on a layer which Wyckoff positions lie
-        within it.  A table carries its own, ``t.rep``; beside a content
+        within it.  A table carries its own group, ``t.group``; beside a content
         written out by hand, pass it whenever it is at hand.
     bands : int or sequence of int, optional
         Which bands the content counts: ``n`` the lowest ``n``, or the band
@@ -1340,7 +1318,7 @@ def decompose(content, group=None, *, rep=None, points=None, allow_incomplete=Fa
     ValueError
         ``bands=`` or ``points=`` naming other bands or points than the table
         measured; or a group, or ``rep=``, handed in beside a table that is not
-        the one it was read in, which it carries as ``t.rep``.
+        the one it was read in, which it carries as ``t.group``.
     ..refusal.InternalError
         On a layer's own band representations a corep out of its plane repeats
         none in it: the package disagreeing with itself.
@@ -1377,7 +1355,7 @@ def decompose(content, group=None, *, rep=None, points=None, allow_incomplete=Fa
     if isinstance(counts, Refusal):
         return counts
 
-    table = content if hasattr(content, "counts") else None
+    table = content if isinstance(content, _sewing.HSPTable) else None
     block = _bands_of(content, bands, where="decompose")
     refused = ({name: r.gate for name, r in (table.refusals or {}).items()}
                if table is not None else {})
@@ -1393,7 +1371,7 @@ def decompose(content, group=None, *, rep=None, points=None, allow_incomplete=Fa
             "failed, and then read the verdict as a necessary condition.",
             value=float(len(refused)), threshold=0.0,
             context={"refusals": refused,
-                     "resolved": tuple(getattr(table, "content", {}))})
+                     "resolved": tuple(table.multiplets)})
 
     data = _tables._ebr_data(group)
     if isinstance(data, Refusal):
@@ -1505,7 +1483,7 @@ def decompose(content, group=None, *, rep=None, points=None, allow_incomplete=Fa
         enumeration={"cap": int(cap), "n_solutions": len(solutions),
                      "truncated": bool(truncated)},
         signed_combinations=probe, restriction=restriction,
-        site_content=_site_content_record(rep),
+        site_content=_sewing._site_content_record(rep),
         completeness={"source": "HSPTable" if table is not None else "mapping",
                       "complete": bool(getattr(table, "complete", True)),
                       "claim": claim,
@@ -1688,11 +1666,13 @@ def _two_dimensional_reading(group, labels, u, slots, divisors, values, coeffs,
             "note": note}
 
 def _block_characters(record) -> dict:
-    """``{ind: tr B(g, k)}`` of a whole band block, from a :class:`.sewing.CorepContent`."""
-    rows = np.asarray(record.table.characters, dtype=complex)
-    total = rows.sum(axis=0) if rows.size else np.zeros(len(record.table.columns),
-                                                        dtype=complex)
-    return {int(c): complex(v) for c, v in zip(record.table.columns, total)}
+    """``{ind: tr B(g, k)}`` of a whole band block, from a :class:`.sewing.CorepsAt`."""
+    ch = record._characters
+    columns = tuple(ch.multiplets[0].characters) if ch.multiplets else ()
+    rows = np.asarray([[m.characters[i] for i in columns] for m in ch.multiplets],
+                      dtype=complex).reshape(len(ch.multiplets), len(columns))
+    total = rows.sum(axis=0) if rows.size else np.zeros(len(columns), dtype=complex)
+    return {int(c): complex(v) for c, v in zip(columns, total)}
 
 def _same_k(k_a, k_b, *, atol=1e-6) -> bool:
     """Equal reduced k in the plane, modulo a reciprocal lattice vector."""
@@ -1713,9 +1693,9 @@ def _stack_record(table, group, rep, restriction, *, c, environment, note) -> di
                   "size": int(group._size), "dim_k": int(group._dim_k),
                   "periodic_dirs": tuple(int(p) for p in group.periodic_dirs),
                   "vacuum_dirs": tuple(int(p) for p in group._vacuum_dirs),
-                  "points": tuple(sorted(table.points, key=_tables.point_order)),
+                  "points": tuple(sorted(table.kpoints, key=_tables.point_order)),
                   "orphans": tuple(restriction.orphans),
-                  "content": _tables.ordered_content(table.counts),
+                  "content": _tables.ordered_content(table.symmetry_data),
                   "n_represented": len(rep._indices)},
         "stack": {}, "gates": {}, "note": note,
     }
@@ -1790,9 +1770,9 @@ def _shared_characters(table, table3, matched) -> tuple:
     points compared.
     """
     worst, n, shared = 0.0, 0, []
-    for name2, rec2 in table.records.items():
+    for name2, rec2 in table._records.items():
         chi2 = _block_characters(rec2)
-        for name3, rec3 in table3.records.items():
+        for name3, rec3 in table3._records.items():
             k3 = np.asarray(rec3.k, dtype=float).reshape(-1)
             if len(k3) > 2 and abs(k3[2] - round(k3[2])) > 1e-6:
                 continue                       # not in the layer's plane
@@ -1816,24 +1796,25 @@ def _stack_fibers(table3, tol) -> tuple:
     one record per pair, and the first pair that differs, or ``None``.
     """
     fibers = []
-    for name_out, rec_out in table3.records.items():
+    for name_out, rec_out in table3._records.items():
         k_out = np.asarray(rec_out.k, dtype=float).reshape(-1)
         if len(k_out) < 3 or abs(k_out[2] - round(k_out[2])) < 1e-6:
             continue                            # this one is in the plane
-        for name_in, rec_in in table3.records.items():
+        for name_in, rec_in in table3._records.items():
             k_in = np.asarray(rec_in.k, dtype=float).reshape(-1)
             if (abs(k_in[2] - round(k_in[2])) > 1e-6) or not _same_k(k_out, k_in):
                 continue
             chi_a, chi_b = _block_characters(rec_out), _block_characters(rec_in)
             common = sorted(set(chi_a) & set(chi_b))
             defect = max((abs(chi_a[i] - chi_b[i]) for i in common), default=0.0)
-            e_a = np.asarray(rec_out.table.energies, dtype=float).reshape(-1)
-            e_b = np.asarray(rec_in.table.energies, dtype=float).reshape(-1)
+            e_a = np.asarray([m.energy for m in rec_out.multiplets], dtype=float).reshape(-1)
+            e_b = np.asarray([m.energy for m in rec_in.multiplets], dtype=float).reshape(-1)
             energy = (float(np.abs(e_a - e_b).max()) if e_a.shape == e_b.shape
                       else float("inf"))
-            same_partition = tuple(rec_out.partition) == tuple(rec_in.partition)
-            same_multiset = (sorted(rec_out.counts.values())
-                             == sorted(rec_in.counts.values()))
+            same_partition = (tuple(rec_out.numerical.identification._partition)
+                              == tuple(rec_in.numerical.identification._partition))
+            same_multiset = (sorted(rec_out.coreps.values())
+                             == sorted(rec_in.coreps.values()))
             fibers.append({"point": str(name_out), "in_plane_point": str(name_in),
                            "energy_defect": energy, "character_defect": float(defect),
                            "n_shared_operations": len(common),
@@ -1995,9 +1976,9 @@ def _stack_in_group(table, group, rep, restriction, *, c, bands, verify, charact
     # ---- 4. the characters, where the two presentations meet --------------
     worst_chi, n_chi, shared_points = _shared_characters(
         table, table3, {int(i): int(i) for i in rep._indices})
-    labels_equal = all(dict(table.content[a]) == dict(table3.content[b])
+    labels_equal = all(dict(table._records[a].coreps) == dict(table3._records[b].coreps)
                        for a, b in shared_points
-                       if a in table.content and b in table3.content)
+                       if a in table.multiplets and b in table3.multiplets)
     record["gates"]["characters"] = {
         "note": ("the measured characters of the bands at the operations and k-points the "
                  "two presentations share, and the labels there, the group being one"),
@@ -2051,7 +2032,7 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
         takes the group beside it.
     rep : .symmetry.SpaceGroupRep, optional
         The representation the content was read with, ``r.rep``; a table
-        carries its own, ``t.rep``.  A layer's coreps at ``k_z = ½`` that
+        carries its own group, ``t.group``.  A layer's coreps at ``k_z = ½`` that
         repeat none in its plane are measured on its decoupled stack, the
         layer repeated along its normal with no hopping between copies, built
         from the representation and the table.
@@ -2088,7 +2069,7 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
     ValueError
         ``bands=`` or ``points=`` naming other bands or points than the table
         measured; or a group, or ``rep=``, handed in beside a table that is not
-        the one it was read in, which it carries as ``t.rep``.
+        the one it was read in, which it carries as ``t.group``.
     ..refusal.InternalError
         The tables' Smith form and the one computed again disagree, a check
         that ties the decoupled stack to the layer fails, or two classes share
@@ -2136,7 +2117,7 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
     if out_of_scope is not None:
         return out_of_scope
 
-    table = content if hasattr(content, "counts") else None
+    table = content if isinstance(content, _sewing.HSPTable) else None
     block = _bands_of(content, bands, where="symmetry_indicator")
     if table is not None and not table.complete:
         refused = {name: r.gate for name, r in (table.refusals or {}).items()}
@@ -2150,7 +2131,7 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
             "stable real-space invariants is future work, and there is no "
             "`allow_incomplete` here.",
             value=float(len(refused)), threshold=0.0,
-            context={"refusals": refused, "resolved": tuple(getattr(table, "content", {})),
+            context={"refusals": refused, "resolved": tuple(table.multiplets),
                      "completion": "stable-rsi"})
 
     data = _tables._ebr_data(group)
@@ -2251,7 +2232,7 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
 
     verdict = ("trivial indicator group" if not divisors
                else ("indicated nontrivial" if any(values) else "indicator zero"))
-    provenance = (getattr(table, "group_provenance", None)
+    provenance = ((table._group_provenance if table is not None else None)
                   or str(getattr(group, "_provenance", "cell")))
     # the free-standing layer's group, as `realized_group` measured it beside a
     # substrate's, named where it is larger than the group the class lives in
@@ -2270,7 +2251,7 @@ def symmetry_indicator(content, group=None, *, rep=None, points=None, bands=None
         verification=verification, completion=completion,
         lattice_check={"in_lattice": True, "residual": 0,
                        "relations": int(sum(1 for x in d if x == 0))},
-        site_content=_site_content_record(rep), group_provenance=str(provenance),
+        site_content=_sewing._site_content_record(rep), group_provenance=str(provenance),
         n_bands=None if block is None else len(block),
         canonical=canonical, canonical_note=canonical_note,
         canonical_tex=canonical_tex, free_standing_group=free)
@@ -2280,7 +2261,7 @@ def _incomplete_table(content):
 
     A mapping, and a complete table, return ``None``.
     """
-    if not hasattr(content, "counts") or getattr(content, "complete", True):
+    if not isinstance(content, _sewing.HSPTable) or content.complete:
         return None
     refused = {name: r.gate for name, r in (content.refusals or {}).items()}
     names = sorted(refused, key=_tables.point_order)
@@ -2291,7 +2272,7 @@ def _incomplete_table(content):
         "count them as empty. Read each missing point's refusal in the table's "
         "`refusals`.",
         value=float(len(refused)), threshold=0.0,
-        context={"refusals": refused, "resolved": tuple(getattr(content, "content", {}))})
+        context={"refusals": refused, "resolved": tuple(content.multiplets)})
 
 def subtract(content_a, content_b) -> dict | Refusal:
     """The content of the bands in one set and not in another: ``a − b`` as a symmetry data vector.
@@ -2324,8 +2305,8 @@ def subtract(content_a, content_b) -> dict | Refusal:
     ``non_integer_multiplicity``
         either content is no count of coreps.
     """
-    own_a = getattr(content_a, "rep", None) if hasattr(content_a, "counts") else None
-    own_b = getattr(content_b, "rep", None) if hasattr(content_b, "counts") else None
+    own_a = content_a._rep if isinstance(content_a, _sewing.HSPTable) else None
+    own_b = content_b._rep if isinstance(content_b, _sewing.HSPTable) else None
     if own_a is not None and own_b is not None and not _same_group(own_a._group, own_b._group):
         raise ValueError(
             f"subtract(): the tables were read in different groups, {own_a._group.name} "
@@ -2555,7 +2536,7 @@ def regular_completion(content, group=None, *, bands=None, rep=None, points=None
         No ``bands``, or a content written out by hand with no group beside it.
     ValueError
         A group, or ``rep=``, handed in beside a table that is not the one it
-        was read in, which it carries as ``t.rep``.
+        was read in, which it carries as ``t.group``.
 
     Refusals
     --------

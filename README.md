@@ -21,7 +21,7 @@ r = tqc.realized_group(kane_mele(0.0, -1.0, 0.3, 0.0),
 print(r.group.name, r.group.number_str)
 #  P6/mmm1' 191.234
 t = tqc.hsp_table(r, bands=2)
-print(tqc.format_counts(t.counts))
+print(tqc.format_coreps(t.symmetry_data))
 #  -GM9 + -K8 + -M6
 print(tqc.symmetry_indicator(t))
 #  SymmetryIndicator(indicated nontrivial, #191.234, Z6 x Z12, [1|6, 0|12], completed on the stack)
@@ -46,7 +46,7 @@ reads every printed line of a call like this one.
 | question | the call | the chapter |
 |---|---|---|
 | What space group does this Hamiltonian have? | `realized_group` | [group](docs/guide/group.md), [layers](docs/guide/layers.md) |
-| What are its bands, by symmetry? | `hsp_table`, `corep_content` | [labels](docs/guide/labels.md) |
+| What are its bands, by symmetry? | `hsp_table`, `coreps_at` | [labels](docs/guide/labels.md) |
 | Could they be an atomic limit? | `decompose` | [atomic limits](docs/guide/atomic-limits.md) |
 | Which class do they sit in, and what do they carry in real space? | `symmetry_indicator`, `srsi_of_bands`, `srsi_of_model` | [indicators](docs/guide/indicators.md), [stable real-space invariants](docs/guide/srsi.md) |
 

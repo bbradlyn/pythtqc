@@ -531,9 +531,9 @@ Whether irrep's character tables are in place, and `ortools` installed.
 - [`solve_at`](#solve_at) — The energies and eigenvectors at one k, from one diagonalization.
 - [`sewing_matrix`](#sewing_matrix) — The matrix of one operation on a set of bands, at a k-point the operation leaves invariant: the sewing matrix `B(g,k)_mn = <u_m(k)|U(g;k)|u_n(k)>`.
 - [`characters`](#characters) — The characters of a set of bands at one k: the trace of each unitary operation of the little group over each degenerate multiplet of the set.
-- [`corep_content`](#corep_content) — The coreps a set of bands carries at one high-symmetry point, and which of its degenerate multiplets carry the same characters.
+- [`coreps_at`](#coreps_at) — The coreps a set of bands carries at one high-symmetry point, multiplet by multiplet.
 - [`hsp_table`](#hsp_table) — The coreps a set of bands carries at every high-symmetry point of the group: its symmetry data vector.
-- [`format_counts`](#format_counts) — A content on one line: `{'-GM6': 2, '-GM7': 1}` as `2×-GM6 + -GM7`.
+- [`format_coreps`](#format_coreps) — Corep multiplicities on one line: `{'-GM6': 2, '-GM7': 1}` as `2x-GM6 + -GM7`.
 - [`multiplets`](#multiplets) — Which bands of a spectrum are one degenerate level, at a stated energy tolerance.
 
 ### `solve_at`
@@ -564,8 +564,7 @@ The energies and eigenvectors at one k, from one diagonalization.
 
 ```text
 sewing_matrix(
-    realized, operation=None, k=None, *, states=None, bands=None, atol=1e-08,
-    degeneracy_tol=1e-08, mesh_tol=1e-09, check=True, **kwargs
+    realized, operation=None, k=None, *, states=None, bands=None, degeneracy_tol=1e-08
 )
 ```
 
@@ -579,35 +578,28 @@ The matrix of one operation on a set of bands, at a k-point the operation leaves
   [`operation_index`](#operation_index) finds one by its Seitz symbol.
   Required.
 
-- **`k`** (`array_like, shape (dim_k,)`): A k-point the operation leaves invariant up to a reciprocal lattice
-  vector, in reduced coordinates.  Required.
+- **`k`** (`str or array_like, shape (dim_k,)`): A k-point the operation leaves invariant up to a reciprocal lattice
+  vector: its tabulated name, `"M"`, or its reduced coordinates.
+  Required.
 
-- **`bands`** (`int or sequence of int, optional`): The set of bands: `n` the lowest `n` bands, or the band indices,
-  whole degenerate multiplets.  Default: every state.
+- **`bands`** (`int or sequence of int, optional`): The set of bands: `n` the lowest `n` bands, or the band indices.
+  Default: every state.
 
 - **`states`** (`None, pythtb.WFArray, (evals, evecs) or ndarray, optional`): The states at `k`: `None` (default) solves the model there; a
   solved `WFArray`, or the pair [`solve_at`](#solve_at) returns, reuses one
   diagonalization.  Eigenvector rows alone, or a `WFArray` of a sector
-  with fewer states than the model, carry no energies: whether they solve
-  `H(k)` and close their multiplets is then not measured.
+  with fewer states than the model, carry no energies.
 
-- **`degeneracy_tol`** (`float, optional`): The energy, in the units of `H`, within which bands are one
-  multiplet.  Default `1e-8`.
-
-- **`atol`, `mesh_tol`** (`float, optional`): In reduced reciprocal coordinates: whether the operation leaves `k`
-  invariant (default `1e-8`), and finding `k` on a mesh (`1e-9`).
-
-- **`check`** (`bool, optional`): Check that the states solve `H(k)` and that `bands` closes its
-  multiplets.  Default `True`.
-
-- **`**kwargs`**: Passed to `SpaceGroupRep.sewing_operator`.
+- **`degeneracy_tol`** (`float, default 1e-8`): The energy, in the units of `H`, within which bands are one
+  multiplet.
 
 **Returns**
 
-- `SewingMatrix or Refusal`: `B.summary()` prints it.  `B.matrix` is the matrix, `B.trace` its
-  trace and `B.angles` the phases of its eigenvalues; `B.unitarity`,
-  `B.commutator` and `B.residual` how far it is from unitary, the
-  operator from commuting with `H(k)`, and the states from eigenstates.
+- `SewingMatrix or Refusal`: `B.summary()` prints it.  `B.matrix` is the matrix and
+  `B.eigenvalues` its eigenvalues; `B.numerical` holds how far it is
+  from unitary, the operator from commuting with `H(k)`, and the states
+  from eigenstates.  For states without energies, whether they solve
+  `H(k)` and whether the bands close their multiplets is not measured.
   A `Refusal` in its place is falsy and names what stopped the call.
 
 **Refusals**
@@ -620,13 +612,16 @@ The matrix of one operation on a set of bands, at a k-point the operation leaves
 
 - **`k_not_on_mesh`**: the mesh handed in does not hold `k`.
 
+- **`out_of_plane`**: `k` has a component along a layer's vacuum, or names a tabulated
+  point out of the layer's plane.
+
+- **`tables_not_ready`**: `k` is a name, and the group has no transformation to the tables'
+  conventional cell.
+
 ### `characters`
 
 ```text
-characters(
-    realized, k, *, states=None, bands=None, degeneracy_tol=1e-08, atol=1e-08,
-    mesh_tol=1e-09
-)
+characters(realized, k, *, states=None, bands=None, degeneracy_tol=1e-08)
 ```
 
 The characters of a set of bands at one k: the trace of each unitary operation of the little group over each degenerate multiplet of the set.
@@ -635,29 +630,28 @@ The characters of a set of bands at one k: the trace of each unitary operation o
 
 - **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned, `r`.
 
-- **`k`** (`array_like, shape (dim_k,)`): A k-point, in reduced coordinates; only a tabulated high-symmetry point
-  is labelled ([`corep_content`](#corep_content)).
+- **`k`** (`str or array_like, shape (dim_k,)`): A k-point: its tabulated name, `"GM"`, or its reduced coordinates.
+  Only a tabulated point is labeled, by [`coreps_at`](#coreps_at).
 
-- **`bands`** (`int or sequence of int`): The set of bands: `n` the lowest `n` bands, or the band indices,
-  whole degenerate multiplets.  Required.
+- **`bands`** (`int or sequence of int`): The set of bands: `n` the lowest `n` bands, or the band indices.
+  Required.
 
 - **`states`** (`None, pythtb.WFArray or (evals, evecs), optional`): The states at `k`: `None` (default) solves the model there; a
   solved `WFArray`, or the pair [`solve_at`](#solve_at) returns, reuses one
   diagonalization.  They carry energies, the rows being the multiplets.
 
-- **`degeneracy_tol`** (`float, optional`): The energy, in the units of `H`, within which bands are one
-  multiplet.  Default `1e-8`.
-
-- **`atol`, `mesh_tol`** (`float, optional`): In reduced reciprocal coordinates: whether an operation leaves `k`
-  invariant (default `1e-8`), and finding `k` on a mesh (`1e-9`).
+- **`degeneracy_tol`** (`float, default 1e-8`): The energy, in the units of `H`, within which bands are one
+  multiplet.
 
 **Returns**
 
-- `CharacterTable or Refusal`: `table.summary()` prints it.  `table.characters` holds a row per
-  multiplet and a column per operation; `table.multiplets` and
-  `table.energies` are the rows, `table.columns` the operations by
-  index.  A `Refusal` in its place is falsy and names what stopped the
-  call.
+- `BandCharacters or Refusal`: `ch.summary()` prints them.  `ch.multiplets` holds a row for each
+  degenerate multiplet: its bands, its mean energy and its characters by
+  operation index.  `ch.operations` names the operations of the little
+  group; `ch.numerical` holds how closely the characters are measured.
+  Characters can only be returned if the set of bands contains all the
+  states of each degenerate multiplet at `k`.  A `Refusal` in its
+  place is falsy and names what stopped the call.
 
 **Refusals**
 
@@ -670,53 +664,53 @@ A refusal handed in as `realized` is returned unchanged, and one from
 
 - **`k_not_on_mesh`**: the mesh handed in does not hold `k`.
 
-### `corep_content`
+- **`out_of_plane`**: `k` has a component along a layer's vacuum, or names a tabulated
+  point out of the layer's plane.
+
+- **`tables_not_ready`**: `k` is a name, and the group has no transformation to the tables'
+  conventional cell.
+
+### `coreps_at`
 
 ```text
-corep_content(
-    realized, k, *, states=None, bands=None, degeneracy_tol=1e-08, label_tol=0.001,
-    ktol=1e-05, kpname=None, atol=1e-08, mesh_tol=1e-09
+coreps_at(
+    realized, k, *, states=None, bands=None, degeneracy_tol=1e-08, label_tol=0.001
 )
 ```
 
-The coreps a set of bands carries at one high-symmetry point, and which of its degenerate multiplets carry the same characters.
+The coreps a set of bands carries at one high-symmetry point, multiplet by multiplet.
 
 **Parameters**
 
 - **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned, `r`.
 
-- **`k`** (`array_like`): A tabulated high-symmetry point, in the model's reduced coordinates, as
-  [`high_symmetry_points`](#high_symmetry_points) gives it: `hsp["GM"]`.
+- **`k`** (`str or array_like`): A tabulated high-symmetry point: its name, `"GM"`, one of those
+  [`high_symmetry_points`](#high_symmetry_points) returns, or its coordinates in
+  the model's reduced cell.
 
-- **`bands`** (`int or sequence of int`): The set of bands: `n` the lowest `n` bands, or the band indices,
-  whole degenerate multiplets.  Required.
+- **`bands`** (`int or sequence of int`): The set of bands: `n` the lowest `n` bands, or the band indices.
+  Required.
 
 - **`states`** (`None, pythtb.WFArray or (evals, evecs), optional`): The states at `k`: `None` (default) solves the model there; a
   solved `WFArray`, or the pair [`solve_at`](#solve_at) returns, reuses one
   diagonalization.
 
-- **`degeneracy_tol`** (`float, optional`): The energy, in the units of `H`, within which bands are one
-  multiplet.  Default `1e-8`.
+- **`degeneracy_tol`** (`float, default 1e-8`): The energy, in the units of `H`, within which bands are one
+  multiplet.
 
-- **`label_tol`** (`float, optional`): How far a fitted multiplicity may sit from an integer, and two
-  multiplets' characters from each other to share a partition class.
-  Default `1e-3`.
-
-- **`kpname`** (`str, optional`): The tables' name of the point, in place of finding it from `k`.
-
-- **`ktol`, `atol`, `mesh_tol`** (`float, optional`): In reduced reciprocal coordinates: matching `k` to a tabulated point
-  (default `1e-5`), whether an operation leaves `k` invariant
-  (`1e-8`), and finding `k` on a mesh (`1e-9`).
+- **`label_tol`** (`float, default 1e-3`): How far a fitted multiplicity may sit from an integer, dimensionless.
 
 **Returns**
 
-- `CorepContent or Refusal`: `c.summary()` prints the coreps multiplet by multiplet.  `c.counts`
-  is the content, `{corep: multiplicity}`; `c.labels` the same for
-  each multiplet, lowest first; `c.partition` which multiplets carry the
-  same characters, numbered alike, which holds under any labelling of the
-  orbitals; `c.isolation` the gap from these bands to the nearest other
-  band; `c.table` the characters.  A `Refusal` in its place is falsy
-  and names what stopped the call.
+- `CorepsAt or Refusal`: `c.summary()` prints the coreps multiplet by multiplet.  `c.coreps`
+  holds the corep multiplicities of the set, `{corep: multiplicity}`;
+  `c.multiplets` a row for each degenerate multiplet, lowest first,
+  with its bands, its mean energy and the coreps it carries;
+  `c.isolation` the gap from these bands to the nearest other band;
+  `c.numerical` the thresholds and the identification the coreps were
+  read with.  Corep labels can only be returned if the set of bands
+  contains all the states of each degenerate multiplet at `k`.  A
+  `Refusal` in its place is falsy and names what stopped the call.
 
 **Refusals**
 
@@ -728,6 +722,9 @@ A refusal handed in as `realized` is returned unchanged.
 - **`kpoint_not_tabulated`**: `k` is not a tabulated point in this cell, or not the tabulated member
   of its star.
 
+- **`out_of_plane`**: `k` has a component along a layer's vacuum, or names a tabulated
+  point out of the layer's plane.
+
 - **`integer_multiplicity` / `multiplet_dimension`**: the characters fit no whole number of coreps, or coreps that do not fill
   their multiplet: most often a multiplet grouped wrongly.
 
@@ -738,10 +735,7 @@ A refusal handed in as `realized` is returned unchanged.
 ### `hsp_table`
 
 ```text
-hsp_table(
-    realized, *, states=None, bands=None, degeneracy_tol=1e-08, label_tol=0.001,
-    ktol=1e-05, atol=1e-08, mesh_tol=1e-09
-)
+hsp_table(realized, *, states=None, bands=None, degeneracy_tol=1e-08, label_tol=0.001)
 ```
 
 The coreps a set of bands carries at every high-symmetry point of the group: its symmetry data vector.
@@ -750,30 +744,33 @@ The coreps a set of bands carries at every high-symmetry point of the group: its
 
 - **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned, `r`.
 
-- **`bands`** (`int or sequence of int`): The set of bands: `n` the lowest `n` bands, or the band indices,
-  whole degenerate multiplets at every point.  Required.
+- **`bands`** (`int or sequence of int`): The set of bands: `n` the lowest `n` bands, or the band indices.
+  Required.
 
 - **`states`** (`None or pythtb.WFArray, optional`): `None` (default) solves the model at the points, once; a solved
   `WFArray` is read as it stands, and a point its mesh does not hold is
   refused there.
 
-- **`degeneracy_tol`** (`float, optional`): The energy, in the units of `H`, within which bands are one
-  multiplet.  Default `1e-8`.
+- **`degeneracy_tol`** (`float, default 1e-8`): The energy, in the units of `H`, within which bands are one
+  multiplet.
 
-- **`label_tol`, `ktol`, `atol`, `mesh_tol`** (`float, optional`): The tolerances of [`corep_content`](#corep_content), read at each point.
+- **`label_tol`** (`float, default 1e-3`): How far a fitted multiplicity may sit from an integer at each point,
+  dimensionless.
 
 **Returns**
 
-- `HSPTable or Refusal`: `t.summary()` prints the coreps at each point.  The table is what
-  [`decompose`](#decompose), [`symmetry_indicator`](#symmetry_indicator) and
-  [`srsi_of_bands`](#srsi_of_bands) take, `decompose(t)`, in the group it
-  was read in, which it carries; `t.counts` is its
-  symmetry data vector, `t.content` the coreps point by point;
-  `t.complete` whether every
-  point resolved, and `t.refusals` each point that did not, with its own
-  `Refusal`; `t.note` where the labels rest on a choice the hoppings
-  leave open.  A `Refusal` in its place is falsy and names what stopped
-  the call.
+- `HSPTable or Refusal`: `t.summary()` prints the coreps at each point.  `t.symmetry_data`
+  is the symmetry data vector, `t.multiplets` a row for each
+  degenerate multiplet at each point, with the coreps it carries;
+  `t.complete` says whether every point was measured, and
+  `t.refusals` holds each point that was not, with its own
+  `Refusal`; `t.note` says where the labels rest on a choice the
+  hoppings leave open.  Corep labels can only be returned at a point if
+  the set of bands contains all the states of each degenerate multiplet
+  there.  The table is what [`decompose`](#decompose),
+  [`symmetry_indicator`](#symmetry_indicator) and [`srsi_of_bands`](#srsi_of_bands)
+  take, `decompose(t)`, in the group it was read in, `t.group`.  A
+  `Refusal` in its place is falsy and names what stopped the call.
 
 **Refusals**
 
@@ -782,21 +779,21 @@ is collected in `refusals`.
 
 - **`tables_not_ready`**: the group's tables cannot be read in this cell.
 
-### `format_counts`
+### `format_coreps`
 
 ```text
-format_counts(counts)
+format_coreps(coreps)
 ```
 
-A content on one line: `{'-GM6': 2, '-GM7': 1}` as `2×-GM6 + -GM7`.
+Corep multiplicities on one line: `{'-GM6': 2, '-GM7': 1}` as `2x-GM6 + -GM7`.
 
 **Parameters**
 
-- **`counts`** (`mapping`): `{corep: multiplicity}`, the multiplicities nonnegative integers.
+- **`coreps`** (`mapping`): `{corep: multiplicity}`, the multiplicities nonnegative integers.
 
 **Returns**
 
-- `str`: The labels joined by `" + "`, each after its multiplicity and `×`
+- `str`: The labels joined by `" + "`, each after its multiplicity and `x`
   where that is above one.
 
 ### `multiplets`
@@ -850,7 +847,7 @@ Every sum of elementary band representations, with nonnegative integer multiplic
 
 - **`rep`** (`SpaceGroupRep, optional`): The representation the content was read with, `r.rep`: it says how
   each site irrep is known, and on a layer which Wyckoff positions lie
-  within it.  A table carries its own, `t.rep`; beside a content
+  within it.  A table carries its own group, `t.group`; beside a content
   written out by hand, pass it whenever it is at hand.
 
 - **`bands`** (`int or sequence of int, optional`): Which bands the content counts: `n` the lowest `n`, or the band
@@ -1093,7 +1090,7 @@ The symmetry-indicator class of a band set's content: the class of its symmetry 
   takes the group beside it.
 
 - **`rep`** (`SpaceGroupRep, optional`): The representation the content was read with, `r.rep`; a table
-  carries its own, `t.rep`.  A layer's coreps at `k_z = ½` that
+  carries its own group, `t.group`.  A layer's coreps at `k_z = ½` that
   repeat none in its plane are measured on its decoupled stack, the
   layer repeated along its normal with no hopping between copies, built
   from the representation and the table.

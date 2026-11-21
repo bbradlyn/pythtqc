@@ -56,7 +56,7 @@ from pythtb import Lattice, Mesh, TBModel, WFArray
 
 import _path  # noqa: F401  (in-repo runs: puts src/ on sys.path)
 import pythtqc as tqc
-from pythtqc import format_counts as fmt
+from pythtqc import format_coreps as fmt
 from pythtqc.utils import save_figure
 
 # Elementary band representations print as ρ↑G, the site irrep ρ induced to the
@@ -365,9 +365,9 @@ t_conduction = tqc.hsp_table(realized, bands=[2, 3])
 b_conduction = tqc.srsi_of_bands(t_conduction)
 d_valence = tqc.decompose(t_valence)
 d_conduction = tqc.decompose(t_conduction)
-row("bands 0 and 1", f"{fmt(t_valence.counts)}, Z-valued {values(b_valence.theta_Z)}")
+row("bands 0 and 1", f"{fmt(t_valence.symmetry_data)}, Z-valued {values(b_valence.theta_Z)}")
 row(*atomic_limits(d_valence))
-row("bands 2 and 3", f"{fmt(t_conduction.counts)}, Z-valued {values(b_conduction.theta_Z)}")
+row("bands 2 and 3", f"{fmt(t_conduction.symmetry_data)}, Z-valued {values(b_conduction.theta_Z)}")
 row(*atomic_limits(d_conduction))
 class_lower = indicator_class(b_valence.indicator)
 class_upper = indicator_class(b_conduction.indicator)

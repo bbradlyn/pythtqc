@@ -18,7 +18,7 @@ A first call::
 
     r = tqc.realized_group(kane_mele(0.0, -1.0, 0.3, 0.0), characters={0: "s"})
     print(r.summary())            # the group, and the orbitals by Wyckoff orbit
-    print(tqc.hsp_table(r, bands=2).counts)
+    print(tqc.hsp_table(r, bands=2).symmetry_data)
 
 A call that cannot complete returns a ``Refusal`` in its place, which prints
 the check that stopped it and what it measured there.  A refusal is falsy, and
@@ -46,7 +46,7 @@ from .ebr import (CompletenessReport, EBRDecomposition, RegularCompletion, Restr
                   SymmetryIndicator, WannierCaveat, completeness_check, decompose,
                   ebr_rows, in_plane_restriction, regular_completion, subtract,
                   symmetry_indicator)
-from .groups import (GroupData, HighSymmetryPoints, IrrepContent, KGrid, LittleGroup,
+from .groups import (CorepIdentification, GroupData, HighSymmetryPoints, KGrid, LittleGroup,
                      Operation, OperationTable, RealizedGroup,
                      SiteReference, ValidatedGroup,
                      corep_table, ebr_data, high_symmetry_points, k_grid,
@@ -54,8 +54,8 @@ from .groups import (GroupData, HighSymmetryPoints, IrrepContent, KGrid, LittleG
                      stack_presentation, tables_status,
                      wyckoff_sites_tables)
 from .refusal import InternalError, MagneticScopeWarning, Refusal, RefusalError
-from .sewing import (CharacterTable, CorepContent, HSPTable, SewingMatrix, characters,
-                     corep_content, format_counts, hsp_table, multiplets, sewing_matrix,
+from .sewing import (BandCharacters, CorepsAt, HSPTable, SewingMatrix, characters,
+                     coreps_at, format_coreps, hsp_table, multiplets, sewing_matrix,
                      solve_at)
 from .spin import SpinBasis, spin_basis, spin_operator, spinless_presentation
 from .srsi import (BandSRSIs, ModelSRSIs, Realizations, SRSITables, Splitting,
@@ -70,7 +70,7 @@ __all__ = [
     "ebr", "groups", "models", "refusal", "sewing", "spin", "srsi", "symmetrization",
     "symmetry", "utils",
     "Refusal", "RefusalError", "MagneticScopeWarning",
-    "GroupData", "HighSymmetryPoints", "IrrepContent", "KGrid", "LittleGroup",
+    "GroupData", "HighSymmetryPoints", "CorepIdentification", "KGrid", "LittleGroup",
     "Operation", "OperationTable",
     "ValidatedGroup", "RealizedGroup",
     "SiteReference", "wyckoff_sites_tables",
@@ -90,9 +90,9 @@ __all__ = [
     "splitting", "nsit_criterion", "atomic_realizations", "stably_equivalent_pairs",
     "Symmetrization",
     "multiplets",
-    "solve_at", "format_counts",
-    "SewingMatrix", "CharacterTable", "CorepContent", "HSPTable",
-    "sewing_matrix", "characters", "corep_content", "hsp_table",
+    "solve_at", "format_coreps",
+    "SewingMatrix", "BandCharacters", "CorepsAt", "HSPTable",
+    "sewing_matrix", "characters", "coreps_at", "hsp_table",
     "EBRDecomposition", "CompletenessReport", "RegularCompletion", "Restriction",
     "SymmetryIndicator", "WannierCaveat", "decompose", "subtract",
     "completeness_check", "regular_completion",

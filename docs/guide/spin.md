@@ -23,10 +23,10 @@ flat, basis = tqc.spinless_presentation(km)     # the same crystal as wannier90 
 print(flat.nspin, flat.norb)
 #  1 4
 r = tqc.realized_group(flat, typat=[0, 0, 1, 1], spin="interleaved", characters={0: "A1"})
-print(r.group.name, r.group.number_str, tqc.hsp_table(r, bands=2).counts)
+print(r.group.name, r.group.number_str, tqc.hsp_table(r, bands=2).symmetry_data)
 #  P3m11' 156.50 {'-GM6': 1, '-K5': 1, '-K6': 1, '-M3M4': 1}
 native = tqc.realized_group(km, typat=[0, 1], characters={0: "A1"})
-print(native.group.name, native.group.number_str, tqc.hsp_table(native, bands=2).counts)
+print(native.group.name, native.group.number_str, tqc.hsp_table(native, bands=2).symmetry_data)
 #  P3m11' 156.50 {'-GM6': 1, '-K5': 1, '-K6': 1, '-M3M4': 1}
 print(r.wyckoff_orbits.summary())
 #  Wyckoff  site symmetry  orbitals  label  determined by  declared
@@ -191,7 +191,7 @@ print(basis.summary())
 #    pair 1: orbital 2 up, orbital 3 down
 blocked, _ = tqc.spinless_presentation(km, order="blocked")
 rb = tqc.realized_group(blocked, typat=[0, 1, 0, 1], spin="blocked", characters={0: "A1"})
-print(rb.group.number_str, tqc.hsp_table(rb, bands=2).counts)
+print(rb.group.number_str, tqc.hsp_table(rb, bands=2).symmetry_data)
 #  156.50 {'-GM6': 1, '-K5': 1, '-K6': 1, '-M3M4': 1}
 print(tqc.spin_basis(flat, pairs=[(0, 1), (2, 3)]).summary())
 #  each pair one Wannier function, its spin up and down along z   (.pairs)

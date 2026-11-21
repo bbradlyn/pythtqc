@@ -209,7 +209,7 @@ print(repr(below))
 print(f"{below.numerical.positions.move:.1e} asked of a centre by the whole group, "
       f"{below.numerical.positions.carried} of its coset representatives carry them")
 #  5.0e-09 asked of a centre by the whole group, 4 of its coset representatives carry them
-print(tqc.hsp_table(below, bands=2).counts)
+print(tqc.hsp_table(below, bands=2).symmetry_data)
 #  {'-GM3GM4': 1, '-A3A4': 1, '-B3B4': 1, '-Y3Y4': 1}
 ```
 
@@ -265,7 +265,7 @@ print(rn.numerical.source is noisy, rn.model is noisy)
 #  True False
 rc = tqc.realized_group(clean, typat=[0, 0, 1, 1], characters=["s", "dx2-y2", "s", "s"])
 print(rc.group.name == rn.group.name,
-      tqc.hsp_table(rn, bands=6).counts == tqc.hsp_table(rc, bands=6).counts,
+      tqc.hsp_table(rn, bands=6).symmetry_data == tqc.hsp_table(rc, bands=6).symmetry_data,
       max(np.abs(rn.rep.matrices[i] - rc.rep.matrices[i]).max() for i in rc.rep.matrices))
 #  True True 0.0
 ```

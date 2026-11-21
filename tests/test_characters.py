@@ -409,11 +409,12 @@ def test_declaring_either_orbital_of_the_pair_is_the_same_twist(lin3g_undeclared
                              ("M", {"-M6": 1, "-M7": 2}, {"-M7": 1, "-M6": 2}),
                              ("X", {"-X5": 3}, {"-X5": 3})):
         states = solve_at(model, hsp[name])
-        before = tqw.corep_content(lin3g_undeclared, hsp[name], states=states, bands=6)
-        after = tqw._corep_content_rep(other, hsp[name], states=states, bands=6)
+        before = tqw.coreps_at(lin3g_undeclared, hsp[name], states=states, bands=6)
+        after = tqw._coreps_at_rep(other, hsp[name], states=states, bands=6)
         assert before and after
-        assert before.counts == want and after.counts == flip, name
-        assert before.partition == after.partition, \
+        assert before.coreps == want and after.coreps == flip, name
+        assert (before.numerical.identification._partition
+                == after.numerical.identification._partition), \
             "the phase-invariant content must not move"
 
     b = rebuild(lin3g_undeclared, characters={1: "A1"})
@@ -1274,14 +1275,14 @@ def test_group_provenance_rides_into_the_character_tables(lin3g_undeclared):
 
     k = tqg.high_symmetry_points(group)["GM"]
     table = tqw.characters(lin3g_undeclared, k, bands=6)
-    assert isinstance(table, tqw.CharacterTable), str(table)
-    assert table.group_provenance == group._provenance == "realized"
+    assert isinstance(table, tqw.BandCharacters), str(table)
+    assert table._group_provenance == group._provenance == "realized"
 
     hsp = tqw.hsp_table(lin3g_undeclared, bands=6)
-    assert hsp.group_provenance == group._provenance == "realized"
-    assert hsp.records, "the realized group resolves its high-symmetry points"
-    assert all(rec.table.group_provenance == group._provenance
-               for rec in hsp.records.values())
+    assert hsp._group_provenance == group._provenance == "realized"
+    assert hsp._records, "the realized group resolves its high-symmetry points"
+    assert all(rec._characters._group_provenance == group._provenance
+               for rec in hsp._records.values())
 
     # ... and the other stamp, on the same model and the same served group: the
     # free-standing cell is an upper bound the measurement had to cut
@@ -1292,8 +1293,8 @@ def test_group_provenance_rides_into_the_character_tables(lin3g_undeclared):
     assert down.descent.cell_group.number_str == "123.340"
     assert down.group._provenance == down.rep._group._provenance == "descended"
     down_table = tqw.characters(down, k, bands=6)
-    assert down_table.group_provenance == "descended"
-    assert tqw.hsp_table(down, bands=6).group_provenance == "descended"
+    assert down_table._group_provenance == "descended"
+    assert tqw.hsp_table(down, bands=6)._group_provenance == "descended"
 
 
 # ---------------------------------------------------------------------------

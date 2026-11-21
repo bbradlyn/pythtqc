@@ -8,27 +8,29 @@ character, and the characters name the corep.
 * :func:`hsp_table`: the coreps of a set of bands at every high-symmetry point,
   its symmetry data vector, which :func:`.ebr.decompose`,
   :func:`.ebr.symmetry_indicator` and :func:`.srsi.srsi_of_bands` take;
-* :func:`corep_content`: the coreps at one point, multiplet by multiplet;
-* :func:`characters`: the table of characters they are read from;
+* :func:`coreps_at`: the coreps at one point, multiplet by multiplet;
+* :func:`characters`: the characters they are read from;
 * :func:`sewing_matrix`: one operation's sewing matrix;
 * :func:`solve_at`: one diagonalization at a k-point, to read several sets of
   bands there; :func:`multiplets` groups its energies into degenerate levels,
   and :func:`multiplet_separation` and :func:`multiplet_spread` say how well
   they are resolved;
-* :func:`format_counts`: a content on one line, ``2×-GM6 + -GM7``;
+* :func:`format_coreps`: corep multiplicities on one line, ``2x-GM6 + -GM7``;
 * :class:`Thresholds`: the zero thresholds at a point, one for numbers built
   from ``H(k)`` and one, widening where multiplets crowd, for numbers read off
   eigenvectors.
 
 Each call takes the eigenvectors as ``states=``, in pythtb's own forms:
 ``None``, to solve the model at the point; a solved :class:`pythtb.WFArray`;
-or the ``(evals, evecs)`` pair of one diagonalization.  The little groups, the
-corep tables and the labels are ``irrep``'s.
+or the ``(evals, evecs)`` pair of one diagonalization.  A k-point is given by
+its tabulated name, ``"GM"``, or by its reduced coordinates.  The little
+groups, the corep tables and the labels are ``irrep``'s.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from functools import cached_property
 from typing import Any, Mapping
 
 import numpy as np
@@ -37,17 +39,18 @@ from . import _bloch
 from . import _spacegroup
 from . import _tables
 from .refusal import InternalError, Refusal
+from ._seitz import _operation_rows
 from ._tolerance import DEGENERACY_TOL, FLAT_ZERO, LABEL_TOL, MESH_TOL, STATES_AT_K_GATE
-from ._text import _character_text, _k_text, _listed, _operation_name, _runs
+from ._text import _character_text, _k_text, _listed, _runs
 
 __all__ = [
     "FLAT_ZERO", "DEGENERACY_TOL",
     "Thresholds", "two_tier_thresholds", "disagreements",
     "multiplets", "multiplet_separation", "multiplet_spread",
-    "solve_at", "format_counts",
-    "SewingMatrix", "sewing_matrix",
-    "CharacterTable", "characters",
-    "CorepContent", "corep_content",
+    "solve_at", "format_coreps",
+    "SewingMatrix", "SewingMatrixNumerical", "sewing_matrix",
+    "BandCharacters", "MultipletCharacters", "BandCharactersNumerical", "characters",
+    "Multiplet", "CorepsAt", "CorepsAtNumerical", "coreps_at",
     "HSPTable", "hsp_table",
 ]
 
@@ -312,7 +315,7 @@ def solve_at(model, k, *, params=None):
     r"""The energies and eigenvectors at one k, from one diagonalization.
 
     Hand the pair to :func:`sewing_matrix`, :func:`characters` or
-    :func:`corep_content` as ``states=`` to read several sets of bands at that
+    :func:`coreps_at` as ``states=`` to read several sets of bands at that
     k off the same states.  A second diagonalization chooses another basis
     inside each degenerate level, and a character read across the two is wrong.
 
@@ -498,11 +501,13 @@ def _rep_of(call, realized, example):
                     f"{type(realized).__name__}")
 
 
-def _band_block(nstate, bands):
+def _band_block(nstate, bands, call=None):
     """The sorted band indices a band count or a band sequence names.
 
     An integer ``n`` means the lowest ``n`` bands; a sequence means exactly
-    those band indices.  ``None`` means every band of the fiber.
+    those band indices.  ``None`` means every band of the fiber.  ``call``,
+    where it is given, names the public call in the ``ValueError`` an empty
+    sequence raises.
     """
     nstate = int(nstate)
     if bands is None:
@@ -513,6 +518,9 @@ def _band_block(nstate, bands):
             raise ValueError(f"the band count {n} is outside 1..{nstate}")
         return tuple(range(n))
     idx = [int(b) for b in bands]
+    if not idx and call is not None:
+        raise ValueError(f"{call}(): bands= names no band; pass the number of bands, "
+                         "bands=2, or their indices, bands=[0, 1].")
     if len(set(idx)) != len(idx):
         raise ValueError(f"the bands {idx} name a band more than once")
     if idx and not (0 <= min(idx) and max(idx) < nstate):
@@ -521,118 +529,201 @@ def _band_block(nstate, bands):
     return tuple(sorted(idx))
 
 # ==========================================================================
+# the k-point a call on bands reads
+# ==========================================================================
+
+#: How far a point may sit from a tabulated one and be named after it, in
+#: reduced reciprocal coordinates: the tables' own reading of a point.
+_KTOL = _tables._corep_table.__kwdefaults__["ktol"]
+
+def _in_plane(group, k, call):
+    """``k`` as ``dim_k`` reduced coordinates, or the refusal ``out_of_plane``.
+
+    Three coordinates of a layer's three-dimensional cell are read in its
+    plane, as :func:`.._tables.little_group` reads them, and a point with a
+    component out of the plane returns its refusal ``out_of_plane``.  Any
+    other ``k`` is returned as a flat array.
+    """
+    k = np.asarray(k, dtype=float).reshape(-1)
+    if k.size == 3 and int(group._dim_k) != 3:
+        lg = _tables._little_group(group, k, call=call)
+        if isinstance(lg, Refusal):
+            return lg
+        return np.asarray(lg.k, dtype=float).reshape(-1)
+    return k
+
+def _point_of(call, group, k):
+    """The coordinates a call on bands reads ``k`` at, or the refusal it returns there.
+
+    ``k`` is a tabulated name or coordinates.  A name is read as the
+    coordinates :func:`.._tables.high_symmetry_points` gives it
+    (:func:`.._tables._resolve_kpoint`, which raises ``ValueError``, starting
+    with ``call``, on a name the group does not tabulate); coordinates of a
+    layer's three-dimensional cell are read in its plane (:func:`_in_plane`).
+    """
+    k = _tables._resolve_kpoint(call, group, k)
+    if isinstance(k, Refusal):
+        return k
+    return _in_plane(group, k, call)
+
+def _tabulated_name(group, k):
+    """The tables' name of the point ``k``, ``dim_k`` reduced coordinates, or ``None`` where it is none of their points.
+
+    Matched as the identification of coreps matches a point
+    (:func:`.._tables._resolve_kpname`): the first tabulated point it differs
+    from by a reciprocal lattice vector of the cell as written, each
+    coordinate to within :data:`_KTOL`.  ``None`` also where the group's tables
+    cannot be read in this cell.
+    """
+    if _spacegroup._lattice_not_descended(group) is not None or not group._tables_ready:
+        return None
+    k3 = group._k_to_3d(np.asarray(k, dtype=float).reshape(1, -1))[0]
+    for name, tabulated in _tables._table_kpoints(group).items():
+        if _tables._same_point(k3, tabulated, _KTOL):
+            return name
+    return None
+
+def _kpoint_text(kpoint, k) -> str:
+    """A k-point as the summaries print it: ``GM (0, 0)``, or ``k = (0.1, 0.5)`` where it has no name."""
+    return f"{kpoint} {_k_text(k)}" if kpoint else f"k = {_k_text(k)}"
+
+def _seitz_of(group, ind) -> str:
+    """One operation's Seitz symbol, ``{4+_001|0,0,0}``, or ``""`` where the group has no conventional setting to write it in."""
+    rows = _operation_rows(group, (int(ind),))
+    if isinstance(rows, Refusal) or int(ind) not in rows:
+        return ""
+    return str(rows[int(ind)].seitz)
+
+# ==========================================================================
 # the sewing matrix
 # ==========================================================================
+
+@dataclass(frozen=True)
+class SewingMatrixNumerical:
+    """How closely a sewing matrix is measured: what :attr:`SewingMatrix.numerical` holds.
+
+    ``summary()`` prints it.
+
+    Attributes
+    ----------
+    unitarity : float
+        ``max |B†B − 1|``: zero where the set of bands is closed under the
+        operation.
+    commutator : float
+        ``max |U H(k) − H(k) U|``, ``U`` the operator on the model's states:
+        zero where ``U`` is a symmetry of ``H(k)``.
+    residual : float
+        ``max |H(k) V − V diag(w)|``, how far the states are from eigenstates
+        at ``k``.  ``nan`` where they came without energies, and then neither
+        this nor whether the bands close their multiplets was measured.
+    """
+
+    unitarity: float
+    commutator: float
+    residual: float = float("nan")
+
+    def summary(self) -> str:
+        """The three numbers, on one line, with the attributes that hold them."""
+        measured = [f"unitary to {self.unitarity:.2g}"]
+        held = [".unitarity"]
+        if np.isfinite(self.commutator):
+            measured.append(f"the operator commuting with H(k) to {self.commutator:.2g}")
+            held.append(".commutator")
+        if np.isfinite(self.residual):
+            measured.append(f"the states solving H(k) to {self.residual:.2g}")
+            held.append(".residual")
+        return ", ".join(measured) + f"   ({', '.join(held)})"
+
+    def __repr__(self) -> str:  # pragma: no cover - convenience only
+        return (f"SewingMatrixNumerical(unitarity={self.unitarity:.2e}, "
+                f"commutator={self.commutator:.2e}, residual={self.residual:.2e})")
+
 
 @dataclass(frozen=True)
 class SewingMatrix:
     """The matrix of one operation on a set of bands, at a k-point the operation leaves invariant: ``B(g,k) = V† U(g;k) V``.
 
     Its trace over a degenerate multiplet is that multiplet's character.  The
-    set of bands has to be whole degenerate multiplets for ``B`` to be the
-    operation's own: on part of one, its trace follows the basis the
-    diagonalization chose.  ``summary()`` prints it.
+    set of bands holds whole degenerate multiplets, so that ``B`` is the
+    operation's own and not the basis the diagonalization chose.
+    ``summary()`` prints it.
 
     Attributes
     ----------
     operation : int
         The operation, by its index.
-    k : ndarray
-        The k-point, in reduced coordinates.
-    wrap : ndarray of int
-        The reciprocal lattice vector ``G = Rk − k``.  On the zone boundary it
-        brings the factor ``e^{2πi G·τ}`` of an orbital at ``τ`` off the
-        origin, which reads that orbital's characters right there.
+    seitz : str
+        Its Seitz symbol, ``{4+_001|0,0,0}``, primed where the operation is
+        combined with time reversal.
     bands : tuple of int
         The set of bands, by position among the states handed in: for a
         ``WFArray`` of a sector, that sector's states.
+    k : ndarray
+        The k-point, in the model's reduced coordinates.
+    kpoint : str or None
+        The tables' name of the k-point, ``"M"``, or ``None`` where it is no
+        tabulated point.
+    G : ndarray of int
+        The reciprocal lattice vector ``G = Rk − k``.  On the zone boundary it
+        brings the factor ``e^{2πi G·τ}`` of an orbital at ``τ`` off the
+        origin, which reads that orbital's characters right there.
     matrix : ndarray, shape (nb, nb)
         ``B``.
-    operator : ndarray, shape (nstate, nstate)
-        ``U(g;k)``, the operator on the model's states.
-    trace : complex
-        ``tr B``: the character, where the set of bands is one multiplet.
     eigenvalues : ndarray
-        ``B``'s eigenvalues, on the unit circle where ``B`` is unitary;
-        :attr:`angles` holds their phases.
-    unitarity : float
-        ``max |B†B − 1|``: zero where the set of bands is closed under the
-        operation.
-    commutator : float
-        ``max |U H(k) − H(k) U|``: zero where ``U`` is a symmetry of ``H(k)``.
-    antiunitary : bool
-        Whether the operation is combined with time reversal; a corep table
-        holds no character for one.
-    residual : float
-        ``max |H(k) V − V diag(w)|``, how far the states are from eigenstates
-        at ``k``.  ``nan`` where they came without energies, and then neither
-        this nor whether ``bands`` closes its multiplets was measured.
+        ``B``'s eigenvalues, on the unit circle where ``B`` is unitary.
+    numerical : SewingMatrixNumerical
+        How far ``B`` is from unitary, the operator from commuting with
+        ``H(k)``, and the states from eigenstates.
     """
 
     operation: int
-    k: np.ndarray
-    wrap: np.ndarray
+    seitz: str
     bands: tuple
+    k: np.ndarray
+    kpoint: str | None
+    G: np.ndarray
     matrix: np.ndarray
-    operator: np.ndarray
-    unitarity: float
-    commutator: float
-    antiunitary: bool
     eigenvalues: np.ndarray
-    trace: complex
-    residual: float = float("nan")
-    # the operation's name in the model's frame, for the summary
-    _name: str = field(default="", repr=False, compare=False)
+    numerical: SewingMatrixNumerical
 
-    @property
-    def angles(self) -> np.ndarray:
-        """The phases of ``B``'s eigenvalues, in radians, ascending."""
-        return np.sort(np.angle(self.eigenvalues))
+    def _named(self) -> str:
+        return (f"operation {self.operation} {self.seitz}" if self.seitz
+                else f"operation {self.operation}")
 
     def summary(self) -> str:
         """The sewing matrix, a line for each part, with the attribute that holds it."""
-        named = (f"{self._name}, operation {self.operation}" if self._name
-                 else f"operation {self.operation}")
-        lines = [f"{named}, on band{'s' if len(self.bands) > 1 else ''} {_runs(self.bands)} "
-                 f"at k = {_k_text(self.k)}   (.operation, .bands, .k)"]
-        if np.any(self.wrap):
-            lines.append(f"  carries k to k + {_k_text(self.wrap)}, a reciprocal lattice vector "
-                         "away   (.wrap)")
-        if self.antiunitary:
-            lines.append("  combined with time reversal: its trace is no character, a corep table "
-                         "holding none for it   (.antiunitary)")
-        lines.append(f"  its trace, the character of these bands: "
-                     f"{_character_text(self.trace)}   (.trace)")
+        held = ".operation, .seitz, .bands" if self.seitz else ".operation, .bands"
+        held += ", .kpoint, .k" if self.kpoint else ", .k"
+        lines = [f"{self._named()}, on band{'s' if len(self.bands) > 1 else ''} "
+                 f"{_runs(self.bands)} at {_kpoint_text(self.kpoint, self.k)}   ({held})"]
+        if np.any(self.G):
+            lines.append(f"  carries k to k + {_k_text(self.G)}, a reciprocal lattice vector "
+                         "away   (.G)")
         if len(self.eigenvalues):
-            lines.append("  its eigenvalues e^{iθ}, at θ/π = "
-                         + ", ".join(f"{a / np.pi:.4g}" for a in self.angles + 0.0)
-                         + "   (.angles)")
-        measured = [f"unitary to {self.unitarity:.2g}"]
-        if np.isfinite(self.commutator):
-            measured.append(f"the operator commuting with H(k) to {self.commutator:.2g}")
-        if np.isfinite(self.residual):
-            measured.append(f"the states solving H(k) to {self.residual:.2g}")
-            lines.append("  " + ", ".join(measured) + "   (.unitarity, .commutator, .residual)")
-        else:
-            lines.append("  " + ", ".join(measured) + "; the states came without energies, so "
-                         "whether they solve H(k) and close their multiplets was not "
-                         "measured   (.unitarity, .commutator, .residual)")
+            lines.append("  its eigenvalues exp(iθ), at θ/π = "
+                         + ", ".join(f"{a / np.pi:.4g}"
+                                     for a in np.sort(np.angle(self.eigenvalues)) + 0.0)
+                         + "   (.eigenvalues)")
+        if not np.isfinite(self.numerical.residual):
+            lines.append("  the states came without energies, so whether they solve H(k) and "
+                         "close their multiplets was not measured   (.numerical.residual)")
         return "\n".join(lines)
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
-        return (f"SewingMatrix(#{self.operation}, {len(self.bands)} bands, "
-                f"tr={self.trace:.6g}, unitarity={self.unitarity:.2e})")
+        return (f"SewingMatrix({self._named()}, {len(self.bands)} bands, "
+                f"unitarity={self.numerical.unitarity:.2e})")
 
-def _sewing_core(rep, operation, k, V, idx, H, *, atol=1e-8, residual=float("nan"),
-                 **kwargs) -> SewingMatrix | Refusal:
+def _sewing_core(rep, operation, k, V, idx, H, *, atol=1e-8,
+                 residual=float("nan")) -> SewingMatrix | Refusal:
     """``B = V†UV`` on ``idx`` with its two self-checks — the shared inner loop.
 
     Private on purpose: it is the piece :func:`characters` reuses across every
     column of one table, so that a table is built from **one** fiber and one
     ``H(k)``.  It stores nothing; ``V``, ``H`` and ``idx`` are local arrays
-    handed in.
+    handed in.  The record returned has no Seitz symbol and no name of the
+    point, which :func:`_sewing_matrix_rep` puts in.
     """
-    U = rep.sewing_operator(int(operation), k, atol=atol, **kwargs)
+    U = rep.sewing_operator(int(operation), k, _atol=atol)
     if isinstance(U, Refusal):
         return U
 
@@ -649,16 +740,16 @@ def _sewing_core(rep, operation, k, V, idx, H, *, atol=1e-8, residual=float("nan
         Hsrc = H.conj() if anti else H
         comm = float(np.abs(U @ Hsrc - H @ U).max())
     ev = np.linalg.eigvals(B) if len(idx) else np.zeros(0, dtype=complex)
-    return SewingMatrix(operation=int(operation), k=np.asarray(k, dtype=float).reshape(-1),
-                        wrap=rep.in_little_group(int(operation), k, atol=atol)[1],
-                        bands=tuple(idx), matrix=B, operator=U, unitarity=unit,
-                        commutator=comm, antiunitary=anti, eigenvalues=ev,
-                        trace=complex(np.trace(B)), residual=float(residual),
-                        _name=_operation_name(rep, operation))
+    return SewingMatrix(operation=int(operation), seitz="", bands=tuple(idx),
+                        k=np.asarray(k, dtype=float).reshape(-1), kpoint=None,
+                        G=rep.in_little_group(int(operation), k, _atol=atol)[1],
+                        matrix=B, eigenvalues=ev,
+                        numerical=SewingMatrixNumerical(unitarity=unit, commutator=comm,
+                                                        residual=float(residual)))
 
-def _sewing_matrix_rep(rep, operation=None, k=None, *, states=None, bands=None, atol=1e-8,
-                       degeneracy_tol=DEGENERACY_TOL, mesh_tol=MESH_TOL, check=True,
-                       **kwargs) -> SewingMatrix | Refusal:
+def _sewing_matrix_rep(rep, operation=None, k=None, *, states=None, bands=None,
+                       degeneracy_tol=DEGENERACY_TOL, _atol=1e-8,
+                       _mesh_tol=MESH_TOL) -> SewingMatrix | Refusal:
     """What :func:`sewing_matrix` returns, read off a representation: ``realized.rep``, or one built by hand.
 
     Every argument but the first is :func:`sewing_matrix`'s own.
@@ -667,20 +758,22 @@ def _sewing_matrix_rep(rep, operation=None, k=None, *, states=None, bands=None, 
         raise TypeError("sewing_matrix() missing required argument 'operation'")
     if k is None:
         raise TypeError("sewing_matrix() missing required argument 'k'")
-    k = np.asarray(k, dtype=float).reshape(-1)
+    k = _point_of("sewing_matrix", rep._group, k)
+    if isinstance(k, Refusal):
+        return k
     bloch = (_measured_sum(rep) if states is None or states is rep._model
              else None)
-    got = _resolve_states(states, rep, k, mesh_tol=mesh_tol, bloch=bloch)
+    got = _resolve_states(states, rep, k, mesh_tol=_mesh_tol, bloch=bloch)
     if isinstance(got, Refusal):
         return got
     w, V = got
-    idx = _band_block(V.shape[1], bands)
+    idx = _band_block(V.shape[1], bands, "sewing_matrix")
 
     bloch = _measured_sum(rep, bloch)
     H = _hamiltonian_at(rep, k, bloch)
     resid = float("nan") if w is None else _states_at_k(H, w, V)
 
-    if check and w is not None:
+    if w is not None:
         foreign = _foreign_states(H, k, resid)
         if foreign is not None:
             return foreign
@@ -700,16 +793,22 @@ def _sewing_matrix_rep(rep, operation=None, k=None, *, states=None, bands=None, 
                     threshold=float(degeneracy_tol),
                     context={"bands": idx, "multiplet": m, "k": k})
 
-    return _sewing_core(rep, operation, k, V, idx, H, atol=atol, residual=resid, **kwargs)
+    out = _sewing_core(rep, operation, k, V, idx, H, atol=_atol, residual=resid)
+    if isinstance(out, Refusal):
+        return out
+    return replace(out, seitz=_seitz_of(rep._group, operation),
+                   kpoint=_tabulated_name(rep._group, k))
 
 def sewing_matrix(realized, operation=None, k=None, *, states=None, bands=None,
-                  atol=_sewing_matrix_rep.__kwdefaults__["atol"],
-                  degeneracy_tol=DEGENERACY_TOL, mesh_tol=MESH_TOL, check=True,
-                  **kwargs) -> SewingMatrix | Refusal:
+                  degeneracy_tol=DEGENERACY_TOL,
+                  _atol=_sewing_matrix_rep.__kwdefaults__["_atol"],
+                  _mesh_tol=MESH_TOL) -> SewingMatrix | Refusal:
     """The matrix of one operation on a set of bands, at a k-point the operation leaves invariant: the sewing matrix ``B(g,k)_mn = <u_m(k)|U(g;k)|u_n(k)>``.
 
     Its trace over a degenerate multiplet is that multiplet's character, and its
-    eigenvalues are the operation's on those bands.
+    eigenvalues are the operation's on those bands.  The states are checked to
+    solve ``H(k)``, and the bands to hold whole degenerate multiplets, wherever
+    the states carry their energies.
 
     Parameters
     ----------
@@ -719,49 +818,31 @@ def sewing_matrix(realized, operation=None, k=None, *, states=None, bands=None,
         The operation, by its index: ``r.operations`` lists them, and
         :func:`..groups.operation_index` finds one by its Seitz symbol.
         Required.
-    k : array_like, shape (dim_k,)
+    k : str or array_like, shape (dim_k,)
         A k-point the operation leaves invariant up to a reciprocal lattice
-        vector, in reduced coordinates.  Required.
+        vector: its tabulated name, ``"M"``, or its reduced coordinates.
+        Required.
     bands : int or sequence of int, optional
-        The set of bands: ``n`` the lowest ``n`` bands, or the band indices,
-        whole degenerate multiplets.  Default: every state.
+        The set of bands: ``n`` the lowest ``n`` bands, or the band indices.
+        Default: every state.
     states : None, pythtb.WFArray, (evals, evecs) or ndarray, optional
         The states at ``k``: ``None`` (default) solves the model there; a
         solved ``WFArray``, or the pair :func:`solve_at` returns, reuses one
         diagonalization.  Eigenvector rows alone, or a ``WFArray`` of a sector
-        with fewer states than the model, carry no energies: whether they solve
-        ``H(k)`` and close their multiplets is then not measured.
-    degeneracy_tol : float, optional
+        with fewer states than the model, carry no energies.
+    degeneracy_tol : float, default 1e-8
         The energy, in the units of ``H``, within which bands are one
-        multiplet.  Default ``1e-8``.
-    atol, mesh_tol : float, optional
-        In reduced reciprocal coordinates: whether the operation leaves ``k``
-        invariant (default ``1e-8``), and finding ``k`` on a mesh (``1e-9``).
-    check : bool, optional
-        Check that the states solve ``H(k)`` and that ``bands`` closes its
-        multiplets.  Default ``True``.
-    **kwargs
-        Passed to :meth:`..symmetry.SpaceGroupRep.sewing_operator`.
+        multiplet.
 
     Returns
     -------
     SewingMatrix or Refusal
-        ``B.summary()`` prints it.  ``B.matrix`` is the matrix, ``B.trace`` its
-        trace and ``B.angles`` the phases of its eigenvalues; ``B.unitarity``,
-        ``B.commutator`` and ``B.residual`` how far it is from unitary, the
-        operator from commuting with ``H(k)``, and the states from eigenstates.
+        ``B.summary()`` prints it.  ``B.matrix`` is the matrix and
+        ``B.eigenvalues`` its eigenvalues; ``B.numerical`` holds how far it is
+        from unitary, the operator from commuting with ``H(k)``, and the states
+        from eigenstates.  For states without energies, whether they solve
+        ``H(k)`` and whether the bands close their multiplets is not measured.
         A ``Refusal`` in its place is falsy and names what stopped the call.
-
-    Raises
-    ------
-    TypeError
-        ``realized`` is not what :func:`..groups.realized_group` returned.
-    TypeError
-        ``operation`` or ``k`` left out.
-    ValueError
-        States of another model than ``r.model``, ``bands`` outside the
-        states, or ``r.model`` edited since :func:`..groups.realized_group`
-        measured it.
 
     Refusals
     --------
@@ -773,59 +854,86 @@ def sewing_matrix(realized, operation=None, k=None, *, states=None, bands=None,
         the states handed in do not solve ``H(k)``.
     ``k_not_on_mesh``
         the mesh handed in does not hold ``k``.
+    ``out_of_plane``
+        ``k`` has a component along a layer's vacuum, or names a tabulated
+        point out of the layer's plane.
+    ``tables_not_ready``
+        ``k`` is a name, and the group has no transformation to the tables'
+        conventional cell.
+
+    Raises
+    ------
+    TypeError
+        ``realized`` is not what :func:`..groups.realized_group` returned.
+    TypeError
+        ``operation`` or ``k`` left out.
+    ValueError
+        States of another model than ``r.model``, ``bands`` outside the
+        states or naming none, ``k`` a name the group does not tabulate, or
+        ``r.model`` edited since :func:`..groups.realized_group` measured it.
 
     Examples
     --------
     The fourfold rotation on lin3g's lowest pair at ``M``
     (:func:`..models.lin3g`):
 
-    >>> c4 = operation_index(r.group, "{4+_001|0,0,0}")                   # doctest: +SKIP
-    >>> B = sewing_matrix(r, c4, hsp["M"], bands=2)              # doctest: +SKIP
-    >>> np.round(B.trace, 6), B.angles / np.pi                      # doctest: +SKIP
-    ((-1.414214+0j), array([-0.75,  0.75]))
+    >>> c4 = operation_index(r.group, "{4+_001|0,0,0}")             # doctest: +SKIP
+    >>> B = sewing_matrix(r, c4, "M", bands=2)                         # doctest: +SKIP
+    >>> np.sort(np.angle(B.eigenvalues)) / np.pi                       # doctest: +SKIP
+    array([-0.75,  0.75])
     """
     rep = _rep_of("sewing_matrix", realized, "sewing_matrix(r, operation, k, bands=2)")
     if isinstance(rep, Refusal):
         return rep
-    return _sewing_matrix_rep(rep, operation, k, states=states, bands=bands, atol=atol,
-                              degeneracy_tol=degeneracy_tol, mesh_tol=mesh_tol,
-                              check=check, **kwargs)
+    return _sewing_matrix_rep(rep, operation, k, states=states, bands=bands,
+                              degeneracy_tol=degeneracy_tol, _atol=_atol,
+                              _mesh_tol=_mesh_tol)
 
 # ==========================================================================
-# the character table
+# the characters of a set of bands
 # ==========================================================================
 
 @dataclass(frozen=True)
-class CharacterTable:
-    """The characters of a set of bands at one k: the trace of each unitary operation of the little group over each degenerate multiplet.
-
-    Every corep label is read from such a table.  ``summary()`` prints it.
+class MultipletCharacters:
+    """The characters of one degenerate multiplet: a row of :attr:`BandCharacters.multiplets`.
 
     Attributes
     ----------
-    k : ndarray
-        The k-point, in the model's reduced coordinates.
     bands : tuple of int
-        The set of bands.
-    multiplets : tuple of tuple of int
-        The rows: the degenerate multiplets of the set, lowest first, by their
-        bands.
-    dims : tuple of int
-        Each row's degeneracy.
-    energies : ndarray
-        Each row's mean energy.
-    columns : tuple of int
-        The columns: the unitary operations of the little group, by index,
-        ascending.
-    characters : ndarray, shape (rows, columns), complex
-        The trace of each operation over each multiplet.
-    antiunitary : tuple of int
-        The operations of the little group combined with time reversal; a corep
-        table holds no characters for them, so none is a column.
+        The multiplet's bands.
+    energy : float
+        Its mean energy, in the units of ``H``.
+    characters : dict
+        ``{index: character}``: the trace over the multiplet of each unitary
+        operation of the little group, by the operation's index, the indices
+        :func:`..groups.corep_table` keys its characters by.
+    """
+
+    bands: tuple
+    energy: float
+    characters: dict
+    # the energy tolerance the multiplet was grouped at, which its energy is
+    # printed at
+    _degeneracy_tol: float = field(default=DEGENERACY_TOL, repr=False, compare=False)
+
+    def __repr__(self) -> str:  # pragma: no cover - convenience only
+        energy = float(_resolved([self.energy], self._degeneracy_tol)[0])
+        return (f"MultipletCharacters(band{'s' if len(self.bands) > 1 else ''} "
+                f"{_runs(self.bands)} at {energy:.4g})")
+
+
+@dataclass(frozen=True)
+class BandCharactersNumerical:
+    """How closely the characters of a set of bands are measured: what :attr:`BandCharacters.numerical` holds.
+
+    ``summary()`` prints it.
+
+    Attributes
+    ----------
     unitarity, commutators : dict
-        Per operation, by index: how far its sewing matrix on the whole set of
-        bands is from unitary, and how far its operator is from commuting with
-        ``H(k)``.
+        Per unitary operation, by index: how far its sewing matrix on the
+        whole set of bands is from unitary, and how far its operator is from
+        commuting with ``H(k)``.
     residual : float
         How far the states are from eigenstates of ``H(k)``.
     spread : float
@@ -835,60 +943,28 @@ class CharacterTable:
         The zero thresholds at this k.
     disagreements : tuple
         The numbers the two thresholds classify differently.
-    spectrum : ndarray
-        Every energy of the diagonalization the table was read from.
     degeneracy_tol : float
-        The energy tolerance the rows were grouped at.
-    group_provenance : str
-        ``"realized"`` for a group measured on ``H``, ``"descended"`` for one
-        measured after the cell was lowered.
+        The energy tolerance the multiplets were grouped at.
+    spectrum : ndarray
+        Every energy of the diagonalization the characters were read from.
     """
 
-    k: np.ndarray
-    bands: tuple
-    multiplets: tuple
-    dims: tuple
-    energies: np.ndarray
-    columns: tuple
-    characters: np.ndarray
-    antiunitary: tuple
     unitarity: dict
     commutators: dict
-    thresholds: Thresholds
-    spectrum: np.ndarray
-    degeneracy_tol: float
-    spread: float
     residual: float
-    disagreements: tuple = ()
-    group_provenance: str = "cell"
-    # each column's operation by its name in the model's frame, for the summary
-    _names: dict = field(default_factory=dict, repr=False, compare=False)
+    spread: float
+    thresholds: Thresholds
+    disagreements: tuple
+    degeneracy_tol: float
+    spectrum: np.ndarray
 
     def summary(self) -> str:
-        """The characters, a line for each part, with the attribute that holds it."""
-        lines = [f"band{'s' if len(self.bands) > 1 else ''} {_runs(self.bands)} at "
-                 f"k = {_k_text(self.k)}   (.bands, .k)"]
-        if self.columns:
-            lines.append("  the trace of each unitary operation of the little group, by index, "
-                         "over each degenerate multiplet   (.characters, .columns)")
-            rows = [("bands", [_runs(m) for m in self.multiplets], "   (.multiplets)"),
-                    ("energy", [f"{e:.4g}" for e in _resolved(self.energies, self.degeneracy_tol)],
-                     "   (.energies)")]
-            rows += [(f"{int(ind):>3}  {self._names.get(int(ind), '')}",
-                      [_character_text(z) for z in self.characters[:, c]], "")
-                     for c, ind in enumerate(self.columns)]
-            head = max(len(label) for label, _cells, _end in rows)
-            width = max(len(cell) for _label, cells, _end in rows for cell in cells) + 2
-            lines += ["    " + label.ljust(head) + "".join(cell.rjust(width) for cell in cells)
-                      + end for label, cells, end in rows]
-        if self.antiunitary:
-            lines.append("  the operations combined with time reversal are left out: a corep "
-                         "table holds no characters for them   (.antiunitary)")
+        """How closely the characters hold, a line for each part, with the attribute that holds it."""
         unitary = max(self.unitarity.values(), default=0.0)
         commuting = max(self.commutators.values(), default=0.0)
-        lines.append(f"  the sewing matrices unitary to {unitary:.2g}, the operators commuting "
-                     f"with H(k) to {commuting:.2g}, the states solving H(k) to "
-                     f"{self.residual:.2g}   (.unitarity, .commutators, .residual)")
+        lines = [f"the sewing matrices unitary to {unitary:.2g}, the operators commuting "
+                 f"with H(k) to {commuting:.2g}, the states solving H(k) to "
+                 f"{self.residual:.2g}   (.unitarity, .commutators, .residual)"]
         if self.disagreements:
             named = _listed(str(d["name"]).split("#")[-1].rstrip("]")
                             for d in self.disagreements)
@@ -899,64 +975,136 @@ class CharacterTable:
         return "\n".join(lines)
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
+        return (f"BandCharactersNumerical(residual={self.residual:.2e}, "
+                f"spread={self.spread:.2e}, {len(self.disagreements)} disagreements)")
+
+
+@dataclass(frozen=True)
+class BandCharacters:
+    """The characters of a set of bands at one k: the trace of each unitary operation of the little group over each degenerate multiplet.
+
+    Every corep label is read from such characters.  ``summary()`` prints
+    them.
+
+    Attributes
+    ----------
+    bands : tuple of int
+        The set of bands.
+    k : ndarray
+        The k-point, in the model's reduced coordinates.
+    kpoint : str or None
+        The tables' name of the k-point, ``"GM"``, or ``None`` where it is no
+        tabulated point.
+    multiplets : tuple of MultipletCharacters
+        A row for each degenerate multiplet of the set, lowest first: its
+        bands, its mean energy and its characters by operation index.
+    operations : ..groups.OperationTable
+        The operations of the little group, unitary and antiunitary, by
+        index, each with its Seitz symbol.  The rows' characters are keyed by
+        the unitary ones: a corep table holds no characters for an operation
+        combined with time reversal.
+    numerical : BandCharactersNumerical
+        How far the sewing matrices are from unitary, the operators from
+        commuting with ``H(k)`` and the states from eigenstates, and the zero
+        thresholds at this k.
+    """
+
+    bands: tuple
+    k: np.ndarray
+    kpoint: str | None
+    multiplets: tuple
+    numerical: BandCharactersNumerical
+    # the little group at k, whose operations `operations` writes out when it
+    # is first read
+    _little_group: Any = field(default=None, repr=False, compare=False)
+    # "realized" for a group measured on H, "descended" for one measured after
+    # the cell was lowered
+    _group_provenance: str = field(default="cell", repr=False, compare=False)
+
+    @cached_property
+    def operations(self):
+        """The operations of the little group, unitary and antiunitary, by index."""
+        return None if self._little_group is None else self._little_group.operations
+
+    def _seitz(self, ind) -> str:
+        """The Seitz symbol of operation ``ind``, or ``""`` where none is written."""
+        table = self.operations
+        if table is None or isinstance(table, Refusal) or int(ind) not in table:
+            return ""
+        return str(table[int(ind)].seitz)
+
+    def summary(self) -> str:
+        """The characters, a line for each part, with the attribute that holds it."""
+        held = ".bands, .kpoint, .k" if self.kpoint else ".bands, .k"
+        lines = [f"band{'s' if len(self.bands) > 1 else ''} {_runs(self.bands)} at "
+                 f"{_kpoint_text(self.kpoint, self.k)}   ({held})"]
+        columns = tuple(self.multiplets[0].characters) if self.multiplets else ()
+        if columns:
+            lines.append("  the trace of each unitary operation of the little group, by index, "
+                         "over each degenerate multiplet   (.multiplets: characters of each; "
+                         ".operations)")
+            energies = _resolved([m.energy for m in self.multiplets],
+                                 self.numerical.degeneracy_tol)
+            rows = [("bands", [_runs(m.bands) for m in self.multiplets],
+                     "   (.multiplets: bands of each)"),
+                    ("energy", [f"{e:.4g}" for e in energies],
+                     "   (.multiplets: energy of each)")]
+            rows += [(f"{int(ind):>3}  {self._seitz(ind)}",
+                      [_character_text(m.characters[ind]) for m in self.multiplets], "")
+                     for ind in columns]
+            head = max(len(label) for label, _cells, _end in rows)
+            width = max(len(cell) for _label, cells, _end in rows for cell in cells) + 2
+            lines += ["    " + label.ljust(head) + "".join(cell.rjust(width) for cell in cells)
+                      + end for label, cells, end in rows]
+        return "\n".join(lines)
+
+    def __repr__(self) -> str:  # pragma: no cover - convenience only
         n = len(self.multiplets)
-        return (f"CharacterTable(k={np.round(self.k, 6).tolist()}, bands {_runs(self.bands)} "
-                f"in {n} multiplet{'' if n == 1 else 's'}, group={self.group_provenance})")
+        return (f"BandCharacters({_kpoint_text(self.kpoint, self.k)}, bands "
+                f"{_runs(self.bands)} in {n} multiplet{'' if n == 1 else 's'})")
 
 def _characters_rep(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
-                    atol=1e-8, mesh_tol=MESH_TOL) -> CharacterTable | Refusal:
+                    _atol=1e-8, _mesh_tol=MESH_TOL) -> BandCharacters | Refusal:
     """What :func:`characters` returns, read off a representation: ``realized.rep``, or one built by hand.
 
     Every argument but the first is :func:`characters`'s own.
     """
     return _characters(rep, k, states=states, bands=bands, degeneracy_tol=degeneracy_tol,
-                       atol=atol, mesh_tol=mesh_tol, bloch=None)
+                       atol=_atol, mesh_tol=_mesh_tol, bloch=None, call="characters")
 
 def characters(realized, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
-               atol=_characters_rep.__kwdefaults__["atol"],
-               mesh_tol=MESH_TOL) -> CharacterTable | Refusal:
+               _atol=_characters_rep.__kwdefaults__["_atol"],
+               _mesh_tol=MESH_TOL) -> BandCharacters | Refusal:
     """The characters of a set of bands at one k: the trace of each unitary operation of the little group over each degenerate multiplet of the set.
 
     Parameters
     ----------
     realized : ..groups.RealizedGroup
         What :func:`..groups.realized_group` returned, ``r``.
-    k : array_like, shape (dim_k,)
-        A k-point, in reduced coordinates; only a tabulated high-symmetry point
-        is labelled (:func:`corep_content`).
+    k : str or array_like, shape (dim_k,)
+        A k-point: its tabulated name, ``"GM"``, or its reduced coordinates.
+        Only a tabulated point is labeled, by :func:`coreps_at`.
     bands : int or sequence of int
-        The set of bands: ``n`` the lowest ``n`` bands, or the band indices,
-        whole degenerate multiplets.  Required.
+        The set of bands: ``n`` the lowest ``n`` bands, or the band indices.
+        Required.
     states : None, pythtb.WFArray or (evals, evecs), optional
         The states at ``k``: ``None`` (default) solves the model there; a
         solved ``WFArray``, or the pair :func:`solve_at` returns, reuses one
         diagonalization.  They carry energies, the rows being the multiplets.
-    degeneracy_tol : float, optional
+    degeneracy_tol : float, default 1e-8
         The energy, in the units of ``H``, within which bands are one
-        multiplet.  Default ``1e-8``.
-    atol, mesh_tol : float, optional
-        In reduced reciprocal coordinates: whether an operation leaves ``k``
-        invariant (default ``1e-8``), and finding ``k`` on a mesh (``1e-9``).
+        multiplet.
 
     Returns
     -------
-    CharacterTable or Refusal
-        ``table.summary()`` prints it.  ``table.characters`` holds a row per
-        multiplet and a column per operation; ``table.multiplets`` and
-        ``table.energies`` are the rows, ``table.columns`` the operations by
-        index.  A ``Refusal`` in its place is falsy and names what stopped the
-        call.
-
-    Raises
-    ------
-    TypeError
-        ``realized`` is not what :func:`..groups.realized_group` returned.
-    ValueError
-        States without energies or of another model than ``r.model``, or
-        ``r.model`` edited since :func:`..groups.realized_group` measured it.
-    ..refusal.InternalError
-        The representation leaves out an operation of the little group at
-        ``k``: the package disagreeing with itself.
+    BandCharacters or Refusal
+        ``ch.summary()`` prints them.  ``ch.multiplets`` holds a row for each
+        degenerate multiplet: its bands, its mean energy and its characters by
+        operation index.  ``ch.operations`` names the operations of the little
+        group; ``ch.numerical`` holds how closely the characters are measured.
+        Characters can only be returned if the set of bands contains all the
+        states of each degenerate multiplet at ``k``.  A ``Refusal`` in its
+        place is falsy and names what stopped the call.
 
     Refusals
     --------
@@ -969,27 +1117,51 @@ def characters(realized, k, *, states=None, bands=None, degeneracy_tol=DEGENERAC
         the states handed in do not solve ``H(k)``.
     ``k_not_on_mesh``
         the mesh handed in does not hold ``k``.
+    ``out_of_plane``
+        ``k`` has a component along a layer's vacuum, or names a tabulated
+        point out of the layer's plane.
+    ``tables_not_ready``
+        ``k`` is a name, and the group has no transformation to the tables'
+        conventional cell.
+
+    Raises
+    ------
+    TypeError
+        ``realized`` is not what :func:`..groups.realized_group` returned, or
+        ``bands`` left out.
+    ValueError
+        States without energies or of another model than ``r.model``,
+        ``bands`` naming no band, ``k`` a name the group does not tabulate, or
+        ``r.model`` edited since :func:`..groups.realized_group` measured it.
+    ..refusal.InternalError
+        The representation leaves out an operation of the little group at
+        ``k``: the package disagreeing with itself.
     """
     rep = _rep_of("characters", realized, "characters(r, k, bands=6)")
     if isinstance(rep, Refusal):
         return rep
     return _characters_rep(rep, k, states=states, bands=bands, degeneracy_tol=degeneracy_tol,
-                           atol=atol, mesh_tol=mesh_tol)
+                           _atol=_atol, _mesh_tol=_mesh_tol)
 
 def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol,
-                bloch) -> CharacterTable | Refusal:
-    """The table :func:`characters` returns.
+                bloch, call, named=True) -> BandCharacters | Refusal:
+    """The characters :func:`characters` returns.
 
-    ``bloch`` is the model's Bloch sum or ``None``, as in :func:`_hamiltonian_at`.
+    ``bloch`` is the model's Bloch sum or ``None``, as in :func:`_hamiltonian_at`;
+    ``call`` names the public call in what is raised.  With ``named=False`` the
+    point's name is left ``None``, to be read off the identification of the
+    coreps.
     """
     if bands is None:
-        raise TypeError("characters() missing required argument 'bands'")
+        raise TypeError(f"{call}() missing required argument 'bands'")
     if isinstance(rep, Refusal):
         return rep
     gate = _spacegroup._lattice_not_descended(rep._group)
     if gate is not None:
         return gate
-    k = np.asarray(k, dtype=float).reshape(-1)
+    k = _point_of(call, rep._group, k)
+    if isinstance(k, Refusal):
+        return k
     if states is None or states is rep._model:
         bloch = _measured_sum(rep, bloch)
     got = _resolve_states(states, rep, k, mesh_tol=mesh_tol, bloch=bloch)
@@ -1002,7 +1174,7 @@ def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol,
             "source that carries states but no spectrum (a feature-sector WFArray, a bare "
             "fiber) cannot define the table. Use sewing_matrix() on such a source, or hand "
             "in the model / the (evals, evecs) pair.")
-    idx = _band_block(V.shape[1], bands)
+    idx = _band_block(V.shape[1], bands, call)
 
     bloch = _measured_sum(rep, bloch)
     H = _hamiltonian_at(rep, k, bloch)
@@ -1037,9 +1209,8 @@ def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol,
     lg = _tables._little_group(rep._group, k)
     if isinstance(lg, Refusal):
         return lg
-    ours = [int(i) for i in rep.little_group(k, atol=atol)]
+    ours = [int(i) for i in rep.little_group(k, _atol=atol)]
     ours_u = tuple(sorted(i for i in ours if not rep._operation(i).time_reversal))
-    ours_a = tuple(sorted(i for i in ours if rep._operation(i).time_reversal))
     not_carried = tuple(sorted(set(lg.unitary) - set(ours_u)))
     if not_carried:
         # every representation a call returns carries the whole group it was
@@ -1052,14 +1223,13 @@ def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol,
             f"whole group it was built for.")
 
     chars = np.zeros((len(rows), len(ours_u)), dtype=complex)
-    unit, comm, names = {}, {}, {}
+    unit, comm = {}, {}
     for c, ind in enumerate(ours_u):
         whole = _sewing_core(rep, ind, k, V, idx, H, atol=atol, residual=resid)
         if isinstance(whole, Refusal):  # pragma: no cover - membership tested above
             return whole
-        unit[ind] = whole.unitarity
-        comm[ind] = whole.commutator
-        names[ind] = whole._name
+        unit[ind] = whole.numerical.unitarity
+        comm[ind] = whole.numerical.commutator
         for r, m in enumerate(rows):
             local = [idx.index(b) for b in m]
             chars[r, c] = np.trace(whole.matrix[np.ix_(local, local)])
@@ -1067,105 +1237,189 @@ def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol,
     thr = two_tier_thresholds(H, multiplet_separation(w, degeneracy_tol),
                               degeneracy_tol=float(degeneracy_tol))
     dis = disagreements(thr, {f"unitarity[#{i}]": v for i, v in unit.items()})
-    return CharacterTable(
-        k=k, bands=idx, multiplets=tuple(rows), dims=tuple(len(m) for m in rows),
-        energies=np.array([float(w[list(m)].mean()) for m in rows]),
-        columns=ours_u, characters=chars, antiunitary=ours_a,
-        unitarity=unit, commutators=comm, thresholds=thr, spectrum=w,
-        degeneracy_tol=float(degeneracy_tol),
-        spread=multiplet_spread(w, degeneracy_tol), residual=resid,
-        disagreements=dis, group_provenance=str(rep._group._provenance), _names=names)
+    rows_out = tuple(
+        MultipletCharacters(bands=tuple(m), energy=float(w[list(m)].mean()),
+                            characters={int(ind): complex(chars[r, c])
+                                        for c, ind in enumerate(ours_u)},
+                            _degeneracy_tol=float(degeneracy_tol))
+        for r, m in enumerate(rows))
+    return BandCharacters(
+        bands=idx, k=k, kpoint=_tabulated_name(rep._group, k) if named else None,
+        multiplets=rows_out, _little_group=lg,
+        numerical=BandCharactersNumerical(
+            unitarity=unit, commutators=comm, residual=resid,
+            spread=multiplet_spread(w, degeneracy_tol), thresholds=thr, disagreements=dis,
+            degeneracy_tol=float(degeneracy_tol), spectrum=w),
+        _group_provenance=str(rep._group._provenance))
+
+def _character_matrix(table) -> np.ndarray:
+    """The characters of a :class:`BandCharacters` as a matrix: a row per multiplet, a column per unitary operation in index order."""
+    columns = tuple(table.multiplets[0].characters) if table.multiplets else ()
+    return np.array([[m.characters[i] for i in columns] for m in table.multiplets],
+                    dtype=complex).reshape(len(table.multiplets), len(columns))
 
 # ==========================================================================
-# corep content
+# the coreps at one point
 # ==========================================================================
 
-def format_counts(counts) -> str:
-    r"""A content on one line: ``{'-GM6': 2, '-GM7': 1}`` as ``2×-GM6 + -GM7``.
+def format_coreps(coreps) -> str:
+    r"""Corep multiplicities on one line: ``{'-GM6': 2, '-GM7': 1}`` as ``2x-GM6 + -GM7``.
 
-    Every content the package returns reads this way: the coreps of a set of
-    bands at one point (:attr:`CorepContent.counts`) or per multiplet
-    (:attr:`CorepContent.labels`), a symmetry data vector (:attr:`HSPTable.counts`),
-    an elementary band representation's coreps (:func:`..ebr.ebr_rows`).  The
-    coreps are written point by point, Γ first and the other points
-    alphabetically, and at each point in ascending order of the irreps'
-    numbers, ``GM2`` before ``GM10``, so one content always prints one line.
+    Every multiplicity the package prints reads this way: the coreps of a set
+    of bands at one point (:attr:`CorepsAt.coreps`) or of one multiplet
+    (:attr:`Multiplet.label`), a symmetry data vector
+    (:attr:`HSPTable.symmetry_data`), an elementary band representation's
+    coreps (:func:`..ebr.ebr_rows`).  The coreps are written point by point,
+    Γ first and the other points alphabetically, and at each point in
+    ascending order of the irreps' numbers, ``GM2`` before ``GM10``, so one
+    set of multiplicities always prints one line.
 
     Parameters
     ----------
-    counts : mapping
+    coreps : mapping
         ``{corep: multiplicity}``, the multiplicities nonnegative integers.
 
     Returns
     -------
     str
-        The labels joined by ``" + "``, each after its multiplicity and ``×``
+        The labels joined by ``" + "``, each after its multiplicity and ``x``
         where that is above one.
     """
-    return " + ".join(f"{n}×{lab}" if n > 1 else lab
-                      for lab, n in sorted(counts.items(),
+    return " + ".join(f"{n}x{lab}" if n > 1 else lab
+                      for lab, n in sorted(coreps.items(),
                                            key=lambda item: _tables.corep_order(item[0])))
 
+
+@dataclass(frozen=True, eq=False)
+class Multiplet:
+    """One degenerate multiplet at a high-symmetry point, with the coreps it carries.
+
+    A row of :attr:`HSPTable.multiplets` and of :attr:`CorepsAt.multiplets`;
+    the two hold the same rows.  Its degeneracy is ``len(m.bands)``.
+
+    Attributes
+    ----------
+    kpoint : str
+        The tables' name of the point, ``"GM"``.
+    k : ndarray
+        Its coordinates, in the model's reduced cell.
+    bands : tuple of int
+        The multiplet's bands.
+    energy : float
+        Its mean energy, in the units of ``H``.
+    corep_names : tuple of str
+        The coreps it carries, a corep carried twice named twice.
+    label : str
+        The same on one line, ``"-GM6"``, ``"-GM6 + -GM7"``, ``"2x-GM6"``.
+    """
+
+    kpoint: str
+    k: np.ndarray
+    bands: tuple
+    energy: float
+    corep_names: tuple
+    label: str
+    # the energy tolerance the multiplet was grouped at, which its energy is
+    # printed at
+    _degeneracy_tol: float = field(default=DEGENERACY_TOL, repr=False)
+
+    def __eq__(self, other):
+        if not isinstance(other, Multiplet):
+            return NotImplemented
+        return (self.kpoint == other.kpoint and tuple(self.bands) == tuple(other.bands)
+                and self.energy == other.energy
+                and tuple(self.corep_names) == tuple(other.corep_names)
+                and self.label == other.label
+                and np.array_equal(np.asarray(self.k), np.asarray(other.k)))
+
+    def _line(self) -> str:
+        """The row as the summaries print it: ``bands 0-1 at -16.35: -GM6``."""
+        energy = float(_resolved([self.energy], self._degeneracy_tol)[0])
+        return (f"band{'s' if len(self.bands) > 1 else ''} {_runs(self.bands)} at "
+                f"{energy:.4g}: {self.label}")
+
+    def __repr__(self) -> str:  # pragma: no cover - convenience only
+        return f"Multiplet({self.kpoint}, {self._line()})"
+
+
 @dataclass(frozen=True)
-class CorepContent:
+class CorepsAtNumerical:
+    """How the coreps at one point were read: what :attr:`CorepsAt.numerical` holds.
+
+    ``summary()`` prints it.
+
+    Attributes
+    ----------
+    thresholds : Thresholds
+        The zero thresholds at the point.
+    identification : ..groups.CorepIdentification
+        The identification of the characters: each multiplet's coreps, the
+        multiplicities before rounding, and how far they sat from integers.
+    """
+
+    thresholds: Thresholds
+    identification: Any
+
+    def summary(self) -> str:
+        """The thresholds and the identification, each under a line naming its field."""
+        lines = [f"the zero thresholds at {self.identification.kpoint}   (.thresholds)"]
+        lines += ["  " + line for line in self.thresholds.summary().splitlines()]
+        lines.append("the coreps read off the characters   (.identification)")
+        lines += ["  " + line for line in self.identification.summary().splitlines()]
+        return "\n".join(lines)
+
+    def __repr__(self) -> str:  # pragma: no cover - convenience only
+        return (f"CorepsAtNumerical({self.identification.kpoint}, integrality="
+                f"{float(self.identification.integrality):.2g})")
+
+
+@dataclass(frozen=True)
+class CorepsAt:
     """The coreps a set of bands carries at one high-symmetry point, multiplet by multiplet.
 
     ``summary()`` prints them.
 
     Attributes
     ----------
-    kpname : str
-        The tables' name of the point; ``GM`` is Γ.
+    kpoint : str
+        The tables' name of the point, ``"GM"``.
     k : ndarray
         Its coordinates, in the model's reduced cell.
-    counts : dict
-        ``{corep: multiplicity}`` over the set of bands: its symmetry data vector at
-        this point.
-    labels : tuple of dict
-        The same for each degenerate multiplet, lowest first.
-    partition : tuple of int
-        Which multiplets carry the same characters: two share a number exactly
-        when their characters agree within ``label_tol``.  It holds under every
-        labelling of the orbitals and every phase convention, which the labels
-        need not; quote it with them.
+    bands : tuple of int
+        The set of bands.
+    coreps : dict
+        ``{corep: multiplicity}`` over the set of bands: its symmetry data
+        vector at this point.
+    multiplets : tuple of Multiplet
+        A row for each degenerate multiplet, lowest first, with the coreps it
+        carries.
     isolation : float
         The energy gap from the set of bands to the nearest band outside it, in
         the units of ``H``; ``inf`` where the set is every band.
-    table : CharacterTable
-        The characters the labels were read from.
-    content : ..groups.IrrepContent
-        The identification itself: the multiplicities before rounding, and how
-        far they sat from integers.
-    thresholds : Thresholds
-        The zero thresholds at this point.
+    numerical : CorepsAtNumerical
+        The zero thresholds at the point and the identification of the
+        characters.
     """
 
-    kpname: str
+    kpoint: str
     k: np.ndarray
-    labels: tuple
-    counts: dict
-    partition: tuple
-    content: Any
-    table: CharacterTable
-    thresholds: Thresholds
+    bands: tuple
+    coreps: dict
+    multiplets: tuple
     isolation: float
+    numerical: CorepsAtNumerical
+    # the characters the coreps were read from, `characters(r, k, bands=...)`
+    _characters: Any = field(default=None, repr=False, compare=False)
 
     def summary(self) -> str:
         """The coreps at this point, a line for each part, with the attribute that holds it."""
-        bands = self.table.bands
-        point = f"{self.kpname} (Γ)" if self.kpname == "GM" else self.kpname
-        lines = [f"band{'s' if len(bands) > 1 else ''} {_runs(bands)} at {point}: "
-                 f"{format_counts(self.counts)}   (.table.bands, .kpname, .counts)"]
-        if len(self.labels) > 1:
-            lines.append("  by degenerate multiplet, from the lowest   (.labels)")
-            lines += [f"    band{'s' if len(bands) > 1 else ''} {_runs(bands)} at {energy:.4g}: "
-                      f"{format_counts(labels)}, class {cls}"
-                      for bands, energy, labels, cls in zip(
-                          self.table.multiplets,
-                          _resolved(self.table.energies, self.table.degeneracy_tol), self.labels,
-                          self.partition)]
-            lines.append("  multiplets of one class carry the same characters, under any "
-                         "labelling of the orbitals   (.partition)")
+        bands = self.bands
+        lines = [f"band{'s' if len(bands) > 1 else ''} {_runs(bands)} at "
+                 f"{_kpoint_text(self.kpoint, self.k)}: {format_coreps(self.coreps)}   "
+                 "(.bands, .kpoint, .k, .coreps)"]
+        if len(self.multiplets) > 1:
+            lines.append("  by degenerate multiplet, from the lowest   (.multiplets)")
+            lines += [f"    {m._line()}" for m in self.multiplets]
         if np.isfinite(self.isolation):
             these = "these bands" if len(bands) > 1 else "this band"
             lines.append(f"  {self.isolation:.4g} from {these} to the nearest other band, in the "
@@ -1173,8 +1427,7 @@ class CorepContent:
         return "\n".join(lines)
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
-        return (f"CorepContent({self.kpname}: {format_counts(self.counts)}, "
-                f"partition={self.partition})")
+        return f"CorepsAt({self.kpoint}: {format_coreps(self.coreps)})"
 
 def _isolation(spectrum, bands):
     """Energy gap from a band block to the rest of the spectrum."""
@@ -1185,72 +1438,59 @@ def _isolation(spectrum, bands):
         return float("inf")
     return float(min(abs(w[a] - w[b]) for a in inside for b in outside))
 
-def _corep_content_rep(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
-                       label_tol=LABEL_TOL, ktol=1e-5, kpname=None, atol=1e-8,
-                       mesh_tol=MESH_TOL) -> CorepContent | Refusal:
-    """What :func:`corep_content` returns, read off a representation: ``realized.rep``, or one built by hand.
+def _coreps_at_rep(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
+                   label_tol=LABEL_TOL, _ktol=1e-5, _atol=1e-8,
+                   _mesh_tol=MESH_TOL) -> CorepsAt | Refusal:
+    """What :func:`coreps_at` returns, read off a representation: ``realized.rep``, or one built by hand.
 
-    Every argument but the first is :func:`corep_content`'s own.
+    Every argument but the first is :func:`coreps_at`'s own.
     """
-    return _corep_content(rep, k, states=states, bands=bands, degeneracy_tol=degeneracy_tol,
-                          label_tol=label_tol, ktol=ktol, kpname=kpname, atol=atol,
-                          mesh_tol=mesh_tol, bloch=None)
+    return _coreps_at(rep, k, states=states, bands=bands, degeneracy_tol=degeneracy_tol,
+                      label_tol=label_tol, ktol=_ktol, atol=_atol, mesh_tol=_mesh_tol,
+                      bloch=None)
 
-def corep_content(realized, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
-                  label_tol=LABEL_TOL, ktol=_corep_content_rep.__kwdefaults__["ktol"],
-                  kpname=None, atol=_corep_content_rep.__kwdefaults__["atol"],
-                  mesh_tol=MESH_TOL) -> CorepContent | Refusal:
-    """The coreps a set of bands carries at one high-symmetry point, and which of its degenerate multiplets carry the same characters.
+def coreps_at(realized, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
+              label_tol=LABEL_TOL, _ktol=_coreps_at_rep.__kwdefaults__["_ktol"],
+              _atol=_coreps_at_rep.__kwdefaults__["_atol"],
+              _mesh_tol=MESH_TOL) -> CorepsAt | Refusal:
+    """The coreps a set of bands carries at one high-symmetry point, multiplet by multiplet.
+
+    The characters of each degenerate multiplet are measured on the bands'
+    eigenvectors and expanded over the coreps of the little group.
 
     Parameters
     ----------
     realized : ..groups.RealizedGroup
         What :func:`..groups.realized_group` returned, ``r``.
-    k : array_like
-        A tabulated high-symmetry point, in the model's reduced coordinates, as
-        :func:`..groups.high_symmetry_points` gives it: ``hsp["GM"]``.
+    k : str or array_like
+        A tabulated high-symmetry point: its name, ``"GM"``, one of those
+        :func:`..groups.high_symmetry_points` returns, or its coordinates in
+        the model's reduced cell.
     bands : int or sequence of int
-        The set of bands: ``n`` the lowest ``n`` bands, or the band indices,
-        whole degenerate multiplets.  Required.
+        The set of bands: ``n`` the lowest ``n`` bands, or the band indices.
+        Required.
     states : None, pythtb.WFArray or (evals, evecs), optional
         The states at ``k``: ``None`` (default) solves the model there; a
         solved ``WFArray``, or the pair :func:`solve_at` returns, reuses one
         diagonalization.
-    degeneracy_tol : float, optional
+    degeneracy_tol : float, default 1e-8
         The energy, in the units of ``H``, within which bands are one
-        multiplet.  Default ``1e-8``.
-    label_tol : float, optional
-        How far a fitted multiplicity may sit from an integer, and two
-        multiplets' characters from each other to share a partition class.
-        Default ``1e-3``.
-    kpname : str, optional
-        The tables' name of the point, in place of finding it from ``k``.
-    ktol, atol, mesh_tol : float, optional
-        In reduced reciprocal coordinates: matching ``k`` to a tabulated point
-        (default ``1e-5``), whether an operation leaves ``k`` invariant
-        (``1e-8``), and finding ``k`` on a mesh (``1e-9``).
+        multiplet.
+    label_tol : float, default 1e-3
+        How far a fitted multiplicity may sit from an integer, dimensionless.
 
     Returns
     -------
-    CorepContent or Refusal
-        ``c.summary()`` prints the coreps multiplet by multiplet.  ``c.counts``
-        is the content, ``{corep: multiplicity}``; ``c.labels`` the same for
-        each multiplet, lowest first; ``c.partition`` which multiplets carry the
-        same characters, numbered alike, which holds under any labelling of the
-        orbitals; ``c.isolation`` the gap from these bands to the nearest other
-        band; ``c.table`` the characters.  A ``Refusal`` in its place is falsy
-        and names what stopped the call.
-
-    Raises
-    ------
-    TypeError
-        ``realized`` is not what :func:`..groups.realized_group` returned.
-    ValueError
-        States without energies or of another model than ``r.model``, or
-        ``r.model`` edited since :func:`..groups.realized_group` measured it.
-    ..refusal.InternalError
-        The representation leaves out an operation of the little group at
-        ``k``: the package disagreeing with itself.
+    CorepsAt or Refusal
+        ``c.summary()`` prints the coreps multiplet by multiplet.  ``c.coreps``
+        holds the corep multiplicities of the set, ``{corep: multiplicity}``;
+        ``c.multiplets`` a row for each degenerate multiplet, lowest first,
+        with its bands, its mean energy and the coreps it carries;
+        ``c.isolation`` the gap from these bands to the nearest other band;
+        ``c.numerical`` the thresholds and the identification the coreps were
+        read with.  Corep labels can only be returned if the set of bands
+        contains all the states of each degenerate multiplet at ``k``.  A
+        ``Refusal`` in its place is falsy and names what stopped the call.
 
     Refusals
     --------
@@ -1262,6 +1502,9 @@ def corep_content(realized, k, *, states=None, bands=None, degeneracy_tol=DEGENE
     ``kpoint_not_tabulated``
         ``k`` is not a tabulated point in this cell, or not the tabulated member
         of its star.
+    ``out_of_plane``
+        ``k`` has a component along a layer's vacuum, or names a tabulated
+        point out of the layer's plane.
     ``integer_multiplicity`` / ``multiplet_dimension``
         the characters fit no whole number of coreps, or coreps that do not fill
         their multiplet: most often a multiplet grouped wrongly.
@@ -1270,166 +1513,252 @@ def corep_content(realized, k, *, states=None, bands=None, degeneracy_tol=DEGENE
     ``little_group_mismatch`` / ``tables_not_ready``
         the tables do not apply in this cell.
 
+    Raises
+    ------
+    TypeError
+        ``realized`` is not what :func:`..groups.realized_group` returned, or
+        ``bands`` left out.
+    ValueError
+        States without energies or of another model than ``r.model``,
+        ``bands`` naming no band, ``k`` a name the group does not tabulate, or
+        ``r.model`` edited since :func:`..groups.realized_group` measured it.
+    ..refusal.InternalError
+        The representation leaves out an operation of the little group at
+        ``k``: the package disagreeing with itself.
+
     Examples
     --------
     lin3g's six lowest bands at Γ (:func:`..models.lin3g`):
 
-    >>> c = corep_content(r, hsp["GM"], bands=6)                # doctest: +SKIP
-    >>> print(c.summary())                                          # doctest: +SKIP
-    bands 0-5 at GM (Γ): 2×-GM6 + -GM7   (.table.bands, .kpname, .counts)
-      by degenerate multiplet, from the lowest   (.labels)
-        bands 0-1 at -16.35: -GM6, class 0
-        bands 2-3 at -12.38: -GM7, class 1
-        bands 4-5 at -4.325: -GM6, class 0
-      multiplets of one class carry the same characters, under any labelling of the orbitals   (.partition)
+    >>> c = coreps_at(r, "GM", bands=6)                                # doctest: +SKIP
+    >>> print(c.summary())                                            # doctest: +SKIP
+    bands 0-5 at GM (0, 0): 2x-GM6 + -GM7   (.bands, .kpoint, .k, .coreps)
+      by degenerate multiplet, from the lowest   (.multiplets)
+        bands 0-1 at -16.35: -GM6
+        bands 2-3 at -12.38: -GM7
+        bands 4-5 at -4.325: -GM6
       13.02 from these bands to the nearest other band, in the units of H   (.isolation)
     """
-    rep = _rep_of("corep_content", realized, "corep_content(r, k, bands=6)")
+    rep = _rep_of("coreps_at", realized, "coreps_at(r, k, bands=6)")
     if isinstance(rep, Refusal):
         return rep
-    return _corep_content_rep(rep, k, states=states, bands=bands,
-                              degeneracy_tol=degeneracy_tol, label_tol=label_tol,
-                              ktol=ktol, kpname=kpname, atol=atol,
-                              mesh_tol=mesh_tol)
+    return _coreps_at_rep(rep, k, states=states, bands=bands,
+                          degeneracy_tol=degeneracy_tol, label_tol=label_tol,
+                          _ktol=_ktol, _atol=_atol, _mesh_tol=_mesh_tol)
 
-def _corep_content(rep, k, *, states, bands, degeneracy_tol, label_tol, ktol, kpname, atol,
-                   mesh_tol, bloch) -> CorepContent | Refusal:
-    """The coreps :func:`corep_content` returns.
+def _coreps_at(rep, k, *, states, bands, degeneracy_tol, label_tol, ktol, atol,
+               mesh_tol, bloch) -> CorepsAt | Refusal:
+    """The coreps :func:`coreps_at` returns.
 
     ``bloch`` is the model's Bloch sum or ``None``, as in :func:`_hamiltonian_at`.
     """
     if bands is None:
-        raise TypeError("corep_content() missing required argument 'bands'")
+        raise TypeError("coreps_at() missing required argument 'bands'")
     if isinstance(rep, Refusal):
         return rep
     gate = _spacegroup._lattice_not_descended(rep._group)
     if gate is not None:
         return gate
     tab = _characters(rep, k, states=states, bands=bands, degeneracy_tol=degeneracy_tol,
-                      atol=atol, mesh_tol=mesh_tol, bloch=bloch)
+                      atol=atol, mesh_tol=mesh_tol, bloch=bloch, call="coreps_at",
+                      named=False)
     if isinstance(tab, Refusal):
         return tab
 
     out = _tables._identify_from_characters(
-        rep._group, tab.k, tab.characters, multiplet_dims=list(tab.dims),
-        kpname=kpname, label_tol=label_tol, ktol=ktol)
+        rep._group, tab.k, _character_matrix(tab),
+        multiplet_dims=[len(m.bands) for m in tab.multiplets],
+        label_tol=label_tol, ktol=ktol)
     if isinstance(out, Refusal):
         return out
+    tab = replace(tab, kpoint=out.kpoint)
 
     counts: dict = {}
     for row in out.labels:
         for lab, v in row.items():
             counts[lab] = counts.get(lab, 0) + int(v)
     counts = _tables.ordered_content(counts)
-    return CorepContent(kpname=out.kpname, k=tab.k, labels=out.labels, counts=counts,
-                        partition=out.partition, content=out, table=tab,
-                        thresholds=tab.thresholds,
-                        isolation=_isolation(tab.spectrum, tab.bands))
+    tol = float(tab.numerical.degeneracy_tol)
+    rows = tuple(
+        Multiplet(kpoint=out.kpoint, k=tab.k, bands=tuple(m.bands), energy=m.energy,
+                  corep_names=tuple(lab for lab, n in labels.items() for _ in range(int(n))),
+                  label=format_coreps(labels), _degeneracy_tol=tol)
+        for m, labels in zip(tab.multiplets, out.labels))
+    return CorepsAt(kpoint=out.kpoint, k=tab.k, bands=tab.bands, coreps=counts,
+                    multiplets=rows,
+                    isolation=_isolation(tab.numerical.spectrum, tab.bands),
+                    numerical=CorepsAtNumerical(thresholds=tab.numerical.thresholds,
+                                                identification=out),
+                    _characters=tab)
 
 # ==========================================================================
-# the high-symmetry-point table an EBR analysis consumes
+# the coreps at every high-symmetry point
 # ==========================================================================
 
 @dataclass(frozen=True)
 class HSPTable:
     """The coreps a set of bands carries at every high-symmetry point: its symmetry data vector, point by point.
 
+    The table is what :func:`..ebr.decompose`, :func:`..ebr.symmetry_indicator`
+    and :func:`..srsi.srsi_of_bands` take, read in the group it carries.
     ``summary()`` prints it.
 
     Attributes
     ----------
     bands : tuple of int
         The band indices of the set, ascending.
-    points : dict
+    group : ..groups.GroupData
+        The group whose coreps the labels name, ``r.group``.
+    kpoints : dict
         Every tabulated point in the model's periodic plane, by name, with its
-        reduced coordinates.
-    content : dict
-        ``{point: {corep: multiplicity}}`` at each point resolved.
-    partitions : dict
-        ``{point: partition}``: which multiplets at each point carry the same
-        characters (:attr:`CorepContent.partition`).
-    counts : dict
-        ``{corep: multiplicity}`` over every point resolved: the symmetry data vector
-        :func:`..ebr.decompose` and :func:`..ebr.symmetry_indicator` take.
+        reduced coordinates; a point that refused is here too.
+    symmetry_data : dict
+        ``{corep: multiplicity}`` over every point measured: the symmetry data
+        vector.
+    multiplets : dict
+        ``{kpoint: tuple of Multiplet}``: a row for each degenerate multiplet
+        at each point measured, lowest first, with the coreps it carries.
     complete : bool
-        Whether every point resolved; a decomposition and an indicator refuse a
-        table that did not.
-    records : dict
-        ``{point: CorepContent}`` at each point resolved.
+        Whether every point was measured; a decomposition and an indicator
+        refuse a table that was not.
     refusals : dict
-        ``{point: Refusal}`` at each point that refused.
-    thresholds : dict
-        ``{point: Thresholds}``, the zero thresholds at each point.
-    group_provenance : str
-        ``"realized"`` for a group measured on ``H``, ``"descended"`` for one
-        measured after the cell was lowered.
+        ``{kpoint: Refusal}`` at each point that refused.
     note : str
-        Where another labelling the hoppings leave open gives some energy
-        multiplet of these bands, at a point the table labels, other labels, or
-        a pseudospin's undeclared content sets them, a sentence saying so;
-        ``""`` elsewhere.
-    rep : ..symmetry.SpaceGroupRep
-        The representation the table was read with, ``r.rep``: its group,
-        ``rep._group``, is the group whose coreps the labels name, and the
-        calls that read the table, ``decompose(t)`` among them, read it in
-        that group.  A group or a representation handed to them beside the
-        table that is not this one raises ``ValueError``.
+        If nonempty, a sentence saying where another labeling the hoppings
+        leave open gives some energy multiplet of these bands, at a point the
+        table labels, other labels, or a pseudospin's undeclared site irreps
+        set them.
     """
 
     bands: tuple
-    points: dict
-    content: dict
-    partitions: dict
-    records: dict
-    refusals: dict
-    counts: dict
-    thresholds: dict
+    group: Any = field(repr=False, compare=False)
+    kpoints: dict
+    symmetry_data: dict
+    multiplets: dict
     complete: bool
-    group_provenance: str = "cell"
+    refusals: dict
     note: str = ""
-    rep: Any = field(default=None, repr=False, compare=False)
+    # `{kpoint: CorepsAt}` at each point measured, which the calls that take
+    # the table read their characters and spectra from
+    _records: dict = field(default_factory=dict, repr=False, compare=False)
+    # "realized" for a group measured on H, "descended" for one measured after
+    # the cell was lowered
+    _group_provenance: str = field(default="cell", repr=False, compare=False)
+    # the representation the table was read with, which the calls that take
+    # the table read its group, site irreps and stack from
+    _rep: Any = field(default=None, repr=False, compare=False)
+    # the site irreps the labels rest on, `{"number_str", "irreps",
+    # "determined_by", "residual"}`, or None without a representation
+    _site_content: Any = field(default=None, repr=False, compare=False)
+    # for a layer, each orbital's height from its middle plane along the normal,
+    # in the model's units; None for a crystal periodic in three directions
+    _heights: Any = field(default=None, repr=False, compare=False)
+
+    def _at(self, kpoint) -> dict:
+        """The symmetry data vector's entries at one point."""
+        return {lab: n for lab, n in self.symmetry_data.items()
+                if _tables.kpoint_of_label(lab) == kpoint}
 
     def summary(self) -> str:
         """The coreps of these bands, a line for each part, with the attribute that holds it."""
         lines = [f"band{'s' if len(self.bands) > 1 else ''} {_runs(self.bands)}   (.bands)"]
-        resolved = [name for name in self.points if name in self.content]
-        if resolved:
-            lines.append("  their coreps at each high-symmetry point"
-                         + (", GM being Γ" if "GM" in resolved else "") + "   (.content)")
-            lines += [f"    {name}: {format_counts(self.content[name])}" for name in resolved]
+        measured = [name for name in self.kpoints if name in self.multiplets]
+        if measured:
+            kind = ("irreps" if getattr(self.group, "magnetic_type", None) == "I"
+                    else "coreps")
+            lines.append(f"  their {kind} at each high-symmetry point   (.symmetry_data)")
+            lines += [f"    {name}: {format_coreps(self._at(name))}" for name in measured]
         gates = {}
-        for name in self.points:
+        for name in self.kpoints:
             if name in self.refusals:
                 gates.setdefault(str(self.refusals[name].gate), []).append(name)
         if gates:
             lines.append("  refused at " + "; ".join(f"{_listed(names)} ({gate})"
                                                      for gate, names in gates.items())
-                         + ", so the content is incomplete   (.refusals)")
+                         + ", so the symmetry data vector is incomplete   "
+                         "(.refusals, .complete)")
         if self.note:
             lines.append(f"  {self.note}   (.note)")
         return "\n".join(lines)
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
-        return (f"HSPTable(bands={self.bands}, {len(self.content)} points resolved, "
-                f"{len(self.refusals)} refused, "
-                f"group={self.group_provenance})")
+        n = len(self.multiplets)
+        return (f"HSPTable(bands {_runs(self.bands)}, {n} k-point{'' if n == 1 else 's'} "
+                f"measured, {len(self.refusals)} refused)")
 
-#: The keys under which a labelling set aside can label a band otherwise: the
+# ==========================================================================
+# what a table carries for the calls that take it
+# ==========================================================================
+
+def _site_content_record(rep):
+    """The site irreps a record's labels rest on, or ``None`` without a ``rep``."""
+    if rep is None:
+        return None
+    ch = getattr(rep, "_characters", None)
+    if ch is None:
+        return None
+    return {"number_str": str(rep._group.number_str),
+            "irreps": tuple(str(x) for x in ch.irreps),
+            "determined_by": tuple(str(o.determined_by) for o in ch.orbitals),
+            "residual": float(ch.residual)}
+
+def _layer_height(group):
+    """``(normal_dir, height)`` for a layer read in a slab cell, or ``None`` for a crystal periodic in three directions.
+
+    ``normal_dir`` is the direction of the vacuum; ``height(z)`` takes a
+    reduced coordinate along it to the height from the layer's middle plane
+    along the normal ``a1 × a2``, in the model's units.
+    """
+    padded = tuple(int(d) for d in (getattr(group, "_vacuum_dirs", ()) or ()))
+    if int(getattr(group, "_dim_k", 3)) >= 3 or len(padded) != 1:
+        return None
+    normal_dir = padded[0]
+    lattice = np.asarray(group._lattice, dtype=float)
+    plane = [d for d in range(3) if d != normal_dir]
+    normal = np.cross(lattice[plane[0]], lattice[plane[1]])
+    scale = float(lattice[normal_dir] @ normal) / float(np.linalg.norm(normal))
+
+    def height(z):
+        """A reduced coordinate along the vacuum direction as a height from the middle plane."""
+        return ((float(z) + 0.5) % 1.0 - 0.5) * scale
+
+    return normal_dir, height
+
+def _orbital_heights(group, where):
+    """Each position's height from a layer's middle plane along its normal, in the model's units, or ``None`` for a crystal periodic in three directions.
+
+    ``where`` holds the positions in the group's three-dimensional reduced
+    coordinates, a row each.
+    """
+    reading = _layer_height(group)
+    if reading is None:
+        return None
+    normal_dir, height = reading
+    return tuple(height(z) for z in np.atleast_2d(where)[:, normal_dir])
+
+def _table_heights(rep):
+    """The heights of ``rep``'s orbitals, :func:`_orbital_heights`, or ``None`` for a crystal."""
+    if _layer_height(rep._group) is None:
+        return None
+    from ._matrices import _orb_positions_3d
+    return _orbital_heights(rep._group, _orb_positions_3d(rep._model, rep._group))
+
+#: The keys under which a labeling set aside can label a band otherwise: the
 #: site content at the lowest angular momentum, the functions the orbitals read
 #: as, and the band labels.
 _RELABELLING_KEYS = ("content", "orbitals", "bands")
 
 #: The note, where some energy multiplet of a set of bands reads otherwise under
-#: another labelling the hoppings leave open.
+#: another labeling the hoppings leave open.
 _ANOTHER_LABELLING_RELABELS = (
-    "another labelling the hoppings leave open keeps every site irrep and labels some energy "
+    "another labeling the hoppings leave open keeps every site irrep and labels some energy "
     "multiplets of these bands differently; it keeps which bands are degenerate and the labels "
     "of all the model's bands together")
 
 def _labelling_note(rep, block) -> str:
     """The sentence :attr:`HSPTable.note` carries, or ``""``.
 
-    Where the lowest-angular-momentum rule kept one of several labellings of a
+    Where the lowest-angular-momentum rule kept one of several labelings of a
     coupled part that give every orbital the same site irrep, and another of
     them labels some band differently, the atomic-limit table holds the labels
     every energy multiplet carries under each.  A set of bands rests on that
@@ -1446,7 +1775,7 @@ def _labelling_note(rep, block) -> str:
     return ""
 
 def _labelled_apart(chosen, other, held) -> bool:
-    """Whether a multiplet the bands ``held`` hold whole is labelled otherwise under ``other``.
+    """Whether a multiplet the bands ``held`` hold whole is labeled otherwise under ``other``.
 
     ``chosen`` and ``other`` are ``{point: ((bands, {corep: m}), ...)}``, and one
     multiplet whose labels differ is enough.  A point where the bands held cut
@@ -1475,9 +1804,9 @@ def _multiplicity_note(rep, block, fibers) -> str:
     rule (:attr:`..symmetry._OrbitalTable.multiplicity_spaces`), and every
     band on those orbitals carries it.  Where the representations the table
     admits give different site contents, the site content itself is that
-    choice, and a set of bands with weight there is labelled by it and can read
+    choice, and a set of bands with weight there is labeled by it and can read
     differently under another; where a declaration states the content there is
-    no such choice.  Those giving one site content are labellings like any
+    no such choice.  Those giving one site content are labelings like any
     other, and :func:`_labelling_note` says where a set of bands rests on them.
     The weight is read off the eigenvectors the content was read from, where
     they are to hand, and a set of bands is taken to have some where they are
@@ -1513,8 +1842,8 @@ def _multiplicity_note(rep, block, fibers) -> str:
     return "; ".join(said)
 
 def _hsp_table_rep(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
-                   label_tol=LABEL_TOL, ktol=1e-5, atol=1e-8,
-                   mesh_tol=MESH_TOL) -> HSPTable | Refusal:
+                   label_tol=LABEL_TOL, _ktol=1e-5, _atol=1e-8,
+                   _mesh_tol=MESH_TOL) -> HSPTable | Refusal:
     """What :func:`hsp_table` returns, read off a representation: ``realized.rep``, or one built by hand.
 
     Every argument but the first is :func:`hsp_table`'s own.
@@ -1523,7 +1852,7 @@ def _hsp_table_rep(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TO
         raise TypeError("hsp_table() missing required argument 'bands'")
     if isinstance(rep, Refusal):
         return rep
-    block = _band_block(int(rep._model.nstate), bands)
+    block = _band_block(int(rep._model.nstate), bands, "hsp_table")
     gate = _spacegroup._lattice_not_descended(rep._group)
     if gate is not None:
         return gate
@@ -1534,7 +1863,7 @@ def _hsp_table_rep(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TO
     if isinstance(points, Refusal):
         return points
 
-    content, parts, records, refusals, thr = {}, {}, {}, {}, {}
+    rows, records, refusals = {}, {}, {}
     counts: dict = {}
 
     # Collect every point whose little group is read, then take *one* pass over them: on the
@@ -1562,33 +1891,30 @@ def _hsp_table_rep(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TO
         per_point = {name: states for name, _ in wanted}
 
     for name, k in wanted:
-        got = _corep_content(rep, k, states=per_point[name], bands=block,
-                             degeneracy_tol=degeneracy_tol, label_tol=label_tol, ktol=ktol,
-                             kpname=None, atol=atol, mesh_tol=mesh_tol,
-                             bloch=bloch)
+        got = _coreps_at(rep, k, states=per_point[name], bands=block,
+                         degeneracy_tol=degeneracy_tol, label_tol=label_tol, ktol=_ktol,
+                         atol=_atol, mesh_tol=_mesh_tol, bloch=bloch)
         if isinstance(got, Refusal):
             refusals[name] = got
             continue
         records[name] = got
-        content[name] = dict(got.counts)
-        parts[name] = got.partition
-        thr[name] = got.thresholds
-        for lab, v in got.counts.items():
+        rows[name] = got.multiplets
+        for lab, v in got.coreps.items():
             counts[lab] = counts.get(lab, 0) + int(v)
 
     notes = (_multiplicity_note(rep, block, per_point.values()),
              _labelling_note(rep, block))
-    return HSPTable(bands=block, points=dict(points), content=content, partitions=parts,
-                    records=records, refusals=refusals,
-                    counts=_tables.ordered_content(counts), thresholds=thr,
-                    complete=not refusals,
-                    group_provenance=str(rep._group._provenance),
-                    note="; ".join(n for n in notes if n), rep=rep)
+    return HSPTable(bands=block, group=rep._group, kpoints=dict(points),
+                    symmetry_data=_tables.ordered_content(counts), multiplets=rows,
+                    complete=not refusals, refusals=refusals,
+                    note="; ".join(n for n in notes if n), _records=records,
+                    _group_provenance=str(rep._group._provenance), _rep=rep,
+                    _site_content=_site_content_record(rep), _heights=_table_heights(rep))
 
 def hsp_table(realized, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
-              label_tol=LABEL_TOL, ktol=_hsp_table_rep.__kwdefaults__["ktol"],
-              atol=_hsp_table_rep.__kwdefaults__["atol"],
-              mesh_tol=MESH_TOL) -> HSPTable | Refusal:
+              label_tol=LABEL_TOL, _ktol=_hsp_table_rep.__kwdefaults__["_ktol"],
+              _atol=_hsp_table_rep.__kwdefaults__["_atol"],
+              _mesh_tol=MESH_TOL) -> HSPTable | Refusal:
     """The coreps a set of bands carries at every high-symmetry point of the group: its symmetry data vector.
 
     Parameters
@@ -1596,40 +1922,34 @@ def hsp_table(realized, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TO
     realized : ..groups.RealizedGroup
         What :func:`..groups.realized_group` returned, ``r``.
     bands : int or sequence of int
-        The set of bands: ``n`` the lowest ``n`` bands, or the band indices,
-        whole degenerate multiplets at every point.  Required.
+        The set of bands: ``n`` the lowest ``n`` bands, or the band indices.
+        Required.
     states : None or pythtb.WFArray, optional
         ``None`` (default) solves the model at the points, once; a solved
         ``WFArray`` is read as it stands, and a point its mesh does not hold is
         refused there.
-    degeneracy_tol : float, optional
+    degeneracy_tol : float, default 1e-8
         The energy, in the units of ``H``, within which bands are one
-        multiplet.  Default ``1e-8``.
-    label_tol, ktol, atol, mesh_tol : float, optional
-        The tolerances of :func:`corep_content`, read at each point.
+        multiplet.
+    label_tol : float, default 1e-3
+        How far a fitted multiplicity may sit from an integer at each point,
+        dimensionless.
 
     Returns
     -------
     HSPTable or Refusal
-        ``t.summary()`` prints the coreps at each point.  The table is what
-        :func:`..ebr.decompose`, :func:`..ebr.symmetry_indicator` and
-        :func:`..srsi.srsi_of_bands` take, ``decompose(t)``, in the group it
-        was read in, which it carries; ``t.counts`` is its
-        symmetry data vector, ``t.content`` the coreps point by point;
-        ``t.complete`` whether every
-        point resolved, and ``t.refusals`` each point that did not, with its own
-        ``Refusal``; ``t.note`` where the labels rest on a choice the hoppings
-        leave open.  A ``Refusal`` in its place is falsy and names what stopped
-        the call.
-
-    Raises
-    ------
-    TypeError
-        ``realized`` is not what :func:`..groups.realized_group` returned.
-    ValueError
-        States of another model than ``r.model``, ``bands`` outside the
-        states, or ``r.model`` edited since :func:`..groups.realized_group`
-        measured it.
+        ``t.summary()`` prints the coreps at each point.  ``t.symmetry_data``
+        is the symmetry data vector, ``t.multiplets`` a row for each
+        degenerate multiplet at each point, with the coreps it carries;
+        ``t.complete`` says whether every point was measured, and
+        ``t.refusals`` holds each point that was not, with its own
+        ``Refusal``; ``t.note`` says where the labels rest on a choice the
+        hoppings leave open.  Corep labels can only be returned at a point if
+        the set of bands contains all the states of each degenerate multiplet
+        there.  The table is what :func:`..ebr.decompose`,
+        :func:`..ebr.symmetry_indicator` and :func:`..srsi.srsi_of_bands`
+        take, ``decompose(t)``, in the group it was read in, ``t.group``.  A
+        ``Refusal`` in its place is falsy and names what stopped the call.
 
     Refusals
     --------
@@ -1639,18 +1959,28 @@ def hsp_table(realized, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TO
     ``tables_not_ready``
         the group's tables cannot be read in this cell.
 
+    Raises
+    ------
+    TypeError
+        ``realized`` is not what :func:`..groups.realized_group` returned, or
+        ``bands`` left out.
+    ValueError
+        States of another model than ``r.model``, ``bands`` outside the
+        states or naming none, or ``r.model`` edited since
+        :func:`..groups.realized_group` measured it.
+
     Examples
     --------
     lin3g's six lowest bands (:func:`..models.lin3g`):
 
     >>> print(hsp_table(r, bands=6).summary())                 # doctest: +SKIP
     bands 0-5   (.bands)
-      their coreps at each high-symmetry point, GM being Γ   (.content)
-        GM: 2×-GM6 + -GM7
-        M: -M6 + 2×-M7
-        X: 3×-X5
+      their coreps at each high-symmetry point   (.symmetry_data)
+        GM: 2x-GM6 + -GM7
+        M: -M6 + 2x-M7
+        X: 3x-X5
     """
     rep = _rep_of("hsp_table", realized, "hsp_table(r, bands=6)")
     return _hsp_table_rep(rep, states=states, bands=bands, degeneracy_tol=degeneracy_tol,
-                          label_tol=label_tol, ktol=ktol, atol=atol,
-                          mesh_tol=mesh_tol)
+                          label_tol=label_tol, _ktol=_ktol, _atol=_atol,
+                          _mesh_tol=_mesh_tol)

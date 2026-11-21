@@ -986,7 +986,7 @@ def test_a_spinful_s_orbital_off_the_mirror_planes_is_the_tables_induced_represe
 
     table = tqw.hsp_table(got, bands=int(model.nstate))
     assert table.complete and table.refusals == {}, name
-    counts = {str(k): int(v) for k, v in table.counts.items()}
+    counts = {str(k): int(v) for k, v in table.symmetry_data.items()}
     assert counts == total(rows), name
     assert counts != total(other_rows), "the two spinor rows differ, so the check has teeth"
 
@@ -999,7 +999,7 @@ def test_a_spinful_s_orbital_off_the_mirror_planes_is_the_tables_induced_represe
     # made about is the declaration's while the rest are measured against it
     assert declared._characters.orbitals[0].determined_by == "declaration"
     t2 = tqw._hsp_table_rep(declared, bands=int(model.nstate))
-    assert {str(k): int(v) for k, v in t2.counts.items()} == total(other_rows), name
+    assert {str(k): int(v) for k, v in t2.symmetry_data.items()} == total(other_rows), name
 
 
 # ---------------------------------------------------------------------------
@@ -1278,7 +1278,7 @@ def test_the_representation_commutes_with_H_at_k_points_the_build_never_saw(lin3
     would show up here.
     """
     group, assignment, validated, rep = lin3g_rep
-    fresh = rep.covariance(k_pts=np.array([[0.11, 0.37], [-0.23, 0.41], [0.05, -0.19]]))
+    fresh = rep.covariance(kpoints=np.array([[0.11, 0.37], [-0.23, 0.41], [0.05, -0.19]]))
     assert max(fresh.values()) <= GATE
 
 

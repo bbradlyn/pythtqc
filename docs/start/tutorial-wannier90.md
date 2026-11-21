@@ -258,12 +258,12 @@ for o in r.wyckoff_orbits:
 valence = tqc.hsp_table(r, bands=4)                        # the four occupied bands
 print(valence.summary())
 #  bands 0-3   (.bands)
-#    their coreps at each high-symmetry point, GM being Γ   (.content)
-#      GM: 2×GM1+ + GM3+
-#      F: 2×F1+ + F1- + F2-
-#      L: 2×L1+ + L2+ + L2-
+#    their coreps at each high-symmetry point   (.symmetry_data)
+#      GM: 2xGM1+ + GM3+
+#      F: 2xF1+ + F1- + F2-
+#      L: 2xL1+ + L2+ + L2-
 #      T: T1+ + T2- + T3-
-#    another labelling the hoppings leave open keeps every site irrep and labels some energy multiplets of these bands differently; it keeps which bands are degenerate and the labels of all the model's bands together   (.note)
+#    another labeling the hoppings leave open keeps every site irrep and labels some energy multiplets of these bands differently; it keeps which bands are degenerate and the labels of all the model's bands together   (.note)
 dec = tqc.decompose(valence)
 print(dec.verdict, "|", len(dec.solutions), "solution:", *dec.solution_strings())
 #  symmetry-indicated decomposable | 1 solution: 1 x A1g↑G(1)@3a(-3m1',-3m) + 1 x Ag↑G(3)@9d(2/m1',2/m)
@@ -338,7 +338,7 @@ it. The [indicator group](../guide/indicators.md) of `R-3m1'` without spin is
   [symmetry indicators](../guide/indicators.md): the calls of the last section.
 - The calls on this page: [`realized_group`](../reference/functions.md#realized_group),
   [`hsp_table`](../reference/functions.md#hsp_table),
-  [`format_counts`](../reference/functions.md#format_counts),
+  [`format_coreps`](../reference/functions.md#format_coreps),
   [`decompose`](../reference/functions.md#decompose),
   [`symmetry_indicator`](../reference/functions.md#symmetry_indicator) and
   [`wyckoff_sites_tables`](../reference/functions.md#wyckoff_sites_tables).

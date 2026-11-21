@@ -82,14 +82,14 @@ is a semimetal: its two lower bands are not separated from the upper two, so at
 
 ```python
 all4 = tqc.hsp_table(r, bands=4)
-print(tqc.format_counts(all4.counts))
+print(tqc.format_coreps(all4.symmetry_data))
 #  -GM6 + -GM9 + -L8 + -L9 + -W5W6 + -W7 + -X5
 print(tqc.decompose(all4).solution_strings())
 #  ("1 x -E1↑G(4)@8a(-43m1',-43m)",)
 
 pair = tqc.hsp_table(r, bands=2)                         # the two lowest bands alone
 print(pair)
-#  HSPTable(bands=(0, 1), 3 points resolved, 1 refused, group=realized)
+#  HSPTable(bands 0-1, 3 k-points measured, 1 refused)
 print(pair.refusals["X"].gate, pair.refusals["X"].context["multiplet"])
 #  multiplet_split (0, 1, 2, 3)
 refused = tqc.symmetry_indicator(pair)
@@ -219,7 +219,7 @@ print("phase   group   valence content              class   order  z4  z2w")
 for name, rr in phases.items():
     si = indicators[name]
     z2w = "".join(str(si.canonical[f"z2w,{i}"]) for i in (1, 2, 3))
-    print(f"{name:<7} {rr.group.number_str:<7} {tqc.format_counts(tables[name].counts):<28} "
+    print(f"{name:<7} {rr.group.number_str:<7} {tqc.format_coreps(tables[name].symmetry_data):<28} "
           f"{str(si.values):<7} {si.order:<6} {si.canonical['z4']:<3} {z2w}")
 #  strong  166.98  -GM9 + -F5F6 + -L5L6 + -T8   (0, 1)  4      3   111
 #  weak    166.98  -GM9 + -F3F4 + -L5L6 + -T8   (1, 0)  2      0   111
@@ -251,7 +251,7 @@ pair there, has the trace `2ξ`.
 trim = [np.array(n) / 2 for n in itertools.product((0, 1), repeat=3)]   # the eight TRIM
 for name, rr in phases.items():
     inversion = tqc.operation_index(rr.group, "{-1|0,0,0}")
-    parity = [round(tqc.sewing_matrix(rr, inversion, k, bands=2).trace.real / 2)
+    parity = [round(np.trace(tqc.sewing_matrix(rr, inversion, k, bands=2).matrix).real / 2)
               for k in trim]                             # +1 or -1 for the one Kramers pair
     nu0 = int(np.prod(parity) < 0)
     weak = [int(np.prod([p for p, k in zip(parity, trim) if k[i] == 0.5]) < 0)
@@ -263,7 +263,7 @@ for name, rr in phases.items():
 #  weak    - - - + - + + +   (0;111)   4 odd pairs, 4 mod 4 = 0
 #  dimers  - - - - - - - -   (0;000)   8 odd pairs, 8 mod 4 = 0
 print(tables["strong"].note)
-#  another labelling the hoppings leave open keeps every site irrep and labels some energy multiplets of these bands differently; it keeps which bands are degenerate and the labels of all the model's bands together
+#  another labeling the hoppings leave open keeps every site irrep and labels some energy multiplets of these bands differently; it keeps which bands are degenerate and the labels of all the model's bands together
 ```
 
 The eight momenta are listed in reduced coordinates as `itertools.product`
@@ -356,7 +356,7 @@ the indicator's kernel
   [`high_symmetry_points`](../reference/functions.md#high_symmetry_points),
   [`solve_at`](../reference/functions.md#solve_at),
   [`hsp_table`](../reference/functions.md#hsp_table),
-  [`format_counts`](../reference/functions.md#format_counts),
+  [`format_coreps`](../reference/functions.md#format_coreps),
   [`decompose`](../reference/functions.md#decompose),
   [`symmetry_indicator`](../reference/functions.md#symmetry_indicator),
   [`operation_index`](../reference/functions.md#operation_index),

@@ -10,7 +10,7 @@ refusal a call can return, each with what it means, its usual cause and what to 
 ## The call
 
 Asked for the [corep](../reference/glossary.md#words-the-pages-use) content of Kane–Mele's
-lowest band alone at Γ, `corep_content` refuses:
+lowest band alone at Γ, `coreps_at` refuses:
 
 ```python
 import pythtqc as tqc
@@ -19,7 +19,7 @@ from pythtb.models import kane_mele
 km = kane_mele(1.0, -1.0, 0.3, 0.25)                  # delta, t, soc, rashba
 r = tqc.realized_group(km, typat=[0, 1], characters={0: "A1"})
 gamma = tqc.high_symmetry_points(r.group)["GM"]
-out = tqc.corep_content(r, gamma, bands=1)            # the lowest band alone, at Γ
+out = tqc.coreps_at(r, gamma, bands=1)                # the lowest band alone, at Γ
 print(isinstance(out, tqc.Refusal), bool(out))
 #  True False
 print(out)
@@ -50,7 +50,7 @@ print(out)
 ```python
 print(out.gate, out.value, out.threshold, out.context["multiplet"])
 #  multiplet_split 0.0 1e-08 (0, 1)
-print(tqc.corep_content(r, gamma, bands=2).counts)
+print(tqc.coreps_at(r, gamma, bands=2).coreps)
 #  {'-GM6': 1}
 ```
 

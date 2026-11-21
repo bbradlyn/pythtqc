@@ -42,7 +42,7 @@ from pythtb.models import fu_kane_mele
 
 import _path  # noqa: F401  (in-repo runs: puts src/ on sys.path)
 import pythtqc as tqc
-from pythtqc import format_counts as fmt
+from pythtqc import format_coreps as fmt
 from pythtqc.utils import save_figure
 
 # Elementary band representations print as ρ↑G, the site irrep ρ induced to the
@@ -97,7 +97,7 @@ row("realized group", f"#{g_strong.number_str} {g_strong.name}, s orbitals at Wy
     f"{r_strong.wyckoff_orbits[0].wyckoff}")
 
 t2_strong = tqc.hsp_table(r_strong, bands=2)               # the valence bands
-row("valence content", fmt(t2_strong.counts))
+row("valence content", fmt(t2_strong.symmetry_data))
 
 # srsi_of_bands takes what decompose and symmetry_indicator take, the measured
 # symmetry data vector, and evaluates the invariants on a rational site-symmetry vector
@@ -152,7 +152,7 @@ b_weak = tqc.srsi_of_bands(t2_weak)
 si_weak = tqc.symmetry_indicator(t2_weak)
 row("weak,   realized", f"#{g_weak.number_str} {g_weak.name}, orbitals at Wyckoff "
     f"{r_weak.wyckoff_orbits[0].wyckoff}")
-row("weak,   valence", fmt(t2_weak.counts))
+row("weak,   valence", fmt(t2_weak.symmetry_data))
 
 m_dimers = fu_kane_mele(T, SOC, [0.0, -1.0, -1.0, -1.0])     # three bonds cut
 
@@ -163,7 +163,7 @@ b_dimers = tqc.srsi_of_bands(t2_dimers)
 si_dimers = tqc.symmetry_indicator(t2_dimers)
 row("dimers, realized", f"#{g_dimers.number_str} {g_dimers.name}, orbitals at Wyckoff "
     f"{r_dimers.wyckoff_orbits[0].wyckoff}")
-row("dimers, valence", fmt(t2_dimers.counts))
+row("dimers, valence", fmt(t2_dimers.symmetry_data))
 
 # one line per phase: the class on the left, the invariants on the right
 print(f"   {'phase':<8} {'class':<8} {'order':<7} "

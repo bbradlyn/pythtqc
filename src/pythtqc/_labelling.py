@@ -296,7 +296,7 @@ class _BandKey:
         if isinstance(found, Refusal):
             return None
         if i not in self.orders:
-            tab = _tables._corep_table(self.group, k, kpname=found.kpname)
+            tab = _tables._corep_table(self.group, k, kpname=found.kpoint)
             self.orders[i] = () if isinstance(tab, Refusal) else tuple(tab)
         return tuple(tuple(-int(row.get(label, 0)) for label in self.orders[i])
                      for row in found.labels)

@@ -38,8 +38,8 @@ are one another's images.
 4. the same model, every pair rotated inside itself by 0.37 rad
    realized group   : #215.71 P-43m1'
    wyckoff_orbits   : section 3's atomic-limit table, line for line, and its characters
-   all 6 bands      : GM4 + GM5 + M1 + M2 + 2×M5 + R4 + R5 + X1 + X2 + 2×X5
-   all 6, rotated   : GM4 + GM5 + M1 + M2 + 2×M5 + R4 + R5 + X1 + X2 + 2×X5
+   all 6 bands      : GM4 + GM5 + M1 + M2 + 2xM5 + R4 + R5 + X1 + X2 + 2xX5
+   all 6, rotated   : GM4 + GM5 + M1 + M2 + 2xM5 + R4 + R5 + X1 + X2 + 2xX5
    the rotation is a change of orbital basis inside each pair, a choice of Wannier gauge,
    and a character is a trace, which no change of basis moves
 

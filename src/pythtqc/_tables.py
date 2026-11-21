@@ -23,7 +23,7 @@ from ._tolerance import (
     _PHASE_REAL_TOL, _SU2_TOL)
 from ._text import _point_text
 from ._spacegroup import (
-    GroupData, IrrepContent, KGrid, LittleGroup, OrbitalAssignment, SiteReference, Term,
+    GroupData, CorepIdentification, KGrid, LittleGroup, OrbitalAssignment, SiteReference, Term,
     _EBRTransportError, _GENERIC_PARAMETER, _SiteReading, _centering, _in_tables_cell,
     _is_reciprocal, _is_translation, _lattice_not_descended, _letters_on_closure,
     _magnetic_type, _pad_cell, _pyxtal_wyckoff, _reference_operations, _refuse_no_tables,
@@ -1679,13 +1679,13 @@ def _corep_table(group: GroupData, k, *, kpname=None, ktol=1e-5,
 
 
 def identify_from_characters(group: GroupData, k, characters, *, multiplet_dims=None,
-                             label_tol=LABEL_TOL) -> IrrepContent | Refusal:
+                             label_tol=LABEL_TOL) -> CorepIdentification | Refusal:
     r"""The coreps each multiplet carries at a high-symmetry point, from its measured characters.
 
     Each row of characters is expanded over the coreps of the little group,
     ``m = Σ_g χ_corep(g) χ(g)* / Σ_g |χ_corep(g)|²``, and a multiplicity is a
     nonnegative integer or the characters are wrong.  Levels merged into one
-    multiplet read as a sum of coreps.  :func:`..sewing.corep_content`
+    multiplet read as a sum of coreps.  :func:`..sewing.coreps_at`
     measures the characters on a set of bands and reads them here.
 
     Parameters
@@ -1705,17 +1705,14 @@ def identify_from_characters(group: GroupData, k, characters, *, multiplet_dims=
     multiplet_dims : array, shape (n_multiplets,), optional
         Each multiplet's degeneracy, which the coreps found must add up to.
     label_tol : float, default 1e-3
-        How far a multiplicity may sit from an integer, and two rows'
-        characters from each other to share a number in the partition,
-        dimensionless.
+        How far a multiplicity may sit from an integer, dimensionless.
 
     Returns
     -------
-    IrrepContent or Refusal
-        Each multiplet's coreps and dimension, and the partition of the
-        multiplets by their characters, which stands under any labelling and
-        is the statement to quote where a label rests on one; ``summary()``
-        prints it.  A ``Refusal`` in its place is falsy.
+    CorepIdentification or Refusal
+        Each multiplet's coreps and dimension, and the multiplicities before
+        rounding; ``summary()`` prints it.  A ``Refusal`` in its place is
+        falsy.
 
     Refusals
     --------
@@ -1762,7 +1759,7 @@ def identify_from_characters(group: GroupData, k, characters, *, multiplet_dims=
 def _identify_from_characters(group: GroupData, k, characters, *, multiplet_dims=None,
                               kpname=None, label_tol=1e-3, ktol=1e-5,
                               call: str = "identify_from_characters"
-                              ) -> IrrepContent | Refusal:
+                              ) -> CorepIdentification | Refusal:
     """The coreps :func:`identify_from_characters` returns, at coordinates ``k``.
 
     ``kpname`` is the point's tabulated name, taken as given instead of found
@@ -1865,9 +1862,10 @@ def _identify_from_characters(group: GroupData, k, characters, *, multiplet_dims
                 part[r2] = nxt
         nxt += 1
 
-    return IrrepContent(kpname=kpname, k=lg.k, indices=lg.unitary, labels=labels,
-                        multiplicities=mult, label_order=label_order, dims=total_dims,
-                        partition=tuple(int(p) for p in part), integrality=defect)
+    return CorepIdentification(kpoint=kpname, k=lg.k, indices=lg.unitary, labels=labels,
+                               multiplicities=mult, label_order=label_order,
+                               dims=total_dims, integrality=defect,
+                               _partition=tuple(int(p) for p in part))
 
 
 def _label_kpoint(label: str) -> str:
@@ -2673,7 +2671,7 @@ def decompose_ebrs(group: GroupData, irrep_counts: dict) -> dict | Refusal:
         The group, ``realized_group(model).group``.
     irrep_counts : dict
         ``{corep: multiplicity}``, the band set's coreps at every high-symmetry
-        point of the group, as ``HSPTable.counts`` holds them.
+        point of the group, as ``HSPTable.symmetry_data`` holds them.
 
     Returns
     -------

@@ -34,7 +34,7 @@ import numpy as np
 import _path  # noqa: F401  (in-repo runs: puts src/ on sys.path)
 import pythtqc as tqc
 from pythtqc import models as tqm
-from pythtqc import format_counts as fmt
+from pythtqc import format_coreps as fmt
 from pythtqc import solve_at
 from pythtqc.utils import save_figure
 
@@ -132,10 +132,11 @@ row("P", f"({', '.join(str(x) for x in np.round(P, 4).tolist())}) in the primiti
 # eigenvectors; every label below is read off that one diagonalization.
 states = solve_at(atomic, P)
 w = np.asarray(states[0], dtype=float).reshape(-1)
-content = tqc.corep_content(r, P, states=states, bands=[0, 1, 2, 3])
-chi = np.asarray(content.table.characters).ravel()
+table_P = tqc.characters(r, P, states=states, bands=[0, 1, 2, 3])
+columns = tuple(table_P.multiplets[0].characters)    # the unitary operations at P
+chi = np.array([[m.characters[i] for i in columns] for m in table_P.multiplets]).ravel()
 row("P valence levels", ", ".join(str(x) for x in np.round(w[:4], 6).tolist()))
-row(f"χ({', '.join(operations[i].name for i in content.table.columns)})", characters(chi))
+row(f"χ({', '.join(operations[i].name for i in columns)})", characters(chi))
 print("   one fourfold level: spin-independent hoppings commute with every spin")
 print("   operator, so this degeneracy is SU(2)'s and decides nothing here")
 
@@ -190,12 +191,14 @@ row("degeneracies", f"{' + '.join(str(len(b)) for b in mult)}, level gaps "
 print("\n4. the three levels, each labelled from that one diagonalization")
 labels, chis = [], []
 for multiplet in mult:
-    out_b = tqc.corep_content(r_soc, P_soc, states=states, bands=list(multiplet))
-    chi_b = np.asarray(out_b.table.characters).ravel()
-    labels.append(next(iter(out_b.counts)))
+    out_b = tqc.coreps_at(r_soc, P_soc, states=states, bands=list(multiplet))
+    level = tqc.characters(r_soc, P_soc, states=states, bands=list(multiplet)).multiplets[0]
+    columns_b = tuple(level.characters)
+    chi_b = np.array([level.characters[i] for i in columns_b])
+    labels.append(next(iter(out_b.coreps)))
     chis.append(chi_b)
     row(band_names(list(multiplet)), f"E = {w[multiplet[0]]:+.6f}   "
-        f"χ({', '.join(operations[i].name for i in out_b.table.columns)}) = "
+        f"χ({', '.join(operations[i].name for i in columns_b)}) = "
         f"{characters(chi_b)}   {labels[-1]}")
 
 label_lo, label_mid, label_hi = labels
@@ -216,7 +219,7 @@ print("   accidental degeneracy")
 print("\n5. the four valence bands as an elementary band representation")
 table_soc = tqc.hsp_table(r_soc, bands=[0, 1, 2, 3])   # the content at every point
 d = tqc.decompose(table_soc)
-row("valence content", fmt(table_soc.counts))
+row("valence content", fmt(table_soc.symmetry_data))
 row(*atomic_limits(d))
 print(f"   {label_mid} belongs to a labelling of the whole set, not a choice made at P")
 
@@ -241,8 +244,8 @@ for label in sorted(page62):
     print(f"      {label:<8} dim {int(round(abs(complex(entry[ops62[0]])))):d}   "
           f"{characters(entry[i] for i in ops62)}")
 
-cH = tqc.corep_content(r62, H, states=solve_at(p62, H), bands=list(range(6)))
-row("lowest 6 bands", f"{fmt(cH.counts)} at H")
+cH = tqc.coreps_at(r62, H, states=solve_at(p62, H), bands=list(range(6)))
+row("lowest 6 bands", f"{fmt(cH.coreps)} at H")
 doubled62 = max(page62, key=lambda lab: abs(complex(page62[lab][ops62[0]])))
 print(f"   {doubled62} glues two different irreps; at P {label_mid} glues one to itself")
 
@@ -281,7 +284,7 @@ ax.set_ylim(levels.min() - 0.05 * (levels.max() - levels.min()),
 ax.set_xlabel(r"spin-orbit strength $\lambda$", fontsize=15)
 ax.set_ylabel(r"$E$ at $P = (\frac{1}{4},\frac{1}{4},\frac{1}{4})$", fontsize=15)
 ax.set_title(f"#{g_soc.number_str} {g_soc.name} at the non-TRIM point $P$: "
-             f"{[int(d) for d in content.table.dims]} $\\to$ "
+             f"{[len(m.bands) for m in table_P.multiplets]} $\\to$ "
              f"{[len(b) for b in mult]},\n"
              f"and the trace of {operations[ops[-1]].name} says that {label_mid} is the "
              "doubled corep", fontsize=11)

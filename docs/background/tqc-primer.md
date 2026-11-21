@@ -136,9 +136,9 @@ print(strong.group.name, M.shape, np.linalg.matrix_rank(M))
 print(np.diag(D), np.array_equal(U @ M @ V, D))
 #  [1 1 1 1 1 1 2 4 0 0 0 0] True
 t = tqc.hsp_table(strong, bands=2)               # the valence pair's content
-print(tqc.format_counts(t.counts))
+print(tqc.format_coreps(t.symmetry_data))
 #  -GM9 + -F5F6 + -L5L6 + -T8
-y = np.array([t.counts.get(label, 0) for label in data.corep_names])
+y = np.array([t.symmetry_data.get(label, 0) for label in data.corep_names])
 print(y, U @ y)
 #  [0 0 0 1 0 1 0 1 0 0 1 0] [0 0 1 1 0 0 0 1 0 0 0 0]
 print(tqc.symmetry_indicator(t).values)

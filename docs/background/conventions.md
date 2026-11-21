@@ -213,10 +213,10 @@ coreps, the irreducible objects of a group that holds antiunitary operations
 ```python
 hsp = tqc.high_symmetry_points(r.group)
 for point in ("GM", "K", "M"):
-    print(tqc.corep_content(r, hsp[point], bands=2))
-#  CorepContent(GM: -GM6, partition=(0,))
-#  CorepContent(K: -K5 + -K6, partition=(0, 1))
-#  CorepContent(M: -M3M4, partition=(0,))
+    print(tqc.coreps_at(r, hsp[point], bands=2))
+#  CorepsAt(GM: -GM6)
+#  CorepsAt(K: -K5 + -K6)
+#  CorepsAt(M: -M3M4)
 ```
 
 A label is the point's name, `GM` for Γ and the tables' letters otherwise,
@@ -228,9 +228,8 @@ irreps `-M3` and `-M4`); one irrep doubled is written twice (`-P4P4`,
 [below](#points-where-the-gluing-differs)). Constituents stand in the
 lexicographic order of their bare names, with the minus once in front.
 Separate levels are joined by ` + `: at `K` the two bands are two
-one-dimensional coreps, and `partition=(0, 1)` numbers them apart because
-their characters differ
-([`CorepContent`](../reference/records.md#charactertable-and-corepcontent)). A
+one-dimensional coreps, told apart because their characters differ
+([`CorepsAt`](../reference/records.md#bandcharacters-and-corepsat)). A
 content is returned as a mapping from each label to its multiplicity.
 
 ## The origin the names are read about
@@ -263,7 +262,7 @@ for a, b, R in ((0, 1, [0, 0]), (0, 1, [-1, 0]), (0, 2, [0, 0]), (0, 2, [0, -1])
     shifted.set_hop(-1.0, a, b, R, mode="add")
 for model, declared in ((lieb, {}), (shifted, {"precision": 1e-4})):
     rl = tqc.realized_group(model, typat=[0, 1, 1], **declared)
-    print(rl.wyckoff_orbits[0].wyckoff, tqc.hsp_table(rl, bands=1).counts)
+    print(rl.wyckoff_orbits[0].wyckoff, tqc.hsp_table(rl, bands=1).symmetry_data)
 #  1a {'GM1': 1, 'X1': 1}
 #  1a {'GM1': 1, 'X1': 1}
 ```
@@ -314,7 +313,7 @@ Read `1 x -E1↑G(2)@1a(3m1',3m)` left to right:
 
 A summary writes the same EBR as its site irrep at its Wyckoff position, the
 site symmetry in parentheses, `-E1 at 1a (3m)`, with a multiplicity above one
-in front, `2×-E1 at 1a (3m)`; the records of the
+in front, `2x-E1 at 1a (3m)`; the records of the
 [stable real-space invariants](../guide/srsi.md) write it as the invariants'
 formulas do, `1 (-E1)_a`, one copy of `-E1` at the Wyckoff position of letter `a`.
 
@@ -355,7 +354,7 @@ energy is `−50`:
 ```python
 deep = tqc.realized_group(kane_mele(50.0, -1.0, 0.3, 0.25), typat=[0, 1], characters={0: "A1"})
 low = tqc.hsp_table(deep, bands=2)
-print(low.counts, tqc.decompose(low).solution_strings())
+print(low.symmetry_data, tqc.decompose(low).solution_strings())
 #  {'-GM6': 1, '-K4': 1, '-K5': 1, '-M3M4': 1} ("1 x -E1↑G(2)@1b(3m1',3m)",)
 convention = tqc.ebr_data(deep.group).convention
 print(convention.name, convention.changed_points, convention.conjugation["-K5"])
@@ -398,12 +397,13 @@ states = tqc.solve_at(soc.model, P)
 print(np.round(states[0][:4], 6))
 #  [-2.744031 -2.501964 -2.501964 -2.259907]
 for multiplet in ([0], [1, 2], [3]):
-    print(multiplet, tqc.corep_content(soc, P, states=states, bands=multiplet).counts)
+    print(multiplet, tqc.coreps_at(soc, P, states=states, bands=multiplet).coreps)
 #  [0] {'-P3': 1}
 #  [1, 2] {'-P4P4': 1}
 #  [3] {'-P3': 1}
 for multiplet in ([0], [1, 2]):
-    print(multiplet, np.round(tqc.characters(soc, P, states=states, bands=multiplet).characters, 6) + 0)
+    rows = tqc.characters(soc, P, states=states, bands=multiplet).multiplets
+    print(multiplet, np.round([list(m.characters.values()) for m in rows], 6) + 0)
 #  [0] [[1.+0.j 0.-1.j]]
 #  [1, 2] [[2.+0.j 0.+2.j]]
 lg = tqc.little_group(soc.group, P)                # the operations that fix P

@@ -34,7 +34,7 @@ from ._tolerance import (
 from ._text import _affine_text, _index_ranges, _lattice_vectors, _point_text
 
 __all__ = ["tables_status", "GroupData", "LittleGroup", "SiteReference",
-           "OrbitalAssignment", "IrrepContent", "KGrid", "Term"]
+           "OrbitalAssignment", "CorepIdentification", "KGrid", "Term"]
 
 
 # ITA Wyckoff letters: 'a'..'z' then 'A' (space group 47 has 27 positions).
@@ -802,25 +802,22 @@ class OrbitalAssignment:
 
 
 @dataclass(frozen=True)
-class IrrepContent:
-    """The coreps each measured multiplet carries at one high-symmetry point.
+class CorepIdentification:
+    """The coreps each measured multiplet carries at one high-symmetry point, read off its characters.
 
     What :func:`.._tables.identify_from_characters` returns, and what
-    ``CorepContent.content`` holds; ``summary()`` prints it.
+    ``coreps_at(...).numerical.identification`` holds; ``summary()`` prints
+    it.
 
     Attributes
     ----------
-    kpname, k : str and ndarray
+    kpoint, k : str and ndarray
         The tabulated point, by name and in the model's reduced coordinates.
     labels : tuple of dict
         Each multiplet's coreps, ``{corep: multiplicity}``, one per multiplet.
     dims : ndarray, shape (nrow,)
         Each multiplet's dimension as its coreps make it up: each multiplicity
         times its corep's dimension, summed.
-    partition : tuple of int
-        Which multiplets carry the same characters: two share a number exactly
-        when their characters agree, whatever labelling or phase convention
-        the labels rest on.
     indices : tuple of int
         The indices of the little group's unitary operations, the characters'
         columns.
@@ -831,29 +828,29 @@ class IrrepContent:
         How far the furthest multiplicity sat from an integer.
     """
 
-    kpname: str
+    kpoint: str
     k: np.ndarray
     indices: tuple
     labels: tuple
     multiplicities: np.ndarray
     label_order: tuple
     dims: np.ndarray
-    partition: tuple
     integrality: float
+    # which multiplets carry the same characters, numbered from the lowest by
+    # first appearance: two share a number when their characters agree within
+    # the label tolerance
+    _partition: tuple = field(default=(), repr=False)
 
     def summary(self) -> str:
-        """The content at one k, a line for each part, with the attribute that holds it."""
-        lines = [f"{self.kpname} {_point_text(self.k)}, in the model's reduced coordinates   "
-                 "(.kpname, .k)",
+        """The coreps at one k, a line for each part, with the attribute that holds it."""
+        lines = [f"{self.kpoint} {_point_text(self.k)}, in the model's reduced coordinates   "
+                 "(.kpoint, .k)",
                  "  each multiplet's coreps, and its dimension   (.labels, .dims)"]
         for row, (labels, dim) in enumerate(zip(self.labels, np.asarray(self.dims).reshape(-1))):
             content = " + ".join((f"{int(m)}x{label}" if int(m) > 1 else str(label))
                                  for label, m in labels.items())
             lines.append(f"    multiplet {row}, dimension {int(round(float(dim)))}: "
                          f"{content or 'no corep'}")
-        if len(self.partition) > 1:
-            lines.append("  which multiplets carry the same characters, by number: "
-                         + ", ".join(str(int(p)) for p in self.partition) + "   (.partition)")
         lines += [f"  the little group's unitary operations, the characters' columns, by "
                   f"index: {_index_ranges(self.indices)}   (.indices)",
                   f"  the multiplicities before rounding, at most {float(self.integrality):.2g} "

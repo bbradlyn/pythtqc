@@ -88,6 +88,28 @@ from pythtqc.models import cubic_3c_perp_doublet
 import tqc_models
 from conftest import FKM_BOND, fkm_regime, km_z2_regime, patch_everywhere
 
+
+def coreps_by_point(table):
+    """``{kpoint: {corep: multiplicity}}``, read off a table's rows."""
+    out = {}
+    for kpoint, rows in table.multiplets.items():
+        here = {}
+        for m in rows:
+            for name in m.corep_names:
+                here[name] = here.get(name, 0) + 1
+        out[kpoint] = here
+    return out
+
+
+def patterns(table):
+    """``{kpoint: pattern}``: which rows at each point carry the same coreps."""
+    out = {}
+    for kpoint, rows in table.multiplets.items():
+        seen = {}
+        out[kpoint] = tuple(seen.setdefault(tuple(m.corep_names), len(seen)) for m in rows)
+    return out
+
+
 #: Relative size of the jitter every fixture below is perturbed by — the
 #: measured defect scale of a symmetrized wannier90 import.
 JITTER = 1e-7
@@ -331,10 +353,10 @@ def test_the_jittered_lin3g_comes_back_as_the_clean_one(lin3g_clean, lin3g_jitte
     a = tqw.hsp_table(lin3g_clean, bands=bands)
     b = tqw.hsp_table(out, bands=bands)
     assert a.complete and b.complete
-    assert a.counts == b.counts == {"-GM6": 2, "-GM7": 1, "-M6": 1, "-M7": 2, "-X5": 3}
-    assert a.partitions == b.partitions
-    assert {p: dict(v) for p, v in a.content.items()} == {p: dict(v) for p, v in
-                                                          b.content.items()}
+    assert a.symmetry_data == b.symmetry_data == {"-GM6": 2, "-GM7": 1, "-M6": 1, "-M7": 2,
+                                                  "-X5": 3}
+    assert patterns(a) == patterns(b)
+    assert coreps_by_point(a) == coreps_by_point(b)
     da = tqe.decompose(a, lin3g_clean.group, rep=lin3g_clean.rep, bands=6)
     db = tqe.decompose(b, out.group, rep=out.rep, bands=6)
     assert da.verdict == db.verdict == "symmetry-indicated decomposable"
@@ -1203,10 +1225,9 @@ def test_a_declared_position_tol_snaps_the_centres_before_anything_else(
     a = tqw.hsp_table(clean, bands=(0, 1))
     b = tqw.hsp_table(out, bands=(0, 1))
     assert a.complete and b.complete
-    assert a.counts == b.counts == {"-GM6": 1, "-K5": 1, "-K6": 1, "-M3M4": 1}
-    assert a.partitions == b.partitions
-    assert {p: dict(v) for p, v in a.content.items()} == {p: dict(v) for p, v in
-                                                          b.content.items()}
+    assert a.symmetry_data == b.symmetry_data == {"-GM6": 1, "-K5": 1, "-K6": 1, "-M3M4": 1}
+    assert patterns(a) == patterns(b)
+    assert coreps_by_point(a) == coreps_by_point(b)
     da = tqe.decompose(a, clean.group, rep=clean.rep, bands=2)
     db = tqe.decompose(b, out.group, rep=out.rep, bands=2)
     assert da.verdict == db.verdict == "symmetry-indicated decomposable"
@@ -1308,7 +1329,7 @@ def test_the_position_pass_runs_before_the_hopping_projection(km_odd,
     assert out.rep._characters.irreps == clean.rep._characters.irreps
     a = tqw.hsp_table(clean, bands=(0, 1))
     b = tqw.hsp_table(out, bands=(0, 1))
-    assert a.complete and b.complete and a.counts == b.counts
+    assert a.complete and b.complete and a.symmetry_data == b.symmetry_data
     da = tqe.decompose(a, clean.group, rep=clean.rep, bands=2)
     db = tqe.decompose(b, out.group, rep=out.rep, bands=2)
     assert da.verdict == db.verdict == "symmetry-indicated decomposable"
@@ -1415,7 +1436,8 @@ def test_centres_too_far_from_symmetric_break_the_operations_they_miss(km_odd):
     assert (thick.group.number_str, thick.descent.cell_group.number_str) == ("25.58", "123.340")
     assert thick.descent.steps[0].refuted_by == {"centers": 24}
     assert thick.numerical.positions.frame == "model" and thick.numerical.positions.defect_after < 1e-14
-    assert tqw.hsp_table(thick, bands=2).counts, "the moved centres read in the group's frame"
+    assert tqw.hsp_table(thick, bands=2).symmetry_data, \
+        "the moved centres read in the group's frame"
 
     # 4. and the declaration itself is grammar: a non-positive one is a bug
     with pytest.raises(ValueError, match="position_tol must be"):
@@ -1574,7 +1596,7 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
                for i in clean.rep._indices) == 0.0
     assert out.rep._characters.irreps == clean.rep._characters.irreps
     table = tqw.hsp_table(out, bands=2)         # this is what used to RAISE
-    assert table.complete and set(table.counts.values()) == {1}
+    assert table.complete and set(table.symmetry_data.values()) == {1}
     assert tqe.decompose(table, out.group, rep=out.rep,
                          bands=2).verdict == "symmetry-indicated decomposable"
 
@@ -1595,9 +1617,8 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
     gap = np.asarray(out.model.orb_vecs) - np.asarray(ctrl.model.orb_vecs)
     assert float(np.abs(gap - gap[0]).max()) < _FEW_ULP, "the same crystal about another origin"
     ref = tqw.hsp_table(ctrl, bands=2)
-    assert table.counts == ref.counts and table.partitions == ref.partitions
-    assert ({p: dict(v) for p, v in table.content.items()}
-            == {p: dict(v) for p, v in ref.content.items()})
+    assert table.symmetry_data == ref.symmetry_data and patterns(table) == patterns(ref)
+    assert coreps_by_point(table) == coreps_by_point(ref)
     assert (set(tqe.decompose(table, out.group, rep=out.rep, bands=2).solution_strings())
             == set(tqe.decompose(ref, ctrl.group, rep=ctrl.rep,
                                  bands=2).solution_strings()))
@@ -1628,7 +1649,7 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
         assert rec["defect_before"] <= _FEW_ULP, "nothing left for a second pass to move"
         table = tqw.hsp_table(noisy, bands=1)       # this is what used to RAISE
         ref = tqw.hsp_table(exact, bands=1)
-        assert table.complete and table.counts == ref.counts
+        assert table.complete and table.symmetry_data == ref.symmetry_data
         assert max(float(np.abs(noisy.rep.matrices[i] - exact.rep.matrices[i]).max())
                    for i in exact.rep._indices) == 0.0
         assert (set(tqe.decompose(table, noisy.group, rep=noisy.rep, bands=1).solution_strings())
@@ -1862,11 +1883,10 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
         assert out.rep._characters.irreps == ref.rep._characters.irreps
         a = tqw.hsp_table(ref, bands=bands)
         assert a.complete and b.complete
-        assert a.counts == b.counts == {"-GM6": 2, "-GM7": 1, "-M6": 1, "-M7": 2,
-                                        "-X5": 3}
-        assert a.partitions == b.partitions
-        assert ({p: dict(v) for p, v in a.content.items()}
-                == {p: dict(v) for p, v in b.content.items()})
+        assert a.symmetry_data == b.symmetry_data == {"-GM6": 2, "-GM7": 1, "-M6": 1,
+                                                      "-M7": 2, "-X5": 3}
+        assert patterns(a) == patterns(b)
+        assert coreps_by_point(a) == coreps_by_point(b)
         da = tqe.decompose(a, ref.group, rep=ref.rep, bands=6)
         assert da.verdict == db.verdict == "symmetry-indicated decomposable"
         assert set(da.solution_strings()) == set(db.solution_strings())
@@ -1881,7 +1901,7 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
     exact = tqg.realized_group(shell, **kw)
     assert exact and exact.rep._multiplets.by_site == (((0, 1, 2),),), \
         "at the exact defaults the turned frame binds the shell into one multiplet"
-    content = tqw.hsp_table(exact, bands=6).content
+    content = coreps_by_point(tqw.hsp_table(exact, bands=6))
     for characters in (per_orbital, joint) + whole:
         # the content declared on the one measured multiplet is what it holds,
         # however the orbitals were partitioned: read on it, nothing descends
@@ -1921,8 +1941,7 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
         assert noisy.rep._characters.irreps == ("-E1", "-1E2E + -E1", "-1E2E + -E1"), \
             "each row its own multiplet's, as the shell declared orbital by orbital reads"
         assert {o.determined_by for o in noisy.rep._characters.orbitals} == {"declaration"}
-        assert ({p: dict(v) for p, v in tqw.hsp_table(noisy, bands=6).content.items()}
-                == {p: dict(v) for p, v in content.items()})
+        assert coreps_by_point(tqw.hsp_table(noisy, bands=6)) == content
     for characters in (None, per_orbital, joint):
         noisy = tqg.realized_group(shell, precision=1e-6, characters=characters, **kw)
         # the frame's own 1e-8 is inside the declared precision: the p_z and the
@@ -1955,8 +1974,7 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
     assert len(both.numerical.symmetrization.near) == 20 and both.numerical.symmetrization.site_multiplets
     # declared orbital by orbital or as the shell, at either precision: the same
     # crystal, and every subset of the bands reads the undeclared crystal's labels
-    labels = {n: {p: dict(v) for p, v in tqw.hsp_table(bare, bands=n).content.items()}
-              for n in (2, 4, 6)}
+    labels = {n: coreps_by_point(tqw.hsp_table(bare, bands=n)) for n in (2, 4, 6)}
     # the labellings that keep every site corep and label some band otherwise,
     # each by what set it aside
     def set_aside(out):
@@ -1973,8 +1991,8 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
             assert set_aside(said) == (["content", "orbitals"] if characters is coreps
                                        else ["orbitals"]), "a declared p shell pins its content"
             for n, want in labels.items():
-                got = tqw.hsp_table(said, bands=n).content
-                assert {p: dict(v) for p, v in got.items()} == want, (precision, characters, n)
+                got = coreps_by_point(tqw.hsp_table(said, bands=n))
+                assert got == want, (precision, characters, n)
     # ... and the pair as a spinor import whose spin frame is turned, read through
     # spin=: each operation's own form carries H within the covariance gate the
     # call reads at, or the operations whose lift the turn changes are broken,

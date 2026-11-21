@@ -59,7 +59,7 @@ The consequence for A3 is sharp: half of the unitary little group at every
 high-symmetry point is then unrepresented, and a corep label of #123 or #187
 describes a Hamiltonian that represents *all* of its little group.  A
 representation of that group, which only a build by hand makes, is short of
-its little group, and ``corep_content`` raises on it (locked below); the
+its little group, and ``coreps_at`` raises on it (locked below); the
 labels these models actually carry are those of the group they really
 realize — the p4mm lift, i.e. **P4mm (#99)** for lin3g and **P3m1 (#156)** for
 Kane–Mele.  The way to obtain that group without touching the Hamiltonian is
@@ -107,7 +107,7 @@ _FEW_ULP = 8 * _ULP                   # one sandwich of O(1) unitaries, 1.78e-15
 #: takes.  This *is* the package's eigenvector currency: there is no ``tqc``
 #: container to put it in, so a test that wants several readouts from one
 #: diagonalization keeps the pair and hands it to each call — which is what
-#: ``characters``/``corep_content`` do internally as well, by this same
+#: ``characters``/``coreps_at`` do internally as well, by this same
 #: diagonalization (``_resolve_states``' ``source=None`` branch).
 solve_at = tqw.solve_at
 
@@ -115,6 +115,29 @@ solve_at = tqw.solve_at
 def columns(evecs):
     """pythtb returns eigenvectors as **rows**; a sandwich ``V† O V`` wants columns."""
     return np.asarray(evecs).T
+
+
+def pattern(rows):
+    """Which rows carry the same coreps, numbered from the lowest by first appearance."""
+    seen = {}
+    return tuple(seen.setdefault(tuple(m.corep_names), len(seen)) for m in rows)
+
+
+def coreps_by_point(table):
+    """``{kpoint: {corep: multiplicity}}``, read off a table's rows."""
+    out = {}
+    for kpoint, rows in table.multiplets.items():
+        here = {}
+        for m in rows:
+            for name in m.corep_names:
+                here[name] = here.get(name, 0) + 1
+        out[kpoint] = here
+    return out
+
+
+def angles(sw):
+    """The phases of a sewing matrix's eigenvalues, ascending."""
+    return np.sort(np.angle(sw.eigenvalues))
 
 
 def hamiltonian_at(model, k, **params):
@@ -154,7 +177,8 @@ def lin3g_wfarray(lin3g_undeclared):
 # 0.  the slab cell's own group: labels that do not apply
 # ---------------------------------------------------------------------------
 
-def test_corep_content_raises_on_a_representation_short_of_its_little_group(lin3g_slab):
+def test_coreps_at_raises_on_a_representation_short_of_its_little_group(lin3g_slab,
+                                                                         lin3g_undeclared):
     """A representation that leaves out part of its own little group is a defect.
 
     Built by hand on P4/mmm1', the representation leaves out the
@@ -162,6 +186,12 @@ def test_corep_content_raises_on_a_representation_short_of_its_little_group(lin3
     point, which no call returns.  Reading its characters raises, naming the
     operations not carried, and so does reading coreps, in the table of every
     point as at each one.
+
+    On what ``realized_group`` returns, a call on bands takes a point by its
+    tabulated name and returns what it returns at the point's coordinates; a
+    name the group does not tabulate, the representation in place of the
+    record, and an empty set of bands raise, and a point out of the layer's
+    plane, by its name or by its coordinates, is refused ``out_of_plane``.
     """
     model, group, _, _, rep = lin3g_slab
     hsp = tqg.high_symmetry_points(group)
@@ -172,10 +202,40 @@ def test_corep_content_raises_on_a_representation_short_of_its_little_group(lin3
                 f"not carried: {list(expected[name])}")):
             tqw._characters_rep(rep, k, bands=6)
         with pytest.raises(InternalError, match="not carried"):
-            tqw._corep_content_rep(rep, k, bands=6)
+            tqw._coreps_at_rep(rep, k, bands=6)
 
     with pytest.raises(InternalError, match="not carried"):
         tqw._hsp_table_rep(rep, bands=6)
+
+    # a point by its name is the point at its coordinates
+    r = lin3g_undeclared
+    hsp = tqg.high_symmetry_points(r.group)
+    for name in ("GM", "M"):
+        by_name, by_k = tqw.coreps_at(r, name, bands=6), tqw.coreps_at(r, hsp[name], bands=6)
+        assert by_name.coreps == by_k.coreps and by_name.multiplets == by_k.multiplets
+        assert by_name.kpoint == by_k.kpoint == name and np.array_equal(by_name.k, by_k.k)
+        a, b = tqw.characters(r, name, bands=6), tqw.characters(r, hsp[name], bands=6)
+        assert a.multiplets == b.multiplets and a.kpoint == b.kpoint == name
+        op = r.rep.little_group(name)[1]
+        sa, sb = tqw.sewing_matrix(r, op, name, bands=6), tqw.sewing_matrix(r, op, hsp[name],
+                                                                             bands=6)
+        assert np.array_equal(sa.matrix, sb.matrix) and sa.kpoint == name
+        assert sa.seitz == r.operations[op].seitz
+        assert np.array_equal(r.rep.transform_k(op, name), r.rep.transform_k(op, hsp[name]))
+    with pytest.raises(ValueError, match="has no k-point named 'Q'; pass one of GM, M, X"):
+        tqw.coreps_at(r, "Q", bands=6)
+    assert hsp.out_of_plane
+    assert tqw.coreps_at(r, hsp.out_of_plane[0], bands=6).gate == "out_of_plane"
+    assert tqw.coreps_at(r, [0, 0, 0.5], bands=6).gate == "out_of_plane"
+    assert (tqw.coreps_at(r, [0, 0, 0], bands=6).coreps
+            == tqw.coreps_at(r, "GM", bands=6).coreps)
+    with pytest.raises(TypeError, match="pass what realized_group returns"):
+        tqw.coreps_at(r.rep, "GM", bands=6)
+    for call in (lambda: tqw.coreps_at(r, "GM", bands=[]), lambda: tqw.hsp_table(r, bands=[]),
+                 lambda: tqw.characters(r, "GM", bands=[]),
+                 lambda: tqw.sewing_matrix(r, 1, "GM", bands=[])):
+        with pytest.raises(ValueError, match=r"\(\): bands= names no band"):
+            call()
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +282,7 @@ LIN3G_BLOCKS = {"P_4": (0, 1, 2, 3), "P_2": (4, 5), "P_6": tuple(range(6)),
                 "Q_2": (6, 7)}
 
 
-def test_lin3g_corep_content_matches_the_reference_port(lin3g_undeclared):
+def test_lin3g_coreps_at_matches_the_reference_port(lin3g_undeclared):
     """PHASE CLOSER -- lin3g content at Gamma/X/M against out100 (= SM Sec. 3G).
 
     out100 measured, for the coupled model:
@@ -260,14 +320,15 @@ def test_lin3g_corep_content_matches_the_reference_port(lin3g_undeclared):
                                       rot))
 
         for block, bands in LIN3G_BLOCKS.items():
-            out = tqw.corep_content(undeclared, k, states=(evals, evecs), bands=bands)
+            out = tqw.coreps_at(undeclared, k, states=(evals, evecs), bands=bands)
             assert out, (point, block, str(out))
             counts, partition = LIN3G_CONTENT[(point, block)]
-            assert out.counts == counts, (point, block)
-            assert out.partition == partition, (point, block)
-            assert out.kpname == point
-            assert max(out.table.unitarity.values()) <= out.thresholds.effective
-            assert max(out.table.commutators.values()) <= tqw.FLAT_ZERO
+            assert out.coreps == counts, (point, block)
+            assert pattern(out.multiplets) == partition, (point, block)
+            assert out.kpoint == point and {m.kpoint for m in out.multiplets} == {point}
+            numerical = out._characters.numerical
+            assert max(numerical.unitarity.values()) <= out.numerical.thresholds.effective
+            assert max(numerical.commutators.values()) <= tqw.FLAT_ZERO
             # the isolated frontier block, not an energy-ordered slice
             assert out.isolation > 0.5
 
@@ -275,9 +336,9 @@ def test_lin3g_corep_content_matches_the_reference_port(lin3g_undeclared):
             if (point, block) in OUT100_ANGLES:
                 sw = tqw.sewing_matrix(undeclared, ind, k, states=(evals, evecs), bands=bands)
                 assert isinstance(sw, tqw.SewingMatrix), str(sw)
-                assert sw.unitarity <= thr.effective
+                assert sw.numerical.unitarity <= thr.effective
                 want = np.array(OUT100_ANGLES[(point, block)])
-                assert np.abs(sw.angles / np.pi - want).max() < 1e-9, (point, block)
+                assert np.abs(angles(sw) / np.pi - want).max() < 1e-9, (point, block)
 
 
 # ---------------------------------------------------------------------------
@@ -403,7 +464,7 @@ def test_sewing_has_one_states_slot_and_gates_its_k_provenance(lin3g_undeclared)
     # WFArray carries -- but without energies the spectrum-tier gates cannot run
     bare = tqw.sewing_matrix(undeclared, rep.little_group(kG)[0], kG, states=at_gamma[1])
     assert isinstance(bare, tqw.SewingMatrix), str(bare)
-    assert np.isnan(bare.residual)
+    assert np.isnan(bare.numerical.residual)
 
     # Gamma's states, asked for at M: measured against H(M) and refused
     foreign = tqw.sewing_matrix(undeclared, rep.little_group(kM)[0], kM, states=at_gamma)
@@ -482,7 +543,8 @@ def test_an_antiunitary_operation_sews_through_the_conjugating_branch(lin3g_unde
     for bands in ((0, 1), (2, 3), (4, 5), (0, 1, 2, 3, 4, 5)):
         sw = tqw.sewing_matrix(undeclared, ind_T, k, states=states, bands=bands)
         assert isinstance(sw, tqw.SewingMatrix), (bands, str(sw))
-        assert sw.antiunitary is True, bands
+        assert undeclared.operations[sw.operation].antiunitary is True, bands
+        assert sw.seitz == "{1|0,0,0}'" and sw.kpoint == "M"
         assert sw.bands == bands
 
         # (a) it is the conjugated sandwich, not the unitary one
@@ -494,12 +556,12 @@ def test_an_antiunitary_operation_sews_through_the_conjugating_branch(lin3g_unde
         assert float(np.abs(sw.matrix).max()) == pytest.approx(1.0, rel=1e-9, abs=0)
         assert float(np.abs(sw.matrix.T + sw.matrix).max()) <= _FEW_ULP, bands
         assert float(np.abs(np.diag(sw.matrix)).max()) <= _FEW_ULP, bands
-        assert abs(sw.trace) <= _FEW_ULP, bands
+        assert abs(np.trace(sw.matrix)) <= _FEW_ULP, bands
 
         # (c) the block is closed under T, and the operator commutes with H(k)*
-        assert sw.unitarity <= thresholds.effective, bands
-        assert sw.commutator <= tqw.FLAT_ZERO, bands
-        assert sw.residual <= 1e-13
+        assert sw.numerical.unitarity <= thresholds.effective, bands
+        assert sw.numerical.commutator <= tqw.FLAT_ZERO, bands
+        assert sw.numerical.residual <= 1e-13
 
     # on one Kramers doublet the two surviving entries are the pairing amplitude
     # itself, B = beta * i sigma_y: both unimodular, measured 1 + 4.4e-16
@@ -510,7 +572,8 @@ def test_an_antiunitary_operation_sews_through_the_conjugating_branch(lin3g_unde
     # the same operation is *not* a character column: corep tables carry none
     # for an antiunitary operation, and `characters` leaves it out
     table = tqw.characters(undeclared, k, states=states, bands=6)
-    assert ind_T in table.antiunitary and ind_T not in table.columns
+    assert table.operations[ind_T].antiunitary
+    assert all(ind_T not in m.characters for m in table.multiplets)
 
 
 # ---------------------------------------------------------------------------
@@ -527,14 +590,16 @@ def test_a_block_that_cuts_a_multiplet_is_refused_everywhere(lin3g_undeclared):
 
     low = tqw.sewing_matrix(undeclared, ind, k, states=states, bands=(0,))
     assert not low and low.gate == "multiplet_split"
+    with pytest.raises(TypeError, match="check"):
+        tqw.sewing_matrix(undeclared, ind, k, states=states, bands=(0,), check=False)
     tab = tqw.characters(undeclared, k, bands=5)
     assert not tab and tab.gate == "multiplet_split"
-    out = tqw.corep_content(undeclared, k, bands=5)
+    out = tqw.coreps_at(undeclared, k, bands=5)
     assert not out and out.gate == "multiplet_split"
     assert out.context["multiplet"] == (4, 5)
 
-    ok = tqw.corep_content(undeclared, k, bands=6)         # the gauge-invariant block
-    assert ok and ok.counts == {"-GM6": 2, "-GM7": 1}
+    ok = tqw.coreps_at(undeclared, k, bands=6)             # the gauge-invariant block
+    assert ok and ok.coreps == {"-GM6": 2, "-GM7": 1}
 
 
 # ---------------------------------------------------------------------------
@@ -598,7 +663,7 @@ def test_a_readout_where_the_two_rules_disagree_is_listed_not_reclassified(lin3g
         assert measured == pytest.approx(reference[name], rel=0.05, abs=0), name
         # the table built at that k was handed the same H and the same
         # separation, and so reports the same rule
-        table_thr = tqw.characters(undeclared, k, bands=6).thresholds
+        table_thr = tqw.characters(undeclared, k, bands=6).numerical.thresholds
         assert table_thr.flat == thresholds.flat
         assert table_thr.norm == pytest.approx(thresholds.norm, rel=1e-12, abs=0)
         assert table_thr.separation == pytest.approx(thresholds.separation, rel=1e-12,
@@ -610,7 +675,7 @@ def test_a_readout_where_the_two_rules_disagree_is_listed_not_reclassified(lin3g
         for ind in rep.little_group(k):
             sw = tqw.sewing_matrix(undeclared, ind, k, states=states)  # bands=None: the whole fiber
             assert isinstance(sw, tqw.SewingMatrix), (name, int(ind), str(sw))
-            antiunitary_columns += bool(sw.antiunitary)
+            antiunitary_columns += bool(undeclared.operations[sw.operation].antiunitary)
             for a, ma in enumerate(mult):
                 for b, mb in enumerate(mult):
                     if a == b:
@@ -628,7 +693,7 @@ def test_a_readout_where_the_two_rules_disagree_is_listed_not_reclassified(lin3g
     assert max(e["value"] for e in found["M"]) <= thresholds_at["M"].effective
     assert min(e["value"] for e in found["M"]) > thresholds_at["M"].flat
     # Gamma is the one point where the flat rule already dominates
-    g_thr = tqw.characters(undeclared, hsp["GM"], bands=6).thresholds
+    g_thr = tqw.characters(undeclared, hsp["GM"], bands=6).numerical.thresholds
     assert g_thr.noise_floor < g_thr.flat and g_thr.effective == g_thr.flat
 
 
@@ -704,25 +769,30 @@ def test_hsp_table_shape(lin3g_undeclared):
     table = tqw.hsp_table(undeclared, bands=6)
     assert isinstance(table, tqw.HSPTable)
     assert table.complete and table.refusals == {}
-    assert set(table.points) == {"GM", "M", "X"}
-    assert table.content == {"GM": {"-GM6": 2, "-GM7": 1},
-                             "M": {"-M6": 1, "-M7": 2},
-                             "X": {"-X5": 3}}
-    assert table.partitions == {"GM": (0, 1, 0), "M": (0, 1, 1), "X": (0, 0, 0)}
-    assert table.counts == {"-GM6": 2, "-GM7": 1, "-M6": 1, "-M7": 2, "-X5": 3}
+    assert set(table.kpoints) == {"GM", "M", "X"}
+    assert coreps_by_point(table) == {"GM": {"-GM6": 2, "-GM7": 1},
+                                      "M": {"-M6": 1, "-M7": 2},
+                                      "X": {"-X5": 3}}
+    assert {kp: pattern(rows) for kp, rows in table.multiplets.items()} == {
+        "GM": (0, 1, 0), "M": (0, 1, 1), "X": (0, 0, 0)}
+    assert table.symmetry_data == {"-GM6": 2, "-GM7": 1, "-M6": 1, "-M7": 2, "-X5": 3}
+    assert table.group is undeclared.group
     # the aggregated counts are exactly what decompose_ebrs takes
-    assert set(table.counts) <= set(tqg.ebr_data(group).corep_names)
+    assert set(table.symmetry_data) <= set(tqg.ebr_data(group).corep_names)
 
-    # the character tables: the adapter's column order, antiunitary ops never
+    # the characters: the adapter's column order, antiunitary ops never
     for name, k in tqg.high_symmetry_points(group).items():
         lg = tqg.little_group(group, k)
         chars = tqw.characters(undeclared, k, bands=6)
-        assert chars.columns == tuple(lg.unitary)
-        assert chars.columns == tuple(sorted(chars.columns))
-        assert chars.antiunitary == tuple(sorted(lg.antiunitary))
-        assert not set(chars.columns) & set(chars.antiunitary)
-        assert chars.characters.shape == (len(chars.multiplets), len(chars.columns))
-        assert np.allclose(chars.characters[:, 0], chars.dims), \
+        columns = tuple(chars.multiplets[0].characters)
+        assert columns == tuple(lg.unitary)
+        assert columns == tuple(sorted(columns))
+        anti = tuple(i for i, op in chars.operations.items() if op.antiunitary)
+        assert anti == tuple(sorted(lg.antiunitary))
+        assert set(chars.operations) == set(columns) | set(anti)
+        assert all(tuple(m.characters) == columns for m in chars.multiplets)
+        assert np.allclose([m.characters[columns[0]] for m in chars.multiplets],
+                           [len(m.bands) for m in chars.multiplets]), \
             "the identity column is the multiplet degeneracy"
 
     with pytest.raises(ValueError, match=r"r\.model"):
@@ -741,10 +811,11 @@ def test_hsp_table_shape(lin3g_undeclared):
     assert r and r.rep._model is crystal and r.model is crystal, str(r)
     kX = tqg.high_symmetry_points(r.group)["X"]
     op = r.rep.little_group(kX)[1]
-    calls = {"hsp_table": lambda: [(name, rec.counts, float(rec.table.energies[0])) for
-                                   name, rec in tqw.hsp_table(r, bands=1).records.items()],
-             "corep_content": lambda: tqw.corep_content(r, kX, bands=1).table.spectrum,
-             "characters": lambda: tqw.characters(r, kX, bands=1).energies,
+    calls = {"hsp_table": lambda: [(name, rows[0].label, float(rows[0].energy)) for
+                                   name, rows in tqw.hsp_table(r, bands=1).multiplets.items()],
+             "coreps_at": lambda: tqw.coreps_at(r, kX, bands=1)._characters.numerical.spectrum,
+             "characters": lambda: np.array([m.energy for m in
+                                             tqw.characters(r, kX, bands=1).multiplets]),
              "sewing_matrix": lambda: tqw.sewing_matrix(r, op, kX, bands=1).matrix,
              "covariance": lambda: r.rep.covariance()}
     before = {name: call() for name, call in calls.items()}
@@ -766,9 +837,9 @@ def test_hsp_table_shape(lin3g_undeclared):
         square.set_hop(t, 0, 0, lv)
     layer = tqg.realized_group(square)
     assert layer and layer.model is not square, str(layer)
-    labels = tqw.hsp_table(layer, bands=1).content
+    labels = tqw.hsp_table(layer, bands=1).symmetry_data
     square.set_hop(-0.7, 0, 0, [1, 0], mode="set")
-    assert tqw.hsp_table(layer, bands=1).content == labels
+    assert tqw.hsp_table(layer, bands=1).symmetry_data == labels
 
     # a crystal and a layer whose bonds are a parameter, its value given at the call
     for cell in (np.eye(3), np.eye(2)):
@@ -782,11 +853,11 @@ def test_hsp_table_shape(lin3g_undeclared):
         assert got.summary() == want.summary()
         assert got.operations.summary() == want.operations.summary()
         assert str(got.wyckoff_orbits) == str(want.wyckoff_orbits)
-        labels = tqw.hsp_table(got, bands=1).content
-        assert labels == tqw.hsp_table(want, bands=1).content
+        labels = tqw.hsp_table(got, bands=1).symmetry_data
+        assert labels == tqw.hsp_table(want, bands=1).symmetry_data
         assert got.numerical.source is named and got.model is not named
         named.set_onsite([0.5], mode="set")
-        assert tqw.hsp_table(got, bands=1).content == labels
+        assert tqw.hsp_table(got, bands=1).symmetry_data == labels
 
 
 def test_hsp_table_measures_a_point_whose_little_group_is_the_identity_alone():
@@ -806,10 +877,11 @@ def test_hsp_table_measures_a_point_whose_little_group_is_the_identity_alone():
                          validated=_measure._validate_group(m, group, nk=4), n_battery=3)
     assert rep, str(rep)
     table = tqw._hsp_table_rep(rep, bands=1)
-    assert table.complete and table.refusals == {} and set(table.content) == set(table.points)
-    assert table.counts == {f"{name}1": 1 for name in table.points}
+    assert (table.complete and table.refusals == {}
+            and set(table.multiplets) == set(table.kpoints))
+    assert table.symmetry_data == {f"{name}1": 1 for name in table.kpoints}
     rc = tqc.regular_completion(table, bands=2)
-    assert rc and rc.padding == table.counts, "one band of two, completed by one band"
+    assert rc and rc.padding == table.symmetry_data, "one band of two, completed by one band"
     assert rc.decomposition.solution_strings() == ("1 x A↑G(1)@1a(1,1)",)
 
 
@@ -845,24 +917,29 @@ def test_the_degeneracy_tolerance_is_an_argument_of_the_table(lin3g_undeclared):
     fine = tqw.characters(undeclared, k, states=(evals, evecs), bands=(0, 1, 2, 3))
     coarse = tqw.characters(undeclared, k, states=(evals, evecs), bands=(0, 1, 2, 3),
                             degeneracy_tol=4.0)
-    assert fine.multiplets == ((0, 1), (2, 3)) and fine.dims == (2, 2)
-    assert coarse.multiplets == ((0, 1, 2, 3),) and coarse.dims == (4,)
-    assert coarse.degeneracy_tol == 4.0
+    assert tuple(m.bands for m in fine.multiplets) == ((0, 1), (2, 3))
+    assert tuple(m.bands for m in coarse.multiplets) == ((0, 1, 2, 3),)
+    assert coarse.numerical.degeneracy_tol == 4.0
 
-    assert fine.spread == pytest.approx(0.0, abs=1e-13)
-    assert fine.thresholds.separation == pytest.approx(3.9751, abs=1e-3)
+    assert fine.numerical.spread == pytest.approx(0.0, abs=1e-13)
+    assert fine.numerical.thresholds.separation == pytest.approx(3.9751, abs=1e-3)
     # the unsafe grouping, in the two numbers that say so: the within-multiplet
     # spread is now the *same size* as the separation, not orders below it
-    assert coarse.spread == pytest.approx(3.9751, abs=1e-3)
-    assert coarse.thresholds.separation == pytest.approx(8.0501, abs=1e-3)
+    assert coarse.numerical.spread == pytest.approx(3.9751, abs=1e-3)
+    assert coarse.numerical.thresholds.separation == pytest.approx(8.0501, abs=1e-3)
 
     # the summaries print each multiplet's energy at the resolution it was grouped at:
     # a level at rounding of zero is at 0
-    content = tqw.corep_content(undeclared, k, states=(evals, evecs), bands=(0, 1, 2, 3))
-    at_zero = dataclasses.replace(content.table, energies=np.array([-1.388e-15, 1.0]))
-    assert dataclasses.replace(content, table=at_zero).summary().splitlines()[2].startswith(
+    content = tqw.coreps_at(undeclared, k, states=(evals, evecs), bands=(0, 1, 2, 3))
+    rows = tuple(dataclasses.replace(m, energy=e)
+                 for m, e in zip(content.multiplets, (-1.388e-15, 1.0)))
+    assert dataclasses.replace(content, multiplets=rows).summary().splitlines()[2].startswith(
         "    bands 0-1 at 0: ")
-    assert re.search(r"energy +0 +1   \(\.energies\)", at_zero.summary())
+    assert repr(rows[0]).startswith("Multiplet(GM, bands 0-1 at 0: ")
+    at_zero = dataclasses.replace(fine, multiplets=tuple(
+        dataclasses.replace(m, energy=e) for m, e in zip(fine.multiplets, (-1.388e-15, 1.0))))
+    assert re.search(r"energy +0 +1   \(\.multiplets: energy of each\)", at_zero.summary())
+    assert repr(at_zero.multiplets[0]).endswith(" at 0)")
 
 
 def test_the_band_set_is_one_keyword_and_the_record_reports_its_bands(lin3g_undeclared):
@@ -880,10 +957,12 @@ def test_the_band_set_is_one_keyword_and_the_record_reports_its_bands(lin3g_unde
     assert want.bands == (0, 1, 2, 3, 4, 5)
     assert tqw.hsp_table(undeclared, bands=[5, 4, 3, 2, 1, 0]).bands == want.bands
 
-    content = tqw.corep_content(undeclared, k, bands=6)
-    assert content.counts == want.content["GM"]
+    content = tqw.coreps_at(undeclared, k, bands=6)
+    assert content.coreps == coreps_by_point(want)["GM"]
+    assert content.multiplets == want.multiplets["GM"], "the same rows"
     table = tqw.characters(undeclared, k, bands=6)
-    assert table.bands == want.bands, "the same keyword on all three entry points"
+    assert table.bands == content.bands == want.bands, \
+        "the same keyword on all three entry points"
 
     # the band set is not optional
     with pytest.raises(TypeError, match="missing required argument"):
@@ -893,42 +972,37 @@ def test_the_band_set_is_one_keyword_and_the_record_reports_its_bands(lin3g_unde
 def test_the_label_tolerance_is_the_gate_the_labels_are_read_at(lin3g_undeclared):
     """``label_tol=`` is the dimensionless gate the adapter reads the labels at.
 
-    It says two things about one character table, and both are measured here on
-    the six-band block at Gamma -- three multiplets carrying two coreps.  The
-    multiplicities must be integers within it, and here they miss integrality
-    by a measured 1e-6 or so, two decades inside the default gate; set the gate
-    below that defect and the same content refuses (``integer_multiplicity``),
-    reporting the defect and the gate it was refused against.  And two rows
-    share a partition class when their character vectors agree within it: at a
-    gate far above the O(1) difference between these rows all three collapse
-    into one class, while the labels -- rounded, never gated -- stay exactly
-    what they were.  ``corep_content`` and the table over every high-symmetry
-    point take the same number under the same spelling, and read the same
-    labels at it.
+    Measured here on the six-band block at Gamma -- three multiplets carrying
+    two coreps.  The multiplicities must be integers within it, and here they
+    miss integrality by a measured 1e-6 or so, two decades inside the default
+    gate; set the gate below that defect and the same content refuses
+    (``integer_multiplicity``), reporting the defect and the gate it was
+    refused against.  At a gate far above it the labels -- rounded, never
+    gated -- stay exactly what they were.  ``coreps_at`` and the table over
+    every high-symmetry point take the same number under the same spelling,
+    and read the same labels at it.
     """
     undeclared = lin3g_undeclared
     group, rep = undeclared.group, undeclared.rep
     k = tqg.high_symmetry_points(group)["GM"]
 
-    fine = tqw.corep_content(undeclared, k, bands=6)
-    assert fine.counts == {"-GM6": 2, "-GM7": 1}
-    assert fine.partition == (0, 1, 0)
+    fine = tqw.coreps_at(undeclared, k, bands=6)
+    assert fine.coreps == {"-GM6": 2, "-GM7": 1}
 
-    defect = float(fine.content.integrality)
+    defect = float(fine.numerical.identification.integrality)
     assert 0.0 < defect < tqw.LABEL_TOL / 100.0, "integers, with decades to spare"
 
-    refused = tqw.corep_content(undeclared, k, bands=6, label_tol=defect / 2.0)
+    refused = tqw.coreps_at(undeclared, k, bands=6, label_tol=defect / 2.0)
     assert not refused and refused.gate == "integer_multiplicity"
     assert refused.threshold == defect / 2.0
     assert refused.value == pytest.approx(defect, rel=1e-9, abs=0)
 
-    coarse = tqw.corep_content(undeclared, k, bands=6, label_tol=10.0)
-    assert coarse.partition == (0, 0, 0), "every row agrees at a tolerance that big"
-    assert coarse.counts == fine.counts
+    coarse = tqw.coreps_at(undeclared, k, bands=6, label_tol=10.0)
+    assert coarse.coreps == fine.coreps and coarse.multiplets == fine.multiplets
     # one keyword on both entry points
     table = tqw.hsp_table(undeclared, bands=6, label_tol=10.0)
-    assert table.partitions["GM"] == coarse.partition
-    assert table.content["GM"] == coarse.counts
+    assert table.multiplets["GM"] == coarse.multiplets
+    assert coreps_by_point(table)["GM"] == coarse.coreps
 
 
 # ---------------------------------------------------------------------------
@@ -957,19 +1031,22 @@ def test_the_two_state_sources_agree(lin3g_undeclared, lin3g_wfarray):
 
     for name in ("GM", "M"):
         k = tqg.high_symmetry_points(group)[name]
-        by_model = tqw.corep_content(undeclared, k, bands=6)
-        by_wf = tqw.corep_content(undeclared, k, states=wf, bands=6)
+        by_model = tqw.coreps_at(undeclared, k, bands=6)
+        by_wf = tqw.coreps_at(undeclared, k, states=wf, bands=6)
         assert by_model and by_wf, (name, str(by_model), str(by_wf))
-        assert by_wf.counts == by_model.counts, name
-        assert by_wf.partition == by_model.partition, name
-        assert by_wf.labels == by_model.labels, name
-        assert by_wf.kpname == by_model.kpname == name
-        assert by_wf.table.columns == by_model.table.columns
-        assert np.abs(by_wf.table.characters - by_model.table.characters).max() < 1e-12
+        assert by_wf.coreps == by_model.coreps, name
+        assert pattern(by_wf.multiplets) == pattern(by_model.multiplets), name
+        assert ([m.corep_names for m in by_wf.multiplets]
+                == [m.corep_names for m in by_model.multiplets]), name
+        assert by_wf.kpoint == by_model.kpoint == name
+        rows_wf, rows_model = by_wf._characters.multiplets, by_model._characters.multiplets
+        assert [tuple(m.characters) for m in rows_wf] == [tuple(m.characters) for m in rows_model]
+        assert max(abs(a.characters[i] - b.characters[i])
+                   for a, b in zip(rows_wf, rows_model) for i in a.characters) < 1e-12
         for field in ("flat", "noise_floor", "effective", "norm", "separation",
                       "degeneracy_tol"):
-            assert getattr(by_wf.table.thresholds, field) == pytest.approx(
-                getattr(by_model.table.thresholds, field), rel=1e-12, abs=0), (name, field)
+            assert getattr(by_wf.numerical.thresholds, field) == pytest.approx(
+                getattr(by_model.numerical.thresholds, field), rel=1e-12, abs=0), (name, field)
 
         ind = next(i for i in rep.little_group(k)
                    if not rep._operation(i).time_reversal
@@ -978,14 +1055,14 @@ def test_the_two_state_sources_agree(lin3g_undeclared, lin3g_wfarray):
                        [[0, -1], [1, 0]]))
         a = tqw.sewing_matrix(undeclared, ind, k, bands=tuple(range(6)))
         b = tqw.sewing_matrix(undeclared, ind, k, states=wf, bands=tuple(range(6)))
-        assert np.abs(a.angles - b.angles).max() < 1e-12, name
-        assert b.unitarity <= by_wf.thresholds.effective
-        assert b.residual <= 1e-13
+        assert np.abs(angles(a) - angles(b)).max() < 1e-12, name
+        assert b.numerical.unitarity <= by_wf.numerical.thresholds.effective
+        assert b.numerical.residual <= 1e-13
 
     # the whole table too, through the WFArray
     by_wf = tqw.hsp_table(undeclared, states=wf, bands=6)
     assert by_wf.complete, by_wf.refusals
-    assert by_wf.content == tqw.hsp_table(undeclared, bands=6).content
+    assert by_wf.symmetry_data == tqw.hsp_table(undeclared, bands=6).symmetry_data
 
 
 def test_a_feature_sector_wfarray_sews(lin3g_undeclared):
@@ -1029,18 +1106,19 @@ def test_a_feature_sector_wfarray_sews(lin3g_undeclared):
     assert sw.matrix.shape == (3, 3) == (wfa_plus.nstates, wfa_plus.nstates)
     assert np.all(np.isfinite(sw.matrix))
     assert sw.bands == (0, 1, 2)
-    assert np.isnan(sw.residual), "a sector WFArray carries states, not a spectrum"
-    assert sw.commutator <= tqw.FLAT_ZERO
+    assert np.isnan(sw.numerical.residual), "a sector WFArray carries states, not a spectrum"
+    assert sw.numerical.commutator <= tqw.FLAT_ZERO
     fiber_roundoff = 100 * _ULP * sw.matrix.shape[0]      # 6.7e-14 for a 3-state fiber
-    assert sw.unitarity <= fiber_roundoff, \
-        f"the P+ sector is C4-closed: {sw.unitarity:.3e}"
+    assert sw.numerical.unitarity <= fiber_roundoff, \
+        f"the P+ sector is C4-closed: {sw.numerical.unitarity:.3e}"
 
     # which operations the sector is closed under, measured (no corep claim)
     closure = {}
     for ind in rep.little_group(k):
         if rep._operation(ind).time_reversal:
             continue
-        closure[int(ind)] = tqw.sewing_matrix(undeclared, ind, k, states=wfa_plus).unitarity
+        closure[int(ind)] = tqw.sewing_matrix(undeclared, ind, k,
+                                              states=wfa_plus).numerical.unitarity
     rotations = {i for i in closure
                  if abs(np.linalg.det(np.asarray(rep._operation(i).rotation)) - 1) < 1e-9}
     assert len(rotations) == 4 and len(closure) == 8
@@ -1049,7 +1127,7 @@ def test_a_feature_sector_wfarray_sews(lin3g_undeclared):
 
     # ... and the same on the P- sector, so the smoke test is not a one-sided accident
     minus = tqw.sewing_matrix(undeclared, c4, k, states=wfa_minus)
-    assert minus.matrix.shape == (3, 3) and minus.unitarity <= fiber_roundoff
+    assert minus.matrix.shape == (3, 3) and minus.numerical.unitarity <= fiber_roundoff
 
 
 def test_module_surface():
@@ -1058,7 +1136,7 @@ def test_module_surface():
     from pythtqc import spin as tqsp
     from pythtqc import symmetrization as tqsym
 
-    for name in ("sewing_matrix", "characters", "corep_content", "hsp_table",
+    for name in ("sewing_matrix", "characters", "coreps_at", "hsp_table",
                  "two_tier_thresholds", "disagreements",
                  "multiplets", "multiplet_separation", "multiplet_spread",
                  "FLAT_ZERO", "DEGENERACY_TOL"):
@@ -1066,16 +1144,25 @@ def test_module_surface():
     # `tqc.sewing` is the module (exactly as `tqc.groups` is), and `sewing_matrix`
     # is re-exported at package level
     assert tqc.sewing is tqw
-    for name in ("sewing_matrix", "characters", "corep_content", "hsp_table", "multiplets",
-                 "SewingMatrix", "CharacterTable", "CorepContent", "HSPTable"):
+    for name in ("sewing_matrix", "characters", "coreps_at", "hsp_table", "multiplets",
+                 "format_coreps", "SewingMatrix", "BandCharacters", "CorepsAt", "HSPTable"):
         assert getattr(tqc, name) is getattr(tqw, name), name
         assert name in tqc.__all__, name
-    # the threshold contract and the multiplet measures are the module's own,
-    # reached through `pythtqc.sewing`: the top level carries what the documents
-    # teach
+    assert tqc.CorepIdentification is tqg.CorepIdentification
+    # the threshold contract, the multiplet measures and the rows and numerical
+    # parts of the records are the module's own, reached through
+    # `pythtqc.sewing`: the top level carries what the documents teach
     for name in ("two_tier_thresholds", "disagreements", "multiplet_separation",
-                 "multiplet_spread", "FLAT_ZERO", "DEGENERACY_TOL", "Thresholds"):
+                 "multiplet_spread", "FLAT_ZERO", "DEGENERACY_TOL", "Thresholds",
+                 "Multiplet", "MultipletCharacters", "CorepsAtNumerical",
+                 "BandCharactersNumerical", "SewingMatrixNumerical"):
         assert not hasattr(tqc, name) and name not in tqc.__all__, name
+    for name in ("Multiplet", "MultipletCharacters", "CorepsAtNumerical",
+                 "BandCharactersNumerical", "SewingMatrixNumerical"):
+        assert name in tqw.__all__, name
+    for name in ("corep_content", "format_counts", "CharacterTable", "CorepContent",
+                 "IrrepContent"):
+        assert not hasattr(tqc, name) and not hasattr(tqw, name), name
     assert tqw.FLAT_ZERO == 1e-14 and tqw.DEGENERACY_TOL == 1e-8
 
     # the spinor-basis declaration: `tqc.spin_basis`, `tqc.SpinBasis`, the spin

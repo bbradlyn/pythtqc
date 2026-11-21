@@ -1451,49 +1451,75 @@ class SpaceGroupRep:
                 "representation describes the model as it was: call realized_group on the "
                 "edited model and label its bands through what it returns.")
 
-    def k_action(self, ind):
-        """One operation's action on the model's reduced ``k``, ``k → Rk``, as a function: the image not folded back into the zone."""
-        return self._group._k_action_of(self._operation(ind))
+    def _kpoint(self, call, k):
+        """``k`` as coordinates, a tabulated name read as the coordinates :func:`..groups.high_symmetry_points` gives it, or the refusal ``out_of_plane`` for a name out of a layer's plane."""
+        return _tables._resolve_kpoint(call, self._group, k)
 
     def transform_k(self, ind, k):
-        """The image of ``k`` under one operation, not folded back into the zone."""
+        """The image of ``k``, a tabulated name or reduced coordinates, under one operation: ``Rk``, not folded back into the zone."""
+        k = self._kpoint("transform_k", k)
+        if isinstance(k, Refusal):
+            return k
         k = np.atleast_2d(np.asarray(k, dtype=float))
-        return self.k_action(ind)(k)
+        return self._group._k_action_of(self._operation(ind))(k)
 
-    def in_little_group(self, ind, k, *, atol=1e-8):
+    def in_little_group(self, ind, k, *, _atol=1e-8):
         """``(member, G)``: whether the operation carries ``k`` to itself up to a reciprocal lattice vector, and that vector, ``G = Rk − k``.
 
-        ``G`` is the ``k' − k_out`` :meth:`bloch_operator` folds back at ``k``.
+        ``k`` is a tabulated name or reduced coordinates.  ``G`` is the
+        ``k' − k_out`` :meth:`bloch_operator` folds back at ``k``.
         """
+        k = self._kpoint("in_little_group", k)
+        if isinstance(k, Refusal):
+            return k
         k = np.asarray(k, dtype=float).reshape(-1)
         kp = self.transform_k(ind, k)[0]
         G = kp - k
-        return bool(np.abs(G - np.rint(G)).max() <= atol), np.rint(G).astype(int)
+        return bool(np.abs(G - np.rint(G)).max() <= _atol), np.rint(G).astype(int)
 
-    def little_group(self, k, *, atol=1e-8):
-        """The operations represented that carry ``k`` to itself up to a reciprocal lattice vector, by index."""
+    def little_group(self, k, *, _atol=1e-8):
+        """The operations represented that carry ``k``, a tabulated name or reduced coordinates, to itself up to a reciprocal lattice vector, by index."""
+        k = self._kpoint("little_group", k)
+        if isinstance(k, Refusal):
+            return k
         return tuple(ind for ind in self._indices
-                     if self.in_little_group(ind, k, atol=atol)[0])
+                     if self.in_little_group(ind, k, _atol=_atol)[0])
 
     def bloch_operator(self, ind, k, *, k_out=None, **kwargs):
-        """One operation's Bloch operator at ``k``, by index: :func:`bloch_operator` on this representation."""
+        """One operation's Bloch operator at ``k``, by index: :func:`bloch_operator` on this representation.
+
+        ``k`` and ``k_out`` are tabulated names or reduced coordinates.
+        """
+        k = self._kpoint("bloch_operator", k)
+        if isinstance(k, Refusal):
+            return k
+        if k_out is not None:
+            k_out = self._kpoint("bloch_operator", k_out)
+            if isinstance(k_out, Refusal):
+                return k_out
         return bloch_operator(self._model, self._group, self._assignment,
                               self._operation(ind), self.matrices[int(ind)], k,
                               k_out=k_out, **kwargs)
 
-    def sewing_operator(self, ind, k, *, atol=1e-8, **kwargs):
+    def sewing_operator(self, ind, k, *, _atol=1e-8, **kwargs):
         """The Bloch operator of an operation that leaves ``k`` invariant, folded back to ``k``.
 
-        It commutes with ``H(k)``, and between the eigenvectors of a set of
-        bands it is the sewing matrix of that set.
+        ``k`` is a tabulated name or reduced coordinates.  The operator
+        commutes with ``H(k)``, and between the eigenvectors of a set of bands
+        it is the sewing matrix of that set.
 
         Refusals
         --------
         ``little_group``
             the operation does not carry ``k`` to itself up to a reciprocal
             lattice vector.
+        ``out_of_plane``
+            ``k`` names a tabulated point out of a layer's plane.
         """
-        ok, G = self.in_little_group(ind, k, atol=atol)
+        k = self._kpoint("sewing_operator", k)
+        if isinstance(k, Refusal):
+            return k
+        ok, G = self.in_little_group(ind, k, _atol=_atol)
         if not ok:
             kp = self.transform_k(ind, np.asarray(k, dtype=float).reshape(-1))[0]
             return Refusal(
@@ -1503,29 +1529,30 @@ class SpaceGroupRep:
                 "vector: it has no sewing operator there.",
                 value=float(np.abs(kp - np.asarray(k, float).reshape(-1)
                                    - np.rint(kp - np.asarray(k, float).reshape(-1))).max()),
-                threshold=atol, context={"operation_ind": int(ind), "k": np.asarray(k, float)})
+                threshold=_atol, context={"operation_ind": int(ind), "k": np.asarray(k, float)})
         return self.bloch_operator(ind, k, k_out=np.asarray(k, dtype=float).reshape(-1),
                                    **kwargs)
 
-    def covariance(self, k_pts=None):
+    def covariance(self, kpoints=None):
         """``{index: max_k ‖D H(k) D† − H(Rk)‖}``, each operation's covariance measured again, in the units of ``H``.
 
-        On ``k_pts``, or by default at the ``k`` the representation was built
-        at.
+        At ``kpoints``, an array of reduced coordinates, a row each, or by
+        default at the k-points the representation was built at.
 
         Raises
         ------
         ValueError
             ``r.model`` edited since the representation was measured on it.
         """
-        k_pts = self._battery if k_pts is None else np.atleast_2d(np.asarray(k_pts, float))
+        kpoints = (self._battery if kpoints is None
+                   else np.atleast_2d(np.asarray(kpoints, float)))
         bloch = _bloch.evaluator(self._model)
         self._check_unedited(bloch)
-        H = np.asarray(bloch(k_pts))
+        H = np.asarray(bloch(kpoints))
         out = {}
         for ind in self._indices:
             op = self._operation(ind)
-            Hr = np.asarray(bloch(self.transform_k(ind, k_pts)))
+            Hr = np.asarray(bloch(self.transform_k(ind, kpoints)))
             D = self.matrices[int(ind)]
             src = H.conj() if op.time_reversal else H
             out[int(ind)] = float(np.abs(D @ src @ D.conj().T - Hr).max())

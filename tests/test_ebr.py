@@ -186,7 +186,7 @@ def test_lin3g_P6_decomposes_and_the_raw_passthrough_refuses(lin3g_declared_cros
     table = tqw.hsp_table(record, bands=P6)
     assert table.complete, table.refusals
     # measured content, phase A3 (docs/guide/atomic-limits.md)
-    assert table.counts == {"-GM6": 2, "-GM7": 1, "-M6": 1, "-M7": 2, "-X5": 3}
+    assert table.symmetry_data == {"-GM6": 2, "-GM7": 1, "-M6": 1, "-M7": 2, "-X5": 3}
 
     d = tqe.decompose(table, group, rep=rep, bands=6)
     assert d.verdict == "symmetry-indicated decomposable" and d.solutions
@@ -205,7 +205,7 @@ def test_lin3g_P6_decomposes_and_the_raw_passthrough_refuses(lin3g_declared_cros
                                           ("1a", "1a", "1b")])
 
     # the contrast: the thin passthrough, on the same numbers
-    raw = tqg.decompose_ebrs(group, table.counts)
+    raw = tqg.decompose_ebrs(group, table.symmetry_data)
     assert isinstance(raw, Refusal) and not raw
     assert raw.gate == "incomplete_content"
     assert raw.context["missing_points"] == ("A", "R", "Z")
@@ -233,11 +233,11 @@ def test_lin3g_P2_is_exactly_the_1b_row_directly_and_as_a_difference(
     t6 = tqw.hsp_table(record, bands=P6)
     t4 = tqw.hsp_table(record, bands=list(P4))
     t2 = tqw.hsp_table(record, bands=list(P2))
-    assert t2.counts == {"-GM6": 1, "-M7": 1, "-X5": 1}       # measured, phase A3
-    assert t4.counts == _in_plane(group, _row(group, "2c")[1]), "P4 is the 2c row"
+    assert t2.symmetry_data == {"-GM6": 1, "-M7": 1, "-X5": 1}       # measured, phase A3
+    assert t4.symmetry_data == _in_plane(group, _row(group, "2c")[1]), "P4 is the 2c row"
 
     diff = tqe.subtract(t6, t4)
-    assert diff == t2.counts, "P2 = [P6] - [P4]"
+    assert diff == t2.symmetry_data, "P2 = [P6] - [P4]"
     bad = tqe.subtract(t4, t6)
     assert isinstance(bad, Refusal) and bad.gate == "negative_multiplicity"
     assert list(bad.context["negative"].items()) == [("-GM6", -1), ("-M7", -1), ("-X5", -1)]
@@ -257,7 +257,7 @@ def test_lin3g_P2_is_exactly_the_1b_row_directly_and_as_a_difference(
     assert set(tqe.WannierCaveat.__dataclass_fields__) == {"text"}
     with pytest.raises(TypeError):
         tqe.decompose(t2, group, rep=rep, bands=list(P2), winding_certificate={})
-    assert {lab: v for lab, v in t2.counts.items()} == _in_plane(group, row)
+    assert {lab: v for lab, v in t2.symmetry_data.items()} == _in_plane(group, row)
 
 
 def test_lin3g_P2_and_Q2_sum_to_the_1a_pair_but_neither_half_is_one(
@@ -271,8 +271,8 @@ def test_lin3g_P2_and_Q2_sum_to_the_1a_pair_but_neither_half_is_one(
     """
     record = lin3g_declared_cross_checked
     model, group, rep = record.model, record.group, record.rep
-    p2 = tqw.hsp_table(record, bands=list(P2)).counts
-    q2 = tqw.hsp_table(record, bands=list(Q2)).counts
+    p2 = tqw.hsp_table(record, bands=list(P2)).symmetry_data
+    q2 = tqw.hsp_table(record, bands=list(Q2)).symmetry_data
     assert q2 == {"-GM7": 1, "-M6": 1, "-X5": 1}              # measured, phase A3
     total = {lab: p2.get(lab, 0) + q2.get(lab, 0) for lab in set(p2) | set(q2)}
 
@@ -314,7 +314,7 @@ def test_lin3g_regular_completion_to_eight_bands(lin3g_declared_cross_checked):
     assert rc, str(rc)
     assert (rc.copies, rc.bands_per_copy) == (1, 8)
     assert rc.padding == {"-GM7": 1, "-M6": 1, "-X5": 1}
-    assert rc.padding == tqw.hsp_table(record, bands=list(Q2)).counts
+    assert rc.padding == tqw.hsp_table(record, bands=list(Q2)).symmetry_data
     assert rc.decomposition.unique
     assert rc.decomposition.terms == (((1, "-E1↑G(2)", "1b(4mm1',4mm)"),),)
 
@@ -389,7 +389,7 @@ def test_kane_mele_deep_atomic_limit_lands_on_the_occupied_site():
     assert assignment.wyckoff_spglib[assignment.orbit_of_orbital[1]] == "b"
 
     table = tqw.hsp_table(out, bands=2)
-    assert table.complete and table.counts == {"-GM6": 1, "-K4": 1, "-K5": 1,
+    assert table.complete and table.symmetry_data == {"-GM6": 1, "-K4": 1, "-K5": 1,
                                                "-M3M4": 1}
     d = tqe.decompose(table, group, rep=rep, bands=2)
     assert d.verdict == "symmetry-indicated decomposable" and d.unique
@@ -439,7 +439,7 @@ def test_pwv_valence_is_the_1a_EBR_and_the_conduction_pair_is_a_none(pwv_realize
 
     valence = tqw.hsp_table(pwv_realized, bands=2)
     assert valence.complete
-    assert valence.counts == {"-GM9": 1, "-K6": 1, "-M5": 1}
+    assert valence.symmetry_data == {"-GM9": 1, "-K6": 1, "-M5": 1}
     dv = tqe.decompose(valence, group, rep=rep, bands=2)
     assert dv.verdict == "symmetry-indicated decomposable" and dv.unique
     assert dv.positions == (("1a",),)
@@ -447,7 +447,7 @@ def test_pwv_valence_is_the_1a_EBR_and_the_conduction_pair_is_a_none(pwv_realize
 
     conduction = tqw.hsp_table(pwv_realized, bands=(2, 3))
     assert conduction.complete
-    assert conduction.counts == {"-GM8": 1, "-K4": 1, "-K5": 1, "-M5": 1}
+    assert conduction.symmetry_data == {"-GM8": 1, "-K4": 1, "-K5": 1, "-M5": 1}
     dc = tqe.decompose(conduction, group, rep=rep, bands=(2, 3))
     assert dc.verdict == "none" and dc.solutions == ()
     assert dc.bound == 1 and dc.bound_is_rigorous
@@ -504,7 +504,7 @@ def test_a_deliberately_dropped_point_is_refused_and_the_override_downgrades_the
     group, rep = fkm_undistorted.group, fkm_undistorted.rep
     assert group.number_str == "227.129"
     full = tqw.hsp_table(fkm_undistorted, bands=4)
-    assert full.complete and "W" in full.content
+    assert full.complete and "W" in full.multiplets
     restriction = tqe.in_plane_restriction(group)
     assert restriction and not restriction.applied and restriction.dropped == ()
     assert tqe.decompose(full, group, rep=rep, bands=4).completeness["claim"] == "exact"
@@ -513,13 +513,13 @@ def test_a_deliberately_dropped_point_is_refused_and_the_override_downgrades_the
                       value=0.5, threshold=1e-3, context={"kpname": "W"})
     holed = dataclasses.replace(
         full,
-        content={k: v for k, v in full.content.items() if k != "W"},
-        partitions={k: v for k, v in full.partitions.items() if k != "W"},
-        records={k: v for k, v in full.records.items() if k != "W"},
+        multiplets={k: v for k, v in full.multiplets.items() if k != "W"},
+        _records={k: v for k, v in full._records.items() if k != "W"},
         refusals={"W": dropped},
-        counts={lab: v for lab, v in full.counts.items() if not lab.startswith("-W")},
+        symmetry_data={lab: v for lab, v in full.symmetry_data.items()
+                       if not lab.startswith("-W")},
         complete=False)
-    assert holed.counts == {"-GM6": 1, "-GM9": 1, "-L8": 1, "-L9": 1, "-X5": 1}
+    assert holed.symmetry_data == {"-GM6": 1, "-GM9": 1, "-L8": 1, "-L9": 1, "-X5": 1}
 
     gated = tqe.decompose(holed, group, rep=rep)
     assert isinstance(gated, Refusal) and gated.gate == "incomplete_content"
@@ -574,7 +574,7 @@ def test_content_of_takes_a_table_or_a_mapping_and_refuses_nonsense(
     record = lin3g_declared_cross_checked
     model, group, rep = record.model, record.group, record.rep
     table = tqw.hsp_table(record, bands=P6)
-    assert tqe.content_of(table) == tqe.content_of(table.counts) == table.counts
+    assert tqe.content_of(table) == tqe.content_of(table.symmetry_data) == table.symmetry_data
     assert tqe.content_of({"-GM6": 2, "-GM7": 0}) == {"-GM6": 2}
     assert tqe.content_of({"-GM6": -1}).gate == "negative_multiplicity"
     assert tqe.content_of({"-GM6": 0.5}).gate == "non_integer_multiplicity"
@@ -890,7 +890,7 @@ def test_kane_mele_z2_is_not_eigenvalue_indicated_in_its_realized_group(km191_re
     rep, group = km191_realized.rep, km191_realized.group
     assert group.number_str == "183.186"
 
-    si = tqe.symmetry_indicator(dict(tqw.hsp_table(km191_realized, bands=2).counts), group,
+    si = tqe.symmetry_indicator(dict(tqw.hsp_table(km191_realized, bands=2).symmetry_data), group,
                                 bands=2)
     assert si, str(si)
     assert si.verdict == "trivial indicator group"
@@ -1129,8 +1129,8 @@ def test_a_pure_2D_layer_reaches_the_layer_class_by_measuring_its_own_stack(
     assert layer.group.number_str == "183.186" and layer.group._dim_k == 2
     assert len(layer.numerical.validated._indices) == 24 == layer.group._size
     content = tqw.hsp_table(layer, bands=2)
-    assert content.complete and sorted(content.points) == ["GM", "K", "M"]
-    assert dict(content.counts) == {"-GM9": 1, "-K6": 1, "-M5": 1}, "#183's own language"
+    assert content.complete and sorted(content.kpoints) == ["GM", "K", "M"]
+    assert dict(content.symmetry_data) == {"-GM9": 1, "-K6": 1, "-M5": 1}, "#183's own language"
 
     # on a substrate that is the whole answer: no stack is built, and the
     # free-standing layer's group is the one realized_group measured beside it,
@@ -1154,7 +1154,7 @@ def test_a_pure_2D_layer_reaches_the_layer_class_by_measuring_its_own_stack(
     assert free, str(free)
     assert free.group.number_str == "191.234" and len(free.numerical.validated._indices) == 48
     free_content = tqw.hsp_table(free, bands=2)
-    assert dict(free_content.counts) == {"-GM9": 1, "-K8": 1, "-M6": 1}
+    assert dict(free_content.symmetry_data) == {"-GM9": 1, "-K8": 1, "-M6": 1}
     si = tqe.symmetry_indicator(free_content, free.group, rep=free.rep, bands=2)
     assert si, str(si)
     assert si.number_str == "191.234" and si.structure == "Z6 x Z12"
@@ -1253,7 +1253,7 @@ def test_the_declared_slab_reaches_the_same_class_through_the_layer_route(monkey
     assert len(slab.rep._indices) == 48
 
     content = tqw.hsp_table(slab, bands=2)
-    assert content.complete and dict(content.counts) == {"-GM9": 1, "-K8": 1, "-M6": 1}
+    assert content.complete and dict(content.symmetry_data) == {"-GM9": 1, "-K8": 1, "-M6": 1}
     assert tqe.in_plane_restriction(slab.group, require_exact=False).orphans, \
         "10 orphan rows"
 
@@ -1291,7 +1291,7 @@ def test_the_declared_slab_reaches_the_same_class_through_the_layer_route(monkey
 
     # `points=` is an instruction about what the model may be asked, and it is
     # obeyed: the stack is not built and the honest refusal comes back.
-    held = tqe.symmetry_indicator(dict(content.counts), slab.group, rep=slab.rep,
+    held = tqe.symmetry_indicator(dict(content.symmetry_data), slab.group, rep=slab.rep,
                                   points=("GM", "K", "M"))
     assert isinstance(held, Refusal) and held.gate == "indicator_not_evaluable"
     assert held.context["stack"] is None
@@ -1553,7 +1553,7 @@ def test_a_layer_whose_own_group_can_answer_never_builds_the_stack():
     # (6) so the class is served in the group that was handed in, and no stack
     # was ever built
     content = tqw.hsp_table(realized, bands=1)
-    assert content.complete and sorted(content.points) == ["GM", "M", "X"]
+    assert content.complete and sorted(content.kpoints) == ["GM", "M", "X"]
     si = tqe.symmetry_indicator(content, group, rep=rep, bands=1)
     assert si, str(si)
     assert si.completion is None, "the layer's own group answered; nothing was stacked"
@@ -1592,17 +1592,17 @@ def test_a_layer_whose_own_group_can_answer_never_builds_the_stack():
         assert got, str(got)
         assert (got.group.number_str, got.group.name) == ("143", "P3")
         lowest = tqw.hsp_table(got, bands=1)
-        assert lowest.complete and list(lowest.points) == ["GM", "K", "KA", "M"]
-        assert lowest.counts == ({"GM1": 1, "K2": 1, "KA3": 1, "M1": 1} if c > 0
-                                 else {"GM1": 1, "K3": 1, "KA2": 1, "M1": 1})
+        assert lowest.complete and list(lowest.kpoints) == ["GM", "K", "KA", "M"]
+        assert lowest.symmetry_data == ({"GM1": 1, "K2": 1, "KA3": 1, "M1": 1} if c > 0
+                                        else {"GM1": 1, "K3": 1, "KA2": 1, "M1": 1})
         none = tqe.decompose(lowest, got.group, rep=got.rep)
         assert none.verdict == "none" and none.restriction.exact
-        assert tqe.decompose(dict(lowest.counts), got.group).y == none.y, \
+        assert tqe.decompose(dict(lowest.symmetry_data), got.group).y == none.y, \
             "the table's own vector, handed on as a mapping, reads as the table"
         si = tqe.symmetry_indicator(lowest, got.group, rep=got.rep)
         assert round(_chern(hal)) == c and si.completion is None
         assert (si.structure, si.values) == ("Z3", ((-c) % 3,))
-        assert tqe.symmetry_indicator(dict(lowest.counts), got.group).values == si.values
+        assert tqe.symmetry_indicator(dict(lowest.symmetry_data), got.group).values == si.values
         rc = tqe.regular_completion(lowest, bands=3)
         assert rc and rc.padding["M1"] == 2 and rc.decomposition.solutions == (), \
             "the two bands that complete a Chern band are no atomic limit either"
@@ -1763,9 +1763,10 @@ def test_points_or_bands_that_contradict_the_table_raise_rather_than_being_overr
     contradiction is a malformed argument and is raised.  Naming the same set
     is no contradiction and changes nothing.
 
-    And it holds for the group and the representation: a table carries the
-    representation it was read with as ``rep``, so a group or a ``rep=`` handed
-    in beside it that is not the table's own is a contradiction and is raised.
+    And it holds for the group and the representation: a table carries its own
+    group as ``group``, and the representation it was read with, so a group or
+    a ``rep=`` handed in beside it that is not the table's own is a
+    contradiction and is raised.
     Another record of the same group written in the same cell is the same
     group, and the same labelling reached by declaration and by the
     lowest-angular-momentum rule is one representation; graphene declared
@@ -1783,7 +1784,7 @@ def test_points_or_bands_that_contradict_the_table_raise_rather_than_being_overr
     record = lin3g_declared_cross_checked
     model, group, rep = record.model, record.group, record.rep
     table = tqw.hsp_table(record, bands=P6)
-    assert sorted(table.content) == ["GM", "M", "X"]
+    assert sorted(table.multiplets) == ["GM", "M", "X"]
 
     for call in (tqe.decompose, tqe.symmetry_indicator):
         with pytest.raises(ValueError) as exc:
@@ -1811,7 +1812,7 @@ def test_points_or_bands_that_contradict_the_table_raise_rather_than_being_overr
     assert tqe.symmetry_indicator(table, group, rep=rep, bands=(5, 4)).n_bands == 2, \
         "the block is a set of bands, not an order"
 
-    assert table.rep is rep, "the table carries the representation it was read with"
+    assert table._rep is rep, "the table carries the representation it was read with"
     alone = tqe.decompose(table)                      # read in the group the table carries
     assert alone.terms == agreed.terms and alone.n_bands == 2, \
         "handed nothing else, a table is read in its own group"
@@ -1823,8 +1824,8 @@ def test_points_or_bands_that_contradict_the_table_raise_rather_than_being_overr
     assert tqe.regular_completion(table, bands=8).padding == \
         tqe.regular_completion(table, group, rep=rep, bands=8).padding
     with pytest.raises(TypeError) as exc:
-        tqe.decompose(dict(table.counts))             # written out by hand: no group to read in
-    assert "'group'" in str(exc.value) and "t.rep" in str(exc.value), \
+        tqe.decompose(dict(table.symmetry_data))     # written out by hand: no group to read in
+    assert "'group'" in str(exc.value) and "t.group" in str(exc.value), \
         "the message names the missing argument and where a table carries it"
     even = realized(_graphene_even)                            # A1 at 2b, by the rule
     other = realized(_graphene_even, characters={0: "A2"})     # the same group, relabelled
@@ -1832,7 +1833,8 @@ def test_points_or_bands_that_contradict_the_table_raise_rather_than_being_overr
     t_even = tqw.hsp_table(even, bands=2)             # both bands: they touch at K
     with pytest.raises(ValueError) as exc:
         tqe.symmetry_indicator(t_even, even.group, rep=other.rep)
-    assert "t.rep" in str(exc.value), "the message names the table's own representation"
+    assert "which the table carries" in str(exc.value), \
+        "the message names the table's own representation"
     assert tqe.decompose(t_even, other.group, rep=even.rep), \
         "another record of the same group in the same cell is the same group"
     elsewhere = p4232_descended.group         # another group altogether

@@ -245,7 +245,7 @@ from, so its rows out of the plane go unmeasured:
 ```python
 print(tqc.symmetry_indicator({"-GM6": 1, "-M6": 1, "-X5": 2}, r.group).gate)
 #  not_a_band_structure
-print(tqc.symmetry_indicator(dict(t_free.counts), free.group).gate)
+print(tqc.symmetry_indicator(dict(t_free.symmetry_data), free.group).gate)
 #  indicator_not_evaluable
 ```
 

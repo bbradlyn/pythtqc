@@ -282,7 +282,7 @@ def test_the_dimerized_chain_descends_to_the_bond_centred_p4mmm(dimerized):
 
 @pytest.mark.slow
 def test_the_tables_served_are_the_descended_groups(dimerized):
-    """``corep_content`` at Γ and X reads the descended group's own page.
+    """``coreps_at`` at Γ and X reads the descended group's own page.
 
     The point of the wave: the supergroup's tables would have labelled a folded
     zone, and these are the tables of the group on the model's own lattice.  The
@@ -293,10 +293,10 @@ def test_the_tables_served_are_the_descended_groups(dimerized):
     assert not isinstance(hsp, Refusal), str(hsp)
     for point, counts in (("GM", {"GM1+": 1, "GM3-": 1}), ("X", {"X1+": 1, "X2-": 1})):
         k = np.asarray(hsp[point])
-        out = tqsew.corep_content(dimerized, k,
+        out = tqsew.coreps_at(dimerized, k,
                                   states=tqsew.solve_at(dimerized.model, k), bands=2)
         assert not isinstance(out, Refusal), str(out)
-        assert dict(out.counts) == counts, point
+        assert dict(out.coreps) == counts, point
 
 
 @pytest.mark.slow
@@ -741,7 +741,7 @@ def test_every_table_entry_point_propagates_a_refusal_handed_in():
     entry_points = dict(
         _TABLE_CONSUMERS,
         characters=lambda x: tqsew.characters(x, [0, 0, 0], bands=1),
-        corep_content=lambda x: tqsew.corep_content(x, [0, 0, 0], bands=1),
+        coreps_at=lambda x: tqsew.coreps_at(x, [0, 0, 0], bands=1),
         hsp_table=lambda x: tqsew.hsp_table(x, bands=1))
     assert len(entry_points) == 13
     for name, call in entry_points.items():

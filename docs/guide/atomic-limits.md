@@ -30,11 +30,11 @@ t = tqc.hsp_table(r, bands=6)                      # the six lowest bands
 d = tqc.decompose(t)
 print(d.summary())
 #  symmetry-indicated decomposable: 3 sums of elementary band representations carry this content   (.verdict)
-#    the coreps at the high-symmetry points: 2×-GM6 + -GM7 + -M6 + 2×-M7 + 3×-X5   (.content)
+#    the coreps at the high-symmetry points: 2x-GM6 + -GM7 + -M6 + 2x-M7 + 3x-X5   (.content)
 #    every sum, each elementary band representation written as the site irrep inducing it at its Wyckoff position (site symmetry)   (.terms)
 #      -E2 at 1b (4mm) + -E at 2c (mm2)
 #      -E1 at 1a (4mm) + -E2 at 1a (4mm) + -E2 at 1b (4mm)
-#      -E1 at 1b (4mm) + 2×-E2 at 1b (4mm)
+#      -E1 at 1b (4mm) + 2x-E2 at 1b (4mm)
 #    A, R and Z lie out of the layer's plane: every corep there occurs in every elementary band representation as often as a measured one, so the verdict is exact   (.restriction, .completeness)
 #    some site irreps were assigned by the lowest-angular-momentum rule: a different declared content renames them in these sums, while the Wyckoff positions stay   (.site_content, .positions)
 #    necessary for an atomic limit, never sufficient: an obstruction beyond symmetry indicators can survive it   (.caveat)
@@ -52,7 +52,7 @@ the field that holds it:
   atomic limit must lie beyond what symmetry indicators see. Three sums were
   found.
 - The coreps at the high-symmetry points are the symmetry data vector decomposed,
-  `t.counts` of the six bands.
+  `t.symmetry_data` of the six bands.
 - Each line under `every sum` is one solution: the orbitals an atomic limit with
   this content would be built from. `-E2 at 1b (4mm)` is the two-band EBR of the
   site corep `-E2` at Wyckoff `1b`, whose site group is `4mm`. The three
@@ -140,9 +140,9 @@ print(tqc.completeness_check(t))
 rc = tqc.regular_completion(t, bands=8)
 print(rc.bands_per_copy, rc.regular)
 #  8 {'-GM6': 2, '-GM7': 2, '-M6': 2, '-M7': 2, '-X5': 4}
-print(tqc.format_counts(rc.padding), rc.decomposition.solution_strings())
+print(tqc.format_coreps(rc.padding), rc.decomposition.solution_strings())
 #  -GM7 + -M6 + -X5 ("1 x -E1↑G(2)@1b(4mm1',4mm)",)
-print(rc.padding == tqc.hsp_table(r, bands=[6, 7]).counts)
+print(rc.padding == tqc.hsp_table(r, bands=[6, 7]).symmetry_data)
 #  True
 print(tqc.regular_completion(t, bands=6).gate)
 #  not_a_regular_multiple
@@ -168,7 +168,7 @@ them:
 
 ```python
 pair = tqc.hsp_table(r, bands=[4, 5])              # the two bands below the gap
-print(tqc.subtract(t, tqc.hsp_table(r, bands=[0, 1, 2, 3])) == pair.counts)
+print(tqc.subtract(t, tqc.hsp_table(r, bands=[0, 1, 2, 3])) == pair.symmetry_data)
 #  True
 d_pair = tqc.decompose(pair)
 print(d_pair.verdict, d_pair.solution_strings(), d_pair.caveat)

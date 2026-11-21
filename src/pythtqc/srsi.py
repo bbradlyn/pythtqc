@@ -209,7 +209,7 @@ def srsi_of_bands(content, group=None, *, rep=None, points=None,
     ValueError
         ``bands=`` names other bands than the content was measured on, or the
         group or ``rep=`` handed in beside a table is not the one it was read
-        in, which it carries as ``t.rep``.
+        in, which it carries as ``t.group``.
 
     Refusals
     --------
@@ -584,7 +584,7 @@ def _orbit_contents(group, rep, blocks):
             if isinstance(got, Refusal):
                 refusals[name] = got
                 continue
-            points.append(str(got.kpname))
+            points.append(str(got.kpoint))
             for label, multiplicity in got.labels[0].items():
                 counts[str(label)] = counts.get(str(label), 0) + int(multiplicity)
     return [(counts, tuple(points), refusals) for counts, points, refusals in read]

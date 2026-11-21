@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+- `corep_content` is `coreps_at` and `format_counts` is `format_coreps`. A multiplicity
+  prints `2x-GM6`, where it printed `2×-GM6`, in `format_coreps` and in every summary that
+  prints a sum of coreps or of site irreps.
+- `hsp_table` returns the symmetry data vector as `t.symmetry_data`, a row for each
+  degenerate multiplet at each point as `t.multiplets["GM"]`, the points as `t.kpoints`,
+  and the group the labels name as `t.group`. `t.counts`, `t.points`, `t.content`,
+  `t.partitions`, `t.records`, `t.thresholds`, `t.group_provenance` and `t.rep` are gone.
+  Its summary prints "their irreps at each high-symmetry point" where the group has no
+  time reversal.
+- `coreps_at` returns a `CorepsAt`, in place of `CorepContent`: `kpoint`, `k`, `bands`, the
+  corep multiplicities `coreps`, a row for each multiplet in `multiplets`, and
+  `isolation`; the zero thresholds and the identification of the characters are under
+  `c.numerical`. A row, a `Multiplet`, holds `kpoint`, `k`, `bands`, `energy`,
+  `corep_names` and `label`, and `t.multiplets["GM"]` holds the same rows. The partition
+  of the multiplets is gone: rows with the same `corep_names` carry the same coreps.
+- The identification `identify_from_characters` returns is a `CorepIdentification`, in
+  place of `IrrepContent`, naming its point `kpoint`.
+- `characters` returns a `BandCharacters`, in place of `CharacterTable`: a row for each
+  multiplet with its `bands`, `energy` and `characters` by operation index, the little
+  group's `operations`, and the residuals under `ch.numerical`. Its summary names each
+  operation by its index and Seitz symbol.
+- A `SewingMatrix` holds `operation`, `seitz`, `bands`, `k`, `kpoint`, `G`, `matrix`,
+  `eigenvalues`, and its residuals under `sm.numerical`; `wrap` is `G`, and `trace`,
+  `angles`, `operator` and `antiunitary` are gone. `sewing_matrix` always checks that the
+  states solve `H(k)` and that the bands close their multiplets: `check=` is gone.
+- `coreps_at`, `characters`, `sewing_matrix` and the representation's methods take a
+  k-point by its tabulated name or by its coordinates: `coreps_at(r, "GM", bands=6)`
+  returns what it returns at the coordinates of `GM`, and `kpname=` is gone. A name the
+  group does not tabulate raises `ValueError` listing the names. A point out of a layer's
+  plane, by its name or by three coordinates, returns the refusal `out_of_plane`, where
+  pythtb raised. `ktol`, `atol` and `mesh_tol` are no longer arguments. `r.rep.k_action`
+  is gone, `r.rep.transform_k` computing the same, and `r.rep.covariance` takes
+  `kpoints=`.
+- `bands=[]` raises `ValueError` saying what to pass, where numpy raised on a reduction of
+  an empty array.
 - The summaries of a character table and of the coreps at a point print each multiplet's
   energy at the resolution its bands were grouped at, the table's `degeneracy_tol`: a
   level at the rounding of zero prints `at 0`, where it printed `at -1.388e-15`.
