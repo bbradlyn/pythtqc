@@ -520,7 +520,7 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
     jittered by 1e-5 and its precision declared at 1e-4, the same cell reads
     the same group and labels: the centres are made exact before the tables'
     setting is read, where a setting search on the jittered centres themselves
-    finds no match and refused ``operations_not_consistent``.
+    finds no match.
 
     A declaration's readings can tie, and the cross-check counts them.  The
     ``p_x, p_y`` honeycomb with an ``s`` at

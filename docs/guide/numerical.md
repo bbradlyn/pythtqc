@@ -347,17 +347,18 @@ long.
 ## When it refuses
 
 - [`positions_not_exactly_symmetric`](../reference/refusals.md#positions_not_exactly_symmetric):
-  centers off the cell's operations with no precision declared, by enough to break them;
-  or, once the group is identified, by enough to keep `H` from being made or held exactly
-  symmetric, the group named in the reason.
+  centers off the cell's operations with no precision declared, by enough to break them
+  or to leave the operations read off them open where they cannot be rebuilt; or, once the
+  group is identified, by enough to keep `H` from being made or held exactly symmetric,
+  the group named in the reason.
 - [`projection_too_large`](../reference/refusals.md#projection_too_large) and
   [`detector_too_large`](../reference/refusals.md#detector_too_large): a memory budget.
 - [`operations_not_consistent`](../reference/refusals.md#operations_not_consistent) and
   [`operations_not_nearly_consistent`](../reference/refusals.md#operations_not_nearly_consistent):
-  operations read off numerical centres, with no precision declared, that do not close and
-  cannot be rebuilt; declared, the centres are made exact before the setting is read,
-  unless they cannot be read as a symmetric set at all, as when two sites of one species
-  sit closer together than the symmetry finder can tell apart.
+  operations read off centers that do not close and cannot be rebuilt: centers that cannot
+  be read as a symmetric set at all, as when two sites of one species sit closer together
+  than the symmetry finder can tell apart, or that rebuilding would move by more than
+  `symprec`.
 - The projection's own checks,
   [`symmetrize_defect_exceeds_tol`](../reference/refusals.md#symmetrize_defect_exceeds_tol)
   and [`symmetrize_range_not_closed`](../reference/refusals.md#symmetrize_range_not_closed).

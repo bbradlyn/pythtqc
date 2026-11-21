@@ -77,7 +77,13 @@ Returned by `realized_group`.
   then moves `H(k)` by more than the check allows, by up to `context["reach"]`, and the
   more at an image point the larger its reduced coordinates. The checks are the
   covariance of the group's representation and the projection of the hoppings onto their
-  symmetric part, whose operators carry each center onto its image to `1e-9`.
+  symmetric part, whose operators carry each center onto its image to `1e-9`. On a cell
+  whose sites of one content repeat under a fraction of a cell's translation, the tables'
+  setting is not read and the operations cannot be rebuilt from it: centers missed by
+  less are refused the same way before anything is built wherever their miss leaves the
+  operations read off them open, the cell's group named as an upper bound in the reason
+  and by `context["number_str"]` and `context["name"]`; no group is identified, and the
+  context carries none.
 - **Usual cause.** A numerical model, such as a wannier90 import, asked with no precision
   declared; or centers converted onto a strongly skewed lattice basis in floating point.
 - **What to do.** Declare the model's precision, `precision=`, or `position_tol=` for the
@@ -131,22 +137,20 @@ Returned by `wyckoff_sites_tables` and `srsi_of_model`.
 
 #### `operations_not_consistent`
 
-Returned by `realized_group` where no precision is declared for the centres. Under
-`precision=` or `position_tol=` they are made exact before the cell is identified, and the
-operations read off exact centres close, unless the centres cannot be read as a symmetric
-set at all, as when two sites of one species sit closer together than the symmetry finder
-can tell apart, so that an operation does not carry the sites onto one another one for one.
+Returned by `realized_group` where the centers cannot be read as a symmetric set at all, as
+when two sites of one species sit closer together than the symmetry finder can tell apart,
+so that an operation does not carry the sites onto one another one for one. Operations
+left open by the centers' miss alone, with no precision declared, are refused
+[`positions_not_exactly_symmetric`](#positions_not_exactly_symmetric) instead.
 
-- **What it means.** The operations the symmetry finder reads off the centres do not close
+- **What it means.** The operations the symmetry finder reads off the centers do not close
   into a group, and the cell could not be matched to the setting of the tables, from which
   exact operations would be rebuilt. Every check after it would be measured against a set
   that is not a group.
-- **Usual cause.** Numerically determined centres, whose noise gives each operation its own
-  share of error, in a cell the tables' setting search does not match, with no precision
-  declared.
-- **What to do.** Declare the model's precision, `precision=`, or `position_tol=` for the
-  centres alone: the centres are then made exact before the setting is read, and the
-  operations close. Or hand in a cell whose centres carry less noise.
+- **Usual cause.** Sites of one species closer together than `symprec`, in a cell the
+  tables' setting search does not match.
+- **What to do.** Identify at a `symprec` smaller than the distance between the sites, so
+  that the finder tells them apart.
 
 #### `operations_not_nearly_consistent`
 

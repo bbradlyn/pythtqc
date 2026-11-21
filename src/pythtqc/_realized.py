@@ -31,8 +31,8 @@ from ._subgroups import (
 from ._matrices import _resolve_spin, _spin_pair_split
 from ._grammar import _declaration_grammar, _names_joint_keys
 from ._centres import (
-    _cell_sites, _centres_account_for, _frame_defect, _geometry, _moved_extras, _moves_of,
-    _rational_offset, _site_action, _symmetric_sites)
+    _cell_sites, _centres_account_for, _centres_account_for_closure, _frame_defect, _geometry,
+    _moved_extras, _moves_of, _rational_offset, _site_action, _symmetric_sites)
 from .symmetry import _declaration_checks, _wyckoff_orbit_table
 from ._sectors import read_sectors, sector_action
 from ._multiplets import _site_multiplets
@@ -3567,7 +3567,14 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
     group = _group_of(cell, typat=cell_typat, spinor=bool(spinor),
                       symprec=tolerances.finder)
     if isinstance(group, Refusal):
-        return group                     # no group yet, so none to name
+        # no group yet, so none to name; operations read off centers no
+        # declaration speaks for, open by what their miss accounts for, are
+        # those centers' to act on
+        if tolerances.centre is None:
+            own = _centres_account_for_closure(group)
+            if own is not None:
+                return own
+        return group
     # the inner identification is a cell identification, but the flow that owns
     # this record measured it: the outer stamp wins, and it is applied *here* so
     # that everything downstream -- the assignment, the detector, and above all

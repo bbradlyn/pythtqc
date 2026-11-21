@@ -14,7 +14,7 @@ operations, and each orbital assigned to the Wyckoff orbit its site lies on.
 from __future__ import annotations
 
 from collections import OrderedDict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from fractions import Fraction
 from functools import lru_cache
 import math
@@ -1897,6 +1897,31 @@ def _closure_gate(symmetries) -> float:
     return float(_EXACT_CLOSURE) * max(size, 1.0)
 
 
+def _site_miss(symmetries, site_pos, species) -> float:
+    r"""The most any site misses the image of a site of its species under the operations, reduced.
+
+    ``|A_g x_a + t_g − x_b|``, modulo the lattice, for the site ``b`` of ``a``'s
+    species nearest the image, largest over every operation and site.  Where
+    the operations carry the sites onto one another one for one, the closure
+    :func:`_translation_closure` measures is made of these misses alone:
+    applying ``h`` and then ``g`` to a site and comparing with ``gh`` gives
+    ``t_g + A_g t_h − t_gh = e^g_{h(a)} + A_g e^h_a − e^{gh}_a`` modulo the lattice,
+    ``e^g_a`` the miss of site ``a`` under ``g``, so the closure is at most
+    ``2 + max|A|`` (the largest row sum) times what this returns.
+    """
+    pos = np.asarray(site_pos, dtype=float).reshape(-1, 3)
+    kind = np.asarray([str(s) for s in species])
+    same = kind[:, None] == kind[None, :]
+    worst = 0.0
+    for s in symmetries:
+        image = pos @ np.asarray(s.rotation, dtype=float).T + np.asarray(s.translation, dtype=float)
+        d = image[:, None, :] - pos[None, :, :]
+        d -= np.rint(d)
+        d = np.where(same, np.abs(d).max(axis=-1), np.inf)
+        worst = max(worst, float(d.min(axis=1).max()))
+    return worst
+
+
 def _rebuilt_translation(refUC, t_ref, shift, R, t_old) -> np.ndarray:
     r"""``refUC·t_ref + s − R s``, moved by the lattice vector that puts it nearest ``t_old``.
 
@@ -2570,6 +2595,13 @@ def _group_of(model, *, spinor=None, include_TR=True, symprec=DEFAULT_FINDER, ty
     # to be measured against.  See `_exact_operations`.
     consistent = _exact_operations(sg, symprec, tables_ready, lattice)
     if isinstance(consistent, Refusal):
+        if consistent.gate == "operations_not_consistent":
+            # how far the sites miss these operations, which bounds the closure:
+            # read where it is known whether a precision was declared
+            consistent = replace(consistent, context=dict(
+                consistent.context, name=str(sg.name),
+                site_miss=_site_miss(sg.symmetries, site_pos, species),
+                rotation_size=_closure_gate(sg.symmetries) / float(_EXACT_CLOSURE)))
         return consistent
     closure_measured, closure_repaired = consistent
 

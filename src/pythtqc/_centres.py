@@ -170,6 +170,46 @@ def _centres_account_for(model, group, assignment, ops, *, failure, gate, check,
                  "failure": failure})
 
 
+def _centres_account_for_closure(refusal):
+    r"""``positions_not_exactly_symmetric`` where the centers' miss accounts for operations that do not close.
+
+    ``refusal`` is the ``operations_not_consistent`` the cell's identification
+    made, read with no tolerance for the centers declared.  Its context carries
+    how far the sites miss the operations read off them (``site_miss``, from
+    :func:`.._spacegroup._site_miss`) and the largest row sum of their
+    rotations (``rotation_size``); a closure made of those misses alone is at
+    most ``2 + rotation_size`` times the miss.  That reach accounts for the
+    closure measured where it exceeds the gate, so that the miss alone can open
+    the operations, and where the closure is within it.  Returns the refusal,
+    the cell's group named in its reason, and by its number and symbol in its
+    context, as an upper bound, or ``None`` where the miss does not account for
+    the closure.  ``context["group"]`` is absent: no record of the group can be
+    made, since its operations are what did not close.
+    """
+    ctx = refusal.context
+    if refusal.gate != "operations_not_consistent" or "site_miss" not in ctx:
+        return None
+    miss, closure, gate = float(ctx["site_miss"]), float(refusal.value), float(refusal.threshold)
+    reach = (2.0 + float(ctx["rotation_size"])) * miss
+    if not (reach > gate and closure <= gate + reach):
+        return None
+    return Refusal(
+        "positions_not_exactly_symmetric",
+        f"the orbital centers miss the operations of the cell's group by {miss:.3g} (reduced): "
+        "declare this model's precision, `realized_group(..., precision=)`, or "
+        "`position_tol=` for the centers alone, and centers within it are moved onto the "
+        "positions the group puts them at. Undeclared, the operations read off these centers "
+        f"close only to {closure:.3g}, more than the {gate:.3g} a cell built from exact "
+        f"numbers closes to, and a miss of {miss:.3g} can leave them open by up to "
+        f"{reach:.3g}, so there is no exactly symmetric configuration to measure H against. "
+        f"Nothing was built. The cell's group is {ctx['name']} #{ctx['number_str']}, an upper "
+        "bound on what this Hamiltonian obeys.",
+        value=miss, threshold=miss * gate / reach,
+        context={"number_str": str(ctx["number_str"]), "name": str(ctx["name"]),
+                 "position_defect": miss, "reach": reach, "gate": gate,
+                 "failure": closure})
+
+
 # --------------------------------------------------------------------------
 # the centres against the group's action: the sites, the moves and the defect
 # --------------------------------------------------------------------------

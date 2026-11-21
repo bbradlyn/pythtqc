@@ -186,7 +186,10 @@
   `positions_not_exactly_symmetric` wherever that miss keeps `H` from being made or held
   exactly symmetric, the group identified named in it and the reason saying to declare
   `precision=`. It was refused `rep_not_covariant` or `symmetrize_range_not_closed`, or
-  raised an `InternalError`. Every model that was read is read as before.
+  raised an `InternalError`. On a cell whose sites of one content repeat under a fraction
+  of a cell's translation, such as CsCl, the same miss leaving the operations read off the
+  centers open is refused this way before anything is built, the cell's group named, where
+  it was refused `operations_not_consistent`. Every model that was read is read as before.
 - The summaries of a character table and of the coreps at a point print each multiplet's
   energy at the resolution its bands were grouped at, the table's `degeneracy_tol`: a
   level at the rounding of zero prints `at 0`, where it printed `at -1.388e-15`.

@@ -1310,7 +1310,13 @@ def test_the_position_pass_runs_before_the_hopping_projection(km_odd,
     representation, and on the lattice basis ``7 a1 + 5 a2, 4 a1 + 3 a2`` by
     ``1e-11`` the hopping list rebuilt from the projection; each names
     ``P3m11' #156.50``.  With exact centers and noise on the hoppings the same
-    layer is symmetrized and read.
+    layer is symmetrized and read.  On CsCl and on a square layer, whose sites
+    of one content repeat under half a cell's translation so that the tables'
+    setting is not read on the cell, a center displaced by ``1e-10`` and
+    ``1e-11`` leaves the operations read off the centers open by more than a
+    cell built from exact numbers closes to: refused the same way, before
+    anything is built, the cell's group named, and read once a precision is
+    declared.
     """
     clean = km_odd_free_standing
     both = jitter(_move_one_centre(km_odd, 1e-8))
@@ -1387,6 +1393,34 @@ def test_the_position_pass_runs_before_the_hopping_projection(km_odd,
     noisy = tqg.realized_group(jitter(exact, rel=1e-10))
     assert noisy, str(noisy)
     assert noisy.group.number_str == "156.50" and noisy.numerical.symmetrization is not None
+
+    # centers whose miss leaves the operations read off them open, on a cell
+    # the tables' setting is not read on: CsCl and a square layer, each with
+    # one center displaced, its sites of one content repeating under half a
+    # cell's translation
+    def s_cscl(i, j, d):
+        r = round(float(np.linalg.norm(d)), 6)
+        if r == 0.866025 and i != j:
+            return -1.0
+        return {0: -0.3, 1: -0.1}[i] if r == 1.0 and i == j else 0.0
+
+    def s_square(i, j, d):
+        r = round(float(np.linalg.norm(d)), 6)
+        if r == 0.707107 and i != j:
+            return -1.0
+        return {0: -0.3, 1: -0.2}[i] if r == 1.0 and i == j else 0.0
+
+    for vectors, centers, hop, cell, defect in (
+            (np.eye(3), [[0.0] * 3, [0.5 + 1e-10, 0.5, 0.5]], s_cscl, "Im-3m1' #229.141", 1e-10),
+            (np.eye(2), [[0.0] * 2, [0.5 - 1e-11, 0.5]], s_square, "P4mm1' #99.164", 2e-11)):
+        displaced = by_bond(vectors, centers, hop)
+        got = tqg.realized_group(displaced)
+        assert not got and got.gate == "positions_not_exactly_symmetric", str(got)
+        assert got.value == pytest.approx(defect, rel=1e-3)
+        assert got.context["gate"] < got.context["failure"] <= got.context["reach"]
+        assert "precision=" in got.reason and cell in got.reason
+        assert f"{got.context['name']} #{got.context['number_str']}" == cell
+        assert tqg.realized_group(displaced, precision=1e-7)
 
 
 @pytest.mark.slow
