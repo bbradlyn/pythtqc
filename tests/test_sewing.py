@@ -882,7 +882,7 @@ def test_hsp_table_measures_a_point_whose_little_group_is_the_identity_alone():
     assert table.symmetry_data == {f"{name}1": 1 for name in table.kpoints}
     rc = tqc.regular_completion(table, bands=2)
     assert rc and rc.padding == table.symmetry_data, "one band of two, completed by one band"
-    assert rc.decomposition.solution_strings() == ("1 x A↑G(1)@1a(1,1)",)
+    assert [s.label for s in rc.decomposition.candidate_sums] == ["A at 1a (1)"]
 
 
 def test_the_degeneracy_tolerance_is_an_argument_of_the_table(lin3g_undeclared):

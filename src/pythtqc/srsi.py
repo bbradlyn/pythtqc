@@ -28,9 +28,8 @@ whose one invariant is the band count have none.
 - :func:`stably_equivalent_pairs`, site irreps no invariant distinguishes;
 - :func:`srsi_status`, whether the tables are installed, and :data:`GATES`,
   every refusal the calls here return;
-- :func:`to_irreptables_name`, :func:`from_irreptables_name`,
-  :func:`name_correspondence` and :func:`canonical_determinism`, the paper's
-  names for the symmetry indicators against ``irreptables``'.
+- :func:`canonical_determinism`, whether the paper's named indicators tell
+  every class of the indicator group apart.
 
 ``docs/guide/srsi.md`` reads them on models.
 """
@@ -58,12 +57,11 @@ from ._centres import _position_defect
 from .symmetry import _wyckoff_orbits_of
 from .symmetry import _OrbitBandRepresentation
 from ._srsitables import (
-    GATES, MaximalKey, NAME_RELATIONS, NamePair, SRSIIndicator, SRSIRow, SRSITables,
+    GATES, MaximalKey, SRSIIndicator, SRSIRow, SRSITables,
     SiteKey, SplitEBR, _POSITION, _TableKey, _by_modulus, _count,
     _ebr_key, _gcd, _group, _indicator_line, _maximal_basis, _no_bare_number,
     _rational_p, _site_irreps, _table_of_number, _values, canonical_determinism,
-    from_irreptables_name, indicator_vocabularies, name_correspondence, srsi_status,
-    srsi_tables, to_irreptables_name)
+    srsi_status, srsi_tables)
 
 __all__ = ["SRSITables", "SRSIRow", "SRSIIndicator", "SiteKey", "SplitEBR",
            "BandSRSIs", "ModelSRSIs", "OrbitSRSIs",
@@ -74,8 +72,6 @@ __all__ = ["SRSITables", "SRSIRow", "SRSIIndicator", "SiteKey", "SplitEBR",
            "srsi_of_bands", "srsi_of_model",
            "atomic_realizations", "nsit_criterion", "splitting",
            "stably_equivalent_pairs",
-           "NamePair", "NAME_RELATIONS", "indicator_vocabularies",
-           "to_irreptables_name", "from_irreptables_name", "name_correspondence",
            "canonical_determinism"]
 
 # ---------------------------------------------------------------------------
@@ -151,9 +147,9 @@ class BandSRSIs:
             return out
         if not self.indicator.divisors:
             return out + "; trivial indicator group"
-        if not self.indicator.nontrivial:
-            return out + f"; class zero in {self.indicator.structure}"
-        return (out + f"; class {self.indicator.values} in {self.indicator.structure}, "
+        if not any(self.indicator.values):
+            return out + f"; class zero in {self.indicator.indicator_group}"
+        return (out + f"; class {self.indicator.values} in {self.indicator.indicator_group}, "
                 f"of order {self.indicator.order}")
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
@@ -161,8 +157,7 @@ class BandSRSIs:
                 f"({', '.join(str(v) for v in self.theta_Z)}), "
                 f"{'stable' if self.stable else 'integral'})")
 
-def srsi_of_bands(content, group=None, *, rep=None, points=None,
-                  bands=None) -> BandSRSIs | Refusal:
+def srsi_of_bands(symmetry_data, realized=None) -> BandSRSIs | Refusal:
     r"""The :math:`\mathbb{Z}`-valued stable real-space invariants of a band set, from its symmetry data vector.
 
     They are the invariants of a rational site-symmetry vector ``p`` with the band
@@ -173,23 +168,14 @@ def srsi_of_bands(content, group=None, *, rep=None, points=None,
 
     Parameters
     ----------
-    content : ..sewing.HSPTable or mapping
-        The band set's content at the high-symmetry points, as
+    symmetry_data : ..sewing.HSPTable or mapping
+        The table :func:`..sewing.hsp_table` returns, which must be complete,
+        or ``{corep: multiplicity}`` written out by hand, as
         :func:`..ebr.symmetry_indicator` takes it.
-    group : ..groups.GroupData, optional
-        The grey group the content was read in, ``r.group``, with tables.  A
-        table carries its own and is read in it; a content
-        written out by hand takes the group beside it.
-    rep : ..symmetry.SpaceGroupRep, optional
-        The model's representation, ``r.rep``, for :func:`..ebr.symmetry_indicator`,
-        which measures a layer's rows out of its plane on its decoupled stack; a
-        table carries its own.
-    points : sequence of str, optional
-        The high-symmetry points to read, for :func:`..ebr.symmetry_indicator`.
-    bands : int or sequence of int, optional
-        Which bands the content counts: an ``int`` is the lowest *n*, a sequence
-        those bands.  An :class:`~..sewing.HSPTable` says so itself, and another
-        set raises :class:`ValueError`.
+    realized : ..groups.RealizedGroup, optional
+        What :func:`..groups.realized_group` returned, ``r``, the measurement
+        the coreps came from, in a grey group with tables.  Pass it beside a
+        vector written out by hand, and with a table nothing.
 
     Returns
     -------
@@ -199,47 +185,59 @@ def srsi_of_bands(content, group=None, *, rep=None, points=None,
         ``out.theta_Z``, ``out.stable`` and ``out.indicator`` hold them.  A
         ``Refusal`` in its place is falsy.
 
-    Raises
-    ------
-    ..refusal.InternalError
-        The rational solve does not reproduce the symmetry data vector it was built
-        from: a defect to report.
-    TypeError
-        A content written out by hand with no group beside it.
-    ValueError
-        ``bands=`` names other bands than the content was measured on, or the
-        group or ``rep=`` handed in beside a table is not the one it was read
-        in, which it carries as ``t.group``.
-
     Refusals
     --------
+    A refusal handed in as ``realized`` is returned as it is.
+
     ``srsi_scope``, ``srsi_table_absent``, ``srsi_data``, ``srsi_ebr_basis``
         from :func:`srsi_tables`: the group has no tables.
     ``incomplete_content``, ``not_a_band_structure``, ``indicator_not_evaluable``
-        from :func:`..ebr.symmetry_indicator`, with the refusals of the content it
-        reads.
+        from :func:`..ebr.symmetry_indicator`, with the refusals of the
+        symmetry data vector it reads.
+
+    Raises
+    ------
+    TypeError
+        A table with anything beside it, a vector written out by hand with
+        nothing beside it, a second argument that is not what
+        :func:`..groups.realized_group` returned, or a first that is neither a
+        table nor a mapping.
+    ..refusal.InternalError
+        The rational solve does not reproduce the symmetry data vector it was built
+        from: a defect to report.
     """
-    group, rep = _ebr._read_in(content, group, rep, where="srsi_of_bands")
-    block = _ebr._bands_of(content, bands, where="srsi_of_bands")
+    source = _ebr._read("srsi_of_bands", symmetry_data, realized)
+    if isinstance(source, Refusal):
+        return source
+    return _band_srsis(source, symmetry_data)
+
+
+def _srsi_of_bands(symmetry_data, group, *, rep=None) -> BandSRSIs | Refusal:
+    """What :func:`srsi_of_bands` returns for a vector read in ``group``, with the site irreps and heights of ``rep`` where it is given; a table is read in what it carries."""
+    return _band_srsis(_ebr._source_of(symmetry_data, group, rep), symmetry_data)
+
+
+def _band_srsis(source, symmetry_data) -> BandSRSIs | Refusal:
+    """What :func:`srsi_of_bands` returns for ``symmetry_data`` read in ``source``."""
+    group = source.group
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
     tables = srsi_tables(group)          # a measured GroupData, not an SRSITables:
     if not tables:                       # the momentum-space half needs the group
         return tables
-    si = _ebr.symmetry_indicator(content, group, rep=rep, points=points,
-                                 bands=block)
+    si = _ebr._indicator_in(source, symmetry_data)
     if not si:
         return si
     data = _tables._ebr_data(group)
     if not data:
         return data
     u, v, d, matrix = _smith._smith_system(data, group.number_str)
-    p = _rational_p(u, v, d, [Fraction(int(x)) for x in si.y])
+    p = _rational_p(u, v, d, [Fraction(int(x)) for x in si._y])
     n_row, n_col = len(matrix), len(matrix[0])
     check = [sum((Fraction(matrix[i][j]) * p[j] for j in range(n_col)), Fraction(0))
              for i in range(n_row)]
-    if check != [Fraction(int(x)) for x in si.y]:
+    if check != [Fraction(int(x)) for x in si._y]:
         raise InternalError(
             f"#{group.number_str}: the rational solve of BR.p = y does not reproduce "
             "the symmetry data vector it was built from, though the compatibility relations "
@@ -256,7 +254,7 @@ def srsi_of_bands(content, group=None, *, rep=None, points=None,
         theta_Z=theta_z, names=tuple(tables.names[i] for i in tables.z_rows),
         stable=any(value.denominator != 1 for value in theta_z),
         denominator=int(denominator), indicator=si, p=tuple(p),
-        n_bands=None if block is None else len(block))
+        n_bands=None if source.table is None else len(source.table.bands))
 
 def srsi_of(group_or_tables, p) -> tuple | Refusal:
     r"""``(theta_Z, theta_Zn)``: the stable real-space invariants of a configuration ``p`` over the site keys.
@@ -992,7 +990,7 @@ def _band_representations(rep) -> tuple:
         # alternatives, and a composite orbit's own sum is among them
         every = ()
         if tables is not None or own is None:
-            restriction = _ebr.in_plane_restriction(group, points=points,
+            restriction = _ebr.in_plane_restriction(group, kpoints=points,
                                                     require_exact=False, _layer=layer)
             if not isinstance(restriction, Refusal):
                 matrix, y, bound = _ebr._content_system(data, counts, restriction.retained)
@@ -1799,8 +1797,7 @@ def nsit_criterion(tables, theta_total, theta_Z_v, theta_Z_c, *,
         n_bands_v=int(got_v.n_bands), n_bands_c=int(got_c.n_bands),
         same_content=tuple(same))
 
-def splitting(realized, *, bands=None, rep=None,
-              points=None) -> "Splitting | Refusal":
+def splitting(realized, *, bands=None) -> "Splitting | Refusal":
     r"""Whether the bands asked for and the rest of a model's bands can both be atomic insulators.
 
     The paper's no-go criterion on a gapped splitting of a model's bands: ``V``,
@@ -1817,10 +1814,6 @@ def splitting(realized, *, bands=None, rep=None,
     bands : int or sequence of int
         The bands asked for, ``V``: an ``int`` is the lowest *n*, a sequence
         those bands.  Required.
-    rep : ..symmetry.SpaceGroupRep, optional
-        A representation to read in place of the one ``realized`` holds.
-    points : sequence of str, optional
-        The high-symmetry points to read the content of ``V`` at.
 
     Returns
     -------
@@ -1861,15 +1854,14 @@ def splitting(realized, *, bands=None, rep=None,
         raise TypeError("splitting() missing required argument 'bands'")
     if isinstance(realized, Refusal):
         return realized
-    model, group, _assignment, own_rep = _unpack_realized(realized, "splitting")
+    model, group, _assignment, rep = _unpack_realized(realized, "splitting")
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
-    rep = own_rep if rep is None else rep
     tables = srsi_tables(group)
     if not tables:
         return tables
-    whole = srsi_of_model(realized, rep=rep)
+    whole = srsi_of_model(realized)
     if not whole:
         return whole
     n_valence = (int(bands) if isinstance(bands, (int, np.integer))
@@ -1878,8 +1870,7 @@ def splitting(realized, *, bands=None, rep=None,
     content = _sewing._hsp_table_rep(rep, bands=bands)
     if not content:
         return content
-    valence_side = srsi_of_bands(content, group, rep=rep, points=points,
-                                 bands=bands)
+    valence_side = srsi_of_bands(content)
     if not valence_side:
         return valence_side
 
@@ -1894,7 +1885,7 @@ def splitting(realized, *, bands=None, rep=None,
                 f"the valence bands' Z-valued SRSIs ({', '.join(str(v) for v in theta_z_v)}) "
                 "are fractional, so by the paper's theorem the valence set carries a nonzero symmetry "
                 f"indicator ({valence_side.indicator.values} of "
-                f"{valence_side.indicator.structure}, order "
+                f"{valence_side.indicator.indicator_group}, order "
                 f"{valence_side.indicator.order}) and no atomic insulator has its "
                 "symmetry data. The no-go criterion is not needed: this splitting is "
                 "already stable topological"),

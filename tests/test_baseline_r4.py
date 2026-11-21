@@ -286,8 +286,7 @@ def snapshot(r, occ):
         return out
     out["content"] = {str(k): int(v) for k, v in t.symmetry_data.items()}
     try:
-        si = tqe.symmetry_indicator(t, r.group, rep=r.rep,
-                                    bands=occ if isinstance(occ, int) else None)
+        si = tqe.symmetry_indicator(t)
     except Exception as exc:      # a served crash is a served fact; see the report
         out["indicator"] = {"__exception__": type(exc).__name__,
                             "args": str(exc)[:200]}
@@ -295,7 +294,7 @@ def snapshot(r, occ):
     if isinstance(si, Refusal):
         out["indicator"] = {"__refusal__": str(si.gate)}
     else:
-        # `si.structure` is a *string* ("trivial", "Z6 x Z12"), so `list(...)`
+        # `si.indicator_group` is a *string* ("trivial", "Z6 x Z12"), so `list(...)`
         # explodes it per character and the baseline holds
         # ["t","r","i","v","i","a","l"].  It still discriminates -- a different
         # class gives a different list, and a length change is reported -- but the
@@ -303,7 +302,7 @@ def snapshot(r, occ):
         # what this wants; changing it would have to be captured afresh, so the
         # shape stays frozen with the file.
         out["indicator"] = {"values": [int(v) for v in si.values],
-                            "structure": _jsonable(list(si.structure)),
+                            "structure": _jsonable(list(si.indicator_group)),
                             "order": _num(si.order)}
     return out
 
@@ -593,7 +592,7 @@ def _srsi_case(key, realized):
         t2 = tqw.hsp_table(r, bands=2)
         return {"srsi_of_model": _srsi_model_record(tqr.srsi_of_model(r)),
                 "srsi_of_bands_2": _srsi_bands_record(
-                    tqr.srsi_of_bands(t2, r.group, rep=r.rep, bands=2)),
+                    tqr.srsi_of_bands(t2)),
                 "splitting_2": _splitting_record(tqr.splitting(r, bands=2))}
     if key == "lin3g":
         # the ``r1`` section's declaration, in the default reading
@@ -613,7 +612,7 @@ def _srsi_case(key, realized):
         return {"number_str": str(r.group.number_str),
                 "srsi_of_model": _srsi_model_record(tqr.srsi_of_model(r)),
                 "srsi_of_bands_2": _srsi_bands_record(
-                    tqr.srsi_of_bands(tv, r.group, rep=r.rep, bands=2)),
+                    tqr.srsi_of_bands(tv)),
                 "splitting_2": _splitting_record(tqr.splitting(r, bands=2))}
     _, num, valuedness = key.split("_")
     tb = tqr.srsi_tables(int(num), spinor=(valuedness == "double"))

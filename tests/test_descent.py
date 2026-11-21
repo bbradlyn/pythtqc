@@ -239,8 +239,8 @@ def test_the_descent_and_the_decoration_agree_on_the_strong_and_weak_phases(fkm_
         assert a.complete and b.complete, name
         assert a.symmetry_data == b.symmetry_data, name
         assert coreps_by_point(a) == coreps_by_point(b), name
-        sa = tqe.symmetry_indicator(a, down.group, rep=down.rep, bands=2)
-        sb = tqe.symmetry_indicator(b, told.group, rep=told.rep, bands=2)
+        sa = tqe.symmetry_indicator(a)
+        sb = tqe.symmetry_indicator(b)
         assert sa and sb, str(sa if not sa else sb)
         assert sa.values == sb.values and sa.order == sb.order
         classes[name] = sa.values
@@ -320,13 +320,13 @@ def test_the_chiral_pattern_descends_the_square_lattice_to_p4(p41_routes):
         for p in ("", "'")}
 
     step = d.lattice
-    assert step["index"] == 2 and step["realized"] == ()
-    assert step["fractional_translations"] == ((0.5, 0.5, 0.0),)
-    assert step["coset_partners_refuted"] == 11
-    (tau,) = step["operations"]
-    assert tau["translation"] == (0.5, 0.5, 0.0)
-    assert tau["refuted_by"] == "tensor structure"
-    assert tau["residual"] == pytest.approx(1.0, abs=1e-9)
+    assert step.index == 2 and step.realized == ()
+    assert step.fractional_translations == ((0.5, 0.5, 0.0),)
+    assert step.coset_partners_refuted == 11
+    (tau,) = step.operations
+    assert tau.translation == (0.5, 0.5, 0.0)
+    assert tau.refuted_by == "tensor structure"
+    assert tau.residual == pytest.approx(1.0, abs=1e-9)
 
     assert len(chiral.numerical.validated._indices) == len(chiral.operations) == 8
     assert chiral.group._provenance == "descended"

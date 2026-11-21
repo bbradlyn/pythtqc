@@ -987,7 +987,8 @@ def test_corep_table_is_keyed_by_our_operation_indices():
         assert set(chars) == set(lg.unitary), "table keys are our unitary little-group indices"
     assert lg.antiunitary, "the grey group must contribute antiunitary operations"
     assert not set(lg.antiunitary) & set(lg.unitary)
-    assert repr(lg) == ("LittleGroup(k = (1/3, 2/3): unitary operations "
+    assert lg.kpoint == "K"
+    assert repr(lg) == ("LittleGroup(K (1/3, 2/3): unitary operations "
                         "1-3, 7-9, 16-18, 22-24; with time reversal 28-30, 34-39, 43-45)")
 
     r = G.corep_table(g, [0.17, 0.31])
@@ -3067,8 +3068,8 @@ def test_the_EBR_transport_swaps_1b_and_1c_of_spinful_SG156():
     exchange their ``K``/``H`` labels and nothing else changes.  This is the
     table-level statement of the position swap that
     ``examples/tqc_kane_mele_realized_group.py`` measures from a Hamiltonian
-    and its golden pins: the valence pair ``-> 1 x -E1↑G(2)@1a`` in one regime
-    and ``-> 1 x -E1↑G(2)@1b`` in the other.
+    and its golden pins: the valence pair ``-E1 at 1a (3m1')`` in one regime
+    and ``-E1 at 1b (3m1')`` in the other.
     """
     for tag, spinor, magnetic in (("156", True, False), ("156.50", True, True)):
         labels, keys, old = _shipped(tag, spinor)

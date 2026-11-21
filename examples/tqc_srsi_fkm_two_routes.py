@@ -106,7 +106,7 @@ b_strong = tqc.srsi_of_bands(t2_strong)
 si_strong = tqc.symmetry_indicator(t2_strong)
 row("srsi_of_bands", f"Z-valued {values(b_strong.theta_Z)}")
 row("denominator", b_strong.denominator)
-row("indicator class", f"{values(si_strong.values)} in {si_strong.structure}, of order "
+row("indicator class", f"{values(si_strong.values)} in {si_strong.indicator_group}, of order "
     f"{si_strong.order}")
 print("   the Z-valued invariants are fractional: no integer site-symmetry vector")
 print("   induces the valence content, so the valence bands are no atomic limit")
@@ -213,7 +213,7 @@ axes[0].set_xticklabels(TICKS, fontsize=13)
 axes[0].set_ylabel("$E$", fontsize=15)
 axes[0].set_title("strong: delta_t = +0.4\n"
                   f"#{g_strong.number_str} {g_strong.name}   class "
-                  f"{si_strong.values} in {si_strong.structure}\n"
+                  f"{si_strong.values} in {si_strong.indicator_group}\n"
                   fr"$\theta_\mathbb{{Z}}[V] = "
                   fr"({', '.join(str(v) for v in b_strong.theta_Z)})$, "
                   f"denominator {b_strong.denominator}", fontsize=9.5)
@@ -229,7 +229,7 @@ axes[1].set_xticks(kn)
 axes[1].set_xticklabels(TICKS, fontsize=13)
 axes[1].set_title("weak: delta_t = -0.4\n"
                   f"#{g_weak.number_str} {g_weak.name}   class "
-                  f"{si_weak.values} in {si_weak.structure}\n"
+                  f"{si_weak.values} in {si_weak.indicator_group}\n"
                   fr"$\theta_\mathbb{{Z}}[V] = "
                   fr"({', '.join(str(v) for v in b_weak.theta_Z)})$, "
                   f"denominator {b_weak.denominator}", fontsize=9.5)
@@ -245,7 +245,7 @@ axes[2].set_xticks(kn)
 axes[2].set_xticklabels(TICKS, fontsize=13)
 axes[2].set_title("dimers: three bonds cut\n"
                   f"#{g_dimers.number_str} {g_dimers.name}   class "
-                  f"{si_dimers.values} in {si_dimers.structure}\n"
+                  f"{si_dimers.values} in {si_dimers.indicator_group}\n"
                   fr"$\theta_\mathbb{{Z}}[V] = "
                   fr"({', '.join(str(v) for v in b_dimers.theta_Z)})$, "
                   f"denominator {b_dimers.denominator}", fontsize=9.5)

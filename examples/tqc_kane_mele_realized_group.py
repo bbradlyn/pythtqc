@@ -43,8 +43,8 @@ from pythtqc import format_coreps as fmt
 from pythtqc import solve_at
 from pythtqc.utils import save_figure
 
-# Elementary band representations print as ρ↑G, the site irrep ρ induced to the
-# group; a Windows console cannot print ↑ by default, so the output is UTF-8.
+# The last line prints a dash, —, which a Windows console cannot print by
+# default, so the output is UTF-8.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -111,11 +111,11 @@ def by_point(table):
 
 def signed_sum(d):
     """The shortest sum with negative multiplicities that carries the content, in lines."""
-    shortest = sorted({tuple(sorted(t)) for t in d.signed_combinations["terms"]},
-                      key=len)[0]
+    shortest = min(d.signed_combinations.sums, key=len)
     lines = []
-    for m, name, where in shortest:
-        term = f"{m} x {name}@{where}"
+    for t in sorted(shortest, key=lambda t: (t.multiplicity, t.irrep, t.wyckoff)):
+        m = "" if t.multiplicity == 1 else f"{t.multiplicity}x"
+        term = f"{m}{t.irrep} at {t.wyckoff} ({t.site_symmetry})"
         if not lines:
             lines.append(term)
         elif len(lines[-1]) + len(term) + 3 > 64:
@@ -127,20 +127,20 @@ def signed_sum(d):
 
 def limits(d, where=""):
     """The atomic limits of a band set, or a signed sum where there are none."""
-    if d.verdict == "none":
+    if not d.decomposable:
         row("atomic limits", "none")
         row("a signed sum", *signed_sum(d))
         return
-    sums = list(d.solution_strings())
+    sums = [s.label for s in d.candidate_sums]
     sums[0] += f", {where}" if where else ""
     row("atomic limit" if len(sums) == 1 else "atomic limits", *sums)
 
 
 def indicator(si):
     """The symmetry-indicator class, as a label and a value, or that the group has none."""
-    if si.verdict == "trivial indicator group":
+    if not si.divisors:
         return "indicator group", "trivial"
-    return "indicator class", f"({', '.join(str(v) for v in si.values)}) in {si.structure}, order {si.order}"
+    return "indicator class", f"({', '.join(str(v) for v in si.values)}) in {si.indicator_group}, order {si.order}"
 
 
 ########### 1. delta = 1.0, rashba = 0.25 ###########
@@ -160,7 +160,7 @@ d_val1 = tqc.decompose(t_val1)
 d_con1 = tqc.decompose(t_con1)
 
 # whether an orbital sits at that position, read off the measured Wyckoff letters
-seat1 = d_val1.positions[0][0]
+seat1 = min(t.wyckoff for t in d_val1.candidate_sums[0])
 where1 = ("a site an orbital sits on" if seat1 in seats1
           else "a position no orbital sits on")
 row("bands 0 and 1", by_point(t_val1))
@@ -193,7 +193,7 @@ t_con2 = tqc.hsp_table(r2, bands=(2, 3))
 d_val2 = tqc.decompose(t_val2)
 d_con2 = tqc.decompose(t_con2)
 
-seat2 = d_val2.positions[0][0]
+seat2 = min(t.wyckoff for t in d_val2.candidate_sums[0])
 where2 = ("a site an orbital sits on" if seat2 in seats2
           else "a position no orbital sits on")
 row("bands 0 and 1", by_point(t_val2))
@@ -220,7 +220,7 @@ t_con3 = tqc.hsp_table(r3, bands=(2, 3))
 d_val3 = tqc.decompose(t_val3)
 d_con3 = tqc.decompose(t_con3)
 
-seat3 = d_val3.positions[0][0]
+seat3 = min(t.wyckoff for t in d_val3.candidate_sums[0])
 where3 = ("a site an orbital sits on" if seat3 in seats3
           else "a position no orbital sits on")
 row("bands 0 and 1", by_point(t_val3))
@@ -421,7 +421,7 @@ axes[1].set_ylim(bands.min() - 0.30 * (bands.max() - bands.min()),
                  bands.max() + 0.22 * (bands.max() - bands.min()))
 axes[1].set_title(f"delta = 2.5, rashba = 0.25\n#{g2.number_str} {g2.name}\n"
                   f"valence at {seat2}   |   conduction at "
-                  f"{d_con2.positions[0][0]}", fontsize=9.5)
+                  f"{min(t.wyckoff for t in d_con2.candidate_sums[0])}", fontsize=9.5)
 
 # --- delta = 0, rashba = 0 ---
 kv, kd, kn = m3.k_path(PATH, NK_PATH, report=False)

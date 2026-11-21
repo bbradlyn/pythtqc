@@ -24,15 +24,15 @@ t = tqc.hsp_table(r, bands=2)
 print(tqc.format_coreps(t.symmetry_data))
 #  -GM9 + -K8 + -M6
 print(tqc.symmetry_indicator(t))
-#  SymmetryIndicator(indicated nontrivial, #191.234, Z6 x Z12, [1|6, 0|12], completed on the stack)
+#  SymmetryIndicator(P6/mmm1' #191.234, class (1, 0) in Z6 x Z12, completed on the stack)
 print(tqc.srsi_of_bands(t))
 #  BandSRSIs(#191.234, (-1/6, 1/6, 1/2, 1/3, 0, 2/3, 0, 0, 0, -1/3, -2/3, 0, 1/2, 0), stable)
 ```
 
 The Hamiltonian obeys `P6/mmm` with time reversal adjoined, the `1'`. Its two
 occupied bands carry the coreps printed, one at each high-symmetry point, and
-that content sits in the class `[1|6, 0|12]` — `1` in `ℤ6` and `0` in `ℤ12` —
-of the group's indicator group: nonzero, so no atomic limit has it — the quantum spin Hall
+that content sits in the class `(1, 0)` in `Z6 x Z12` — `1` in `ℤ6` and `0` in `ℤ12` —
+the group's indicator group: nonzero, so no atomic limit has it — the quantum spin Hall
 insulator. Their stable real-space invariants are fractional, with common
 denominator 6, the order of that class: no configuration of orbitals has them
 ([stable real-space invariants](docs/guide/srsi.md)). Read on a substrate, the

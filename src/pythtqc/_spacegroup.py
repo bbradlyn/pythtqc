@@ -529,6 +529,10 @@ class LittleGroup:
     ----------
     k : ndarray, shape (dim_k,)
         The point, in the model's reduced coordinates.
+    kpoint : str or None
+        The tables' name of the point, ``"X"``, where it is one of the
+        tabulated points of the group in the cell as written; ``None`` where it
+        is none.
     unitary : tuple of int
         The indices of its unitary operations, in index order: the columns a
         character vector at ``k`` is written in.
@@ -543,6 +547,7 @@ class LittleGroup:
     """
 
     k: np.ndarray
+    kpoint: Any
     unitary: tuple
     antiunitary: tuple
     G: dict
@@ -576,7 +581,9 @@ class LittleGroup:
 
     def summary(self) -> str:
         """The little group at one k, a line for each part, with the attribute that holds it."""
-        lines = [f"k = {_point_text(self.k)}, in the model's reduced coordinates   (.k)",
+        lines = [(f"{self.kpoint} {_point_text(self.k)}, in the model's reduced coordinates   "
+                  "(.kpoint, .k)" if self.kpoint else
+                  f"k = {_point_text(self.k)}, in the model's reduced coordinates   (.k)"),
                  "  its operations, by index and Seitz symbol   (.operations)",
                  f"  its unitary operations, by index: {_index_ranges(self.unitary)}   "
                  "(.unitary)",
@@ -588,7 +595,9 @@ class LittleGroup:
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
         primed = _index_ranges(self.antiunitary)
-        return (f"LittleGroup(k = {_point_text(self.k)}: unitary operations "
+        point = (f"{self.kpoint} {_point_text(self.k)}" if self.kpoint
+                 else f"k = {_point_text(self.k)}")
+        return (f"LittleGroup({point}: unitary operations "
                 f"{_index_ranges(self.unitary)}"
                 + (f"; with time reversal {primed}" if primed else "") + ")")
 

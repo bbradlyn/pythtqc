@@ -12,9 +12,8 @@ The verdicts this file exists to lock
   of a different band set.  That contrast is asserted below: it is the whole
   reason the in-plane restriction is load-bearing rather than cosmetic.
 * **lin3g P2 is exactly the ``-E2^G(2)@1b`` row** — eigenvalue-compatible with
-  an obstructed atomic limit at ``1b`` while being fragile.  The caveat field is
-  asserted present because this is precisely the band set that makes the caveat
-  necessary.
+  an obstructed atomic limit at ``1b`` while being fragile: a decomposition is
+  necessary for an atomic limit and never sufficient.
 * **The hexagonal fragile golden's conduction pair is a genuine "none"** — the
   first *physical* none in the fixture set, CP-SAT infeasible over a bound that
   is *proved* exhaustive, and it comes with the signed difference
@@ -29,8 +28,6 @@ EBR sum, are what ``examples/tqc_kane_mele_realized_group.py`` and
 
 import numpy as np
 import pytest
-from pythtb.models import graphene
-
 from pythtqc import ebr as tqe
 from pythtqc import groups as tqg
 from pythtqc import sewing as tqw
@@ -42,6 +39,7 @@ from pythtqc import _layers
 from pythtqc import _measure
 from pythtqc import _smith
 from pythtqc import _spacegroup
+from pythtqc import _srsitables
 from pythtqc import _tables
 
 import tqc_models as tqm
@@ -49,6 +47,17 @@ from conftest import FKM_BOND, fkm_regime, grey_numbers, km_z2_regime, patch_eve
 
 # lin3g band blocks, from LIN3G.band_sets
 P4, P2, P6, Q2 = (0, 1, 2, 3), (4, 5), 6, (6, 7)
+
+
+def _labels(d):
+    """Each candidate sum of a decomposition, as it prints."""
+    return [s.label for s in d.candidate_sums]
+
+
+def _positions(d):
+    """Each candidate sum's Wyckoff positions, one per elementary band representation, sorted."""
+    return tuple(tuple(sorted(t.wyckoff for t in s for _ in range(int(t.multiplicity))))
+                 for s in d.candidate_sums)
 
 
 # ---------------------------------------------------------------------------
@@ -148,21 +157,21 @@ def test_the_in_plane_restriction_is_verified_row_by_row_in_each_group(
     group = lin3g_declared_cross_checked.group
     r = tqe.in_plane_restriction(group)
     assert r, str(r)
-    assert r.applied and r.orphans == ()
-    assert r.points == ("GM", "M", "X")
+    assert r.dropped and r.orphans == ()
+    assert r.kpoints == ("GM", "M", "X")
     assert r.retained == ("-GM6", "-GM7", "-M6", "-M7", "-X5")
     assert r.dropped == ("-A6", "-A7", "-R5", "-Z6", "-Z7")
     assert r.copies == {"-A6": ("-M6",), "-A7": ("-M7",), "-R5": ("-X5",),
                         "-Z6": ("-GM6",), "-Z7": ("-GM7",)}
-    assert r.rank == r.full_rank == 3        # 5 EBRs, 2 relations (2c = 1a pair = 1b pair)
+    assert r._rank == r._full_rank == 3      # 5 EBRs, 2 relations (2c = 1a pair = 1b pair)
 
     r = tqe.in_plane_restriction(km_odd_realized.group)
     assert r, str(r)
-    assert r.applied and r.orphans == ()
-    assert r.points == ("GM", "K", "M")
+    assert r.dropped and r.orphans == ()
+    assert r.kpoints == ("GM", "K", "M")
     assert r.copies == {"-A4A5": ("-GM4GM5",), "-A6": ("-GM6",), "-H4": ("-K4",),
                         "-H5": ("-K5",), "-H6": ("-K6",), "-L3L4": ("-M3M4",)}
-    assert r.rank == r.full_rank == 4
+    assert r._rank == r._full_rank == 4
 
 
 # ---------------------------------------------------------------------------
@@ -188,21 +197,20 @@ def test_lin3g_P6_decomposes_and_the_raw_passthrough_refuses(lin3g_declared_cros
     # measured content, phase A3 (docs/guide/atomic-limits.md)
     assert table.symmetry_data == {"-GM6": 2, "-GM7": 1, "-M6": 1, "-M7": 2, "-X5": 3}
 
-    d = tqe.decompose(table, group, rep=rep, bands=6)
-    assert d.verdict == "symmetry-indicated decomposable" and d.solutions
+    d = tqe.decompose(table)
+    assert d.decomposable and d.candidate_sums
     # a success rests on the solutions it exhibits, so there is nothing to
     # certify: the field is None rather than a word-shaped empty string, and the
     # report carries no certificate line at all
     assert d.certificate is None
     assert "(.certificate" not in d.summary()
     # the measured solution, in the basis irreptables stores
-    assert "1 x -E2↑G(2)@1b(4mm1',4mm) + 1 x -E↑G(4)@2c(mm21',mm2)" in d.solution_strings()
+    assert "-E2 at 1b (4mm1') + -E at 2c (mm21')" in _labels(d)
     # ... and in the MAXIMAL 1a/1b basis, using 2c = 1a-pair = 1b-pair
-    assert ("1 x -E1↑G(2)@1a(4mm1',4mm) + 1 x -E2↑G(2)@1a(4mm1',4mm) + "
-            "1 x -E2↑G(2)@1b(4mm1',4mm)") in d.solution_strings()
-    assert len(d.solutions) == 3
-    assert sorted(d.positions) == sorted([("1b", "2c"), ("1b", "1b", "1b"),
-                                          ("1a", "1a", "1b")])
+    assert "-E1 at 1a (4mm1') + -E2 at 1a (4mm1') + -E2 at 1b (4mm1')" in _labels(d)
+    assert len(d.candidate_sums) == 3
+    assert sorted(_positions(d)) == sorted([("1b", "2c"), ("1b", "1b", "1b"),
+                                            ("1a", "1a", "1b")])
 
     # the contrast: the thin passthrough, on the same numbers
     raw = tqg.decompose_ebrs(group, table.symmetry_data)
@@ -219,9 +227,9 @@ def test_lin3g_P2_is_exactly_the_1b_row_directly_and_as_a_difference(
     The statement, verified against ``irreptables``' own SG-99 spinful
     data: P2's vector *is* that row exactly, so P2 is eigenvalue-compatible with
     an obstructed atomic limit at ``1b`` — and it is nevertheless fragile, which
-    HSP content cannot see.  Hence the caveat field every record carries; the
-    Wilson-loop slot that would close it waits for that instrument, and is not
-    on the record until then.
+    HSP content cannot see: a decomposition is necessary for an atomic limit
+    and never sufficient, and the record holds no Wilson-loop slot that would
+    close it.
 
     ``P4``, the block subtracted, is itself the in-plane ``-E^G(4)@2c`` row of
     the tables, read band by band off the sewing matrices.  And the difference
@@ -246,17 +254,13 @@ def test_lin3g_P2_is_exactly_the_1b_row_directly_and_as_a_difference(
                              {"-GM2": 1})) == ["-GM2", "-GM10", "-GM11GM9", "-X5"]
 
     key, row = _row(group, "1b", "-E2")
-    for content in (t2, diff):
-        d = tqe.decompose(content, group, rep=rep, bands=list(P2))
-        assert d.verdict == "symmetry-indicated decomposable" and d.unique
-        assert d.terms == (((1, "-E2↑G(2)", "1b(4mm1',4mm)"),),)
-        assert d.positions == (("1b",),)
-        # the caveat is a field of the record, and it says what the verdict cannot
-        assert d.caveat.text == tqe.CAVEAT_TEXT
+    for d in (tqe.decompose(t2), tqe.decompose(diff, record)):
+        assert d.decomposable and len(d.candidate_sums) == 1
+        assert [tuple(s) for s in d.candidate_sums] == [(tqg.Term(1, "-E2", "1b", "4mm1'", "4mm"),)]
+        assert _positions(d) == (("1b",),)
     # ... and the slot a Wilson-loop measurement would fill is not there to fill
-    assert set(tqe.WannierCaveat.__dataclass_fields__) == {"text"}
     with pytest.raises(TypeError):
-        tqe.decompose(t2, group, rep=rep, bands=list(P2), winding_certificate={})
+        tqe.decompose(t2, winding_certificate={})
     assert {lab: v for lab, v in t2.symmetry_data.items()} == _in_plane(group, row)
 
 
@@ -276,17 +280,16 @@ def test_lin3g_P2_and_Q2_sum_to_the_1a_pair_but_neither_half_is_one(
     assert q2 == {"-GM7": 1, "-M6": 1, "-X5": 1}              # measured, phase A3
     total = {lab: p2.get(lab, 0) + q2.get(lab, 0) for lab in set(p2) | set(q2)}
 
-    d = tqe.decompose(total, group, rep=rep, bands=4)
-    assert d.verdict == "symmetry-indicated decomposable"
-    assert ("1 x -E1↑G(2)@1a(4mm1',4mm) + 1 x -E2↑G(2)@1a(4mm1',4mm)"
-            in d.solution_strings())
-    assert ("1a", "1a") in d.positions
+    d = tqe.decompose(total, record)
+    assert d.decomposable
+    assert "-E1 at 1a (4mm1') + -E2 at 1a (4mm1')" in _labels(d)
+    assert ("1a", "1a") in _positions(d)
 
     a_rows = [_in_plane(group, v) for k, v in tqe.ebr_rows(group).items() if k[1] == "1a"]
     assert p2 not in a_rows and q2 not in a_rows, "neither half alone is a 1a EBR"
     for half in (p2, q2):
-        got = tqe.decompose(half, group, rep=rep, bands=2)
-        assert got.unique and got.positions == (("1b",),), "each half is a 1b EBR"
+        got = tqe.decompose(half, record)
+        assert _positions(got) == (("1b",),), "each half is a 1b EBR"
 
 
 def test_lin3g_regular_completion_to_eight_bands(lin3g_declared_cross_checked):
@@ -310,45 +313,29 @@ def test_lin3g_regular_completion_to_eight_bands(lin3g_declared_cross_checked):
     reg = tqe.regular_content(group)
     assert reg == {"-GM6": 2, "-GM7": 2, "-M6": 2, "-M7": 2, "-X5": 4}
 
-    rc = tqe.regular_completion(tqw.hsp_table(record, bands=P6), group, bands=8, rep=rep)
+    rc = tqe.regular_completion(tqw.hsp_table(record, bands=P6), bands=8)
     assert rc, str(rc)
     assert (rc.copies, rc.bands_per_copy) == (1, 8)
     assert rc.padding == {"-GM7": 1, "-M6": 1, "-X5": 1}
     assert rc.padding == tqw.hsp_table(record, bands=list(Q2)).symmetry_data
-    assert rc.decomposition.unique
-    assert rc.decomposition.terms == (((1, "-E1↑G(2)", "1b(4mm1',4mm)"),),)
+    assert [tuple(s) for s in rc.decomposition.candidate_sums] == [
+        (tqg.Term(1, "-E1", "1b", "4mm1'", "4mm"),)]
 
     _, e2_1a = _row(group, "1a", "-E2")
     seed = _in_plane(group, e2_1a)
     assert seed == {"-GM6": 1, "-M6": 1, "-X5": 1}
 
-    rc = tqe.regular_completion(seed, group, bands=16, rep=rep)
+    rc = tqe.regular_completion(seed, record, bands=16)
     assert rc, str(rc)
     assert (rc.copies, rc.bands_per_copy) == (2, 8)
-    assert rc.target == {"-GM6": 4, "-GM7": 4, "-M6": 4, "-M7": 4, "-X5": 8}
+    assert {k: rc.copies * v for k, v in rc.regular.items()} == {
+        "-GM6": 4, "-GM7": 4, "-M6": 4, "-M7": 4, "-X5": 8}
     assert rc.padding == {"-GM6": 3, "-GM7": 4, "-M6": 3, "-M7": 4, "-X5": 7}
-    got = rc.decomposition.solution_strings()
-    assert ("3 x -E1↑G(2)@1a(4mm1',4mm) + 2 x -E2↑G(2)@1a(4mm1',4mm) + "
-            "1 x -E↑G(4)@2c(mm21',mm2)") in got, "the anchor A, as written"
-    assert ("4 x -E1↑G(2)@1a(4mm1',4mm) + 3 x -E2↑G(2)@1a(4mm1',4mm)") in got, \
+    got = _labels(rc.decomposition)
+    assert "3x-E1 at 1a (4mm1') + 2x-E2 at 1a (4mm1') + -E at 2c (mm21')" in got, \
+        "the anchor A, as written"
+    assert "4x-E1 at 1a (4mm1') + 3x-E2 at 1a (4mm1')" in got, \
         "the same A in the maximal basis"
-
-
-def test_completeness_check_counts_bands_as_well_as_coreps(lin3g_declared_cross_checked):
-    """Every solution must account for exactly the bands the block has."""
-    record = lin3g_declared_cross_checked
-    model, group, rep = record.model, record.group, record.rep
-    ok = tqe.completeness_check(tqw.hsp_table(record, bands=P6), group, bands=6, rep=rep)
-    assert ok and ok.complete
-    assert ok.band_counts == (6, 6, 6) and ok.band_count_matches
-    two = tqe.completeness_check(tqw.hsp_table(record, bands=list(P2)), group,
-                                 bands=list(P2), rep=rep)
-    assert two.complete and two.band_counts == (2,) and two.band_count_matches
-    # a caller who claims a band set the solutions cannot account for is told so
-    # rather than humoured
-    wrong = tqe.completeness_check(two.decomposition.content, group, bands=4)
-    assert wrong.complete and wrong.band_counts == (2,)
-    assert wrong.n_bands == 4 and wrong.band_count_matches is False
 
 
 # ---------------------------------------------------------------------------
@@ -391,10 +378,10 @@ def test_kane_mele_deep_atomic_limit_lands_on_the_occupied_site():
     table = tqw.hsp_table(out, bands=2)
     assert table.complete and table.symmetry_data == {"-GM6": 1, "-K4": 1, "-K5": 1,
                                                "-M3M4": 1}
-    d = tqe.decompose(table, group, rep=rep, bands=2)
-    assert d.verdict == "symmetry-indicated decomposable" and d.unique
-    assert list(d.content) == ["-GM6", "-K4", "-K5", "-M3M4"]
-    assert d.positions == (("1b",),), "the weight is at 1b; so is the EBR"
+    d = tqe.decompose(table)
+    assert d.decomposable and len(d.candidate_sums) == 1
+    assert list(d.symmetry_data) == ["-GM6", "-K4", "-K5", "-M3M4"]
+    assert _positions(d) == (("1b",),), "the weight is at 1b; so is the EBR"
 
 
 # ---------------------------------------------------------------------------
@@ -421,11 +408,10 @@ def test_pwv_valence_is_the_1a_EBR_and_the_conduction_pair_is_a_none(pwv_realize
     The bound is proved exhaustive: the EBR matrix is nonnegative and every
     column has a positive entry, so ``M x = y`` forces ``x_j <= max(y) = 1``
     term by term, and ``INFEASIBLE`` at that bound is a proof -- which the
-    report prints, and which ``completeness_check`` reads as not a sum of band
-    representations.  ``P6mm1'`` has no symmetry indicator at all, so this
+    report prints.  ``P6mm1'`` has no symmetry indicator at all, so this
     obstruction is invisible to indicators by construction, which is what
-    fragile means, and the record says ``"trivial indicator group"`` rather
-    than pretending zero is a verdict.
+    fragile means, and the record holds no divisor rather than pretending a
+    zero class is an answer.
 
     Note the orientation: in **this** model it is the conduction pair that is
     fragile, not the valence pair.  See the fixture's provenance note.
@@ -440,35 +426,32 @@ def test_pwv_valence_is_the_1a_EBR_and_the_conduction_pair_is_a_none(pwv_realize
     valence = tqw.hsp_table(pwv_realized, bands=2)
     assert valence.complete
     assert valence.symmetry_data == {"-GM9": 1, "-K6": 1, "-M5": 1}
-    dv = tqe.decompose(valence, group, rep=rep, bands=2)
-    assert dv.verdict == "symmetry-indicated decomposable" and dv.unique
-    assert dv.positions == (("1a",),)
-    assert dv.terms == (((1, "-E1↑G(2)", "1a(6mm1',6mm)"),),)
+    dv = tqe.decompose(valence)
+    assert dv.decomposable and len(dv.candidate_sums) == 1
+    assert _positions(dv) == (("1a",),)
+    assert [tuple(s) for s in dv.candidate_sums] == [(tqg.Term(1, "-E1", "1a", "6mm1'", "6mm"),)]
 
     conduction = tqw.hsp_table(pwv_realized, bands=(2, 3))
     assert conduction.complete
     assert conduction.symmetry_data == {"-GM8": 1, "-K4": 1, "-K5": 1, "-M5": 1}
-    dc = tqe.decompose(conduction, group, rep=rep, bands=(2, 3))
-    assert dc.verdict == "none" and dc.solutions == ()
-    assert dc.bound == 1 and dc.bound_is_rigorous
+    dc = tqe.decompose(conduction)
+    assert not dc.decomposable and dc.candidate_sums == ()
+    assert dc.numerical.bound == 1 and dc.numerical.bound_is_rigorous
     assert dc.certificate == "proof"
     assert ("proved: no elementary band representation can occur more than once"
-            in dc.summary()), "and a 'none' prints it"
-    assert dc.restriction.applied and dc.restriction.exact
-    assert dc.completeness["claim"] == "exact"
-    signed = {tuple(sorted((m, n, w) for m, n, w in terms))
-              for terms in dc.signed_combinations["terms"]}
-    assert (((-1, "-E1↑G(2)", "1a(6mm1',6mm)"), (1, "-E1↑G(4)", "2b(3m1',3m)"))
-            in signed), "the fragile difference [2b] - [1a]"
-    report = tqe.completeness_check(conduction, group, bands=(2, 3), rep=rep)
-    assert report and not report.complete and report.band_counts == ()
-    si = tqe.symmetry_indicator(conduction, group, rep=rep)
-    assert si and si.verdict == "trivial indicator group" and si.divisors == ()
+            in dc.summary()), "and a vector no sum carries prints it"
+    assert dc.numerical.restriction.dropped and dc.numerical.restriction.exact
+    assert dc.numerical.completeness.claim == "exact"
+    signed = {tuple(sorted((int(t.multiplicity), t.irrep, t.wyckoff) for t in s))
+              for s in dc.signed_combinations.sums}
+    assert ((-1, "-E1", "1a"), (1, "-E1", "2b")) in signed, "the fragile difference [2b] - [1a]"
+    si = tqe.symmetry_indicator(conduction)
+    assert si and si.divisors == () and si.indicator_group == "trivial"
 
     four = tqw.hsp_table(pwv_realized, bands=4)
-    d4 = tqe.decompose(four, group, rep=rep, bands=4)
-    assert d4.verdict == "symmetry-indicated decomposable" and d4.unique
-    assert d4.terms == (((1, "-E1↑G(4)", "2b(3m1',3m)"),),)
+    d4 = tqe.decompose(four)
+    assert d4.decomposable and len(d4.candidate_sums) == 1
+    assert [tuple(s) for s in d4.candidate_sums] == [(tqg.Term(1, "-E1", "2b", "3m1'", "3m"),)]
 
 
 # ---------------------------------------------------------------------------
@@ -506,8 +489,8 @@ def test_a_deliberately_dropped_point_is_refused_and_the_override_downgrades_the
     full = tqw.hsp_table(fkm_undistorted, bands=4)
     assert full.complete and "W" in full.multiplets
     restriction = tqe.in_plane_restriction(group)
-    assert restriction and not restriction.applied and restriction.dropped == ()
-    assert tqe.decompose(full, group, rep=rep, bands=4).completeness["claim"] == "exact"
+    assert restriction and restriction.dropped == ()
+    assert tqe.decompose(full).numerical.completeness.claim == "exact"
 
     dropped = Refusal("integer_multiplicity", "synthetic: W removed by hand",
                       value=0.5, threshold=1e-3, context={"kpname": "W"})
@@ -521,33 +504,32 @@ def test_a_deliberately_dropped_point_is_refused_and_the_override_downgrades_the
         complete=False)
     assert holed.symmetry_data == {"-GM6": 1, "-GM9": 1, "-L8": 1, "-L9": 1, "-X5": 1}
 
-    gated = tqe.decompose(holed, group, rep=rep)
+    gated = tqe.decompose(holed)
     assert isinstance(gated, Refusal) and gated.gate == "incomplete_content"
     assert gated.context["refusals"] == {"W": "integer_multiplicity"}
-    for out in (tqe.subtract(full, holed),
-                tqe.regular_completion(holed, bands=48, allow_incomplete=True)):
+    for out in (tqe.subtract(full, holed), tqe.regular_completion(holed, bands=48)):
         assert isinstance(out, Refusal) and out.gate == "incomplete_content"
         assert out.context["refusals"] == {"W": "integer_multiplicity"}
 
-    got = tqe.decompose(holed, group, rep=rep, allow_incomplete=True, bands=4)
-    assert got.completeness["claim"] == "necessary-condition"
-    assert set(got.restriction.orphans) == {"-W3W4", "-W5W6"}
-    assert "-W7" in got.restriction.dropped and got.restriction.copies["-W7"], (
+    got = tqe.decompose(holed, allow_incomplete=True)
+    restricted = got.numerical.restriction
+    assert got.numerical.completeness.claim == "necessary-condition"
+    assert set(restricted.orphans) == {"-W3W4", "-W5W6"}
+    assert "-W7" in restricted.dropped and restricted.copies["-W7"], (
         "dropped, but a copy of a retained row, so not an independent constraint")
-    assert not got.restriction.exact and not got.restriction.require_exact
-    assert "W" not in got.restriction.points
-    assert "1 x -E1↑G(4)@8a(-43m1',-43m)" in got.solution_strings()
-    assert not got.unique and len(got.solution_strings()) == 2, (
+    assert not restricted.exact and not restricted._require_exact
+    assert "W" not in restricted.kpoints
+    assert "-E1 at 8a (-43m1')" in _labels(got)
+    assert len(got.candidate_sums) == 2, (
         "and this is what the missing constraint costs: without W the 8b row "
         "becomes admissible too, so the answer stops being unique -- exactly "
         "the sense in which a necessary condition is weaker than an exact one")
-    assert "1 x -E1↑G(4)@8b(-43m1',-43m)" in got.solution_strings()
+    assert "-E1 at 8b (-43m1')" in _labels(got)
 
 
 def test_a_label_the_group_does_not_carry_is_refused(lin3g_declared_cross_checked):
     """``create_symmetry_vector`` would drop it silently; this does not."""
-    group = lin3g_declared_cross_checked.group
-    out = tqe.decompose({"-GM6": 1, "-NOSUCH3": 2}, group)
+    out = tqe.decompose({"-GM6": 1, "-NOSUCH3": 2}, lin3g_declared_cross_checked)
     assert isinstance(out, Refusal) and out.gate == "unknown_label"
     assert out.context["unknown"] == ("-NOSUCH3",)
 
@@ -557,14 +539,14 @@ def test_regular_completion_refuses_a_band_count_that_is_not_a_regular_multiple(
     """One regular copy of ``P4mm`` is 8 bands; 6 is not a multiple of it."""
     record = lin3g_declared_cross_checked
     model, group, rep = record.model, record.group, record.rep
-    out = tqe.regular_completion(tqw.hsp_table(record, bands=P6), group, bands=6)
+    out = tqe.regular_completion(tqw.hsp_table(record, bands=P6), bands=6)
     assert isinstance(out, Refusal) and out.gate == "not_a_regular_multiple"
     assert out.context["bands_per_copy"] == 8
 
     # ... and a band set that is not contained in the regular target propagates
     # the difference refusal rather than inventing negative padding
     too_much = {lab: 9 for lab in ("-GM6", "-GM7", "-M6", "-M7", "-X5")}
-    out2 = tqe.regular_completion(too_much, group, bands=8)
+    out2 = tqe.regular_completion(too_much, record, bands=8)
     assert isinstance(out2, Refusal) and out2.gate == "negative_multiplicity"
 
 
@@ -632,28 +614,13 @@ def fkm_strong(realized):
     return out
 
 
-@pytest.fixture(scope="module")
-def km_slab_191():
-    """The Kane-Mele slab cell ``P6/mmm1' #191.234`` -- the sigma_h presentation.
-
-    ``_group_of`` on the slab, not ``realized_group``: the point of this fixture
-    is the group's *tables* (its EBR basis has ``A``/``H``/``L`` rows that are
-    not copies of in-plane ones), and no representation is needed to make it.
-    """
-    from pythtb.models import kane_mele
-
-    group = _spacegroup._group_of(_layers._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.0)))
-    assert group and group.number_str == "191.234", str(group)
-    return group
-
-
 def test_the_shipped_smith_basis_is_the_convention_and_a_de_novo_snf_verifies_it(
         fkm_strong, monkeypatch):
     """Pinned, then checked: an independent integer Smith form of the same matrix.
 
     ``irreptables`` ships ``u``, ``v``, ``R`` with each group's EBR block and
     ``groups.ebr_data`` transports them with the rows; that transported ``u`` is
-    the convention this package's indicator is written in.  ``verify=True``
+    the convention this package's indicator is written in.  Every call
     recomputes the Smith form from the matrix alone, in exact integers, and
     checks (i) that the shipped factors really satisfy ``u M v = R`` on the
     transported matrix, (ii) that the elementary divisors agree, and (iii) that
@@ -677,11 +644,9 @@ def test_the_shipped_smith_basis_is_the_convention_and_a_de_novo_snf_verifies_it
     ``u M v = R`` identity that catches it.
     """
     group = fkm_strong.group
-    rep = fkm_strong.rep
-    si = tqe.symmetry_indicator(tqw.hsp_table(fkm_strong, bands=2), group, rep=rep)
-    v = si.verification
-    assert v["performed"]
-    assert v["divisors_denovo"] == (2, 4)
+    si = tqe.symmetry_indicator(tqw.hsp_table(fkm_strong, bands=2))
+    v = si.numerical.verification
+    assert v.divisors_denovo == (2, 4)
     # What the two bases are allowed to disagree about is checked as the
     # freedom it is, not pinned to the basis `_snf`'s pivot rule happens to
     # reach: the recorded change of basis must be an AUTOMORPHISM of the
@@ -691,7 +656,7 @@ def test_the_shipped_smith_basis_is_the_convention_and_a_de_novo_snf_verifies_it
     # True and `values_denovo == si.values`); with `_snf` pivoting on the
     # LARGEST entry instead of the smallest it is ((1, 2), (0, 1)) and both of
     # those readings change while nothing about the class does.
-    div, cob = v["divisors_denovo"], v["change_of_basis"]
+    div, cob = v.divisors_denovo, v.change_of_basis
 
     def _act(y):
         return tuple(sum(cob[i][j] * y[j] for j in range(len(y))) % div[i]
@@ -699,12 +664,7 @@ def test_the_shipped_smith_basis_is_the_convention_and_a_de_novo_snf_verifies_it
 
     elements = [(a, b) for a in range(div[0]) for b in range(div[1])]
     assert {_act(y) for y in elements} == set(elements), "an automorphism, not a map"
-    assert _act(si.values) == v["values_denovo"], "the same class, in the other basis"
-
-    # verify=False takes the shipped form on trust and says so
-    off = tqe.symmetry_indicator(tqw.hsp_table(fkm_strong, bands=2), group, verify=False)
-    assert off.verification["performed"] is False
-    assert off.values == si.values
+    assert _act(si.values) == v.values_denovo, "the same class, in the other basis"
 
     # the hand-rolled Smith normal form is exact and unimodular, on a matrix
     # whose divisors are not all 1
@@ -736,7 +696,7 @@ def test_the_shipped_smith_basis_is_the_convention_and_a_de_novo_snf_verifies_it
             == [[int(x) for x in row] for row in r_bad]), "check (i) still passes"
     patch_everywhere(monkeypatch, "_ebr_data", lambda g: doctored)
     with pytest.raises(InternalError) as excinfo:
-        tqe.symmetry_indicator(tqw.hsp_table(fkm_strong, bands=2), group, rep=rep)
+        tqe.symmetry_indicator(tqw.hsp_table(fkm_strong, bands=2))
     assert "elementary divisors" in str(excinfo.value)
 
 
@@ -869,11 +829,9 @@ def test_kane_mele_z2_is_not_eigenvalue_indicated_in_its_realized_group(km191_re
     from the tables rather than assumed.  Genuine inversion needs ``sigma_h``,
     and the layer-group tests below are where it is measured.
 
-    Asked of the content alone, this is the whole answer: without a
-    representation there is no model to re-present, so the in-plane group is the
-    only one there is.  (Handed a representation that makes no environment
-    claim, the same call measures the decoupled stack and finds the mirror --
-    the pure-2D layer test below.)  Asked of the *model* instead, the
+    Asked of the symmetry data vector written out by hand, this is the whole
+    answer: the in-plane group is the group the measurement returned, and every
+    row out of its plane repeats one in it.  Asked of the *model* instead, the
     free-standing reading finds the mirror in the point set and answers
     ``P6/mmm1' #191.234`` directly; that is a different question, and the
     baseline's ``layer/kane_mele|free-standing`` record pins it.
@@ -887,67 +845,78 @@ def test_kane_mele_z2_is_not_eigenvalue_indicated_in_its_realized_group(km191_re
     is an atomic limit -- and the entries it supplied are read as they are,
     never filled over.
     """
-    rep, group = km191_realized.rep, km191_realized.group
+    group = km191_realized.group
     assert group.number_str == "183.186"
 
-    si = tqe.symmetry_indicator(dict(tqw.hsp_table(km191_realized, bands=2).symmetry_data), group,
-                                bands=2)
+    si = tqe.symmetry_indicator(dict(tqw.hsp_table(km191_realized, bands=2).symmetry_data),
+                                km191_realized)
     assert si, str(si)
-    assert si.verdict == "trivial indicator group"
+    assert si.indicator_group == "trivial"
     assert si.divisors == () and si.values == () and si.order == 1
-    assert si.irreptables_named is None
-    assert si.completion is None, "nothing was re-presented, and the record says so"
+    assert si.indicators is None
+    assert si.numerical.completion is None, "nothing was re-presented, and the record says so"
 
-    assert si.reconstructed == {"-A7": "-GM7", "-A8": "-GM8", "-A9": "-GM9",
-                                "-H4": "-K4", "-H5": "-K4", "-H6": "-K6",
-                                "-L5": "-M5"}
-    assert si.restriction.applied and si.restriction.exact
+    assert si.numerical.reconstructed == {"-A7": "-GM7", "-A8": "-GM8", "-A9": "-GM9",
+                                          "-H4": "-K4", "-H5": "-K4", "-H6": "-K6",
+                                          "-L5": "-M5"}
+    assert si.numerical.restriction.dropped and si.numerical.restriction.exact
     # the measured multiplicities the reconstruction above copied from (the
-    # equalities themselves are the map already pinned in `si.reconstructed`)
-    filled = dict(zip(si.labels, si.y))
+    # equalities themselves are the map already pinned in `reconstructed`)
+    filled = si.numerical.completed_symmetry_data
     assert filled["-GM9"] == 1 and filled["-M5"] == 1
 
     rows = tqe.ebr_rows(group)
     row = rows[sorted(rows)[0]]
-    supplied = set(row) & set(si.restriction.dropped)
+    supplied = set(row) & set(si.numerical.restriction.dropped)
     assert supplied, "the row carries its out-of-plane entries"
-    whole = tqe.symmetry_indicator(row, group)
-    assert whole and not whole.nontrivial and whole.order == 1
-    assert not supplied & set(whole.reconstructed), "a supplied value is left alone"
+    whole = tqe.symmetry_indicator(row, km191_realized)
+    assert whole and not any(whole.values) and whole.order == 1
+    assert not supplied & set(whole.numerical.reconstructed), "a supplied value is left alone"
 
 
-def test_the_sigma_h_presentation_without_a_representation_cannot_evaluate_the_indicator(
-        km_slab_191):
-    """Where the indicator needs a row a 2D model cannot measure, and cannot go and
-    measure it, it refuses.
+def test_a_layers_vector_written_in_its_plane_is_completed_on_its_own_band_representations(
+        realized):
+    """A layer's symmetry data vector written in its plane is completed, and gets a class.
 
     ``P6/mmm1'`` is where the Kane-Mele ``Z2`` *could* be indicated --
     ``X_BS = Z6 x Z12``, and ``z4``, the Fu-Kane parity index, is one of its
-    named forms.  But that group's ``A``/``H``/``L`` rows are not duplicates of
-    in-plane ones over every band representation (which is why the restriction
-    of the whole basis refuses here too), and ``z4``'s own coefficients sit on
-    ``A`` and ``L``.  The rows can be *measured*, on the
-    decoupled stack of the layer -- and that needs the representation: its
-    model, its band block and its declared characters.  A bare
-    ``{label: multiplicity}`` mapping carries none of the three, so the honest
-    answer here is a refusal that says which rows are missing and what would
-    supply them, and never a value read off a truncated vector.
+    named forms.  That group's ``A``/``H``/``L`` rows are not duplicates of
+    in-plane ones over every band representation, which is why the restriction
+    of the whole basis refuses.  Over the layer's own band representations,
+    those of the Wyckoff positions within it, every row out of the plane
+    repeats one in it, so a vector written in the plane is completed there and
+    its class read on the whole basis.  Every elementary band representation
+    is an atomic limit, so each row, written in the plane or written whole,
+    has class zero; and a whole row of a position off the layer, read as
+    written, is decomposed over the layer's own band representations and
+    found not decomposable rather than refused (``-E3`` at ``2d`` excepted,
+    which the layer's own ``-E3`` at ``2c`` reproduces).
     """
-    hsp = tqg.high_symmetry_points(km_slab_191)
+    free = realized(tqm.kane_mele_inversion, environment="free-standing",
+                    characters={0: "s"}, cross_check=False)
+    group = free.group
+    assert group.number_str == "191.234"
+    hsp = tqg.high_symmetry_points(group)
     assert sorted(hsp) == ["GM", "K", "M"]
-    rows = tqe.ebr_rows(km_slab_191)
+    rows = tqe.ebr_rows(group)
     assert list(rows["-E1", "2c"]) == [
         "-GM9", "-GM11", "-A9", "-A11", "-H7", "-H8", "-K7", "-K8", "-L5", "-L6", "-M5", "-M6"]
-    row = rows["-E1g", "1a"]
-    in_plane = {lab: m for lab, m in row.items() if tqe.kpoint_of_label(lab) in hsp}
-
-    out = tqe.symmetry_indicator(in_plane, km_slab_191)
-    assert isinstance(out, Refusal) and out.gate == "indicator_not_evaluable"
-    assert out.context["stack"] is None, "nothing was built"
-    assert "decoupled stack" in out.reason and "A5" not in out.reason
-    assert set(tqe.kpoint_of_label(l) for l in out.context["orphans"]) == {"A", "H", "L"}
     # the same rows make the restriction of the whole basis refuse
-    assert tqe.in_plane_restriction(km_slab_191).gate == "restriction_not_exact"
+    assert tqe.in_plane_restriction(group).gate == "restriction_not_exact"
+
+    assert len(rows) == 22
+    for (irrep, wyckoff), row in rows.items():
+        in_plane = {lab: m for lab, m in row.items() if tqe.kpoint_of_label(lab) in hsp}
+        plane = tqe.symmetry_indicator(in_plane, free)
+        assert plane and plane.values == (0, 0), (irrep, wyckoff, plane)
+        assert plane.numerical.completion is None and plane.numerical.reconstructed
+        assert plane.symmetry_data == in_plane
+        whole = tqe.symmetry_indicator(dict(row), free)
+        assert whole and whole.values == (0, 0), (irrep, wyckoff, whole)
+        if wyckoff in ("1b", "2d", "3g"):
+            d = tqe.decompose(dict(row), free)
+            assert d and d.numerical.completeness.claim == "exact", (irrep, wyckoff, d)
+            assert d.decomposable == ((irrep, wyckoff) == ("-E3", "2d")), (irrep, wyckoff)
 
 
 # ---------------------------------------------------------------------------
@@ -995,7 +964,10 @@ def _stacked(model, c=8.0):
 #: the Kane-Mele valence pair at ``delta = rashba = 0``, six-point content, sits
 #: at ``(1, 0)`` of order 6, with ``z2w,3 = 1`` and ``z4 = 2``: every component
 #: an invariant of the layer's decoupled stack, fixed by the layer's own content.
+#: ``KM_LAYER_INDICATORS`` in the paper's names, ``KM_LAYER_NAMED`` in irreptables'.
 KM_LAYER_CLASS = (1, 0)
+KM_LAYER_INDICATORS = {"z2w,3": 1, "z4": 2, "z3m,pi": 1, "z3m,0": 1,
+                       "z6m,0": 5, "z6m,pi": 5, "z12": 10}
 KM_LAYER_NAMED = {"z2w,3": 1, "z4": 2, "z3m,π": 1, "z3m,0": 1,
                   "z6m,0": 5, "z6m,π": 5, "z12": 10}
 
@@ -1015,33 +987,31 @@ def test_the_layer_class_moves_only_by_the_declaration_it_states():
     ``L``, whose two double-valued coreps only inversion tells apart, the
     labels stay.  What does not move is everything of order at most 2 -- the
     order itself, ``z2w,3`` and ``z4`` -- which is why the physics statement
-    ("indicated nontrivial, order 6, ``z2w,3 = 1``") survives the declaration
+    ("a nonzero class of order 6, ``z2w,3 = 1``") survives the declaration
     and the individual components need it stated.
     """
     stack = tqg.realized_group(_stacked(tqm.kane_mele_inversion()),
                                characters={0: "s"})
     assert stack and stack.group.number_str == "191.234", str(stack)
-    even = tqe.symmetry_indicator(tqw.hsp_table(stack, bands=2), stack.group,
-                                  rep=stack.rep, bands=2)
+    even = tqe.symmetry_indicator(tqw.hsp_table(stack, bands=2))
     assert even.site_content is not None
-    assert even.site_content["determined_by"][0] == "declaration", \
+    assert even.site_content.determined_by[0] == "declaration", \
         "the even labelling is the one this record states"
 
     odd_rep = _build._build_rep(stack.model, stack.group, stack._assignment,
                              validated=stack.numerical.validated, characters={0: "A2'"})
     assert odd_rep, str(odd_rep)
-    odd = tqe.symmetry_indicator(tqw._hsp_table_rep(odd_rep, bands=2), stack.group,
-                                 rep=odd_rep, bands=2)
+    odd = tqe.symmetry_indicator(tqw._hsp_table_rep(odd_rep, bands=2))
     assert odd, str(odd)
-    assert set(odd.content) & set(even.content) == {"-M6", "-L6"}, \
+    assert set(odd.symmetry_data) & set(even.symmetry_data) == {"-M6", "-L6"}, \
         "at M and L only inversion tells the coreps apart, and the functions are even"
     assert odd.values == (5, 0), "the inverse class in Z6 x Z12"
     assert all((a + b) % d == 0 for a, b, d in zip(odd.values, even.values,
                                                    even.divisors))
     assert odd.order == even.order == 6
-    assert odd.irreptables_named["z2w,3"] == even.irreptables_named["z2w,3"] == 1
-    assert odd.irreptables_named["z4"] == even.irreptables_named["z4"] == 2
-    assert odd.verdict == even.verdict == "indicated nontrivial"
+    assert odd.indicators["z2w,3"] == even.indicators["z2w,3"] == 1
+    assert odd.indicators["z4"] == even.indicators["z4"] == 2
+    assert any(odd.values) and any(even.values)
 
 
 # ---------------------------------------------------------------------------
@@ -1117,8 +1087,7 @@ def test_a_pure_2D_layer_reaches_the_layer_class_by_measuring_its_own_stack(
     because the model is still one layer.
 
     In the paper's names it is ``z3m,pi`` where ``irreptables`` writes
-    ``z3m,π``, and ``as_irreptables()`` maps the one vocabulary onto the other
-    exactly.  ``Z6 x Z12`` is the largest indicator group in the tables, 72
+    ``z3m,π``, and the spelling map carries the one onto the other exactly.  ``Z6 x Z12`` is the largest indicator group in the tables, 72
     classes, so it is where the determinism of those names has the most to do.
     """
     assert np.asarray(tqm.kane_mele_inversion().lat_vecs).shape == (2, 2), \
@@ -1138,14 +1107,13 @@ def test_a_pure_2D_layer_reaches_the_layer_class_by_measuring_its_own_stack(
     free = tqg.NamedGroup("P6/mmm1'", "191.234", 48)
     assert layer.environment.cross_check.outcome == "agree"
     assert layer.environment.cross_check.free_standing == free
-    on_substrate = tqe.symmetry_indicator(content, layer.group, rep=layer.rep,
-                                          bands=2)
+    on_substrate = tqe.symmetry_indicator(content)
     assert on_substrate, str(on_substrate)
-    assert on_substrate.number_str == "183.186" and on_substrate.values == ()
-    assert on_substrate.completion is None, "every row out of the plane repeats one in it"
-    assert on_substrate.free_standing_group == {"number_str": "191.234", "name": "P6/mmm1'",
-                                                "size": 48}
-    assert "is P6/mmm1' #191.234, larger than this one" in on_substrate.summary()
+    assert on_substrate.group.number_str == "183.186" and on_substrate.values == ()
+    assert on_substrate.numerical.completion is None, \
+        "every row out of the plane repeats one in it"
+    assert on_substrate.numerical.free_standing_group == free
+    assert "is P6/mmm1' #191.234, larger than this one" in on_substrate.numerical.summary()
 
     # the free-standing question, asked of the free-standing record: the
     # layer's own group #191.234, its rows at k_z = 1/2 measured on the stack
@@ -1155,59 +1123,56 @@ def test_a_pure_2D_layer_reaches_the_layer_class_by_measuring_its_own_stack(
     assert free.group.number_str == "191.234" and len(free.numerical.validated._indices) == 48
     free_content = tqw.hsp_table(free, bands=2)
     assert dict(free_content.symmetry_data) == {"-GM9": 1, "-K8": 1, "-M6": 1}
-    si = tqe.symmetry_indicator(free_content, free.group, rep=free.rep, bands=2)
+    si = tqe.symmetry_indicator(free_content)
     assert si, str(si)
-    assert si.number_str == "191.234" and si.structure == "Z6 x Z12"
+    assert si.group.number_str == "191.234" and si.indicator_group == "Z6 x Z12"
     assert si.values == KM_LAYER_CLASS and si.order == 6
-    assert si.verdict == "indicated nontrivial" and si.irreptables_named == KM_LAYER_NAMED
-    assert si.canonical == {"z2w,3": 1, "z4": 2, "z3m,pi": 1, "z3m,0": 1,
-                            "z6m,0": 5, "z6m,pi": 5, "z12": 10}
-    assert si.as_irreptables() == si.irreptables_named, \
-        "the spelling map applied to real data"
-    assert si.canonical_tex["z3m,pi"] == "z_{3m,\\pi}"
+    assert si.indicators == KM_LAYER_INDICATORS
+    # irreptables' own named forms read the same class, and the spelling map
+    # carries the paper's names onto theirs
+    data = _tables._ebr_data(free.group)
+    named, _touched, _note, _coeffs = tqe._named_forms(
+        free.group, data, np.asarray(data["matrix"], dtype=int), list(si._y), "II")
+    assert named == KM_LAYER_NAMED
+    assert {_srsitables.to_irreptables_name(k): v for k, v in si.indicators.items()} == \
+        named, "the spelling map applied to real data"
+    tex = {f.name: f.name_tex for f in tqr.srsi_tables(191, spinor=True).indicators}
+    assert tex["z3m,pi"] == "z_{3m,\\pi}"
     assert "all 72 elements of Z6xZ12 have different canonical values" in \
-        si.canonical_note
+        si.numerical.indicators_note
     assert tqr.canonical_determinism(tqr.srsi_tables(191, spinor=True))["n_classes"] == 72
 
-    comp = si.completion
-    assert comp["outcome"] == "completed" and comp["stopped_at"] is None
-    assert comp["environment"] == "free-standing"
-    assert comp["stack"]["dim_k"] == 3 and comp["stack"]["periodic_dirs"] == (0, 1, 2)
-    gates = comp["gates"]
-    assert gates["hamiltonian_identity"]["residual"] == 0.0
-    assert gates["hamiltonian_identity"]["k_z"] == (0.0, 0.25, 0.5)
-    # content(A) = content(GM), H = K, L = M -- checked, not assumed
-    fibers = {(f["point"], f["in_plane_point"]) for f in gates["fibers"]}
+    comp = si.numerical.completion
+    assert comp.outcome == "completed" and comp.stopped_at is None
+    assert comp.environment == "free-standing"
+    assert comp.stack.dim_k == 3 and comp.stack.periodic_dirs == (0, 1, 2)
+    assert comp.stack_period == tqg.STACK_C
+    gates = comp.gates
+    assert gates.hamiltonian_identity.residual == 0.0
+    assert gates.hamiltonian_identity.k_z == (0.0, 0.25, 0.5)
+    # the coreps at A are those at GM, H = K, L = M -- checked, not assumed
+    fibers = {(f.kpoint, f.in_plane_kpoint) for f in gates.fibers}
     assert fibers == {("A", "GM"), ("H", "K"), ("L", "M")}
-    for f in gates["fibers"]:
-        assert f["partition_equal"] and f["multiplicities_equal"]
-        assert f["energy_defect"] == 0.0 and f["character_defect"] < 1e-12
+    for f in gates.fibers:
+        assert f.partition_equal and f.multiplicities_equal
+        assert f.energy_defect == 0.0 and f.character_defect < 1e-12
 
-    # the 2D reading is served beside the class: the model is one layer, and
+    # the 2D reading is returned beside the class: the model is one layer, and
     # the points are split by whether their k lies in the layer's plane
-    td = si.two_dimensional
-    assert td and td["dim_k"] == 2 and td["periodic_dirs"] == (0, 1)
-    assert td["vacuum_dirs"] == (2,) and td["out_of_plane_points"] == ("A", "H", "L")
-    assert td["presentation"] == "decoupled-STACK"
-    assert td["irreptables_support"]["z2w,3"] == "out-of-plane only"
-    assert td["irreptables_support"]["z4"] == "mixed"
+    td = si.numerical.two_dimensional
+    assert td and td.dim_k == 2 and td.periodic_dirs == (0, 1)
+    assert td.vacuum_dirs == (2,) and td.out_of_plane_kpoints == ("A", "H", "L")
+    assert td.presentation == "decoupled-STACK"
+    assert td.support["z2w,3"] == "out-of-plane only"
+    assert td.support["z4"] == "mixed"
     # the class read as the decoupled stack's, every component alike
     for phrase in ("the class of the layer's decoupled stack",
                    "no hopping between copies",
                    "every component is an invariant of that stack"):
-        assert phrase in td["note"] and phrase in si.summary(), phrase
-    assert not {"weak", "strong"} & set(td["note"].lower().replace(",", " ").split())
-    assert "decoupled stack" in si.summary()
+        assert phrase in td.note and phrase in si.numerical.summary(), phrase
+    assert not {"weak", "strong"} & set(td.note.lower().replace(",", " ").split())
+    assert "decoupled stack" in si.numerical.summary()
     assert "#191.234" in repr(si) and "completed on the stack" in repr(si)
-
-    # the stack period is arbitrary: no hopping crosses it, so no number may
-    # move with it
-    other = tqe.symmetry_indicator(free_content, free.group, rep=free.rep, bands=2,
-                                   stack_period=13.7)
-    assert other.values == si.values and other.irreptables_named == si.irreptables_named
-    assert other.order == si.order and other.y == si.y
-    assert other.completion["stack_period"] == 13.7
-    assert si.completion["stack_period"] == tqg.STACK_C
 
 
 @pytest.mark.slow
@@ -1257,44 +1222,55 @@ def test_the_declared_slab_reaches_the_same_class_through_the_layer_route(monkey
     assert tqe.in_plane_restriction(slab.group, require_exact=False).orphans, \
         "10 orphan rows"
 
-    si = tqe.symmetry_indicator(content, slab.group, rep=slab.rep, bands=2)
+    si = tqe.symmetry_indicator(content)
     assert si, str(si)
-    assert si.number_str == "191.234" and si.values == KM_LAYER_CLASS
-    assert si.order == 6 and si.irreptables_named == KM_LAYER_NAMED
-    comp = si.completion
-    assert comp["outcome"] == "completed"
-    assert comp["route"] == "decoupled stack", "which stack the rows came from"
-    assert comp["environment"] == "free-standing"
+    assert si.group.number_str == "191.234" and si.values == KM_LAYER_CLASS
+    assert si.order == 6 and si.indicators == KM_LAYER_INDICATORS
+    comp = si.numerical.completion
+    assert comp.outcome == "completed"
+    assert comp.route == "decoupled stack", "which stack the rows came from"
+    assert comp.environment == "free-standing"
     # the record says how the class was reached
     assert "completed on the stack" in repr(si)
-    assert "in the layer's own group #191.234" in si.summary()
-    assert comp["input"]["number_str"] == comp["stack"]["number_str"] == "191.234"
-    represented = comp["gates"]["representation"]
-    assert represented["n_operations"] == 48
-    assert represented["covariance"] <= represented["threshold"] < 1e-12
-    assert comp["gates"]["characters"]["labels_equal"] is True
+    assert "in the layer's own group P6/mmm1' #191.234" in si.numerical.summary()
+    assert comp.input.group.number_str == comp.stack.group.number_str == "191.234"
+    represented = comp.gates.representation
+    assert represented.n_operations == 48
+    assert represented.covariance <= represented.threshold < 1e-12
+    assert comp.gates.characters.labels_equal is True
     # a c=30 slab against a c=STACK_C stack: the same 44 characters computed in
-    # two presentations, so roundoff and not an identity (0.0 here; 1.5e-15 with
-    # `c=13.7`, which nothing is allowed to depend on)
-    assert comp["gates"]["characters"]["worst"] < 1e-12
-    assert comp["gates"]["characters"]["n_comparisons"] == 44
-    assert len(comp["input"]["orphans"]) == 10
-    assert si.two_dimensional["out_of_plane_points"] == ("A", "H", "L")
+    # two presentations, so roundoff and not an identity
+    assert comp.gates.characters.worst < 1e-12
+    assert comp.gates.characters.n_comparisons == 44
+    assert len(comp.input.orphans) == 10
+    assert si.numerical.two_dimensional.out_of_plane_kpoints == ("A", "H", "L")
     # ... and a decomposition is read in the plane, over the layer's own band
     # representations: it finds no atomic limit, with a proof, as the class says
-    d = tqe.decompose(content, slab.group, rep=slab.rep)
-    assert (d.verdict, d.certificate) == ("none", "proof"), d.summary()
-    assert d.signed_combinations["n_solutions"] == 0
-    assert sorted(d.restriction.outside_layer) == ["1b", "2d", "3g"]
+    d = tqe.decompose(content)
+    assert (d.decomposable, d.certificate) == (False, "proof"), d.summary()
+    assert d.signed_combinations.sums == ()
+    assert sorted(d.numerical.restriction.outside_layer) == ["1b", "2d", "3g"]
     assert ("1b, 2d and 3g lie off the layer, so their band representations are left "
-            "out") in d.summary()
+            "out") in d.numerical.summary()
 
-    # `points=` is an instruction about what the model may be asked, and it is
-    # obeyed: the stack is not built and the honest refusal comes back.
-    held = tqe.symmetry_indicator(dict(content.symmetry_data), slab.group, rep=slab.rep,
-                                  points=("GM", "K", "M"))
-    assert isinstance(held, Refusal) and held.gate == "indicator_not_evaluable"
-    assert held.context["stack"] is None
+    # the vector of the plane written out by hand, beside the measurement it came
+    # from, is completed on the layer's own band representations: the same class
+    # and the same completed vector as the stack's, with nothing stacked
+    vector = tqe.symmetry_indicator(dict(content.symmetry_data), slab)
+    assert vector, str(vector)
+    for name in ("values", "divisors", "order", "indicators", "symmetry_data"):
+        assert getattr(vector, name) == getattr(si, name), name
+    assert (vector.numerical.completed_symmetry_data
+            == si.numerical.completed_symmetry_data)
+    assert vector.numerical.completion is None and si.numerical.completion is not None
+    assert {"-A9": "-GM9", "-H8": "-K8", "-L6": "-M6"}.items() <= \
+        vector.numerical.reconstructed.items()
+    assert si.numerical.reconstructed == {}
+    assert (tqr.srsi_of_bands(dict(content.symmetry_data), slab).theta_Z
+            == tqr.srsi_of_bands(content).theta_Z)
+    # the vector naming every point is read as written, to the same class
+    every = tqe.symmetry_indicator(si.numerical.completed_symmetry_data, slab)
+    assert every.values == si.values and not every.numerical.reconstructed
 
     # ... and when the stack cannot be built for the layer, the rows are still
     # missing: the refusal comes back carrying where it stopped, never a class
@@ -1309,7 +1285,7 @@ def test_the_declared_slab_reaches_the_same_class_through_the_layer_route(monkey
         patch_everywhere(mp, "stack_presentation",
                    lambda *a, **k: Refusal("hopping_across_the_stack", "synthetic",
                                            value=1.0))
-        stopped = tqe.symmetry_indicator(content, slab.group, rep=slab.rep, bands=2)
+        stopped = tqe.symmetry_indicator(content)
     evaluator = _bloch.evaluator
 
     def moved_off(model, *args, **kwargs):
@@ -1322,7 +1298,7 @@ def test_the_declared_slab_reaches_the_same_class_through_the_layer_route(monkey
     with monkeypatch.context() as mp:
         mp.setattr(_bloch, "evaluator", moved_off)
         with pytest.raises(InternalError, match="the decoupled stack is not the layer"):
-            tqe.symmetry_indicator(content, slab.group, rep=slab.rep, bands=2)
+            tqe.symmetry_indicator(content)
     assert isinstance(stopped, Refusal) and stopped.gate == "indicator_not_evaluable"
     assert stopped.context["stack"]["stopped_at"] == "stack_presentation"
     assert stopped.context["stack"]["outcome"] == "stopped"
@@ -1383,12 +1359,11 @@ def test_the_bare_call_serves_the_class_under_the_named_s_convention():
     assert tqs._LOWEST_L_LEGEND in free.rep._characters.summary(), "the convention is named"
     assert free.rep._characters.irreps == ("-E1", "-E1"), \
         "the lowest-l rule's labelling, lifted: the spinor doublet of -6m2"
-    si = tqe.symmetry_indicator(tqw.hsp_table(free, bands=2), free.group,
-                                rep=free.rep, bands=2)
+    si = tqe.symmetry_indicator(tqw.hsp_table(free, bands=2))
     assert si, str(si)
-    assert si.number_str == "191.234" and si.completion["outcome"] == "completed"
+    assert si.group.number_str == "191.234" and si.numerical.completion.outcome == "completed"
     assert si.site_content is not None
-    assert si.site_content["irreps"] == ("-E1", "-E1"), (
+    assert si.site_content.irreps == ("-E1", "-E1"), (
         "the record a class is read from carries the labels it was read under, "
         "and the stack the completion read carried the flat model's own matrices "
         "and site content")
@@ -1543,7 +1518,7 @@ def test_a_layer_whose_own_group_can_answer_never_builds_the_stack():
 
     # (4) nothing is missing: every out-of-plane row duplicates an in-plane one
     restriction = tqe.in_plane_restriction(group, require_exact=False)
-    assert restriction.applied and restriction.exact and restriction.orphans == ()
+    assert restriction.dropped and restriction.exact and restriction.orphans == ()
     assert {tqe.kpoint_of_label(l) for l in restriction.dropped} == {"A", "R", "Z"}
     assert all(restriction.copies[l] for l in restriction.dropped)
 
@@ -1554,13 +1529,14 @@ def test_a_layer_whose_own_group_can_answer_never_builds_the_stack():
     # was ever built
     content = tqw.hsp_table(realized, bands=1)
     assert content.complete and sorted(content.kpoints) == ["GM", "M", "X"]
-    si = tqe.symmetry_indicator(content, group, rep=rep, bands=1)
+    si = tqe.symmetry_indicator(content)
     assert si, str(si)
-    assert si.completion is None, "the layer's own group answered; nothing was stacked"
-    assert si.number_str == "75" and si.structure == "Z4" and si.divisors == (4,)
-    assert si.values == (3,) and si.order == 4
-    assert si.verdict == "indicated nontrivial" and si.nontrivial
-    assert si.reconstructed and set(si.reconstructed) == set(restriction.dropped)
+    assert si.numerical.completion is None, \
+        "the layer's own group returned the class; nothing was stacked"
+    assert si.group.number_str == "75" and si.indicator_group == "Z4" and si.divisors == (4,)
+    assert si.values == (3,) and si.order == 4 and any(si.values)
+    assert (si.numerical.reconstructed
+            and set(si.numerical.reconstructed) == set(restriction.dropped))
 
     # (7) the physics, by a route with no corep in it -- and the correspondence
     # the Z4 shows over the mass, measured rather than imported
@@ -1569,7 +1545,7 @@ def test_a_layer_whose_own_group_can_answer_never_builds_the_stack():
         got = realized if mass == 1.0 else _qwz_realized(mass)    # m = 1 is read above
         assert got, str(got)
         mod, grp, rp = got.model, got.group, got.rep
-        cls = tqe.symmetry_indicator(tqw.hsp_table(got, bands=1), grp, rep=rp).values
+        cls = tqe.symmetry_indicator(tqw.hsp_table(got, bands=1)).values
         seen[mass] = (cls, _chern(_qwz(mass)))
     assert seen[1.0][0] == (3,) and round(seen[1.0][1]) == 1
     assert seen[-1.0][0] == (1,) and round(seen[-1.0][1]) == -1
@@ -1595,22 +1571,25 @@ def test_a_layer_whose_own_group_can_answer_never_builds_the_stack():
         assert lowest.complete and list(lowest.kpoints) == ["GM", "K", "KA", "M"]
         assert lowest.symmetry_data == ({"GM1": 1, "K2": 1, "KA3": 1, "M1": 1} if c > 0
                                         else {"GM1": 1, "K3": 1, "KA2": 1, "M1": 1})
-        none = tqe.decompose(lowest, got.group, rep=got.rep)
-        assert none.verdict == "none" and none.restriction.exact
-        assert tqe.decompose(dict(lowest.symmetry_data), got.group).y == none.y, \
+        none = tqe.decompose(lowest)
+        assert not none.decomposable and none.numerical.restriction.exact
+        again = tqe.decompose(dict(lowest.symmetry_data), got)
+        assert ((again.decomposable, again.symmetry_data, again.numerical.restriction.retained)
+                == (none.decomposable, none.symmetry_data,
+                    none.numerical.restriction.retained)), \
             "the table's own vector, handed on as a mapping, reads as the table"
-        si = tqe.symmetry_indicator(lowest, got.group, rep=got.rep)
-        assert round(_chern(hal)) == c and si.completion is None
-        assert (si.structure, si.values) == ("Z3", ((-c) % 3,))
-        assert tqe.symmetry_indicator(dict(lowest.symmetry_data), got.group).values == si.values
+        si = tqe.symmetry_indicator(lowest)
+        assert round(_chern(hal)) == c and si.numerical.completion is None
+        assert (si.indicator_group, si.values) == ("Z3", ((-c) % 3,))
+        assert tqe.symmetry_indicator(dict(lowest.symmetry_data), got).values == si.values
         rc = tqe.regular_completion(lowest, bands=3)
-        assert rc and rc.padding["M1"] == 2 and rc.decomposition.solutions == (), \
+        assert rc and rc.padding["M1"] == 2 and rc.decomposition.candidate_sums == (), \
             "the two bands that complete a Chern band are no atomic limit either"
-        off = tqe.regular_content(got.group, points=["L"])
+        off = tqe.regular_content(got.group, kpoints=["L"])
         assert isinstance(off, Refusal) and off.gate == "out_of_plane"
-        pair = tqe.decompose(tqw.hsp_table(got, bands=2), got.group, rep=got.rep)
-        assert pair.restriction.exact and pair.solution_strings() == (
-            "1 x A1↑G(1)@1b(3,3) + 1 x A1↑G(1)@1c(3,3)",)
+        pair = tqe.decompose(tqw.hsp_table(got, bands=2))
+        assert pair.numerical.restriction.exact and _labels(pair) == [
+            "A1 at 1b (3) + A1 at 1c (3)"]
 
 
 @pytest.mark.slow
@@ -1643,27 +1622,28 @@ def test_the_indicator_refuses_on_physics_and_raises_on_a_broken_convention(
     holed = dataclasses.replace(
         table, complete=False,
         refusals={"T": Refusal("integer_multiplicity", "synthetic", value=0.5)})
-    out = tqe.symmetry_indicator(holed, group)
+    out = tqe.symmetry_indicator(holed)
     assert isinstance(out, Refusal) and out.gate == "incomplete_content"
     assert "no class here" in out.reason and "stable real-space invariants" in out.reason
     assert out.context["completion"] == "stable-rsi"
     assert "A5" not in out.reason, "the refusal names physics, not a build plan"
 
-    out = tqe.symmetry_indicator({"-GM9": 1}, group)
+    out = tqe.symmetry_indicator({"-GM9": 1}, fkm_strong)
     assert isinstance(out, Refusal) and out.gate == "not_a_band_structure"
     assert out.context["violations"] and out.value > 0
     # ... the check a decomposition runs before it solves, the same one
-    told = tqe.decompose({"-GM9": 1}, group)
+    told = tqe.decompose({"-GM9": 1}, fkm_strong)
     assert isinstance(told, Refusal) and told.gate == "not_a_band_structure"
     assert told.context["violations"] == out.context["violations"]
 
-    out = tqe.symmetry_indicator({"-NOSUCH3": 1}, group)
+    out = tqe.symmetry_indicator({"-NOSUCH3": 1}, fkm_strong)
     assert isinstance(out, Refusal) and out.gate == "unknown_label"
 
     # The magnetic scope gate is applied at the CONSTRUCTOR (groups._group_of,
     # tests/test_groups.py), so an out-of-scope group cannot reach here by
-    # the shipped route at all.  Lift it, build the record anyway, and the
-    # indicator refuses it on its own: one gate name, one detector, two places.
+    # the shipped route at all.  Lift it, build the group anyway, and the
+    # indicator's body, handed that group, refuses it on its own: one gate
+    # name, one detector, two places.
     km_afm = dict(magmom=[[0, 0, 1.0], [0, 0, -1.0]])
     refused = _spacegroup._group_of(kane_mele(0.0, -1.0, 0.3, 0.0), **km_afm)
     assert isinstance(refused, Refusal)
@@ -1673,7 +1653,7 @@ def test_the_indicator_refuses_on_physics_and_raises_on_a_broken_convention(
         magnetic = _spacegroup._group_of(kane_mele(0.0, -1.0, 0.3, 0.0), **km_afm)
     assert magnetic and magnetic.number_str == "191.236", str(magnetic)
     assert tqe._magnetic_type(magnetic) == "III"
-    out = tqe.symmetry_indicator({}, magnetic)
+    out = tqe._symmetry_indicator({}, magnetic)
     assert isinstance(out, Refusal) and out.gate == "magnetic_type_out_of_scope"
     assert out.context["magnetic_type"] == "III"
     # ... and the two types that ARE in scope are told apart by the operations
@@ -1690,7 +1670,7 @@ def test_the_indicator_refuses_on_physics_and_raises_on_a_broken_convention(
     broken["smith"] = (bad, r, v)
     patch_everywhere(monkeypatch, "_ebr_data", lambda g: broken)
     with pytest.raises(InternalError) as excinfo:
-        tqe.symmetry_indicator(table, group)
+        tqe.symmetry_indicator(table)
     assert "Smith" in str(excinfo.value)
 
 
@@ -1704,8 +1684,7 @@ def test_named_indicator_forms_are_transported_before_they_are_read():
     labels the transport swaps.
 
     The re-keying is asked of ``_named_forms`` rather than performed here: the
-    module reports which forms the permutation moved in ``touched`` (the field
-    a served record carries as ``irreptables_convention_touched``) and returns
+    module reports which forms the permutation moved in ``touched`` and returns
     the re-keyed coefficient vector it actually evaluated, and those are what
     is read below.  No fixture in this suite is grey ``#220.90`` -- ``I-43d1'``
     is a body-centred cubic group no model here realizes -- so the group record
@@ -1748,108 +1727,58 @@ def test_named_indicator_forms_are_transported_before_they_are_read():
     assert {tqe.kpoint_of_label(l) for l in moved_labels} == {"P", "PA"}
 
 
-def _graphene_even():
-    """pythtb's graphene with no on-site offset, ``graphene(0.0, -1.0)``: ``P6mm1'`` on a substrate."""
-    return graphene(0.0, -1.0)
+def test_a_call_handed_what_it_does_not_take_raises_saying_what_to_pass(
+        lin3g_declared_cross_checked, p4232_descended):
+    """A table is read alone, and a vector written out by hand with what realized_group returned.
 
-
-def test_points_or_bands_that_contradict_the_table_raise_rather_than_being_overridden(
-        lin3g_declared_cross_checked, lin3g_undeclared, p4232_descended, realized):
-    """A measured table and an asserted point or band set have to name the same set.
-
-    ``points=`` states which k-points the model can be asked about; an
-    ``HSPTable`` has already *measured* which ones it resolved.  Handed both,
-    letting either one silently win answers a question nobody asked, so the
-    contradiction is a malformed argument and is raised.  Naming the same set
-    is no contradiction and changes nothing.
-
-    And it holds for the group and the representation: a table carries its own
-    group as ``group``, and the representation it was read with, so a group or
-    a ``rep=`` handed in beside it that is not the table's own is a
-    contradiction and is raised.
-    Another record of the same group written in the same cell is the same
-    group, and the same labelling reached by declaration and by the
-    lowest-angular-momentum rule is one representation; graphene declared
-    ``A2`` keeps its group and is another labelling, so it raises.  Handed
-    neither, the table is read in the group it carries, ``decompose(t)``; a
-    content written out by hand carries none and cannot do without one:
-    ``TypeError``, as for any missing argument.
-
-    The same law holds for ``bands=``, which states which bands the content
-    counts — an int is the lowest *n*, a sequence is exactly those indices —
-    beside a table *measured* on a block of its own: ``bands=2`` beside a table
-    built on bands 4 and 5 names a different pair.  Naming the same set is no
-    contradiction, and leaving it out counts the table's own block.
+    A table carries what it was read from, its group, its site irreps and, for
+    a layer, the representation its decoupled stack is built from, so anything
+    handed beside it is a mistake; a vector written out by hand carries
+    nothing, so it is read in the measurement handed second.  Each mistake
+    raises ``TypeError`` naming what to pass.  Two tables of two groups are no
+    one alphabet to subtract in.  The lookups take the group, and a name the
+    group does not tabulate raises listing the names.
     """
     record = lin3g_declared_cross_checked
-    model, group, rep = record.model, record.group, record.rep
     table = tqw.hsp_table(record, bands=P6)
-    assert sorted(table.multiplets) == ["GM", "M", "X"]
-
-    for call in (tqe.decompose, tqe.symmetry_indicator):
-        with pytest.raises(ValueError) as exc:
-            call(table, group, rep=rep, points=("GM", "M"))
-        assert "'X'" in str(exc.value), "the message names both sets"
-
-    agreed = tqe.decompose(table, group, rep=rep, points=("X", "GM", "M"))
-    assert agreed and agreed.labels == ("-GM6", "-GM7", "-M6", "-M7", "-X5")
-    si = tqe.symmetry_indicator(table, group, rep=rep, points=("X", "GM", "M"))
-    assert si and si.values == tqe.symmetry_indicator(table, group, rep=rep).values
-
-    table = tqw.hsp_table(record, bands=list(P2))
-
-    for call in (tqe.decompose, tqe.symmetry_indicator):
-        with pytest.raises(ValueError) as exc:
-            call(table, group, rep=rep, bands=2)
-        assert "[0, 1]" in str(exc.value) and "[4, 5]" in str(exc.value), \
-            "the message names both sets"
-
-    agreed = tqe.decompose(table, group, rep=rep, bands=list(P2))
-    assert agreed and agreed.n_bands == 2
-    absent = tqe.decompose(table, group, rep=rep)
-    assert absent.n_bands == 2 and absent.terms == agreed.terms, \
-        "with no bands= the table's own block is what is counted"
-    assert tqe.symmetry_indicator(table, group, rep=rep, bands=(5, 4)).n_bands == 2, \
-        "the block is a set of bands, not an order"
-
-    assert table._rep is rep, "the table carries the representation it was read with"
-    alone = tqe.decompose(table)                      # read in the group the table carries
-    assert alone.terms == agreed.terms and alone.n_bands == 2, \
-        "handed nothing else, a table is read in its own group"
-    assert tqe.symmetry_indicator(table).values == \
-        tqe.symmetry_indicator(table, group, rep=rep).values
-    assert tqe.completeness_check(table).band_counts == \
-        tqe.completeness_check(table, group, rep=rep).band_counts
-    assert tqr.srsi_of_bands(table).theta_Z == tqr.srsi_of_bands(table, group, rep=rep).theta_Z
-    assert tqe.regular_completion(table, bands=8).padding == \
-        tqe.regular_completion(table, group, rep=rep, bands=8).padding
-    with pytest.raises(TypeError) as exc:
-        tqe.decompose(dict(table.symmetry_data))     # written out by hand: no group to read in
-    assert "'group'" in str(exc.value) and "t.group" in str(exc.value), \
-        "the message names the missing argument and where a table carries it"
-    even = realized(_graphene_even)                            # A1 at 2b, by the rule
-    other = realized(_graphene_even, characters={0: "A2"})     # the same group, relabelled
-    assert even and other and other.group.number_str == even.group.number_str
-    t_even = tqw.hsp_table(even, bands=2)             # both bands: they touch at K
+    vector = dict(table.symmetry_data)
+    for call in (tqe.decompose, tqe.symmetry_indicator, tqr.srsi_of_bands,
+                 tqe.regular_completion):
+        name = call.__name__
+        kw = {"bands": 8} if call is tqe.regular_completion else {}
+        with pytest.raises(TypeError, match=rf"^{name}\(\): a table carries what it was read "
+                                            rf"from; pass the table alone: {name}\(t\)\."):
+            call(table, record, **kw)
+        with pytest.raises(TypeError, match=rf"pass it second: {name}\(symmetry_data, r\)\."):
+            call(vector, **kw)
+        for second in (record.group, record.rep):
+            with pytest.raises(TypeError, match=r"pass what realized_group returns second") as exc:
+                call(vector, second, **kw)
+            assert f"got {type(second).__name__}." in str(exc.value)
+        with pytest.raises(TypeError, match=r"symmetry_data is a table hsp_table returns"):
+            call(["-GM6"], record, **kw)
+        with pytest.raises(TypeError, match="unexpected keyword argument 'points'"):
+            call(table, points=("GM", "M", "X"), **kw)
+    # handed what each takes, the table alone and its vector beside r read alike
+    assert tqe.decompose(table).candidate_sums == tqe.decompose(vector, record).candidate_sums
+    assert tqe.symmetry_indicator(vector, record).values == tqe.symmetry_indicator(table).values
+    with pytest.raises(TypeError, match=r"^regular_completion\(\): missing required argument "
+                                        r"'bands'"):
+        tqe.regular_completion(table)
     with pytest.raises(ValueError) as exc:
-        tqe.symmetry_indicator(t_even, even.group, rep=other.rep)
-    assert "which the table carries" in str(exc.value), \
-        "the message names the table's own representation"
-    assert tqe.decompose(t_even, other.group, rep=even.rep), \
-        "another record of the same group in the same cell is the same group"
-    elsewhere = p4232_descended.group         # another group altogether
-    for call in (tqe.decompose, tqe.symmetry_indicator, tqe.completeness_check):
-        with pytest.raises(ValueError) as exc:
-            call(table, elsewhere, rep=rep)
-        assert "#99.164" in str(exc.value) and "#208.45" in str(exc.value), \
-            "the message names both groups"
-    with pytest.raises(ValueError):
-        tqe.regular_completion(table, elsewhere, rep=rep, bands=list(P2))
-    with pytest.raises(ValueError):
         tqe.subtract(table, tqw.hsp_table(p4232_descended, bands=2))
-    same = tqe.decompose(table, lin3g_undeclared.group, rep=lin3g_undeclared.rep)
-    assert same and same.terms == agreed.terms, \
-        "the declared and the undeclared reading of lin3g are one representation"
+    assert "#99.164" in str(exc.value) and "#208.45" in str(exc.value), \
+        "the message names both groups"
+    # a layer's table keeps the representation its stack is built from; a
+    # crystal's holds no reference to the model
+    assert table._rep is record.rep
+    assert tqw.hsp_table(p4232_descended, bands=2)._rep is None
+    for call in (tqe.in_plane_restriction, tqe.regular_content):
+        for wrong in (record, record.rep):
+            with pytest.raises(TypeError, match=r"r\.group"):
+                call(wrong)
+        with pytest.raises(ValueError, match=r"has no k-point named 'Q'; pass one of GM, M, X"):
+            call(record.group, kpoints=("GM", "Q"))
 
 
 def test_module_surface():
@@ -1860,11 +1789,11 @@ def test_module_surface():
     # as the stack's period stays in `pythtqc.groups`: the top level carries
     # what the documents teach
     module_only = {"regular_content", "kpoint_of_label", "content_of", "STACK_C"}
-    for name in ("decompose", "subtract", "completeness_check", "regular_completion",
+    for name in ("decompose", "subtract", "regular_completion",
                  "regular_content", "in_plane_restriction", "ebr_rows",
                  "kpoint_of_label", "content_of", "symmetry_indicator",
-                 "EBRDecomposition", "Restriction", "WannierCaveat",
-                 "CompletenessReport", "RegularCompletion", "SymmetryIndicator"):
+                 "EBRDecomposition", "Restriction", "RegularCompletion",
+                 "SymmetryIndicator"):
         assert name in tqe.__all__, name
         if name in module_only:
             assert not hasattr(tqc, name) and name not in tqc.__all__, name
@@ -1879,6 +1808,12 @@ def test_module_surface():
             continue
         assert name in tqc.__all__, name
         assert getattr(tqc, name) is getattr(tqg, name), name
+    # the records a decomposition and an indicator hold are the module's own
+    for name in ("EBRDecompositionNumerical", "SignedCombinations", "SiteContent",
+                 "SymmetryIndicatorNumerical", "StackCompletion", "TwoDimensionalReading"):
+        assert name in tqe.__all__ and not hasattr(tqc, name), name
+    for name in ("completeness_check", "CompletenessReport", "WannierCaveat", "CAVEAT_TEXT"):
+        assert not hasattr(tqe, name) and not hasattr(tqc, name), name
     for name in ("_slab_presentation", "_decorated_cell"):
         assert name not in tqg.__all__ and not hasattr(tqc, name), name
         assert callable(getattr(_layers, name)), name

@@ -31,10 +31,10 @@ statements, in the order the wave's spec puts them:
    vocabularies spell names differently, is read in the paper's names by
    ``tests/test_ebr.py``'s pure-2D layer test, on the record its stack route
    returns.
-5. **The backend conversion applied**: ``irreptables_named`` on those fixtures
-   is ``irreptables``' own arithmetic, the same numbers computed the other way
-   round -- through momentum-space forms rather than real-space ones; the
-   spelling map applied to real data, ``as_irreptables()``, is the layer's.
+5. **The backend conversion applied**: ``irreptables``' own named forms on
+   those fixtures are its own arithmetic, the same numbers computed the other
+   way round -- through momentum-space forms rather than real-space ones; the
+   spelling map applied to real data is the layer's.
 
 What A5.5 measured that its spec did not expect is in statement 3: with the
 qualifier-order rule in the map, **nothing is paper-only**.  The "nine paper
@@ -460,7 +460,7 @@ def test_the_name_correspondence_is_a_bijection_over_the_whole_table(sweep):
     assert sweep["relations"]["literal"] == 317
     assert sweep["relations"]["transliterated"] == 62
     assert sweep["relations"]["reordered"] == 11
-    assert set(sweep["relations"]) <= set(tqr.NAME_RELATIONS), (
+    assert set(sweep["relations"]) <= set(_srsitables.NAME_RELATIONS), (
         "and the only relations the map produced over the whole table are "
         "published ones -- this is where that claim can fail")
     assert sorted(sweep["reordered"]) == sorted([
@@ -485,36 +485,36 @@ def test_the_spelling_map_round_trips_on_the_whole_vocabulary():
     the statement that the convention is total: every name either vocabulary
     ships maps to a name the other one ships, and back to itself.
     """
-    paper, shipped = tqr.indicator_vocabularies()
+    paper, shipped = _srsitables.indicator_vocabularies()
     assert len(paper) == 34 and len(shipped) == 34
     for name in sorted(paper):
-        spelled = tqr.to_irreptables_name(name)
+        spelled = _srsitables.to_irreptables_name(name)
         assert spelled is not None, name
         assert spelled in shipped, (name, spelled)
-        assert tqr.from_irreptables_name(spelled) == name
+        assert _srsitables.from_irreptables_name(spelled) == name
     for name in sorted(shipped):
-        back = tqr.from_irreptables_name(name)
+        back = _srsitables.from_irreptables_name(name)
         assert back is not None, name
         assert back in paper, (name, back)
-        assert tqr.to_irreptables_name(back) == name
+        assert _srsitables.to_irreptables_name(back) == name
     # the three rules, one example each, plus a name that is already shared
-    assert tqr.to_irreptables_name("z3m,pi") == "z3m,π"          # alphabet
-    assert tqr.to_irreptables_name("delta2+,pi") == "δ2,π+"      # qualifier order
-    assert tqr.to_irreptables_name("z2,+") == "z2+"              # ... with no qualifier
-    assert tqr.to_irreptables_name("Theta2") == "θ2"             # letter case
-    assert tqr.to_irreptables_name("z4") == "z4"                 # literal
+    assert _srsitables.to_irreptables_name("z3m,pi") == "z3m,π"          # alphabet
+    assert _srsitables.to_irreptables_name("delta2+,pi") == "δ2,π+"      # qualifier order
+    assert _srsitables.to_irreptables_name("z2,+") == "z2+"              # ... with no qualifier
+    assert _srsitables.to_irreptables_name("Theta2") == "θ2"             # letter case
+    assert _srsitables.to_irreptables_name("z4") == "z4"                 # literal
     # a name in neither vocabulary is None on both sides, never guessed at
     # (the positive control is the literal `z4` two lines above)
-    assert tqr.to_irreptables_name("z99") is None
-    assert tqr.to_irreptables_name("z3m,π") is None, "that is the other spelling"
-    assert tqr.from_irreptables_name("z3m,pi") is None
-    assert tqr.from_irreptables_name("nonsense") is None
+    assert _srsitables.to_irreptables_name("z99") is None
+    assert _srsitables.to_irreptables_name("z3m,π") is None, "that is the other spelling"
+    assert _srsitables.from_irreptables_name("z3m,pi") is None
+    assert _srsitables.from_irreptables_name("nonsense") is None
 
 
 def test_name_correspondence_reports_per_group_and_propagates_refusals(
         fkm_canonical, unitary_group):
-    """:func:`pythtqc.srsi.name_correspondence` on a group, and on one with no table."""
-    pairs = tqr.name_correspondence(fkm_canonical["strong"][1])
+    """:func:`pythtqc._srsitables.name_correspondence` on a group, and on one with no table."""
+    pairs = _srsitables.name_correspondence(fkm_canonical["strong"][1])
     assert [p.relation for p in pairs] == ["literal"] * 4
     assert [(p.paper, p.irreptables, p.mod) for p in pairs] == [
         ("z2w,1", "z2w,1", 2), ("z2w,2", "z2w,2", 2), ("z2w,3", "z2w,3", 2),
@@ -522,13 +522,13 @@ def test_name_correspondence_reports_per_group_and_propagates_refusals(
     assert all(p.reason == "" for p in pairs)
 
     # SG 83 without SOC is where the reorder rule earns its place
-    pairs83 = tqr.name_correspondence(tqr.srsi_tables(83, spinor=False))
+    pairs83 = _srsitables.name_correspondence(tqr.srsi_tables(83, spinor=False))
     reordered = {p.paper: p.irreptables for p in pairs83 if p.relation == "reordered"}
     assert reordered == {"delta2+,pi": "δ2,π+", "delta2-,pi": "δ2,π-"}
     assert not [p for p in pairs83 if p.relation.endswith("_only")]
 
     # a unitary group has no SRSI table at all, and the refusal is propagated
-    refused = tqr.name_correspondence(unitary_group)
+    refused = _srsitables.name_correspondence(unitary_group)
     assert isinstance(refused, Refusal) and refused.gate == "srsi_scope"
 
 
@@ -551,7 +551,7 @@ def fkm_canonical(realized):
         assert got and got.group.number_str == "166.98", f"{name}: {got}"
         table = tqw.hsp_table(got, bands=2)
         assert table.complete
-        out[name] = (table, got.group, got.rep)
+        out[name] = (table, got.group)
     return out
 
 
@@ -573,6 +573,14 @@ def unitary_group():
     return group
 
 
+def _irreptables_named(group, si, magnetic_type="II"):
+    """``irreptables``' own named forms of the class ``si`` reads, in ``group``."""
+    data = _tables._ebr_data(group)
+    named, _touched, _note, _coeffs = tqe._named_forms(
+        group, data, np.asarray(data["matrix"], dtype=int), list(si._y), magnetic_type)
+    return named
+
+
 #: The anchor, in the canonical vocabulary: the strong phase at ``(0,1)`` of
 #: order 4 and the trivial one at ``(0,0)`` in ``X_BS(#166.98) = Z2 x Z4``, said
 #: in the paper's names.  Every name of ``#166.98`` is literal, so the two
@@ -590,35 +598,35 @@ def test_fu_kane_mele_s_classes_in_the_paper_s_names(fkm_canonical, phase):
 
     ``nu_0 = z4 mod 2`` reads off the canonical dict exactly as it read off the
     backend one, because they are the same numbers: the pinned ``z4`` is 3 in the
-    strong phase and 0 in the trivial one, and ``si.irreptables_named`` --
-    ``irreptables``' own arithmetic through momentum-space forms -- is that same
-    dict.  That is the value gate holding on one fixture where both routes were
+    strong phase and 0 in the trivial one, and ``irreptables``' own named forms --
+    its own arithmetic through momentum-space forms -- give that same dict.  That is the value gate holding on one fixture where both routes were
     run end to end from a model rather than from a table, on a nonzero class and
     on the zero one.  Every name of ``#166.98`` is literal, so the backend
     conversion is the identity map here and says nothing the pairing does not;
     ``#191.234`` is where it has work to do.
     """
-    table, group, rep = fkm_canonical[phase]
-    si = tqe.symmetry_indicator(table, group, rep=rep, bands=2)
+    table, group = fkm_canonical[phase]
+    si = tqe.symmetry_indicator(table)
     assert si, str(si)
     values, order, canonical = FKM_CANONICAL[phase]
     assert si.values == values and si.order == order and si.divisors == (2, 4)
-    assert si.canonical == canonical
-    assert si.canonical_tex == {"z2w,1": "z_{2w,1}", "z2w,2": "z_{2w,2}",
-                                "z2w,3": "z_{2w,3}", "z4": "z_{4}"}
-    assert si.irreptables_named == canonical, \
+    assert si.indicators == canonical
+    assert {f.name: f.name_tex for f in tqr.srsi_tables(group).indicators} == {
+        "z2w,1": "z_{2w,1}", "z2w,2": "z_{2w,2}", "z2w,3": "z_{2w,3}", "z4": "z_{4}"}
+    assert _irreptables_named(group, si) == canonical, \
         "irreptables' own arithmetic, the same numbers"
-    assert "10.1038/s41467-026-74844-w" in si.canonical_note
-    # the canonical line comes first, then the Smith class, then irreptables' names
+    assert "10.1038/s41467-026-74844-w" in si.numerical.indicators_note
+    # the order of the class, where it is above 1, then the indicator group, then
+    # the class in the paper's names
     lines = si.summary().splitlines()
     order_of = [i for i, line in enumerate(lines)
-                if line.startswith(("  canonical:", "  indicator:", "  irreptables:"))]
+                if line.startswith(("  of order", "  the indicator group:", "  indicators:"))]
     assert [lines[i].split(":")[0].strip() for i in order_of] == \
-        ["canonical", "indicator", "irreptables"]
+        ([f"of order {order}"] if order > 1 else []) + ["the indicator group", "indicators"]
 
 
 def test_a_trivial_indicator_group_has_no_class_to_speak(lin3g_declared_cross_checked):
-    """lin3g's fragile ``P2`` in ``P4mm1' #99.164``: ``canonical is None``, and why.
+    """lin3g's fragile ``P2`` in ``P4mm1' #99.164``: ``indicators is None``, and why.
 
     The group has no elementary divisor above 1, so there is no class in any
     vocabulary -- and the paper's tables carry no indicator row for it either,
@@ -626,14 +634,11 @@ def test_a_trivial_indicator_group_has_no_class_to_speak(lin3g_declared_cross_ch
     reason, not an empty dict and not a refusal: the record is an answer.
     """
     r = lin3g_declared_cross_checked
-    group, rep = r.group, r.rep
-    si = tqe.symmetry_indicator(tqw.hsp_table(r, bands=(4, 5)), group,
-                                rep=rep, bands=(4, 5))
-    assert si and si.verdict == "trivial indicator group"
-    assert si.divisors == () and si.canonical is None
-    assert si.canonical_tex == {} and si.as_irreptables() is None
-    assert "the indicator group of #99.164 is trivial" in si.canonical_note
-    assert "canonical" not in si.summary()
+    si = tqe.symmetry_indicator(tqw.hsp_table(r, bands=(4, 5)))
+    assert si and si.indicator_group == "trivial"
+    assert si.divisors == () and si.indicators is None
+    assert "the indicator group of #99.164 is trivial" in si.numerical.indicators_note
+    assert "indicators:" not in si.summary()
     table = tqr.srsi_tables(99, spinor=True)
     assert table and table.indicators == ()
 
@@ -644,7 +649,7 @@ def test_a_unitary_group_gets_the_smith_class_and_no_canonical_name(unitary_grou
     ``#227`` without time reversal has ``X_BS = Z2`` -- a real class, served in
     Smith coordinates -- and the canonical vocabulary declines it, because the
     paper's shipped tables are the time-reversal-symmetric ones.
-    ``irreptables_named`` is
+    ``irreptables``' own named forms are
     ``None`` here for the matching reason on the other side (``irreptables``'
     non-magnetic indicator files are the grey tables under bare space-group
     numbers), so this is the one fixture where a class is served with **no**
@@ -652,12 +657,12 @@ def test_a_unitary_group_gets_the_smith_class_and_no_canonical_name(unitary_grou
     """
     rows = tqe.ebr_rows(unitary_group)
     assert rows
-    si = tqe.symmetry_indicator(rows[sorted(rows)[0]], unitary_group)
-    assert si and si.magnetic_type == "I"
-    assert si.divisors == (2,) and si.structure == "Z2" and si.values == (0,)
-    assert si.canonical is None and si.canonical_tex == {}
-    assert si.as_irreptables() is None and si.irreptables_named is None
-    assert "magnetic group of type I" in si.canonical_note
+    si = tqe._symmetry_indicator(rows[sorted(rows)[0]], unitary_group)
+    assert si and si.group.magnetic_type == "I"
+    assert si.divisors == (2,) and si.indicator_group == "Z2" and si.values == (0,)
+    assert si.indicators is None
+    assert _irreptables_named(unitary_group, si, "I") is None
+    assert "magnetic group of type I" in si.numerical.indicators_note
     assert isinstance(tqr.srsi_tables(unitary_group), Refusal)
 
 
@@ -675,7 +680,7 @@ def test_a_class_the_paper_s_names_cannot_separate_is_an_internal_error(
     classes apart is this package failing to apply a convention, so it is a hard
     error naming the collision, never a printed number and never a ``Refusal``.
     """
-    table, group, rep = fkm_canonical["strong"]
+    table = fkm_canonical["strong"][0]
     real = _srsitables._canonical_gate
 
     def broken(number_str, spinor):
@@ -686,13 +691,13 @@ def test_a_class_the_paper_s_names_cannot_separate_is_an_internal_error(
 
     patch_everywhere(monkeypatch, "_canonical_gate", broken)
     with pytest.raises(InternalError, match="do not determine the class"):
-        tqe.symmetry_indicator(table, group, rep=rep, bands=2)
+        tqe.symmetry_indicator(table)
 
 
 def test_a_form_that_is_not_an_indicator_is_an_internal_error(
         fkm_canonical, monkeypatch):
     """The vanishing gate at serve time, forced -- the same law, the other check."""
-    table, group, rep = fkm_canonical["strong"]
+    table = fkm_canonical["strong"][0]
     real = _srsitables._canonical_gate
 
     def broken(number_str, spinor):
@@ -703,7 +708,7 @@ def test_a_form_that_is_not_an_indicator_is_an_internal_error(
 
     patch_everywhere(monkeypatch, "_canonical_gate", broken)
     with pytest.raises(InternalError, match="do not vanish on every EBR column"):
-        tqe.symmetry_indicator(table, group, rep=rep, bands=2)
+        tqe.symmetry_indicator(table)
 
 
 def test_a_class_with_no_canonical_name_at_all_is_an_internal_error(
@@ -714,7 +719,7 @@ def test_a_class_with_no_canonical_name_at_all_is_an_internal_error(
     can compute and cannot name is the canonicalization failing to apply, which
     is what ``InternalError`` is for.
     """
-    table, group, rep = fkm_canonical["strong"]
+    table = fkm_canonical["strong"][0]
     real = tqr.srsi_tables
 
     def stripped(g):
@@ -722,14 +727,14 @@ def test_a_class_with_no_canonical_name_at_all_is_an_internal_error(
 
     patch_everywhere(monkeypatch, "srsi_tables", stripped)
     with pytest.raises(InternalError, match="carries no indicator row"):
-        tqe.symmetry_indicator(table, group, rep=rep, bands=2)
+        tqe.symmetry_indicator(table)
 
     def absent(g):
         return Refusal("srsi_table_absent", "forced, for the guard")
 
     patch_everywhere(monkeypatch, "srsi_tables", absent)
     with pytest.raises(InternalError, match="carry no row for this space group"):
-        tqe.symmetry_indicator(table, group, rep=rep, bands=2)
+        tqe.symmetry_indicator(table)
 
 
 def test_the_serve_path_survives_the_tables_not_being_installed(
@@ -738,17 +743,17 @@ def test_the_serve_path_survives_the_tables_not_being_installed(
 
     The converted tables ship as package data, generated from a TeX supplement
     that is not shipped, and an installation that has lost them must still
-    serve a Smith class: the absence is forced here.  ``canonical`` is ``None``
-    there with the reason, and the backend record is untouched.
+    serve a Smith class: the absence is forced here.  ``indicators`` is ``None``
+    there with the reason, and irreptables' own named forms are untouched.
     """
-    table, group, rep = fkm_canonical["strong"]
+    table, group = fkm_canonical["strong"]
     patch_everywhere(monkeypatch, "srsi_status", lambda: {
         "data": False, "single": None, "double": None, "dir": "<forced>",
         "doi": _srsitables._DOI, "reason": "forced, for the guard"})
-    si = tqe.symmetry_indicator(table, group, rep=rep, bands=2)
-    assert si and si.values == (0, 1) and si.canonical is None
-    assert "not installed" in si.canonical_note
-    assert si.irreptables_named == {"z2w,1": 1, "z2w,2": 1, "z2w,3": 1, "z4": 3}
+    si = tqe.symmetry_indicator(table)
+    assert si and si.values == (0, 1) and si.indicators is None
+    assert "not installed" in si.numerical.indicators_note
+    assert _irreptables_named(group, si) == {"z2w,1": 1, "z2w,2": 1, "z2w,3": 1, "z4": 3}
 
 
 # ---------------------------------------------------------------------------

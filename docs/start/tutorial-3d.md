@@ -84,8 +84,8 @@ is a semimetal: its two lower bands are not separated from the upper two, so at
 all4 = tqc.hsp_table(r, bands=4)
 print(tqc.format_coreps(all4.symmetry_data))
 #  -GM6 + -GM9 + -L8 + -L9 + -W5W6 + -W7 + -X5
-print(tqc.decompose(all4).solution_strings())
-#  ("1 x -E1↑G(4)@8a(-43m1',-43m)",)
+print([s.label for s in tqc.decompose(all4).candidate_sums])
+#  ["-E1 at 8a (-43m1')"]
 
 pair = tqc.hsp_table(r, bands=2)                         # the two lowest bands alone
 print(pair)
@@ -100,9 +100,9 @@ print(bool(refused), refused.gate)
 All four bands together are labelled at every high-symmetry point, and their
 content is one **elementary band representation** (EBR) — the bands one site
 irrep at one Wyckoff position induces, when they are no sum of others.
-`-E1↑G(4)@8a(-43m1',-43m)` reads: the site corep `-E1`, induced (`↑`) to the
-whole group `G` in four bands, from Wyckoff `8a`, whose site group is `-43m1'`
-with time reversal and `-43m` without — the two spinful `s` orbitals
+`-E1 at 8a (-43m1')` reads: the site corep `-E1`, induced to the
+whole group in four bands, from Wyckoff `8a`, whose site group is `-43m1'`,
+with time reversal — the two spinful `s` orbitals
 themselves, as it must be
 ([the conventions](../background/conventions.md#the-band-representation-key)
 spell out every part of this key).
@@ -212,15 +212,15 @@ phases = {
 tables = {name: tqc.hsp_table(rr, bands=2) for name, rr in phases.items()}
 indicators = {name: tqc.symmetry_indicator(tables[name])
               for name, rr in phases.items()}
-print(f"X_BS of #{rs.group.number_str} {rs.group.name}: {indicators['strong'].structure}")
+print(f"X_BS of #{rs.group.number_str} {rs.group.name}: {indicators['strong'].indicator_group}")
 #  X_BS of #166.98 R-3m1': Z2 x Z4
 print("phase   group   valence content              class   order  z4  z2w")
 #  phase   group   valence content              class   order  z4  z2w
 for name, rr in phases.items():
     si = indicators[name]
-    z2w = "".join(str(si.canonical[f"z2w,{i}"]) for i in (1, 2, 3))
+    z2w = "".join(str(si.indicators[f"z2w,{i}"]) for i in (1, 2, 3))
     print(f"{name:<7} {rr.group.number_str:<7} {tqc.format_coreps(tables[name].symmetry_data):<28} "
-          f"{str(si.values):<7} {si.order:<6} {si.canonical['z4']:<3} {z2w}")
+          f"{str(si.values):<7} {si.order:<6} {si.indicators['z4']:<3} {z2w}")
 #  strong  166.98  -GM9 + -F5F6 + -L5L6 + -T8   (0, 1)  4      3   111
 #  weak    166.98  -GM9 + -F3F4 + -L5L6 + -T8   (1, 0)  2      0   111
 #  dimers  166.98  -GM9 + -F5F6 + -L5L6 + -T9   (0, 0)  1      0   000
@@ -302,20 +302,21 @@ sum of EBRs with nonnegative integer multiplicities reproduces this one vector.
 ```python
 for name, rr in phases.items():
     dec = tqc.decompose(tables[name])
-    signed = (f"{dec.signed_combinations['n_solutions']} signed" if dec.signed_combinations
-              else "-")
-    found = f"{len(dec.solutions)} solution{'' if len(dec.solutions) == 1 else 's'}"
-    print(f"{name:<7} {dec.verdict:<32} {dec.certificate or '-':<6} {signed:<11} {found}"
-          + "".join(f": {s}" for s in dec.solution_strings()))
-#  strong  none                             proof  0 signed    0 solutions
-#  weak    none                             proof  0 signed    0 solutions
-#  dimers  symmetry-indicated decomposable  -      -           1 solution: 1 x -E1u↑G(2)@3a(-3m1',-3m)
+    signed = (f"{len(dec.signed_combinations.sums)} signed"
+              if dec.signed_combinations is not None else "-")
+    answer = "decomposable" if dec.decomposable else "not decomposable"
+    found = f"{len(dec.candidate_sums)} sum{'' if len(dec.candidate_sums) == 1 else 's'}"
+    print(f"{name:<7} {answer:<17} {dec.certificate or '-':<6} {signed:<11} {found}"
+          + "".join(f": {s.label}" for s in dec.candidate_sums))
+#  strong  not decomposable  proof  0 signed    0 sums
+#  weak    not decomposable  proof  0 signed    0 sums
+#  dimers  decomposable      -      -           1 sum: -E1u at 3a (-3m1')
 centre = tqc.wyckoff_sites_tables(phases["dimers"].group, [[0.125, 0.125, 0.125]])
 print("the centre of the [111] bond:", [s.wyckoff for s in centre])
 #  the centre of the [111] bond: ['3a']
 ```
 
-The strong phase reads `none` with the certificate `proof`: the multiplicities
+The strong phase is not decomposable, with the certificate `proof`: the multiplicities
 are bounded rigorously, the search is exhaustive, and no sum of EBRs has this
 content, so the valence pair is not an atomic limit. The signed combinations ask
 the same question with negative multiplicities allowed, and none lies within the
@@ -323,12 +324,12 @@ bound, as a nonzero class requires: content in a nonzero class is no integer
 combination of EBRs at all. A fragile band set, by contrast, has an integer
 combination with a negative coefficient
 ([when there is no decomposition](../guide/atomic-limits.md#when-there-is-no-decomposition)).
-The indicator says more than the verdict does. Both say that no band set with
+The indicator says more than the decomposition does. Both say that no band set with
 this content is an atomic limit; the nonzero class says it of the content with
 any atomic bands added as well, since an atomic limit's class is zero and
-classes add, while a `none` alone can give way to a decomposition once suitable
-atomic bands are added, as a fragile content's does. The weak phase reads `none`
-as well, and only its class, of order 2 where the strong phase has order 4,
+classes add, while no decomposition alone can give way to a decomposition once suitable
+atomic bands are added, as a fragile content's does. The weak phase is not decomposable
+either, and only its class, of order 2 where the strong phase has order 4,
 tells the two apart.
 
 The dimers decompose, in one way: the valence pair has the content of the site

@@ -36,9 +36,9 @@ Bands are counted from 0, as pythtb counts them.
                       0.292688 to 1.707576, moved at second order
    bands 1 and 2    : gap 0.207688 with the pattern
    bands 0 and 1    : -GM5GM7 + -M5M7 + -X3X4, Z-valued (1, 0, 0)
-   atomic limit     : 1 x -1E22E2↑G(2)@1a(41',4)
+   atomic limit     : -1E22E2 at 1a (41')
    bands 2 and 3    : -GM6GM8 + -M6M8 + -X3X4, Z-valued (0, 1, 0)
-   atomic limit     : 1 x -1E12E1↑G(2)@1a(41',4)
+   atomic limit     : -1E12E1 at 1a (41')
    indicator group  : trivial
    nothing in momentum space objects to this splitting
 

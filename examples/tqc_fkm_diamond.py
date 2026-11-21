@@ -36,8 +36,8 @@ from pythtqc import format_coreps as fmt
 from pythtqc import solve_at
 from pythtqc.utils import save_figure
 
-# Elementary band representations print as ρ↑G, the site irrep ρ induced to the
-# group; a Windows console cannot print ↑ by default, so the output is UTF-8.
+# The last line prints a dash, —, which a Windows console cannot print by
+# default, so the output is UTF-8.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -82,9 +82,9 @@ def values(entries):
 def atomic_limits(d):
     """The atomic limits of a band set, as a label and a value: the one sum of elementary
     band representations with this content, how many sums there are, or none."""
-    if d.verdict == "none":
+    if not d.decomposable:
         return "atomic limits", "none"
-    sums = d.solution_strings()
+    sums = [s.label for s in d.candidate_sums]
     if len(sums) == 1:
         return "atomic limit", sums[0]
     return "atomic limits", f"{len(sums)} sums of elementary band representations"
@@ -194,7 +194,7 @@ row("valence content", fmt(t2_dimers.symmetry_data))
 dec_dimers = tqc.decompose(t2_dimers)
 row(*atomic_limits(dec_dimers))
 print("   the valence bands are the antibonding pair of each dimer's two s orbitals,")
-print(f"   centred at {dec_dimers.positions[0][0]} on the [111] axis")
+print(f"   centred at {min(t.wyckoff for t in dec_dimers.candidate_sums[0])} on the [111] axis")
 
 ########### 5. the content at the eight TRIM ###########
 
@@ -244,14 +244,14 @@ si_strong = tqc.symmetry_indicator(t2_strong)
 si_weak = tqc.symmetry_indicator(t2_weak)
 si_dimers = tqc.symmetry_indicator(t2_dimers)
 
-z4_strong = si_strong.irreptables_named["z4"]
-z2w_strong = tuple(si_strong.irreptables_named[f"z2w,{i}"] for i in (1, 2, 3))
-z4_weak = si_weak.irreptables_named["z4"]
-z2w_weak = tuple(si_weak.irreptables_named[f"z2w,{i}"] for i in (1, 2, 3))
-z4_dimers = si_dimers.irreptables_named["z4"]
-z2w_dimers = tuple(si_dimers.irreptables_named[f"z2w,{i}"] for i in (1, 2, 3))
+z4_strong = si_strong.indicators["z4"]
+z2w_strong = tuple(si_strong.indicators[f"z2w,{i}"] for i in (1, 2, 3))
+z4_weak = si_weak.indicators["z4"]
+z2w_weak = tuple(si_weak.indicators[f"z2w,{i}"] for i in (1, 2, 3))
+z4_dimers = si_dimers.indicators["z4"]
+z2w_dimers = tuple(si_dimers.indicators[f"z2w,{i}"] for i in (1, 2, 3))
 
-row("indicator group", si_strong.structure)
+row("indicator group", si_strong.indicator_group)
 print(f"   {'phase':<18} {'class':<8} {'order':<8} {'z4':<4} {'z2w,1/2/3':<11} "
       "nu_0 = z4 mod 2")
 print(f"   {'strong':<18} {values(si_strong.values):<8} {si_strong.order:<8} "
@@ -297,7 +297,7 @@ axes[0].set_ylim(bands.min() - 0.24 * (bands.max() - bands.min()),
 axes[0].set_ylabel("$E$", fontsize=15)
 axes[0].set_title("strong: delta_t = +0.4\n"
                   f"#{g_strong.number_str} {g_strong.name}   class "
-                  f"{si_strong.values} in {si_strong.structure}", fontsize=10)
+                  f"{si_strong.values} in {si_strong.indicator_group}", fontsize=10)
 
 # --- the weak phase ---
 kv, kd, kn = m_weak.k_path(path, NK_PATH, report=False)
@@ -319,7 +319,7 @@ axes[1].set_ylim(bands.min() - 0.24 * (bands.max() - bands.min()),
                  bands.max() + 0.08 * (bands.max() - bands.min()))
 axes[1].set_title("weak: delta_t = -0.4\n"
                   f"#{g_weak.number_str} {g_weak.name}   class "
-                  f"{si_weak.values} in {si_weak.structure}", fontsize=10)
+                  f"{si_weak.values} in {si_weak.indicator_group}", fontsize=10)
 
 # --- the dimers ---
 kv, kd, kn = m_dimers.k_path(path, NK_PATH, report=False)
@@ -341,7 +341,7 @@ axes[2].set_ylim(bands.min() - 0.24 * (bands.max() - bands.min()),
                  bands.max() + 0.08 * (bands.max() - bands.min()))
 axes[2].set_title("dimers: three bonds cut\n"
                   f"#{g_dimers.number_str} {g_dimers.name}   class "
-                  f"{si_dimers.values} in {si_dimers.structure}", fontsize=10)
+                  f"{si_dimers.values} in {si_dimers.indicator_group}", fontsize=10)
 
 fig.suptitle("Fu-Kane-Mele on diamond, one bond detuned along [111]: the four "
              "bands along GM-T-F-L-GM, the valence pair in blue with its corep "

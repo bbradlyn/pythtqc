@@ -63,7 +63,7 @@ GROUPS = (
     ("Atomic limits",
      "whether a symmetry data vector is a sum of elementary band representations, "
      "and the counting beside it",
-     ("decompose", "subtract", "completeness_check", "regular_completion",
+     ("decompose", "subtract", "regular_completion",
       "ebr_rows", "in_plane_restriction")),
     ("Stable invariants",
      "the symmetry-indicator class of a band set, and its stable real-space "

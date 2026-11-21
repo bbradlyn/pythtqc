@@ -43,8 +43,8 @@ import pythtqc as tqc
 from pythtqc import format_coreps as fmt
 from pythtqc.utils import save_figure
 
-# The tables name some indicators with π (z3m,π); a Windows console cannot print
-# π by default, so the output is UTF-8.
+# The last line prints a dash, —, which a Windows console cannot print by
+# default, so the output is UTF-8.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -113,9 +113,9 @@ def by_point(table, points):
 
 def indicator(si):
     """The symmetry-indicator class, as a label and a value, or that the group has none."""
-    if si.verdict == "trivial indicator group":
+    if not si.divisors:
         return "indicator group", "trivial"
-    return "indicator class", f"{values(si.values)} in {si.structure}, order {si.order}"
+    return "indicator class", f"{values(si.values)} in {si.indicator_group}, order {si.order}"
 
 
 ########### A. the layer in the plane ###########
@@ -261,19 +261,19 @@ print("\nD. the three classes side by side")
 lines = [("presentation", ("group", "indicator group", "class", "order", "z2w,3", "z4"))]
 for name, si in (("the plane, s", si_a), ("the plane, p_z", si_b),
                  ("the stack, p_z", si_c)):
-    named = si.irreptables_named
-    lines.append((name, (f"#{si.number_str}", si.structure, values(si.values),
+    named = si.indicators
+    lines.append((name, (f"#{si.group.number_str}", si.indicator_group, values(si.values),
                          str(si.order), str(named["z2w,3"]), str(named["z4"]))))
 widths = [max(len(cells[j]) for _name, cells in lines) for j in range(len(lines[0][1]))]
 for name, cells in lines:
     row(name, "   ".join(f"{cell:<{w}}" for cell, w in zip(cells, widths)).rstrip())
 
-forms = list(si_b.irreptables_named.items())
+forms = list(si_b.indicators.items())
 row("named indicators", "of the p_z class, "
     + ", ".join(f"{k} = {v}" for k, v in forms[:4]) + ",",
     ", ".join(f"{k} = {v}" for k, v in forms[4:]))
 
-support = si_b.two_dimensional["irreptables_support"]
+support = si_b.numerical.two_dimensional.support
 only = [n for n, s in support.items() if s == "out-of-plane only"]
 part = [n for n, s in support.items() if s == "mixed"]
 row("out of the plane", f"{listed(only)} read only the coreps at k_z = 1/2,",
@@ -286,7 +286,7 @@ whole = tqc.symmetry_indicator(table_all)
 row("all 4 bands", "the band representation of the orbitals at "
     f"{piled.wyckoff_orbits[0].wyckoff}, an atomic limit")
 row(indicator(whole)[0], f"{indicator(whole)[1]}, every named indicator "
-    + ", ".join(str(v) for v in sorted(set(whole.irreptables_named.values()))))
+    + ", ".join(str(v) for v in sorted(set(whole.indicators.values()))))
 print(f"   the stack and the plane with p_z have one class, {values(si_c.values)}; "
       "declaring s instead")
 print(f"   moves it to {values(si_a.values)} and leaves its order, z2w,3 and z4 as "
@@ -318,7 +318,7 @@ axes[0].set_ylim(bands_2d.min() - 0.30 * (bands_2d.max() - bands_2d.min()),
                  bands_2d.max() + 0.22 * (bands_2d.max() - bands_2d.min()))
 axes[0].set_ylabel("$E$", fontsize=16)
 axes[0].set_title(f"the layer in the plane\n#{g191.number_str} {g191.name}   "
-                  f"class {si_b.values} in {si_b.structure}", fontsize=10)
+                  f"class {si_b.values} in {si_b.indicator_group}", fontsize=10)
 
 # --- the stack, at k_z = 0 and at k_z = 1/2, overlaid ---
 path_kz0 = [[k[0], k[1], 0.0] for k in PATH]
@@ -344,7 +344,7 @@ axes[1].set_xticklabels((r"$A$", "H", "L", r"$A$"), fontsize=13)
 axes[1].set_xlim(kd0[0] - 0.07 * kd0[-1], kd0[-1] * 1.07)
 axes[1].set_title(f"the periodic stack at $k_z = 1/2$ (dashed)\nover $k_z = 0$ (grey)"
                   f" — #{g_stack.number_str} {g_stack.name}   "
-                  f"class {si_c.values} in {si_c.structure}", fontsize=10)
+                  f"class {si_c.values} in {si_c.indicator_group}", fontsize=10)
 
 fig.suptitle("One Kane-Mele monolayer, presented as a layer in the plane and as a "
              "periodic decoupled stack.  The class in {BS}/{AI} is a property of the "

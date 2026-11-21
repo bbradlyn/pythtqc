@@ -263,18 +263,18 @@ def test_the_dimerized_chain_descends_to_the_bond_centred_p4mmm(dimerized):
     assert r._assignment.wyckoff_spglib == ("g",)
 
     step = dimerized.descent.lattice
-    assert step["index"] == 2
-    assert step["fractional_translations"] == ((0.5, 0.0, 0.0),)
-    assert step["realized"] == ()
-    assert step["coset_partners_refuted"] == 15
-    (tau,) = step["operations"]
-    assert tau["translation"] == (0.5, 0.0, 0.0)
-    assert tau["cartesian"] == (1.0, 0.0, 0.0)
-    assert tau["refuted_by"] == "tensor structure"
-    assert tau["scaled"] == pytest.approx(1.0, abs=1e-9)
-    assert tau["residual"] == pytest.approx(1.0, abs=1e-9)
+    assert step.index == 2
+    assert step.fractional_translations == ((0.5, 0.0, 0.0),)
+    assert step.realized == ()
+    assert step.coset_partners_refuted == 15
+    (tau,) = step.operations
+    assert tau.translation == (0.5, 0.0, 0.0)
+    assert tau.cartesian == (1.0, 0.0, 0.0)
+    assert tau.refuted_by == "tensor structure"
+    assert tau.scaled == pytest.approx(1.0, abs=1e-9)
+    assert tau.residual == pytest.approx(1.0, abs=1e-9)
     assert dimerized.descent.steps[0].refuted_by == {"tensor structure": 32}
-    assert "lattice supergroup of index 2" in step["note"]
+    assert "lattice supergroup of index 2" in step.note
     # the composed note is the lattice step's sentence plus the unitary descent's,
     # and what the concatenation adds is the group that ended up being served
     assert "re-identified as P4/mmm1' #123.340." in dimerized.descent.note
@@ -313,7 +313,7 @@ def test_a_declared_position_tol_moves_nothing_on_the_dimerized_chain(dimerized)
     r = tqg.realized_group(m, position_tol=1e-6)
     assert not isinstance(r, Refusal), str(r)
     assert (r.group.number_str, len(r.numerical.validated._indices)) == ("123.340", 32)
-    assert r.descent.lattice["index"] == 2
+    assert r.descent.lattice.index == 2
     assert r.numerical.positions.defect == pytest.approx(0.0, abs=1e-15)
     assert r.numerical.positions.max_move == pytest.approx(0.0, abs=1e-15)
     assert r.numerical.symmetrization is None
@@ -406,10 +406,10 @@ def test_a_translation_obeyed_with_each_sites_orbitals_turned_is_a_supercell():
     # control 1: a genuine weak dimerization is broken in every basis
     dimer = _realized._realize(cubic_2x1x1(10.0, 10.0 + 8e-5), tol=1e-4)
     assert dimer and (dimer.group.number_str, len(dimer.numerical.validated._indices)) == ("123.340", 32)
-    (tau_d,) = dimer.descent.lattice["operations"]
-    assert tau_d["refuted_by"] == "tensor structure" and tau_d["scaled"] == pytest.approx(1.0, abs=1e-9)
-    assert tau_d["residual"] == pytest.approx(1.6e-4, rel=1e-6, abs=0), "1.6 x tol"
-    assert dimer.descent.lattice["dressing"] == ()
+    (tau_d,) = dimer.descent.lattice.operations
+    assert tau_d.refuted_by == "tensor structure" and tau_d.scaled == pytest.approx(1.0, abs=1e-9)
+    assert tau_d.residual == pytest.approx(1.6e-4, rel=1e-6, abs=0), "1.6 x tol"
+    assert dimer.descent.lattice.dressing == ()
 
     # control 2: two decoupled copies a quarter turn apart, shifted by half a cell
     copies = tqg.realized_group(uncoupled_screw_chain())
@@ -440,8 +440,8 @@ def test_a_translation_obeyed_with_each_sites_orbitals_turned_is_a_supercell():
         screw = tqg.realized_group(screw_chain(), characters=said, cross_check=False)
         assert screw and (screw.group.number_str, screw.group.name) == ("131.436", "P4_2/mmc1'")
         assert len(screw.numerical.validated._indices) == 32 and screw.descent.steps[0].n_dropped == 32
-        (tau_s,) = screw.descent.lattice["operations"]
-        assert tau_s["translation"] == (0.0, 0.0, 0.5) and tau_s["refuted_by"] == "tensor structure"
+        (tau_s,) = screw.descent.lattice.operations
+        assert tau_s.translation == (0.0, 0.0, 0.5) and tau_s.refuted_by == "tensor structure"
         partners = [np.rint(np.asarray(s.rotation)).astype(int) for s in screw.group._symmetries
                     if not s.time_reversal and abs(float(s.translation[2]) % 1.0 - 0.5) < 1e-9]
         assert len(partners) == 8 and all(abs(R[0, 1]) == 1 for R in partners), \
@@ -477,14 +477,14 @@ def test_p4232_both_routes_give_the_same_group_and_letters(route, request):
         group, assignment, validated = r.group, r._assignment, r.numerical.validated
         assert group._provenance == "descended"
         step = r.descent.lattice
-        assert step["index"] == 2
-        assert step["fractional_translations"] == ((0.5, 0.5, 0.5),)
-        assert step["realized"] == ()
-        assert step["coset_partners_refuted"] == 71
-        assert step["operations"][0]["residual"] == pytest.approx(2.4, abs=5e-2)
+        assert step.index == 2
+        assert step.fractional_translations == ((0.5, 0.5, 0.5),)
+        assert step.realized == ()
+        assert step.coset_partners_refuted == 71
+        assert step.operations[0].residual == pytest.approx(2.4, abs=5e-2)
         # the residual is O(1) against the gate it is measured at, which is
         # what makes the refutation a measurement and not a near miss
-        assert step["operations"][0]["tol"] == 1e-8
+        assert step.operations[0].tol == 1e-8
     else:
         # `_group_of` of `p4232_symmetry_cell()`, then `_assign_orbitals` and
         # `_validate_group` on the golden: the session's shared decorated record
@@ -580,12 +580,12 @@ def test_the_square_cells_hamiltonian_breaks_the_centring():
     assert (len(r.numerical.validated._indices), len(r.operations)) == (8, 8)
     assert r.group._provenance == "descended"
     step = r.descent.lattice
-    assert step["index"] == 2 and step["realized"] == ()
-    assert step["operations"][0]["translation"] == (0.5, 0.5, 0.0)
-    assert step["operations"][0]["refuted_by"] == "tensor structure"
-    assert step["operations"][0]["residual"] == pytest.approx(2.0, abs=1e-9)
+    assert step.index == 2 and step.realized == ()
+    assert step.operations[0].translation == (0.5, 0.5, 0.0)
+    assert step.operations[0].refuted_by == "tensor structure"
+    assert step.operations[0].residual == pytest.approx(2.0, abs=1e-9)
 
-    assert step["coset_partners_refuted"] == 27
+    assert step.coset_partners_refuted == 27
 
     # the default reading -- the substrate -- reaches the same lattice question
     # and serves the in-plane image of that group: half the operations, and the
@@ -596,9 +596,9 @@ def test_the_square_cells_hamiltonian_breaks_the_centring():
     assert (plain.group.number_str, plain.group.name) == ("8.33", "Cm1'")
     assert (len(plain.numerical.validated._indices), len(plain.operations)) == (4, 4)
     assert plain.descent.cell_group.number_str == "99.164"
-    assert plain.descent.lattice["index"] == 2
-    assert plain.descent.lattice["coset_partners_refuted"] == 13
-    assert plain.descent.lattice["operations"][0]["residual"] == pytest.approx(
+    assert plain.descent.lattice.index == 2
+    assert plain.descent.lattice.coset_partners_refuted == 13
+    assert plain.descent.lattice.operations[0].residual == pytest.approx(
         2.0, abs=1e-9)
     assert plain.environment.cross_check.outcome == "agree"
 
@@ -843,12 +843,12 @@ def test_the_flat_p41_cell_reaches_the_lattice_descent_and_holds_each_operation_
     assert d.steps[0].kept == (1, 5, 9, 13, 19, 23, 27, 31)
 
     step = d.lattice
-    assert step["index"] == 2 and step["realized"] == ()
-    assert step["coset_partners_refuted"] == 23
-    (tau,) = step["operations"]
-    assert tau["translation"] == (0.5, 0.5, 0.0)
-    assert tau["refuted_by"] == "tensor structure"
-    assert tau["residual"] == pytest.approx(1.0, abs=1e-9)
+    assert step.index == 2 and step.realized == ()
+    assert step.coset_partners_refuted == 23
+    (tau,) = step.operations
+    assert tau.translation == (0.5, 0.5, 0.0)
+    assert tau.refuted_by == "tensor structure"
+    assert tau.residual == pytest.approx(1.0, abs=1e-9)
 
 
 @pytest.mark.slow
@@ -1077,13 +1077,13 @@ def test_magnetic_translations_leave_the_cell_its_bare_subgroup():
     # the three translations: kept by the detector, refused by the ansatz at exactly 1
     # (a sign per site inside the one channel class has no component along the ansatz),
     # and the direct check -- 4t, a whole sign on every x hop -- was never needed
-    ops = {e["translation"]: e for e in d.lattice["operations"]}
+    ops = {e.translation: e for e in d.lattice.operations}
     assert set(ops) == taus
     for e in ops.values():
-        assert e["refuted_by"] == "tensor structure", e
-        assert e["scaled"] == pytest.approx(1.0, abs=1e-12), e
-        assert e["residual"] == pytest.approx(4.0, rel=1e-12, abs=0), e
-    assert d.lattice["refuted"] == {} and d.lattice["realized"] == ()
+        assert e.refuted_by == "tensor structure", e
+        assert e.scaled == pytest.approx(1.0, abs=1e-12), e
+        assert e.residual == pytest.approx(4.0, rel=1e-12, abs=0), e
+    assert d.lattice.refuted == {} and d.lattice.realized == ()
 
     # the oracle: the operations under which the sign pattern is invariant as written
     served = set()
@@ -1104,6 +1104,6 @@ def test_magnetic_translations_leave_the_cell_its_bare_subgroup():
     dl = landau.descent
     assert dl.cell_group.number_str == "123.340" and dl.steps[0].n_dropped == 48
     assert dl.steps[0].refuted_by == {"no symmetry matrix": 32, "tensor structure": 16}
-    [tau] = dl.lattice["operations"]
-    assert tau["refuted_by"] == "tensor structure" and tau["scaled"] == pytest.approx(1.0, abs=1e-12)
-    assert tau["residual"] == pytest.approx(4.0, rel=1e-12, abs=0)
+    [tau] = dl.lattice.operations
+    assert tau.refuted_by == "tensor structure" and tau.scaled == pytest.approx(1.0, abs=1e-12)
+    assert tau.residual == pytest.approx(4.0, rel=1e-12, abs=0)

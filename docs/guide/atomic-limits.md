@@ -9,7 +9,7 @@ site-symmetry irrep induces from its Wyckoff position, where that band set is
 no sum of others
 ([the primer](../background/tqc-primer.md#band-representations-and-atomic-limits)).
 This chapter asks `decompose` whether a measured symmetry data vector is such a sum,
-with nonnegative integer multiplicities; reads its verdict and its solutions;
+with nonnegative integer multiplicities; reads whether it is one, and its candidate sums;
 counts bands; and says what a decomposition cannot certify. The model is lin3g, from
 `pythtqc.models`, as in [labelling the bands](labels.md): four spinful orbitals
 of a square layer, two at Wyckoff `1a` and two at `2c`, eight bands, whose six
@@ -29,17 +29,20 @@ r = tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1])
 t = tqc.hsp_table(r, bands=6)                      # the six lowest bands
 d = tqc.decompose(t)
 print(d.summary())
-#  symmetry-indicated decomposable: 3 sums of elementary band representations carry this content   (.verdict)
-#    the coreps at the high-symmetry points: 2x-GM6 + -GM7 + -M6 + 2x-M7 + 3x-X5   (.content)
-#    every sum, each elementary band representation written as the site irrep inducing it at its Wyckoff position (site symmetry)   (.terms)
-#      -E2 at 1b (4mm) + -E at 2c (mm2)
-#      -E1 at 1a (4mm) + -E2 at 1a (4mm) + -E2 at 1b (4mm)
-#      -E1 at 1b (4mm) + 2x-E2 at 1b (4mm)
-#    A, R and Z lie out of the layer's plane: every corep there occurs in every elementary band representation as often as a measured one, so the verdict is exact   (.restriction, .completeness)
-#    some site irreps were assigned by the lowest-angular-momentum rule: a different declared content renames them in these sums, while the Wyckoff positions stay   (.site_content, .positions)
-#    necessary for an atomic limit, never sufficient: an obstruction beyond symmetry indicators can survive it   (.caveat)
-print(d.positions)
-#  (('1b', '2c'), ('1a', '1a', '1b'), ('1b', '1b', '1b'))
+#  decomposable: 3 sums of elementary band representations carry this symmetry data vector   (.decomposable, .candidate_sums)
+#    the coreps at the high-symmetry points: 2x-GM6 + -GM7 + -M6 + 2x-M7 + 3x-X5   (.symmetry_data)
+#    every candidate sum, each elementary band representation written as the site irrep inducing it at its Wyckoff position (site symmetry)   (.candidate_sums)
+#      -E2 at 1b (4mm1') + -E at 2c (mm21')
+#      -E1 at 1a (4mm1') + -E2 at 1a (4mm1') + -E2 at 1b (4mm1')
+#      -E1 at 1b (4mm1') + 2x-E2 at 1b (4mm1')
+#    some site irreps were assigned by the lowest-angular-momentum rule: a different declared content renames them in these sums, while the Wyckoff positions stay   (.site_content)
+print(d.numerical.summary())
+#  A, R and Z lie out of the layer's plane: every corep there occurs in every elementary band representation as often as a measured one, so the answer is exact   (.restriction, .completeness)
+def positions(d):                                  # the Wyckoff positions of each sum
+    return [sorted(term.wyckoff for term in s for _ in range(int(term.multiplicity)))
+            for s in d.candidate_sums]
+print(positions(d))
+#  [['1b', '2c'], ['1a', '1a', '1b'], ['1b', '1b', '1b']]
 ```
 
 ## How to read it
@@ -47,49 +50,43 @@ print(d.positions)
 `summary()` prints the record as it is read, a line for each part, ending with
 the field that holds it:
 
-- `symmetry-indicated decomposable` is the verdict, and its name is its reach:
-  a nonnegative-integer sum of EBRs has this content, and any obstruction to an
+- `decomposable` says it is one, and its reach is the symmetry data vector's:
+  a nonnegative-integer sum of EBRs has this vector, and any obstruction to an
   atomic limit must lie beyond what symmetry indicators see. Three sums were
   found.
 - The coreps at the high-symmetry points are the symmetry data vector decomposed,
   `t.symmetry_data` of the six bands.
-- Each line under `every sum` is one solution: the orbitals an atomic limit with
-  this content would be built from. `-E2 at 1b (4mm)` is the two-band EBR of the
-  site corep `-E2` at Wyckoff `1b`, whose site group is `4mm`. The three
-  solutions are one content written three ways: the first two differ by `-E` at
+- Each line under `every candidate sum` is one sum: the orbitals an atomic limit with
+  this content would be built from. `-E2 at 1b (4mm1')` is the two-band EBR of the
+  site corep `-E2` at Wyckoff `1b`, whose site group is `4mm1'`, `4mm` with time
+  reversal. The three sums are one content written three ways: the first two differ by `-E` at
   `2c` against `-E1` and `-E2` at `1a`, the last two by that pair at `1a`
   against the same pair at `1b`, sums the symmetry data vector cannot tell apart.
   The fewest elementary band representations in all come first, and among sums
   with as many, the one with more of those the tables list first.
-- `A, R and Z lie out of the layer's plane`: the **EBR matrix** has one column
+- `d.numerical.summary()` prints how the decomposition was read.
+  `A, R and Z lie out of the layer's plane`: the **EBR matrix** has one column
   per EBR, its symmetry data vector, and one row per corep at each high-symmetry
   point. A layer has no `k_z`, so the rows at the group's points `A`, `R` and
   `Z`, at `k_z = ½`, are left out, and each is verified to repeat a measured
   row in every EBR. Leaving them out then changes nothing: the matrix has rank
-  `3` with them and without, and the verdict is the full decomposition's.
-  `d.restriction` holds the rows kept and those left out, each with the row it
-  repeats.
-- The line on the lowest-angular-momentum rule is the next section. The last
-  line, the caveat every decomposition carries, is
-  [what a decomposition cannot certify](#what-a-decomposition-cannot-certify).
+  `3` with them and without, and the decomposition is the full one.
+  `d.numerical.restriction` holds the rows kept and those left out, each with
+  the row it repeats.
+- The line on the lowest-angular-momentum rule is the next section. What a
+  decomposition does not certify is
+  [its own section](#what-a-decomposition-cannot-certify).
 
-`d.positions` is the Wyckoff positions of each solution, the part of it no
-labelling of the orbitals moves. `d.terms` holds each solution as its terms,
-each a multiplicity, an EBR and its position, as the group's list of EBRs
-labels them: `-E2↑G(2)` at `1b(4mm1',4mm)` is the summary's `-E2 at 1b (4mm)`,
-the `(2)` its two bands and `4mm1'` its site group with time reversal
+`positions(d)` is the Wyckoff positions of each sum, the part of it no
+labelling of the orbitals moves. `d.candidate_sums` holds each sum as its terms,
+each a multiplicity, a site irrep, its Wyckoff position and its site group, with
+and without time reversal
 ([the band-representation key](../background/conventions.md#the-band-representation-key)
-reads every part), and `solution_strings()` writes each sum on a line in the
-same labels. `d.solutions` holds each solution as multiplicities over the EBRs
-of `d.ebrs`, the vector the
-[stable real-space invariants](srsi.md#why-the-ℤₙ-half-needs-the-orbitals)
-are evaluated on; its nonzero entries are the terms:
+reads every part), and each sum's `label` writes it on a line as the summary does:
 
 ```python
-print(d.terms[0])
-#  ((1, '-E2↑G(2)', "1b(4mm1',4mm)"), (1, '-E↑G(4)', "2c(mm21',mm2)"))
-print(d.solutions[0], [d.ebrs[i] for i, n in enumerate(d.solutions[0]) if n])
-#  (0, 0, 0, 1, 1) [('-E2↑G(2)', "1b(4mm1',4mm)"), ('-E↑G(4)', "2c(mm21',mm2)")]
+print(tuple(d.candidate_sums[0]))
+#  (Term(multiplicity=1, irrep='-E2', wyckoff='1b', site_symmetry="4mm1'", unitary_site_symmetry='4mm'), Term(multiplicity=1, irrep='-E', wyckoff='2c', site_symmetry="mm21'", unitary_site_symmetry='mm2'))
 ```
 
 ## Positions survive every labelling; labels may not
@@ -102,20 +99,20 @@ they are, and lin3g's two orbitals at `1a` were assigned by the lowest-ℓ rule
 at `1a` exchanged:
 
 ```python
-print(d.site_content["determined_by"])
+print(d.site_content.determined_by)
 #  ('lowest-l', 'lowest-l', 'hamiltonian', 'hamiltonian')
 other = tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1], characters={0: "dx2-y2"})
 d_other = tqc.decompose(tqc.hsp_table(other, bands=6))
-print(d_other.solution_strings()[0])
-#  1 x -E1↑G(2)@1b(4mm1',4mm) + 1 x -E↑G(4)@2c(mm21',mm2)
-print(d_other.positions == d.positions)
+print(d_other.candidate_sums[0].label)
+#  -E1 at 1b (4mm1') + -E at 2c (mm21')
+print(positions(d_other) == positions(d))
 #  True
 ```
 
-The first solution now reads `-E1` at `1b` where it read `-E2`, and every
-solution sits at the same Wyckoff positions. Quote `d.positions` beside the
+The first sum now reads `-E1` at `1b` where it read `-E2`, and every
+sum sits at the same Wyckoff positions. Quote the positions beside the
 labels always, and lean on them wherever a row reads `lowest-l`: they are what
-a decomposition verdict is about, and what a comparison with the Bilbao
+a decomposition is about, and what a comparison with the Bilbao
 Crystallographic Server's band-representation tables agrees on where a label
 may not ([reading across to BCS](../background/conventions.md#reading-across-to-bcs)).
 
@@ -123,11 +120,9 @@ may not ([reading across to BCS](../background/conventions.md#reading-across-to-
 
 Comparing two models at equal band count, or building a reference atomic
 limit, needs each side of a gap to hold complete band representations.
-`completeness_check` returns whether the content is a sum of EBRs at all,
-`complete`, with the same reach as a decomposition's verdict, and how many
-bands each solution accounts for, `band_counts`, against the number of bands
-asked for; a mismatch there is a mistake in the call, since the EBR
-dimensions and the corep dimensions are the same numbers. `regular_completion`
+`decompose` says whether the content is a sum of EBRs at all, `decomposable`,
+and each such sum accounts for every band of the table, `len(t.bands)`, since
+the EBR dimensions and the corep dimensions are the same numbers. `regular_completion`
 pads a band set up to **regular** content: the band representation induced
 from the regular representation of a site-symmetry group, `|U|` bands at every
 k-point, with `|U|` the number of unitary operations of the group, one per coset
@@ -135,13 +130,13 @@ of the lattice translations and, for this spinful model, the single-valued
 group's: the eight of `4mm` here (`rc.bands_per_copy`):
 
 ```python
-print(tqc.completeness_check(t))
-#  CompletenessReport(complete=True, n_bands=6, band_counts=(6, 6, 6))
+print(d.decomposable, len(t.bands))
+#  True 6
 rc = tqc.regular_completion(t, bands=8)
 print(rc.bands_per_copy, rc.regular)
 #  8 {'-GM6': 2, '-GM7': 2, '-M6': 2, '-M7': 2, '-X5': 4}
-print(tqc.format_coreps(rc.padding), rc.decomposition.solution_strings())
-#  -GM7 + -M6 + -X5 ("1 x -E1↑G(2)@1b(4mm1',4mm)",)
+print(tqc.format_coreps(rc.padding), [s.label for s in rc.decomposition.candidate_sums])
+#  -GM7 + -M6 + -X5 ["-E1 at 1b (4mm1')"]
 print(rc.padding == tqc.hsp_table(r, bands=[6, 7]).symmetry_data)
 #  True
 print(tqc.regular_completion(t, bands=6).gate)
@@ -171,16 +166,15 @@ pair = tqc.hsp_table(r, bands=[4, 5])              # the two bands below the gap
 print(tqc.subtract(t, tqc.hsp_table(r, bands=[0, 1, 2, 3])) == pair.symmetry_data)
 #  True
 d_pair = tqc.decompose(pair)
-print(d_pair.verdict, d_pair.solution_strings(), d_pair.caveat)
-#  symmetry-indicated decomposable ("1 x -E2↑G(2)@1b(4mm1',4mm)",) WannierCaveat(necessary for an atomic limit, not sufficient)
+print(d_pair.decomposable, [s.label for s in d_pair.candidate_sums])
+#  True ["-E2 at 1b (4mm1')"]
 print(tqc.splitting(r, bands=6).verdict)
 #  diagnosed topological
 ```
 
-The pair reproduces the EBR `-E2↑G(2)@1b` exactly and is fragile all the same,
-by the construction of Lin et al. Every decomposition carries
-`caveat`, which says so in general: a symmetry-indicated decomposable verdict
-is necessary for an atomic limit and never sufficient. What sees past it here
+The pair reproduces the EBR `-E2 at 1b` exactly and is fragile all the same,
+by the construction of Lin et al.: a decomposable symmetry data vector is
+necessary for an atomic limit and never sufficient. What sees past it here
 is the **stable real-space invariants**, combinations of how many Wannier
 functions carry each site irrep at each Wyckoff position that no symmetric
 deformation can change ([stable real-space invariants](srsi.md)):
@@ -203,20 +197,20 @@ km = tqc.realized_group(kane_mele(1.0, -1.0, 0.3, 0.25), typat=[0, 1],
                         characters={0: "A1"})
 upper = tqc.hsp_table(km, bands=[2, 3])            # the two bands above the gap
 none = tqc.decompose(upper)
-print(none, none.certificate, none.bound_is_rigorous)
-#  EBRDecomposition(none, 0 solutions, exact) proof True
+print(none, none.certificate, none.numerical.bound_is_rigorous)
+#  EBRDecomposition(not decomposable, 0 candidate sums, exact) proof True
 signed = none.signed_combinations
-print(signed["n_solutions"])
+print(len(signed.sums))
 #  3
-print(" + ".join(f"{n} x {ebr}@{site}" for n, ebr, site in signed["terms"][0]))
-#  -1 x -E1↑G(2)@1a(3m1',3m) + 1 x -E1↑G(2)@1b(3m1',3m) + 1 x -E1↑G(2)@1c(3m1',3m)
-print(km.group.name, tqc.symmetry_indicator(upper).verdict)
-#  P3m11' trivial indicator group
+print(signed.sums[0].label)
+#  -1x-E1 at 1a (3m1') + -E1 at 1b (3m1') + -E1 at 1c (3m1')
+print(km.group.name, tqc.symmetry_indicator(upper).indicator_group)
+#  P3m11' trivial
 ```
 
-A `none` verdict says no atomic limit has this content, and `certificate` says
+A vector that is not decomposable has no atomic limit, and `certificate` says
 what that rests on: `proof` where the bound placed on every multiplicity
-provably excludes no solution (`bound_is_rigorous`), so that finding none
+provably excludes no sum (`numerical.bound_is_rigorous`), so that finding none
 within it is a proof, and `none within the bound` otherwise.
 
 The **signed combinations** ask the same question with negative
@@ -253,12 +247,11 @@ calls meet:
   through a crossing between two high-symmetry points; there is no
   decomposition to look for.
 - [`restriction_not_exact`](../reference/refusals.md#restriction_not_exact): a
-  row the model does not measure repeats none it does, so no verdict from the
-  measured rows is exact; `points=` naming fewer points than the model samples
-  can meet it. A layer is decomposed over its own band representations, those of
+  row the model does not measure repeats none it does, so nothing read from the
+  measured rows is exact. A layer is decomposed over its own band representations, those of
   the Wyckoff positions within it, on which every row out of its plane repeats
   one in it: a free-standing layer's group has positions off the layer, which
-  are left out and named in `restriction.outside_layer`.
+  are left out and named in `numerical.restriction.outside_layer`.
 - [`unknown_label`](../reference/refusals.md#unknown_label): a measured label
   the group's EBR basis does not carry.
 - [`negative_multiplicity`](../reference/refusals.md#negative_multiplicity),
@@ -277,11 +270,10 @@ calls meet:
 ## Every field and argument
 
 The fields of [`EBRDecomposition`](../reference/records.md#ebrdecomposition),
-its `Restriction` and `WannierCaveat` among them, and of
-[`CompletenessReport` and `RegularCompletion`](../reference/records.md#completenessreport-and-regularcompletion)
+its `Restriction` among them, and of
+[`RegularCompletion`](../reference/records.md#regularcompletion)
 are in the records reference, and each call's arguments in its entry: [`decompose`](../reference/functions.md#decompose),
 [`subtract`](../reference/functions.md#subtract),
-[`completeness_check`](../reference/functions.md#completeness_check),
 [`regular_completion`](../reference/functions.md#regular_completion),
 [`ebr_rows`](../reference/functions.md#ebr_rows), which writes each EBR of a
 group as a symmetry data vector, and

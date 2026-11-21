@@ -23,7 +23,7 @@ words are [the glossary's](glossary.md).
 - [`BandCharacters` and `CorepsAt`](#bandcharacters-and-corepsat),
   [`HSPTable`](#hsptable)
 - [`EBRDecomposition`](#ebrdecomposition), and
-  [`CompletenessReport` and `RegularCompletion`](#completenessreport-and-regularcompletion)
+  [`RegularCompletion`](#regularcompletion)
 - [`SymmetryIndicator`](#symmetryindicator)
 - [The stable real-space invariants](#the-stable-real-space-invariants)
 - [`Refusal`](#refusal)
@@ -522,8 +522,8 @@ Its operations, one per coset of the lattice translations, are `r.operations`.
 
 The operations of a group, by index: `r.operations` and `tqc.operations(r.group)`.
 A mapping from each
-operation's index to its `Operation`, which prints as the whole correspondence
-under a line saying what its rows are, as its `summary()` returns it; an
+operation's index to its `Operation`, with `group`, the group it lists; it prints as the
+whole correspondence under a line saying what its rows are, as its `summary()` returns it; an
 `Operation`'s own `summary()` reads it part by part:
 
 ```python
@@ -875,7 +875,7 @@ returned; which bands are degenerate does not. The points `A`,
 | field | what it holds |
 |---|---|
 | `bands` | the band indices of the set, ascending |
-| `group` | the group whose coreps the labels name, `r.group`: the one `decompose`, `symmetry_indicator`, `completeness_check`, `regular_completion` and `srsi_of_bands` read the table in; a group or a `rep=` handed to them beside the table that is not this one raises `ValueError` |
+| `group` | the group whose coreps the labels name, `r.group`: the one `decompose`, `symmetry_indicator`, `regular_completion` and `srsi_of_bands` read the table in, handed the table alone |
 | `kpoints` | every tabulated point in the model's periodic plane, with its coordinates |
 | `symmetry_data` | the coreps summed over every point resolved: the symmetry data vector, which `decompose` and `symmetry_indicator` take |
 | `multiplets` | per point resolved, one row per degenerate multiplet, lowest first: its bands, its mean energy and the coreps it carries, as `coreps_at` returns them |
@@ -895,21 +895,20 @@ it:
 ```python
 dec = tqc.decompose(t)
 print(dec.summary())
-#  symmetry-indicated decomposable: 1 sum of elementary band representations carries this content   (.verdict)
-#    the coreps at the high-symmetry points: -GM9 + -K6 + -M5   (.content)
-#    every sum, each elementary band representation written as the site irrep inducing it at its Wyckoff position (site symmetry)   (.terms)
-#      -E1 at 1a (6mm)
-#    A, H and L lie out of the layer's plane: every corep there occurs in every elementary band representation as often as a measured one, so the verdict is exact   (.restriction, .completeness)
-#    necessary for an atomic limit, never sufficient: an obstruction beyond symmetry indicators can survive it   (.caveat)
+#  decomposable: 1 sum of elementary band representations carries this symmetry data vector   (.decomposable, .candidate_sums)
+#    the coreps at the high-symmetry points: -GM9 + -K6 + -M5   (.symmetry_data)
+#    every candidate sum, each elementary band representation written as the site irrep inducing it at its Wyckoff position (site symmetry)   (.candidate_sums)
+#      -E1 at 1a (6mm1')
+print(dec.numerical.summary())
+#  A, H and L lie out of the layer's plane: every corep there occurs in every elementary band representation as often as a measured one, so the answer is exact   (.restriction, .completeness)
 conduction = tqc.decompose(tqc.hsp_table(r, bands=[2, 3]))
 print(conduction.summary())
-#  no sum of elementary band representations carries this content, so no atomic limit has it   (.verdict)
-#    the coreps at the high-symmetry points: -GM8 + -K4 + -K5 + -M5   (.content)
-#    proved: no elementary band representation can occur more than once, and no sum with each at most once carries the content   (.certificate, .bound)
-#    3 combinations of elementary band representations with some negative multiplicities reproduce the content (evidence of fragility)   (.signed_combinations)
-#    A, H and L lie out of the layer's plane: every corep there occurs in every elementary band representation as often as a measured one, so the verdict is exact   (.restriction, .completeness)
-print(conduction.signed_combinations["terms"][0])
-#  ((-1, '-E1↑G(2)', "1a(6mm1',6mm)"), (1, '-E1↑G(4)', "2b(3m1',3m)"))
+#  not decomposable: no sum of elementary band representations carries this symmetry data vector   (.decomposable)
+#    the coreps at the high-symmetry points: -GM8 + -K4 + -K5 + -M5   (.symmetry_data)
+#    proved: no elementary band representation can occur more than once, and no sum with each at most once carries it   (.certificate, .numerical.bound)
+#    3 combinations of elementary band representations with some negative multiplicities reproduce it   (.signed_combinations)
+print(conduction.signed_combinations.sums[0].label)
+#  -1x-E1 at 1a (6mm1') + -E1 at 2b (3m1')
 ```
 
 The occupied pair's one sum is the `-E1` site corep at Wyckoff `1a` induced to
@@ -921,80 +920,59 @@ restriction lifted, the first of them printed last, is a difference of
 elementary band representations: the arithmetic signature of a fragile band
 set.
 
-`verdict` is `"symmetry-indicated decomposable"` or `"none"`: a decomposition is
+`decomposable` says whether a sum carries the vector: a decomposition is
 a statement about symmetry indicators, and any obstruction to an atomic limit
 beyond them can survive it.
 
 | field | what it holds |
 |---|---|
-| `verdict`, `decomposable` | the verdict, and whether it is the first |
-| `solutions`, `unique` | every nonnegative-integer solution, as multiplicities over `ebrs`, the fewest elementary band representations in all first and, among those with as many, the one with more of those the tables list first; and whether there is exactly one |
-| `terms`, `solution_strings()` | the same in the labels of the group's list: each solution's terms as (multiplicity, elementary band representation, position), and each solution on one line |
-| `positions` | each solution's Wyckoff positions, the part a different labelling of the orbitals never moves |
-| `ebrs`, `labels`, `y` | the elementary band representations a solution is written over, and the rows kept with the measured vector on them |
-| `content`, `n_bands` | the symmetry data vector decomposed, and the number of bands |
-| `certificate` | what a `"none"` rests on: `"proof"`, or `"none within the bound"`; `None` for a decomposition, which an exhibited solution needs no certificate for |
-| `bound`, `bound_is_rigorous` | the bound on every coefficient, and whether it provably excludes no solution |
-| `enumeration` | `cap`, the most solutions listed, `n_solutions`, and `truncated`, whether the list was cut |
-| `signed_combinations` | for a `"none"`, the same question with the sign restriction lifted, every coefficient between `−bound` and `bound`: its `solutions` and `terms`, `n_solutions`, zero where there is none within the bound, `truncated` where the list was cut at the cap, and a `note`. A combination found is evidence of fragility; the bound is not rigorous, since signed terms can cancel without limit |
-| `restriction` | the rows a model can measure, a `Restriction`, and on a free-standing layer the positions outside it, whose band representations every solution leaves at zero |
-| `site_content` | the site irrep of each orbital and how it is known, from `rep`; where one is `lowest-l`, a different declared content renames the site irreps in `terms` while `positions` stay |
-| `completeness` | `claim`, `"exact"` or `"necessary-condition"`, and the points refused that it rests on |
-| `caveat` | what a decomposition does not certify, a `WannierCaveat`, whose `text` says it in a sentence |
+| `decomposable` | whether a sum of elementary band representations carries the symmetry data vector |
+| `candidate_sums` | every such sum, each a [`BandRepresentation`](#bandrepresentation), the fewest elementary band representations in all first and, among those with as many, the one with more of those the tables list first: its rows give each term's multiplicity, site irrep, Wyckoff position and site symmetry, the positions being the part a different labelling of the orbitals never moves, and its `label` the sum on one line |
+| `symmetry_data` | the symmetry data vector decomposed |
+| `certificate` | what a vector no sum carries rests on: `"proof"`, or `"none within the bound"`; `None` for a decomposition, which an exhibited sum needs no certificate for |
+| `signed_combinations` | where no sum carries the vector, the same question with the sign restriction lifted, every coefficient between `−bound` and `bound`: its `sums`, empty where there is none within the bound, and `truncated` where the list was cut at the cap; `None` where a sum carries it. A combination found is evidence of fragility; the bound is not rigorous, since signed terms can cancel without limit |
+| `site_content` | the site irrep of each orbital and how it is known; where one is `lowest-l`, a different declared content renames the site irreps in `candidate_sums` while their Wyckoff positions stay |
+| `numerical.bound`, `numerical.bound_is_rigorous` | the bound on every coefficient, and whether it provably excludes no sum |
+| `numerical.enumeration` | `cap`, the most sums listed, `n_solutions`, and `truncated`, whether the list was cut |
+| `numerical.completeness` | `claim`, `"exact"` or `"necessary-condition"`, and the points refused that it rests on |
+| `numerical.restriction` | the rows a model can measure, a `Restriction`, and on a free-standing layer the positions outside it, whose band representations every sum leaves at zero |
 
 A `Restriction`, whose `summary()` names the rows left out and the measured row
-each repeats, holds `applied`, whether any row was dropped, false for a
-three-dimensional model; `points`, the points the model samples; `retained` and
-`dropped`, the rows kept and dropped; `copies`, each dropped row with the kept
-rows it duplicates; `exact`, whether every dropped row is such a copy, so that
-the restricted verdict is the full one; `orphans`, the dropped rows that are
-not; `rank` and `full_rank`, the two matrices' ranks, equal whenever `exact`;
-and `require_exact`, whether a dropped row that is no copy would have been
-refused. From `decompose` on a layer, the rows are compared on the layer's own
-band representations, those of the Wyckoff positions within it:
-`layer_extent` holds the heights its orbitals span along its normal, from its
-middle plane, and `outside_layer` the positions of a free-standing layer's group
-off the layer, or outside the slab its orbitals span, each with its height,
-which carry none of its orbitals and are left out.
+each repeats, holds `kpoints`, the points the model samples; `retained` and
+`dropped`, the rows kept and dropped, none dropped for a three-dimensional model;
+`copies`, each dropped row with the kept rows it duplicates; `exact`, whether
+every dropped row is such a copy, so that what is read on the kept rows is
+exact; and `orphans`, the dropped rows that are not. From `decompose` on a layer,
+the rows are compared on the layer's own band representations, those of the
+Wyckoff positions within it, and `outside_layer` holds the positions of a
+free-standing layer's group off the layer, or outside the slab its orbitals
+span, each with its height, which carry none of its orbitals and are left out.
 
-## `CompletenessReport` and `RegularCompletion`
+## `RegularCompletion`
 
-The counting beside a decomposition: `completeness_check` reports how many bands
-each solution accounts for, and `regular_completion` the bands that would carry a
-band set up to whole copies of the regular band representation, `|U|` bands per
-copy for `|U|` unitary operations, counted one per coset of the lattice
-translations and, for a spinful model, the single-valued group's. The
-`summary()` of each reads it part by part:
+The counting beside a decomposition: `regular_completion` gives the bands that
+would carry a band set up to whole copies of the regular band representation,
+`|U|` bands per copy for `|U|` unitary operations, counted one per coset of the
+lattice translations and, for a spinful model, the single-valued group's. Its
+`summary()` reads it part by part:
 
 ```python
-cr = tqc.completeness_check(t)
-print(cr)
-#  CompletenessReport(complete=True, n_bands=2, band_counts=(2,))
-print(cr.summary())
-#  complete: 1 sum of elementary band representations carries this content   (.complete)
-#    each sum is 2 bands, as many as were asked for   (.band_counts, .n_bands)
-#    the sums, and what a sum does not certify   (.decomposition)
 rc = tqc.regular_completion(t, bands=12)
 print(rc.summary())
 #  one copy of the regular band representation, the one the regular representation of a site group induces: 12 bands at every k   (.copies, .bands_per_copy)
 #    the coreps the missing bands carry: 2x-GM7 + 2x-GM8 + -GM9 + 2x-K4 + 2x-K5 + 3x-K6 + 5x-M5   (.padding)
-#    the orbitals they would be, each the site irrep at its Wyckoff position (site symmetry)   (.decomposition)
-#      -E2 at 1a (6mm) + -E3 at 1a (6mm) + -E at 3c (mm2)
-#      -E1 at 1a (6mm) + 2x-E2 at 1a (6mm) + 2x-E3 at 1a (6mm)
-print(rc.decomposition.solution_strings()[0])
-#  1 x -E2↑G(2)@1a(6mm1',6mm) + 1 x -E3↑G(2)@1a(6mm1',6mm) + 1 x -E↑G(6)@3c(mm21',mm2)
+#    the orbitals they would be, each the site irrep at its Wyckoff position (site symmetry)   (.decomposition.candidate_sums)
+#      -E2 at 1a (6mm1') + -E3 at 1a (6mm1') + -E at 3c (mm21')
+#      -E1 at 1a (6mm1') + 2x-E2 at 1a (6mm1') + 2x-E3 at 1a (6mm1')
+print(rc.decomposition.candidate_sums[0].label)
+#  -E2 at 1a (6mm1') + -E3 at 1a (6mm1') + -E at 3c (mm21')
 ```
 
-A `CompletenessReport` holds `complete`, whether the content is a sum of
-elementary band representations, with the reach of `decompose`'s verdict;
-`decomposition`, that `EBRDecomposition`; `n_bands`; `band_counts`, the bands
-each solution accounts for; and `band_count_matches`, whether they equal
-`n_bands`. A `RegularCompletion` holds `copies` and `bands_per_copy`; `target`,
-the content of that many regular copies; `occupied`, the content handed in;
-`padding`, the difference, which the bands still missing must carry;
-`decomposition`, the padding's own, whose `solution_strings()` writes its sums
-in the labels of the group's list, the first printed above; and `regular`, one
-copy's content, computed from the group's characters.
+A `RegularCompletion` holds `copies` and `bands_per_copy`; `symmetry_data`, the
+symmetry data vector handed in; `padding`, the content of that many regular
+copies less it, which the bands still missing must carry; `decomposition`, the
+padding's own, whose `candidate_sums` are its sums, the first printed above; and
+`regular`, one copy's content, computed from the group's characters.
 
 ## `SymmetryIndicator`
 
@@ -1009,70 +987,71 @@ substrate, and free-standing:
 ```python
 si = tqc.symmetry_indicator(t)
 print(si)
-#  SymmetryIndicator(trivial indicator group, #183.186, trivial)
-print(si.completion, si.free_standing_group)
-#  None {'number_str': '191.234', 'name': "P6/mmm1'", 'size': 48}
+#  SymmetryIndicator(P6mm1' #183.186, trivial indicator group)
+print(si.numerical.completion, si.numerical.free_standing_group)
+#  None P6/mmm1' #191.234
 sf = tqc.symmetry_indicator(tf)
 print(sf)
-#  SymmetryIndicator(indicated nontrivial, #191.234, Z6 x Z12, [1|6, 0|12], completed on the stack)
+#  SymmetryIndicator(P6/mmm1' #191.234, class (1, 0) in Z6 x Z12, completed on the stack)
 print(sf.summary())
-#  indicated nontrivial, in P6/mmm1' #191.234: no atomic limit has this content, nor any with atomic bands added   (.verdict)
-#    the indicator group, the band structures modulo the atomic limits: Z6 x Z12, a class being an integer mod 6 and one mod 12   (.structure)
-#    canonical: z2w,3 = 1, z4 = 2, z3m,pi = 1, z3m,0 = 1, z6m,0 = 5, z6m,pi = 5, z12 = 10, the names of the paper that tabulates the stable real-space invariants, Hwang et al. (2026)   (.canonical)
-#    indicator: 1 mod 6, 0 mod 12, of order 6: 6 copies of these bands are in the zero class   (.values, .order)
-#    irreptables: z2w,3 = 1, z4 = 2, z3m,π = 1, z3m,0 = 1, z6m,0 = 5, z6m,π = 5, z12 = 10, the same indicators as the irreptables package names them   (.irreptables_named)
-#    the coreps at the high-symmetry points: -GM9 + -A9 + -H8 + -K8 + -L6 + -M6   (.content)
-#    A, H and L, at k_z = ½ out of the layer's plane: their coreps measured on the layer's decoupled stack, the layer repeated along its normal with no hopping between copies, in the layer's own group #191.234   (.completion)
-#    the class of the layer's decoupled stack: every component is an invariant of that stack, fixed by the layer's own content   (.two_dimensional)
+#  class (1, 0) in Z6 x Z12, in P6/mmm1' #191.234   (.values, .indicator_group, .group)
+#    of order 6: 6 copies of these bands are in the zero class   (.order)
+#    the indicator group: Z6 x Z12, a class being an integer mod 6 and one mod 12   (.indicator_group, .divisors)
+#    indicators: z2w,3 = 1, z4 = 2, z3m,pi = 1, z3m,0 = 1, z6m,0 = 5, z6m,pi = 5, z12 = 10, the names of the paper that tabulates the stable real-space invariants, Hwang et al. (2026)   (.indicators)
+#    the coreps at the high-symmetry points: -GM9 + -K8 + -M6   (.symmetry_data)
+print(sf.numerical.summary())
+#  the coreps at every point of the group's tables, A, H and L completed: -GM9 + -A9 + -H8 + -K8 + -L6 + -M6   (.completed_symmetry_data)
+#  A, H and L, at k_z = 1/2 out of the layer's plane: their coreps measured on the layer's decoupled stack, the layer repeated along its normal with no hopping between copies, in the layer's own group P6/mmm1' #191.234   (.completion)
+#  the class of the layer's decoupled stack: every component is an invariant of that stack, fixed by the layer's own symmetry data vector   (.two_dimensional)
+#  the Smith normal form of the group's matrix of elementary band representations, computed again exactly, gives the same elementary divisors and the same order of the class   (.verification)
 ```
 
-The printout gives the verdict, the group the class lives in, the indicator
-group, and each component as `value|divisor`, with how the out-of-plane rows were
-obtained. The indicator group of `P6mm1'` is trivial, with no class to measure,
+The printout gives the group the class lives in, the class in its indicator
+group, and how the out-of-plane rows were obtained. The indicator group of `P6mm1'` is trivial, with no class to measure,
 and every row of its basis out of the plane repeats an in-plane one, so nothing
 had to be measured on a stack; the free-standing layer's group, `#191.234`,
 which `realized_group` measured beside it, is the free-standing question and is
 named, not used. Free-standing, the summary reads, line by line:
 
-- the verdict, in the group the class lives in, with what a nonzero class
-  means: no band set with this content is an atomic limit, and adding atomic
-  bands cannot change that (a zero class certifies nothing);
+- the class as its components over the elementary divisors of the Smith normal
+  form, `1` modulo 6 and `0` modulo 12, in the group the class lives in;
+- its order, which no change of basis moves;
 - the indicator group, `X_BS = ℤ6 × ℤ12`;
-- the class in the canonical names, those of the stable-RSI paper, the paper of
+- the class in the named indicators of the stable-RSI paper, the paper of
   Hwang *et al.*, Nat. Commun. **17**, 8564 (2026), that tabulates the stable
   real-space invariants ([citing](../citing.md#stable-real-space-invariants));
-- the class as its components over the elementary divisors of the Smith normal
-  form, `1` modulo 6 and `0` modulo 12, and its order, which no change of basis
-  moves;
-- the same class in `irreptables`' names;
-- the symmetry data vector;
+- the symmetry data vector, the coreps of the layer's plane.
+
+Its `numerical.summary()` gives how the class was read:
+
+- the symmetry data vector at every point of the group's tables;
 - the stack's measurement: the rows out of the plane, `A`, `H` and `L` at
-  `k_z = ½`, measured on the layer's decoupled stack in the layer's own group,
+  `k_z = 1/2`, measured on the layer's decoupled stack in the layer's own group,
   the characters the stack shares with the layer agreeing;
 - how a layer's class reads: the class of its decoupled stack, every component
-  an invariant of that stack, fixed by the layer's own content.
+  an invariant of that stack, fixed by the layer's own symmetry data vector;
+- the Smith normal form, computed again exactly, agreeing.
 
-`verdict` takes three values: `"indicated nontrivial"`, `"indicator zero"`, and
-`"trivial indicator group"`, a group with no elementary divisor above 1 and so no
-class to measure, which is itself a verdict.
+A nonzero class means that no band set with this content is an atomic limit, and
+that adding atomic bands cannot change that; a zero class certifies nothing; and
+a group with no elementary divisor above 1, whose indicator group is trivial, has
+no class to measure.
 
 | field | what it holds |
 |---|---|
-| `verdict`, `nontrivial`, `indicated` | the verdict, and whether the class is nonzero, under both names |
-| `structure`, `divisors` | the indicator group, `"Z6 x Z12"`, and its elementary divisors above 1 |
 | `values`, `order` | each component of the class modulo its divisor, and the class's order, which is basis-independent |
-| `canonical`, `canonical_tex`, `canonical_note` | the class in the stable-RSI paper's names, the same names typeset for a plot, and where they came from or why they are `None`: a unitary group, a trivial indicator group, or tables not installed |
-| `irreptables_named`, `irreptables_note`, `irreptables_convention_touched`, `as_irreptables()` | the class in `irreptables`' names, re-keyed into this package's convention; where it came from; the forms the change of convention moved; and `canonical` respelled in those names |
-| `number_str`, `group_name`, `magnetic_type` | the group the class lives in, the one handed in, and its magnetic type, `"I"` or `"II"` |
-| `content`, `n_bands`, `site_content` | the symmetry data vector, the bands, and the site irreps the labels rest on, with how each is known |
-| `labels`, `y`, `y_prime`, `slots` | the indicator's arithmetic: every row of the group's EBR basis, the vector on it, the vector in the Smith basis, and where the divisors sit in it |
-| `reconstructed` | rows a layer cannot measure, filled from a row they duplicate |
-| `restriction` | the rows the model measures, a `Restriction` |
-| `completion` | how the rows out of a layer's plane were measured on its decoupled stack, or `None` where nothing had to be: `route`, the decoupled stack; `outcome`, `"completed"` in the group handed in, or `"stopped"`; `stopped_at` and `stop_reason`; `input`, the layer's group; `stack`, the group the stack was read in, once its representation there exists; `environment`; `stack_period` and `stack_extent`, the stack's period and the layer's extent along its normal, whose difference is the vacuum between the copies; `gates`, each check's measured number; and a `note` |
-| `two_dimensional` | how to read a layer's class, the class of its decoupled stack: `out_of_plane_points` and `out_of_plane_labels`, the rows at `k_z = ½`; `components`, whether each Smith component reads them; `irreptables_support`, where each named form's coefficients sit; and a `note` |
-| `free_standing_group` | for a layer read on a substrate, the free-standing layer's group as `realized_group` measured it beside this one, where it is larger than the group the class lives in; `None` otherwise |
-| `lattice_check`, `verification`, `convention` | the compatibility relations checked exactly; an independent computation of the Smith form, which agrees; and the translation convention, in a sentence |
-| `group_provenance` | whether the group was measured on `H` |
+| `indicator_group`, `divisors` | the indicator group, `"Z6 x Z12"`, `"trivial"` where there is none, and its elementary divisors above 1 |
+| `indicators` | the class in the stable-RSI paper's named indicators; `None` for a unitary group, a trivial indicator group, or tables not installed, as `numerical.indicators_note` says |
+| `group` | the group the class lives in, the one the table was read in, with its `name`, `number_str` and `magnetic_type`, `"I"` or `"II"` |
+| `symmetry_data`, `site_content` | the symmetry data vector, for a layer the coreps of its plane, and the site irreps the labels rest on, with how each is known |
+| `numerical.completed_symmetry_data` | the symmetry data vector at every point of the group's tables, a layer's rows out of its plane measured or filled in |
+| `numerical.reconstructed` | rows a layer cannot measure, filled from a row they duplicate |
+| `numerical.restriction` | the rows the model measures, a `Restriction` |
+| `numerical.completion` | how the rows out of a layer's plane were measured on its decoupled stack, or `None` where nothing had to be: `route`, the decoupled stack; `outcome`, `"completed"`; `stopped_at` and `stop_reason`; `input`, the layer's group and vector; `stack`, the group the stack was read in; `environment`; `stack_period` and `stack_extent`, the stack's period and the layer's extent along its normal, whose difference is the vacuum between the copies; `gates`, each check's measured number; and a `note` |
+| `numerical.two_dimensional` | how to read a layer's class, the class of its decoupled stack: `out_of_plane_kpoints` and `out_of_plane_labels`, the rows at `k_z = 1/2`; `components`, whether each Smith component reads them; `support`, where each named indicator's coefficients sit; and a `note` |
+| `numerical.free_standing_group` | for a layer read on a substrate, the free-standing layer's group as `realized_group` measured it beside this one, where it is larger than the group the class lives in; `None` otherwise |
+| `numerical.lattice_check`, `numerical.verification`, `numerical.convention` | the compatibility relations checked exactly; an independent computation of the Smith form, which agrees; and the translation convention, in a sentence |
+| `numerical.group_provenance` | whether the group was measured on `H` |
 
 ## The stable real-space invariants
 
@@ -1301,34 +1280,32 @@ as being one thing.
 
 What a call returns in place of its record when it cannot complete: a falsy
 record carrying the check that stopped it and what was measured there. The
-indicator of the free-standing layer's pair, asked of its counts written out by
-hand, which carry no representation to build the stack from, is one:
+regular completion of the occupied pair on the substrate, asked for 3 bands, is
+one:
 
 ```python
-refused = tqc.symmetry_indicator(dict(tf.symmetry_data), fs.group)
+refused = tqc.regular_completion(t, bands=3)
 print(refused)
-#  Refusal[indicator_not_evaluable]: the EBR rows ['-A10', '-A11', '-A12', '-A7', '-A8', '-A9', '-H8', '-H9', '-L5', '-L6'] of #191.234 sit at k-points this content does not cover, out of a 2D model's periodic plane or carrying no information, and they duplicate no row it does cover, so the symmetry data vector cannot be completed and the indicator has no value here. The rows can be measured on the decoupled stack of the layer, which is built from the representation the bands were read with, its model and declared characters, and the bands the content counts: pass the table hsp_table(r, bands=...) returned, which carries them, and do not override points=. Completing missing content from the stable real-space invariants is future work.  (measured 10, threshold 0)
-#      context: completion, number_str, orphans, points, retained, stack
+#  Refusal[not_a_regular_multiple]: 3 bands is not a multiple of 12, the band count of one regular band representation of #183.186. Regular-representation padding is only defined at multiples of it; pick the next multiple (12).  (measured 3, threshold 0)
+#      context: bands_per_copy, n_bands, number_str
 print(bool(refused), refused.gate, refused.value, refused.threshold, refused.context["number_str"])
-#  False indicator_not_evaluable 10.0 0.0 191.234
+#  False not_a_regular_multiple 3.0 0.0 183.186
 try:
     refused.raise_()
 except tqc.RefusalError as error:
     print(type(error).__name__, error.refusal.gate)
-#  RefusalError indicator_not_evaluable
+#  RefusalError not_a_regular_multiple
 ```
 
 The printout is `Refusal[gate]:`, the diagnosis in words, the number measured
 against the one the check demanded, and the names of the keys its `context`
-carries. Here ten rows of `P6/mmm1'`'s basis lie out of the layer's plane and
-duplicate none in it, and counts written out by hand carry no representation
-to build the decoupled stack from and measure them on; the indicator above,
-asked of the table, measures them there.
+carries. Here one regular copy of `P6mm1'` is 12 bands, and 3 bands are no
+whole number of copies; the completion above, asked for 12, is defined.
 
-A refusal is one of four things: an honest verdict about the physics, as this
-one is; a practical limit, a search or a memory budget that the same call runs
-past with a larger number; a grammar error in a declaration or a question; or
-one of the package's checks on itself, which means the case is to be reported
+A refusal is one of four things: an honest verdict about the physics; a
+practical limit, a search or a memory budget that the same call runs past with a
+larger number; a grammar error in a declaration or a question, as this one is;
+or one of the package's checks on itself, which means the case is to be reported
 ([the refusal reference](refusals.md#the-packages-checks-on-itself) lists them).
 Every refusal reached once the group is identified names it.
 
@@ -1344,7 +1321,7 @@ Every refusal reached once the group is identified names it.
 value a call returns. A refusal is falsy too, and so are two verdicts, which a
 truth test would misread: `stably_equivalent_pairs`, which returns its pairs
 together and on most groups has none, and `subtract` of two equal contents,
-which leaves none. Every record is truthy, a `"none"` decomposition, a zero
+which leaves none. Every record is truthy, a decomposition with no sum, a zero
 indicator class and a `"diagnosed topological"` splitting included. Two things
 raise instead: a malformed argument raises
 `ValueError` before anything is measured, and the package disagreeing with
@@ -1365,7 +1342,7 @@ line ending with the attribute that holds that part, as the records above do.
 |---|---|---|
 | `SewingMatrix` | `sewing_matrix` | the matrix of one operation in the basis of a set of bands at an invariant `k`, `B(g,k) = V† U(g;k) V`: its `operation` and `seitz`, `matrix` and `eigenvalues`, the reciprocal lattice vector `G` the operation carries `k` by, and its checks under `numerical` |
 | `KGrid` | `k_grid` | a mesh, as pythtb's own `Mesh` (`mesh`), with which high-symmetry points it samples (`contains`) |
-| `LittleGroup` | `little_group` | the operations that leave a `k` invariant up to a reciprocal lattice vector, unitary and antiunitary, and for each unitary one that vector, `G` |
+| `LittleGroup` | `little_group` | the operations that leave a `k` invariant up to a reciprocal lattice vector, unitary and antiunitary, and for each unitary one that vector, `G`; `kpoint`, the tabulated name of `k`, `None` where it is none |
 | `HighSymmetryPoints` | `high_symmetry_points` | each tabulated point's coordinates in the model's own reduced cell, a mapping by name, with `out_of_plane`, the points out of a layer's plane |
 | `SiteReference` | `wyckoff_sites_tables` | one site's Wyckoff position in the tables' setting: its `wyckoff`, multiplicity and letter (`"8a"`), and `slides_onto`, the positions an orbital confined to its variety can be moved to |
 | `CorepIdentification` | `groups.identify_from_characters`, and `CorepsAt.numerical.identification` | the identification of measured characters: each row's multiplicities before rounding, and how far they sat from integers |

@@ -128,14 +128,14 @@ print(tqc.format_coreps(t.symmetry_data))
 #  -GM6 + -K5 + -K6 + -M3M4
 
 d = tqc.decompose(t)
-print(d.verdict, "|", d.solution_strings()[0])
-#  symmetry-indicated decomposable | 1 x -E1↑G(2)@1a(3m1',3m)
+print(d.decomposable, "|", d.candidate_sums[0].label)
+#  True | -E1 at 1a (3m1')
 ```
 
 These two bands could be the atomic limit of one spinful orbital in the `-E1`
 corep of the site group at Wyckoff `1a` — the hexagon centre, where the model
-has no orbital at all — induced to two bands, which is what `↑G(2)` says. And
-that is the whole claim: a decomposition verdict is a statement about symmetry
+has no orbital at all — induced to two bands. And
+that is the whole claim: a decomposition is a statement about symmetry
 indicators, so any obstruction to an atomic limit must lie beyond them.
 
 ## The calls on this page

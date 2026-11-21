@@ -88,6 +88,24 @@ GATE = tqs.EXACT_TOL          # the exact floor of _build_rep's covariance gate
 _ULP = np.finfo(float).eps          # one unit of double-precision roundoff, 2.2e-16
 
 
+def _labels(d):
+    """The labels of the candidate sums a decomposition returns, in its order."""
+    return [s.label for s in d.candidate_sums]
+
+
+def _positions(d):
+    """Each candidate sum's Wyckoff positions, one per band representation counted, sorted."""
+    return tuple(tuple(sorted(t.wyckoff for t in s for _ in range(int(t.multiplicity))))
+                 for s in d.candidate_sums)
+
+
+def _label_of_row(row):
+    """A row of the tables, ``-E2↑G(2)@1b(4mm1',4mm)``, as a candidate sum's label prints it."""
+    irrep, at = row.split("\u2191")[0], row.split("@")[1]
+    wyckoff, site = at.split("(", 1)
+    return f"{irrep} at {wyckoff} ({site.split(',')[0]})"
+
+
 def coreps_by_point(table):
     """``{kpoint: {corep: multiplicity}}``, read off a table's rows."""
     out = {}
@@ -160,13 +178,13 @@ def test_the_b1_twist_moves_every_label_and_no_wyckoff_position(
 
     swap = {"-E1": "-E2", "-E2": "-E1"}
 
-    def relabelled(terms):
-        return {frozenset((m, swap.get(n.split("↑")[0], n.split("↑")[0]), wy)
-                          for m, n, wy in solution) for solution in terms}
+    def relabelled(d):
+        return {frozenset((t.multiplicity, swap.get(t.irrep, t.irrep), t.wyckoff) for t in s)
+                for s in d.candidate_sums}
 
-    def bare(terms):
-        return {frozenset((m, n.split("↑")[0], wy) for m, n, wy in solution)
-                for solution in terms}
+    def bare(d):
+        return {frozenset((t.multiplicity, t.irrep, t.wyckoff) for t in s)
+                for s in d.candidate_sums}
 
     # the solutions come with the fewest elementary band representations first,
     # then in the tables' order
@@ -176,18 +194,17 @@ def test_the_b1_twist_moves_every_label_and_no_wyckoff_position(
                              (list(P4), (("2c",), ("1a", "1a"), ("1b", "1b"))),
                              (list(P2), (("1b",),)),
                              (list(Q2), (("1b",),))):
-        a = tqe.decompose(tqw.hsp_table(lin3g_undeclared, bands=bands), group, rep=rep,
-                          bands=bands)
-        b = tqe.decompose(tqw.hsp_table(lin3g_twisted, bands=bands), group, rep=twisted,
-                          bands=bands)
+        a = tqe.decompose(tqw.hsp_table(lin3g_undeclared, bands=bands))
+        b = tqe.decompose(tqw.hsp_table(lin3g_twisted, bands=bands))
         assert a.decomposable and b.decomposable
-        assert a.positions == b.positions == positions, (
+        assert _positions(a) == _positions(b) == positions, (
             "a global character cannot move a Wyckoff position")
-        assert relabelled(a.terms) == bare(b.terms), (
+        assert relabelled(a) == bare(b), (
             "... and it must relabel every site irrep it touches")
-        assert "lowest-l" in a.site_content["determined_by"]
-        assert "lowest-l" not in b.site_content["determined_by"]
-        moves[tuple(bands) if isinstance(bands, list) else bands] = a.terms != b.terms
+        assert "lowest-l" in a.site_content.determined_by
+        assert "lowest-l" not in b.site_content.determined_by
+        moves[tuple(bands) if isinstance(bands, list) else bands] = \
+            [tuple(s) for s in a.candidate_sums] != [tuple(s) for s in b.candidate_sums]
 
     assert moves[P6] and moves[P2] and moves[Q2], "the names must actually move"
     assert not moves[P4], (
@@ -196,15 +213,12 @@ def test_the_b1_twist_moves_every_label_and_no_wyckoff_position(
         "the relabelling is a relabelling and not a re-solve")
 
     # the standing example, spelled out: P2 and Q2 exchange their EBR rows
-    p2 = tqe.decompose(tqw.hsp_table(lin3g_undeclared, bands=list(P2)), group, rep=rep,
-                       bands=list(P2))
-    q2 = tqe.decompose(tqw.hsp_table(lin3g_undeclared, bands=list(Q2)), group, rep=rep,
-                       bands=list(Q2))
-    p2t = tqe.decompose(tqw.hsp_table(lin3g_twisted, bands=list(P2)), group, rep=twisted,
-                        bands=list(P2))
-    assert p2.solution_strings()[0].startswith("1 x -E2")
-    assert q2.solution_strings()[0].startswith("1 x -E1")
-    assert p2t.solution_strings()[0] == q2.solution_strings()[0]
+    p2 = tqe.decompose(tqw.hsp_table(lin3g_undeclared, bands=list(P2)))
+    q2 = tqe.decompose(tqw.hsp_table(lin3g_undeclared, bands=list(Q2)))
+    p2t = tqe.decompose(tqw.hsp_table(lin3g_twisted, bands=list(P2)))
+    assert _labels(p2)[0].startswith("-E2 at ")
+    assert _labels(q2)[0].startswith("-E1 at ")
+    assert _labels(p2t)[0] == _labels(q2)[0]
 
     # the twist in function words, and the site content of a build whose every
     # row is declared
@@ -218,11 +232,12 @@ def test_the_b1_twist_moves_every_label_and_no_wyckoff_position(
     assert [o.function for o in alt._characters.orbitals] == \
         ["dx2-y2", "s", "dx2-y2", "dx2-y2"], \
         "the declared content is another labelling of the same hoppings"
-    d = tqe.decompose(tqw.hsp_table(r, bands=P6), group, rep=declared)
-    assert d.site_content["irreps"] == declared._characters.irreps
-    assert d.site_content["determined_by"] == ("declaration",) * 4, \
+    d = tqe.decompose(tqw.hsp_table(r, bands=P6))
+    assert d.site_content.irreps == declared._characters.irreps
+    assert d.site_content.determined_by == ("declaration",) * 4, \
         "this build's rows were all declared, and the site content says so"
-    assert set(d.site_content) == {"number_str", "irreps", "determined_by", "residual"}
+    assert {f.name for f in dataclasses.fields(d.site_content)} == \
+        {"number_str", "irreps", "determined_by", "residual"}
 
 
 # ===========================================================================
@@ -647,10 +662,10 @@ def test_pxpy_each_branch_of_the_disconnected_ebr_is_a_difference_not_a_sum(pxpy
     exactly what this layer's verdict wording reserves room for.
     """
     group, rep = pxpy_183.group, pxpy_183.rep
-    four = tqe.decompose(tqw.hsp_table(pxpy_183, bands=4), group, rep=rep, bands=4)
-    assert four.decomposable and four.unique
-    assert four.solution_strings() == ("1 x E↑G(4)@2b(3m1',3m)",)
-    assert four.completeness["claim"] == "exact"
+    four = tqe.decompose(tqw.hsp_table(pxpy_183, bands=4))
+    assert four.decomposable and len(four.candidate_sums) == 1
+    assert _labels(four) == ["E at 2b (3m1')"]
+    assert four.numerical.completeness.claim == "exact"
 
     rows = tqe.ebr_rows(group)
     points = set(tqg.high_symmetry_points(group))
@@ -671,17 +686,18 @@ def test_pxpy_each_branch_of_the_disconnected_ebr_is_a_difference_not_a_sum(pxpy
                           ((2, 3), {"GM6": 1, "K1": 1, "K2": 1, "M1": 1, "M2": 1})):
         table = tqw.hsp_table(pxpy_183, bands=bands)
         assert table.symmetry_data == counts
-        d = tqe.decompose(table, group, rep=rep, bands=bands)
-        assert d.verdict == "none" and d.solutions == ()
+        d = tqe.decompose(table)
+        assert not d.decomposable and d.candidate_sums == ()
         assert d.certificate == "proof"
-        assert d.signed_combinations and d.signed_combinations["n_solutions"] > 0
+        assert d.signed_combinations is not None and len(d.signed_combinations.sums) > 0
 
-    d = tqe.decompose(valence, group, rep=rep, bands=2)
-    shortest = [terms for terms in d.signed_combinations["terms"] if len(terms) == 2]
-    named = {tuple(sorted((m, name, wy) for m, name, wy in terms)) for terms in shortest}
+    d = tqe.decompose(valence)
+    shortest = [tuple(s) for s in d.signed_combinations.sums if len(tuple(s)) == 2]
+    named = {tuple(sorted((int(t.multiplicity), t.irrep, t.wyckoff, t.site_symmetry,
+                           t.unitary_site_symmetry) for t in terms)) for terms in shortest}
     assert named == {
-        ((-1, "A1↑G(1)", "1a(6mm1',6mm)"), (1, "A1↑G(3)", "3c(mm21',mm2)")),
-        ((-1, "A2↑G(1)", "1a(6mm1',6mm)"), (1, "A2↑G(3)", "3c(mm21',mm2)")),
+        ((-1, "A1", "1a", "6mm1'", "6mm"), (1, "A1", "3c", "mm21'", "mm2")),
+        ((-1, "A2", "1a", "6mm1'", "6mm"), (1, "A2", "3c", "mm21'", "mm2")),
     }
 
 
@@ -703,11 +719,11 @@ def test_pxpy_the_191_presentation_refines_the_labels_and_decomposes_in_the_laye
     group, rep = pxpy_bare.group, pxpy_bare.rep
     restriction = tqe.in_plane_restriction(group)
     assert not restriction and restriction.gate == "restriction_not_exact"
-    out = tqe.decompose(tqw.hsp_table(pxpy_bare, bands=4), group, rep=rep)
+    out = tqe.decompose(tqw.hsp_table(pxpy_bare, bands=4))
     assert out, str(out)
-    assert out.solution_strings() == ("1 x E'↑G(4)@2c(-6m21',-6m2)",)
-    assert out.completeness["claim"] == "exact"
-    assert sorted(out.restriction.outside_layer) == ["1b", "2d", "3g"]
+    assert _labels(out) == ["E' at 2c (-6m21')"]
+    assert out.numerical.completeness.claim == "exact"
+    assert sorted(out.numerical.restriction.outside_layer) == ["1b", "2d", "3g"]
 
 
 @pytest.mark.slow
@@ -1314,15 +1330,15 @@ def test_screw_fixture_content_is_its_own_EBR_row_at_every_point(
             assert table.symmetry_data.get(label, 0) == spec[1 + slot], \
                 (key, label, table.symmetry_data)
 
-        got = tqe.decompose(table, group, rep=rep, bands=bands)
-        assert got.decomposable and got.unique, str(got)
-        assert got.solution_strings() == (f"1 x {name}",)
-        assert got.positions == ((key_prefix.split("@")[1],),)
-        assert got.completeness["claim"] == "exact"
+        got = tqe.decompose(table)
+        assert got.decomposable and len(got.candidate_sums) == 1, str(got)
+        assert _labels(got) == [_label_of_row(name)]
+        assert _positions(got) == ((key_prefix.split("@")[1],),)
+        assert got.numerical.completeness.claim == "exact"
         # all four fixtures of this section are 3D and tabulated at every point,
         # so the specific statement is that the restriction never fired; what
         # `exact`/`orphans` can say belongs to the slab tests that can move them
-        assert got.restriction.applied is False, got.restriction
+        assert not got.numerical.restriction.dropped, got.numerical.restriction
 
 
 @pytest.mark.slow
@@ -1362,7 +1378,7 @@ def test_screw_points_refuse_without_the_whole_character_conjugation(
 
     table = tqw._hsp_table_rep(rep, bands=bands)
     assert table.complete is False and set(table.refusals) == set(points)
-    got = tqe.decompose(table, group, rep=rep, bands=bands)
+    got = tqe.decompose(table)
     assert not got and got.gate == "incomplete_content", str(got)
 
 
@@ -1462,15 +1478,15 @@ def test_reglue_atomic_content_is_its_own_EBR_row_at_every_point(
                                    chi_lit, atol=2e-3)
         assert table.symmetry_data.get(label, 0) == mult, (label, table.symmetry_data)
 
-    got = tqe.decompose(table, group, rep=rep, bands=occ)
+    got = tqe.decompose(table)
     assert got.decomposable, str(got)
-    assert f"1 x {name}" in got.solution_strings(), got.solution_strings()
-    assert (letter,) in got.positions, got.positions
-    assert got.completeness["claim"] == "exact"
+    assert _label_of_row(name) in _labels(got), _labels(got)
+    assert (letter,) in _positions(got), _positions(got)
+    assert got.numerical.completeness.claim == "exact"
     # a 3D model tabulated at every point: the restriction never fires (see the
     # screw test above; `exact`/`orphans` are the slab tests' statement)
-    assert got.restriction.applied is False, got.restriction
-    assert got.unique is False, "#171's 3a and 3b have identical EBR vectors"
+    assert not got.numerical.restriction.dropped, got.numerical.restriction
+    assert len(got.candidate_sums) != 1, "#171's 3a and 3b have identical EBR vectors"
 
 
 @pytest.mark.slow
@@ -1565,7 +1581,7 @@ def test_the_reglued_labels_and_the_EBR_transport_need_the_lift(
         table = tqw._hsp_table_rep(rep, bands=list(range(4)))
         assert table.complete is True, "identification itself does not refuse"
         assert table.symmetry_data["-P4"] == 2 and table.symmetry_data["-P3P3"] == 1
-        got = tqe.decompose(table, group, rep=rep, bands=4)
+        got = tqe.decompose(table)
         assert not got, str(got)
         for name in hsp:       # only P may have moved
             out = tqw._coreps_at_rep(rep, hsp[name], states=_solve_at(model, hsp[name]),

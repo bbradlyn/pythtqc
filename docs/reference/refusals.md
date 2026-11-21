@@ -227,8 +227,8 @@ Returned by `realized_group`.
 #### `srsi_scope`
 
 Returned by `srsi_tables`, `srsi_of`, `srsi_of_columns`, `srsi_of_bands`,
-`srsi_of_model`, `splitting`, `stably_equivalent_pairs`,
-`pythtqc.srsi.name_correspondence` and `pythtqc.srsi.canonical_determinism`.
+`srsi_of_model`, `splitting`, `stably_equivalent_pairs` and
+`pythtqc.srsi.canonical_determinism`.
 
 - **What it means.** The group is not grey, or the number handed to `srsi_tables` is
   outside 1 to 230. The stable real-space invariants are tabulated for grey groups alone,
@@ -294,7 +294,7 @@ Returned by `coreps_at`, through its identification of the coreps.
 
 #### `incomplete_content`
 
-Returned by `decompose`, `symmetry_indicator`, `completeness_check`, `subtract`,
+Returned by `decompose`, `symmetry_indicator`, `subtract`,
 `regular_completion`, `splitting` and `srsi_of_bands`.
 
 - **What it means.** The symmetry data vector has no label at some high-symmetry point, because
@@ -304,12 +304,12 @@ Returned by `decompose`, `symmetry_indicator`, `completeness_check`, `subtract`,
   recorded in the table at that point.
 - **What to do.** Read the table's refusals, which `context["refusals"]` repeats, and fix
   the set of bands. `decompose` takes `allow_incomplete=True` for a point whose tables
-  cannot be read, never for one where the physics refused, and its verdict is then a
+  cannot be read, never for one where the physics refused, and its sums are then a
   necessary condition only; it lifts no other call's refusal.
 
 #### `not_a_band_structure`
 
-Returned by `decompose`, `symmetry_indicator`, `completeness_check`,
+Returned by `decompose`, `symmetry_indicator`,
 `regular_completion`, `splitting` and `srsi_of_bands`.
 
 - **What it means.** The content violates the group's compatibility relations: coordinates
@@ -330,22 +330,22 @@ Returned by `symmetry_indicator` and `srsi_of_bands`.
   band representations, rows at k-points out of the plane that repeat no row in it, and the
   decoupled stack of the layer, on which such rows are measured, did not supply them. The
   indicator has no value.
-- **Usual cause.** A layer's indicator asked of counts written out by hand, which carry no
-  representation to build the stack from, or with `points=` given; or a check of the stack
-  that did not complete, which `context["stack"]` names.
-- **What to do.** Hand `symmetry_indicator` the table `hsp_table` returned, which carries
-  the representation, and leave `points=` alone
+- **Usual cause.** A layer's symmetry data vector written out by hand whose coreps out of
+  the plane cannot be read off the layer's own band representations in the group's cell;
+  or a check of the stack that did not complete, which `context["stack"]` names.
+- **What to do.** Hand `symmetry_indicator` the table `hsp_table` returned, whose coreps
+  out of the plane are measured on the layer's decoupled stack
   ([a layer's class](../guide/indicators.md#a-layers-class-is-a-three-dimensional-class)).
 
 #### `restriction_not_exact`
 
-Returned by `in_plane_restriction`, `decompose` and `completeness_check`.
+Returned by `in_plane_restriction`, `decompose` and `regular_completion`.
 
 - **What it means.** Rows of the group's elementary band representations that the model
   does not measure repeat no row it does, so they impose constraints of their own and no
   verdict from the measured rows is exact for this group.
-- **Usual cause.** `points=` naming fewer points than the model samples, or
-  `in_plane_restriction` asked of a free-standing layer's group over every band
+- **Usual cause.** `in_plane_restriction` handed `kpoints=` naming fewer points than the
+  model samples, or asked of a free-standing layer's group over every band
   representation. `decompose` reads a layer over its own band representations, those of
   the Wyckoff positions within it, on which every row out of its plane repeats one in it.
 - **What to do.** Measure the content at every point the model samples; for a layer's
@@ -551,7 +551,8 @@ Returned by the same calls as `srsi_data`.
 
 #### `irreptables_indicator_tables`
 
-Returned by `pythtqc.srsi.name_correspondence`.
+Returned by no call: a call returns the paper's names of the indicator components as they
+are, never paired with `irreptables`' own.
 
 - **What it means.** The indicator table of `irreptables` could not be read, so the
   paper's names of the indicator components cannot be paired with `irreptables`' own.
@@ -573,7 +574,7 @@ is left empty.
 
 #### `unknown_label`
 
-Returned by `realized_group`, `decompose`, `symmetry_indicator`, `completeness_check` and
+Returned by `realized_group`, `decompose`, `symmetry_indicator` and
 `regular_completion`.
 
 - **What it means.** A declaration names nothing at the orbital's site: a word that is not

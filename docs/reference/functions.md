@@ -818,9 +818,8 @@ Which bands of a spectrum are one degenerate level, at a stated energy tolerance
 
 ## Atomic limits
 
-- [`decompose`](#decompose) — Every sum of elementary band representations, with nonnegative integer multiplicities, that carries a band set's content.
-- [`subtract`](#subtract) — The content of the bands in one set and not in another: `a − b` as a symmetry data vector.
-- [`completeness_check`](#completeness_check) — Whether a band set's content is a sum of elementary band representations, and how many bands each sum holds.
+- [`decompose`](#decompose) — Every sum of elementary band representations, with nonnegative integer multiplicities, that carries a band set's symmetry data vector.
+- [`subtract`](#subtract) — The symmetry data vector of the bands in one set and not in another: `a − b`.
 - [`regular_completion`](#regular_completion) — The bands that would carry a band set up to whole copies of the regular band representation, and the orbitals they would be.
 - [`ebr_rows`](#ebr_rows) — Each elementary band representation of the group as a symmetry data vector: the coreps it carries at the high-symmetry points.
 - [`in_plane_restriction`](#in_plane_restriction) — Which coreps of the group's elementary band representations a layer measures, and whether each of the others repeats a measured one.
@@ -829,81 +828,73 @@ Which bands of a spectrum are one degenerate level, at a stated energy tolerance
 
 ```text
 decompose(
-    content, group=None, *, rep=None, points=None, allow_incomplete=False, cap=200,
-    signed_combinations=True, bands=None
+    symmetry_data, realized=None, *, allow_incomplete=False, cap=200,
+    signed_combinations=True
 )
 ```
 
-Every sum of elementary band representations, with nonnegative integer multiplicities, that carries a band set's content.
+Every sum of elementary band representations, with nonnegative integer multiplicities, that carries a band set's symmetry data vector.
 
 **Parameters**
 
-- **`content`** (`HSPTable or mapping`): The band set's content: a table [`hsp_table`](#hsp_table) returned,
-  which must be complete, or `{corep: multiplicity}` written out.
+- **`symmetry_data`** (`HSPTable or mapping`): The table [`hsp_table`](#hsp_table) returns, which must be complete,
+  or `{corep: multiplicity}` written out by hand.
 
-- **`group`** (`GroupData, optional`): The group the content was read in, `r.group`.  A table carries its
-  own and is read in it; a content written out by hand
-  takes the group beside it.
+- **`realized`** (`RealizedGroup, optional`): What [`realized_group`](#realized_group) returned, `r`, the measurement
+  the coreps came from.  Pass it beside a vector written out by hand,
+  and with a table nothing.
 
-- **`rep`** (`SpaceGroupRep, optional`): The representation the content was read with, `r.rep`: it says how
-  each site irrep is known, and on a layer which Wyckoff positions lie
-  within it.  A table carries its own group, `t.group`; beside a content
-  written out by hand, pass it whenever it is at hand.
+- **`allow_incomplete`** (`bool, default False`): Whether a table that refused at some points is decomposed, their
+  coreps left out.  With `allow_incomplete=True`, a point whose tables
+  cannot be read is left out, and the sums are then a necessary
+  condition only; never pass it for a point where the physics refused.
 
-- **`bands`** (`int or sequence of int, optional`): Which bands the content counts: `n` the lowest `n`, or the band
-  indices.  Default: a table's own.
+- **`cap`** (`int, default 200`): The most sums listed.
 
-- **`points`** (`sequence of str, optional`): The high-symmetry points the model samples.  Default: a table's own, or
-  every tabulated point in the model's plane.
-
-- **`allow_incomplete`** (`bool, optional`): Decompose a table that refused at some points, leaving their coreps
-  out: for a point whose tables cannot be read, never one where the
-  physics refused.  The verdict is then a necessary condition only.
-  Default `False`.
-
-- **`cap`** (`int, optional`): The most sums listed.  Default 200.
-
-- **`signed_combinations`** (`bool, optional`): For a `"none"`, search again with negative multiplicities allowed: a
-  combination found is the signature of a fragile band set.  Default
-  `True`.
+- **`signed_combinations`** (`bool, default True`): Whether a vector no sum carries is searched again with negative
+  multiplicities allowed.  With `signed_combinations=False`, it is
+  not.
 
 **Returns**
 
-- `EBRDecomposition or Refusal`: `d.summary()` prints the verdict and each sum.  `d.verdict` is
-  `"symmetry-indicated decomposable"` or `"none"`;
-  `d.solution_strings()` the sums and `d.positions` their Wyckoff
-  positions, which no labelling of the orbitals moves; `d.certificate`
-  what a `"none"` rests on, and `d.signed_combinations` the search
-  with negative multiplicities; `d.caveat` what a sum does not certify.
-  The record is truthy, a `"none"` included; a `Refusal` in its place
-  is falsy and names what stopped the call.
+- `EBRDecomposition or Refusal`: `d.summary()` prints whether a sum carries the vector and each sum.
+  `d.decomposable` says whether one does; `d.candidate_sums` holds
+  each, a sum of site irreps at Wyckoff positions; `d.certificate`
+  what a vector no sum carries rests on, and `d.signed_combinations`
+  the search with negative multiplicities.  The record is truthy, one
+  with no sum included; a `Refusal` in its place is falsy and names
+  what stopped the call.
 
 **Refusals**
 
-- **`incomplete_content`**: the table refused at some point, and `allow_incomplete` is not set.
+A refusal handed in as `realized` is returned as it is.
 
-- **`not_a_band_structure`**: the content fails the group's compatibility relations: no set of bands
+- **`incomplete_content`**: the table refused at some point.
+
+- **`not_a_band_structure`**: the vector fails the group's compatibility relations: no set of bands
   apart from the rest at every k has it.
 
 - **`unknown_label`**: a corep the group's elementary band representations do not hold.
 
 - **`restriction_not_exact`**: a corep the model does not measure repeats none it does.
 
-- **`non_integer_multiplicity` / `negative_multiplicity`**: the content is no count of coreps.
+- **`non_integer_multiplicity` / `negative_multiplicity`**: the vector is no count of coreps.
 
 - **`ebr_tables` / `irrep_tables` / `ebr_convention`**: no elementary band representations of this group to decompose against.
 
 ### `subtract`
 
 ```text
-subtract(content_a, content_b)
+subtract(symmetry_data_a, symmetry_data_b)
 ```
 
-The content of the bands in one set and not in another: `a − b` as a symmetry data vector.
+The symmetry data vector of the bands in one set and not in another: `a − b`.
 
 **Parameters**
 
-- **`content_a`, `content_b`** (`HSPTable or mapping`): The two contents; `b` is contained in `a`.
+- **`symmetry_data_a`, `symmetry_data_b`** (`HSPTable or mapping`): The two vectors, each a table [`hsp_table`](#hsp_table) returned or
+  `{corep: multiplicity}` written out by hand; `b` is contained in
+  `a`.
 
 **Returns**
 
@@ -913,87 +904,52 @@ The content of the bands in one set and not in another: `a − b` as a symmetry 
 
 **Refusals**
 
-- **`incomplete_content`**: either content is a table that refused at some point.
+- **`incomplete_content`**: either is a table that refused at some point.
 
 - **`negative_multiplicity`**: `b` is not contained in `a`: a difference of two band sets is one
   only where one contains the other.  A signed combination is what
   `EBRDecomposition.signed_combinations` holds.
 
-- **`non_integer_multiplicity`**: either content is no count of coreps.
-
-### `completeness_check`
-
-```text
-completeness_check(content, group=None, *, bands=None, **kwargs)
-```
-
-Whether a band set's content is a sum of elementary band representations, and how many bands each sum holds.
-
-**Parameters**
-
-- **`content`** (`HSPTable or mapping`): The band set's content, as [`decompose`](#decompose) takes it.
-
-- **`group`** (`GroupData, optional`): The group the content was read in, `r.group`, as [`decompose`](#decompose)
-  takes it: a table carries its own.
-
-- **`bands`** (`int or sequence of int, optional`): The set of bands, as [`decompose`](#decompose) takes it: the bands each sum is
-  held against.
-
-- **`**kwargs`**: Passed to [`decompose`](#decompose): `rep=`, `allow_incomplete=`, ...
-
-**Returns**
-
-- `CompletenessReport or Refusal`: `c.summary()` prints it.  `c.complete` is whether a sum carries the
-  content, `c.band_counts` the bands each sum holds, and
-  `c.band_count_matches` whether those are the bands asked for;
-  `c.decomposition` holds the sums.  A `Refusal` in its place is
-  falsy and names what stopped the call.
-
-**Refusals**
-
-- **`incomplete_content`, `not_a_band_structure`, `unknown_label`, `restriction_not_exact`, ...**: those of [`decompose`](#decompose).
+- **`non_integer_multiplicity`**: either is no count of coreps.
 
 ### `regular_completion`
 
 ```text
-regular_completion(content, group=None, *, bands=None, rep=None, points=None, **kwargs)
+regular_completion(symmetry_data, realized=None, *, bands=None)
 ```
 
 The bands that would carry a band set up to whole copies of the regular band representation, and the orbitals they would be.
 
 **Parameters**
 
-- **`content`** (`HSPTable or mapping`): The band set's content.
+- **`symmetry_data`** (`HSPTable or mapping`): The table [`hsp_table`](#hsp_table) returns, or `{corep: multiplicity}` written out by hand.
 
-- **`group`** (`GroupData, optional`): The group the content was read in, `r.group`, as [`decompose`](#decompose)
-  takes it: a table carries its own.
+- **`realized`** (`RealizedGroup, optional`): What [`realized_group`](#realized_group) returned, `r`.  Pass it beside a
+  vector written out by hand, and with a table nothing.
 
 - **`bands`** (`int or sequence of int`): The bands of the completed system: a number of them, or their indices,
   a multiple of `|U|` in all.  Required.
-
-- **`rep`** (`SpaceGroupRep, optional`): The representation, `r.rep`, which [`decompose`](#decompose) reads; a table
-  carries its own.
-
-- **`points`** (`sequence of str, optional`): The high-symmetry points the model samples.
-
-- **`**kwargs`**: Passed to [`decompose`](#decompose).
 
 **Returns**
 
 - `RegularCompletion or Refusal`: `rc.summary()` prints it.  `rc.padding` holds the coreps the
   missing bands carry, `rc.decomposition` the orbitals they would be,
-  `rc.regular` one copy's content and `rc.bands_per_copy` its bands.
-  A `Refusal` in its place is falsy and names what stopped the call.
+  what [`decompose`](#decompose) returns for the padding; `rc.regular` one
+  copy's symmetry data vector and `rc.bands_per_copy` its bands.  A
+  `Refusal` in its place is falsy and names what stopped the call.
 
 **Refusals**
 
-- **`incomplete_content`**: the content is a table that refused at some point.  `allow_incomplete=`
-  does not lift it.
+A refusal handed in as `realized` is returned as it is.
+
+- **`incomplete_content`**: the table refused at some point.
 
 - **`not_a_regular_multiple`**: the number of bands is no multiple of `|U|`.
 
 - **`negative_multiplicity`**: the band set carries more of a corep than that many regular copies do:
   it is no part of them.
+
+- **`restriction_not_exact`**: a corep of the padding the model does not measure repeats none it does.
 
 - **`regular_content_not_integral`, `not_a_band_structure`, `unknown_label`, ...**: those of `regular_content` and [`decompose`](#decompose).
 
@@ -1027,7 +983,7 @@ A refusal handed in as `group` is returned as it is.
 ### `in_plane_restriction`
 
 ```text
-in_plane_restriction(group, *, points=None, require_exact=True)
+in_plane_restriction(group, *, kpoints=None, require_exact=True)
 ```
 
 Which coreps of the group's elementary band representations a layer measures, and whether each of the others repeats a measured one.
@@ -1036,11 +992,12 @@ Which coreps of the group's elementary band representations a layer measures, an
 
 - **`group`** (`GroupData`): The group, `r.group`.
 
-- **`points`** (`sequence of str, optional`): The points the model samples.  Default: every tabulated point in its
-  plane.
+- **`kpoints`** (`sequence of str, optional`): The tabulated names of the points the model samples.  Default: every
+  tabulated point in its plane.
 
-- **`require_exact`** (`bool, optional`): Refuse where a corep left out repeats none measured; `False` returns
-  those as `Restriction.orphans`.  Default `True`.
+- **`require_exact`** (`bool, default True`): Whether a corep left out that repeats none measured is refused.  With
+  `require_exact=False`, those are returned as
+  `Restriction.orphans`.
 
 **Returns**
 
@@ -1050,14 +1007,16 @@ Which coreps of the group's elementary band representations a layer measures, an
 
 **Refusals**
 
-- **`restriction_not_exact`**: a corep left out repeats none measured, with `require_exact`.
+A refusal handed in as `group` is returned as it is.
+
+- **`restriction_not_exact`**: a corep left out repeats none measured.
 
 - **`ebr_tables` / `irrep_tables` / `ebr_convention` / `tables_not_ready`**: no elementary band representations of this group, or no tables in this
   cell.
 
 ## Stable invariants
 
-- [`symmetry_indicator`](#symmetry_indicator) — The symmetry-indicator class of a band set's content: the class of its symmetry data vector among the band structures modulo the atomic limits.
+- [`symmetry_indicator`](#symmetry_indicator) — The symmetry-indicator class of a band set: the class of its symmetry data vector among the band structures modulo the atomic limits.
 - [`stack_presentation`](#stack_presentation) — The layer repeated along its normal with no hopping between the copies: a crystal with the layer's bands at every `k_z`.
 - [`srsi_tables`](#srsi_tables) — The stable real-space invariants of a grey space group, as the paper tabulates them.
 - [`srsi_of`](#srsi_of) — `(theta_Z, theta_Zn)`: the stable real-space invariants of a configuration `p` over the site keys.
@@ -1072,65 +1031,46 @@ Which coreps of the group's elementary band representations a layer measures, an
 ### `symmetry_indicator`
 
 ```text
-symmetry_indicator(
-    content, group=None, *, rep=None, points=None, bands=None, verify=True,
-    stack_period=8.0
-)
+symmetry_indicator(symmetry_data, realized=None)
 ```
 
-The symmetry-indicator class of a band set's content: the class of its symmetry data vector among the band structures modulo the atomic limits.
+The symmetry-indicator class of a band set: the class of its symmetry data vector among the band structures modulo the atomic limits.
 
 **Parameters**
 
-- **`content`** (`HSPTable or mapping`): The band set's content, as [`decompose`](#decompose) takes it; a table must be
-  complete.
+- **`symmetry_data`** (`HSPTable or mapping`): The table [`hsp_table`](#hsp_table) returns, which must be complete,
+  or `{corep: multiplicity}` written out by hand.
 
-- **`group`** (`GroupData, optional`): The group the content was read in, `r.group`.  A table carries its
-  own and is read in it; a content written out by hand
-  takes the group beside it.
-
-- **`rep`** (`SpaceGroupRep, optional`): The representation the content was read with, `r.rep`; a table
-  carries its own group, `t.group`.  A layer's coreps at `k_z = ½` that
-  repeat none in its plane are measured on its decoupled stack, the
-  layer repeated along its normal with no hopping between copies, built
-  from the representation and the table.
-
-- **`bands`** (`int or sequence of int, optional`): Which bands the content counts, as [`decompose`](#decompose) takes it.
-
-- **`points`** (`sequence of str, optional`): The high-symmetry points the model samples; given, no stack is built.
-
-- **`verify`** (`bool, optional`): Compute the Smith normal form of the group's matrix of elementary band
-  representations again, exactly, and check the tables' against it.
-  Default `True`.
-
-- **`stack_period`** (`float, optional`): The vacuum between the stack's copies, in the model's length units;
-  nothing returned depends on it.  Default `8.0`.
+- **`realized`** (`RealizedGroup, optional`): What [`realized_group`](#realized_group) returned, `r`, the measurement
+  the coreps came from.  Pass it beside a vector written out by hand,
+  and with a table nothing.
 
 **Returns**
 
-- `SymmetryIndicator or Refusal`: `si.summary()` prints the class.  `si.verdict` is `"indicated nontrivial"`, `"indicator zero"` or `"trivial indicator group"`;
-  `si.structure` the indicator group and `si.values` the class in it,
-  one integer modulo each of `si.divisors`, of order `si.order`;
-  `si.canonical` and `si.irreptables_named` the class in named
-  indicators, as the paper that tabulates the stable real-space
-  invariants and as `irreptables` name them; `si.completion` how a
-  layer's coreps out of its plane were measured.  The record is truthy
-  whatever its verdict; a `Refusal` in its place is falsy and names
-  what stopped the call.
+- `SymmetryIndicator or Refusal`: `si.summary()` prints the class.  `si.values` is the class, one
+  integer modulo each of `si.divisors`, in the indicator group
+  `si.indicator_group`, of order `si.order`; `si.indicators` the
+  class in the named indicators of the paper that tabulates the stable
+  real-space invariants; `si.group` the group it lives in.  The record
+  is truthy whatever its class; a `Refusal` in its place is falsy and
+  names what stopped the call.
 
 **Refusals**
 
+A refusal handed in as `realized` is returned as it is.
+
 - **`incomplete_content`**: the table refused at some point; there is no override.
 
-- **`indicator_not_evaluable`**: a layer's coreps at `k_z = ½` repeat none in its plane and were not
-  measured on its stack: no table, `points=` given, or a check of the
-  stack that did not complete (`context["stack"]`).
+- **`indicator_not_evaluable`**: a layer's coreps at `k_z = 1/2` repeat none in its plane and could
+  not be read: a vector whose layer's own band representations cannot
+  be read in the group's cell, or a table whose decoupled stack stopped
+  (`context["stack"]`).
 
-- **`not_a_band_structure`**: the content fails the group's compatibility relations.
+- **`not_a_band_structure`**: the vector fails the group's compatibility relations.
 
 - **`unknown_label`**: a corep the group's elementary band representations do not hold.
 
-- **`non_integer_multiplicity` / `negative_multiplicity`**: the content is no count of coreps.
+- **`non_integer_multiplicity` / `negative_multiplicity`**: the vector is no count of coreps.
 
 - **`magnetic_type_out_of_scope`**: a magnetic group of type III or IV, which
   [`realized_group`](#realized_group) never returns.
@@ -1258,29 +1198,20 @@ srsi_of_columns(group_or_tables, p)
 ### `srsi_of_bands`
 
 ```text
-srsi_of_bands(content, group=None, *, rep=None, points=None, bands=None)
+srsi_of_bands(symmetry_data, realized=None)
 ```
 
 The $`\mathbb{Z}`$-valued stable real-space invariants of a band set, from its symmetry data vector.
 
 **Parameters**
 
-- **`content`** (`HSPTable or mapping`): The band set's content at the high-symmetry points, as
+- **`symmetry_data`** (`HSPTable or mapping`): The table [`hsp_table`](#hsp_table) returns, which must be complete,
+  or `{corep: multiplicity}` written out by hand, as
   [`symmetry_indicator`](#symmetry_indicator) takes it.
 
-- **`group`** (`GroupData, optional`): The grey group the content was read in, `r.group`, with tables.  A
-  table carries its own and is read in it; a content
-  written out by hand takes the group beside it.
-
-- **`rep`** (`SpaceGroupRep, optional`): The model's representation, `r.rep`, for [`symmetry_indicator`](#symmetry_indicator),
-  which measures a layer's rows out of its plane on its decoupled stack; a
-  table carries its own.
-
-- **`points`** (`sequence of str, optional`): The high-symmetry points to read, for [`symmetry_indicator`](#symmetry_indicator).
-
-- **`bands`** (`int or sequence of int, optional`): Which bands the content counts: an `int` is the lowest *n*, a sequence
-  those bands.  An `HSPTable` says so itself, and another
-  set raises `ValueError`.
+- **`realized`** (`RealizedGroup, optional`): What [`realized_group`](#realized_group) returned, `r`, the measurement
+  the coreps came from, in a grey group with tables.  Pass it beside a
+  vector written out by hand, and with a table nothing.
 
 **Returns**
 
@@ -1291,10 +1222,12 @@ The $`\mathbb{Z}`$-valued stable real-space invariants of a band set, from its s
 
 **Refusals**
 
+A refusal handed in as `realized` is returned as it is.
+
 - **`srsi_scope`, `srsi_table_absent`, `srsi_data`, `srsi_ebr_basis`**: from [`srsi_tables`](#srsi_tables): the group has no tables.
 
-- **`incomplete_content`, `not_a_band_structure`, `indicator_not_evaluable`**: from [`symmetry_indicator`](#symmetry_indicator), with the refusals of the content it
-  reads.
+- **`incomplete_content`, `not_a_band_structure`, `indicator_not_evaluable`**: from [`symmetry_indicator`](#symmetry_indicator), with the refusals of the
+  symmetry data vector it reads.
 
 ### `srsi_of_model`
 
@@ -1333,7 +1266,7 @@ A model's stable real-space invariants, read off its orbitals.
 ### `splitting`
 
 ```text
-splitting(realized, *, bands=None, rep=None, points=None)
+splitting(realized, *, bands=None)
 ```
 
 Whether the bands asked for and the rest of a model's bands can both be atomic insulators.
@@ -1344,10 +1277,6 @@ Whether the bands asked for and the rest of a model's bands can both be atomic i
 
 - **`bands`** (`int or sequence of int`): The bands asked for, `V`: an `int` is the lowest *n*, a sequence
   those bands.  Required.
-
-- **`rep`** (`SpaceGroupRep, optional`): A representation to read in place of the one `realized` holds.
-
-- **`points`** (`sequence of str, optional`): The high-symmetry points to read the content of `V` at.
 
 **Returns**
 

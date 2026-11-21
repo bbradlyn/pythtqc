@@ -265,10 +265,10 @@ print(valence.summary())
 #      T: T1+ + T2- + T3-
 #    another labeling the hoppings leave open keeps every site irrep and labels some energy multiplets of these bands differently; it keeps which bands are degenerate and the labels of all the model's bands together   (.note)
 dec = tqc.decompose(valence)
-print(dec.verdict, "|", len(dec.solutions), "solution:", *dec.solution_strings())
-#  symmetry-indicated decomposable | 1 solution: 1 x A1g↑G(1)@3a(-3m1',-3m) + 1 x Ag↑G(3)@9d(2/m1',2/m)
+print(dec.decomposable, "|", len(dec.candidate_sums), "candidate sum:", *[s.label for s in dec.candidate_sums])
+#  True | 1 candidate sum: A1g at 3a (-3m1') + Ag at 9d (2/m1')
 indicator = tqc.symmetry_indicator(valence)
-print(indicator.structure, indicator.canonical)
+print(indicator.indicator_group, indicator.indicators)
 #  Z2 {"z2'": 0}
 ```
 

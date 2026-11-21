@@ -345,7 +345,8 @@ print(tables.ebrs)
 print([str(x) for x in b45.p], tables.theta_columns(list(b45.p)))
 #  ['1', '1', '-1', '0', '0'] ((Fraction(0, 1), Fraction(0, 1), Fraction(1, 1)), {2: (0, 0)})
 d45 = tqc.decompose(t45)           # the EBR the pair's content matches
-print(d45.solutions[0], tables.theta_columns(list(d45.solutions[0])))
+p = {(t.irrep, t.wyckoff.lstrip("0123456789")): t.multiplicity for t in d45.candidate_sums[0]}
+print(tuple(p.get(key, 0) for key in tables.ebrs), tables.theta(p))
 #  (0, 0, 0, 1, 0) ((Fraction(0, 1), Fraction(0, 1), Fraction(1, 1)), {2: (1, 0)})
 ```
 

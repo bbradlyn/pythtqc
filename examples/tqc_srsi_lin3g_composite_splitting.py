@@ -36,8 +36,8 @@ from pythtqc import format_coreps as fmt
 from pythtqc.models import lin3g
 from pythtqc.utils import save_figure
 
-# Elementary band representations print as ρ↑G, the site irrep ρ induced to the
-# group; a Windows console cannot print ↑ by default, so the output is UTF-8.
+# The last line prints a dash, —, which a Windows console cannot print by
+# default, so the output is UTF-8.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -86,12 +86,22 @@ def moduli(theta_zn):
 def atomic_limits(d):
     """The atomic limits of a band set, as a label and a value: the one sum of elementary
     band representations with this content, how many sums there are, or none."""
-    if d.verdict == "none":
+    if not d.decomposable:
         return "atomic limits", "none"
-    sums = d.solution_strings()
+    sums = [s.label for s in d.candidate_sums]
     if len(sums) == 1:
         return "atomic limit", sums[0]
     return "atomic limits", f"{len(sums)} sums of elementary band representations"
+
+
+def positions(s):
+    """The Wyckoff positions of a sum of elementary band representations, one per copy."""
+    return sorted(t.wyckoff for t in s for _ in range(t.multiplicity))
+
+
+def columns(s):
+    """A sum of elementary band representations by the SRSI tables' columns, {(irrep, letter): m}."""
+    return {(t.irrep, t.wyckoff.lstrip("0123456789")): t.multiplicity for t in s}
 
 
 ########### 1. the model, its two orbits and all eight bands ###########
@@ -114,13 +124,18 @@ row(f"the {second.multiplicity}{second.letter} orbit", fmt(second.content))
 
 t8 = tqc.hsp_table(r, bands=8)
 d8 = tqc.decompose(t8)
-own_terms = [" + ".join(f"{n} x {name}@{where}" for n, name, where in orbit.chosen["terms"])
+# the orbitals' own sum: each orbit's elementary band representations, by the tables' columns
+own = {key: m for orbit in (first, second)
+       for key, m in zip(tables.ebrs, orbit.chosen["p"]) if m}
+own_sum = next(s for s in d8.candidate_sums if columns(s) == own)
+words = own_sum.label.split(" + ")
+own_terms = [" + ".join(w for w, t in zip(words, own_sum)
+                        if t.wyckoff.lstrip("0123456789") == orbit.letter)
              for orbit in (first, second)]
-index = list(d8.solution_strings()).index(" + ".join(own_terms))   # the orbitals' own sum
 row("all 8 bands", fmt(t8.symmetry_data))
 row("atomic limits", f"{atomic_limits(d8)[1]}, at",
-    ", ".join("+".join(where) for where in sorted(d8.positions)))
-row("the model's own", f"{'+'.join(d8.positions[index])}, {own_terms[0]}",
+    ", ".join("+".join(where) for where in sorted(positions(s) for s in d8.candidate_sums)))
+row("the model's own", f"{'+'.join(positions(own_sum))}, {own_terms[0]}",
     f"+ {own_terms[1]}")
 row("srsi_of_model(r)", "the invariants of the model and of each site orbit")
 print(textwrap.indent(m_srsi.summary(), "   "))
@@ -153,9 +168,11 @@ def signed_sum(p):
 # two vectors over the elementary band representations with this content: the
 # one atomic limit, and the rational vector the band route evaluates, one of
 # many with the same content
-column = tables.theta_columns(list(d2.solutions[0]))
+p = columns(d2.candidate_sums[0])
+column = tables.theta(p)
 solved = tables.theta_columns(list(b2.p))
-row("the atomic limit", f"{signed_sum(d2.solutions[0])}, Z-valued {values(column[0])}, "
+row("the atomic limit", f"{signed_sum(tuple(p.get(key, 0) for key in tables.ebrs))}, "
+    f"Z-valued {values(column[0])}, "
     f"{moduli(column[1])}")
 row("a signed sum", f"{signed_sum(b2.p)}, Z-valued {values(solved[0])}, "
     f"{moduli(solved[1])}")
@@ -228,7 +245,7 @@ ax.set_xticklabels(PATH_LABELS, fontsize=13)
 ax.set_xlim(kd[0], kd[-1])
 ax.set_ylabel("$E$", fontsize=15)
 ax.set_title(f"lin3g in #{group.number_str} {group.name}: the eight bands are "
-             f"{'+'.join(d8.positions[index])},\n"
+             f"{'+'.join(positions(own_sum))},\n"
              fr"$\theta_\mathbb{{Z}}[H]=({', '.join(str(v) for v in m_srsi.theta_Z)})$, "
              fr"$\theta_{{\mathbb{{Z}}_2}}[H]={m_srsi.theta_Zn[2]}$"
              f" — the six-band gap {six.verdict}, the four-band gap {four.verdict}",

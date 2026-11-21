@@ -41,9 +41,9 @@ D. the three classes side by side
    the plane, s     : #191.234   Z6 x Z12          (1, 0)   6       1       2
    the plane, p_z   : #191.234   Z6 x Z12          (5, 0)   6       1       2
    the stack, p_z   : #191.234   Z6 x Z12          (5, 0)   6       1       2
-   named indicators : of the p_z class, z2w,3 = 1, z4 = 2, z3m,π = 2, z3m,0 = 2,
-                      z6m,0 = 1, z6m,π = 1, z12 = 2
-   out of the plane : z2w,3, z3m,π and z6m,π read only the coreps at k_z = 1/2,
+   named indicators : of the p_z class, z2w,3 = 1, z4 = 2, z3m,pi = 2, z3m,0 = 2,
+                      z6m,0 = 1, z6m,pi = 1, z12 = 2
+   out of the plane : z2w,3, z3m,pi and z6m,pi read only the coreps at k_z = 1/2,
                       z4 and z12 those of both planes
    all 4 bands      : the band representation of the orbitals at 2c, an atomic limit
    indicator class  : (0, 0) in Z6 x Z12, order 1, every named indicator 0

@@ -126,11 +126,11 @@ def _indicator_line(indicator, whose) -> str:
     """A summary's line for the symmetry-indicator class of a band set."""
     if not indicator.divisors:
         return f"  {whose} symmetry-indicator group is trivial   (.indicator)"
-    if not indicator.nontrivial:
-        return (f"  {whose} symmetry-indicator class is zero, in {indicator.structure}"
+    if not any(indicator.values):
+        return (f"  {whose} symmetry-indicator class is zero, in {indicator.indicator_group}"
                 "   (.indicator)")
     return (f"  {whose} symmetry-indicator class: {indicator.values} in "
-            f"{indicator.structure}, of order {indicator.order}   (.indicator)")
+            f"{indicator.indicator_group}, of order {indicator.order}   (.indicator)")
 
 
 def _site_irreps(irreps, letter) -> str:
@@ -1333,7 +1333,7 @@ def name_correspondence(group_or_tables):
 
 @functools.lru_cache(maxsize=None)
 def _canonical_gate(number_str: str, spinor: bool) -> dict:
-    r"""The two convention checks behind :attr:`..ebr.SymmetryIndicator.canonical`.
+    r"""The two convention checks behind :attr:`..ebr.SymmetryIndicator.indicators`.
 
     Computed once per system and cached, because both are properties of the
     *tables* and of nothing else.
@@ -1425,7 +1425,7 @@ def _canonical_gate(number_str: str, spinor: bool) -> dict:
 def canonical_determinism(group_or_tables) -> dict | Refusal:
     """Whether the paper's indicator names tell apart every class of a group's symmetry-indicator group.
 
-    What :attr:`..ebr.SymmetryIndicator.canonical` rests on: every form vanishes on
+    What :attr:`..ebr.SymmetryIndicator.indicators` rests on: every form vanishes on
     the group's elementary band representations, and no two classes share every
     value.  Both hold in all 170 systems with an indicator group.
 
@@ -1472,7 +1472,7 @@ def _canonical_reading(group, magnetic_type, u, v, d, y, divisors) -> tuple:
     r"""``(canonical, note, tex)`` -- the class in the paper's names.
 
     What :func:`..ebr.symmetry_indicator` calls to fill
-    :attr:`..ebr.SymmetryIndicator.canonical`.  ``y`` is the returned symmetry data
+    :attr:`..ebr.SymmetryIndicator.indicators`; ``tex`` is the names in LaTeX.  ``y`` is the returned symmetry data
     vector over the full EBR basis and ``u``, ``v``, ``d`` are the Smith factors
     it was read with, so the rational ``p`` here is the same one
     :func:`..srsi.srsi_of_bands` solves for -- one arithmetic, two records.
@@ -1493,10 +1493,10 @@ def _canonical_reading(group, magnetic_type, u, v, d, y, divisors) -> tuple:
 
     if magnetic_type != "II":
         return None, (
-            "the canonical vocabulary is the SRSI paper's, whose shipped tables are "
+            "the paper's named indicators are the SRSI paper's, whose shipped tables are "
             f"the time-reversal-symmetric (grey, type-II) ones; #{group.number_str} is "
-            f"a magnetic group of type {magnetic_type}, so no canonical name is "
-            "returned. The Smith class above is unaffected: it is computed from this "
+            f"a magnetic group of type {magnetic_type}, so none of the paper's named "
+            "indicators is returned. The Smith class above is unaffected: it is computed from this "
             f"group's own EBR matrix ({_DOI})"), {}
     status = srsi_status()
     if not status["data"]:
@@ -1512,19 +1512,19 @@ def _canonical_reading(group, magnetic_type, u, v, d, y, divisors) -> tuple:
                 "the 170 grey systems with a nontrivial Smith form -- measured, and "
                 "asserted in the test suite -- so a group reaching here is this package "
                 "applying the wrong table and not a property of the model.")
-        return None, ("no canonical vocabulary is returned here: "
+        return None, ("the paper's named indicators are not returned here: "
                       f"{tables.reason}"), {}
     if not divisors:
         return None, (
             f"the indicator group of #{group.number_str} is trivial, so there is no "
-            "class to speak in any vocabulary; the paper's tables carry an indicator "
+            "class to read in the paper's named indicators; the paper's tables carry an indicator "
             "row for exactly the 170 grey systems that have one, and this is not one "
             "of them"), {}
     if not tables.indicators:
         raise InternalError(
             f"#{group.number_str}: the indicator group is {divisors} and the paper's "
-            "table for this system carries no indicator row, so the canonical "
-            "vocabulary has no word for this class. The two lists were measured to "
+            "table for this system carries no indicator row, so the paper's named "
+            "indicators have no value for this class. The two lists were measured to "
             "coincide exactly (170 systems), so this is a defect in the shipped data "
             "or in this package's use of it.")
     gate = _canonical_gate(tables.number_str, tables.spinor)
@@ -1557,21 +1557,19 @@ def _canonical_reading(group, magnetic_type, u, v, d, y, divisors) -> tuple:
             f"#{group.number_str}: the paper's names do not determine the class -- "
             f"{len(gate['collisions'])} of the {gate['n_classes']} elements of "
             f"{divisors} share every canonical value with another "
-            f"({gate['collisions'][0][:2]}). The canonical vocabulary cannot speak "
-            "this group's classes, which is a finding about the tables and not a "
+            f"({gate['collisions'][0][:2]}). The paper's named indicators cannot tell "
+            "this group's classes apart, which is a finding about the tables and not a "
             "number to print.")
     p = _rational_p(u, v, d, [Fraction(int(x)) for x in y])
     canonical = tables.indicators_of_columns(p)
     tex = {str(f.name): str(f.name_tex) for f in tables.indicators}
     note = (
-        f"the class in the canonical vocabulary of the SRSI paper ({_DOI}), evaluated "
+        f"the class in the paper's named indicators, of the SRSI paper ({_DOI}), evaluated "
         f"as the tabulated forms in the Z-SRSIs on the exact rational p of this "
         f"symmetry data vector. The paper's names determine the class here: all "
         f"{gate['n_classes']} elements of {'x'.join('Z%d' % x for x in divisors)} have "
         f"different canonical values, and every one of the {len(tables.indicators)} "
-        "forms vanishes on every EBR column of this group. irreptables' own names for "
-        "the same classes are `irreptables_named`, and `as_irreptables()` re-keys these "
-        "values into them")
+        "forms vanishes on every EBR column of this group")
     return canonical, note, tex
 
 

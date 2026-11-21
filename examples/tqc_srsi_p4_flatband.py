@@ -59,8 +59,8 @@ import pythtqc as tqc
 from pythtqc import format_coreps as fmt
 from pythtqc.utils import save_figure
 
-# Elementary band representations print as ρ↑G, the site irrep ρ induced to the
-# group; a Windows console cannot print ↑ by default, so the output is UTF-8.
+# Some lines print ± and a dash, —, which a Windows console cannot print by
+# default, so the output is UTF-8.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -128,9 +128,9 @@ def numbers(points):
 def atomic_limits(d):
     """The atomic limits of a band set, as a label and a value: the one sum of elementary
     band representations with this content, how many sums there are, or none."""
-    if d.verdict == "none":
+    if not d.decomposable:
         return "atomic limits", "none"
-    sums = d.solution_strings()
+    sums = [s.label for s in d.candidate_sums]
     if len(sums) == 1:
         return "atomic limit", sums[0]
     return "atomic limits", f"{len(sums)} sums of elementary band representations"
@@ -140,7 +140,7 @@ def indicator_class(si):
     """The symmetry-indicator class of a band set, as a label and a value."""
     if not si.divisors:
         return "indicator group", "trivial"
-    return "indicator class", f"{values(si.values)} in {si.structure}"
+    return "indicator class", f"{values(si.values)} in {si.indicator_group}"
 
 
 def wilson_row(label, ky, trace, winding):

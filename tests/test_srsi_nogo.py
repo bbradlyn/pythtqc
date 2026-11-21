@@ -831,9 +831,9 @@ def test_kane_mele_odd_is_diagnosed_by_its_conduction_pair_and_even_is_not(
 def test_the_band_set_is_one_keyword_on_both_routes(lin3g_declared_cross_checked):
     """``bands=`` names the block for ``splitting`` and for the band route alike.
 
-    A list of bands is the same request as their count, the band set is
-    required, and beside a table measured on its own block a ``bands=`` naming a
-    different set is a contradiction rather than an override.
+    A list of bands is the same request as their count and the band set is
+    required; a table is read on the block it was measured on, and is handed
+    alone.
     """
     record = lin3g_declared_cross_checked
     want = tqr.splitting(record, bands=4)
@@ -850,11 +850,10 @@ def test_the_band_set_is_one_keyword_on_both_routes(lin3g_declared_cross_checked
     with pytest.raises(TypeError, match="missing required argument"):
         tqr.splitting(record)
 
-    group, rep = record.group, record.rep
-    table = tqw.hsp_table(record, bands=4)
-    by_list = tqr.srsi_of_bands(table, group, rep=rep, bands=[0, 1, 2, 3])
+    table = tqw.hsp_table(record, bands=[0, 1, 2, 3])
+    by_list = tqr.srsi_of_bands(table)
     assert by_list.n_bands == 4
-    assert by_list.theta_Z == tqr.srsi_of_bands(table, group, rep=rep).theta_Z, \
-        "with no bands= the table's own block is what is read"
-    with pytest.raises(ValueError, match=r"\[0, 1\]"):
-        tqr.srsi_of_bands(table, group, rep=rep, bands=2)
+    assert by_list.theta_Z == tqr.srsi_of_bands(tqw.hsp_table(record, bands=4)).theta_Z, \
+        "a list of bands is the same block as their count"
+    with pytest.raises(TypeError, match="pass the table alone"):
+        tqr.srsi_of_bands(table, record)

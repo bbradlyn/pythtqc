@@ -133,7 +133,7 @@ with them:
 ```python
 for rec in (free, pz):
     si = tqc.symmetry_indicator(tqc.hsp_table(rec, bands=2))
-    print(si.structure, si.values, si.order, {name: si.canonical[name] for name in ("z2w,3", "z4")})
+    print(si.indicator_group, si.values, si.order, {name: si.indicators[name] for name in ("z2w,3", "z4")})
 #  Z6 x Z12 (1, 0) 6 {'z2w,3': 1, 'z4': 2}
 #  Z6 x Z12 (5, 0) 6 {'z2w,3': 1, 'z4': 2}
 ```

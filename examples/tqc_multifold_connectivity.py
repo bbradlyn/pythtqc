@@ -40,8 +40,8 @@ from pythtqc import format_coreps as fmt
 from pythtqc import solve_at
 from pythtqc.utils import save_figure
 
-# Elementary band representations print as ρ↑G, the site irrep ρ induced to the
-# group; a Windows console cannot print ↑ by default, so the output is UTF-8.
+# The last line prints a dash, —, which a Windows console cannot print by
+# default, so the output is UTF-8.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -89,9 +89,9 @@ def row(label, first, *rest):
 def atomic_limits(d):
     """The atomic limits of a band set, as a label and a value: the one sum of elementary
     band representations with this content, how many sums there are, or none."""
-    if d.verdict == "none":
+    if not d.decomposable:
         return "atomic limits", "none"
-    sums = d.solution_strings()
+    sums = [s.label for s in d.candidate_sums]
     if len(sums) == 1:
         return "atomic limit", sums[0]
     return "atomic limits", f"{len(sums)} sums of elementary band representations"
@@ -250,7 +250,7 @@ axes[0].set_ylim(bands199.min() - 0.10 * (bands199.max() - bands199.min()),
                  bands199.max() + 0.13 * (bands199.max() - bands199.min()))
 axes[0].set_ylabel("$E$", fontsize=16)
 axes[0].set_title(f"SG 199, #{g199.number_str} {g199.name}\n"
-                  f"{d199.solution_strings()[0]}\nconnected: every inter-band gap "
+                  f"{d199.candidate_sums[0].label}\nconnected: every inter-band gap "
                   "closes somewhere", fontsize=10)
 
 # --- SG 208, along GM-X-M-GM-R-X ---
@@ -285,7 +285,7 @@ axes[1].set_xlim(kd208[0] - 0.10 * kd208[-1], kd208[-1] * 1.13)
 axes[1].set_ylim(bands208.min() - 0.10 * (bands208.max() - bands208.min()),
                  bands208.max() + 0.13 * (bands208.max() - bands208.min()))
 axes[1].set_title(f"SG 208, #{g208.number_str} {g208.name}\n"
-                  f"{d208.solution_strings()[0]}\nsplit at half filling, and "
+                  f"{d208.candidate_sums[0].label}\nsplit at half filling, and "
                   "neither half is an atomic limit", fontsize=10)
 
 fig.suptitle("One elementary band representation each, the same measurement: the "

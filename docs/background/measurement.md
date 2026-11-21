@@ -349,7 +349,7 @@ band representations are left out.
 ## What a verdict certifies
 
 The verdicts on topology are proofs in one direction only. A decomposition
-whose verdict is `none`, with the certificate `proof`, means no atomic limit
+that finds no sum, with the certificate `proof`, means no atomic limit
 carries the bands' symmetry content; a nonzero symmetry indicator means the
 same, and adding the bands of an atomic limit cannot change it; and where a set
 of bands is split into valence and conduction bands, the verdict

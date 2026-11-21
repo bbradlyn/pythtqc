@@ -414,12 +414,11 @@ def test_a_model_s_z_srsis_are_the_band_route_s_on_all_of_its_bands(request, nam
     to the literals of ``Z_ROW_NAMES`` instead.
     """
     realized = _record(request, name)
-    group, rep = realized.group, realized.rep
+    group = realized.group
     model_srsis = tqr.srsi_of_model(realized)
     assert model_srsis, str(model_srsis)
     n_bands = ALL_BANDS[name]
-    bands = tqr.srsi_of_bands(tqw.hsp_table(realized, bands=n_bands), group, rep=rep,
-                              bands=n_bands)
+    bands = tqr.srsi_of_bands(tqw.hsp_table(realized, bands=n_bands))
     assert bands, str(bands)
     assert tuple(model_srsis.theta_Z) == tuple(bands.theta_Z), name
     # `denominator` is the lcm of the same denominators `stable` is `any()` of,
@@ -478,16 +477,16 @@ def test_srsi_of_bands_reproduces_the_fu_kane_mele_anchors(fkm_strong):
     whose class has order 4.  The record carries both halves, so the statement
     can be read off one object.
     """
-    group, rep = fkm_strong.group, fkm_strong.rep
     content = tqw.hsp_table(fkm_strong, bands=2)
-    got = tqr.srsi_of_bands(content, group, rep=rep, bands=2)
+    got = tqr.srsi_of_bands(content)
     assert got, str(got)
     assert got.indicator.values == (0, 1) and got.indicator.order == 4
     assert tuple(str(v) for v in got.theta_Z) == (
         "-1/4", "0", "1/2", "1", "1/4", "-1/2", "-1/4", "1/4")
     # the paper's theorem, as a two-route check: a real-space denominator against
-    # a momentum-space class order.  (`indicator.nontrivial` is `any(values)` and
-    # `order` is an lcm over the same values, so a third term would be free.)
+    # a momentum-space class order.  (Whether the class is nonzero is
+    # `any(indicator.values)` and `order` is an lcm over the same values, so a
+    # third term would be free.)
     assert got.stable
     assert got.denominator == 4
     assert got.n_bands == 2
@@ -515,11 +514,9 @@ def test_srsi_of_bands_reproduces_the_lin3g_and_kane_mele_anchors(
     the **premise** that makes it a statement about linearity is that the three
     blocks' measured symmetry data vectors add, and that is what is asserted.
     """
-    group, rep = lin3g_declared_cross_checked.group, lin3g_declared_cross_checked.rep
     blocks = {}
     for name, bands in (("P6", P6), ("P4", list(P4)), ("P2", list(P2))):
-        got = tqr.srsi_of_bands(tqw.hsp_table(lin3g_declared_cross_checked, bands=bands),
-                                group, rep=rep)
+        got = tqr.srsi_of_bands(tqw.hsp_table(lin3g_declared_cross_checked, bands=bands))
         assert got, (name, str(got))
         blocks[name] = got
         assert not got.stable, name
@@ -530,15 +527,13 @@ def test_srsi_of_bands_reproduces_the_lin3g_and_kane_mele_anchors(
     assert tuple(str(v) for v in blocks["P2"].theta_Z) == ("0", "0", "1")
     assert tuple(str(v) for v in blocks["P6"].theta_Z) == ("1", "1", "1")
     # the premise: the measured symmetry data vectors of the three blocks add
-    assert blocks["P6"].indicator.y == tuple(
-        a + b for a, b in zip(blocks["P4"].indicator.y, blocks["P2"].indicator.y))
+    assert tuple(blocks["P6"].indicator._y) == tuple(
+        a + b for a, b in zip(blocks["P4"].indicator._y, blocks["P2"].indicator._y))
 
     got = {}
     for regime in ("odd", "even"):
         km = km_realized[regime]
-        km_group, km_rep = km.group, km.rep
-        out = tqr.srsi_of_bands(tqw.hsp_table(km, bands=2), km_group, rep=km_rep,
-                                bands=2)
+        out = tqr.srsi_of_bands(tqw.hsp_table(km, bands=2))
         assert out, (regime, str(out))
         got[regime] = tuple(str(v) for v in out.theta_Z)
         assert not out.stable

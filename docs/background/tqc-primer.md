@@ -90,10 +90,9 @@ whose bands split apart across a gap has a topological part: such
 disconnected EBRs are one route to topology
 ([Cano *et al.*, Phys. Rev. Lett. **120**, 266401 (2018)](https://doi.org/10.1103/PhysRevLett.120.266401)).
 A summary writes an EBR as its site irrep at its Wyckoff position,
-`-E1 at 1a (3m)`, and the records of the stable real-space invariants as
-`1 (-E1)_a`; the records' fields, and the methods that write a sum on one line,
-hold it under the label the group's list of EBRs gives it,
-`-E1↑G(2)@1a(3m1',3m)`, which
+`-E1 at 1a (3m1')`, and the records of the stable real-space invariants as
+`1 (-E1)_a`; a decomposition and the atomic-limit table hold it as a term, its
+multiplicity, site irrep, Wyckoff position and site group as fields, which
 [conventions](conventions.md#the-band-representation-key) reads part by part.
 
 ## How a symmetry indicator is computed

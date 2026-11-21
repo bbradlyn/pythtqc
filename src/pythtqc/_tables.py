@@ -634,11 +634,29 @@ def _little_group(group: GroupData, k, call: str = "little_group") -> LittleGrou
         (anti if sym.time_reversal else uni).append(sym)
     uni.sort(key=lambda s: s.ind)
     anti.sort(key=lambda s: s.ind)
-    return LittleGroup(k=k, unitary=tuple(int(s.ind) for s in uni),
+    return LittleGroup(k=k, kpoint=_kpoint_name(group, k3),
+                       unitary=tuple(int(s.ind) for s in uni),
                        antiunitary=tuple(int(s.ind) for s in anti),
                        G={int(s.ind): np.round(s.transform_k(k3) - k3) for s in uni},
                        _k3=k3, _unitary_operations=uni, _antiunitary_operations=anti,
                        _group=group)
+
+
+def _kpoint_name(group: GroupData, k3):
+    """The tables' name of the point ``k3``, three reduced coordinates of the cell as written, or ``None`` where it is none of their points.
+
+    The first tabulated point it differs from by a reciprocal lattice vector of
+    that cell, each coordinate to within the tables' own tolerance
+    (:func:`_same_point`); ``None`` also where the group's tables cannot be read
+    in this cell.
+    """
+    if not group._tables_ready:
+        return None
+    ktol = _corep_table.__kwdefaults__["ktol"]
+    for name, tabulated in _table_kpoints(group).items():
+        if _same_point(k3, tabulated, ktol):
+            return name
+    return None
 
 
 def _table_kpoints(group: GroupData) -> dict:

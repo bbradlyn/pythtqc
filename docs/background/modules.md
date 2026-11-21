@@ -233,7 +233,6 @@ flowchart TD
         direction LR
         e_dec["decompose(t)"] --> e_D[["EBRDecomposition: every sum of elementary band representations that carries t's coreps, or none"]]
         e_si["symmetry_indicator(t)"] --> e_SI[["SymmetryIndicator: the class of t's symmetry data vector among the band structures modulo the atomic limits"]]
-        e_cc["completeness_check(t)"] --> e_CR[["CompletenessReport: whether t's coreps are a sum of elementary band representations, and how many bands each sum holds"]]
         e_rc["regular_completion(t, bands=n)"] --> e_RC[["RegularCompletion: the bands that would complete t to whole copies of the regular band representation, and the orbitals they would be"]]
     end
 
@@ -246,13 +245,13 @@ flowchart TD
 ```
 
 A table's labels name the coreps of the group it was read in, and the table
-carries that group as `t.group`, with the representation it was read with, so each
-call reads them there with nothing else handed in; a group or a `rep=` handed in beside it that is not the table's
-own raises `ValueError`. The representation says how each site irrep is known
-and, on a layer, which Wyckoff positions lie within it. An `EBRDecomposition` and
-a `SymmetryIndicator` hold the `Restriction` they were read with on
-`.restriction`, and a decomposition holds what it does not certify on `.caveat`,
-a `WannierCaveat`.
+carries that group as `t.group`, with what it was measured on, so each call
+reads them there with nothing else handed in, and a table handed with anything
+beside it raises `TypeError`. A symmetry data vector written out by hand is
+handed with the measurement its coreps came from, `decompose(symmetry_data, r)`.
+What a table carries says how each site irrep is known and, on a layer, which
+Wyckoff positions lie within it. An `EBRDecomposition` and a `SymmetryIndicator`
+hold the `Restriction` they were read with on `.numerical.restriction`.
 
 ### `srsi`
 

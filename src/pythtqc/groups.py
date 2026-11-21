@@ -64,7 +64,9 @@ from ._realized import (
     Descent, DescentCell, DescentStep, DroppedOperation, LayerEnvironment, NamedGroup,
     Positions, Precision, Presentation, PresentationTilt, RealizedGroup,
     RealizedGroupNumerical, StepCenters, StepDeclaration, StepTie, TimeReversal,
-    TimeReversalSquare, realized_group)
+    TimeReversalSquare, realized_group,
+    DescentLattice, LatticeTranslation, ProjectiveMirror, ProjectivePair,
+    ProjectiveReading, RefutedTranslation, StepProjective, TranslationDressing)
 
 __all__ = [
     "GroupData", "LittleGroup",
@@ -77,7 +79,9 @@ __all__ = [
     "indicator_group", "decompose_ebrs", "k_grid",
     "RealizedGroup", "realized_group", "stack_presentation",
     "RealizedGroupNumerical", "LayerEnvironment", "Descent", "DescentStep", "DescentCell",
-    "StepDeclaration", "StepCenters", "StepTie", "DroppedOperation", "NamedGroup",
+    "StepDeclaration", "StepCenters", "StepTie", "StepProjective", "ProjectivePair",
+    "ProjectiveMirror", "ProjectiveReading", "DescentLattice", "LatticeTranslation",
+    "TranslationDressing", "RefutedTranslation", "DroppedOperation", "NamedGroup",
     "TimeReversal", "TimeReversalSquare", "BeyondGrey", "BeyondGreyOperation", "Conserved",
     "ConservedSector", "CrossCheck", "CrossCheckRow", "CrossCheckOperation",
     "CrossCheckRefusal", "Decoration", "DeclaredReduction", "ExcludedOperation", "Positions",

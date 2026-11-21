@@ -2,6 +2,62 @@
 
 ## Unreleased
 
+- `decompose`, `symmetry_indicator`, `srsi_of_bands` and `regular_completion` take the
+  table `hsp_table` returns alone, `decompose(t)`, or a symmetry data vector written out by
+  hand with what `realized_group` returned beside it, `decompose(vector, r)`. The first
+  parameter is `symmetry_data`. `group=`, `rep=`, `bands=`, `points=`, `verify=` and
+  `stack_period=` are gone, and so are `regular_completion`'s keywords passed on to
+  `decompose`, whose own keywords take its padding: `decompose(rc.padding, r, cap=...)`.
+  A table with anything beside it, a vector with nothing beside it, and `r.group` or
+  `r.rep` in place of `r` raise `TypeError` saying what to pass. The Smith form is
+  computed again on every call.
+- A layer's symmetry data vector written out by hand in its plane is completed: a corep
+  at a point out of the plane takes the multiplicity of the corep in the plane it repeats
+  in every elementary band representation of the layer's own Wyckoff positions, and
+  `symmetry_indicator` and `srsi_of_bands` return its class and invariants, where they
+  refused `indicator_not_evaluable`. The free-standing Kane-Mele layer's valence bands,
+  `{'-GM9': 1, '-K8': 1, '-M6': 1}` with `r`, read class `(1, 0)` in `Z6 x Z12`, as their
+  table does. A vector that names coreps at a point out of the plane is read as written
+  there, by `decompose` too.
+- `decompose` returns each sum as a `BandRepresentation` in `d.candidate_sums`, printed as
+  `-E2 at 1b (4mm1') + -E at 2c (mm21')`, and whether one carries the vector as
+  `d.decomposable`. `verdict`, `solutions`, `terms`, `positions`, `solution_strings()`,
+  `ebrs`, `caveat`, `unique`, `n_bands`, `labels` and `y` are gone; `content` is
+  `symmetry_data`. The bound, the cap, the completeness and the restriction are under
+  `d.numerical`, and `d.numerical.summary()` prints what the vector was read on. The
+  search with negative multiplicities is a `SignedCombinations`, its `sums` and
+  `truncated`, and the site irreps a `SiteContent`. The summary's first line reads
+  `decomposable: 3 sums of elementary band representations carry this symmetry data
+  vector`, or `not decomposable: ...`.
+- `symmetry_indicator` returns the class as `values` in `indicator_group`, `"Z6 x Z12"`,
+  with `divisors`, `order`, the paper's named indicators as `indicators`, the vector of
+  the plane as `symmetry_data` and the group the class lives in as `group`. `verdict`,
+  `nontrivial`, `indicated`, `structure`, `canonical`, `canonical_note`, `canonical_tex`,
+  `irreptables_named`, `as_irreptables()`, `number_str`, `group_name`, `magnetic_type`
+  and `n_bands` are gone. The vector on every point of the group's tables is
+  `si.numerical.completed_symmetry_data`, and the Smith form computed again, the
+  compatibility relations, the stack's completion and the two-dimensional reading are
+  records under `si.numerical`. The summary's first line reads
+  `class (1, 0) in Z6 x Z12, in P6/mmm1' #191.234`, or
+  `the indicator group of P4mm1' #99.164 is trivial`.
+- `regular_completion` returns `symmetry_data` in place of `occupied`, and `target` is
+  gone. `Restriction` holds `kpoints` in place of `points`, and `applied`, `rank`,
+  `full_rank`, `layer_extent` and `require_exact` are gone. `in_plane_restriction` and
+  `regular_content` take `kpoints=`, raise `TypeError` on `r` or `r.rep` in place of the
+  group, and raise `ValueError` listing the names on a name the group does not tabulate,
+  where `regular_content` raised `KeyError`.
+- `completeness_check`, `CompletenessReport` and `WannierCaveat` are gone; the band count
+  of a set of bands is `len(t.bands)`. `to_irreptables_name`, `from_irreptables_name`,
+  `indicator_vocabularies`, `name_correspondence`, `NamePair` and `NAME_RELATIONS` are no
+  longer in `pythtqc.srsi`. `splitting` no longer takes `rep=` or `points=`.
+- The table of a group's operations names its group as `ops.group`; `ops.name` and
+  `ops.number_str` are gone. It prints as before.
+- A little group holds `kpoint`, the tabulated name of its point, `"X"`, or `None` where
+  the point is none of the tables'; its summary and repr write the point `X (0, 1/2)`.
+- A descent's `lattice`, a step's `lattice` and `projective`, and the atomic-limit table's
+  `numerical.accidental` are records, each key a field of the same name: `DescentLattice`
+  with its `LatticeTranslation` and `TranslationDressing` rows, `StepProjective` with its
+  `ProjectivePair` rows, and `AccidentalDegeneracy`.
 - `corep_content` is `coreps_at` and `format_counts` is `format_coreps`. A multiplicity
   prints `2x-GM6`, where it printed `2×-GM6`, in `format_coreps` and in every summary that
   prints a sum of coreps or of site irreps.

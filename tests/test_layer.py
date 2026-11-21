@@ -878,12 +878,12 @@ def test_a_spinless_layers_sigma_h_is_never_broken_by_the_hoppings(mix, conserve
     if not mix:
         told = tqg.realized_group(square_s_pz(), characters={0: "s", 1: "pz"},
                                   cross_check=False, **FREE)
-        lower = tqe.decompose(tqw.hsp_table(told, bands=1), told.group, rep=told.rep)
+        lower = tqe.decompose(tqw.hsp_table(told, bands=1))
         assert isinstance(lower, Refusal) and lower.gate == "not_a_band_structure", str(lower)
-        both = tqe.decompose(tqw.hsp_table(told, bands=2), told.group, rep=told.rep)
-        assert both.solution_strings() == (
-            "1 x A1g↑G(1)@1a(4/mmm1',4/mmm) + 1 x A2u↑G(1)@1a(4/mmm1',4/mmm)",)
-        assert sorted(both.restriction.outside_layer) == ["1b", "1d", "2e"]
+        both = tqe.decompose(tqw.hsp_table(told, bands=2))
+        assert [s.label for s in both.candidate_sums] == [
+            "A1g at 1a (4/mmm1') + A2u at 1a (4/mmm1')"]
+        assert sorted(both.numerical.restriction.outside_layer) == ["1b", "1d", "2e"]
     r = tqg.realized_group(square_s_pz(mix), **FREE)
     assert not isinstance(r, Refusal), str(r)
     assert (r.group.number_str, len(r.operations)) == ("123.340", 32)
@@ -950,34 +950,33 @@ def test_a_buckled_honeycomb_is_read_from_its_real_geometry():
                                "E", "S3(z)", "S3^-1(z)", "i", "m([010])", "m([1-10])",
                                "m(x)"]
     assert r.environment.presentation.tilted is None
-    valence = tqe.decompose(tqw.hsp_table(r, bands=2), r.group, rep=r.rep)
-    assert (valence.verdict, valence.certificate) == ("none", "proof"), valence.summary()
-    assert valence.signed_combinations["n_solutions"] == 0
-    assert sorted(valence.restriction.outside_layer) == ["1b", "3f"]
+    valence = tqe.decompose(tqw.hsp_table(r, bands=2))
+    assert (valence.decomposable, valence.certificate) == (False, "proof"), valence.summary()
+    assert len(valence.signed_combinations.sums) == 0
+    assert sorted(valence.numerical.restriction.outside_layer) == ["1b", "3f"]
     assert ("1b and 3f lie outside the slab, so their band representations are left "
-            "out") in valence.summary()
-    whole = tqe.decompose(tqw.hsp_table(r, bands=4), r.group, rep=r.rep)
-    assert whole.solution_strings() == ("1 x -E1↑G(4)@2d(3m1',3m)",)
+            "out") in valence.numerical.summary()
+    whole = tqe.decompose(tqw.hsp_table(r, bands=4))
+    assert [s.label for s in whole.candidate_sums] == ["-E1 at 2d (3m1')"]
 
     def indicator(realized, bands):
-        return tqe.symmetry_indicator(tqw.hsp_table(realized, bands=bands),
-                                      realized.group, rep=realized.rep, bands=bands)
+        return tqe.symmetry_indicator(tqw.hsp_table(realized, bands=bands))
 
     # its class, on the decoupled stack at the orbitals' heights
     si = indicator(r, 2)
-    assert (si.structure, si.values, si.canonical) == \
+    assert (si.indicator_group, si.values, si.indicators) == \
         ("Z2 x Z4", (1, 0), {"z2w,3": 1, "z4": 2}), si.summary()
-    comp = si.completion
-    assert (comp["outcome"], comp["stack"]["number_str"]) == ("completed", "164.86")
-    assert (comp["stack_period"], comp["stack_extent"]) == (pytest.approx(8.3),
-                                                            pytest.approx(0.3))
-    identity = comp["gates"]["hamiltonian_identity"]
-    assert identity["at_zero"] == 0.0 and identity["residual"] <= identity["threshold"]
-    pair = tqr.srsi_of_bands(tqw.hsp_table(r, bands=2), r.group, rep=r.rep, bands=2)
+    comp = si.numerical.completion
+    assert (comp.outcome, comp.stack.group.number_str) == ("completed", "164.86")
+    assert (comp.stack_period, comp.stack_extent) == (pytest.approx(8.3),
+                                                      pytest.approx(0.3))
+    identity = comp.gates.hamiltonian_identity
+    assert identity.at_zero == 0.0 and identity.residual <= identity.threshold
+    pair = tqr.srsi_of_bands(tqw.hsp_table(r, bands=2))
     assert pair.stable and [str(x) for x in pair.theta_Z] == \
         ["-1/2", "0", "0", "0", "0", "0", "0", "1/2", "0"]
-    assert tqr.srsi_of_bands(tqw.hsp_table(r, bands=4), r.group, rep=r.rep,
-                             bands=4).theta_Z == tqr.srsi_of_model(r).theta_Z
+    assert tqr.srsi_of_bands(tqw.hsp_table(r, bands=4)).theta_Z == \
+        tqr.srsi_of_model(r).theta_Z
 
     def labels(realized, bands):
         return tqw.hsp_table(realized, bands=bands).symmetry_data
@@ -1097,21 +1096,20 @@ def test_a_mirror_symmetric_bilayer_keeps_its_sigma_h():
     assert len(free.numerical.validated._indices) == 32 and free.descent is None
     assert free.environment.kind == "free-standing"
     assert free.environment.cross_check.outcome == "agree"
-    bonding = tqe.decompose(tqw.hsp_table(free, bands=1), free.group, rep=free.rep)
-    assert bonding.solution_strings() == ("1 x A1g↑G(1)@1a(4/mmm1',4/mmm)",)
-    pair = tqe.decompose(tqw.hsp_table(free, bands=2), free.group, rep=free.rep)
-    assert pair.solution_strings() == (
-        "1 x A1g↑G(1)@1a(4/mmm1',4/mmm) + 1 x A2u↑G(1)@1a(4/mmm1',4/mmm)",)
-    assert sorted(pair.restriction.outside_layer) == ["1b", "1d", "2e"]
+    bonding = tqe.decompose(tqw.hsp_table(free, bands=1))
+    assert [s.label for s in bonding.candidate_sums] == ["A1g at 1a (4/mmm1')"]
+    pair = tqe.decompose(tqw.hsp_table(free, bands=2))
+    assert [s.label for s in pair.candidate_sums] == [
+        "A1g at 1a (4/mmm1') + A2u at 1a (4/mmm1')"]
+    assert sorted(pair.numerical.restriction.outside_layer) == ["1b", "1d", "2e"]
     (orbit,) = free.wyckoff_orbits
     assert orbit.numerical.alternatives == ()
     (srsi_orbit,) = tqr.srsi_of_model(free).orbits
     assert [loc["letter"] for loc in srsi_orbit.localizations] == ["a"]
     for bands in (1, 2):
-        si = tqe.symmetry_indicator(tqw.hsp_table(free, bands=bands), free.group,
-                                    rep=free.rep, bands=bands)
-        assert si.verdict == "trivial indicator group", si
-        assert (si.completion["outcome"], si.completion["stack_extent"]) == \
+        si = tqe.symmetry_indicator(tqw.hsp_table(free, bands=bands))
+        assert not si.divisors, si
+        assert (si.numerical.completion.outcome, si.numerical.completion.stack_extent) == \
             ("completed", pytest.approx(0.3))
 
     sub = tqg.realized_group(aa_bilayer(), **SUB)
@@ -1122,9 +1120,9 @@ def test_a_mirror_symmetric_bilayer_keeps_its_sigma_h():
     assert sub._assignment.wyckoff_spglib == ("a", "a")
     assert sub.environment.cross_check.outcome == "agree"
     assert sub.environment.cross_check.free_standing.number_str == "123.340"
-    on_sub = tqe.decompose(tqw.hsp_table(sub, bands=2), sub.group, rep=sub.rep)
-    assert on_sub.solution_strings() == ("2 x A1↑G(1)@1a(4mm1',4mm)",)
-    assert on_sub.restriction.outside_layer == {}
+    on_sub = tqe.decompose(tqw.hsp_table(sub, bands=2))
+    assert [s.label for s in on_sub.candidate_sums] == ["2xA1 at 1a (4mm1')"]
+    assert on_sub.numerical.restriction.outside_layer == {}
 
 
 # ---------------------------------------------------------------------------

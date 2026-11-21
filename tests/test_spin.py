@@ -628,7 +628,7 @@ def test_the_coreps_and_the_ebr_verdict_are_the_native_ones(reencoded):
     Nothing below ``_build_rep`` was taught anything about a spinor basis, and
     this is the measurement that says nothing had to be: the same corep labels,
     the same phase-invariant partitions at every point, the same aggregated
-    symmetry data vector and the same ``decompose`` verdict and terms.
+    symmetry data vector and the same ``decompose`` answer and candidate sums.
 
     **The comparison is only a comparison if there is content on both sides**,
     so the native table's completeness and its non-empty containers are
@@ -636,15 +636,13 @@ def test_the_coreps_and_the_ebr_verdict_are_the_native_ones(reencoded):
     typed out, so that a table that quietly emptied could not pass by agreeing
     with an equally empty one.  That is why the fixtures are built through
     ``realized_group``; ``_realized``'s docstring has the measurement that made
-    it necessary.  ``decompose`` is called unconditionally and its verdict and
-    terms read off the object, not through ``getattr`` defaults: it answers on
-    all three fixtures (``"symmetry-indicated decomposable"`` for km, lin3g and
-    i41), so a refusal on either side is a failure rather than two agreeing
+    it necessary.  ``decompose`` is called unconditionally and its answer and
+    candidate sums read off the object, not through ``getattr`` defaults: it
+    answers on all three fixtures (decomposable for km, lin3g and i41), so a refusal on either side is a failure rather than two agreeing
     ``None`` values.
     """
     name, layout, native, _flat, _basis, bundle, _identity = reencoded
-    gN, repN = native[1], native[4]
-    group, rep = bundle[0], bundle[3]
+    repN, rep = native[4], bundle[3]
     bands = FIXTURES[name]["bands"]
 
     tabN = tqw._hsp_table_rep(repN, bands=bands)
@@ -665,12 +663,12 @@ def test_the_coreps_and_the_ebr_verdict_are_the_native_ones(reencoded):
     assert patterns(tab) == patterns(tabN)
     assert sorted(tab.refusals) == sorted(tabN.refusals)
 
-    got = tqe.decompose(tab, group, rep=rep)
-    want = tqe.decompose(tabN, gN, rep=repN)
+    got = tqe.decompose(tab)
+    want = tqe.decompose(tabN)
     assert got, f"{name}/{layout}: {got}"
     assert want, f"{name}: {want}"
-    assert got.verdict == want.verdict
-    assert got.terms == want.terms
+    assert got.decomposable == want.decomposable
+    assert [tuple(s) for s in got.candidate_sums] == [tuple(s) for s in want.candidate_sums]
 
 
 # ---------------------------------------------------------------------------
@@ -1104,8 +1102,8 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     assert sorted(b.name for b in d.dropped) == sorted(
         ["C2(x)", "C2(y)", "C2([110])", "C2([1-10])", "m(x)", "m(y)", "m([110])", "m([1-10])"])
     step = d.steps[0].projective
-    assert step["tied"] == (), "the largest subgroup of 4/mmm carrying one is unique"
-    assert len(step["pairs"]) == 24 and all(w["spin_half"] for w in step["pairs"])
+    assert step.tied == (), "the largest subgroup of 4/mmm carrying one is unique"
+    assert len(step.pairs) == 24 and all(w.spin_half for w in step.pairs)
     assert "anticommute" in d.note and "the largest subgroup" in d.note
     # the note says the eight hold and carry no single-valued representation,
     # and what the operations kept carry
@@ -1179,9 +1177,9 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     parent = _spacegroup._group_of(flat_o, include_TR=False, spinor=False)
     assert parent.number_str == "47" and tie.descent.cell_group.number_str == "47"
     axes = _subgroups._setting_axes(parent)
-    twofold = [next(axes[i][2] for i in s if axes[i][:2] == (1, 2)) for s in step["tied"]]
+    twofold = [next(axes[i][2] for i in s if axes[i][:2] == (1, 2)) for s in step.tied]
     assert twofold == [(0, 0, 1), (1, 0, 0), (0, 1, 0)], "c, then a, then b"
-    assert tuple(step["kept"]) == step["tied"][0]
+    assert tuple(step.kept) == step.tied[0]
     assert tie.descent.dropped_by["projective class"] == 4 and "the first of 3" in tie.descent.note
     assert ("since its principal axis, [001], comes before [100] in the conventional "
             "cell") in tie.descent.note, "the reason the first was kept, as every tie says"
@@ -1255,8 +1253,8 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
         f"{kind}({axis})" for kind in ("C2", "m")
         for axis in ("x", "y", "[010]", "[110]", "[1-10]", "[2-10]"))
     step = d.steps[0].projective
-    assert step["horizontal_mirror"] == {"sign": 1, "determined_by": "lowest-l"}
-    assert len(step["tied"]) == 3 and tuple(step["kept"]) == step["tied"][0], \
+    assert step.horizontal_mirror == tqg.ProjectiveMirror(sign=1, determined_by="lowest-l")
+    assert len(step.tied) == 3 and tuple(step.kept) == step.tied[0], \
         "6/m before the two -6m2: the highest-order rotation"
     assert "+1, the even one the lowest-angular-momentum rule assigns" in d.note
     assert all(label.endswith("'") for label in free.rep._characters.irreps), "even under m(z)"
@@ -1266,7 +1264,7 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     assert (sub.group.name, sub.group.number_str, sub.environment.kind) == \
         ("P6", "168", "substrate")
     step = sub.descent.steps[0].projective
-    assert step["read_on"] == {"number_str": "191", "name": "P6/mmm", "size": 24, "kept": 12}
+    assert step.read_on.group == tqg.NamedGroup("P6/mmm", "191", 24) and step.read_on.kept == 12
     assert sorted(b.name for b in sub.descent.dropped) == sorted(
         f"m({axis})" for axis in ("x", "y", "[010]", "[110]", "[1-10]", "[2-10]"))
     assert "The class is read on the free-standing layer, P6/mmm #191" in sub.descent.note
@@ -1620,6 +1618,14 @@ def test_the_padded_slab_operations_are_represented_too():
                                                            abs=1e-15)
 
 
+def _irreptables_named(group, si):
+    """``irreptables``' own named forms of the class ``si`` reads, in ``group``."""
+    data = _tables._ebr_data(group)
+    named, _touched, _note, _coeffs = tqe._named_forms(
+        group, data, np.asarray(data["matrix"], dtype=int), list(si._y), "II")
+    return named
+
+
 @pytest.mark.slow
 def test_the_indicator_class_of_fu_kane_mele_survives_the_re_encoding(realized):
     """The 3D literature anchor: FKM's strong phase, read off a spinless model.
@@ -1638,9 +1644,10 @@ def test_the_indicator_class_of_fu_kane_mele_survives_the_re_encoding(realized):
     native = realized(fkm_regime("strong"), decorations=FKM_BOND, characters={0: "s"})
     assert native and native.group.number_str == "166.98", str(native)
     tabN = tqw.hsp_table(native, bands=2)
-    want = tqe.symmetry_indicator(tabN, native.group, rep=native.rep, bands=2)
+    want = tqe.symmetry_indicator(tabN)
     assert want and want.values == (0, 1) and want.order == 4
-    assert want.structure == "Z2 x Z4" and want.irreptables_named["z4"] == 3
+    want_named = _irreptables_named(native.group, want)
+    assert want.indicator_group == "Z2 x Z4" and want_named["z4"] == 3
 
     fkm = tqc_models.fu_kane_mele_z2("strong")
     flat, basis = tqsp.spinless_presentation(fkm, order="blocked")
@@ -1652,11 +1659,11 @@ def test_the_indicator_class_of_fu_kane_mele_survives_the_re_encoding(realized):
     assert dict(tab.symmetry_data) == dict(tabN.symmetry_data)
     assert patterns(tab) == patterns(tabN)
 
-    got = tqe.symmetry_indicator(tab, got_rg.group, rep=got_rg.rep, bands=2)
+    got = tqe.symmetry_indicator(tab)
     assert got, str(got)
     assert got.values == want.values and got.order == want.order
-    assert got.irreptables_named == want.irreptables_named
-    assert got.verdict == want.verdict == "indicated nontrivial"
+    assert _irreptables_named(got_rg.group, got) == want_named
+    assert any(got.values) and any(want.values)
 
     Pi = basis._permutation_matrix
     worst = max(float(np.abs(Pi.T @ np.asarray(got_rg.rep.matrices[i]) @ Pi

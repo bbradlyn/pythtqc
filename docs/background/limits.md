@@ -176,7 +176,8 @@ identified.
 A symmetry indicator reads every row of the matrix of the group's elementary band
 representations, one row per corep at each high-symmetry point. Rows out of a layer's
 plane that repeat an in-plane row are filled from it and named, and the others are
-measured on a stack of the layer. What is left, a k-point whose labels refused
+measured on a stack of the layer, or, for a vector written out by hand, read off the
+layer's own band representations. What is left, a k-point whose labels refused
 or a layer whose stack did not pass its checks, is refused (`incomplete_content`,
 `indicator_not_evaluable`). Completing missing
 content by solving for it against the stable real-space invariants is future work, which

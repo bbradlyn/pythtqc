@@ -59,6 +59,9 @@ from ._descent import (
 
 __all__ = ["RealizedGroup", "RealizedGroupNumerical", "LayerEnvironment", "Descent",
            "DescentStep", "DescentCell", "StepDeclaration", "StepCenters", "StepTie",
+           "StepProjective", "ProjectivePair", "ProjectiveMirror", "ProjectiveReading",
+           "DescentLattice", "LatticeTranslation", "TranslationDressing",
+           "RefutedTranslation",
            "DroppedOperation", "NamedGroup", "TimeReversal", "TimeReversalSquare",
            "BeyondGrey", "BeyondGreyOperation", "Conserved", "ConservedSector",
            "CrossCheck", "CrossCheckRow", "CrossCheckOperation", "CrossCheckRefusal",
@@ -253,6 +256,213 @@ class StepTie:
 
 
 @dataclass(frozen=True)
+class ProjectivePair:
+    """Two commuting operations whose matrices on the states do not commute, the pair that names a projective class.
+
+    Attributes
+    ----------
+    pair : tuple of int
+        The two operations, by index.
+    names : tuple of str
+        Their names.
+    commutation_phase : complex
+        The phase ``c`` in ``D(a) D(b) = c D(b) D(a)``, which no rescaling of
+        either matrix removes.
+    spin_half : bool
+        Whether it is the sign the spin-1/2 lifts of the two operations carry.
+    """
+
+    pair: tuple
+    names: tuple
+    commutation_phase: complex
+    spin_half: bool
+
+
+@dataclass(frozen=True)
+class ProjectiveMirror:
+    """How a layer's states read under its horizontal mirror, where the projective class depends on it.
+
+    Attributes
+    ----------
+    sign : int
+        ``+1`` or ``-1``.
+    determined_by : str
+        ``"declaration"``, declared; ``"lowest-l"``, the even one the
+        lowest-angular-momentum rule assigns.
+    """
+
+    sign: int
+    determined_by: str
+
+
+@dataclass(frozen=True)
+class ProjectiveReading:
+    """The free-standing layer's group a substrate's projective class was read on.
+
+    Attributes
+    ----------
+    group : NamedGroup
+        The free-standing layer's group.
+    kept : int
+        How many of its operations were kept.
+    """
+
+    group: NamedGroup
+    kept: int
+
+
+@dataclass(frozen=True)
+class StepProjective:
+    """Where the states' projective class lowered the group at one descent step: the pairs that name it and what was kept.
+
+    Attributes
+    ----------
+    pairs : tuple of ProjectivePair
+        Each pair of commuting operations whose matrices do not commute.
+    kept : tuple of int
+        The operations kept, by index: the largest subgroup on which the
+        states carry a single-valued representation.
+    tied : tuple
+        Where several such subgroups tie, each one's operations in the tie
+        rule's order; empty where one is largest.
+    rule, reason : str or None
+        Where they tie, the tie rule and why it kept the first.
+    horizontal_mirror : ProjectiveMirror or None
+        How the states read under a layer's horizontal mirror, where the class
+        depends on it.
+    read_on : ProjectiveReading or None
+        For a layer on a substrate, the free-standing group the class was read
+        on.
+    """
+
+    pairs: tuple
+    kept: tuple
+    tied: tuple
+    rule: Any = None
+    reason: Any = None
+    horizontal_mirror: ProjectiveMirror | None = None
+    read_on: ProjectiveReading | None = None
+
+
+@dataclass(frozen=True)
+class LatticeTranslation:
+    """One pure translation of a cell that is not primitive, and what the Hamiltonian did with it.
+
+    Attributes
+    ----------
+    index : int
+        The operation, by index.
+    translation : tuple of float
+        The translation in reduced coordinates.
+    cartesian : tuple of float
+        The same in the model's Cartesian frame.
+    refuted_by : str or None
+        What refuted it, in the descent's words; ``None`` where the
+        Hamiltonian obeys it.
+    scaled : float
+        The defect of the tensor structure, scaled; ``nan`` where it was not
+        read.
+    residual : float or None
+        The covariance residual of the permutation of the sites itself, in the
+        units of H.
+    tol : float
+        What the residual is held to.
+    """
+
+    index: int
+    translation: tuple
+    cartesian: tuple
+    refuted_by: Any
+    scaled: float
+    residual: Any
+    tol: float
+
+
+@dataclass(frozen=True)
+class TranslationDressing:
+    """A pure translation the Hamiltonian obeys, and the matrix it is obeyed with.
+
+    Attributes
+    ----------
+    translation : tuple of float
+        The translation in reduced coordinates.
+    turn : float
+        How far the matrix turns the orbitals of a site from carrying them as
+        written onto its translate's.
+    matrix : ndarray
+        The matrix, carrying each site's orbitals onto its translate's.
+    """
+
+    translation: tuple
+    turn: float
+    matrix: Any
+
+
+@dataclass(frozen=True)
+class RefutedTranslation:
+    """A pure translation refuted by measuring it directly, and nothing before.
+
+    Attributes
+    ----------
+    refuted_by : str
+        ``"translation"``.
+    residual : float
+        Its covariance residual, in the units of H.
+    scaled, defect : float
+        The same, as the descent's other refutations write a defect.
+    scale : float
+        What it is held to.
+    orientation, dim : int
+        Zero: no tensor structure was read.
+    """
+
+    scaled: float
+    defect: float
+    scale: float
+    orientation: int
+    dim: int
+    refuted_by: str
+    residual: float
+
+
+@dataclass(frozen=True)
+class DescentLattice:
+    """What the Hamiltonian did with the pure translations of a cell that is not primitive.
+
+    Attributes
+    ----------
+    index : int
+        The index of the lattice of the cell's group in the lattice of its
+        translations.
+    fractional_translations : tuple
+        The cell's pure translations, in reduced coordinates.
+    operations : tuple of LatticeTranslation
+        Each pure translation, and what the Hamiltonian did with it.
+    realized : tuple
+        The translations the Hamiltonian obeys; empty unless the cell is a
+        supercell of the model's own.
+    dressing : tuple of TranslationDressing
+        For each translation obeyed, the matrix it is obeyed with.
+    refuted : dict
+        ``{index: RefutedTranslation}``: the translations refuted by measuring
+        them directly and by nothing before.
+    coset_partners_refuted : int
+        How many operations refuted are not themselves pure translations.
+    note : str
+        The same in words.
+    """
+
+    index: int
+    fractional_translations: tuple
+    operations: tuple
+    realized: tuple
+    dressing: tuple
+    refuted: dict
+    coset_partners_refuted: int
+    note: str
+
+
+@dataclass(frozen=True)
 class DescentStep:
     """One step of a descent: the group the cell allowed, the group it was lowered to, and what dropped each operation.
 
@@ -280,10 +490,10 @@ class DescentStep:
         What the orbital centers kept, under a declared precision.
     tie : StepTie or None
         Where the operations measured to hold do not close and subgroups tie.
-    projective : dict or None
+    projective : StepProjective or None
         Where the states' projective class lowered the group, the pairs that
         name it and what was kept.
-    lattice : dict or None
+    lattice : DescentLattice or None
         Where the cell is not primitive, the pure translations measured.
     """
 
@@ -299,8 +509,8 @@ class DescentStep:
     declaration: StepDeclaration | None = None
     centers: StepCenters | None = None
     tie: StepTie | None = None
-    projective: dict | None = None
-    lattice: dict | None = None
+    projective: StepProjective | None = None
+    lattice: DescentLattice | None = None
 
 
 @dataclass(frozen=True)
@@ -328,7 +538,7 @@ class Descent:
         The number of steps.
     steps : tuple of DescentStep
         The steps, in order.
-    lattice : dict or None
+    lattice : DescentLattice or None
         Where the cell was not primitive, the pure translations measured.
     note : str
         What was dropped and why, and the group arrived at, in words.
@@ -342,7 +552,7 @@ class Descent:
     cell: DescentCell
     iterations: int
     steps: tuple
-    lattice: dict | None
+    lattice: DescentLattice | None
     note: str
 
 
@@ -990,6 +1200,31 @@ def _causes(counts) -> dict:
     return {str(cause): int(n) for cause, n in dict(counts).items()}
 
 
+def _projective(rec) -> StepProjective | None:
+    """A step's projective class as a :class:`StepProjective`."""
+    if rec is None:
+        return None
+    mirror, read_on = rec.get("horizontal_mirror"), rec.get("read_on")
+    return _record(
+        StepProjective, rec,
+        pairs=tuple(_record(ProjectivePair, pair) for pair in rec["pairs"]),
+        horizontal_mirror=_record(ProjectiveMirror, mirror),
+        read_on=(None if read_on is None else _record(
+            ProjectiveReading, {"kept": read_on["kept"]}, group=_named(read_on))))
+
+
+def _lattice(rec) -> DescentLattice | None:
+    """A lattice supergroup's pure translations as a :class:`DescentLattice`."""
+    if rec is None:
+        return None
+    return _record(
+        DescentLattice, rec,
+        operations=tuple(_record(LatticeTranslation, entry) for entry in rec["operations"]),
+        dressing=tuple(_record(TranslationDressing, entry) for entry in rec["dressing"]),
+        refuted={int(index): _record(RefutedTranslation, entry)
+                 for index, entry in dict(rec["refuted"]).items()})
+
+
 def _step(rec) -> DescentStep:
     """One descent step's mapping as a :class:`DescentStep`."""
     decl = rec.get("declaration")
@@ -1002,8 +1237,8 @@ def _step(rec) -> DescentStep:
             StepDeclaration, decl, rows=_declaration_checks(decl.get("rows", ())))),
         centers=_record(StepCenters, rec.get("centers")),
         tie=_record(StepTie, rec.get("tie")),
-        projective=(None if rec.get("projective") is None else dict(rec["projective"])),
-        lattice=(None if rec.get("lattice") is None else dict(rec["lattice"])))
+        projective=_projective(rec.get("projective")),
+        lattice=_lattice(rec.get("lattice")))
 
 
 def _descent_record(descent) -> Descent | None:
@@ -1018,7 +1253,7 @@ def _descent_record(descent) -> Descent | None:
         tied=tuple(descent.get("tied", ())),
         cell=_record(DescentCell, descent["cell"]),
         steps=tuple(_step(s) for s in descent["steps"]),
-        lattice=(None if descent.get("lattice") is None else dict(descent["lattice"])))
+        lattice=_lattice(descent.get("lattice")))
 
 
 def _time_reversal_record(tr) -> TimeReversal:

@@ -280,50 +280,54 @@ chooses on the cell, the same in every run: a convention of the tables
 
 An elementary band representation (EBR) is the band set one site irrep
 induces from its Wyckoff position, where that set is no sum of others
-([primer](tqc-primer.md)). The records' fields hold each under one key, the
-label the group's list of EBRs gives it, and so does the method that writes a
-sum on one line, a decomposition's `solution_strings()`; a Wyckoff orbit's band
-representation holds the same parts as its terms:
+([primer](tqc-primer.md)). The records hold each as a `Term`, its parts as
+fields, and write a sum on one line as its `label`; a decomposition's candidate
+sums and a Wyckoff orbit's band representation are written alike:
 
 ```python
 d = tqc.decompose(tqc.hsp_table(r, bands=2))
-print(d.solution_strings())
-#  ("1 x -E1↑G(2)@1a(3m1',3m)",)
+print([s.label for s in d.candidate_sums])
+#  ["-E1 at 1a (3m1')"]
 print(gr.wyckoff_orbits[0].band_representation.terms)
 #  (Term(multiplicity=1, irrep="A1'", wyckoff='2c', site_symmetry="-6m21'", unitary_site_symmetry='-6m2'),)
 print([key for key in tqc.ebr_rows(gr.group) if key[0].startswith("A1'")])
 #  [("A1'", '2c'), ("A1''", '2c'), ("A1'", '2d'), ("A1''", '2d')]
 ```
 
-Read `1 x -E1↑G(2)@1a(3m1',3m)` left to right:
+Read graphene's term field by field:
 
-- `1 x`: how many times this EBR enters the sum.
-- `-E1`: the site irrep, here double-valued.
-- `↑G`: induced up to the space group `G`.
-- `(2)`: the number of bands it makes, the site irrep's dimension times the
-  number of sites of the orbit in a primitive cell: 2 × 1 here, and 1 × 2 for
-  graphene's `A1'` at `2c`.
-- `@1a`: the Wyckoff position, multiplicity and letter, in the tables'
+- `multiplicity`: how many times this EBR enters the sum.
+- `irrep`: the site irrep, here single-valued; Kane–Mele's `-E1` is
+  double-valued.
+- `wyckoff`: the Wyckoff position, multiplicity and letter, in the tables'
   setting. The multiplicity counts the sites in the conventional cell, which
   on a centred lattice holds more than one primitive cell: `3a` of `R-3m` is
-  one site per primitive cell, so `-E1g↑G(2)@3a(-3m1',-3m)` is two bands.
-- `(3m1',3m)`: the site-symmetry group twice, first with time reversal (`1'`
-  adjoined), then its unitary part. In a group without time reversal the two
-  entries are one group.
+  one site per primitive cell. The EBR makes as many bands as the site irrep's
+  dimension times the number of sites of the orbit in a primitive cell: 2 × 1
+  for Kane–Mele's `-E1` at `1a`, and 1 × 2 for graphene's `A1'` at `2c`.
+- `site_symmetry`, `unitary_site_symmetry`: the site-symmetry group twice,
+  first with time reversal (`1'` adjoined), then its unitary part. In a group
+  without time reversal the two are one group.
 
-A summary writes the same EBR as its site irrep at its Wyckoff position, the
-site symmetry in parentheses, `-E1 at 1a (3m)`, with a multiplicity above one
-in front, `2x-E1 at 1a (3m)`; the records of the
+A `label` writes the same EBR as its site irrep at its Wyckoff position, the
+site symmetry in parentheses, `-E1 at 1a (3m1')`, with a multiplicity above one
+in front, `2x-E1 at 1a (3m1')`; the records of the
 [stable real-space invariants](../guide/srsi.md) write it as the invariants'
 formulas do, `1 (-E1)_a`, one copy of `-E1` at the Wyckoff position of letter `a`.
 
 The EBR files the tables ship write every improper site group without its
 bar: `6m2` for the `-6m2` at `2c` of `P6/mmm`, `3m` for the `-3m` at `3a` of
 `R-3m`. pythTQC names each site group from the operations that fix the
-position and writes the bar back, so graphene's position reads `2c (-6m2)` in
-every summary and `2c(-6m21',-6m2)` in every key pythTQC returns: a
-decomposition's, an orbit's localization and the atomic-limit table's band
-representations'.
+position and writes the bar back, so graphene's position reads `2c (-6m21')` in
+every summary and on every term pythTQC returns: a decomposition's and the
+atomic-limit table's band representations'.
+
+The records of the stable real-space invariants write an EBR, in a localization's
+terms and in the tables' list, by the label the group's list of EBRs gives it,
+`-E1↑G(2)@1a(3m1',3m)`: the site irrep; `↑G`, induced up to the space group; the
+number of bands it makes in parentheses; then `@`, the Wyckoff position, and the
+site-symmetry group with and without time reversal, `2c(-6m21',-6m2)` for
+graphene's.
 
 ## Reading across to BCS
 
@@ -354,8 +358,8 @@ energy is `−50`:
 ```python
 deep = tqc.realized_group(kane_mele(50.0, -1.0, 0.3, 0.25), typat=[0, 1], characters={0: "A1"})
 low = tqc.hsp_table(deep, bands=2)
-print(low.symmetry_data, tqc.decompose(low).solution_strings())
-#  {'-GM6': 1, '-K4': 1, '-K5': 1, '-M3M4': 1} ("1 x -E1↑G(2)@1b(3m1',3m)",)
+print(low.symmetry_data, [s.label for s in tqc.decompose(low).candidate_sums])
+#  {'-GM6': 1, '-K4': 1, '-K5': 1, '-M3M4': 1} ["-E1 at 1b (3m1')"]
 convention = tqc.ebr_data(deep.group).convention
 print(convention.name, convention.changed_points, convention.conjugation["-K5"])
 #  physical (translations as e^{-ik.t}) ('H', 'K') -K6

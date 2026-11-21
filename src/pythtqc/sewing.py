@@ -1644,11 +1644,11 @@ class HSPTable:
     # "realized" for a group measured on H, "descended" for one measured after
     # the cell was lowered
     _group_provenance: str = field(default="cell", repr=False, compare=False)
-    # the representation the table was read with, which the calls that take
-    # the table read its group, site irreps and stack from
+    # for a layer, the representation the table was read with, holding the model
+    # and the matrices its decoupled stack is built from; None for a crystal
     _rep: Any = field(default=None, repr=False, compare=False)
-    # the site irreps the labels rest on, `{"number_str", "irreps",
-    # "determined_by", "residual"}`, or None without a representation
+    # the site irreps the labels rest on, an ebr.SiteContent, or None without a
+    # representation
     _site_content: Any = field(default=None, repr=False, compare=False)
     # for a layer, each orbital's height from its middle plane along the normal,
     # in the model's units; None for a crystal periodic in three directions
@@ -1691,16 +1691,17 @@ class HSPTable:
 # ==========================================================================
 
 def _site_content_record(rep):
-    """The site irreps a record's labels rest on, or ``None`` without a ``rep``."""
+    """The site irreps a record's labels rest on, an :class:`..ebr.SiteContent`, or ``None`` without a ``rep``."""
     if rep is None:
         return None
     ch = getattr(rep, "_characters", None)
     if ch is None:
         return None
-    return {"number_str": str(rep._group.number_str),
-            "irreps": tuple(str(x) for x in ch.irreps),
-            "determined_by": tuple(str(o.determined_by) for o in ch.orbitals),
-            "residual": float(ch.residual)}
+    from .ebr import SiteContent
+    return SiteContent(number_str=str(rep._group.number_str),
+                       irreps=tuple(str(x) for x in ch.irreps),
+                       determined_by=tuple(str(o.determined_by) for o in ch.orbitals),
+                       residual=float(ch.residual))
 
 def _layer_height(group):
     """``(normal_dir, height)`` for a layer read in a slab cell, or ``None`` for a crystal periodic in three directions.
@@ -1908,7 +1909,8 @@ def _hsp_table_rep(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TO
                     symmetry_data=_tables.ordered_content(counts), multiplets=rows,
                     complete=not refusals, refusals=refusals,
                     note="; ".join(n for n in notes if n), _records=records,
-                    _group_provenance=str(rep._group._provenance), _rep=rep,
+                    _group_provenance=str(rep._group._provenance),
+                    _rep=rep if int(rep._group._dim_k) < 3 else None,
                     _site_content=_site_content_record(rep), _heights=_table_heights(rep))
 
 def hsp_table(realized, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,

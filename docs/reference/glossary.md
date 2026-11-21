@@ -62,11 +62,11 @@ What each thing is called where a call returns it.
 
 | what it is | its name | where |
 |---|---|---|
-| whether a band set could be an atomic limit | `verdict`: `"symmetry-indicated decomposable"` or `"none"` | `decompose` |
-| the Wyckoff positions of each solution | `positions` | `decompose` |
-| what a `"none"` rests on | `certificate`: `"proof"` or `"none within the bound"` | `decompose` |
-| the indicator group `X_BS` | `structure` (`"Z6 x Z12"`) and its `divisors` | `symmetry_indicator` |
-| a band set's indicator class | `values`, each modulo its divisor; `order`; `canonical`, in the names of the stable-RSI paper ([citing](../citing.md#stable-real-space-invariants)); `irreptables_named`, in irreptables' | `symmetry_indicator` |
+| whether a band set could be an atomic limit | `decomposable`: `True` or `False` | `decompose` |
+| the sums of elementary band representations with the band set's symmetry data | `candidate_sums`, each a `BandRepresentation`, its terms at their Wyckoff positions | `decompose` |
+| what a vector that is not decomposable rests on | `certificate`: `"proof"` or `"none within the bound"` | `decompose` |
+| the indicator group `X_BS` | `indicator_group` (`"Z6 x Z12"`) and its `divisors` | `symmetry_indicator` |
+| a band set's indicator class | `values`, each modulo its divisor; `order`; `indicators`, in the names of the stable-RSI paper ([citing](../citing.md#stable-real-space-invariants)) | `symmetry_indicator` |
 | the stable real-space invariants | `theta_Z`, the `ℤ`-valued ones; `theta_Zn`, the `ℤ_n`-valued ones by modulus | `srsi_of_bands`, `srsi_of_model`, `srsi_of` |
 | the site-symmetry vector | `p`, over site keys `(site irrep, Wyckoff letter)` | `srsi_of`; `SRSITables.theta` |
 | an atomic insulator with a band set's symmetry data | a realization | `atomic_realizations`; `realizations_v` and `realizations_c` on a splitting |
@@ -108,11 +108,10 @@ position, induced from the site irrep they carry. It is elementary when it is no
 sum of other band representations. A site irrep at a maximal Wyckoff position
 usually induces an elementary one; the exceptions induce a composite band
 representation and are named as exceptions. A summary writes an elementary one
-as its site irrep at its Wyckoff position, `-E1 at 1a (6mm)`, and the records of
-the stable real-space invariants as `1 (-E1)_a`; the records' fields, and the
-methods that write a sum on one line, hold it under
-[the band-representation key](../background/conventions.md#the-band-representation-key),
-`-E1↑G(2)@1a(6mm1',6mm)`.
+as its site irrep at its Wyckoff position, `-E1 at 1a (6mm1')`, and the records of
+the stable real-space invariants as `1 (-E1)_a`; a decomposition and the
+atomic-limit table hold it as a term, its parts as fields
+([the band-representation key](../background/conventions.md#the-band-representation-key)).
 [The primer](../background/tqc-primer.md#band-representations-and-atomic-limits).
 
 **BCS.** The Bilbao Crystallographic Server, whose tables `irreptables` ships;
@@ -322,7 +321,7 @@ paper's. [Stable real-space invariants](../guide/srsi.md).
 no atomic insulator has its symmetry data, since a nonzero indicator class and
 a fractional `ℤ`-valued invariant are the same statement.
 
-**Symmetry-indicated decomposable.** `decompose`'s success: the measured
+**Symmetry-indicated decomposable.** `decompose`'s `decomposable`: the measured
 content at the high-symmetry points is a nonnegative-integer sum of elementary
 band representations. Necessary for an atomic limit, never sufficient.
 
@@ -411,25 +410,22 @@ that no verdict depends on.
 |---|---|---|---|
 | `max_bytes` | the memory the symmetrizing projection may take at its peak, and the ceiling the measurement's own budget is raised to on exactly degenerate levels (`realized_group`) | bytes | `1e9` |
 | `max_candidates` | the largest search for a representation's discrete choices that is run rather than refused (`realized_group`) | candidates | `2**20` |
-| `cap` | how many solutions an enumeration lists before it says it was cut (`decompose`); how many realizations it may hold, past which it refuses (`atomic_realizations`) | solutions | `200`; `256` |
+| `cap` | how many candidate sums an enumeration lists before it says it was cut (`decompose`); how many realizations it may hold, past which it refuses (`atomic_realizations`) | sums; realizations | `200`; `256` |
 | `nk` | divisions of the measurement's mesh per periodic direction (`realized_group`) | divisions | `6` |
 | `c` | the vacuum between the stack's copies, its period the layer's extent along its normal plus this (`stack_presentation`) | the model's length units | `8.0` |
-| `stack_period` | the vacuum between the copies of the decoupled stack a layer's indicator is completed on, its period the layer's extent along its normal plus this (`symmetry_indicator`) | the model's length units | `8.0` |
 
-No verdict depends on `c` or `stack_period`: no hopping crosses the
+Nothing returned depends on `c`: no hopping crosses the
 vacuum between a stack's copies. The defaults, as the signatures hold them:
 
 ```python
 for call, names in [(tqc.realized_group, "max_bytes max_candidates nk"),
                     (tqc.decompose, "cap"),
                     (tqc.atomic_realizations, "cap"),
-                    (tqc.stack_presentation, "c"),
-                    (tqc.symmetry_indicator, "stack_period")]:
+                    (tqc.stack_presentation, "c")]:
     parameters = inspect.signature(call).parameters
     print(f"{call.__name__:<22}", ", ".join(f"{n}={parameters[n].default}" for n in names.split()))
 #  realized_group         max_bytes=1000000000.0, max_candidates=1048576, nk=6
 #  decompose              cap=200
 #  atomic_realizations    cap=256
 #  stack_presentation     c=8.0
-#  symmetry_indicator     stack_period=8.0
 ```

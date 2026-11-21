@@ -752,7 +752,7 @@ def test_srsi_tables_refuses_a_unitary_group(lin3g):
         broken = tqg.realized_group(haldane(0.0, -1.0, 0.15), cross_check=False)
     assert broken and broken.group.magnetic_type == "I", str(broken)
     for route, refused in (
-            ("srsi_of_bands", tqr.srsi_of_bands({}, group)),
+            ("srsi_of_bands", tqr._srsi_of_bands({}, group)),
             ("srsi_of_model", tqr.srsi_of_model(broken)),
             ("splitting", tqr.splitting(broken, bands=1)),
             ("stably_equivalent_pairs", tqr.stably_equivalent_pairs(group))):
@@ -932,7 +932,7 @@ def test_srsi_tables_takes_a_number_or_a_group_and_serves_the_same_table(
     for call in (lambda: tqr.srsi_of(211, {}), lambda: tqr.srsi_of_columns(211, []),
                  lambda: tqr.stably_equivalent_pairs(211),
                  lambda: tqr.canonical_determinism(211),
-                 lambda: tqr.name_correspondence(211)):
+                 lambda: _srsitables.name_correspondence(211)):
         with pytest.raises(TypeError, match=r"srsi_tables\(211, spinor=True\)"):
             call()
 
@@ -952,9 +952,7 @@ FROZEN_TOP_LEVEL = frozenset({
 NOT_TOP_LEVEL = ("SRSIRow", "SRSIIndicator", "SiteKey", "SplitEBR", "OrbitSRSIs",
                  "MaximalKey", "AtomicRealization",
                  "SPLITTING_VERDICTS", "GATES", "srsi_status",
-                 "to_irreptables_name", "from_irreptables_name", "NamePair",
-                 "NAME_RELATIONS", "indicator_vocabularies", "canonical_determinism",
-                 "name_correspondence")
+                 "canonical_determinism")
 
 
 def test_the_frozen_api_and_the_names_kept_off_the_top_level():
@@ -1032,7 +1030,7 @@ def test_the_srsi_module_all_is_complete():
                if not name.startswith("_")
                and getattr(value, "__module__", None) == tqr.__name__}
     assert defined <= set(tqr.__all__), sorted(defined - set(tqr.__all__))
-    for name in ("GATES", "SPLITTING_VERDICTS", "NAME_RELATIONS"):
+    for name in ("GATES", "SPLITTING_VERDICTS"):
         assert name in tqr.__all__, name
     assert len(set(tqr.__all__)) == len(tqr.__all__)
 

@@ -430,21 +430,22 @@ class OperationTable(dict):
 
     Attributes
     ----------
-    name, number_str : str
-        The group's Hermann-Mauguin symbol, and the label the tables file it
-        under.
+    group : GroupData
+        The group these are the operations of, ``r.group``.
     """
 
-    def __init__(self, rows=(), *, name="", number_str=""):
+    def __init__(self, rows=(), *, group=None):
         super().__init__((row.index, row) for row in rows)
-        #: The Hermann-Mauguin symbol of the group these operations belong to.
-        self.name = str(name)
-        #: The label the tables file that group under, ``"191.234"``.
-        self.number_str = str(number_str)
+        #: The group these are the operations of.
+        self.group = group
+
+    def _named(self) -> str:
+        """The group as the table prints it, ``P4mm1' #99.164``."""
+        group = self.group
+        return "" if group is None else f"{group.name} #{group.number_str}"
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
-        return (f"OperationTable({self.name} #{self.number_str}, operations "
-                f"{_index_ranges(self)})")
+        return f"OperationTable({self._named()}, operations {_index_ranges(self)})"
 
     def summary(self) -> str:
         """The table itself: each operation's index, its Seitz symbol and its name."""
@@ -453,7 +454,7 @@ class OperationTable(dict):
     def __str__(self) -> str:
         rows = list(self.values())
         width = max([len(row.seitz) for row in rows] + [5])
-        head = (f"{self.name} #{self.number_str}: one operation per coset of the lattice "
+        head = (f"{self._named()}: one operation per coset of the lattice "
                 "translations"
                 + ("; the double group also holds each one's negative"
                    if any(row.spin_lift is not None for row in rows) else ""))
@@ -506,7 +507,7 @@ def _operation_rows(group, indices=None) -> OperationTable | Refusal:
             spin_lift=(np.asarray(sym.spinor_rotation, dtype=complex).copy()
                        if group.spinor else None)))
     rows.sort(key=lambda row: row.index)
-    return OperationTable(rows, name=group.name, number_str=group.number_str)
+    return OperationTable(rows, group=group)
 
 
 def operations(group) -> OperationTable | Refusal:
@@ -603,7 +604,7 @@ def operation_index(group, seitz) -> int | Refusal:
     near = difflib.get_close_matches(str(seitz), carried, n=3, cutoff=0.4) or carried[:3]
     return Refusal(
         "unknown_operation",
-        f"no operation of {rows.name} #{rows.number_str} is written {str(seitz)!r}. "
+        f"no operation of {rows._named()} is written {str(seitz)!r}. "
         f"The nearest spellings it carries are {', '.join(near)}. A symbol is the "
         "conventional-setting `{R|t}`: the rotation part `1`, `-1`, `m`, `2`, `3`, "
         "`4`, `6`, `-3`, `-4` or `-6`, a `+` or `-` for the sense of a rotation of "
@@ -611,5 +612,5 @@ def operation_index(group, seitz) -> int | Refusal:
         "translation as three fractions -- `{-4+_001|0,0,1/2}` -- with a trailing "
         "`'` where the operation is antiunitary. `operations(group)` prints every "
         "symbol this group carries against its index.",
-        context={"number_str": str(rows.number_str), "seitz": str(seitz),
+        context={"number_str": str(rows.group.number_str), "seitz": str(seitz),
                  "nearest": tuple(near), "carried": tuple(carried)})

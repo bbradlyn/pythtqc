@@ -110,6 +110,11 @@ def patterns(table):
     return out
 
 
+def _sum_labels(d):
+    """The set of the candidate sums' labels a decomposition returns."""
+    return {s.label for s in d.candidate_sums}
+
+
 #: Relative size of the jitter every fixture below is perturbed by — the
 #: measured defect scale of a symmetrized wannier90 import.
 JITTER = 1e-7
@@ -357,10 +362,10 @@ def test_the_jittered_lin3g_comes_back_as_the_clean_one(lin3g_clean, lin3g_jitte
                                                   "-X5": 3}
     assert patterns(a) == patterns(b)
     assert coreps_by_point(a) == coreps_by_point(b)
-    da = tqe.decompose(a, lin3g_clean.group, rep=lin3g_clean.rep, bands=6)
-    db = tqe.decompose(b, out.group, rep=out.rep, bands=6)
-    assert da.verdict == db.verdict == "symmetry-indicated decomposable"
-    assert set(da.solution_strings()) == set(db.solution_strings())
+    da = tqe.decompose(a)
+    db = tqe.decompose(b)
+    assert da.decomposable and db.decomposable
+    assert _sum_labels(da) == _sum_labels(db)
 
 
 @pytest.mark.slow
@@ -1228,10 +1233,10 @@ def test_a_declared_position_tol_snaps_the_centres_before_anything_else(
     assert a.symmetry_data == b.symmetry_data == {"-GM6": 1, "-K5": 1, "-K6": 1, "-M3M4": 1}
     assert patterns(a) == patterns(b)
     assert coreps_by_point(a) == coreps_by_point(b)
-    da = tqe.decompose(a, clean.group, rep=clean.rep, bands=2)
-    db = tqe.decompose(b, out.group, rep=out.rep, bands=2)
-    assert da.verdict == db.verdict == "symmetry-indicated decomposable"
-    assert set(da.solution_strings()) == set(db.solution_strings())
+    da = tqe.decompose(a)
+    db = tqe.decompose(b)
+    assert da.decomposable and db.decomposable
+    assert _sum_labels(da) == _sum_labels(db)
 
     # the gauge: the spectrum is the DISPLACED model's, not merely the clean one's
     k = np.random.default_rng(11).uniform(-0.5, 0.5, size=(16, 2))
@@ -1330,10 +1335,10 @@ def test_the_position_pass_runs_before_the_hopping_projection(km_odd,
     a = tqw.hsp_table(clean, bands=(0, 1))
     b = tqw.hsp_table(out, bands=(0, 1))
     assert a.complete and b.complete and a.symmetry_data == b.symmetry_data
-    da = tqe.decompose(a, clean.group, rep=clean.rep, bands=2)
-    db = tqe.decompose(b, out.group, rep=out.rep, bands=2)
-    assert da.verdict == db.verdict == "symmetry-indicated decomposable"
-    assert set(da.solution_strings()) == set(db.solution_strings())
+    da = tqe.decompose(a)
+    db = tqe.decompose(b)
+    assert da.decomposable and db.decomposable
+    assert _sum_labels(da) == _sum_labels(db)
 
     # the same call with the centres undeclared: their defect is inside the
     # declared tol, so the descent is the clean model's, and the projection
@@ -1597,8 +1602,7 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
     assert out.rep._characters.irreps == clean.rep._characters.irreps
     table = tqw.hsp_table(out, bands=2)         # this is what used to RAISE
     assert table.complete and set(table.symmetry_data.values()) == {1}
-    assert tqe.decompose(table, out.group, rep=out.rep,
-                         bands=2).verdict == "symmetry-indicated decomposable"
+    assert tqe.decompose(table).decomposable
 
     # The control that says the answer IS the clean crystal: the same rigid
     # displacement applied to EVERY centre is the clean model in a moved origin,
@@ -1619,9 +1623,8 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
     ref = tqw.hsp_table(ctrl, bands=2)
     assert table.symmetry_data == ref.symmetry_data and patterns(table) == patterns(ref)
     assert coreps_by_point(table) == coreps_by_point(ref)
-    assert (set(tqe.decompose(table, out.group, rep=out.rep, bands=2).solution_strings())
-            == set(tqe.decompose(ref, ctrl.group, rep=ctrl.rep,
-                                 bands=2).solution_strings()))
+    assert (_sum_labels(tqe.decompose(table))
+            == _sum_labels(tqe.decompose(ref)))
 
     # The identifications after the pass: a descent's (Pmmm1'), and with time
     # reversal broken by the phase, the unitary group's after it (Pmm2)
@@ -1652,9 +1655,8 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
         assert table.complete and table.symmetry_data == ref.symmetry_data
         assert max(float(np.abs(noisy.rep.matrices[i] - exact.rep.matrices[i]).max())
                    for i in exact.rep._indices) == 0.0
-        assert (set(tqe.decompose(table, noisy.group, rep=noisy.rep, bands=1).solution_strings())
-                == set(tqe.decompose(ref, exact.group, rep=exact.rep,
-                                     bands=1).solution_strings()))
+        assert (_sum_labels(tqe.decompose(table))
+                == _sum_labels(tqe.decompose(ref)))
 
 
 @pytest.mark.parametrize("name", ["km_odd", "km_inversion"])
@@ -1874,7 +1876,7 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
     assert out.numerical.symmetrization.defect == pytest.approx(9.49e-7, rel=1e-2, abs=0)
     bands = (0, 1, 2, 3, 4, 5)
     b = tqw.hsp_table(out, bands=bands)
-    db = tqe.decompose(b, out.group, rep=out.rep, bands=6)
+    db = tqe.decompose(b)
     for ref in (expl, lin3g_clean):
         assert out.group.number_str == ref.group.number_str == "99.164"
         assert out.rep._choice == ref.rep._choice
@@ -1887,9 +1889,9 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
                                                       "-M7": 2, "-X5": 3}
         assert patterns(a) == patterns(b)
         assert coreps_by_point(a) == coreps_by_point(b)
-        da = tqe.decompose(a, ref.group, rep=ref.rep, bands=6)
-        assert da.verdict == db.verdict == "symmetry-indicated decomposable"
-        assert set(da.solution_strings()) == set(db.solution_strings())
+        da = tqe.decompose(a)
+        assert da.decomposable and db.decomposable
+        assert _sum_labels(da) == _sum_labels(db)
 
     # 3. the multiplets' block tests read the same declaration, as tol / max|H|:
     #    a spin-orbit p shell at the 3m site of R3m, its orbital frame turned by

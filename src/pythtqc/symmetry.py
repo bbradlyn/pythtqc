@@ -43,7 +43,8 @@ from ._matrices import (
     normalize_rep)
 
 __all__ = ["RepAnchor",
-           "NormalizedRep", "AtomicLimitTable", "AtomicLimitTableNumerical", "WyckoffOrbit",
+           "NormalizedRep", "AtomicLimitTable", "AtomicLimitTableNumerical",
+           "AccidentalDegeneracy", "WyckoffOrbit",
            "WyckoffOrbitNumerical", "BandRepresentation", "DeclarationCheck",
            "SiteMultiplets", "SpaceGroupRep", "SpaceGroupRepNumerical",
            "normalize_rep",
@@ -905,6 +906,35 @@ class WyckoffOrbit:
 
 
 @dataclass(frozen=True)
+class AccidentalDegeneracy:
+    """Two partitions of a site's orbitals into multiplets that are equally fine, an accidental degeneracy, and the one returned.
+
+    Attributes
+    ----------
+    operation : int
+        The operation, by index, at which the two partitions tie.
+    orbitals : tuple of int
+        The orbitals the two partitions concern.
+    chosen : tuple of int
+        The orbitals the multiplet returned binds, the lowest-indexed partners.
+    note : str
+        The same in a sentence.
+    """
+
+    operation: int
+    orbitals: tuple
+    chosen: tuple
+    note: str
+
+
+def _accidental(layout) -> tuple:
+    """The accidental degeneracies of a representation's multiplets, as :class:`AccidentalDegeneracy` rows."""
+    from ._realized import _record
+    return tuple(_record(AccidentalDegeneracy, entry)
+                 for entry in (getattr(layout, "accidental", ()) or ()))
+
+
+@dataclass(frozen=True)
 class AtomicLimitTableNumerical:
     """How the atomic-limit table was read: each declaration against the hoppings, and the multiplets.
 
@@ -923,7 +953,7 @@ class AtomicLimitTableNumerical:
     site_multiplets_determined_by : str
         How the multiplets each site's orbitals form were found:
         ``"hamiltonian"``, measured; ``"declaration"``, stated.
-    accidental : tuple
+    accidental : tuple of AccidentalDegeneracy
         The multiplets the Hamiltonian binds by an accident of its numbers
         rather than by the site group.
     """
@@ -1134,7 +1164,7 @@ def _wyckoff_orbit_table(rep) -> AtomicLimitTable:
         return AtomicLimitTable(_rows=(), numerical=AtomicLimitTableNumerical(
             checks=(), residual=0.0,
             site_multiplets_determined_by=str(getattr(layout, "determined_by", "")),
-            accidental=tuple(getattr(layout, "accidental", ()) or ())))
+            accidental=_accidental(layout)))
     grey = getattr(group, "magnetic_type", "I") == "II"
     orbits = _wyckoff_orbits_of(rep)
     sums = tuple(table.band_representations) or (None,) * len(orbits)
@@ -1274,7 +1304,7 @@ def _wyckoff_orbit_table(rep) -> AtomicLimitTable:
         numerical=AtomicLimitTableNumerical(
             checks=_declaration_checks(table.checks), residual=float(table.residual),
             site_multiplets_determined_by=str(getattr(layout, "determined_by", "")),
-            accidental=tuple(getattr(layout, "accidental", ()) or ())),
+            accidental=_accidental(layout)),
         _orbital_table=table)
 
 

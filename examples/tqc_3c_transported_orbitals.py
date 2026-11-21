@@ -38,8 +38,8 @@ from pythtqc import format_coreps as fmt
 from pythtqc.models import cubic_3c_perp_doublet
 from pythtqc.utils import save_figure
 
-# Elementary band representations print as ρ↑G, the site irrep ρ induced to the
-# group; a Windows console cannot print ↑ by default, so the output is UTF-8.
+# The last line prints a dash, —, which a Windows console cannot print by
+# default, so the output is UTF-8.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -80,9 +80,9 @@ def coords(site):
 def atomic_limits(d):
     """The atomic limits of a band set, as a label and a value: the one sum of elementary
     band representations with this content, how many sums there are, or none."""
-    if d.verdict == "none":
+    if not d.decomposable:
         return "atomic limits", "none"
-    sums = d.solution_strings()
+    sums = [s.label for s in d.candidate_sums]
     if len(sums) == 1:
         return "atomic limit", sums[0]
     return "atomic limits", f"{len(sums)} sums of elementary band representations"
@@ -280,7 +280,7 @@ ax.set_ylabel("$E$", fontsize=15)
 ax.legend(loc="upper center", fontsize=9)
 ax.set_title(f"#{group.number_str} {group.name}: {orbit.label} at "
              f"{orbit.wyckoff} of {orbit.unitary_site_symmetry}, the six "
-             f"bands\n{d6.solution_strings()[0]}", fontsize=10)
+             f"bands\n{d6.candidate_sums[0].label}", fontsize=10)
 fig.tight_layout(pad=0.6)
 # save_figure writes the PDF without its creation date, so a rerun gives the same file
 save_figure(fig, os.path.join(OUTDIR, "3c_transported_orbitals.pdf"))

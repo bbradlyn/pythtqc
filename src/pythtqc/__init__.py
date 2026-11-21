@@ -42,9 +42,8 @@ figures for the examples.
 
 from . import (ebr, groups, models, refusal, sewing, spin, srsi, symmetrization,
                symmetry, utils)
-from .ebr import (CompletenessReport, EBRDecomposition, RegularCompletion, Restriction,
-                  SymmetryIndicator, WannierCaveat, completeness_check, decompose,
-                  ebr_rows, in_plane_restriction, regular_completion, subtract,
+from .ebr import (EBRDecomposition, RegularCompletion, Restriction, SymmetryIndicator,
+                  decompose, ebr_rows, in_plane_restriction, regular_completion, subtract,
                   symmetry_indicator)
 from .groups import (CorepIdentification, GroupData, HighSymmetryPoints, KGrid, LittleGroup,
                      Operation, OperationTable, RealizedGroup,
@@ -93,9 +92,9 @@ __all__ = [
     "solve_at", "format_coreps",
     "SewingMatrix", "BandCharacters", "CorepsAt", "HSPTable",
     "sewing_matrix", "characters", "coreps_at", "hsp_table",
-    "EBRDecomposition", "CompletenessReport", "RegularCompletion", "Restriction",
-    "SymmetryIndicator", "WannierCaveat", "decompose", "subtract",
-    "completeness_check", "regular_completion",
+    "EBRDecomposition", "RegularCompletion", "Restriction",
+    "SymmetryIndicator", "decompose", "subtract",
+    "regular_completion",
     "in_plane_restriction", "ebr_rows",
     "symmetry_indicator",
 ]
