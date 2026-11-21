@@ -133,8 +133,9 @@ Once the group is found, a refusal names it and carries it in
 
 - **`wyckoff_orbit`**: an orbital sits on no Wyckoff position of the cell.
 
-- **`positions_not_exactly_symmetric`**: centres off symmetric positions by enough to break operations, with no
-  `precision` declared.
+- **`positions_not_exactly_symmetric`**: centers off symmetric positions, with no `precision` declared, by
+  enough to break operations or to keep H from being made exactly
+  symmetric.
 
 - **`supercell`**: H obeys a translation shorter than the cell's: the model is written on
   a supercell.

@@ -31,7 +31,7 @@ from ._subgroups import (
 from ._matrices import _resolve_spin, _spin_pair_split
 from ._grammar import _declaration_grammar, _names_joint_keys
 from ._centres import (
-    _cell_sites, _frame_defect, _geometry, _moved_extras, _moves_of,
+    _cell_sites, _centres_account_for, _frame_defect, _geometry, _moved_extras, _moves_of,
     _rational_offset, _site_action, _symmetric_sites)
 from .symmetry import _declaration_checks, _wyckoff_orbit_table
 from ._sectors import read_sectors, sector_action
@@ -1711,8 +1711,9 @@ def realized_group(model, *, typat=None, environment=None, cross_check=True,
     ``wyckoff_orbit``
         an orbital sits on no Wyckoff position of the cell.
     ``positions_not_exactly_symmetric``
-        centres off symmetric positions by enough to break operations, with no
-        ``precision`` declared.
+        centers off symmetric positions, with no ``precision`` declared, by
+        enough to break operations or to keep H from being made exactly
+        symmetric.
     ``supercell``
         H obeys a translation shorter than the cell's: the model is written on
         a supercell.
@@ -2569,6 +2570,19 @@ def _representation_built(res, sld, *, selection_only, build_kw):
     rep = _build_rep(m3, group, assignment, validated=validated, spin=spin,
                      _choices=sel.choices, **build_now)
     if isinstance(rep, Refusal):
+        if rep.gate == "rep_not_covariant":
+            # centers that miss the group's positions by enough to account for
+            # the miss of covariance are what to act on, whatever its size
+            syms = {int(s.ind): s for s in group._symmetries}
+            built = rep.context.get("indices", validated._indices)
+            own = _centres_account_for(m3, group, assignment,
+                                       {int(i): syms[int(i)] for i in built},
+                                       failure=rep.value, gate=rep.threshold,
+                                       check="the covariance of the representation of "
+                                             "the group",
+                                       declared=tolerances.centre is not None)
+            if own is not None:
+                return own
         if (rep.gate == "rep_not_covariant"
                 and not (rep.value is not None
                          and float(rep.value) <= float(tolerances.energy))):
@@ -4029,6 +4043,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                                    _parts=(None if apart is None else
                                            {"orbitals": apart, "coupling": coupling}),
                                    _held=({"sets": held_apart, "off": off} if alike else None),
+                                   _centres_declared=tolerances.centre is not None,
                                    **sym_kw)
                 if isinstance(got, Refusal):
                     if got.gate == "rep_not_covariant":
@@ -4647,6 +4662,7 @@ def _quote_position_defect(refusal, positions, symmetrization) -> Refusal:
     if not isinstance(refusal, Refusal):
         return refusal
     if (positions is None and symmetrization is not None
+            and refusal.gate != "positions_not_exactly_symmetric"
             and float(symmetrization._operators.get("position_defect", 0.0))
             > EXACT_GATE):
         # `EXACT_GATE` is the exact pipeline's own rounding scale rather than a

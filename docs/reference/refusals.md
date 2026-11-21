@@ -66,22 +66,26 @@ Returned by `realized_group`.
 
 Returned by `realized_group`.
 
-- **What it means.** The orbital centres miss the cell's own operations by a defect `δ`,
+- **What it means.** The orbital centers miss the cell's own operations by a defect `δ`,
   in reduced coordinates, that alone costs `H(k)` a covariance residual of order
   `2π·δ·max|H|` above the tolerance, so which operations the Hamiltonian obeys would be
   read off the geometry as much as off the hoppings. Nothing is built. It is the other
   case in which the group question is refused, and the reason names the cell's group as
-  an upper bound. Centres missed by less, where an operation reads near-symmetric, are
-  refused the same way by the projection of the hoppings: the projection's operators carry each centre onto its image
-  to `1e-9`, and no projection of the hoppings reaches a defect in the centres.
+  an upper bound. Centers missed by less are refused the same way once the group is
+  identified, and the reason names that group, wherever `H(k)` is to be made or held
+  exactly symmetric and the miss accounts for what that check measured. The miss alone
+  then moves `H(k)` by more than the check allows, by up to `context["reach"]`, and the
+  more at an image point the larger its reduced coordinates. The checks are the
+  covariance of the group's representation and the projection of the hoppings onto their
+  symmetric part, whose operators carry each center onto its image to `1e-9`.
 - **Usual cause.** A numerical model, such as a wannier90 import, asked with no precision
-  declared.
+  declared; or centers converted onto a strongly skewed lattice basis in floating point.
 - **What to do.** Declare the model's precision, `precision=`, or `position_tol=` for the
-  centres alone: centres within it are moved onto the positions the group puts them at, a
+  centers alone: centers within it are moved onto the positions the group puts them at, a
   gauge transformation that leaves the spectrum untouched. `value` and
   `context["position_defect"]` are `δ`
   ([the centres first](../guide/numerical.md#the-centres-first-because-moving-them-is-a-gauge)).
-  Centres noisier than the symmetry finder's `symprec` are not refused this way: the
+  Centers noisier than the symmetry finder's `symprec` are not refused this way: the
   finder reads them as a less symmetric set, and the group returned can be as low as `P1`
   ([centres noisier than symprec](../guide/numerical.md#centres-noisier-than-symprec)).
 

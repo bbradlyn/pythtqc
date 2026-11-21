@@ -6,10 +6,13 @@ centres miss, and the least move onto a set the operations carry exactly.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from fractions import Fraction
 import math
 
 import numpy as np
 
+from . import _bloch
+from .refusal import Refusal
 from ._tolerance import ROUNDING, _EXACT_CLOSURE
 from ._spacegroup import (
     _OWN_ORBITALS, _PAD_LENGTH, _TRANSLATION_DENOMINATOR, _pad_cell,
@@ -49,6 +52,122 @@ def _position_defect(model, group, assignment, ops):
             resid = A @ pos[a] + t - shift[p, s] - pos[b]
             worst = max(worst, float(np.abs(resid - np.rint(resid)).max()))
     return worst
+
+
+def _centre_misses(model, group, assignment, ops):
+    r"""Each orbital's miss of each operation, modulo the lattice.
+
+    The miss is ``A·τ_a + t − s − τ_{g(a)}``, the identity
+    :func:`_position_defect` measures, kept per operation and orbital and
+    evaluated in rational arithmetic on the stored numbers, so that centers at
+    their symmetric positions give the rounding of their own storage and not
+    that of the product, which grows with the entries of ``A`` on a strongly
+    skewed lattice basis.  Returns a mapping from each operation's
+    index in ``ops`` to an array of shape ``(norb, 3)``, reduced coordinates of
+    the group's three-dimensional cell.
+    """
+    pos = _orb_positions_3d(model, group)
+    exact_pos = [[Fraction(float(x)) for x in row] for row in pos]
+    site_of = np.asarray(assignment.site_of_orbital, dtype=int)
+    perm = np.asarray(assignment.permutations, dtype=int)
+    shift = np.asarray(assignment.lattice_shift, dtype=float)
+    first = {}
+    for a in range(int(model.norb)):
+        first.setdefault(int(site_of[a]), a)
+    pos_of_ind = {int(s.ind): i for i, s in enumerate(group._symmetries)}
+    out = {}
+    for ind, sym in ops.items():
+        p = pos_of_ind[int(ind)]
+        A = [[Fraction(float(x)) for x in row] for row in np.asarray(sym.rotation, dtype=float)]
+        t = [Fraction(float(x)) for x in np.asarray(sym.translation, dtype=float)]
+        miss = np.zeros((int(model.norb), 3))
+        for a in range(int(model.norb)):
+            s = int(site_of[a])
+            b = first[int(perm[p, s])]
+            for r in range(3):
+                x = (sum(A[r][c] * exact_pos[a][c] for c in range(3)) + t[r]
+                     - Fraction(float(shift[p, s, r])) - exact_pos[b][r])
+                miss[a, r] = float(x - round(x))
+        out[int(ind)] = miss
+    return out
+
+
+def _miss_reach(model, group, assignment, ops) -> float:
+    r"""The most the centers' miss of ``ops`` can move ``H``, in the units of ``H``.
+
+    An operation ``g`` carries the hopping from ``i`` to ``j`` onto the one
+    between their images, and centers that miss it by ``e_i`` and ``e_j``
+    (:func:`_centre_misses`) leave the phase of that hopping at the image point
+    ``k' = k W`` off by ``2π k'·(e_j − e_i) = 2π k·W(e_j − e_i)``.  Every entry of
+    ``D H(k) D† − H(k')`` is then at most ``2π`` times the size of the hoppings
+    between the two orbitals times that phase, and the bound is summed along a
+    row, which bounds it for any unitary ``D``.  Over ``k`` in ``[-1, 1]`` along
+    each periodic direction, which holds every point and every image the
+    covariance and the projection read, ``|k·w|`` is at most ``|w|`` summed over
+    its components.  Returns the largest such bound over the operations, ``0.0``
+    for a model with no hoppings.
+    """
+    bloch = _bloch.evaluator(model)
+    if not bloch.n_hops:
+        return 0.0
+    M = bloch.nstate
+    size = np.abs(bloch.blocks).reshape(bloch.n_R, M, M)
+    whole = (size + size.swapaxes(-2, -1)).sum(axis=0)   # each hopping and its conjugate
+    per = [int(d) for d in group.periodic_dirs]
+    worst = 0.0
+    for ind, miss in _centre_misses(model, group, assignment, ops).items():
+        act = group._k_action_of(ops[ind])
+        if act is None:
+            continue
+        W = act(np.eye(int(group._dim_k)))               # rows: k -> k W
+        w = miss[:, per] @ W.T                           # W e_a, one row per orbital
+        if bloch.nspin != 1:
+            w = np.repeat(w, bloch.nspin, axis=0)
+        phase = np.abs(w[None, :, :] - w[:, None, :]).sum(axis=-1)
+        worst = max(worst, float(2.0 * np.pi * (whole * phase).sum(axis=-1).max()))
+    return worst
+
+
+def _centres_account_for(model, group, assignment, ops, *, failure, gate, check,
+                         declared=False):
+    r"""``positions_not_exactly_symmetric`` where the centers' miss accounts for a failed check.
+
+    ``failure`` is what a check of exact symmetry measured on ``model`` and
+    ``gate`` what it holds that to, both in the units of ``H``; ``check`` names
+    the check in a few words; ``declared`` says whether a tolerance for the
+    centers was declared, ``precision=`` or ``position_tol=``.  The miss's reach (:func:`_miss_reach`) accounts
+    for the failure where it exceeds the gate, so that the miss alone can break
+    the check, and where the failure is within twice the reach: the projection
+    averages terms each within the reach of covariant, and the covariance of
+    that average adds the misses of two operations.  Centers at their symmetric
+    positions reach the rounding of their storage, which the gate already
+    counts.  Returns the refusal, the group named in its reason and carried in
+    its context, or ``None`` where the miss does not account for the failure.
+    """
+    # The refusal is for centers no declaration speaks for, as the one made
+    # before the detector is, and its reason asks for a precision; under a
+    # declared one the centers were moved within it, and the check's own
+    # verdict is returned.
+    if declared:
+        return None
+    failure, gate = float(failure), float(gate)
+    reach = _miss_reach(model, group, assignment, ops)
+    if not (reach > gate and failure <= gate + 2.0 * reach):
+        return None
+    delta = float(_position_defect(model, group, assignment, ops))
+    return Refusal(
+        "positions_not_exactly_symmetric",
+        f"the orbital centers miss the positions the group puts them at by {delta:.3g} "
+        "(reduced): declare this model's precision, `realized_group(..., precision=)`, "
+        "or `position_tol=` for the centers alone, and centers within it are moved onto "
+        "those positions. Undeclared, the miss alone moves H(k) by up to "
+        f"{reach:.3g}, more than the {gate:.3g} that {check} is held to, where "
+        f"{failure:.3g} is measured. The group identified is {group.name} "
+        f"#{group.number_str}, every operation of it obeyed.",
+        value=delta, threshold=delta * gate / reach,
+        context={"group": group, "number_str": str(group.number_str),
+                 "position_defect": delta, "reach": reach, "gate": gate,
+                 "failure": failure})
 
 
 # --------------------------------------------------------------------------

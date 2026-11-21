@@ -347,9 +347,9 @@ long.
 ## When it refuses
 
 - [`positions_not_exactly_symmetric`](../reference/refusals.md#positions_not_exactly_symmetric):
-  centres off the cell's operations with no precision declared, by enough to break them,
-  or, where an operation reads near-symmetric, by more than the projection's operators
-  carry them to.
+  centers off the cell's operations with no precision declared, by enough to break them;
+  or, once the group is identified, by enough to keep `H` from being made or held exactly
+  symmetric, the group named in the reason.
 - [`projection_too_large`](../reference/refusals.md#projection_too_large) and
   [`detector_too_large`](../reference/refusals.md#detector_too_large): a memory budget.
 - [`operations_not_consistent`](../reference/refusals.md#operations_not_consistent) and

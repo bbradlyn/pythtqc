@@ -155,6 +155,12 @@
   `kpoints=`.
 - `bands=[]` raises `ValueError` saying what to pass, where numpy raised on a reduction of
   an empty array.
+- A model whose orbital centers miss their symmetric positions by too little to be refused
+  before anything is built, read with no precision declared, is refused
+  `positions_not_exactly_symmetric` wherever that miss keeps `H` from being made or held
+  exactly symmetric, the group identified named in it and the reason saying to declare
+  `precision=`. It was refused `rep_not_covariant` or `symmetrize_range_not_closed`, or
+  raised an `InternalError`. Every model that was read is read as before.
 - The summaries of a character table and of the coreps at a point print each multiplet's
   energy at the resolution its bands were grouped at, the table's `degeneracy_tol`: a
   level at the rounding of zero prints `at 0`, where it printed `at -1.388e-15`.

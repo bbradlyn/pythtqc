@@ -2270,7 +2270,8 @@ def test_the_anisotropic_square_descends_from_the_cell_the_isotropic_one_allows(
     written on a strongly skewed lattice basis it is read as on its cube's
     edges.  And with hexagonal boron nitride on such a basis, its centers off
     their fractions by the rounding of their conversion and a precision
-    declared: it is read with the group it has on any other basis.
+    declared: it is read with the group it has on any other basis.  With none
+    declared it is refused ``positions_not_exactly_symmetric``, the group named.
     """
     low = G.realized_group(square(ty=-0.5), environment="free-standing",
                            characters={0: "s"}, cross_check=False)
@@ -2320,6 +2321,14 @@ def test_the_anisotropic_square_descends_from_the_cell_the_isotropic_one_allows(
     boron_nitride = by_bond(written, centers, s_boron_nitride, reach=8)
     assert read(boron_nitride, precision=1e-12) == (
         "P3m11'", "156.50", "GM1 + K3 + M1", [("1c", "A1"), ("1b", "A1")])
+    # with none declared, the centers' miss of 2.1e-13 alone moves H(k) at an image point
+    # by more than the representation's covariance allows: the group is named, and the
+    # precision asked for
+    undeclared = G.realized_group(boron_nitride)
+    assert not undeclared and undeclared.gate == "positions_not_exactly_symmetric"
+    assert undeclared.context["group"].number_str == "156.50"
+    assert undeclared.value == pytest.approx(2.06e-13, rel=0.01)
+    assert "precision=" in undeclared.reason
 
 
 @pytest.mark.slow

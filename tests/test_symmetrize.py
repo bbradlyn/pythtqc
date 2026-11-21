@@ -1301,6 +1301,16 @@ def test_the_position_pass_runs_before_the_hopping_projection(km_odd,
     the centres.  It refuses ``positions_not_exactly_symmetric``, naming the
     group, quoting the defect -- the number to act on -- and ``precision=``,
     which is what fixes it.
+
+    Centers missed by less than the operators carry them are refused the same
+    way wherever their miss alone moves ``H`` by more than a check of exact
+    symmetry allows and accounts for what it measured.  On hexagonal boron
+    nitride with one center displaced along ``a1``, by ``1e-10`` the miss
+    reaches the projection's range check, by ``1e-11`` the covariance of the
+    representation, and on the lattice basis ``7 a1 + 5 a2, 4 a1 + 3 a2`` by
+    ``1e-11`` the hopping list rebuilt from the projection; each names
+    ``P3m11' #156.50``.  With exact centers and noise on the hoppings the same
+    layer is symmetrized and read.
     """
     clean = km_odd_free_standing
     both = jitter(_move_one_centre(km_odd, 1e-8))
@@ -1351,6 +1361,32 @@ def test_the_position_pass_runs_before_the_hopping_projection(km_odd,
     assert head.threshold == 1e-9, "the tolerance the projection's operators carry them to"
     assert head.context["position_defect"] == head.value
     assert "precision=" in head.reason
+
+    # centers missed by less: the hexagonal layer, one center displaced along a1
+    from test_groups import by_bond
+
+    def s_boron_nitride(i, j, d):
+        r = round(float(np.linalg.norm(d)), 6)
+        if r == 0.57735 and i != j:
+            return -1.0
+        return {0: -0.2, 1: -0.1}[i] if r == 1.0 and i == j else 0.0
+
+    honeycomb = [[1.0, 0.0], [-0.5, 0.75 ** 0.5]]
+    for delta, rows, defect in ((1e-10, None, 2e-10), (1e-11, None, 2e-11),
+                                (1e-11, [[7, 5], [4, 3]], 1.4e-10)):
+        layer = by_bond(honeycomb, [[1 / 3 + delta, 2 / 3], [2 / 3, 1 / 3]],
+                        s_boron_nitride, rows=rows)
+        got = tqg.realized_group(layer)
+        assert not got and got.gate == "positions_not_exactly_symmetric", (delta, rows, str(got))
+        assert got.context["group"].number_str == "156.50"
+        assert got.value == pytest.approx(defect, rel=1e-3)
+        assert got.context["reach"] > got.context["gate"]
+        assert got.reason.startswith("the orbital centers miss") and "precision=" in got.reason
+        assert "P3m11' #156.50" in got.reason
+    exact = by_bond(honeycomb, [[1 / 3, 2 / 3], [2 / 3, 1 / 3]], s_boron_nitride)
+    noisy = tqg.realized_group(jitter(exact, rel=1e-10))
+    assert noisy, str(noisy)
+    assert noisy.group.number_str == "156.50" and noisy.numerical.symmetrization is not None
 
 
 @pytest.mark.slow
