@@ -1,24 +1,54 @@
 # Could these bands be an atomic limit?
 
-A band set is an atomic limit when its states can be written as symmetric,
-exponentially localized Wannier functions. Its symmetry data vector — how many times
-each corep appears at each high-symmetry point
-([labelling the bands](labels.md#every-high-symmetry-point-at-once)) — is then
-a sum of **elementary band representations** (EBRs), each the band set one
-site-symmetry irrep induces from its Wyckoff position, where that band set is
-no sum of others
-([the primer](../background/tqc-primer.md#band-representations-and-atomic-limits)).
-This chapter asks `decompose` whether a measured symmetry data vector is such a sum,
-with nonnegative integer multiplicities; reads whether it is one, and its candidate sums;
-counts bands; and says what a decomposition cannot certify. The model is lin3g, from
-`pythtqc.models`, as in [labelling the bands](labels.md): four spinful orbitals
-of a square layer, two at Wyckoff `1a` and two at `2c`, eight bands, whose six
-lowest are the EBR of the `2c` orbitals and a **fragile** pair: two bands that
-are no atomic limit on their own and become one once suitable atomic bands are
-added ([fragile topology](../background/tqc-primer.md#fragile-topology)).
-Kane–Mele, from `pythtb.models`, supplies a band set with no decomposition.
+## What elementary band representations are
+
+An atomic limit is a set of bands whose states can be written as exponentially
+localized, symmetric Wannier functions. The Wannier functions at each Wyckoff
+position carry site irreps of its site-symmetry group. A site irrep at a Wyckoff
+position induces a band representation. An elementary band representation (EBR)
+is one that is not a sum of others. The corep multiplicities of a set of bands
+at every high-symmetry point form its symmetry data vector. The symmetry data
+vector of an atomic limit is a sum of the symmetry data vectors of EBRs, with
+nonnegative integer multiplicities. Such a sum is a decomposition. A fragile set
+of bands is not an atomic limit, and becomes one once suitable atomic bands are
+added.
+
+This package uses two facts about EBRs. First, a set of bands whose symmetry
+data vector has no decomposition is topological. Second, some topological sets
+of bands have a decomposition too, fragile ones and stably topological ones
+alike. So where `decompose` returns no decomposition the bands are topological,
+and where it returns one they may be an atomic limit or topological.
+
+The definitions and proofs are in Bradlyn *et al.*,
+[*Topological quantum chemistry*, Nature **547**, 298 (2017)](https://doi.org/10.1038/nature23268),
+and Cano *et al.*,
+[*Building blocks of topological quantum chemistry: Elementary band representations*, Phys. Rev. B **97**, 035139 (2018)](https://doi.org/10.1103/PhysRevB.97.035139);
+fragile topology is defined in Po, Watanabe and Vishwanath,
+[*Fragile topology and Wannier obstructions*, Phys. Rev. Lett. **121**, 126402 (2018)](https://doi.org/10.1103/PhysRevLett.121.126402).
+[Band representations and atomic limits](../background/tqc-primer.md#band-representations-and-atomic-limits),
+in [The topological quantum chemistry this package uses](../background/tqc-primer.md),
+gives a longer account.
 
 ## The call
+
+`decompose` takes the table `hsp_table` returns for a set of bands. It returns
+every decomposition of the table's symmetry data vector, up to `cap=` of them,
+200 by default. A symmetry data vector written out by hand,
+`{corep: multiplicity}`, is passed with what `realized_group` returned for the
+model, `r`: `decompose(vector, r)`. Decompositions can only be returned if the
+table holds the little-group representations at every high-symmetry point the
+model samples, which for a layer are the points in its plane. A table that
+refused at some point is refused with `incomplete_content`.
+
+A layer is decomposed over the EBRs of the Wyckoff positions within it. On a
+free-standing layer the group's positions off the layer are left out, and
+`d.numerical.restriction.outside_layer` names them.
+
+The example is lin3g, from `pythtqc.models`, the spinful square layer of Lin
+*et al.*, [Nat. Commun. **15**, 550 (2024)](https://doi.org/10.1038/s41467-024-44762-w),
+with two orbitals at Wyckoff `1a` and two at `2c`. Its six lowest bands are the
+EBR of the `2c` orbitals and a fragile pair, and the example decomposes those
+six bands:
 
 ```python
 import pythtqc as tqc
@@ -47,56 +77,70 @@ print(positions(d))
 
 ## How to read it
 
-`summary()` prints the record as it is read, a line for each part, ending with
-the field that holds it:
+- `decomposable: 3 sums of elementary band representations carry this symmetry
+  data vector`: whether the symmetry data vector has a decomposition,
+  `d.decomposable`, and how many were found, `len(d.candidate_sums)`. Each line
+  of `d.summary()` ends with the field that holds it.
+- `the coreps at the high-symmetry points: 2x-GM6 + -GM7 + -M6 + 2x-M7 + 3x-X5`:
+  the symmetry data vector decomposed, the same as `t.symmetry_data`. `GM` is the
+  tables' name for Γ.
+- `-E2 at 1b (4mm1') + -E at 2c (mm21')`: one decomposition, the orbitals an
+  atomic limit with this symmetry data vector would be built from. Each term is
+  an EBR, written as the site irrep that induces it, its Wyckoff position, and
+  its site-symmetry group in parentheses. `4mm1'` is `4mm` with time reversal.
+  Decompositions are listed by the number of EBRs they hold, fewest first. Two
+  with as many are compared EBR by EBR, in the order of the tables of the
+  irreptables package, and the one with more of the first EBR where they differ
+  comes first.
+- `some site irreps were assigned by the lowest-angular-momentum rule`: printed
+  where an orbital's site irrep was assigned by that rule.
+  [Positions survive every labeling; labels may not](#positions-survive-every-labeling-labels-may-not)
+  shows what this changes.
+- `A, R and Z lie out of the layer's plane`, from `d.numerical.summary()`: the
+  points the decomposition was read without. A layer's `H(k)` has no `k_z`, so
+  the coreps at `A`, `R` and `Z`, the points at `k_z = 1/2`, are not measured.
+  In every EBR each of them occurs as often as a measured corep, so leaving them
+  out loses no condition and the decomposition is exact.
+  `d.numerical.restriction.copies`, printed below, pairs each corep left out
+  with the measured one it repeats.
 
-- `decomposable` says it is one, and its reach is the symmetry data vector's:
-  a nonnegative-integer sum of EBRs has this vector, and any obstruction to an
-  atomic limit must lie beyond what symmetry indicators see. Three sums were
-  found.
-- The coreps at the high-symmetry points are the symmetry data vector decomposed,
-  `t.symmetry_data` of the six bands.
-- Each line under `every candidate sum` is one sum: the orbitals an atomic limit with
-  this content would be built from. `-E2 at 1b (4mm1')` is the two-band EBR of the
-  site corep `-E2` at Wyckoff `1b`, whose site group is `4mm1'`, `4mm` with time
-  reversal. The three sums are one content written three ways: the first two differ by `-E` at
-  `2c` against `-E1` and `-E2` at `1a`, the last two by that pair at `1a`
-  against the same pair at `1b`, sums the symmetry data vector cannot tell apart.
-  The fewest elementary band representations in all come first, and among sums
-  with as many, the one with more of those the tables list first.
-- `d.numerical.summary()` prints how the decomposition was read.
-  `A, R and Z lie out of the layer's plane`: the **EBR matrix** has one column
-  per EBR, its symmetry data vector, and one row per corep at each high-symmetry
-  point. A layer has no `k_z`, so the rows at the group's points `A`, `R` and
-  `Z`, at `k_z = ½`, are left out, and each is verified to repeat a measured
-  row in every EBR. Leaving them out then changes nothing: the matrix has rank
-  `3` with them and without, and the decomposition is the full one.
-  `d.numerical.restriction` holds the rows kept and those left out, each with
-  the row it repeats.
-- The line on the lowest-angular-momentum rule is the next section. What a
-  decomposition does not certify is
-  [its own section](#what-a-decomposition-cannot-certify).
+The three decompositions are three sums with one symmetry data vector. The first
+two differ by `-E` at `2c` against `-E1` and `-E2` at `1a`. The last two differ
+by that pair at `1a` against the same pair at `1b`.
 
-`positions(d)` is the Wyckoff positions of each sum, the part of it no
-labelling of the orbitals moves. `d.candidate_sums` holds each sum as its terms,
-each a multiplicity, a site irrep, its Wyckoff position and its site group, with
-and without time reversal
-([the band-representation key](../background/conventions.md#the-band-representation-key)
-reads every part), and each sum's `label` writes it on a line as the summary does:
+`positions(d)` lists the Wyckoff positions of each decomposition, an entry for
+each EBR counted with its multiplicity. `d.candidate_sums` holds each
+decomposition as its terms. Each term holds a multiplicity, a site irrep, its
+Wyckoff position, and its site-symmetry group with and without time reversal. A
+decomposition's `label` writes it on one line, as the summary does.
+[The band-representation key](../background/conventions.md#the-band-representation-key)
+reads every part.
 
 ```python
 print(tuple(d.candidate_sums[0]))
 #  (Term(multiplicity=1, irrep='-E2', wyckoff='1b', site_symmetry="4mm1'", unitary_site_symmetry='4mm'), Term(multiplicity=1, irrep='-E', wyckoff='2c', site_symmetry="mm21'", unitary_site_symmetry='mm2'))
+print(d.numerical.restriction.copies)
+#  {'-A6': ('-M6',), '-A7': ('-M7',), '-R5': ('-X5',), '-Z6': ('-GM6',), '-Z7': ('-GM7',)}
 ```
 
-## Positions survive every labelling; labels may not
+lin3g is measured on a substrate, `realized_group`'s default for a 2D model,
+where every position is kept
+([Is my 2D model on a substrate or free-standing?](layers.md)).
+[The group the class belongs to](indicators.md#the-group-the-class-belongs-to)
+prints `outside_layer` for a free-standing layer.
 
-The hoppings fix how the orbitals transform relative to one another, not what
-they are, and lin3g's two orbitals at `1a` were assigned by the lowest-ℓ rule
-([labelling the bands](labels.md#when-a-label-is-not-trustworthy)):
-`site_content` records how each row is known. Declaring orbital 0 a
-`d_{x²−y²}` states a crystal the same hoppings describe, with the site irreps
-at `1a` exchanged:
+## Positions survive every labeling; labels may not
+
+The hoppings fix the site irreps of the orbitals relative to one another. A site
+irrep they leave open, and that is not declared, is assigned by the
+lowest-angular-momentum rule
+([When a label is not trustworthy](labels.md#when-a-label-is-not-trustworthy)).
+`d.site_content.determined_by` says for each orbital how its site irrep is
+known: `hamiltonian`, fixed by the Hamiltonian; `declaration`, declared;
+`lowest-l`, assigned by the lowest-angular-momentum rule. lin3g's two orbitals
+at `1a` read `lowest-l`. Declaring orbital 0 a `dx2-y2` orbital with
+`characters=` states a crystal the same hoppings describe, with the two site
+irreps at `1a` exchanged:
 
 ```python
 print(d.site_content.determined_by)
@@ -109,25 +153,52 @@ print(positions(d_other) == positions(d))
 #  True
 ```
 
-The first sum now reads `-E1` at `1b` where it read `-E2`, and every
-sum sits at the same Wyckoff positions. Quote the positions beside the
-labels always, and lean on them wherever a row reads `lowest-l`: they are what
-a decomposition is about, and what a comparison with the Bilbao
-Crystallographic Server's band-representation tables agrees on where a label
-may not ([reading across to BCS](../background/conventions.md#reading-across-to-bcs)).
+The declaration changes the corep labels of the bands, and so the site irreps
+in every decomposition. The first decomposition now reads `-E1` at `1b` where it
+read `-E2`, and every decomposition sits at the same Wyckoff positions. Where a
+site irrep reads `lowest-l`, the Wyckoff positions of each decomposition do not
+depend on that choice. Its site irreps do. Under either set of names a
+decomposition agrees with the band-representation tables of the Bilbao
+Crystallographic Server. The one difference is at a point that is not
+time-reversal invariant, where the label the server prints at `k` is the label
+returned here at `−k`
+([Reading across to BCS](../background/conventions.md#reading-across-to-bcs)).
 
 ## Counting bands
 
-Comparing two models at equal band count, or building a reference atomic
-limit, needs each side of a gap to hold complete band representations.
-`decompose` says whether the content is a sum of EBRs at all, `decomposable`,
-and each such sum accounts for every band of the table, `len(t.bands)`, since
-the EBR dimensions and the corep dimensions are the same numbers. `regular_completion`
-pads a band set up to **regular** content: the band representation induced
-from the regular representation of a site-symmetry group, `|U|` bands at every
-k-point, with `|U|` the number of unitary operations of the group, one per coset
-of the lattice translations and, for this spinful model, the single-valued
-group's: the eight of `4mm` here (`rc.bands_per_copy`):
+`regular_completion` takes a set of bands and `bands=`, the bands of a larger
+system that contains them, as a number or as band indices. The record returned
+holds `rc.padding`, the symmetry data vector the missing bands would carry if
+the larger system were whole copies of the regular band representation.
+
+One copy, as the call counts it, is induced from the regular representation of
+a site-symmetry group. It has `|U|` bands at every k-point. `|U|` is the number
+of unitary operations of the group up to lattice translations. For a spinful
+model they are counted in the single-valued group. In a group with time
+reversal, the copy is a band representation of the group only if it holds each
+corep a whole number of times.
+
+A set of bands completed to whole regular copies carries the symmetry data
+vector of an atomic limit. So where the padding has a decomposition, it names
+atomic orbitals whose bands, added to the set, give the symmetry data vector of
+an atomic limit.
+
+A completion can only be returned if the number of bands is a multiple of
+`|U|`. Any other number is refused with `not_a_regular_multiple`. A set of bands
+that carries more of a little-group representation than that many regular
+copies is refused with `negative_multiplicity`.
+
+A completion can also only be returned if one copy holds each little-group
+representation a whole number of times. A spinful group with time reversal can
+have a corep at Γ that is one one-dimensional irrep taken twice, such as
+`-GM2GM2` of `P-11'`. Such a corep is a Kramers pair that cannot be split, and
+one copy holds its irrep once. So one copy holds half of that corep, and a copy
+symmetric under time reversal has `2|U|` bands. For such a group the call is
+refused with `regular_content_not_integral` at every number of bands.
+
+lin3g's six lowest bands have a decomposition. Its group `P4mm1'` has
+`|U| = 8`, and the model has eight bands, one regular copy. The example
+completes the six bands to the eight:
 
 ```python
 print(d.decomposable, len(t.bands))
@@ -143,23 +214,36 @@ print(tqc.regular_completion(t, bands=6).gate)
 #  not_a_regular_multiple
 ```
 
-`rc.regular` is one copy's content, computed from the group's own corep
-characters: eight bands at every point. The padding is that content less the
-six bands', and its own decomposition names the orbitals it would be. lin3g
-has eight bands, one regular copy, so the padding is exactly the content of the
-two bands above the gap. Padding both sides of a gap to regular content makes
-the total an atomic limit by construction, which is what lets two models be
-compared at equal band count. A band count that is not a multiple of `|U|` is
-refused, `not_a_regular_multiple`.
+- `True 6`: whether the six bands have a decomposition, `d.decomposable`, and
+  how many bands they hold, `len(t.bands)`.
+- `8`: `rc.bands_per_copy`, `|U|`, the eight operations of `4mm`.
+- `{'-GM6': 2, ...}`: `rc.regular`, the symmetry data vector of one regular
+  copy, computed from the group's corep characters.
+- `-GM7 + -M6 + -X5`: `rc.padding`, one regular copy less the symmetry data
+  vector of the six bands.
+- `["-E1 at 1b (4mm1')"]`: the decompositions of the padding,
+  `rc.decomposition`, the orbitals the missing bands would be.
+- `True`: the padding is the symmetry data vector of bands 6 and 7, the two
+  above the gap, since lin3g's eight bands are one regular copy.
+- `not_a_regular_multiple`: six bands are not a multiple of eight.
 
 ## What a decomposition cannot certify
 
-Corep multiplicities at isolated k-points are blind to everything between
-them, and lin3g's bands 4 and 5 are the standing example. `tqc.subtract(a, b)`
-is `a − b` as a symmetry data vector, refused (`negative_multiplicity`) where `b` is
-not contained in `a`, since the difference of two band sets is a band set only
-when one contains the other; the pair is the six bands less the four below
-them:
+Every atomic limit has a decomposition, and some topological sets of bands have
+one too. Between the high-symmetry points, a symmetry data vector fixes only the
+little-group representations the compatibility relations carry along the lines.
+It cannot see whether the bands there can be written as symmetric,
+exponentially localized Wannier functions. lin3g's bands 4 and 5, its fragile
+pair, have a decomposition and are not an atomic limit.
+
+`subtract(a, b)` takes two symmetry data vectors, each a table or written out by
+hand. It returns `a - b`, the symmetry data vector of the bands in `a` and not
+in `b`. A difference can only be returned if `b` is contained in `a`. Any other
+pair is refused with `negative_multiplicity`.
+
+The example reads lin3g's pair at bands 4 and 5. It checks that the six lowest
+bands' symmetry data vector less that of the four below equals the pair's, and
+decomposes the pair:
 
 ```python
 pair = tqc.hsp_table(r, bands=[4, 5])              # the two bands below the gap
@@ -172,25 +256,26 @@ print(tqc.splitting(r, bands=6).nsit)
 #  True
 ```
 
-The pair reproduces the EBR `-E2 at 1b` exactly and is fragile all the same,
-by the construction of Lin et al.: a decomposable symmetry data vector is
-necessary for an atomic limit and never sufficient. What sees past it here
-is the **stable real-space invariants**, combinations of how many Wannier
-functions carry each site irrep at each Wyckoff position that no symmetric
-deformation can change ([stable real-space invariants](srsi.md)):
+The pair has a decomposition, the EBR `-E2 at 1b`, and is fragile all the same,
+by the construction of Lin *et al.* The stable real-space invariants (SRSIs)
+hold information that the symmetry data vector does not. They are combinations
+of the multiplicities of the site irreps at each Wyckoff position among the
+Wannier functions, which no symmetric deformation changes
+([What do the stable real-space invariants say about these bands?](srsi.md)).
 `splitting(r, bands=6)` asks whether the six bands below the gap and the two
-above it can both be atomic insulators, and its `nsit`, `True`, says they
+above it can both be atomic insulators. Its `nsit`, printed `True`, says they
 cannot, though each side has atomic realizations
-([the no-go criterion](srsi.md#the-no-go-criterion)).
+([The no-go criterion](srsi.md#the-no-go-criterion)).
 [`examples/tqc_srsi_lin3g_composite_splitting.py`](../../examples/tqc_srsi_lin3g_composite_splitting.py)
-runs that analysis on this model whole.
+runs that analysis on the whole model.
 
 ## When there is no decomposition
 
-The other direction is conclusive. The model of the
-[quick start](../start/quickstart.md), Kane–Mele with a staggered potential,
-spin–orbit coupling and a Rashba term, has two occupied bands that decompose,
-as `-E1` at the empty hexagon centre `1a`; the two above them do not:
+The example is the model of
+[Quick start: Kane-Mele, end to end](../start/quickstart.md): Kane-Mele, from
+`pythtb.models`, with a staggered potential, spin-orbit coupling and a Rashba
+term. Its two occupied bands decompose, as `-E1` at the hexagon center `1a`,
+which holds no orbital. The two bands above them have no decomposition:
 
 ```python
 km = tqc.realized_group(kane_mele(1.0, -1.0, 0.3, 0.25), typat=[0, 1],
@@ -208,75 +293,97 @@ print(km.group.name, tqc.symmetry_indicator(upper).indicator_group)
 #  P3m11' trivial
 ```
 
-A vector that is not decomposable has no atomic limit, and `certificate` says
-what that rests on: `proof` where the bound placed on every multiplicity
-provably excludes no sum (`numerical.bound_is_rigorous`), so that finding none
-within it is a proof, and `none within the bound` otherwise.
+`certificate` says what the absence of a decomposition rests on. `proof` means
+that no sum within the bound searched carries the symmetry data vector, and
+that no multiplicity can exceed that bound. `numerical.bound_is_rigorous`,
+printed `True`, states the second. Otherwise the certificate is
+`none within the bound`, and a sum with a larger multiplicity is not ruled out.
 
-The **signed combinations** ask the same question with negative
-multiplicities allowed. A fragile band set has such a solution, an integer
-combination of EBRs with a negative coefficient, since adding atomic bands
-makes it a nonnegative sum; a content with no integer solution at all is
-obstructed stably, which a nonzero symmetry indicator states
-([the next chapter](indicators.md)). Signed multiplicities have no rigorous
-bound, so the signed combinations are evidence. Here there are `3` solutions, the
-first the model's own orbitals, `-E1` at `1b` and `1c`, less the `-E1` at `1a`
-the occupied pair decomposed into (both are printed in
-[the quick start](../start/quickstart.md)). That cannot say which kind of
-obstruction the pair carries: `P3m11'` has no symmetry indicator, so every band
-structure of it is an integer combination of EBRs, fragile or not.
+`signed_combinations` holds the same search with negative multiplicities
+allowed, each between minus and plus the bound. The symmetry data vector of a
+fragile set of bands has such a combination, since with suitable atomic bands
+added it is a sum with nonnegative multiplicities. A symmetry data vector with
+no integer combination of EBRs at all has a nonzero symmetry indicator
+([Which symmetry-indicator class do these bands occupy?](indicators.md)).
+Signed multiplicities have no rigorous bound, so a combination can lie beyond
+the bound searched. The symmetry data vector of a stably topological set of
+bands whose symmetry indicator is zero has a signed combination too.
+
+Here there are three combinations. The first is the model's own orbitals, `-E1`
+at `1b` and `1c`, less the `-E1` at `1a` that the occupied pair decomposes into.
+[Quick start: Kane-Mele, end to end](../start/quickstart.md) prints the model's
+orbitals and the decomposition of the occupied pair. `P3m11'` has a trivial
+symmetry-indicator group, printed `trivial`, so every band structure of it has
+a symmetry data vector consistent with an integer combination of EBRs. The
+signed combinations therefore cannot say whether the pair is fragile or carries
+another obstruction.
 [`examples/tqc_multifold_connectivity.py`](../../examples/tqc_multifold_connectivity.py)
-meets the same verdict in three dimensions: an EBR of space group 208 split at
-half filling into two halves, neither with a decomposition.
+finds the same in three dimensions: an EBR of space group 208 splits at half
+filling into two halves, and neither has a decomposition.
 
 ## When it refuses
 
-A refusal is a returned record, falsy, naming the check that stopped the call
-and what it measured ([when a call refuses](refusals.md)). The checks these
-calls meet:
+A refusal is a returned record. It is falsy, and names the check that stopped
+the call and what it measured
+([What does a refusal mean, and what do I do about it?](refusals.md)). The
+checks these calls meet:
 
-- [`incomplete_content`](../reference/refusals.md#incomplete_content): the
-  table has points that did not resolve, and a vector missing a point
-  decomposes too easily; read the table's refusals. `allow_incomplete=True`
-  decomposes anyway, for a point whose tables cannot be read rather than one
-  where the physics failed, and the claim is then a necessary condition unless
-  the rows it gives up repeat kept ones.
+- [`incomplete_content`](../reference/refusals.md#incomplete_content): the table
+  refused at some high-symmetry point. The table's `refusals` names each such
+  point's refusal. With `allow_incomplete=True`, `decompose` leaves those points
+  out. The decompositions returned are then those of the little-group
+  representations kept, which the whole symmetry data vector may not share,
+  unless every one left out occurs in every EBR as often as a kept one. `allow_incomplete=True` is meant for a point whose
+  tables cannot be read, and not for a point where the bands themselves were
+  refused, such as one where the set of bands splits a degenerate multiplet.
 - [`not_a_band_structure`](../reference/refusals.md#not_a_band_structure): the
-  content fails the group's compatibility relations, so no set of bands
-  separated from the rest at every `k` has it, as when the bands asked for cut
-  through a crossing between two high-symmetry points; there is no
-  decomposition to look for.
+  symmetry data vector fails the group's compatibility relations, so no set of
+  bands separated from the rest at every `k` has it. A set of bands that cuts
+  through a crossing between two high-symmetry points is one cause.
 - [`restriction_not_exact`](../reference/refusals.md#restriction_not_exact): a
-  row the model does not measure repeats none it does, so nothing read from the
-  measured rows is exact. A layer is decomposed over its own band representations, those of
-  the Wyckoff positions within it, on which every row out of its plane repeats
-  one in it: a free-standing layer's group has positions off the layer, which
-  are left out and named in `numerical.restriction.outside_layer`.
-- [`unknown_label`](../reference/refusals.md#unknown_label): a measured label
-  the group's EBR basis does not carry.
+  little-group representation at `k_z = 1/2`, which a layer does not measure,
+  occurs in some EBR a different number of times from each measured one.
+- [`unknown_label`](../reference/refusals.md#unknown_label): from `decompose`,
+  a measured label that the group's EBRs do not hold. `regular_completion`
+  handed such a label returns `negative_multiplicity`.
 - [`negative_multiplicity`](../reference/refusals.md#negative_multiplicity),
   [`non_integer_multiplicity`](../reference/refusals.md#non_integer_multiplicity):
-  a content that is not a count of coreps, such as a difference of two band
-  sets neither of which contains the other.
-- [`not_a_regular_multiple`](../reference/refusals.md#not_a_regular_multiple),
-  [`regular_content_not_integral`](../reference/refusals.md#regular_content_not_integral):
-  a padding asked for at a band count that is not a multiple of `|U|`, or
-  tabulated characters that give no whole regular content.
-- [`ebr_tables`](../reference/refusals.md#ebr_tables),
-  [`irrep_tables`](../reference/refusals.md#irrep_tables),
-  [`ebr_convention`](../reference/refusals.md#ebr_convention): no EBR data to
-  decompose against for this group.
+  a vector that is not a count of little-group representations, such as `a - b`
+  where `b` is not contained in `a`.
+- [`not_a_regular_multiple`](../reference/refusals.md#not_a_regular_multiple):
+  a completion asked for at a number of bands that is not a multiple of `|U|`.
+- [`regular_content_not_integral`](../reference/refusals.md#regular_content_not_integral):
+  one copy of the regular band representation, as the call counts it, holds
+  some little-group representation a number of times that is not an integer,
+  as in a spinful group with time reversal with a corep at Γ that is one
+  one-dimensional irrep taken twice.
+- [`tables_not_ready`](../reference/refusals.md#tables_not_ready): the group's
+  cell could not be matched to the setting the tables are written in, so no
+  table can be read for it.
+- [`ebr_tables`](../reference/refusals.md#ebr_tables): the installed tables
+  hold no EBRs for this group.
+- [`irrep_tables`](../reference/refusals.md#irrep_tables): the character tables
+  were not loaded, or hold no irrep table for this group.
+- [`ebr_convention`](../reference/refusals.md#ebr_convention): the tables' EBRs
+  of this group cannot be carried into the phase convention of the labels
+  returned.
 
-## Every field and argument
+## Where to go next
 
-The fields of [`EBRDecomposition`](../reference/records.md#ebrdecomposition),
-its `Restriction` among them, and of
-[`RegularCompletion`](../reference/records.md#regularcompletion)
-are in the records reference, and each call's arguments in its entry: [`decompose`](../reference/functions.md#decompose),
-[`subtract`](../reference/functions.md#subtract),
-[`regular_completion`](../reference/functions.md#regular_completion),
-[`ebr_rows`](../reference/functions.md#ebr_rows), which writes each EBR of a
-group as a symmetry data vector, and
-[`in_plane_restriction`](../reference/functions.md#in_plane_restriction). What
-an EBR, an atomic limit and fragile topology are is in
-[the primer](../background/tqc-primer.md).
+- [Returned records](../reference/records.md) lists every field of
+  [`EBRDecomposition`](../reference/records.md#ebrdecomposition), its
+  `Restriction` among them, and of
+  [`RegularCompletion`](../reference/records.md#regularcompletion).
+- [Functions](../reference/functions.md) gives the arguments of
+  [`decompose`](../reference/functions.md#decompose),
+  [`subtract`](../reference/functions.md#subtract) and
+  [`regular_completion`](../reference/functions.md#regular_completion); of
+  [`ebr_rows`](../reference/functions.md#ebr_rows), which returns each EBR of a
+  group as a symmetry data vector; and of
+  [`in_plane_restriction`](../reference/functions.md#in_plane_restriction),
+  which returns the little-group representations of a group's EBRs that a
+  layer measures.
+- [Which symmetry-indicator class do these bands occupy?](indicators.md) reads
+  the class of a set of bands modulo atomic limits.
+- [The topological quantum chemistry this package uses](../background/tqc-primer.md)
+  gives EBRs, atomic limits and fragile topology at more length.

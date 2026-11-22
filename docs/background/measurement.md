@@ -36,9 +36,10 @@ measurement looks for every matrix `X` with `X H(k) = H(Rk) X` at once on a grid
 of `k`, and `X H(k)* = H(−Rk) X` for `g` combined with time reversal, which
 sends `k` to `−Rk`, assuming nothing about what `g` does to the orbitals. The
 equations are linear in `X`, so their solutions form a space. A space of
-dimension zero is a proof that `g` is broken: no matrix with that action on `k`
-carries `H(k)` onto itself at all. A staggered on-site energy breaks graphene's
-twofold axis this way:
+dimension zero means that no matrix with that action on `k` solves the
+equations at the points the space is found at; how the operation is then
+judged is said below. A staggered on-site energy breaks graphene's twofold
+axis this way:
 
 ```python
 import pythtqc as tqc
@@ -52,13 +53,29 @@ print({b.name: b.refuted_by for b in broken}["C2(z)"])
 #  no symmetry matrix
 ```
 
+The grid is the one `realized_group` measures on: `nk` points along each
+periodic direction, starting at Γ, 6 by default. The space is found at one `k`
+and cut down at the others. At one `k` a solution carries each eigenvector of
+`H(k)` onto eigenvectors of `H(Rk)` at the same energy, so the outer products
+of such pairs span the solutions there. Two eigenvectors are paired when their
+energies lie within `window` of each other, relative to `max|H − μ|`, `μ` the
+mean on-site energy. At each further point, a combination is kept where its
+singular value in that point's equations is at most `cut` times the largest.
+Further points cut the space down until it stops changing.
+
 A space that is not empty must still hold a matrix of the form an operation
 has, a permutation of the sites times each site's own matrix and, with spin,
 the operation's own spin rotation; and that matrix `U` must pass the
 covariance check, `max_k ‖U H(k) U† − H(Rk)‖` at most `tol`, an energy in the
 units of `H`, `1e-8 × max|H|` unless a declared `precision=` derives another
-([the glossary](../reference/glossary.md#tolerances)). Each operation that fails
-is recorded with what refuted it
+([the glossary](../reference/glossary.md#tolerances)). The space is fixed at
+the few points it was cut down at, and there it can drop a matrix that
+carries `H(k)` onto `H(Rk)` within `tol` but not within `cut`. So where the
+space is empty, or none of its matrices passes the check, matrices of the
+operation's form are fitted over every point of the grid, and the operation
+holds where a fitted matrix passes. It is broken where none of them passes, or
+where the energies of `H(k)` and `H(Rk)` at one point already differ by more
+than `tol` allows. Each operation that fails is recorded with what refuted it
 ([the records reference](../reference/records.md)).
 
 ### The descent, and the tie rule
@@ -377,10 +394,11 @@ each about how the model is written.
   precision is declared, the call refuses before anything is built, naming the
   cell's group as an upper bound; `precision=` is the fix
   ([the centres first](../guide/numerical.md#the-centres-first-because-moving-them-is-a-gauge)).
-  A declared precision is believed, and it bounds each centre: centres within
-  it are moved onto the positions the group puts them at, about the origin that
-  fits them, and a shift of all of them together within it is removed with the
-  move, so that the group is named on centres exact in the model's own frame.
+  A declared precision is believed, and it bounds each center. Centers within
+  it are moved onto the positions the group puts them at, by the smallest move
+  in Cartesian length and about the origin that fits them. A shift of all of
+  them together within it is removed with the move, so that the group is named
+  on centers exact in the model's own frame.
   Centres further off are a real displacement: an operation that
   would move one beyond the declaration is broken by the centers, and the group
   descends to the largest group of its operations that carries them within it,

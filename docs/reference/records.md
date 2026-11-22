@@ -1278,7 +1278,7 @@ one:
 ```python
 refused = tqc.regular_completion(t, bands=3)
 print(refused)
-#  Refusal[not_a_regular_multiple]: 3 bands is not a multiple of 12, the band count of one regular band representation of #183.186. Regular-representation padding is only defined at multiples of it; pick the next multiple (12).  (measured 3, threshold 0)
+#  Refusal[not_a_regular_multiple]: 3 bands is not a multiple of 12, the number of bands of one regular band representation of P6mm1' #183.186. Pass a multiple of it to bands=, such as 12.  (measured 3, threshold 0)
 #      context: bands_per_copy, n_bands, number_str
 print(bool(refused), refused.gate, refused.value, refused.threshold, refused.context["number_str"])
 #  False not_a_regular_multiple 3.0 0.0 183.186

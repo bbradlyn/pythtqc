@@ -297,25 +297,28 @@ class SignedCombinations:
 
 @dataclass(frozen=True)
 class EBRDecompositionNumerical:
-    """How a decomposition was searched and what it was read on: what :attr:`EBRDecomposition.numerical` holds.
+    """How a decomposition was searched, and what it was read on.
 
-    ``summary()`` prints it.
+    Held in :attr:`EBRDecomposition.numerical`.  ``summary()`` prints the
+    points left out, and whether the sums are exact without them.
 
     Attributes
     ----------
     bound : int
-        The largest multiplicity searched.
+        The largest multiplicity searched: the largest entry of the symmetry
+        data vector on the little-group representations read, and at least 1.
     bound_is_rigorous : bool
-        Whether the bound leaves out no sum: so wherever every elementary band
-        representation holds a kept corep, since then no multiplicity exceeds
-        the vector's largest entry.
+        Whether every elementary band representation carries a little-group
+        representation read.  Where it does, no sum has a multiplicity above
+        the bound, so a search that finds no sum proves there is none.
     enumeration : Enumeration
-        The cap on the list of sums, and whether the list was cut.
+        The cap on the number of sums listed, and whether the list stops at it.
     completeness : Completeness
-        Whether the sums are exact or a necessary condition, and why.
+        Whether the sums are exact or rest on the little-group representations
+        kept alone, and why.
     restriction : Restriction
-        The coreps measured, and on a free-standing layer the Wyckoff positions
-        off it, whose band representations every sum leaves out.
+        The little-group representations the vector was read on, and those
+        left out.
     """
 
     bound: int
@@ -350,37 +353,47 @@ class EBRDecompositionNumerical:
 
 @dataclass(frozen=True)
 class EBRDecomposition:
-    """Every sum of elementary band representations, with nonnegative integer multiplicities, that carries a band set's symmetry data vector, or none.
+    """The sums of elementary band representations that carry a symmetry data vector.
 
-    ``summary()`` prints whether one does and each sum.  The record is truthy,
-    one with no sum included.
+    The record :func:`decompose` returns.  ``summary()`` prints whether a sum
+    carries the vector, and each sum.  The record is truthy even where no sum
+    carries the vector.
 
     Attributes
     ----------
     decomposable : bool
-        Whether a sum of elementary band representations carries the vector.
+        Whether a sum of elementary band representations with nonnegative
+        integer multiplicities carries the vector.
     candidate_sums : tuple of ..symmetry.BandRepresentation
-        Every sum, each a sum of site irreps at Wyckoff positions: the fewest
-        elementary band representations first, then the one with more of
-        those the tables list first; empty where none carries the vector.
+        If nonempty, every sum that carries the vector, up to the cap on the
+        list.  The sums with the fewest elementary band representations come
+        first.  Of two with as many, the one with more copies of the first
+        elementary band representation the tables list comes first, then of
+        the second, and so on.  Where the list stops at the cap, the sums
+        listed are the first the search found, not the first in this order.
+        On a layer, the sums leave out the elementary band representations
+        induced from Wyckoff positions off the layer.
     symmetry_data : dict
         The symmetry data vector decomposed, ``{corep: multiplicity}``.
     signed_combinations : SignedCombinations or None
-        Where no sum carries the vector, the same search with multiplicities
-        of either sign; ``None`` where a sum does, and with
+        If not ``None``, the combinations of elementary band representations
+        that carry the vector, with each multiplicity of either sign and at
+        most the bound in size, up to the cap on the list.  ``None`` where a
+        sum with nonnegative multiplicities carries the vector, and with
         ``signed_combinations=False``.
-    certificate : str or None
-        What a vector no sum carries rests on: ``"proof"``, no multiplicity
-        being able to exceed the bound and no sum within it carrying the
-        vector, or ``"none within the bound"``.  ``None`` where a sum carries
-        it.
+    certificate : {"proof", "none within the bound"} or None
+        If not ``None``, what the absence of a sum rests on.  ``"proof"``: no
+        multiplicity can exceed the bound searched, and no sum within it
+        carries the vector.  ``"none within the bound"``: no sum within the
+        bound carries the vector, and a sum with a larger multiplicity is not
+        ruled out.  ``None`` where a sum carries the vector.
     site_content : SiteContent or None
-        The site irreps the sums' names rest on.  Where one is ``"lowest-l"``,
-        another declared site irrep renames them in :attr:`candidate_sums`
-        while the Wyckoff positions stay.
+        If not ``None``, the site irrep of each orbital, and how each is
+        known, on which the names of the sums rest.  ``None`` where the
+        representation holds no site irreps.
     numerical : EBRDecompositionNumerical
-        The bound searched, the cap on the list, and what the vector was read
-        on.
+        The bound searched, the cap on the list, and the little-group
+        representations the vector was read on.
     """
 
     decomposable: bool
@@ -467,30 +480,32 @@ def _signed_sums_line(signed, bound) -> str:
 
 @dataclass(frozen=True)
 class RegularCompletion:
-    r"""The bands that would carry a band set up to whole copies of the regular band representation, and the orbitals they would be.
+    r"""The bands completing a band set to copies of the regular band representation.
 
-    The regular band representation is the one the regular representation of a
-    site group induces: ``|U|`` bands at every k, ``|U|`` the number of unitary
-    operations up to lattice translations, the single-valued group's for a
-    spinful model.  Both sides of a gap completed to it make an atomic limit
-    together, which lets two models be compared at equal band count.
-    ``summary()`` prints it.
+    The record :func:`regular_completion` returns.  ``summary()`` prints the
+    symmetry data vector of the missing bands, and the orbitals they would be.
 
     Attributes
     ----------
     copies : int
-        How many regular copies the completed bands make.
+        The number of copies of the regular band representation the completed
+        bands make.
     bands_per_copy : int
-        ``|U|``, the bands of one copy.
+        The number of bands in one copy: the number of unitary operations of
+        the group up to lattice translations.  For a spinful model these are
+        the operations of the single-valued group.
     padding : dict
-        The coreps the missing bands carry: :attr:`copies` times
-        :attr:`regular`, less :attr:`symmetry_data`.
+        If nonempty, the symmetry data vector of the missing bands,
+        ``{corep: multiplicity}``: :attr:`copies` times :attr:`regular`, less
+        :attr:`symmetry_data`.
     decomposition : EBRDecomposition
-        The padding's own sums: the orbitals the missing bands would be.
+        What :func:`decompose` returns for :attr:`padding`: the orbitals the
+        missing bands would be.
     symmetry_data : dict
-        The symmetry data vector handed in.
+        The symmetry data vector of the band set handed in.
     regular : dict
-        One copy's symmetry data vector, from the group's corep characters.
+        The symmetry data vector of one copy, computed from the characters of
+        the little-group coreps at each point.
     """
 
     copies: int
@@ -1224,21 +1239,24 @@ def content_of(content) -> dict | Refusal:
     """
     src = content.symmetry_data if isinstance(content, _sewing.HSPTable) else content
     if not isinstance(src, Mapping):
-        raise TypeError("content_of(): content is a table hsp_table returns or a "
-                        f"{{corep: multiplicity}} mapping; got {type(content).__name__}.")
+        raise TypeError(f"content_of(): content= is of type {type(content).__name__}; "
+                        "pass the table hsp_table returns, or {corep: multiplicity} "
+                        "written out by hand.")
     out = {}
     for lab, v in src.items():
         iv = int(round(float(v)))
         if abs(float(v) - iv) > 1e-9:
             return Refusal("non_integer_multiplicity",
-                           f"content['{lab}'] = {v} is not an integer multiplicity",
+                           f"the multiplicity of {lab} is {v}, which is not an integer. "
+                           "Pass an integer multiplicity for each little-group "
+                           "representation.",
                            value=float(v), context={"label": str(lab)})
         if iv < 0:
             return Refusal("negative_multiplicity",
-                           f"content['{lab}'] = {iv} is negative; a symmetry data vector "
-                           "counts coreps and cannot be negative. If this is a "
-                           "difference of two band sets, that difference is not a "
-                           "band set.", value=float(iv), threshold=0.0,
+                           f"the multiplicity of {lab} is {iv}, which is negative. "
+                           "Pass a nonnegative multiplicity for each little-group "
+                           "representation.",
+                           value=float(iv), threshold=0.0,
                            context={"label": str(lab)})
         if iv:
             out[str(lab)] = iv
@@ -1305,22 +1323,22 @@ def _read(call, symmetry_data, realized) -> _Source | Refusal:
 
     if isinstance(symmetry_data, _sewing.HSPTable):
         if realized is not None:
-            raise TypeError(f"{call}(): a table carries what it was read from; pass the "
-                            f"table alone: {call}(t).")
+            raise TypeError(f"{call}(): a table is passed with realized= beside it; pass "
+                            f"the table alone: {call}(t).")
         return _source_of_table(symmetry_data)
     if not isinstance(symmetry_data, Mapping):
-        raise TypeError(f"{call}(): symmetry_data is a table hsp_table returns or a "
-                        f"{{corep: multiplicity}} mapping; got "
-                        f"{type(symmetry_data).__name__}.")
+        raise TypeError(f"{call}(): symmetry_data= is of type "
+                        f"{type(symmetry_data).__name__}; pass the table hsp_table returns, "
+                        "or {corep: multiplicity} written out by hand.")
     if realized is None:
-        raise TypeError(f"{call}(): a symmetry data vector written out by hand is read in "
-                        "the measurement its coreps came from; pass it second: "
-                        f"{call}(symmetry_data, r).")
+        raise TypeError(f"{call}(): a symmetry data vector written out by hand is passed "
+                        "without realized=; pass what realized_group returned for its model "
+                        f"second: {call}(symmetry_data, r).")
     if isinstance(realized, Refusal):
         return realized
     if not isinstance(realized, RealizedGroup):
-        raise TypeError(f"{call}(): pass what realized_group returns second, as in "
-                        f"{call}(symmetry_data, r); got {type(realized).__name__}.")
+        raise TypeError(f"{call}(): realized= is of type {type(realized).__name__}; pass "
+                        f"what realized_group returns second: {call}(symmetry_data, r).")
     return _source_of_rep(realized.group, realized.rep)
 
 
@@ -1456,19 +1474,16 @@ def _restriction(group, points=None, *, require_exact=True, layer=None) -> Restr
         unrepeated = [label for label in missing if kpoint_of_label(label) in off_plane]
         if unrepeated:
             raise InternalError(
-                f"#{group.number_str}: on the layer's own band representations the rows "
-                f"{unrepeated}, out of its plane, repeat no row in it. The layer's "
-                "operations carry no translation along its normal and keep the positions "
-                "within it within it, so every such row of a band representation induced "
-                "there repeats one in the plane; that one does not is this package "
-                "disagreeing with itself, not a verdict on the layer.")
+                f"{group.name} #{group.number_str}: the little-group representations "
+                f"{unrepeated} are out of the layer's plane, and none of them occurs in "
+                "every one of the layer's own elementary band representations as often as "
+                "one in the plane. Report it, with the model and the call.")
     if missing and require_exact:
         return Refusal(
             "restriction_not_exact",
-            f"the EBR rows {missing} cannot be measured by this model (their k-points "
-            f"are out of the periodic plane) and duplicate no retained row, so they "
-            f"impose independent constraints, which the {_kind(group)} measured in the plane "
-            f"do not fix in group #{group.number_str}.",
+            f"the little-group representations {missing} are at points not measured, and "
+            "none of them occurs in every elementary band representation of "
+            f"{group.name} #{group.number_str} as often as a measured one.",
             value=float(len(missing)), threshold=0.0,
             context={"missing": tuple(missing), "retained": tuple(labels[j] for j in keep),
                      "points": points, "number_str": group.number_str})
@@ -1696,83 +1711,96 @@ def _terms(solutions, ebrs):
 def decompose(symmetry_data, realized=None, *, allow_incomplete=False,
               cap=DEFAULT_ENUMERATION_CAP,
               signed_combinations=True) -> EBRDecomposition | Refusal:
-    r"""Every sum of elementary band representations, with nonnegative integer multiplicities, that carries a band set's symmetry data vector.
+    r"""The sums of elementary band representations that carry a symmetry data vector.
 
-    An atomic limit's symmetry data vector is such a sum, so a band set with
-    none is no atomic limit; one with a sum may still not be one, by an
-    obstruction beyond what symmetry indicators see.  A layer is decomposed
-    over the band representations of the Wyckoff positions within it.  A
-    vector written out by hand is read at every tabulated point of the
-    model's plane and at each point out of it where it names a corep.
+    The sums are found by enumerating the solutions :math:`x` in nonnegative
+    integers of :math:`M x = y`.  Here :math:`y` is the symmetry data vector
+    and the columns of :math:`M` are the elementary band representations, both
+    taken on the little-group representations at the high-symmetry points
+    the model samples.  Each multiplicity is searched up to the
+    largest entry of :math:`y`, the bound.  The symmetry data vector of an
+    atomic limit is such a sum.  Some band sets whose vector is such a sum are
+    not atomic limits.
 
     Parameters
     ----------
     symmetry_data : .sewing.HSPTable or mapping
-        The table :func:`.sewing.hsp_table` returns, which must be complete,
-        or ``{corep: multiplicity}`` written out by hand.
+        The symmetry data vector.  Pass the table :func:`.sewing.hsp_table`
+        returns, or ``{corep: multiplicity}`` written out by hand.
     realized : .groups.RealizedGroup, optional
-        What :func:`.groups.realized_group` returned, ``r``, the measurement
-        the coreps came from.  Pass it beside a vector written out by hand,
-        and with a table nothing.
+        What :func:`.groups.realized_group` returned for the model the
+        symmetry data vector was measured on.  Pass it with a vector written
+        out by hand, and nothing with a table.
     allow_incomplete : bool, default False
-        Whether a table that refused at some points is decomposed, their
-        coreps left out.  With ``allow_incomplete=True``, a point whose tables
-        cannot be read is left out, and the sums are then a necessary
-        condition only; never pass it for a point where the physics refused.
+        Whether a table that refused at some points is decomposed.  With
+        ``allow_incomplete=True``, the little-group representations at the
+        points refused are left out.  Pass ``True`` only where the tables of
+        the irreptables package cannot be read at those points.
     cap : int, default 200
-        The most sums listed.
+        The largest number of sums listed.
     signed_combinations : bool, default True
         Whether a vector no sum carries is searched again with negative
-        multiplicities allowed.  With ``signed_combinations=False``, it is
-        not.
+        multiplicities allowed.
 
     Returns
     -------
     EBRDecomposition or Refusal
-        ``d.summary()`` prints whether a sum carries the vector and each sum.
-        ``d.decomposable`` says whether one does; ``d.candidate_sums`` holds
-        each, a sum of site irreps at Wyckoff positions; ``d.certificate``
-        what a vector no sum carries rests on, and ``d.signed_combinations``
-        the search with negative multiplicities.  The record is truthy, one
-        with no sum included; a ``Refusal`` in its place is falsy and names
-        what stopped the call.
+        Whether a sum carries the vector, and every sum that does, up to
+        ``cap`` of them.  Where none does, the record also holds what the
+        absence of a sum rests on, and the combinations that carry the vector
+        with each multiplicity of either sign and at most the bound in size,
+        up to ``cap`` of them.  The record is truthy even where no sum carries
+        the vector.  With ``allow_incomplete=True``, the little-group
+        representations at the points refused enter no equation, and the
+        record's ``numerical.completeness`` says what the sums listed rest on.
+        With ``signed_combinations=False``, no combination with negative
+        multiplicities is returned.
+
+    Examples
+    --------
+    The six lowest bands of lin3g (:func:`.models.lin3g`), with three sums:
+
+    >>> d = decompose(hsp_table(r, bands=6))                      # doctest: +SKIP
+    >>> [s.label for s in d.candidate_sums]                           # doctest: +SKIP
+    ["-E2 at 1b (4mm1') + -E at 2c (mm21')", ...]
 
     Refusals
     --------
     A refusal handed in as ``realized`` is returned as it is.
 
     ``incomplete_content``
-        the table refused at some point.
+        the table refused at some point.  With ``allow_incomplete=True``, the
+        call does not refuse.
     ``not_a_band_structure``
-        the vector fails the group's compatibility relations: no set of bands
-        apart from the rest at every k has it.
+        the vector fails the compatibility relations of the group.
     ``unknown_label``
-        a corep the group's elementary band representations do not hold.
+        the vector names a little-group representation that the group's
+        elementary band representations do not carry.
     ``restriction_not_exact``
-        a corep the model does not measure repeats none it does.
-    ``non_integer_multiplicity`` / ``negative_multiplicity``
-        the vector is no count of coreps.
-    ``ebr_tables`` / ``irrep_tables`` / ``ebr_convention``
-        no elementary band representations of this group to decompose against.
+        a little-group representation the model does not measure is matched
+        by no measured one that occurs as often in every elementary band
+        representation.  With ``allow_incomplete=True`` and a table that
+        refused at some point, the call does not refuse.
+    ``non_integer_multiplicity``
+        an entry of the vector is not an integer.
+    ``negative_multiplicity``
+        an entry of the vector is negative.
+    ``ebr_tables`` / ``irrep_tables`` / ``ebr_convention`` / ``tables_not_ready``
+        the tables installed hold no elementary band representations of this
+        group that can be read in the model's cell.
 
     Raises
     ------
     TypeError
-        A table with anything beside it, a vector written out by hand with
-        nothing beside it, a second argument that is not what
-        :func:`.groups.realized_group` returned, or a first that is neither a
-        table nor a mapping.
-    ..refusal.InternalError
-        On a layer's own band representations a corep out of its plane repeats
-        none in it: the package disagreeing with itself.
+        A table with ``realized`` beside it, a vector written out by hand
+        without it, a ``realized`` that is not what
+        :func:`.groups.realized_group` returned, or a ``symmetry_data`` that is
+        neither a table nor a mapping.
 
-    Examples
+    See Also
     --------
-    lin3g's six lowest bands (:func:`.models.lin3g`):
-
-    >>> d = decompose(hsp_table(r, bands=6))                      # doctest: +SKIP
-    >>> [s.label for s in d.candidate_sums]                           # doctest: +SKIP
-    ["-E2 at 1b (4mm1') + -E at 2c (mm21')", ...]
+    symmetry_indicator : the symmetry-indicator class of a band set.  A
+        nonzero class rules out an atomic limit.
     """
     source = _read("decompose", symmetry_data, realized)
     if isinstance(source, Refusal):
@@ -1799,13 +1827,9 @@ def _decompose_in(source, symmetry_data, *, allow_incomplete=False,
     if table is not None and not table.complete and not allow_incomplete:
         return Refusal(
             "incomplete_content",
-            "the symmetry data vector is missing "
-            f"{sorted(refused, key=_tables.point_order)}: {refused}. A missing "
-            "constraint can only make a "
-            "decomposition easier to find, so a partial symmetry data vector is not "
-            "decomposed. Read the table's refusals; pass allow_incomplete=True only for "
-            "a point whose tables cannot be read rather than one where the physics "
-            "failed, and then read the sums as a necessary condition.",
+            "the table holds no little-group representations at "
+            f"{sorted(refused, key=_tables.point_order)}: {refused}. Read each missing "
+            "point's refusal in the table's `refusals`.",
             value=float(len(refused)), threshold=0.0,
             context={"refusals": refused,
                      "resolved": tuple(table.multiplets)})
@@ -1820,9 +1844,9 @@ def _decompose_in(source, symmetry_data, *, allow_incomplete=False,
     if unknown:
         return Refusal(
             "unknown_label",
-            f"the measured labels {unknown} are not in the EBR basis of group "
-            f"#{group.number_str}; the symmetry data vector and the basis are not written in "
-            "the same alphabet.",
+            f"the labels {unknown} are not among those of the elementary band "
+            f"representations of {group.name} #{group.number_str}. Pass a symmetry "
+            "data vector read in this group.",
             value=float(len(unknown)), threshold=0.0,
             context={"unknown": tuple(unknown), "basis": tuple(labels_all)})
 
@@ -1878,8 +1902,7 @@ def _decompose_in(source, symmetry_data, *, allow_incomplete=False,
             # or proves there are none within the bound
             raise InternalError(
                 f"the search with negative multiplicities allowed ended {p_status}, "
-                "where with no limit set it finds solutions or proves there are none "
-                "within the bound: the package disagreeing with itself.")
+                "with no limit set. Report it, with the model and the call.")
         p_sol = _lifted(p_sol, columns, len(ebrs))
         signed = SignedCombinations(
             sums=tuple(_sum_of(_terms_of(terms)) for terms in _terms(p_sol, ebrs)),
@@ -2752,54 +2775,60 @@ def _incomplete_table(content):
     names = sorted(refused, key=_tables.point_order)
     return Refusal(
         "incomplete_content",
-        f"the table is missing the coreps at {names}: {refused}. Its symmetry data "
-        "vector holds nothing at those points, and a difference taken with it would "
-        "count them as empty. Read each missing point's refusal in the table's "
-        "`refusals`.",
+        f"the table holds no little-group representations at {names}: {refused}. "
+        "Read each missing "
+        "point's refusal in the table's `refusals`.",
         value=float(len(refused)), threshold=0.0,
         context={"refusals": refused, "resolved": tuple(content.multiplets)})
 
 
 def subtract(symmetry_data_a, symmetry_data_b) -> dict | Refusal:
-    """The symmetry data vector of the bands in one set and not in another: ``a − b``.
+    """The symmetry data vector of the bands in one set and not in another, ``a - b``.
 
     Parameters
     ----------
     symmetry_data_a, symmetry_data_b : .sewing.HSPTable or mapping
-        The two vectors, each a table :func:`.sewing.hsp_table` returned or
-        ``{corep: multiplicity}`` written out by hand; ``b`` is contained in
-        ``a``.
+        The two symmetry data vectors, ``a`` and ``b``.  Pass for each the
+        table :func:`.sewing.hsp_table` returns, or ``{corep: multiplicity}``
+        written out by hand.
 
     Returns
     -------
     dict or Refusal
-        ``{corep: multiplicity}``, the zeros dropped: empty, and so falsy, where
-        the two are equal, so ``isinstance(out, Refusal)`` is what tells a
-        refusal apart.
+        ``{corep: multiplicity}``, the zeros dropped.  A difference can only be
+        returned where ``a`` carries every little-group representation of
+        ``b`` at least as many times as ``b`` does.  Where the two are equal it is empty, and so
+        falsy.  ``isinstance(out, Refusal)`` tells a refusal apart.
 
     Refusals
     --------
     ``incomplete_content``
         either is a table that refused at some point.
     ``negative_multiplicity``
-        ``b`` is not contained in ``a``: a difference of two band sets is one
-        only where one contains the other.  A signed combination is what
-        :attr:`EBRDecomposition.signed_combinations` holds.
+        ``b`` carries some little-group representation more times than ``a``
+        does, or an entry of either is negative.
     ``non_integer_multiplicity``
-        either is no count of coreps.
+        an entry of either is not an integer.
 
     Raises
     ------
+    TypeError
+        Either is neither a table nor a mapping.
     ValueError
-        Two tables read in different groups, whose coreps are not one alphabet.
+        The two are tables read in different groups.
+
+    See Also
+    --------
+    decompose : the sums of elementary band representations that carry a
+        symmetry data vector, such as the difference.
     """
     own_a = symmetry_data_a.group if isinstance(symmetry_data_a, _sewing.HSPTable) else None
     own_b = symmetry_data_b.group if isinstance(symmetry_data_b, _sewing.HSPTable) else None
     if own_a is not None and own_b is not None and not _same_group(own_a, own_b):
         raise ValueError(
             f"subtract(): the tables were read in different groups, {own_a.name} "
-            f"#{own_a.number_str} and {own_b.name} #{own_b.number_str}, "
-            "whose coreps cannot be subtracted label by label.")
+            f"#{own_a.number_str} and {own_b.name} #{own_b.number_str}. "
+            "Pass two tables read in one group.")
     for content in (symmetry_data_a, symmetry_data_b):
         missing = _incomplete_table(content)
         if missing is not None:
@@ -2821,10 +2850,8 @@ def subtract(symmetry_data_a, symmetry_data_b) -> dict | Refusal:
     if bad:
         return Refusal(
             "negative_multiplicity",
-            f"the difference has negative multiplicities {bad}; the second symmetry data "
-            "vector is not contained in the first, so their difference is not a band set. A "
-            "signed EBR combination is still meaningful (it is what fragility means) "
-            "but it is not a symmetry data vector and cannot be decomposed as one.",
+            f"the difference has negative multiplicities {bad}. Check that the bands "
+            "of the second symmetry data vector are among those of the first.",
             value=float(min(bad.values())), threshold=0.0,
             context={"negative": bad, "a": a, "b": b})
     return out
@@ -2903,8 +2930,9 @@ def _regular_content(group, kpoints=None, *, call="regular_content") -> dict | R
             refused = _tables._little_group(group, _tables._table_kpoints(group)[name])
             if not isinstance(refused, Refusal):
                 raise InternalError(
-                    f"#{group.number_str}: {name} is listed as out of the layer's plane, "
-                    "yet its little group was read.")
+                    f"{group.name} #{group.number_str}: {name} is listed as out of the "
+                    "layer's plane, but its little group was read. Report it, with the "
+                    "model and the call.")
             return refused
         k = hsp[name]
         lg = _tables._little_group(group, k)
@@ -2922,9 +2950,9 @@ def _regular_content(group, kpoints=None, *, call="regular_content") -> dict | R
             if abs(m - round(m)) > _INT_TOL:
                 return Refusal(
                     "regular_content_not_integral",
-                    f"the regular multiplicity of {label} at {name} came out {m:.6g}, "
-                    "which is not an integer; the tabulated characters and the little "
-                    "group disagree about this corep.",
+                    f"the multiplicity of {label} at {name} in one copy of the regular band "
+                    f"representation of {group.name} #{group.number_str} is {m:.6g}, which "
+                    "is not an integer.",
                     value=float(m), threshold=float(_INT_TOL),
                     context={"kpname": name, "label": label, "n_unitary": n_u,
                              "little_group": len(lg.unitary)})
@@ -2936,8 +2964,10 @@ def _regular_content(group, kpoints=None, *, call="regular_content") -> dict | R
     if off:
         return Refusal(
             "regular_content_not_integral",
-            f"the regular content does not carry the {n_u} bands of one regular band "
-            f"representation at every point: {off}",
+            f"one copy of the regular band representation of {group.name} "
+            f"#{group.number_str} has {n_u} bands, and the numbers of bands its "
+            f"multiplicities give at these points are {off}. Report it, with the model "
+            "and the call.",
             value=float(max(off.values())), threshold=float(n_u),
             context={"bands": bands, "n_unitary": n_u})
     return _tables.ordered_content(out)
@@ -2945,33 +2975,38 @@ def _regular_content(group, kpoints=None, *, call="regular_content") -> dict | R
 
 def regular_completion(symmetry_data, realized=None, *,
                        bands=None) -> RegularCompletion | Refusal:
-    """The bands that would carry a band set up to whole copies of the regular band representation, and the orbitals they would be.
+    """The bands completing a band set to copies of the regular band representation.
 
-    The regular band representation is ``|U|`` bands at every k, ``|U|`` the
-    number of unitary operations up to lattice translations, the single-valued
-    group's for a spinful model (:func:`regular_content`).  Both sides of a gap
-    completed to it make an atomic limit together.
+    One copy of the regular band representation has ``|U|`` bands at every k,
+    ``|U|`` the number of unitary operations of the group up to lattice
+    translations.  For a spinful model these are the operations of the
+    single-valued group.  The symmetry data vector of the missing bands is
+    ``n / |U|`` times that of one copy, less that of the band set, where ``n``
+    is the number of bands in ``bands``.  The vector of one copy is computed
+    from the characters of the little-group coreps at each point.  The
+    missing bands are then decomposed by :func:`decompose`, read as a vector
+    written out by hand.
 
     Parameters
     ----------
     symmetry_data : .sewing.HSPTable or mapping
-        The table :func:`.sewing.hsp_table` returns, or ``{corep:
-        multiplicity}`` written out by hand.
+        The symmetry data vector of the band set.  Pass the table
+        :func:`.sewing.hsp_table` returns, or ``{corep: multiplicity}``
+        written out by hand.
     realized : .groups.RealizedGroup, optional
-        What :func:`.groups.realized_group` returned, ``r``.  Pass it beside a
-        vector written out by hand, and with a table nothing.
+        What :func:`.groups.realized_group` returned for the model the coreps
+        were measured on.  Pass it with a vector written out by hand, and
+        nothing with a table.
     bands : int or sequence of int
-        The bands of the completed system: a number of them, or their indices,
-        a multiple of ``|U|`` in all.  Required.
+        The bands of the completed system.  Pass their number, or their
+        indices.  Only their number is read.  Required.
 
     Returns
     -------
     RegularCompletion or Refusal
-        ``rc.summary()`` prints it.  ``rc.padding`` holds the coreps the
-        missing bands carry, ``rc.decomposition`` the orbitals they would be,
-        what :func:`decompose` returns for the padding; ``rc.regular`` one
-        copy's symmetry data vector and ``rc.bands_per_copy`` its bands.  A
-        ``Refusal`` in its place is falsy and names what stopped the call.
+        The symmetry data vector of the missing bands, and its decomposition
+        into elementary band representations.  The record also holds the
+        number of copies and the symmetry data vector of one copy.
 
     Refusals
     --------
@@ -2980,34 +3015,62 @@ def regular_completion(symmetry_data, realized=None, *,
     ``incomplete_content``
         the table refused at some point.
     ``not_a_regular_multiple``
-        the number of bands is no multiple of ``|U|``.
+        the number of bands is not a multiple of ``|U|``.
     ``negative_multiplicity``
-        the band set carries more of a corep than that many regular copies do:
-        it is no part of them.
+        the band set carries some corep more times than the copies do, or an
+        entry of the vector is negative.
+    ``non_integer_multiplicity``
+        an entry of the vector is not an integer.
+    ``not_a_band_structure``
+        the vector of the missing bands fails the compatibility relations of
+        the group.
+    ``unknown_label``
+        the vector of one copy names a corep that the group's elementary band
+        representations do not carry.
     ``restriction_not_exact``
-        a corep of the padding the model does not measure repeats none it does.
-    ``regular_content_not_integral``, ``not_a_band_structure``, ``unknown_label``, ...
-        those of :func:`regular_content` and :func:`decompose`.
+        a corep the model does not measure is matched by no measured corep that
+        occurs as often in every elementary band representation.
+    ``regular_content_not_integral``
+        the characters of the little-group coreps give one copy a multiplicity
+        that is not an integer, or other than ``|U|`` bands at a point.
+    ``ebr_tables``
+        the tables installed hold no elementary band representations of this
+        group.
+    ``irrep_tables``
+        the tables installed hold no irrep table of this group, or ``irrep``
+        did not load its tables.
+    ``ebr_convention``
+        the elementary band representations of this group cannot be carried
+        from the tables' convention into this package's.
+    ``tables_not_ready``
+        the model's cell is not matched to the setting the tables are written
+        in.
 
     Raises
     ------
     TypeError
-        No ``bands``; or a table with anything beside it, a vector written
-        out by hand with nothing beside it, or a second argument that is not
-        what :func:`.groups.realized_group` returned.
+        No ``bands``, a table with ``realized`` beside it, a vector written
+        out by hand without it, a ``realized`` that is not what
+        :func:`.groups.realized_group` returned, or a ``symmetry_data`` that is
+        neither a table nor a mapping.
+    ..refusal.InternalError
+        A corep out of a layer's plane that is matched by no corep in the plane
+        occurring as often in every elementary band representation induced
+        from the Wyckoff positions within the layer.
 
     Examples
     --------
-    lin3g's six lowest bands, completed to its eight, one regular copy: the
-    padding ``-GM7 + -M6 + -X5`` is ``-E1`` at ``1b``, the coreps of the two
-    bands above the gap.
+    The six lowest bands of lin3g, completed to its eight bands, one copy.  The
+    symmetry data vector of the missing bands, ``-GM7 + -M6 + -X5``, is that
+    of the two bands above the gap, and decomposes as ``-E1`` at ``1b``.
 
     >>> rc = regular_completion(hsp_table(r, bands=6), bands=8) # doctest: +SKIP
     >>> [s.label for s in rc.decomposition.candidate_sums]         # doctest: +SKIP
     ["-E1 at 1b (4mm1')"]
     """
     if bands is None:
-        raise TypeError("regular_completion(): missing required argument 'bands'")
+        raise TypeError("regular_completion(): no bands= is passed; pass the bands of the "
+                        "completed system, as their number or their indices.")
     source = _read("regular_completion", symmetry_data, realized)
     if isinstance(source, Refusal):
         return source
@@ -3027,10 +3090,10 @@ def regular_completion(symmetry_data, realized=None, *,
     if n_bands % n_u:
         return Refusal(
             "not_a_regular_multiple",
-            f"{n_bands} bands is not a multiple of {n_u}, the band count of one "
-            f"regular band representation of #{group.number_str}. Regular-representation "
-            "padding is only defined at multiples of it; pick the next multiple "
-            f"({n_u * (n_bands // n_u + 1)}).",
+            f"{n_bands} bands is not a multiple of {n_u}, the number of bands of one "
+            f"regular band representation of {group.name} #{group.number_str}. Pass a "
+            "multiple of it "
+            f"to bands=, such as {n_u * (n_bands // n_u + 1)}.",
             value=float(n_bands % n_u), threshold=0.0,
             context={"n_bands": n_bands, "bands_per_copy": n_u,
                      "number_str": group.number_str})

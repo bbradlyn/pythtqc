@@ -2,9 +2,10 @@
 """Write ``docs/reference/functions.md`` from the docstrings of the functions ``pythtqc`` exports.
 
 The page is the docstrings, rendered: for each function in ``pythtqc.__all__``,
-its signature, its summary paragraph, and its *Parameters*, *Returns* and
-*Refusals* sections, grouped by task as :data:`GROUPS` lists them.  It is
-written by this script and never by hand, so the docstrings stay the one
+its signature, its summary line, its lead paragraphs (what it computes), and
+its *Parameters*, *Returns* and *Refusals* sections, grouped by task as
+:data:`GROUPS` lists them.  It is written by this script and never by hand,
+so the docstrings stay the one
 source, and ``tests/test_docs.py`` fails when the page in the tree is not what
 the docstrings make it now::
 
@@ -81,11 +82,11 @@ WIDTH = 88
 INTRODUCTION = """\
 # Functions
 
-Every function `pythtqc` exports, by task: its signature, what it is for, the
-arguments it takes, what it returns, and the checks at which it refuses. The
-page is written from the docstrings by `scripts/build_reference.py` and is not
-edited by hand. A docstring holds more than its entry here, notes and examples
-among it, and `help(tqc.<name>)` prints the whole of one, with
+Every function `pythtqc` exports, by task: its signature, what it is for, what
+it computes, the arguments it takes, what it returns, and the checks at which it
+refuses. The page is written from the docstrings by `scripts/build_reference.py`
+and is not edited by hand. A docstring holds more than its entry here, its
+examples among it, and `help(tqc.<name>)` prints the whole of one, with
 `import pythtqc as tqc`: `help(tqc.realized_group)`, for one.
 
 A call that cannot complete returns a `Refusal` in place of its record: a
@@ -142,11 +143,14 @@ _HEADER = re.compile(r"^\s*([A-Z][A-Za-z]*(?: [A-Za-z]+){0,2})\s*$")
 
 
 def _parts(function):
-    """A docstring's summary paragraph, and its sections by name."""
+    """A docstring's summary paragraph, its lead, and its sections by name.
+
+    The lead is the text between the summary paragraph and the first section.
+    """
     lines = inspect.getdoc(function).splitlines()
     end = next((i for i, line in enumerate(lines) if not line.strip()), len(lines))
-    sections, current = {}, None
-    i = 0
+    sections, current, lead = {}, None, []
+    i = end
     while i < len(lines):
         if (i + 1 < len(lines) and _HEADER.match(lines[i])
                 and _UNDERLINE.match(lines[i + 1])):
@@ -156,8 +160,10 @@ def _parts(function):
             continue
         if current is not None:
             sections[current].append(lines[i])
+        else:
+            lead.append(lines[i])
         i += 1
-    return lines[:end], sections
+    return lines[:end], lead, sections
 
 
 def _items(body, refusals):
@@ -422,15 +428,17 @@ def render():
     for title, _, members in GROUPS:
         out += ["", f"## {title}", ""]
         for name in members:
-            summary, _ = _parts(getattr(package, name))
+            summary, _, _ = _parts(getattr(package, name))
             out.append(f"- [{_code(name)}](#{name}) — "
                        + " ".join(_paragraph(summary, names)))
         for name in members:
             function = getattr(package, name)
-            summary, sections = _parts(function)
+            summary, lead, sections = _parts(function)
             out += ["", f"### {_code(name)}", "", "```text"]
             out += _signature(name, function)
             out += ["```", ""] + _paragraph(summary, names) + [""]
+            for block in _blocks(lead, names):
+                out += block + [""]
             for section in SECTIONS:
                 body = sections.get(section)
                 if body and any(line.strip() for line in body):

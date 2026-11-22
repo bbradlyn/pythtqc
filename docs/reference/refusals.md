@@ -2,7 +2,7 @@
 
 Every refusal a call can return, by the name of its check: what it means, its usual cause,
 and what to do. A refusal is a returned, falsy `Refusal` record that carries the check that
-stopped the call, a one-sentence reason, the value the check measured against its
+stopped the call, a short reason, the value the check measured against its
 threshold, and a `context` with everything needed to act on it;
 [when a call refuses](../guide/refusals.md) reads one through, and each call's entry in
 [the functions reference](functions.md) lists the refusals it can return. Each entry below
@@ -301,18 +301,23 @@ Returned by `coreps_at`, through its identification of the coreps.
 
 #### `incomplete_content`
 
-Returned by `decompose`, `symmetry_indicator`, `subtract`,
-`regular_completion`, `splitting` and `srsi_of_bands`.
+Returned by `decompose`, `symmetry_indicator`, `subtract`, `regular_completion`,
+`splitting` and `srsi_of_bands`, each when it is handed a table that refused at some
+high-symmetry point.
 
-- **What it means.** The symmetry data vector has no label at some high-symmetry point, because
-  the table refused there, and a decomposition, a class or a difference of the rest would be
-  a verdict on a different vector.
-- **Usual cause.** A set of bands that cuts a multiplet at some point, or another refusal
-  recorded in the table at that point.
+- **What it means.** The table holds no little-group representations at that point. A
+  decomposition, a class or a difference of the multiplicities it does hold would be a
+  verdict on a different symmetry data vector. Leaving a point out removes conditions, so a
+  decomposition of the rest is easier to find than one of the whole vector.
+- **Usual cause.** A set of bands that cuts a multiplet at that point, or another refusal
+  recorded in the table there.
 - **What to do.** Read the table's refusals, which `context["refusals"]` repeats, and fix
-  the set of bands. `decompose` takes `allow_incomplete=True` for a point whose tables
-  cannot be read, never for one where the physics refused, and its sums are then a
-  necessary condition only; it lifts no other call's refusal.
+  the set of bands. Where a point's tables cannot be read, `decompose` takes
+  `allow_incomplete=True` and decomposes the multiplicities at the other points; it is not
+  for a point where the physics refused. The record then says whether its sums are exact.
+  They are exact where, for every little-group representation left out, one kept occurs as
+  often as it in every elementary band representation, and a necessary condition
+  otherwise. No other call takes this override.
 
 #### `not_a_band_structure`
 
@@ -346,18 +351,51 @@ Returned by `symmetry_indicator` and `srsi_of_bands`.
 
 #### `restriction_not_exact`
 
-Returned by `in_plane_restriction`, `decompose` and `regular_completion`.
+Returned by `in_plane_restriction`, `decompose` and `regular_completion`. Each returns it
+when, for some little-group representation at a point not measured, no measured one occurs
+as often as it in every elementary band representation of the group.
 
-- **What it means.** Rows of the group's elementary band representations that the model
-  does not measure repeat no row it does, so they impose constraints of their own and no
-  verdict from the measured rows is exact for this group.
+- **What it means.** The multiplicity of each such little-group representation is a
+  condition of its own on a symmetry data vector, which the measured multiplicities do not
+  fix, so no verdict read from them is exact for this group.
 - **Usual cause.** `in_plane_restriction` handed `kpoints=` naming fewer points than the
-  model samples, or asked of a free-standing layer's group over every band
-  representation. `decompose` reads a layer over its own band representations, those of
-  the Wyckoff positions within it, on which every row out of its plane repeats one in it.
-- **What to do.** Measure the content at every point the model samples; for a layer's
-  class, the indicator measures the rows out of its plane on the layer's decoupled stack
-  ([symmetry indicators](../guide/indicators.md)).
+  plane holds, or asked of a free-standing layer's group over every elementary band
+  representation, some of whose little-group representations at `k_z = 1/2` are of this
+  kind. `decompose` and `regular_completion` read a layer over its own elementary band
+  representations, those of the Wyckoff positions within it. A layer's operations have no
+  translation along its normal and map the layer onto itself, so on these every
+  little-group representation out of the plane occurs as often as one in it; one that does
+  not raises `InternalError`. Those two calls return the refusal only where the Wyckoff
+  positions of the tables cannot be read in the group's cell, so that every elementary band
+  representation is kept.
+- **What to do.** For `in_plane_restriction`, name every point of the plane in `kpoints=`,
+  or leave `kpoints=` out, which is enough for a crystal. A layer's little-group
+  representations at `k_z = 1/2` are measured on its decoupled stack:
+  `symmetry_indicator`, handed the table, reads the class there
+  ([symmetry indicators](../guide/indicators.md)). From `decompose` and
+  `regular_completion`, the tables' Wyckoff positions could not be read in the group's
+  cell; report it, with the model and the call.
+
+#### `regular_content_not_integral`
+
+Returned by `regular_content` and `regular_completion`, when one copy of the regular band
+representation, as the calls count it, holds some little-group representation a number of
+times that is not an integer, or has other than `|U|` bands at some point.
+
+- **What it means.** It can come from the group itself. In a group with time reversal, a
+  corep can be one irrep taken twice, which time reversal does not let be split. For
+  example, `-GM2GM2` of the spinful group `P-11'` is one one-dimensional irrep taken twice,
+  and `P-11'` has coreps of the same kind at other points. Where one copy holds such an
+  irrep an odd number of times, as one copy of `P-11'` holds it once, the copy holds half an
+  odd number of the corep, and a copy symmetric under time reversal has `2|U|` bands. For
+  such a group `regular_completion` returns this refusal at every number of bands, and
+  `regular_content` always.
+- **Otherwise.** A multiplicity that is not half an odd integer, or a copy whose
+  multiplicities do not give `|U|` bands at every point, means the tables' characters and
+  the little group disagree. That is the package disagreeing with itself.
+- **What to do.** For a group with such a corep, no completion is returned
+  ([counting bands](../guide/atomic-limits.md#counting-bands)). Otherwise report it, with
+  the model and the call.
 
 ### Stable real-space invariants
 
@@ -467,7 +505,7 @@ Returned by `atomic_realizations`, and by `nsit_criterion` and `splitting` throu
 #### `irrep_tables`
 
 Returned by `realized_group`, `ebr_data`, `ebr_rows`, `decompose`, `symmetry_indicator`,
-`in_plane_restriction`, `srsi_tables` and `wyckoff_sites_tables`.
+`regular_completion`, `in_plane_restriction`, `srsi_tables` and `wyckoff_sites_tables`.
 
 - **What it means.** The character tables were not loaded, so no label can be read; or the
   tables carry no irrep table for this group, so its band representations cannot be carried
@@ -481,7 +519,8 @@ Returned by `realized_group`, `ebr_data`, `ebr_rows`, `decompose`, `symmetry_ind
 
 Returned by `operations`, `operation_index`, `high_symmetry_points`, `little_group`,
 `corep_table`, `coreps_at`, `hsp_table`, `wyckoff_sites_tables`,
-`in_plane_restriction` and `srsi_of_model`.
+`in_plane_restriction`, `decompose`, `symmetry_indicator`, `regular_content`,
+`regular_completion`, `srsi_of_bands` and `srsi_of_model`.
 
 - **What it means.** The group was identified, but its cell could not be matched to the
   setting the tables are written in, so no table can be read for it. The reason carries
@@ -493,7 +532,8 @@ Returned by `operations`, `operation_index`, `high_symmetry_points`, `little_gro
 #### `ebr_tables`
 
 Returned by `ebr_data`, `ebr_rows`, `decompose`, `symmetry_indicator`,
-`in_plane_restriction`, `srsi_tables`, `srsi_of_model` and `wyckoff_sites_tables`.
+`regular_completion`, `in_plane_restriction`, `srsi_tables`, `srsi_of_model` and
+`wyckoff_sites_tables`.
 
 - **What it means.** The installed tables carry no elementary band representations for this
   group and valuedness.
@@ -570,19 +610,25 @@ is left empty.
 Returned by `realized_group`, `decompose`, `symmetry_indicator` and
 `regular_completion`.
 
-- **What it means.** A declaration names nothing at the orbital's site: a word that is not
-  an irrep of its site group, a sum of irreps, a shell or a shorthand, or an operation the
-  site group does not hold. A declaration outside the grammar of `characters=`, such as an
-  orbital out of range or a list of the wrong length, raises `ValueError` before anything
-  is measured. In `decompose` and `symmetry_indicator`, measured labels outside the
-  group's elementary band representations, the content and the basis not written in one
-  alphabet.
+- **What it means.** From `realized_group`, a declaration names nothing at the orbital's
+  site: a word that is not an irrep of its site group, a sum of irreps, a shell or a
+  shorthand, or an operation the site group does not hold. A declaration outside the
+  grammar of `characters=`, such as an orbital out of range or a list of the wrong length,
+  raises `ValueError` before anything is measured. From `decompose` and
+  `symmetry_indicator`, the symmetry data vector holds labels that no elementary band
+  representation of the group holds. From `regular_completion`, one copy of the regular
+  band representation, computed from the group's characters, holds a label that no
+  elementary band representation holds.
 - **Usual cause.** A word of another site group, such as `B1` at a site of symmetry `3m`;
-  in a decomposition, content labelled in another group.
-- **What to do.** The reason prints the site group, its valid words and the frame its
-  operations are named in; declare one of them. A word the cell's group has no name for is
-  asked again on the group the Hamiltonian settles to, and refused only where nothing on
-  the way names it ([saying what the orbitals are](../guide/orbitals.md#when-it-refuses)).
+  for `decompose` and `symmetry_indicator`, a symmetry data vector labeled in another
+  group, or a mistyped label.
+- **What to do.** For a declaration, the reason prints the site group, its valid words and
+  the frame its operations are named in; declare one of them. A word the cell's group has
+  no name for is asked again on the group the Hamiltonian settles to, and refused only
+  where nothing on the way names it
+  ([saying what the orbitals are](../guide/orbitals.md#when-it-refuses)). For a symmetry
+  data vector, pass one read in this group. Met from `regular_completion`, it is the
+  package disagreeing with itself: report it, with the model and the call.
 
 #### `ambiguous_multiplet`
 
@@ -687,30 +733,45 @@ Returned by `k_grid`.
 
 #### `negative_multiplicity`
 
-Returned by `decompose`, `subtract` and `regular_completion`.
+Returned by `content_of`, `decompose`, `symmetry_indicator`, `subtract` and
+`regular_completion`, each when a symmetry data vector handed in has a negative
+multiplicity. `subtract` returns it also when the difference has one, and
+`regular_completion` when the set of bands has more of some little-group representation
+than the regular copies.
 
-- **What it means.** A content entry is negative, or the difference `subtract` takes has a
-  negative entry: a symmetry data vector counts coreps and cannot be negative. A signed
-  combination of band representations is meaningful, and is what fragility means, but it
-  is not a band set.
-- **What to do.** Hand in a count of coreps; for `subtract`, the second content must be
-  contained in the first.
+- **What it means.** A symmetry data vector counts the little-group representations of a
+  set of bands, so none of its multiplicities is negative. A negative multiplicity in the
+  difference `subtract` takes means that the second set of bands is not contained in the
+  first. `regular_completion` subtracts the set of bands from the regular copies, so there
+  it means the set has some little-group representation more times than the copies do. A
+  combination of band representations with coefficients of either sign is meaningful, and
+  is what fragility means, but it is not a set of bands.
+- **What to do.** Pass nonnegative multiplicities. For `subtract`, pass second a set of
+  bands contained in the first. For `regular_completion`, pass a larger multiple of `|U|`
+  to `bands=`, or check that every little-group representation the symmetry data vector
+  names is one the regular copies hold: one they do not hold counts as a negative
+  multiplicity of the difference.
 
 #### `non_integer_multiplicity`
 
-Returned by `decompose` and `subtract`.
+Returned by `content_of`, `decompose`, `symmetry_indicator`, `subtract` and
+`regular_completion`, each when a symmetry data vector handed in has a multiplicity that is
+not an integer.
 
-- **What it means.** A content entry is not an integer.
-- **What to do.** Hand in a count of coreps.
+- **What it means.** A symmetry data vector counts little-group representations, so each
+  of its multiplicities is an integer.
+- **What to do.** Pass integer multiplicities.
 
 #### `not_a_regular_multiple`
 
-Returned by `regular_completion`.
+Returned by `regular_completion`, when the number of bands passed to `bands=` is not a
+multiple of `|U|`.
 
-- **What it means.** The band count is not a multiple of `|U|`, the number of bands in one
-  regular band representation of the group, the only counts at which the regular padding
-  is defined.
-- **What to do.** Pick a multiple of `|U|`; the reason names the next one.
+- **What it means.** One copy of the regular band representation has `|U|` bands at every
+  k-point. `|U|` is the number of unitary operations of the group up to lattice
+  translations, counted in the single-valued group for a spinful model. Whole copies have
+  a multiple of `|U|` bands, and no completion to another number is defined.
+- **What to do.** Pass a multiple of `|U|` to `bands=`; the reason names the next one.
 
 #### `not_a_spinful_model`
 
@@ -807,15 +868,6 @@ Returned by `coreps_at`.
 
 - **What it means.** The operations of the little group measured at a point do not match
   the tables' list for it, so no label would be meaningful.
-- **What to do.** Report it.
-
-#### `regular_content_not_integral`
-
-Returned by `regular_completion`.
-
-- **What it means.** A multiplicity of the regular band representation comes out
-  non-integer, or the regular content does not carry `|U|` bands at every point: the
-  tables' characters and the little group disagree.
 - **What to do.** Report it.
 
 #### `site_group`

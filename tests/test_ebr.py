@@ -1746,24 +1746,24 @@ def test_a_call_handed_what_it_does_not_take_raises_saying_what_to_pass(
                  tqe.regular_completion):
         name = call.__name__
         kw = {"bands": 8} if call is tqe.regular_completion else {}
-        with pytest.raises(TypeError, match=rf"^{name}\(\): a table carries what it was read "
-                                            rf"from; pass the table alone: {name}\(t\)\."):
+        with pytest.raises(TypeError, match=rf"^{name}\(\): a table is passed with realized= "
+                                            rf"beside it; pass the table alone: {name}\(t\)\."):
             call(table, record, **kw)
-        with pytest.raises(TypeError, match=rf"pass it second: {name}\(symmetry_data, r\)\."):
+        with pytest.raises(TypeError, match=rf"second: {name}\(symmetry_data, r\)\."):
             call(vector, **kw)
         for second in (record.group, record.rep):
             with pytest.raises(TypeError, match=r"pass what realized_group returns second") as exc:
                 call(vector, second, **kw)
-            assert f"got {type(second).__name__}." in str(exc.value)
-        with pytest.raises(TypeError, match=r"symmetry_data is a table hsp_table returns"):
+            assert f"realized= is of type {type(second).__name__};" in str(exc.value)
+        with pytest.raises(TypeError, match=r"symmetry_data= is of type list; pass the table "
+                                            r"hsp_table returns"):
             call(["-GM6"], record, **kw)
         with pytest.raises(TypeError, match="unexpected keyword argument 'points'"):
             call(table, points=("GM", "M", "X"), **kw)
     # handed what each takes, the table alone and its vector beside r read alike
     assert tqe.decompose(table).candidate_sums == tqe.decompose(vector, record).candidate_sums
     assert tqe.symmetry_indicator(vector, record).values == tqe.symmetry_indicator(table).values
-    with pytest.raises(TypeError, match=r"^regular_completion\(\): missing required argument "
-                                        r"'bands'"):
+    with pytest.raises(TypeError, match=r"^regular_completion\(\): no bands= is passed"):
         tqe.regular_completion(table)
     with pytest.raises(ValueError) as exc:
         tqe.subtract(table, tqw.hsp_table(p4232_descended, bands=2))

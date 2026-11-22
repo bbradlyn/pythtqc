@@ -309,7 +309,7 @@ The four bands [decompose](../guide/atomic-limits.md) in exactly one way,
 `3a` and one at each of the three sites of `9d`, even under every operation
 that fixes its site. The positions are the same in either labelling, and the
 site irreps are the returned one's
-([positions survive every labelling; labels may not](../guide/atomic-limits.md#positions-survive-every-labelling-labels-may-not)).
+([positions survive every labeling; labels may not](../guide/atomic-limits.md#positions-survive-every-labeling-labels-may-not)).
 The last block places them. The atom at the origin has four nearest
 neighbours, the home cell's other atom and three of its images, all 2.3372 Å
 away; the centre of the bond inside the home cell is `3a`, and the centres of
