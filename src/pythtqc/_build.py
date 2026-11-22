@@ -1934,6 +1934,11 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
                 f"precision, or on parts of the crystal the measurement reads apart that "
                 f"the hoppings couple only below it, as a numerical (wannier90) "
                 f"Hamiltonian gives.")
+        # how far the best candidate carries H(k) under each operation, so that
+        # an operation it misses can be read beside what it is held at alone
+        nearest = min(distinct, key=lambda grp: float(grp[0]["residual"]))[0]["matrices"]
+        by_operation = {int(ops.syms[p].ind): _covariance_of(ops, bat, nearest, p)
+                        for p in ops.kept}
         return Refusal(
             "rep_not_covariant",
             f"none of the {len(records)} candidate representations ({len(distinct)} distinct) "
@@ -1948,6 +1953,7 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
             value=float(spectrum[0]), threshold=float(tol),
             context={"n_candidates": int(search["n_candidates"]), "multiplets": layout,
                      "indices": tuple(int(syms[p].ind) for p in kept),
+                     "covariance_by_operation": by_operation,
                      **({} if spin is None else {"spin_kind": str(spin._kind)})})
     if not consistent:
         return Refusal(
@@ -2341,17 +2347,14 @@ def _propagate(bat, Dgen, DT):
 
 
 def _covariance(ops, bat, D):
-    kept = ops.kept
-    syms = ops.syms
-    H = bat.H
-    Hrot = bat.Hrot
+    return max((_covariance_of(ops, bat, D, p) for p in ops.kept), default=0.0)
 
-    worst = 0.0
-    for p in kept:
-        U = D[p]
-        src = H.conj() if syms[p].time_reversal else H
-        worst = max(worst, float(np.abs(U @ src @ U.conj().T - Hrot[p]).max()))
-    return worst
+
+def _covariance_of(ops, bat, D, p):
+    """``max_k |D(g) H(k) D(g)† − H(gk)|`` of one operation, at position ``p``, over the battery."""
+    U = D[p]
+    src = bat.H.conj() if ops.syms[p].time_reversal else bat.H
+    return float(np.abs(U @ src @ U.conj().T - bat.Hrot[p]).max())
 
 
 def _gate_lift(ops, mul, meas, p):

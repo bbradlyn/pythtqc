@@ -844,6 +844,18 @@ def test_the_covariance_refusal_points_at_the_route_when_a_tolerance_was_declare
     assert "P4mm1' #99.164" in str(err.value) and "reaches 0.5 against" in str(err.value)
     monkeypatch.undo()
 
+    # ... and close to the tolerance, where each operation is obeyed within it alone
+    # and the representation built for the group misses it by less than that, the
+    # group is refused, named, and a precision asked for: the p_x, p_y honeycomb
+    # with a noise of 3e-9 on a substrate
+    edge = tqg.realized_group(jitter(tqc_models.pxpy_honeycomb(), rel=3e-9, seed=3))
+    assert not edge and edge.gate == "rep_not_covariant", str(edge)
+    assert edge.context["group"].number_str == "183.186"
+    alone, together = edge.context["obeyed_alone"], edge.value
+    assert alone <= edge.threshold < together <= edge.threshold + alone
+    assert f"the worst to {alone:.3g}" in edge.reason
+    assert f"onto itself only to {together:.3g}" in edge.reason and "precision" in edge.reason
+
     # rep_search_too_large: the same group named and carried
     # the enumeration forced through the private entry, which takes the strategy
     capped = _realized._realize(tqc_models.lin3g(), typat=[0, 0, 1, 1],

@@ -1797,6 +1797,56 @@ def _realized_selection(model, *, context=None, **kw):
     return _realize(model, selection_only=True, context=context, **kw)
 
 
+def _at_the_edge(rep, validated):
+    r"""The refusal close to the tolerance, where the measurements of each operation agree.
+
+    Parameters
+    ----------
+    rep : Refusal
+        The ``rep_not_covariant`` refusal of the representation built at the
+        declared tolerance to project the Hamiltonian, carrying each operation's
+        covariance in the best candidate, ``covariance_by_operation``.
+    validated : ValidatedGroup
+        What each operation is held at alone, ``residuals``.
+
+    Returns
+    -------
+    Refusal or None
+        ``rep_not_covariant``, its reason saying that each operation is obeyed
+        within the tolerance alone and that the representation built for the
+        group carries ``H(k)`` only beyond it, where every operation the best
+        candidate built carries ``H(k)`` onto itself beyond the tolerance,
+        ``rho > tol``, is missed by no more than the tolerance beyond what it is
+        held at alone, ``rho - r <= tol``: two measurements of one operation
+        that differ by less than the tolerance they are made at do not
+        contradict each other, and the Hamiltonian's asymmetry is close to the
+        tolerance.  ``None`` where an operation is missed by more, the package
+        disagreeing with itself, or where the refusal carries no reading by
+        operation.
+    """
+    tol = float(rep.threshold)
+    by = rep.context.get("covariance_by_operation") or {}
+    over = {int(i): float(rho) for i, rho in by.items() if float(rho) > tol}
+    if not over:
+        return None
+    held = {int(i): float(validated.residuals.get(int(i), np.inf)) for i in by}
+    if any(rho - held[i] > tol for i, rho in over.items()):
+        return None
+    alone, together = max(held.values()), max(over.values())
+    return Refusal(
+        "rep_not_covariant",
+        f"each of its operations is obeyed within the tolerance {tol:.3g} on its own, the "
+        f"worst to {alone:.3g}, while the representation built for the group carries H(k) "
+        f"onto itself only to {together:.3g}, beyond it: the Hamiltonian's asymmetry is "
+        "close to the tolerance. A precision, `realized_group(..., precision=)`, says which "
+        "side of it the model is on: one above the asymmetry if it is numerical noise, and "
+        "the Hamiltonian is made symmetric under the group; one below it if it is a term of "
+        "the model to keep, and the operations it breaks are dropped.",
+        value=together, threshold=tol,
+        context={**{k: v for k, v in rep.context.items() if k != "group"},
+                 "obeyed_alone": alone})
+
+
 def _raise_not_covariant(rep, group, validated, steps, *, where=""):
     r"""The consistency guard: a representation of the identified group that misses covariance.
 
@@ -1810,7 +1860,11 @@ def _raise_not_covariant(rep, group, validated, steps, *, where=""):
     attempt: the three disagreeing beyond the tolerance they were measured at
     is a defect in here, not a tolerance to loosen, and running a second descent
     on the gate's global verdict would be a search by trial rather than a
-    measurement.  ``rep`` is the ``rep_not_covariant`` refusal, ``steps`` the
+    measurement.  Where the representation built at the declared tolerance to
+    project the Hamiltonian misses some operations by no more than the
+    tolerance beyond what each is held at alone, the measurements agree, the
+    Hamiltonian's asymmetry is close to the tolerance, and the group is refused
+    instead, asking for a precision (:func:`_at_the_edge`); nothing raises then.  ``rep`` is the ``rep_not_covariant`` refusal, ``steps`` the
     descent that ran, and ``where`` says which build it came from where that is
     not the representation returned.
     """
@@ -4053,6 +4107,15 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                                    _operators=(exact_gate, (provisional, record), classes),
                                    **sym_kw)
                 if isinstance(got, Refusal):
+                    edge = (_at_the_edge(got, validated) if got.gate == "rep_not_covariant"
+                            else None)
+                    if edge is not None:
+                        # every operation obeyed within the tolerance alone, and
+                        # the representation built for the group beyond it by no
+                        # more than the two measurements can differ: the
+                        # asymmetry is close to the tolerance, and a precision
+                        # has to say which side of it the Hamiltonian is on
+                        return _refused(edge, settled=True)
                     if got.gate == "rep_not_covariant":
                         # The provisional build's covariance gate IS the declared
                         # tolerance every operation was kept at, so a miss there is

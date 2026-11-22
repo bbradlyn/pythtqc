@@ -186,8 +186,14 @@ except tqc.RefusalError as error:
 - **The package disagreeing with itself** raises `InternalError`: two measurements of one
   Hamiltonian that contradict each other, such as a layer's two environments contradicting
   the statement that the substrate's group is the part of the free-standing one that
-  preserves the layer's normal, or a representation of the identified group that the covariance check refuses beyond
-  the declared tolerance. So does a presentation of the model that changes it, though it
+  preserves the layer's normal, or a representation of the identified group that carries
+  `H(k)` under an operation worse, by more than the tolerance, than that operation's own
+  matrix does. Where each operation is obeyed within the tolerance on its own and the
+  representation built for the group misses it by less than that, the Hamiltonian's
+  asymmetry is close to the tolerance: the group is named and refused, `rep_not_covariant`,
+  and the reason asks for a precision, above the asymmetry if it is noise and below it if
+  it is a term to keep.
+  A presentation of the model that changes it raises too, though it
   only relabels the Hamiltonian or moves it by a gauge: the slab and the decoupled stack
   of a layer, the spinless presentation of a spinful model and the model with its centres
   moved are each measured against the model on eight random `k`. It is a defect in the

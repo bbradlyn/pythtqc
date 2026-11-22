@@ -739,7 +739,14 @@ Returned by `realized_group`.
   measured to obey passes the covariance check. Reached once `realized_group` has
   identified the group, it is the package's check on itself: the operations were measured
   to hold, and no representation of them was built.
-- **What to do.** Report it, with the model and the call.
+- **When it has a route.** Close to the tolerance: each operation is obeyed within the
+  tolerance on its own, the worst to `context["obeyed_alone"]`, while the representation
+  built for the group carries `H(k)` onto itself only to `value`, beyond it, so the
+  Hamiltonian's asymmetry is close to the tolerance. Declare a precision above the
+  asymmetry if it is numerical noise, and the Hamiltonian is made symmetric under the
+  group, or one below it if it is a term of the model to keep, and the operations it
+  breaks are dropped.
+- **Otherwise.** Report it, with the model and the call.
 
 #### `rep_internal_factor`
 

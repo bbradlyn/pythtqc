@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- `realized_group` refuses a model whose asymmetry is close to its tolerance,
+  `rep_not_covariant`, naming the group, where it raised `InternalError`: the spinless
+  `p_x, p_y` honeycomb with a relative noise of `3e-9` on every term, each operation of
+  `P6mm1'` obeyed within the tolerance `2.67e-8` on its own, the worst to `1.67e-8`, while
+  the representation built for the group carries `H(k)` onto itself only to `2.77e-8`. The
+  reason asks for a precision, above the asymmetry if it is noise and below it if it is a
+  term to keep; `context["obeyed_alone"]` holds the worst an operation reaches alone. A
+  representation that misses an operation by more than the tolerance beyond what that
+  operation reaches alone still raises.
 - `realized_group` returns a model built from exact numbers as it was handed in, where it
   could return it made symmetric by a defect of rounding's size: the model of
   `examples/tqc_srsi_sg212_photonic.py` was returned `P4_3321'` "symmetrized (defect
