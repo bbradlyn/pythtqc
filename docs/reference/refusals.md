@@ -27,7 +27,15 @@ The entries are grouped by kind, and the kind says where the fix lies:
 A refusal that `realized_group` returns once the group is identified names that group, its
 number and how many of its operations the Hamiltonian obeys, and carries it in
 `context["group"]`; one reached while the group is still being measured names the group
-the cell has at that point, an upper bound on what the Hamiltonian obeys. A disagreement
+the cell has at that point, an upper bound on what the Hamiltonian obeys. Where neither
+`precision=` nor `position_tol=` is declared, the orbital centers miss the positions the
+group puts them at by more than rounding, and `H` was projected onto its symmetric part,
+the reason also quotes that miss `δ`, in reduced coordinates, and `context["position_defect"]`
+holds it. In pythtb's convention I the miss alone costs `H(k)` a covariance residual of order
+`2π·δ·max|H|`, `max|H|` the largest entry of `H(k)` once the mean on-site energy is
+subtracted, which no projection of the hoppings removes, so the refusal may be that miss
+alone. A declared `precision=` moves the centers onto those positions, a gauge
+transformation that leaves the spectrum untouched. A disagreement
 inside the package raises `InternalError`. A malformed argument raises `ValueError`
 before anything is measured.
 
@@ -43,8 +51,8 @@ Returned by `realized_group`.
   or once each site's orbitals are carried onto its translate's by a change of basis
   within the site, so the model is written on a supercell of its primitive cell: the bands
   at one `k` of this cell are the crystal's at several `k` of its own zone, a combination
-  no table names, and every label would name the wrong k-points. It is one of the two
-  cases in which the group question is refused
+  no table names. Every label would name the wrong k-points. It is one of the two cases
+  in which the group question is refused
   ([when the group question is refused](../background/measurement.md#when-the-group-question-is-refused)),
   and it fires at any index.
 - **Usual cause.** Copies of one site that the hoppings do not tell apart, such as
@@ -59,7 +67,7 @@ Returned by `realized_group`.
   difference belongs in the Hamiltonian: a supercell whose hoppings tell the copies apart
   is a primitive model of the bigger cell, and the group descends to it
   ([when the cell is a supercell](../guide/group.md#when-the-cell-is-a-supercell)).
-  Folding a supercell onto its primitive cell is not supported yet
+  A supercell is refused and is not folded onto its primitive cell
   ([what the package cannot do yet](../background/limits.md#a-supercell-is-refused-not-folded)).
 
 #### `positions_not_exactly_symmetric`
@@ -68,9 +76,11 @@ Returned by `realized_group`.
 
 - **What it means.** The orbital centers miss the cell's own operations by a defect `δ`,
   in reduced coordinates, that alone costs `H(k)` a covariance residual of order
-  `2π·δ·max|H|` above the tolerance, so which operations the Hamiltonian obeys would be
-  read off the geometry as much as off the hoppings. Nothing is built. It is the other
-  case in which the group question is refused, and the reason names the cell's group as
+  `2π·δ·max|H|` above `tol`. `tol` is the tolerance every operation's covariance residual
+  is held to. `max|H|` is the largest entry of `H(k)` once the mean on-site energy is
+  subtracted. Which operations the Hamiltonian obeys would then be read off the
+  geometry as much as off the hoppings. Nothing is built. It is the other case in
+  which the group question is refused, and the reason names the cell's group as
   an upper bound. Centers missed by less are refused the same way once the group is
   identified, and the reason names that group, wherever `H(k)` is to be made or held
   exactly symmetric and the miss accounts for what that check measured. The miss alone
@@ -84,11 +94,11 @@ Returned by `realized_group`.
   operations read off them open, the cell's group named as an upper bound in the reason
   and by `context["number_str"]` and `context["name"]`; no group is identified, and the
   context carries none.
-- **Usual cause.** A numerical model, such as a wannier90 import, asked with no precision
+- **Usual cause.** A numerical model, such as a Wannier90 import, asked with no precision
   declared; or centers converted onto a strongly skewed lattice basis in floating point.
 - **What to do.** Declare the model's precision, `precision=`, or `position_tol=` for the
   centers alone: centers within it are moved onto the positions the group puts them at, a
-  gauge transformation that leaves the spectrum untouched. `value` and
+  k-dependent gauge transformation that leaves the spectrum untouched. `value` and
   `context["position_defect"]` are `δ`
   ([the centres first](../guide/numerical.md#the-centres-first-because-moving-them-is-a-gauge)).
   Centers noisier than the symmetry finder's `symprec` are not refused this way: the
@@ -101,7 +111,9 @@ Returned by `realized_group`.
 
 - **What it means.** An operation combined with time reversal that held before a
   numerical model's Hamiltonian was projected onto its symmetric part is broken after it,
-  so the group the projection was made in is not the projected Hamiltonian's group.
+  so the group the projection was made in is not the projected Hamiltonian's group. That
+  group is what the positions allow, an upper bound on what the Hamiltonian obeys, and a
+  representation of it would label the bands with operations the Hamiltonian breaks.
 - **Usual cause.** A model obeying an operation combined with time reversal only within
   its declared precision.
 - **What to do.** Read `context["validated"]`, each operation's measurement and residual,
@@ -170,15 +182,16 @@ for the centres, or where they cannot be read as a symmetric set at all.
 
 Returned by `realized_group`.
 
-- **What it means.** Under a declared precision, the orbital centres cannot be moved onto
-  positions the group carries: its operations do not carry them onto one another at the
-  symmetry finder's distance, or orbitals read as one site sit further apart than the
-  declaration, which no group of operations brings together. Centres that far off are a
-  different set of points. Other centres off by more than the declaration are not refused:
-  the operations that would move one further than the declaration are broken by the
-  centres, and the group descends to the largest group of its operations that carries them.
-- **Usual cause.** A group the centres do not have, or a displacement beyond the noise.
-- **What to do.** Identify the group the centres carry (`typat=`, `decorations=`).
+- **What it means.** Under a tolerance declared for the orbital centers, `precision=` or
+  `position_tol=`, the centers cannot be moved onto the positions the group puts them at:
+  its operations do not carry them onto one another at the symmetry finder's distance, or
+  orbitals read as one site sit farther apart than the tolerance, which no group of
+  operations brings together. Centers that far off are a different set of points. Other
+  centers off by more than the tolerance are not refused: the operations that would move
+  one farther than the tolerance are broken by the centers, and the group descends to the
+  largest group of its operations that carries them.
+- **Usual cause.** A group the centers do not have, or a displacement beyond the noise.
+- **What to do.** Identify the group the centers carry (`typat=`, `decorations=`).
 
 #### `symmetrize_broken_operation`
 
@@ -224,12 +237,12 @@ Returned by `realized_group`.
   dimension of the cell it is written in. With none it is a molecule, whose symmetry is a
   point group; with one it is a chain or a ribbon, whose symmetry is a rod or frieze
   group. The package reads crystals periodic in three directions and layers periodic in
-  two, whose symmetry is a space group, and neither of these is in its scope yet. The
+  two, whose symmetry is a space group, and a model periodic in fewer is refused. The
   refusal comes before anything is measured, so it names no group; `value` is the number
   of periodic directions and `context["periodic_dirs"]` says which they are.
 - **Usual cause.** pythtb's `ssh` chain; a ribbon or a rod cut from a crystal with
   `cut_piece`; a cluster with every periodic direction switched off.
-- **What to do.** Nothing here yet
+- **What to do.** There is no step to take in pythTQC
   ([fewer than two periodic directions](../background/limits.md#fewer-than-two-periodic-directions)).
 
 #### `srsi_scope`
@@ -432,7 +445,8 @@ Returned by `stack_presentation`.
 - **What it means.** Hoppings run along the non-periodic direction, so the model is not one
   decoupled layer: stacking it would either drop those hoppings or give `H(k)` a `k_z` it
   does not have.
-- **Usual cause.** Layers coupled across the direction they would be stacked in.
+- **Usual cause.** A hopping table written directly, past pythtb's `set_hop`, which
+  refuses a hopping with a component along a non-periodic direction.
 - **What to do.** Check the model's hoppings along its non-periodic direction.
 
 ## A practical limit
@@ -460,14 +474,17 @@ Returned by `realized_group`.
 Returned by `realized_group`.
 
 - **What it means.** Measuring an operation at one k-point needs more memory than the
-  budget allows, because the spectrum's exactly degenerate pairs alone exceed it: a limit
-  on memory. Narrowing the measurement to fit would drop
-  exactly degenerate pairs and return a wrong solution rather than a coarse one.
+  budget allows: a limit on memory, not a statement about the model. The operation's
+  matrices are first sought there among pairs of eigenvectors, one of `H(k)` and one of
+  `H(Rk)`, `Rk` the operation's image of `k`, whose energies are equal within rounding
+  or the measurement's tolerance. The memory needed is one matrix of the size of `H` for
+  each such pair, and one more. Narrowing the measurement to fit would drop some of those
+  pairs and return a wrong solution rather than a coarse one.
 - **Usual cause.** A large model with exactly degenerate levels, such as a big supercell's
-  folded bands.
+  folded bands. A model whose degeneracies are lifted does not reach it.
 - **What to do.** The same call with the `max_bytes=` the reason names. It fires while
-  the operations are measured, so the group it names is the cell's at that point, an upper
-  bound.
+  the operations are measured, so the group it names is the group the cell allows, an
+  upper bound on the group `H` obeys.
 
 #### `projection_too_large`
 
@@ -664,10 +681,19 @@ Returned by `realized_group`.
 
 Returned by `operation_index`.
 
-- **What it means.** No operation of the group is written with that Seitz symbol.
-- **What to do.** The reason lists the nearest spellings the group carries and the grammar
-  of a symbol, such as `{-4+_001|0,0,1/2}`; `operations(group)` prints every symbol against
-  its index ([conventions](../background/conventions.md#operations-a-seitz-symbol-and-a-cartesian-name)).
+- **What it means.** The symbol is read in the conventional cell used by the irreptables
+  package. Either it is not a Seitz symbol, or no operation of the group has its rotation
+  part, axis, sense, translation modulo the lattice and time reversal.
+- **Usual cause.** An operation's Cartesian name, such as `C4(z)`, in place of its Seitz
+  symbol; a symbol written in the model's own cell; or an operation the group does not
+  hold.
+- **What to do.** Write the symbol as `{R|t}`
+  ([conventions](../background/conventions.md#operations-a-seitz-symbol-and-a-cartesian-name)).
+  `R` is the rotation part: `1`, `-1`, `m`, `2`, `3`, `4`, `6`, `-3`, `-4` or `-6`. `3`,
+  `4`, `6` and their negatives carry `+` or `-` for the sense of the turn. Every rotation
+  part but `1` and `-1` is followed by an underscore and the direction of its axis, or of
+  a mirror's normal. `t` is the translation, three fractions. A trailing `'` marks an
+  operation combined with time reversal, as in `{-4+_001|0,0,1/2}'`.
 
 #### `kpoint_not_tabulated`
 
@@ -800,11 +826,12 @@ Returned by `realized_group`.
   to hold, and no representation of them was built.
 - **When it has a route.** Close to the tolerance: each operation is obeyed within the
   tolerance on its own, the worst to `context["obeyed_alone"]`, while the representation
-  built for the group carries `H(k)` onto itself only to `value`, beyond it, so the
-  Hamiltonian's asymmetry is close to the tolerance. Declare a precision above the
-  asymmetry if it is numerical noise, and the Hamiltonian is made symmetric under the
-  group, or one below it if it is a term of the model to keep, and the operations it
-  breaks are dropped.
+  built for the group carries `H(k)` onto `H(gk)` only to `value`, beyond it, so the
+  Hamiltonian's asymmetry is close to the tolerance. A declared `precision=` sets the
+  tolerance to `10·precision·max|H|`, `max|H|` as above. Declare one whose tolerance lies
+  above these numbers if the asymmetry is numerical noise, and the Hamiltonian is made
+  symmetric under the group, or below them if it is a term of the model to keep, and the
+  operations it breaks are dropped.
 - **Otherwise.** Report it, with the model and the call.
 
 #### `rep_internal_factor`

@@ -1,6 +1,9 @@
-"""The subgroups of a group that lie inside the operations the Hamiltonian keeps,
-and the tie rule that picks one where several of the same order qualify with
-nothing measured between them.
+"""The subgroups of a group inside a set of its operations, and the tie rule.
+
+Where several subgroups of the largest order lie inside a set and nothing
+measured chooses between them, the tie rule picks one.  An operation is also
+written here as a key two groups of one cell are matched on, and read for
+whether it keeps a layer's side.
 """
 
 from __future__ import annotations
@@ -23,17 +26,15 @@ _SUBGROUPS: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 # --------------------------------------------------------------------------
 
 def _operation_key(sym, tol=1e-6) -> tuple:
-    r"""One operation as a comparable key: ``(rotation, translation mod 1, coset)``.
+    r"""An operation as a key: its rotation, translation modulo 1 and time reversal.
 
-    A space-group operation is its integer rotation together with its
-    translation **modulo the lattice**, and the antiunitary coset is a third
-    coordinate rather than a detail — a primed operation is not the unprimed one.
-    Used to match the two environments' selections against each other, which is
-    the only place two independently identified groups of the *same* cell have
-    to be compared operation for operation.
-
-    The reduction snaps ``1 − ε`` and ``ε`` alike onto ``0``, so a translation
-    that spglib returns just below one is the same key as one just above zero.
+    ``sym`` is an operation of a group, its rotation and translation in the
+    group's cell.  Each component of the translation is taken modulo 1, set to
+    ``0`` within ``tol`` of an integer and rounded to six places otherwise.
+    Two groups found on one cell share an operation where their keys are
+    equal, and the first two entries alone pair an antiunitary operation with
+    its unitary part.  Returns ``(rotation, translation, time_reversal)``, the
+    rotation's integer entries row by row.
     """
     R = np.rint(np.asarray(sym.rotation, dtype=float)).astype(int)
     t = np.asarray(sym.translation, dtype=float).reshape(-1)
@@ -46,36 +47,34 @@ def _operation_key(sym, tol=1e-6) -> tuple:
             bool(sym.time_reversal))
 
 
-def _side_preserving(sym, padded) -> bool | None:
-    r"""Does this operation keep the layer's side?  ``None`` if it is not a layer op.
+def _side_preserving(sym, vacuum) -> bool | None:
+    r"""Whether an operation keeps a layer's side, ``None`` for no layer operation.
 
-    A layer operation is block-diagonal in the non-periodic direction —
-    ``diag(g₂, ±1)`` — and the sign is what a substrate decides: ``+1`` keeps
-    each side where it is, ``−1`` exchanges them and a substrate removes it.
-    ``None`` where the rotation mixes the plane with the vacuum direction, which
-    is not a layer operation at all.
+    ``sym`` is an operation of a slab's group and ``vacuum`` the index of the
+    slab's non-periodic direction.  A layer operation's rotation has no entry
+    mixing the plane with that direction, and ``±1`` along it.  Returns
+    ``True`` for ``+1``, which keeps each side where it is; ``False`` for
+    ``−1``, which exchanges them and which a substrate removes; and ``None``
+    where the rotation mixes the plane with that direction.
     """
     R = np.rint(np.asarray(sym.rotation, dtype=float)).astype(int)
-    d = int(padded)
+    d = int(vacuum)
     per = [i for i in range(3) if i != d]
     if (R[per, d] != 0).any() or (R[d, per] != 0).any():
         return None
-    if abs(int(R[d, d])) != 1:                  # pragma: no cover - integer cell
+    if abs(int(R[d, d])) != 1:                  # pragma: no cover, an integer cell
         return None
     return int(R[d, d]) == 1
 
 
 def _descent_closure(group, kept) -> tuple:
-    r"""Products of the kept set that leave it — the descent's own closure gate.
+    r"""The products of two operations of ``kept`` that leave it.
 
-    A set of operations can only *be* a group's operation set if it closes, and
-    the kept set is a **measurement**: the detector's verdicts are per operation
-    (per k-action class, strictly), and nothing forces the survivors to compose.
-    :attr:`ValidatedGroup.closed` reports the same thing for the whole surviving
-    set; this asks it of the **unitary** part alone, which is the part a descent
-    is built on.  Returns the offending ``(a, b, ab)`` triples of ``.ind``, empty
-    when the set closes.  The product is taken modulo lattice translations,
-    through the group's own product table.
+    ``kept`` holds operations of ``group``, the unitary operations a
+    measurement or a declaration keeps, which need not compose.  The products
+    are read from the group's product table, modulo lattice translations.
+    Returns the triples ``(a, b, ab)`` of ``.ind`` with ``ab`` outside
+    ``kept``, empty where ``kept`` is closed.
     """
     prod = group._get_product_table(get_diff=False)
     at = {int(s.ind): i for i, s in enumerate(group._symmetries)}
@@ -94,7 +93,8 @@ def _closes(group, kept) -> bool:
 
     A nonempty set of operations of a finite group that holds every product of
     two of its members is a subgroup.  The products are read from the group's
-    product table, modulo lattice translations.
+    product table, modulo lattice translations.  Returns ``False`` for an
+    empty set.
     """
     keep = {int(i) for i in kept}
     if not keep:
@@ -110,21 +110,19 @@ def _closes(group, kept) -> bool:
 def _subgroups_inside(group, kept, avoid=None) -> set:
     r"""Every subgroup of ``group`` whose operations all lie in ``kept``.
 
-    Every subgroup is generated by adjoining one cyclic subgroup at a time, and
-    each group on the way lies inside it.  So the cyclic subgroups of the kept
-    operations are found first, and each subgroup found is joined with each
-    cyclic one until nothing new appears, a closure that leaves ``kept``
-    abandoned as soon as it does.
-
-    ``kept`` is the **unitary** kept set (the descent's own), and the products
-    are taken modulo lattice translations through the group's own product table.
-    ``avoid`` is a set of pairs of ``.ind``, each a pair no subgroup returned may
-    hold both of -- two operations whose matrices on these states carry a sign
-    no single-valued representation has -- and a closure is abandoned as soon as
-    it holds one; every subgroup of a subgroup free of such pairs is free of
-    them too, so the enumeration stays complete.  Returns a set of frozensets of
-    ``.ind``; ``{E}`` is always among them.  The subgroups inside one set are
-    found once for each group and kept.
+    ``kept`` holds operations of ``group`` by ``.ind``.  ``avoid`` holds pairs
+    of ``.ind`` no subgroup returned may hold both of, two operations whose
+    matrices on the states carry a sign no single-valued representation has;
+    ``None`` avoids nothing.  Every subgroup is generated by adjoining one
+    cyclic subgroup at a time, each group on the way lying inside it.  So the
+    cyclic subgroups inside ``kept`` are found first, and each subgroup found
+    is joined with each of them until nothing new appears.  A closure is
+    abandoned once it leaves ``kept`` or holds an avoided pair; the subgroups
+    of a subgroup free of such pairs are free of them too, so none is missed.
+    The products are read from the group's product table, modulo lattice
+    translations.  Returns a set of frozensets of ``.ind``, ``{E}`` among them
+    where ``kept`` holds the identity, and empty where it does not.  The
+    subgroups inside one set are found once for each group and remembered.
     """
     keep = frozenset(int(i) for i in kept)
     sg = getattr(group, "_sg", None)
@@ -206,35 +204,22 @@ def _subgroups_inside(group, kept, avoid=None) -> set:
 
 
 def _resolve_closure(group, kept):
-    r"""The group inside a kept set that does not close — what it cannot carry, removed.
+    r"""The largest subgroup inside a set of operations that does not close.
 
-    The measurement's survivors need not compose: the detector's verdicts are
-    per operation, and nothing forces the set they leave to be a group.  An
-    operation sitting on the wrong side of the declared tolerance breaks
-    closure while its partners keep it.  A **layer** cell's ``σ_h`` fibers,
-    both members of each in the cell, do not: the tensor test holds each member
-    to its own lift, on the multiplets where each is one orbital and, in a
-    spinful model, on the whole solution space whatever the multiplets, and
-    keeps one member of each fiber the Hamiltonian breaks -- on the SRSI
-    paper's ``P41'`` cell read free-standing ``C4`` and ``C4⁻¹``, ``S4`` and
-    ``S4⁻¹`` refuted by tensor structure -- and no layer fixture reaches this
-    step.
+    ``kept`` holds operations of ``group`` by ``.ind``, the identity among
+    them: the unitary operations a measurement or a declaration keeps, which
+    need not compose.  The subgroups inside it are enumerated
+    (:func:`_subgroups_inside`) and the largest is returned.  Where several
+    share the largest order, the measurement does not choose between them, and
+    the first by the tie rule is returned (:func:`_tie_ranked`), never their
+    intersection, which would keep less than any of them.
 
-    So: enumerate the subgroups inside the kept set (:func:`_subgroups_inside`)
-    and return the largest.  Where the largest order is reached by **more than
-    one** subgroup, the measurement does not choose between them, and the one
-    returned is the first by the tie rule every such choice is made by
-    (:func:`_tie_ranked`): on a layer the most operations that keep its side,
-    then the most rotations, then the highest-order rotation, then its axis in
-    the conventional cell.  Their intersection would keep less than any of them
-    carries.
-
-    Returns ``(resolved, dropped, tied)`` — the returned set of ``.ind``; per
-    dropped operation ``(ind, why)`` with ``why`` ``"closure"`` for one no
-    candidate subgroup carries — the kept set does not close with it — and
-    ``"tie"`` for one some candidates carry and the one kept does not; and the
-    candidates in the rule's order, the one kept first, or ``()`` where the
-    largest is unique.
+    Returns ``(resolved, dropped, tied)``.  ``resolved`` is the frozenset of
+    ``.ind`` returned.  ``dropped`` holds ``(ind, why)`` for each operation of
+    ``kept`` outside it: ``why`` is ``"closure"`` where no subgroup of the
+    largest order holds the operation, and ``"tie"`` where one not kept does.
+    ``tied`` holds the subgroups of the largest order in the rule's order, the
+    one kept first, or is ``()`` where the largest is unique.
     """
     subs = _subgroups_inside(group, kept)
     top = max(len(s) for s in subs)
@@ -248,14 +233,15 @@ def _resolve_closure(group, kept):
 
 
 def _setting_axes(group) -> dict:
-    r"""Each unitary operation's determinant, rotation order and axis, in the conventional cell.
+    r"""Each unitary operation's determinant, order and axis in the conventional cell.
 
-    ``{ind: (det, order, axis)}``, read the way a Seitz symbol is written
-    (:func:`.._seitz._seitz_key`): the rotation carried into the tables' own conventional
-    setting, the order that of its proper part ``det·R``, and the axis that
-    part turns about -- a mirror's normal -- as the integer direction
-    :func:`.._seitz._primitive_direction` writes, empty for the identity and inversion.
-    A group with no conventional setting is read in its own cell.
+    ``group``'s rotations are read in the conventional cell used by the
+    irreptables package, as a Seitz symbol reads them
+    (:func:`.._seitz._seitz_key`), and in the group's own cell where it has no
+    conventional cell.  The order is that of the proper part ``det·R``, and the
+    axis the one that part turns about, a mirror's normal, as
+    :func:`.._seitz._rotation_axis` writes it; the axis is empty for the
+    identity and inversion.  Returns ``{ind: (det, order, axis)}``.
     """
     ref = getattr(group, "_refUC", None)
     out = {}
@@ -275,12 +261,13 @@ def _setting_axes(group) -> dict:
 def _direction_rank(axis) -> tuple:
     r"""Where a direction of the conventional cell stands in the tie rule.
 
-    ``axis`` is ``[uvw]``, its first nonzero index positive.  Fewest nonzero
-    indices first, then the smallest sum of their sizes, then the larger
-    ``w``, ``u`` and ``v`` in that order: ``[001]``, ``[100]``, ``[010]`` --
-    the ``c``, ``a`` and ``b`` axes -- then ``[101]``, ``[011]``, ``[110]`` and
-    ``[1-10]``, and ``[111]`` first among the body diagonals.  No direction at
-    all -- inversion's -- stands before every one.
+    ``axis`` is ``[uvw]``, its first nonzero index positive, or empty.  Fewest
+    nonzero indices first, then the smallest sum of their sizes, then the
+    larger ``w``, ``u`` and ``v`` in that order: ``[001]``, ``[100]`` and
+    ``[010]``, the ``c``, ``a`` and ``b`` axes, then ``[101]``, ``[011]``,
+    ``[110]`` and ``[1-10]``, and ``[111]`` first among the body diagonals.
+    An empty axis, inversion's, stands before every direction.  Returns the
+    key; the direction with the smallest key stands first.
     """
     if not axis:
         return ()
@@ -289,12 +276,15 @@ def _direction_rank(axis) -> tuple:
 
 
 def _principal_axis(rows) -> tuple:
-    r"""The axis the tie rule reads third, from a subgroup's ``(det, order, axis)`` rows.
+    r"""A subgroup's principal axis, as the tie rule reads it.
 
-    That of its highest-order rotation, or where it keeps no rotation but the
-    identity, of its highest-order improper operation; the first in the order
-    :func:`_direction_rank` fixes where several share that order, and ``()``
-    where no operation has an axis.
+    The tie rule reads it after the order of the subgroup's highest rotation.
+    ``rows`` are the ``(det, order, axis)`` entries of :func:`_setting_axes`
+    for the subgroup's operations, the identity among them.  The axis is that
+    of the highest-order rotation; where the only rotation is the identity, it
+    is that of the highest-order improper operation with an axis.  Where
+    several share that order, the first in the order :func:`_direction_rank`
+    fixes is returned, and ``()`` where no operation has an axis.
     """
     proper = [r for r in rows if r[0] > 0]
     top = max(r[1] for r in proper)
@@ -308,14 +298,15 @@ def _principal_axis(rows) -> tuple:
 
 
 def _layer_sides(group) -> dict:
-    r"""Which unitary operations of a layer group keep the layer's side, ``{ind: bool}``.
+    r"""Which unitary operations of a layer's group keep its side, ``{ind: bool}``.
 
-    ``True`` for ``R[2,2] = +1`` along the one non-periodic direction
-    (:func:`_side_preserving`), ``False`` for an operation that exchanges the
-    two sides.  Empty where the group is no layer's -- a fully periodic crystal
-    has no non-periodic direction -- and where none of its operations flips the
-    side, a substrate's group among them: the tie rule's first key then has
-    nothing to count.
+    ``group`` is read along its one non-periodic direction
+    (:func:`_side_preserving`): ``True`` for an operation that keeps each side
+    where it is, ``False`` for one that exchanges them or turns the plane out
+    of itself.  Returns ``{}`` where the group has not exactly one
+    non-periodic direction, as a crystal periodic in three has none, and where
+    every operation keeps the side, as on a substrate; the tie rule's first
+    key then counts nothing.
     """
     padded = tuple(int(d) for d in getattr(group, "_vacuum_dirs", ()) or ())
     if len(padded) != 1:
@@ -326,20 +317,17 @@ def _layer_sides(group) -> dict:
 
 
 def _tie_key(subgroup, axes, sides=None) -> tuple:
-    r"""The key the tie rule takes the smallest of.
+    r"""The key the tie rule takes the smallest of, among subgroups of one order.
 
-    Among subgroups of one order, each read through ``axes``
-    (:func:`_setting_axes`), and on a layer through ``sides``
-    (:func:`_layer_sides`): first, on a layer, the most operations that keep
-    the layer's side, since those hold in every environment and are what the
-    layer keeps on a substrate; then the most rotations -- proper operations,
-    the identity among them -- so that a subgroup keeping rotations stands
-    before one keeping mirrors or rotoinversions; then the highest order among
-    its rotations; then its principal axis (:func:`_principal_axis`) in the
-    order :func:`_direction_rank` fixes; then every operation's order and axis
-    the same way; and last the operations' indices, so that the rule is total.
-    Where ``sides`` is empty the first entry is ``0`` for every subgroup, and the
-    rule is the rest of it.
+    ``subgroup`` holds operations by ``.ind``, read through ``axes``
+    (:func:`_setting_axes`) and ``sides`` (:func:`_layer_sides`), ``None`` or
+    empty off a layer.  The key's entries rank, in order: the most operations
+    that keep the layer's side; the most rotations, the identity among them;
+    the highest order among the rotations; the principal axis
+    (:func:`_principal_axis`) in the order :func:`_direction_rank` fixes;
+    every operation's order, whether it is proper, and its axis; and the
+    sorted indices, so that the rule always picks one.  Where ``sides`` is
+    empty the first entry is ``0`` for every subgroup.  Returns the key.
     """
     rows = [axes[int(i)] for i in subgroup]
     proper = [r for r in rows if r[0] > 0]
@@ -351,24 +339,20 @@ def _tie_key(subgroup, axes, sides=None) -> tuple:
 
 
 def _tie_ranked(group, subgroups) -> tuple:
-    r"""Subgroups of one order the measurement does not choose between, as the tie rule ranks them.
+    r"""Subgroups of one order left tied by the measurement, in the tie rule's order.
 
-    Wherever the group a Hamiltonian obeys is the largest subgroup of some set
-    and several subgroups of that order qualify -- the survivors that do not
-    close (:func:`_resolve_closure`), the readings a declaration leaves
-    (:func:`.._declaration._covariant_subgroup`), the subgroups on which spinless
-    states carry an ordinary representation (:func:`.._descent._projective_class_refuted`)
-    -- the one kept is the first here, never their intersection, which would
-    keep less than any of them carries.  The rule, read in the conventional
-    cell of ``group`` (:func:`_tie_key`): on a layer whose group has operations
-    that flip its side, first the most operations that keep the side
-    (``R[2,2] = +1``), since those hold in every environment and are what the
-    layer keeps on a substrate; then the most rotations, so that a subgroup
-    keeping rotations stands before one keeping mirrors or rotoinversions; then
-    the highest-order rotation; then its axis, ``c`` before ``a`` before ``b``
-    before the diagonals; then every other operation's axis the same way.
-
-    Returns the subgroups, each as its ``.ind`` in order, the one kept first.
+    ``group`` is the group the subgroups lie in; the rule reads its
+    conventional cell and, on a layer, its non-periodic direction
+    (:func:`_tie_key`).  ``subgroups`` holds the subgroups, each as ``.ind``.
+    Every choice among subgroups of the largest order inside a set is made
+    here: the survivors that do not close (:func:`_resolve_closure`), the
+    readings a declaration leaves (:func:`.._declaration._covariant_subgroup`),
+    the subgroups on which spinless states carry an ordinary representation
+    (:func:`.._descent._projective_class_refuted`), and the groups that carry
+    the centers within a declared precision
+    (:func:`.._realized._centers_carried`).  The one kept is the first, never
+    their intersection.  Returns the subgroups, each as its sorted ``.ind``,
+    the one kept first.
     """
     axes = _setting_axes(group)
     sides = _layer_sides(group)
@@ -377,10 +361,12 @@ def _tie_ranked(group, subgroups) -> tuple:
 
 
 def _tie_rule_words(group) -> str:
-    r"""The tie rule as the record states it: its first keys, in words.
+    r"""The tie rule's first keys in words, as a record states the rule.
 
-    The layer's own key is said only where it can decide something -- on a
-    layer whose group has operations that flip its side (:func:`_layer_sides`).
+    ``group`` is the group the tied subgroups lie in.  The key on a layer's
+    side is said only where it can decide something, on a layer whose group
+    has operations that exchange its sides (:func:`_layer_sides`).  Returns
+    the words, a clause.
     """
     return (("on a layer the most operations that keep its side, then " if
              _layer_sides(group) else "")
@@ -389,12 +375,15 @@ def _tie_rule_words(group) -> str:
 
 
 def _tie_reason(group, ranked) -> str:
-    r"""Why the tie rule keeps the first of ``ranked`` rather than the second, in words.
+    r"""Why the tie rule keeps the first of ``ranked`` over the second, in words.
 
-    The first key of :func:`_tie_key` on which the two differ, said as what the
+    ``group`` is the group the subgroups lie in, and ``ranked`` at least two
+    subgroups as :func:`_tie_ranked` returns them.  The reason is the first
+    entry of :func:`_tie_key` on which the first two differ, said as what the
     one kept has: more operations that keep a layer's side, more rotations, a
-    rotation of higher order, or a principal axis that comes first in the
-    conventional cell.
+    rotation of higher order, a principal axis that comes first in the
+    conventional cell, other operations whose orders and axes come first, or
+    operations that come first in the group's own order.  Returns the clause.
     """
     axes = _setting_axes(group)
     sides = _layer_sides(group)

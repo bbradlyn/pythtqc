@@ -22,8 +22,8 @@ The functions fall into six groups:
 
 ## The group
 
-- [`realized_group`](#realized_group) — The space group obeyed by H, obtained by descent from the space group of the lattice of occupied sites.
-- [`operations`](#operations) — Every operation of a group by its index, with its Seitz symbol and its name in the model's frame.
+- [`realized_group`](#realized_group) — The space group a Hamiltonian obeys.
+- [`operations`](#operations) — The operations of a group, one for each coset of the lattice translations.
 - [`operation_index`](#operation_index) — The index of the operation a Seitz symbol names.
 
 ### `realized_group`
@@ -37,139 +37,176 @@ realized_group(
 )
 ```
 
-The space group obeyed by H, obtained by descent from the space group of the lattice of occupied sites.
+The space group a Hamiltonian obeys.
 
-The call also places each orbital on its Wyckoff position and builds the
-representation of the group that labels the bands.
+The record returned also holds the Wyckoff position of each orbital and the
+representation of the group, which labels the bands.
 
 **Parameters**
 
-- **`model`** (`pythtb.TBModel`): A crystal periodic in three directions, or a layer periodic in two; a
-  chain or a molecule is refused.
+- **`model`** (`pythtb.TBModel`): A crystal periodic in three directions, or a layer periodic in two.
 
-- **`typat`** (`sequence, one entry per orbital, optional`): A species label per orbital: orbitals on atoms of different species
-  get different labels.  `None` reads sites with the same orbital
-  content as one species.
+- **`typat`** (`sequence, optional`): A species label for each orbital.  Orbitals on atoms of different
+  species are given different labels.  Left out, sites that hold the
+  same number of orbitals are one species.
 
-- **`characters`** (`sequence or mapping, optional`): What the orbitals are: a function (`"s"`, `"px"`, `"dx2-y2"`), a
-  shell (`"p"`), a site irrep (`"A1"`), with spin a site corep
-  (`"-E1"`), or a sum of them (`"A1 + E"`), one per orbital, or a
-  mapping from an orbital, or from several orbitals of one site, to such
-  a word.  In place of a word, a mapping from operations of the site
-  group to their characters, or to the matrices they act with on the
-  orbitals named, in the order written: matrices say which basis of its
-  site irrep a multiplet is.  The group loses the operations that do not
-  carry the declared content.  An orbital left undeclared takes the
-  lowest angular momentum the hoppings allow.
+- **`characters`** (`sequence or mapping, optional`): The site irrep, function or shell each orbital carries.  Pass a
+  sequence with one entry per orbital, `None` for an orbital left
+  undeclared.  Or pass a mapping to an entry from an orbital, or from
+  several orbitals of one site.  An entry is a word: a function
+  (`"s"`, `"px"`, `"dx2-y2"`), a shell (`"p"`), a site irrep
+  (`"A1"`), a double-valued site irrep for a model with spin
+  (`"-E1"`), or a sum of them (`"A1 + E"`).  In place of a word, an
+  entry can be a mapping from operations of the site group, by index or
+  by name, to their characters, or to the matrices they act with on the
+  orbitals named, rows and columns in the order the orbitals are named.
+  Matrices say in which basis of its site irrep a multiplet is written.
 
-- **`environment`** (`{"substrate", "free-standing"}, optional`): For a layer: on a substrate, no operation turns the layer over;
-  free-standing, the whole layer group applies.  Default: the substrate
-  for a flat layer, free-standing for a slab whose orbitals have heights.
+- **`environment`** (`{"substrate", "free-standing"}, optional`): The environment of a layer.  `"substrate"`: no operation turns the
+  layer over.  `"free-standing"`: the whole layer group applies.  Left
+  out, a layer written in two dimensions is read on a substrate, and a
+  slab written in three dimensions is read free-standing.  A crystal
+  periodic in three directions takes none.
 
-- **`cross_check`** (`bool, optional`): For a layer, also read the other environment and check that the two
-  agree.  Default `True`.
+- **`cross_check`** (`bool, default True`): Whether a layer is also read in the other environment, and the two
+  groups compared.  It has an effect only for a layer.
 
-- **`decorations`** (`sequence of (position, label), optional`): Non-orbital species added to the cell before its group is found: a
-  crystal field the orbital positions do not show.
+- **`decorations`** (`sequence of (position, label), optional`): Points that carry no orbital, added to the cell before its group is
+  found, such as atoms whose crystal field the orbital positions do not
+  show.  Each is a position, in reduced coordinates, and a species
+  label.
 
-- **`precision`** (`float, optional`): For a numerical model such as a wannier90 import, the relative
-  precision of its numbers: a positive number.  Centers and hoppings
-  symmetric within it are made exactly symmetric; left out, the model is
-  read as exact, each operation held to `1e-8` times `max|H|`, the
-  largest entry of `H(k)` once the mean on-site energy is subtracted.
+- **`precision`** (`float, optional`): The precision of the model's numbers, a positive fraction: of
+  `max|H|` for the hoppings, and a length in reduced coordinates for
+  the orbital centers.  `max|H|` is the largest entry of `H(k)` once
+  the mean on-site energy is subtracted.  Pass it for a numerical model,
+  such as one read from Wannier90.  Left out, the model is read as
+  exact: an operation is obeyed where its covariance residual, the
+  largest entry of `U H(k) U^-1 - H(gk)` over the k measured for the
+  best matrix `U` found, is at most `1e-8` times `max|H|`.
 
-- **`spin`** (`str, mapping or SpinBasis, optional`): For a spinless model whose orbital index carries spin, as a wannier90
-  import's does: which two orbitals are the spin states of one Wannier
-  function, `"interleaved"`, `"blocked"` or pair by pair.  Left out,
-  such a model is read spinless.
+- **`position_tol`** (`float, optional`): How far an orbital center may miss the position the group puts it at
+  and still be moved onto it, in reduced coordinates.  Pass it, in place
+  of `precision`, for a model whose centers alone are imprecise.
 
-- **`spinor`** (`bool, optional`): Whether the states carry spin one-half.  Default: from the model, and
-  `True` with `spin`.
+- **`symprec`** (`float, default 1e-05`): The tolerance of spglib, which finds the group from the positions, as
+  a Cartesian length in the model's length units.
 
-- **`position_tol`, `symprec`** (`float, optional`): `position_tol`: how far an orbital center may miss the position its
-  group puts it at and still be moved onto it, in reduced coordinates,
-  for a model whose centers alone are imprecise; left out, it is exact,
-  and `precision` sets it.  `symprec`: the symmetry finder's
-  tolerance, a Cartesian length, default `1e-5`.
+- **`spin`** (`str, mapping or SpinBasis, optional`): Which pairs of orbitals are the spin states of one Wannier function,
+  for a model built without pythtb's spin whose orbital index carries
+  spin, as one imported from Wannier90 does.  Pass `"interleaved"`,
+  `"blocked"`, a mapping of the keyword arguments of
+  [`spin_basis`](#spin_basis), or what that call returns.  Left out, such a
+  model is read spinless.
 
-- **`nk`** (`int, optional`): k-points per periodic direction of the grid the operations are measured
-  on.  Default 6.
+- **`spinor`** (`bool, optional`): Whether the states carry spin one-half, so that the double-valued
+  tables are read.  Left out, it is `True` for a model built with spin
+  or with `spin=` given, and `False` otherwise.
 
-- **`site_multiplets`** (`list or SiteMultiplets, optional`): Each site's multiplets, stated instead of measured: one list per site,
-  each multiplet written as its orbitals.
+- **`nk`** (`int, default 6`): The number of `k`-points along each periodic direction of the grid
+  on which the operations are measured.
 
-- **`max_candidates`, `max_bytes`** (`int and float, optional`): Limits on the search for the representation (default `2**20`
-  candidates) and on the memory of the symmetric projection (default
-  `1e9` bytes).
+- **`site_multiplets`** (`list or SiteMultiplets, optional`): Each site's multiplets, the sets of orbitals the operations fixing the
+  site mix, stated instead of measured.  Pass one list per
+  site of the multiplets it holds, each written as its orbitals, such as
+  `[[(0, 1)], [(2,)]]`.
 
-- **`params`** (`dict, optional`): The scalar value of each parameter of the model, keyed by name:
+- **`max_candidates`** (`int, default 2**20`): The largest number of candidate representations searched, where the
+  measurement leaves a choice of representation open.
+
+- **`max_bytes`** (`float, default 1e9`): The memory budget, in bytes, of the measurement of an operation and of
+  the projection of `H` onto its symmetric part.
+
+- **`params`** (`dict, optional`): The value of each free parameter of the model, keyed by name:
   `{"lam": 0.3}`.
 
 **Returns**
 
-- `RealizedGroup or Refusal`: `r.summary()` prints what was measured, each line with the field
-  that holds it.  `r.group` is the group, its operations by Seitz
-  symbol in `r.operations`; `r.wyckoff_orbits` the orbitals, a row
-  per Wyckoff orbit, with their site irreps and the band representation
-  they induce; `r.rep` the matrices that label the bands, read through
-  the record itself, `hsp_table(r, bands=n)`.  `r.descent` is what
-  was broken; `r.time_reversal`; `r.environment`, for a layer;
-  `r.beyond_grey`, operations combined with time reversal that hold
-  where time reversal does not; `r.conserved`, symmetry beyond the
-  crystal's; `r.spin`, the spin pairs declared; `r.numerical`, how
-  the measurement was made: the precision declared, the centers moved,
-  `H` projected, the verdict on each operation.  For a parameterized
-  model, `r.model` is the model with its parameters evaluated at
-  `params`, and `r.numerical.source` the model as handed in.  A
-  `Refusal` in its place is falsy and names what stopped the call.
+- `RealizedGroup or Refusal`: The space group the Hamiltonian obeys, `r.group`, with the Wyckoff
+  orbit of each orbital, `r.wyckoff_orbits`, and the representation of
+  the group on the orbitals, `r.rep`.  `RealizedGroup` describes
+  every field.  An operation of the cell that does not carry what
+  `characters=` declares is not an operation of the declared crystal,
+  and the group returned does not contain it.  Where neither a declaration
+  nor the hoppings fix the site irrep of an orbital, the
+  lowest-angular-momentum rule assigns it.  Where an operation holds
+  within the tolerance and not exactly, where a multiplet holds only
+  within it, or where the hoppings couple separate parts or tell
+  identical copies apart only below it, `H` is projected onto its
+  symmetric part, and `r.model` is the projected model.
+
+  With `precision=`, the orbital centers are moved onto the positions
+  the group puts them at, and an operation is obeyed within a tolerance
+  computed from the declared precision.  Each center's move onto those
+  positions is at most the declared precision, in reduced coordinates,
+  and so is a shift of every center together.  With
+  `position_tol=`, the centers are moved within it, and an operation
+  is obeyed within the tolerance of a model read as exact.  With
+  `params=`, `r.model` is the model with the values in place, and
+  `r.numerical.source` the model as handed in.  With
+  `cross_check=False`, `r.environment.cross_check` is `None`.
+
+  A `Refusal` in its place is falsy, and names the check that stopped
+  the call.
 
 **Refusals**
 
-Once the group is found, a refusal names it and carries it in
-`context["group"]`.
+Every Hamiltonian periodic in two or three directions obeys some space
+group, `P1` at the least, and which one it obeys is not refused.  A
+refusal concerns a model outside that scope, how the model is written, or
+what is built once the group is found.  A refusal returned once the group
+is found names it, and carries it in `context["group"]`.
 
-- **`fewer_than_two_periodic_directions`**: a chain or a molecule.
+- **`fewer_than_two_periodic_directions`**: the model is periodic in fewer than two directions: a chain or a
+  molecule.
 
-- **`irrep_tables` / `single_valued_spinful`**: `irreptables` is not installed, or `spinor=False` was asked of
-  states with spin one-half.
+- **`supercell`**: `H` obeys a pure translation of its cell: the model is written on a
+  supercell of its primitive cell.
 
-- **`spin_pair_split`**: the two orbitals of a declared spin pair sit at different centres.
+- **`positions_not_exactly_symmetric`**: with neither `precision=` nor `position_tol=` declared, the
+  orbital centers miss symmetric positions by enough to break an
+  operation, or to keep `H` from being made exactly symmetric.
 
-- **`wyckoff_orbit`**: an orbital sits on no Wyckoff position of the cell.
+- **`positions_not_nearly_symmetric`**: with `precision=` or `position_tol=` declared, the orbital centers
+  cannot be moved within it onto the positions the group puts them at.
 
-- **`positions_not_exactly_symmetric`**: centers off symmetric positions, with no `precision` declared, by
-  enough to break operations or to keep H from being made exactly
-  symmetric.
+- **`operations_not_consistent` / `operations_not_nearly_consistent`**: the operations read off the orbital centers do not close into a group,
+  and cannot be made to close from the operations the irreptables
+  package tabulates.
 
-- **`supercell`**: H obeys a translation shorter than the cell's: the model is written on
-  a supercell.
+- **`wyckoff_orbit`**: an operation of the group carries an orbital to a point where no
+  orbital of its species sits.
 
-- **`operations_not_nearly_consistent` / `operations_not_consistent`**: the operations found on a numerical cell do not close; `precision`
-  makes the centres exact first.
+- **`spin_pair_split`**: the two orbitals of a declared spin pair sit at different centers.
 
-- **`cell_group_not_realized`**: an operation combined with time reversal that held before a numerical
-  model's Hamiltonian was projected and is broken after it.
+- **`single_valued_spinful`**: with `spinor=False`, a model built with spin.
 
-- **`unknown_label` / `ambiguous_multiplet`**: a declared word the site does not name, or a flat list that cannot say
-  which orbitals form one multiplet.
+- **`rep_double_valued_spinless`**: with `spinor=True`, a spinless model with no `spin=` declared.
 
-- **`rep_not_covariant`**: operations that hold within the declared precision and that no
-  representation carries within the exact check.
+- **`unknown_label` / `ambiguous_multiplet`**: a word of `characters=` that the orbital's site does not name, or a
+  declaration that does not say which orbitals hold a site irrep.
 
-- **`rep_internal_factor` / `rep_not_multiplicative`**: no candidate representation carries the group's phases, or multiplies
-  as the group does.
+- **`irrep_tables`**: the character tables of the irreptables package are not loaded, or
+  hold no table for this group.
 
-- **`rep_not_unique`**: more than one representation fits; report it, with the model and the
-  call.
+- **`rep_search_too_large` / `detector_too_large` / `projection_too_large`**: a search past `max_candidates`, or a measurement or a projection past
+  `max_bytes`.
 
-- **`rep_double_valued_spinless`**: double-valued tables asked of a spinless model; `spin=` declares its
-  spin pairs.
+- **`cell_group_not_realized`**: an operation combined with time reversal that held before `H` was
+  projected onto its symmetric part is broken after it.
 
-- **`rep_search_too_large` / `projection_too_large` / `detector_too_large`**: past `max_candidates` or `max_bytes`; the reason gives the value
-  that runs it.
+- **`rep_not_covariant`**: no candidate representation of the operations `H` was measured to
+  obey carries `H(k)` onto `H(gk)` within the tolerance, for every
+  operation `g`.
 
-- **`symmetrize_defect_exceeds_tol` / `symmetrize_range_not_closed`**: the projection of the Hamiltonian onto its symmetric part, under a
-  declared precision.
+- **`rep_not_unique`**: more than one representation passes every check.
+
+- **`rep_internal_factor` / `rep_not_multiplicative` / `site_group`**: the representation, or a site group read for a declaration, fails a
+  check that holds in exact arithmetic.
+
+- **`symmetrize_defect_exceeds_tol` / `symmetrize_range_not_closed`**: the projection of `H` onto its symmetric part moves `H` by more
+  than the tolerance, or leaves weight on hoppings beyond the range the
+  group carries a hopping to.
 
 ### `operations`
 
@@ -177,32 +214,32 @@ Once the group is found, a refusal names it and carries it in
 operations(group)
 ```
 
-Every operation of a group by its index, with its Seitz symbol and its name in the model's frame.
+The operations of a group, one for each coset of the lattice translations.
 
-The index is the key every per-operation record is written on:
-`rep.matrices`, the verdicts of the measurement, the entries of a
-descent.  The Seitz symbol `{R|t}` is the one the tables and the Bilbao
-Crystallographic Server print, in their conventional setting, with an
-underscore before the axis and a minus sign for an overbar: `-4+_001` is
-`4̄⁺₀₀₁`.  The name is the same operation in the model's Cartesian frame,
-the frame `characters=` is written in.
+Each operation has an index, a Seitz symbol and a name.  The operations
+are listed in the order of the tables of the irreptables package.  In a
+double group each operation's product with the rotation by 2π is in the
+group too, and is not listed.  The Seitz symbol `{R|t}` is written in
+the conventional cell used by the irreptables package.  An underscore
+stands before the direction of the axis, and a minus sign for an overbar,
+as in `{-4+_001|0,0,0}`.  The name is written in the Cartesian axes in
+which the pythtb Lattice is specified.
 
 **Parameters**
 
-- **`group`** (`GroupData`): The group, `r.group` of what `realized_group` returns.
+- **`group`** (`GroupData`): The group, `r.group`.
 
 **Returns**
 
-- `OperationTable or Refusal`: `table[index]` is one `Operation`, with its `seitz`, its
-  `name`, its matrices and whether it is antiunitary;
-  `print(table)` lists them all.  `r.operations` is the same table.
-  A `Refusal` in its place is falsy.
+- `OperationTable or Refusal`: A mapping from each index to its `Operation`.  `r.operations`
+  holds the same table.  A `Refusal` in its place is falsy and names
+  what stopped the call.
 
 **Refusals**
 
 A refusal handed in as `group` is returned as it is.
 
-- **`tables_not_ready`**: The group has no conventional setting to write a Seitz symbol in.
+- **`tables_not_ready`**: the installed tables cannot be read for this group in this cell.
 
 ### `operation_index`
 
@@ -212,31 +249,35 @@ operation_index(group, seitz)
 
 The index of the operation a Seitz symbol names.
 
-A rotation written about either direction of its axis, `4+` about
-`[001]` or `4-` about `[00-1]`, and any representative of its
-translation modulo the lattice name the same operation, so a symbol copied
-off a printed table is read whichever choices it makes; spaces and the
-underscore before the axis are free.
+The symbol is read in the conventional cell used by the irreptables
+package, the cell [`operations`](#operations) writes the symbols in.  A rotation
+written about either direction of its axis names the same operation:
+`3+_001` and `3-_00-1` are one.  A symbol whose translation differs
+by a lattice vector names the same operation too.  Spaces between the
+parts of the symbol are ignored, and the underscore before the axis may
+be left out.
 
 **Parameters**
 
-- **`group`** (`GroupData`): The group, `r.group` of what `realized_group` returns.
+- **`group`** (`GroupData`): The group, `r.group`.
 
 - **`seitz`** (`str`): A Seitz symbol `{R|t}`, with a trailing `'` for an operation
-  combined with time reversal.
+  combined with time reversal: `"{3+_001|0,0,0}'"`.
 
 **Returns**
 
-- `int or Refusal`: The operation's index.  A `Refusal` in its place is falsy.
+- `int or Refusal`: The operation's index.  A `Refusal` in its place is falsy and names
+  what stopped the call.
 
 **Refusals**
 
 A refusal handed in as `group` is returned as it is.
 
-- **`tables_not_ready`**: The group has no conventional setting to read a Seitz symbol in.
+- **`tables_not_ready`**: the installed tables cannot be read for this group in this cell.
 
-- **`unknown_operation`**: No operation of the group is written so; the refusal names the nearest
-  spellings it carries.
+- **`unknown_operation`**: `seitz` names no operation of the group.  The refusal names up to
+  three of the group's symbols, the nearest in spelling where any is
+  close.
 
 ## Declaring what the hoppings cannot supply
 
@@ -1186,7 +1227,7 @@ A refusal handed in as `group` is returned as it is.
 ## Stable invariants
 
 - [`symmetry_indicator`](#symmetry_indicator) — The symmetry-indicator class of a set of bands.
-- [`stack_presentation`](#stack_presentation) — The layer repeated along its normal with no hopping between the copies: a crystal with the layer's bands at every `k_z`.
+- [`stack_presentation`](#stack_presentation) — A layer repeated along its normal, with no hopping between the copies.
 - [`srsi_tables`](#srsi_tables) — The stable real-space invariants of a grey space group, as tabulated.
 - [`srsi_of_bands`](#srsi_of_bands) — The integer-valued stable real-space invariants (ZSRSIs) of a band set.
 - [`srsi_of_model`](#srsi_of_model) — The stable real-space invariants of a model, a row for each Wyckoff orbit.
@@ -1272,39 +1313,43 @@ A refusal handed in as `realized` is returned as it is.
 stack_presentation(model, *, c=8.0, params=None)
 ```
 
-The layer repeated along its normal with no hopping between the copies: a crystal with the layer's bands at every `k_z`.
+A layer repeated along its normal, with no hopping between the copies.
 
-The three-dimensional crystal a layer's rows at `k_z = ½` are measured
-on: the layer's own lattice and a third vector along its normal, every
-orbital at its own height, every hopping within one copy.  Its
-`H(k, k_z)` is the layer's `H(k)` up to the phases of the orbitals'
-heights, `Λ(k_z)† H(k) Λ(k_z)` with `Λ` diagonal, which each call
-measures, so its spectrum and symmetry are the layer's at every `k_z`
-and `c` changes neither.
+The crystal's lattice vectors are the layer's two and a third along the
+layer's normal.  The third has the length of the layer's extent along the
+normal, from its lowest orbital to its highest, plus `c`.  Each orbital
+keeps its height along the normal.  The crystal's Bloch Hamiltonian is
+`H(k, k_z) = Λ(k_z)† H(k) Λ(k_z)`, with `H(k)` the layer's.
+`Λ(k_z)` is diagonal, with the entry `exp(2πi k_z z)` for an orbital
+at height `z` from the layer's middle plane, in units of the third
+lattice vector.  So the crystal's bands at every `k_z` are the layer's
+bands at `k`, whatever `c`.
 
 **Parameters**
 
-- **`model`** (`pythtb.TBModel`): A layer: periodic in two directions, in a cell of two or three.
+- **`model`** (`pythtb.TBModel`): A model periodic in two directions, in a cell of two or three
+  dimensions.
 
-- **`c`** (`float, optional`): The vacuum between the copies, in the model's length units; the period
-  is the layer's extent along its normal plus `c`.  Default
-  `STACK_C`, `8.0`.
+- **`c`** (`float, default 8.0`): The width of the vacuum between the copies, in the length units of the
+  model's lattice vectors.  The default is `pythtqc.groups.STACK_C`.
 
 - **`params`** (`dict, optional`): The scalar value of each parameter of the model, keyed by name:
   `{"lam": 0.3}`.
 
 **Returns**
 
-- `pythtb.TBModel or Refusal`: The stack, periodic in three directions, its parameters evaluated at
-  `params`.  A `Refusal` in its place is falsy.
+- `pythtb.TBModel or Refusal`: The crystal, periodic in three directions, with each parameter of the
+  model set to its value in `params`.  A `Refusal` in its place is
+  falsy and names what stopped the call.
 
 **Refusals**
 
-- **`not_a_layer`**: The model is not periodic in exactly two directions of a two- or
+- **`not_a_layer`**: the model is not periodic in exactly two directions of a two- or
   three-dimensional cell.
 
-- **`hopping_across_the_stack`**: A hopping runs along the non-periodic direction, so the model is not
-  one decoupled layer.
+- **`hopping_across_the_stack`**: a hopping's lattice vector has a component along the non-periodic
+  lattice vector of a three-dimensional cell, so the layer is coupled to
+  its images along that vector.
 
 ### `srsi_tables`
 

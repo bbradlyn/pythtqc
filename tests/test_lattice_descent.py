@@ -514,9 +514,8 @@ def test_i213_conventional_cell_is_refused_as_a_supercell():
     centring translation (residual below ``1e-12``, measured 3.5e-15 here) is
     what makes the model a supercell rather than a crystal with a bigger cell.
     The refusal names ``τ`` reduced and Cartesian, the index, and the finer
-    lattice, and says what a folded zone would do to every label; reached
-    inside the measurement, it opens with the cell's group at that point, the
-    upper bound it is, and carries it.
+    lattice; reached inside the measurement, it opens with the cell's group at
+    that point, the upper bound it is, and carries it.
 
     ``_translation_residual`` measures ``max_k |P H(k) P† − H(k)|``, and *which
     way round* it conjugates is not a claim this file can make: ``P`` is a
@@ -533,7 +532,7 @@ def test_i213_conventional_cell_is_refused_as_a_supercell():
     r = tqg.realized_group(tqc_models.i213_conventional())
     assert isinstance(r, Refusal) and not r
     assert r.gate == "supercell" and r.value == 2.0 and r.threshold == 1.0
-    assert r.reason.startswith("The cell's group at this point is I2_131' #199.13, an "
+    assert r.reason.startswith("the group the cell allows is I2_131' #199.13, an "
                                "upper bound on what this Hamiltonian obeys"), r.reason
     assert set(r.context) >= {"translations", "index", "primitive_lattice", "group",
                               "validated"}
@@ -541,7 +540,7 @@ def test_i213_conventional_cell_is_refused_as_a_supercell():
     assert r.context["translations"] == ((0.5, 0.5, 0.5),)
     assert r.context["index"] == 2
     assert "[0.5, 0.5, 0.5] (reduced) = [0.5, 0.5, 0.5] (Cartesian)" in r.reason
-    assert "folded Brillouin zone" in r.reason
+    assert "sublattice of index 2" in r.reason
     assert "primitive cell" in r.reason
     assert r.context["lattice"]["operations"][0]["residual"] == pytest.approx(0.0, abs=1e-12)
     # the finer lattice is ``Z^3 + Z.tau``, which is what "body centred" means.

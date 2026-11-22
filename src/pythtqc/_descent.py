@@ -1,7 +1,9 @@
-"""The unitary descent: one verdict per operation of the cell, off the solution
-spaces, the hoppings, the centres, the declaration, the lattice and the
-antiunitary coset; the cell lowered to the group of the operations that hold;
-and what each step dropped, by cause.
+"""The descent: the cell lowered to the group the Hamiltonian obeys.
+
+Each round gives one verdict per operation of the cell, read off its solution
+space, the hoppings, the orbital centers, the declaration, the lattice and the
+operations combined with time reversal. The cell is lowered to the group of the
+unitary operations that hold, and each step records what it dropped, by cause.
 """
 
 from __future__ import annotations
@@ -47,21 +49,22 @@ from ._measure import _detection_grid, _max_hamiltonian
 
 @dataclass(frozen=True)
 class _DeclarationVerdict:
-    """Which operations the declared orbital content breaks, and the subgroup it leaves.
+    """Which operations the declaration breaks, and the subgroup it leaves.
 
     Attributes
     ----------
     refuted : dict
-        Each operation the declaration breaks, its primed partner included,
-        ``{ind: entry}``, each entry naming the orbitals, what was declared and
-        what was measured.
+        ``{ind: entry}`` for each operation the declaration breaks, and for the
+        same operation combined with time reversal where the group holds it.
+        Each entry names the orbitals, what was declared and what was measured.
     subgroup : tuple of int
-        The indices of the grey subgroup the declared content is covariant on.
+        The indices of the operations kept: the unitary ones that carry the
+        declared site irreps, each with its product with time reversal where
+        the group holds it.
     candidates : tuple
-        The maximal readings in the tie rule's order where several tie; empty
-        otherwise.
+        If nonempty, the largest subgroups that tie, in the tie rule's order.
     rows : tuple of dict
-        The measured-versus-declared table as a record returns it.
+        The declared and the measured characters, as a record returns them.
     """
 
     refuted: dict
@@ -79,7 +82,7 @@ class _Square:
     ind : int
         The operation's index in the group.
     asked : int
-        The sign the tables ask the square to have, ``+1`` or ``-1``.
+        The sign the group's multiplication table gives the square, ``+1`` or ``-1``.
     measured : float
         The sign of the square of the member the verdict rests on, where that
         square is a multiple of the identity; ``nan`` otherwise.
@@ -105,12 +108,14 @@ class _AntiunitaryOp:
     sym : object
         The operation itself.
     entry : dict
-        The operation as :attr:`RealizedGroup.beyond_grey` names it
+        The operation as :attr:`RealizedGroup.beyond_grey` lists it
         (:func:`_antiunitary_entry`).
     member : ndarray or None
         Its matrix; ``None`` where it is refuted.
     space : ndarray or None
-        The solution space the matrix is a member of; ``None`` where it is refuted.
+        The solution space the matrix is a member of, larger than the matrix
+        alone where the Hamiltonian conserves an operator; ``None`` where the
+        operation is refuted or the detector recorded no space.
     """
 
     sym: object
@@ -121,7 +126,7 @@ class _AntiunitaryOp:
 
 @dataclass(frozen=True)
 class _AntiunitaryRound:
-    """What one round measured of the operations combined with time reversal it asks last.
+    """What one round measured of the antiunitary operations it asks last.
 
     Attributes
     ----------
@@ -133,7 +138,8 @@ class _AntiunitaryRound:
         The operations the detector refuted, time reversal among them where its
         square is not the sign asked.
     refuted : frozenset of int
-        The operations refuted here at all.
+        Every operation refuted in this round, by the detector, the verdict
+        stage or its own square.
     n : int
         How many operations were asked last here.
     closed : bool
@@ -141,10 +147,11 @@ class _AntiunitaryRound:
     reversal : bool
         Whether this is the group time reversal was measured on.
     itself : str
-        On that group's round, what broke time reversal itself, in words; empty otherwise.
+        If nonempty, what broke time reversal itself, in words, on the round
+        of the group time reversal was measured on.
     returned : dict or None
-        Once carried onto the group returned, ``{index here: index there}``;
-        ``None`` before.
+        Once carried onto the group returned, ``{index here: index in the group
+        returned}``; ``None`` before.
     """
 
     group: object
@@ -160,7 +167,7 @@ class _AntiunitaryRound:
 
 @dataclass(frozen=True)
 class _AntiunitaryReading:
-    """Which operations combined with time reversal hold, read once against the group returned.
+    """Which antiunitary operations hold, read once against the group returned.
 
     Attributes
     ----------
@@ -175,16 +182,17 @@ class _AntiunitaryReading:
 
 
 def _antiunitary_entry(group, validated, ind) -> dict:
-    """One operation combined with time reversal, as :attr:`RealizedGroup.beyond_grey` names it.
+    """One antiunitary operation, as :attr:`RealizedGroup.beyond_grey` lists it.
 
-    Its index ``ind`` in the group it was measured in, that group's label
-    (``of``), its ``name`` in the generator frame ``characters=`` is written
-    in, its ``rotation`` and ``translation`` in the cell's reduced
-    coordinates, and the ``residual`` and ``verdict`` the detector measured.
-    Where the translation is not a lattice vector of the cell the name carries
-    it, in Seitz form in the cell's reduced coordinates -- ``{E|1/2,0,0}'``,
-    the half translation of an antiferromagnet's magnetic cell combined with
-    time reversal, and never time reversal's own ``E'`` (:func:`_record_name`).
+    ``ind`` is the operation's index in ``group``, the group it was measured
+    in, and ``validated`` the detector's verdicts there.  Returns its ``ind``;
+    ``of``, the number of ``group``; its ``name`` (:func:`_record_name`); its
+    ``rotation`` and ``translation`` in the cell's reduced coordinates; and the
+    ``residual`` and ``verdict`` the detector measured.  Where the translation
+    is not a lattice vector of the cell the name carries it in Seitz form:
+    ``{E|1/2,0,0}'``, the half translation of an antiferromagnet's magnetic
+    cell combined with time reversal, which ``E'`` alone would print as time
+    reversal.
     """
     sym = next(s for s in group._symmetries if int(s.ind) == int(ind))
     return {"ind": int(ind),
@@ -200,42 +208,42 @@ def _antiunitary_entry(group, validated, ind) -> dict:
 
 def _antiunitary_settled(group, validated, refuted, square, kept=None, *,
                          tolerances=EXACT) -> _AntiunitaryRound:
-    r"""What one round measured of the operations combined with time reversal it asks last.
+    r"""What one round measured of the antiunitary operations it asks last.
 
-    A descent keeps the unitary operations measured to hold, ``kept``, and the
-    group it arrives at is asked with time reversal adjoined again, so a
-    ``g·T`` whose ``g`` is kept is measured again there.  One whose ``g`` is
-    left out -- a mirror the Hamiltonian breaks, combined with time reversal
-    -- is asked nowhere else, and this round's verdict on it is its last.  So
-    is every operation combined with time reversal of the group time reversal
-    is measured on (``kept`` left out), the last group that asks any of them:
-    a descent after it -- the projective class of spinor states read
-    spinless -- can still leave their unitary part out.
+    A ``g·T`` is asked last in the round whose descent leaves ``g`` out, since
+    the group the descent arrives at does not hold it.  On the group time
+    reversal is measured on, every ``g·T`` is asked last: a descent after it,
+    by the projective class of spinor states read without spin, can still leave
+    ``g`` out.  The round records the measurement and decides nothing; what
+    holds is read once, against the group returned (:func:`_antiunitary_held`).
 
-    What is kept is the measurement and no conclusion: whether the detector
-    kept the operation, whether its tensor structure or its spin lift refuted
-    it (``refuted``), its matrix, and, where its unitary part squares to the
-    identity, its own square ``X X̄``, a sign no rescaling of ``X`` changes,
-    against the sign the group's multiplication table gives it
-    (:func:`_antiunitary_square`; time reversal's own is ``square``,
-    :func:`_time_reversal_square`), the member of that sign being the matrix
-    kept.  The operations are read once, after the group settles, against the
-    group returned (:func:`_antiunitary_held`).
+    Parameters
+    ----------
+    group : GroupData
+        The round's group.
+    validated : ValidatedGroup
+        The detector's verdicts on ``group``.
+    refuted : dict or None
+        The verdict stage's refutations on ``group``, by ``.ind``.
+    square : _Square or None
+        Time reversal's square (:func:`_time_reversal_square`); ``None`` where
+        the group has no pure time reversal or the detector refuted it.
+    kept : iterable of int, optional
+        The unitary operations the round's descent keeps, by ``.ind``.
+        ``None`` on the group time reversal is measured on.
+    tolerances : Tolerances, default EXACT
+        What the call declared, against which a solution space's noise is read.
 
-    Returns the :class:`_AntiunitaryRound`: this round's group; per operation
-    asked last here, keyed by its ``.ind``, the operation itself (``sym``), its
-    entry as
-    :attr:`RealizedGroup.beyond_grey` names it (``entry``,
-    :func:`_antiunitary_entry`), its matrix (``member``, ``None`` where it
-    is refuted) and the solution space it is a member of (``space``), which
-    holds more than it where the Hamiltonian conserves something, a spin
-    rotation; the operations the detector refuted, time reversal among them
-    where its square is not the sign asked; those refuted here at all, by the
-    detector, by their tensor structure or spin lift, or by their own square;
-    how many were asked last here; whether the operations the detector kept
-    close in this group; and whether it is the group time reversal was
-    measured on.  ``tolerances`` is the record of what the call declared, which
-    every reading of a solution space here judges noise against.
+    Returns
+    -------
+    _AntiunitaryRound
+        For each operation asked, its entry, its matrix and its solution
+        space.  The matrix is ``None`` where the operation is refuted by the
+        detector or the verdict stage, for time reversal itself where
+        ``square`` is not obeyed, and for another operation whose unitary part
+        squares to the identity where no member's square ``X X̄`` has the sign
+        the group's table gives (:func:`_antiunitary_square`); the member of
+        that sign is the matrix kept otherwise.
     """
     antiunitary = {int(s.ind): s for s in group._symmetries if s.time_reversal}
     if kept is None:
@@ -273,66 +281,41 @@ def _antiunitary_settled(group, validated, refuted, square, kept=None, *,
 
 
 def _time_reversal_measured(group, validated, refuted=None, *, tolerances=EXACT) -> tuple:
-    """The verdict on the antiunitary coset, and what it costs.
+    """The verdict on time reversal, on the group the unitary operations settle on.
 
-    A cell is asked as a **grey** group — that is the honest allowance, since a
-    point set says nothing about a Hamiltonian's time reversal — and the
-    detector then measures the coset.  Two things can come back:
+    Time reversal is measured broken where the detector breaks an operation
+    combined with it; where no member of its solution space squares,
+    ``X X̄``, to the sign the tables ask for, ``+1`` single-valued and ``-1``
+    double-valued (:func:`_time_reversal_square`); or where the verdict stage
+    refuted it by its spin lift or its site permutation.  Where it is broken,
+    what this round measured of every operation combined with time reversal
+    is kept (:func:`_antiunitary_settled`), to be read once the group has
+    settled (:func:`_beyond_grey`).
 
-    * **every antiunitary operation obeyed.**  The realization is grey; nothing
-      changes, and nothing beyond grey is read.
-    * **any one refuted.**  Time reversal is measured broken and the
-      realization is a *unitary* group.  The same cell is re-identified
-      with ``include_TR=False``, so the labels, EBR rows and indicator that
-      follow are the unitary group's own — a grey record with rows deleted
-      would be neither.
+    Parameters
+    ----------
+    group : GroupData
+        The group measured, every unitary operation of it obeyed.
+    validated : ValidatedGroup
+        The detector's verdicts on ``group``.
+    refuted : dict, optional
+        The verdict stage's refutations on ``group``, by ``.ind``.
+    tolerances : Tolerances, default EXACT
+        What the call declared, against which a solution space's noise is read.
 
-    **Time reversal is obeyed only as the tables read it.**  Its square
-    ``X X̄`` is a sign that belongs to the Hamiltonian (:func:`_time_reversal_square`),
-    and the tables ask for one: ``+1`` single-valued, ``-1`` double-valued.  A
-    time reversal whose solution space holds no member of the sign asked is
-    broken, and the realization descends as it does for any Hamiltonian that
-    breaks time reversal -- which is what spinor states in the orbital index of
-    a spinless model are, read in single-valued tables.  Where a member of the
-    sign asked had to be chosen, it is the intertwiner every later step reads.
-
-    **What holds of the rest is read once, against the group returned.**  On
-    the group time reversal is measured on every unitary operation holds, and
-    a ``g·T`` kept beside its own ``g`` makes time reversal itself,
-    ``T = g⁻¹·(g·T)``; but a descent after it can still leave ``g`` out --
-    the projective class of spinor states read spinless lowers the unitary
-    group once time reversal is measured, and the flattened ``(p_x, p_y)``
-    doublet of ``P4/mmm1'`` returns ``P4/m``, beside which the eight
-    operations of ``4/mmm`` outside ``4/m`` combined with time reversal make
-    ``P4/mm'm'``.  So this round's verdict on every operation combined with
-    time reversal is kept (:func:`_antiunitary_settled`) beside each earlier
-    descent's on the ones it left behind -- Haldane's six mirrors combined
-    with time reversal, which the group time reversal is measured on does not
-    hold -- and all of them are read once the group has settled
-    (:func:`_beyond_grey`): the record's ``n_obeyed``, ``n_broken`` and
-    ``note`` are written there, by the rule :attr:`RealizedGroup.beyond_grey`
-    names its operations by, and an operation whose unitary part is in the
-    group returned never counts, making time reversal with it.  Where time
-    reversal is obeyed, nothing of them is said.
-
-    ``refuted`` is the verdict stage's own refutations on this group: an
-    operation combined with time reversal its own form or its tensor structure
-    refutes is not one of the Hamiltonian's, and time reversal itself refuted
-    there is broken as one of the wrong square is -- by its spin lift, no
-    member of its solution space acting as ``iσ_y`` on every spin pair, as on
-    spin pairs declared across two Wannier functions of one site, or by its
-    site permutation, no member carrying each site's states onto its own, as
-    in an antiferromagnet whose moments alternate between sites the cell's
-    point set does not tell apart.
-
-    Returns ``(record, asked, validated)``: the narration that always rides
-    on the returned group, whose count and note :func:`_beyond_grey` writes
-    where time reversal is broken; what this round measured of the operations
-    combined with time reversal (:func:`_antiunitary_settled`), ``None``
-    where time reversal is obeyed; and the detector's record with time
-    reversal's member of the sign asked in place.  ``tolerances`` is the record
-    of what the call declared, which every reading of a solution space here
-    judges noise against.
+    Returns
+    -------
+    tuple
+        ``(record, asked, validated)``.  ``record`` is the time-reversal
+        record of the group returned: its ``outcome``, ``"kept"`` or
+        ``"measured broken"``, the counts, and the square asked and measured.
+        Where time reversal is broken its ``n_obeyed``, ``n_broken`` and
+        ``note`` are ``None``, for :func:`_beyond_grey` to write.  ``asked``
+        is this round's :class:`_AntiunitaryRound`, its ``itself`` saying in
+        words what broke time reversal itself where its square, its spin
+        lift or its site permutation did; ``None`` where time reversal is
+        kept.  ``validated`` is the detector's record with time reversal's
+        member of the sign asked in place (:func:`_time_reversal_member`).
     """
     antiunitary = {int(s.ind): s for s in group._symmetries if s.time_reversal}
     broken = {i for i in validated.broken if i in antiunitary}
@@ -340,9 +323,8 @@ def _time_reversal_measured(group, validated, refuted=None, *, tolerances=EXACT)
               if antiunitary else None)
     if square is not None and not square.obeyed:
         broken.add(int(square.ind))
-    # ... and time reversal whose own tensor structure the verdict stage refuted:
-    # no member of its solution space carries its lift, i sigma_y on every spin
-    # pair, as on spin pairs declared across two Wannier functions of one site
+    # ... and time reversal the verdict stage refuted by its tensor structure:
+    # its spin lift, i sigma_y on every spin pair, or its site permutation
     lift = (None if square is None
             else (refuted or {}).get(int(square.ind)))
     lifted = (isinstance(lift, dict)
@@ -407,11 +389,9 @@ def _time_reversal_measured(group, validated, refuted=None, *, tolerances=EXACT)
                   "solution space acts as i sigma_y on every spin pair, as time reversal "
                   "acts on the two states of a spinor. A declared spinor basis whose "
                   "pairs join the states of different Wannier functions reads this way.")
-    # WHAT THIS ROUND ASKED of every operation combined with time reversal: the
-    # last group to ask any of them, a descent after it -- the projective class
-    # of spinor states read spinless -- still able to leave a unitary part
-    # out.  Its count and its note are written where they are read, once,
-    # against the group returned (`_beyond_grey`).
+    # What this round measured of every operation combined with time reversal,
+    # each asked last here.  The count and the note are written once the group
+    # has settled, against the group returned (`_beyond_grey`).
     asked = replace(_antiunitary_settled(group, validated, refuted, square,
                                          tolerances=tolerances),
                     itself=itself)
@@ -428,23 +408,33 @@ _ANTIUNITARY_RULE = (
 
 
 def _carried_onto(group, asked, symprec) -> tuple:
-    r"""What each round measured of the operations combined with time reversal, carried onto the group that settled.
+    r"""Each round's record of antiunitary operations, carried onto the group returned.
 
-    Every round's group holds the group the loop settles on: each step keeps
-    a subset of the operations the round before it held, written in the
-    origin they were measured in (:func:`_shared_origin`).  So each operation
-    of the group returned is paired with the one it is in each round's group
-    (:func:`_match_operations`), and each record of ``asked``
-    (:func:`_antiunitary_settled`) is handed back with the pairing as
-    ``returned``, ``{index there: index in the group returned}``: what the
-    one reading of those operations reads them against.
+    Each step keeps a subset of the operations of the round before it, in the
+    origin they were measured in (:func:`_shared_origin`), so every unitary
+    operation of the group returned is paired with itself in each round's
+    group (:func:`_match_operations`).
+
+    Parameters
+    ----------
+    group : GroupData
+        The group returned.
+    asked : sequence of _AntiunitaryRound
+        What each round measured (:func:`_antiunitary_settled`).
+    symprec : float
+        The symmetry finder's distance, in the model's units of length, to
+        which two operations' translations are matched modulo the lattice.
+
+    Returns
+    -------
+    tuple of _AntiunitaryRound
+        Each record of ``asked`` with ``returned`` set to ``{index in the
+        round's group: index in the group returned}``.
 
     Raises
     ------
     ..refusal.InternalError
-        Where an operation of the group returned is not in a round's group.
-        Every step keeps a subset of what it measured, so this is the
-        package's own bookkeeping failing, not a measurement.
+        Where a unitary operation of the group returned is not in a round's group.
     """
     unitary = [s for s in group._symmetries if not s.time_reversal]
     out = []
@@ -456,76 +446,51 @@ def _carried_onto(group, asked, symprec) -> tuple:
                 f"the group returned, {group.name} #{group.number_str}, holds "
                 f"{len(lost)} operation{'' if len(lost) == 1 else 's'} {lost} that "
                 f"{rec.group.name} #{rec.group.number_str}, the group of an earlier "
-                "round, does not. Every round keeps a subset of the operations the round "
-                "before it measured, so this is this package's own bookkeeping failing, "
-                "not a measurement about the model.")
+                "round, does not. Report it, with the model and the call.")
         out.append(replace(rec, returned={int(t): int(g) for g, t in pairs}))
     return tuple(out)
 
 
 def _antiunitary_held(group, matrices, asked, *, tolerances=EXACT) -> _AntiunitaryReading:
-    r"""Which operations of the cell combined with time reversal hold, read once against the group returned.
+    r"""Which antiunitary operations of the cell hold, read against the group returned.
 
-    ``asked`` is what the rounds measured of the operations combined with time
-    reversal, each in the round that asked it last
-    (:func:`_antiunitary_settled`), carried onto the group returned
-    (:func:`_carried_onto`); ``matrices`` is the representation of the group
-    returned that :func:`.._build._build_rep` assembled, by ``.ind``, or
-    ``None`` where none was built.  It is read where time reversal is broken.
+    An operation ``a`` combined with time reversal holds where its matrix
+    ``X`` and the matrices ``D`` of the group returned ``G`` make a
+    corepresentation of the magnetic group ``M`` that ``a`` generates with
+    ``G``: every operation of the coset ``aG`` is kept in its round and ``M``
+    holds no unitary operation outside ``G``; ``X X̄ = D(a²)``; and
+    ``X D̄(h) X⁻¹ = D(a h a⁻¹)`` for each generator ``h`` of ``G``.  The last
+    two carry the signs of the group's multiplication table and are asked up
+    to a one-dimensional character of ``G``, each phase to within
+    :data:`.._tolerance._CLASS_MARGIN`.  Where the operation's solution space
+    holds more than one member, ``X`` is any member.  Read where time reversal
+    is broken; nothing is measured here.
 
-    The rule is one question: whether the matrices measured make a
-    representation of the magnetic group ``M`` an operation ``a`` combined
-    with time reversal generates with the group returned ``G``.  It has three
-    parts:
+    Parameters
+    ----------
+    group : GroupData
+        The group returned, ``G``.
+    matrices : dict or None
+        The matrices of ``G`` that :func:`.._build._build_rep` assembled, by
+        ``.ind``; ``None`` where none were built.
+    asked : sequence of _AntiunitaryRound
+        What each round measured of the operations combined with time
+        reversal it asked last (:func:`_antiunitary_settled`), carried onto
+        ``G`` (:func:`_carried_onto`).
+    tolerances : Tolerances, default EXACT
+        What the call declared, against which a solution space's noise is read.
 
-    * **the group it makes.**  Every operation of ``M`` combined with time
-      reversal is kept by the detector, by its own tensor structure and spin
-      lift, and by its own square where its unitary part squares to the
-      identity, and ``M`` holds no unitary operation outside ``G``.  One whose
-      unitary part is in ``G`` makes time reversal itself with it,
-      ``T = g⁻¹·(g·T)``, and time reversal is refuted, so it never counts: on
-      spinors read in single-valued tables a mirror that holds and that mirror
-      with time reversal, squaring to ``+1``, together make time reversal,
-      whose square is ``-1``.
-    * **its square.**  ``X X̄ = D(a²)`` for its matrix ``X`` and ``D`` the
-      matrices of ``G``, with the sign the group's multiplication table gives
-      ``a²``: for an ``a`` whose unitary part squares to the identity, the
-      sign of ``X X̄``, which no rescaling of ``X`` changes.
-    * **how it carries the group returned.**  ``X D(h)* X⁻¹ = D(a h a⁻¹)``
-      for each generator ``h`` of ``G``, with the signs the table gives.
-
-    The last two are asked up to a one-dimensional character ``χ`` of ``G``,
-    the one freedom the matrices of ``G`` are assembled with: one where the
-    phase ``λ(h)`` measured on each generator is ``χ(h) χ(a h a⁻¹)`` and the
-    phase of the square is ``χ(a²)`` makes them hold exactly, and these are
-    Wigner's conditions for ``X`` and ``D`` to be a representation of ``M``.
-    Each phase is read at the margin every phase read off the states is read
-    at (:data:`_CLASS_MARGIN`).  Nothing is measured here.
-
-    ``X`` is any member of the operation's measured solution space.  Where
-    the space holds one, it is the matrix measured; where it holds more -- a
-    Hamiltonian that conserves a spin rotation, whose every member times a
-    conserved rotation is a member too -- the question is whether some member
-    makes the representation, as time reversal's own square asks whether
-    some member has its sign (:func:`_time_reversal_square`).  Once the
-    character is fixed the third condition is linear in ``X``, so the members
-    that carry ``G`` are read off the space, and the square is asked of each,
-    and of the unitary nearest the part of it its transposition keeps with
-    the sign the table gives ``a²`` where ``a²`` is the identity, wherever
-    that is a member too.
-
-    Each operation is asked on its own, and those counted are the operations
-    of one magnetic group combined with time reversal: where they are not
-    exactly the ones of one ``M``, no single magnetic group holds them with
-    ``G``, and none counts.
-
-    Returns the :class:`_AntiunitaryReading`: per operation, keyed ``(round, ind)``,
-    what decided it -- ``"returned"`` where its unitary part is in the group
-    returned, ``"refuted"`` in its own round, ``"closure"`` where the group it
-    makes holds a refuted operation, ``"unread"`` where no matrices were built
-    to read it with, ``"matrices"`` where they make no representation,
-    ``"apart"`` where those that hold are not the operations of one magnetic
-    group, or ``"held"`` -- and the ``(round, ind)`` that hold, in order.
+    Returns
+    -------
+    _AntiunitaryReading
+        For each operation, keyed ``(round, ind)``, what decided it:
+        ``"returned"`` where its unitary part is in ``G``; ``"refuted"`` in
+        its own round; ``"closure"`` where ``M`` holds a unitary operation
+        outside ``G`` or an operation not kept; ``"unread"`` where no matrices
+        were built; ``"matrices"`` where they make no corepresentation;
+        ``"apart"`` where those that hold are not the operations of one
+        ``M``; or ``"held"``.  With it, the ``(round, ind)`` that hold, in
+        order.
     """
 
     # the members of a solution space read off a model symmetric only within
@@ -565,10 +530,9 @@ def _antiunitary_held(group, matrices, asked, *, tolerances=EXACT) -> _Antiunita
                 if not sign:
                     raise InternalError(
                         f"the operation {g} of {group.name} #{group.number_str} and its "
-                        f"pair {i} in {cell.name} #{cell.number_str} carry spin lifts that "
-                        "are not one SU(2) element up to a sign, though they are one "
-                        "rotation: this is this package's bookkeeping failing, not a "
-                        "measurement about the model.")
+                        f"pair {i} in {cell.name} #{cell.number_str} are one rotation, and "
+                        "their spin lifts are not one SU(2) element up to a sign. Report "
+                        "it, with the model and the call.")
             lift[q] = sign
 
         def _matrix(q):
@@ -576,7 +540,11 @@ def _antiunitary_held(group, matrices, asked, *, tolerances=EXACT) -> _Antiunita
             return lift[q] * np.asarray(matrices[int(onto[int(syms[q].ind)])], dtype=complex)
 
         def _carried(p, back, X):
-            """Whether ``X`` and the group returned's matrices are a representation of the group they make."""
+            """Whether ``X`` makes a corepresentation with the matrices of ``G``.
+
+            ``X`` is a matrix of the operation at position ``p``, whose inverse
+            is at ``back``.
+            """
             norm = float(np.linalg.norm(X))
             if not norm > 0.0:
                 return False
@@ -611,15 +579,17 @@ def _antiunitary_held(group, matrices, asked, *, tolerances=EXACT) -> _Antiunita
                        for chi in characters)
 
         def _carrying(p, back, space):
-            """The members of a space of more than one that carry the group returned, as a character asks.
+            """The members of ``space`` carrying ``G`` as some one-dimensional character asks.
 
-            For each character the condition ``X D(h)* = chi(h) chi(c) D(c) X``,
-            ``c = a h a^-1`` with the table's sign, on every generator is linear
-            in ``X``: its solutions in the space are read off one SVD, offered
-            with a fixed combination of them, and each, where ``a²`` is the
-            identity, also as the unitary nearest the part of it its
-            transposition keeps with the sign the table gives ``a²``, wherever
-            that is still a member of the space.
+            ``p`` and ``back`` are the positions of the operation and its
+            inverse.  For each character the condition
+            ``X D̄(h) = chi(h) chi(c) D(c) X``, ``c = a h a^-1`` with the table's
+            sign, on every generator is linear in ``X``.  Returns its solutions
+            in the space, a fixed combination of them where there are several,
+            and, where ``a²`` is the identity, the unitary nearest the part of
+            each that transposition keeps with the table's sign for ``a²``,
+            where that is still a member.  Empty where the space has dimension
+            below two.
             """
             if space is None or len(space) < 2:
                 return []
@@ -665,10 +635,9 @@ def _antiunitary_held(group, matrices, asked, *, tolerances=EXACT) -> _Antiunita
             if ind in rec.refuted:
                 verdicts[key] = "refuted"
                 continue
-            # THE GROUP IT MAKES with the group returned G: G and the coset aG,
-            # where a squares into G and carries G onto itself -- otherwise the
-            # group they generate holds a unitary operation outside G -- and every
-            # operation of aG kept in this round, the last that asked it
+            # The group it makes with the group returned G is G and the coset aG
+            # where a squares into G and carries G onto itself.  Every operation
+            # of aG must also be kept in this round, the last that asked it.
             back = next(q for q in range(len(syms)) if int(prod[p, q]) == ident)
             coset = {int(prod[p, q]) for q in inside}
             if (int(prod[p, p]) not in inside
@@ -702,28 +671,38 @@ def _antiunitary_held(group, matrices, asked, *, tolerances=EXACT) -> _Antiunita
 
 
 def _beyond_grey(group, matrices, asked, record, *, tolerances=EXACT) -> tuple:
-    r"""The operations combined with time reversal that hold while it is broken, read once.
+    r"""The antiunitary operations that hold while time reversal is broken.
 
-    Where time reversal is measured broken, every operation of the cell
-    combined with time reversal that a round measured -- each descent the ones
-    whose unitary part it left out, the group time reversal is measured on
-    all of its own (:func:`_antiunitary_settled`) -- is read here, once the
-    group has settled, against the group returned and the matrices
-    :func:`.._build._build_rep` assembled for it (``matrices``, ``None``
-    where none were built), by the one rule :func:`_antiunitary_held` states.
-    Where time reversal is kept nothing is read and nothing is named.
+    Where ``record`` says time reversal is measured broken, every operation
+    combined with time reversal that a round measured is read once against the
+    group returned, by the rule of :func:`_antiunitary_held`.  Otherwise
+    nothing is read.
 
-    The time-reversal ``record`` is completed from it: ``n_obeyed`` and
-    ``n_broken`` count the operations of the group time reversal was measured
-    on by that rule, and the ``note`` says what decided them.  The ones that
-    hold are what :attr:`RealizedGroup.beyond_grey` names, each by its index
-    in the group it was measured in, with the magnetic type they make.
+    Parameters
+    ----------
+    group : GroupData
+        The group returned.
+    matrices : dict or None
+        Its matrices from :func:`.._build._build_rep`, by ``.ind``; ``None``
+        where none were built.
+    asked : sequence of _AntiunitaryRound
+        What the rounds measured, carried onto ``group`` (:func:`_carried_onto`).
+    record : dict or None
+        The time-reversal record :func:`_time_reversal_measured` returned.
+    tolerances : Tolerances, default EXACT
+        What the call declared, against which a solution space's noise is read.
 
-    ``tolerances`` is the record of what the call declared, which the reading of
-    the solution spaces judges noise against.
-
-    Returns ``(record, beyond)``: the record, completed, and the beyond-grey
-    record, ``None`` where nothing holds.
+    Returns
+    -------
+    tuple
+        ``(record, beyond)``.  Where time reversal is broken, ``record`` is
+        completed: ``n_obeyed`` and ``n_broken`` count the operations of the
+        group time reversal was measured on that hold and that do not, and
+        ``note`` says what decided them; otherwise it is returned as handed
+        in.  ``beyond`` is what :attr:`RealizedGroup.beyond_grey` is made
+        from: the operations that hold, each by its index in the group it was
+        measured in, with the magnetic type they make; ``None`` where none
+        holds.
     """
     if record is None or record.get("outcome") != "measured broken":
         return record, None
@@ -849,27 +828,32 @@ def _beyond_grey(group, matrices, asked, record, *, tolerances=EXACT) -> tuple:
 
 
 def _precision_holding(steps, scale_of):
-    r"""The precision a model's numbers would have to be declared at for every operation a descent broke to hold.
+    r"""The least precision at which every operation a descent broke would hold.
 
-    An operation broken by its own form beyond the covariance gate -- the
-    member of its solution space nearest that form, its part in the form,
-    carries ``H(k)`` onto ``H(gk)`` only to the entry's ``covariance`` -- holds
+    An operation broken by its tensor structure has a ``covariance`` in its
+    entry: how far the member of its solution space nearest its own form, taken
+    in that form, carries ``H(k)`` onto ``H(gk)``.  Such an operation holds
     under a declared precision ``p`` whose gate, ``10 · p · max|H|``, reaches
-    that far, as spin blocks written in a frame turned against the lattice by
-    an angle within the model's own precision do.  ``scale_of`` measures
-    ``max|H|``, and is asked only where every operation broken was broken so.
+    that far.  A precision is named only where the detector's matching window
+    at it (:func:`.._tolerance.eigen_window`) stays below its ceiling.
 
-    A precision is named only where the detector can read the model at it: its
-    matching window, ``clip(10·sqrt(10·p), 1e-3, 0.3)``
-    (:func:`.._tolerance.eigen_window`), below its ceiling.  A defect that
-    needs more is no model's numerical precision -- spin blocks written along
-    another axis, or turned by a sizeable angle, carry ``H`` that far -- and
-    none is named for it.
+    Parameters
+    ----------
+    steps : sequence of dict
+        The descent's steps, each with the entries it ``dropped``.
+    scale_of : callable
+        Returns ``max|H|``; called only where every operation broken was
+        broken by its tensor structure.
 
-    Returns ``(worst, p)``: the largest such covariance, in the units of ``H``,
-    and the least precision whose gate holds it, rounded up to two figures;
-    ``None`` where an operation was broken by anything else, where nothing
-    was, or where that precision is past the window's ceiling.
+    Returns
+    -------
+    tuple or None
+        ``(worst, p)``: the largest such covariance, in the units of ``H``,
+        and the least ``p`` whose gate holds it, rounded up to two significant
+        figures.  ``None`` where an operation was broken by anything other
+        than its tensor structure, the closure and the tie rule aside, or
+        carries no ``covariance``; where none was broken; where ``max|H|`` is
+        zero; or where the window at ``p`` reaches its ceiling.
     """
     broken = [b for st in steps for b in st["dropped"]
               if b["refuted_by"] not in ("closure", "tie")]
@@ -893,54 +877,52 @@ def _precision_holding(steps, scale_of):
 # --------------------------------------------------------------------------
 
 #: The generic point whose orbit is added to a cell to lower its group.  Its
-#: reduced coordinates are deliberately unlike any Wyckoff coordinate — off
-#: every axis, plane and diagonal — so that its **stabilizer is trivial**: an
-#: operation preserving the orbit of such a point belongs to the set the orbit
-#: was generated from, which is what makes the construction exact rather than
-#: approximate.  The third entry is used only along a genuinely periodic
-#: direction; a vacuum one is placed by the two numbers below.
+#: reduced coordinates are unlike any Wyckoff coordinate, off every axis, plane
+#: and diagonal, so that its stabilizer is trivial: an operation that preserves
+#: the orbit of such a point is one of the set the orbit was generated from,
+#: and the construction is exact.  The third entry is used only along a
+#: periodic direction; along a vacuum one the point is placed by the two
+#: numbers below.
 _DESCENT_POINT = (0.1234, 0.2718, 0.0577)
 
-#: Along a **vacuum** direction the generic point sits at this fraction of the
-#: cell's own half-extent, measured from the cell's own mid-plane.  Staying
-#: *inside* the extent is what keeps :func:`_pad_cell`'s re-centring
-#: bit-identical to the parent cell's -- its vacuum is the model's own whatever
-#: the cell holds -- so the descended group is read in the same frame the parent
-#: was.
+#: Along a vacuum direction the generic point sits at this fraction of the
+#: cell's own half-extent, measured from the cell's own mid-plane.  Inside the
+#: extent, :func:`_pad_cell` centers the decorated cell exactly as it centers
+#: the parent, its vacuum being the model's own whatever the cell holds, so the
+#: descended group is read in the frame the parent was.
 _DESCENT_PAD_FRACTION = 0.1234
 
-#: ... and where the cell has **no** extent along a vacuum direction (every
-#: point in one plane, which is what a free-standing flat layer leaves), this
-#: reduced offset is used instead: a point in the plane would leave ``σ_h``
-#: unbroken by construction and the descent could then never remove it.
+#: Where the cell has no extent along a vacuum direction, every point in one
+#: plane as on a free-standing flat layer, this reduced offset from the plane
+#: is used instead: a point in the plane would leave ``σ_h`` unbroken, and the
+#: descent could never remove it.
 _DESCENT_PAD_OFFSET = 0.0577
 
-#: Species label of the added orbit — one ``cell_typat`` value, distinct from
-#: every orbital and decoration species (a suffix is appended if it collides),
-#: so the orbit is one species and its own orbit under the kept set.
+#: The species of the added orbit, one ``cell_typat`` value distinct from every
+#: orbital and decoration species (a suffix is appended where it collides), so
+#: that the orbit is one species and its own orbit under the kept set.
 _DESCENT_SPECIES = "descent"
 
-#: The generic point **step 1** carries its orbit from, and its species.  A cell
-#: the declared content has already reduced is the base every later descent
-#: builds on, so the two orbits share a cell and must not share a point: these
-#: periodic coordinates are as unlike :data:`_DESCENT_POINT`'s as they are
-#: unlike any Wyckoff coordinate, and no point of one orbit is a point of the
-#: other.  The coordinate along the vacuum is placed by the same two numbers
-#: above, and the vacuum is the model's own (:func:`_pad_cell`), so adding
-#: either orbit
-#: leaves the lattice, its vacuum included, where it was.
+#: The generic point the cell reduction of step 1 builds its orbit from, and
+#: its species.  A cell the declaration has reduced is the base every
+#: later descent builds on, so the two orbits share a cell and must not share a
+#: point: these periodic coordinates are as unlike :data:`_DESCENT_POINT`'s as
+#: they are unlike any Wyckoff coordinate.  The coordinate along the vacuum is
+#: placed by the same two numbers above, and the vacuum is the model's own
+#: (:func:`_pad_cell`), so adding either orbit leaves the lattice, its vacuum
+#: included, where it was.
 _DECLARED_POINT = (0.3141, 0.1592, 0.0919)
 
 _DECLARED_SPECIES = "declared"
 
-#: The generic points a descent, and a step 1 reduction, build their orbit
-#: from, in order.  The first of each is the point above.  A generic point's
-#: stabilizer is trivial, so the cell its orbit decorates carries exactly the
-#: operations the orbit was generated from -- up to an accident of the
-#: identification, a cell still read as non-primitive or with operations other
-#: than the kept set, which the next point of the sequence does not share.  The
-#: coordinates of all six are distinct from one another and from every Wyckoff
-#: coordinate, so no orbit of one sequence meets an orbit of the other.
+#: The generic points a descent, and the cell reduction of step 1, build their
+#: orbit from, in order, the first of each being the point above.  The cell an
+#: orbit decorates carries exactly the operations the orbit was generated
+#: from, unless the identification reads it as still non-primitive or with
+#: other operations, an accident of that point which the next point of the
+#: sequence does not share.  All six are distinct from one another and from
+#: every Wyckoff coordinate, so no orbit of one sequence meets an orbit of the
+#: other.
 _DESCENT_POINTS = (_DESCENT_POINT, (0.3719, 0.0857, 0.2461), (0.2087, 0.4421, 0.1693))
 
 _DECLARED_POINTS = (_DECLARED_POINT, (0.0671, 0.3853, 0.2297), (0.4462, 0.2239, 0.0383))
@@ -949,19 +931,17 @@ _DECLARED_POINTS = (_DECLARED_POINT, (0.0671, 0.3853, 0.2297), (0.4462, 0.2239, 
 def _descent_frame(cell, group) -> tuple:
     r"""How the cell's own reduced coordinates map onto those of the group's 3D cell.
 
-    :func:`_group_of` does not read a cell's positions directly: :func:`_pad_cell`
-    first *scales* every non-periodic lattice vector until the vacuum reaches
-    ``vacuum_length`` and then re-centres the positions along it on the origin, and
-    the operations that come back are written in **that** frame.  A point added
-    to the cell therefore has to be placed in the cell's frame while its orbit is
-    computed in the group's, and this measures the one map between them:
-    ``y = x / scale − offset`` (mod 1), with ``scale`` read off the two lattices
-    and ``offset`` off the first orbital.  Both are exactly ``1`` and ``0`` on a
-    periodic direction, and on a fully periodic cell the map is the identity.
+    :func:`_pad_cell` scales every non-periodic lattice vector of ``cell``
+    until the vacuum reaches the vacuum length of ``group``, and centers the
+    positions on the origin along it; the operations of ``group`` are written
+    in that frame.  The map is ``y = x / scale − offset`` modulo 1, ``scale``
+    read off the two lattices and ``offset`` off the first orbital; along a
+    periodic direction they are ``1`` and ``0``.
 
-    Returns ``(scale, offset, positions, vacuum_dirs)`` — the last two as
-    :func:`_pad_cell` returns them, so the cell's own extent along a vacuum
-    direction can be read off the same numbers.
+    ``cell`` is the point set ``group`` was identified on, as a model.
+    Returns ``(scale, offset, positions, vacuum_dirs)``, the last two as
+    :func:`_pad_cell` returns them, from which the cell's own extent along a
+    vacuum direction is read.
     """
     lat_pad, pos_pad, padded = _pad_cell(cell, group._vacuum_length)
     lat_cell = np.asarray(cell.lat_vecs, dtype=float)
@@ -975,24 +955,32 @@ def _descent_frame(cell, group) -> tuple:
 def _generic_orbit(cell, group, operations, seed=_DESCENT_POINT) -> tuple:
     r"""The orbit of one generic point under ``operations``, in both frames.
 
-    The point is ``seed`` along every periodic direction — :data:`_DESCENT_POINT`
-    for a descent and :data:`_DECLARED_POINT` for step 1's cell reduction, two
-    points that never coincide, since a reduced cell is the base a later descent
-    adds its own orbit to — and sits off the cell's own mid-plane along a vacuum
-    one (see :data:`_DESCENT_PAD_FRACTION`).  Its stabilizer in the cell's group
-    is trivial, so the point set ``sites ∪ orbit`` is invariant under exactly the
-    operations the orbit was generated from — plus, in principle, an accident,
-    which is why the identification is **verified** rather than trusted, and
-    an accident rebuilt from the next point of a fixed sequence
-    (:func:`_orbit_cell`).
+    The point is ``seed`` along every periodic direction and sits off the
+    cell's own mid-plane along a vacuum one (:data:`_DESCENT_PAD_FRACTION`,
+    :data:`_DESCENT_PAD_OFFSET`).  Its stabilizer is trivial, so the cell with
+    the orbit added carries exactly the operations the orbit was generated
+    from, up to an accident of the point, which :func:`_orbit_cell` checks for.
 
-    Returns ``(point, orbit_padded, orbit_cell)``: the generic point and the
-    orbit in the group's 3D cell, and the same orbit in the cell's own reduced
-    coordinates, ready for :func:`_decorated_cell`.  Components along the
-    vacuum are carried on the ``(−½, ½]`` branch, which is the branch the
-    cell's own
-    positions are written in and the one :func:`_pad_cell` measures its extent
-    from.
+    Parameters
+    ----------
+    cell : pythtb.TBModel
+        The point set the orbit is added to, as a model.
+    group : GroupData
+        The group identified on ``cell``.
+    operations : sequence
+        Operations of ``group``, which generate the orbit.
+    seed : tuple of float, default _DESCENT_POINT
+        The point's periodic coordinates: :data:`_DESCENT_POINT` for a
+        descent, :data:`_DECLARED_POINT` for the cell reduction of step 1.
+
+    Returns
+    -------
+    tuple
+        ``(point, orbit_padded, orbit_cell)``: the point and its orbit in
+        reduced coordinates of the group's 3D cell, and the orbit in the
+        cell's own, ready for :func:`_decorated_cell`.  Along a vacuum
+        direction the orbit is written on the branch about zero, as the cell's
+        own positions are.
     """
     scale, offset, pos_pad, padded = _descent_frame(cell, group)
     point = np.array([float(seed[d]) for d in range(3)])
@@ -1015,23 +1003,24 @@ def _generic_orbit(cell, group, operations, seed=_DESCENT_POINT) -> tuple:
 
 
 def _mirror_partners(group, validated, assignment) -> dict | None:
-    r"""On a flat layer, each operation composed with the horizontal mirror, and its partner.
+    r"""Each operation composed with a flat layer's horizontal mirror, and its partner.
 
     Where every orbital of a layer lies in one plane, the horizontal mirror
     ``σ_h`` moves no orbital and no in-plane ``k``, so an operation ``g`` and
-    its product ``σ_h·g`` act alike on everything a Hamiltonian without spin
-    has: they share an action on ``k`` (``ValidatedGroup._k_action_classes``)
-    and a site permutation, one solution space holds the matrices of both, and
-    the hoppings cannot tell them apart.  What does is the sign each orbital
-    carries under ``σ_h`` (:func:`_mirror_sign`).
+    its product ``σ_h·g`` share an action on ``k`` and a site permutation, and
+    the hoppings of a Hamiltonian without spin cannot tell them apart.  The
+    sign each orbital carries under ``σ_h`` does (:func:`_mirror_sign`).
 
-    Returns ``{ind of σ_h·g: ind of g}`` -- ``g`` keeping the layer's side and
-    ``σ_h·g`` turning it over, either of them combined with time reversal where
-    ``g`` is -- for every class of operations the detector left undetermined,
-    the identity and the mirror itself among them; or ``None`` where one of
-    those classes has another shape, two members that move the orbitals
-    differently among them, which the orbitals' positions tell apart.  Empty
-    where nothing is undetermined.
+    ``group`` is the round's group, ``validated`` the detector's verdicts on
+    it, and ``assignment`` the :class:`.._spacegroup.OrbitalAssignment` whose
+    site permutations are compared.  Returns ``{ind of σ_h·g: ind of g}``,
+    ``g`` keeping the layer's side, one entry for each class of operations
+    sharing an action on ``k`` that holds an undetermined operation; the
+    identity's class gives the mirror.  Returns ``{}`` where nothing is
+    undetermined.  Otherwise returns ``None`` where the group is not set in
+    vacuum along exactly one direction, or where such a class is not two
+    undetermined operations, one keeping the side and one turning it over,
+    with one site permutation.
     """
     undetermined = {int(i) for i in validated.undetermined}
     if not undetermined:
@@ -1058,25 +1047,29 @@ def _mirror_partners(group, validated, assignment) -> dict | None:
 
 
 def _mirror_sign(group, partners, decls=()) -> dict:
-    r"""The sign the horizontal mirror carries on a flat layer read without spin, chosen.
+    r"""The sign chosen for the horizontal mirror on a flat layer read without spin.
 
-    The hoppings fix how a flat layer's orbitals transform under ``σ_h``
-    relative to one another and not the sign itself: ``σ_h`` moves nothing, so
-    its matrix is one commuting with ``H(k)`` at every ``k``, and on each
-    part of the crystal the hoppings couple that is a multiple of the identity
-    -- one sign per coupled part, ``D(σ_h)`` and ``−D(σ_h)`` alike.  The sign
-    is therefore chosen: the parity the declared content states where it
-    states one (``s`` even, ``p_z`` odd), and otherwise the even one the
-    lowest-angular-momentum rule assigns, the lowest function of any in-plane
-    content lying in the plane.  Fixing it fixes every operation composed with
-    the mirror from its partner, ``D(σ_h·g) = D(σ_h) D(g)``, the inversion
-    ``i = σ_h·C2(z)`` among them, and it is never refused: a coupled part
-    declared two parities is a crystal without the mirror, which the
-    declaration's own verdict lowers before this is read.  The states'
-    projective class is read on one coupled part, so one sign is returned.
+    ``σ_h`` moves nothing on a flat layer, so its matrix commutes with
+    ``H(k)`` and is a multiple of the identity on each coupled part; the
+    hoppings leave its sign open.  The sign is the parity a declared site
+    states for the mirror (``s`` even, ``p_z`` odd), and otherwise the even
+    one, by the lowest-angular-momentum rule.  It is never refused.
 
-    Returns ``{"sign", "determined_by"}``: ``+1`` or ``-1``, and
-    ``"declaration"`` or ``"lowest-l"``.
+    Parameters
+    ----------
+    group : GroupData
+        The round's group.
+    partners : dict
+        ``{ind of σ_h·g: ind of g}`` (:func:`_mirror_partners`); the mirror
+        is the partner of the identity.
+    decls : sequence, default ()
+        The round's declarations, as :func:`_declared_parts_of` reads them.
+
+    Returns
+    -------
+    dict
+        ``{"sign", "determined_by"}``: ``+1`` or ``-1``, and
+        ``"declaration"`` or ``"lowest-l"``.
     """
 
     identity = int(group._symmetries[_identity_position(group)].ind)
@@ -1093,18 +1086,20 @@ def _mirror_sign(group, partners, decls=()) -> dict:
 
 
 def _class_members(group, validated, partners=None, sign=1):
-    r"""One matrix per operation of a spinless reading, where the class can be read off them.
+    r"""One matrix per operation of a spinless reading, to read its projective class.
 
-    The class is read off the detector's own members, and only where a member
-    is fixed up to a phase: a unitary, single-valued group whose every
-    operation stands, with nothing but the identity commuting with ``H``, each
-    operation alone in its action on ``k`` -- or, on a flat layer, sharing it
-    with its product with the horizontal mirror (``partners``,
-    :func:`_mirror_partners`), which is given the mirror's chosen ``sign``
-    times its partner's matrix, ``D(σ_h·g) = D(σ_h) D(g)``.
+    The matrices are the detector's own members, read only where each is
+    fixed up to a phase: a unitary single-valued group, every operation of it
+    kept, only the identity commuting with ``H``, and each operation alone in
+    its action on ``k`` or, on a flat layer, paired with its product with the
+    horizontal mirror.  Such a product is given ``sign`` times its partner's
+    matrix, ``D(σ_h·g) = D(σ_h) D(g)``.
 
-    Returns ``(D, positions)`` over every operation of the group, or ``None``
-    where the class is not read here.
+    ``group`` is the round's group, ``validated`` the detector's verdicts on
+    it, ``partners`` the pairs of :func:`_mirror_partners` and ``sign`` the
+    mirror's (:func:`_mirror_sign`).  Returns ``(D, positions)``, ``D`` each
+    operation's matrix by its position in ``group`` and ``positions`` every
+    position; ``None`` where the class is not read here.
     """
 
     syms = group._symmetries
@@ -1130,22 +1125,23 @@ def _class_members(group, validated, partners=None, sign=1):
 
 
 def _class_kept(group, D, positions):
-    r"""The largest subgroup on which matrices ``D`` are an ordinary representation, by the tie rule.
+    r"""The largest subgroup on which the matrices ``D`` are an ordinary representation.
 
-    Two witnesses, neither of which a choice of phases moves: the ratio of two
-    commuting operations' matrices taken in the two orders
-    (:func:`.._matrices._commuting_pair_phases`), which names the pairs, and the
-    relations a rephasing has to close on a subgroup
-    (:func:`.._matrices._rephasable`), which decides it.  The subgroups holding
-    no such pair are enumerated (:func:`_subgroups_inside`), the largest order
-    at which one of them is rephasable is the order kept, and where several of
-    that order are, the one kept is the first by the tie rule
-    (:func:`_tie_ranked`), never their intersection.
+    ``D`` holds one matrix per position in ``group``, and ``positions`` lists
+    the positions it covers (:func:`_class_members`).  The pairs of commuting
+    operations whose matrices commute only up to a phase the multiplication
+    table lacks are read first (:func:`.._matrices._commuting_pair_phases`).
+    The subgroup kept is one of the subgroups of ``group`` among the
+    operations at ``positions`` that hold no such pair
+    (:func:`_subgroups_inside`): of the largest order at which ``D`` is a
+    representation once rephased (:func:`.._matrices._rephasable`), and the
+    first by the tie rule (:func:`_tie_ranked`) where several of that order
+    are.  Each phase is read to within :data:`.._tolerance._CLASS_MARGIN`.
 
-    Returns ``(pairs, kept, ranked)`` -- the pairs ``(a, b, phase)`` by
-    position, the ``.ind`` kept and the subgroups of the kept order in the
-    rule's order -- or ``None`` where no pair of commuting operations carries
-    a phase the table lacks.
+    Returns ``(pairs, kept, ranked)``: the pairs ``(a, b, phase)`` by
+    position, the ``.ind`` of the subgroup kept, and the subgroups of the kept
+    order in the rule's order.  Returns ``None`` where no pair of commuting
+    operations carries such a phase.
     """
 
     syms = group._symmetries
@@ -1170,12 +1166,40 @@ def _class_kept(group, D, positions):
 def _class_record(group, pairs, kept, ranked, *, rule_group=None, rule_ranked=None):
     r"""The operations a class reading leaves out, each with the pair that names it, and the step's record.
 
-    ``pairs`` are :func:`_class_kept`'s, by position in ``group``; ``kept`` the
-    ``.ind`` kept and ``ranked`` the tied subgroups, the one kept first.
-    ``rule_group`` is the group the tie was settled in, where that is not
-    ``group``, and ``rule_ranked`` the tied subgroups there, so that the rule's
-    words, and the reason its first candidate was kept, are the ones it was
-    read with.
+    Parameters
+    ----------
+    group : GroupData
+        The group the class was read on.
+    pairs : sequence of tuple
+        :func:`_class_kept`'s pairs ``(a, b, phase)``, by position in ``group``.
+    kept : set of int
+        The ``.ind`` of the subgroup kept.
+    ranked : sequence
+        The subgroups of the kept order in the tie rule's order, the one kept
+        first.
+    rule_group : GroupData, default None
+        The group the tie was settled in, where that is not ``group``.
+        ``None`` is ``group``.
+    rule_ranked : sequence, default None
+        The tied subgroups as ``rule_group`` holds them.  ``None`` is
+        ``ranked``.
+
+    Returns
+    -------
+    tuple
+        ``(refuted, record)``.  ``refuted`` maps the ``.ind`` of each
+        operation of ``group`` outside ``kept`` to ``refuted_by = "projective
+        class"``, the ``pair`` of commuting operations that names it (one with
+        exactly one operation kept where there is one), their ``names``, the
+        ``commutation_phase``, whether that phase is the sign the two
+        operations' spin-1/2 lifts carry (``spin_half``), and a ``note``; an
+        operation in no pair has ``None`` for ``pair``, ``names``,
+        ``commutation_phase`` and ``spin_half``.
+        ``record`` holds every pair (``pairs``), the ``.ind`` kept (``kept``)
+        and the tied subgroups (``tied``, empty where one subgroup is of the
+        kept order); where several tie, also the rule's keys as
+        ``rule_group`` reads them (``rule``) and why it kept the first
+        (``reason``).
     """
 
     syms = group._symmetries
@@ -1233,53 +1257,38 @@ def _class_record(group, pairs, kept, ranked, *, rule_group=None, rule_ranked=No
 def _projective_class_refuted(group, validated, *, assignment=None, decls=()):
     r"""The operations of a spinless reading that no single-valued representation carries.
 
-    A spinless reading reads the states in single-valued tables, and the matrices
-    the Hamiltonian's operations are on them form a projective representation.
-    Where its class is not trivial -- spin-½ states in the orbital index of a
-    spinless model are the case, where two perpendicular twofolds commute and
-    their matrices anticommute -- no single-valued representation of the group
-    exists on the states, and one of every such pair is not an operation of the
-    spinless crystal.  So the spinless group is the **largest subgroup on which
-    the states carry an ordinary representation**, and what is refuted here is
-    the rest.
+    The detector's members on a unitary, single-valued group are the matrices
+    of a projective representation.  Where its class is not the
+    multiplication table's, the operations outside the largest subgroup that
+    carries an ordinary representation, the first by the tie rule, are
+    refuted (:func:`_class_kept`).  The class is read only where every member
+    is fixed up to a phase (:func:`_class_members`).  On a flat layer each
+    operation composed with the horizontal mirror is given its partner's
+    matrix times the mirror's sign, ``D(σ_h·g) = D(σ_h) D(g)``
+    (:func:`_mirror_partners`, :func:`_mirror_sign`); the sign commutes with
+    every matrix, so the class does not depend on it.
 
-    The class is read off the detector's own members, and only where a member is
-    fixed up to a phase (:func:`_class_members`): a unitary, single-valued group
-    whose every operation stands, with nothing but the identity commuting with
-    ``H``, each operation alone in its action on ``k`` -- or, on a flat layer,
-    sharing it with its product with the horizontal mirror, whose matrix is
-    then the mirror's chosen sign times its partner's (:func:`_mirror_partners`,
-    :func:`_mirror_sign`): ``D(σ_h·g) = D(σ_h) D(g)``, so that every operation
-    of the free-standing layer has its matrix and the class is read there as
-    anywhere else.  The sign commutes with every matrix, and the class does not
-    depend on it.  Two witnesses, neither of which a choice of phases moves,
-    decide it (:func:`_class_kept`).
+    Parameters
+    ----------
+    group : GroupData
+        The round's group.
+    validated : ValidatedGroup
+        The detector's verdicts on ``group``, whose members are read.
+    assignment : OrbitalAssignment, default None
+        The orbitals' orbits in ``group``, whose site permutations pair an
+        operation with its product with the mirror.  ``None`` pairs nothing,
+        and the class is then not read where an operation is undetermined.
+    decls : sequence, default ()
+        The round's declarations, as :func:`_declared_parts_of` reads them,
+        which give the mirror's parity where they state one.
 
-    Where several subgroups of the kept order carry one, one is chosen by the
-    tie rule every such choice is made by (:func:`_tie_ranked`), never their
-    intersection: on a layer the most operations that keep its side first;
-    then the most rotations, so that a subgroup keeping rotations stands
-    before one keeping mirrors; then the highest-order rotation; then its axis
-    in the conventional cell -- ``c``, then ``a``, then ``b``, then the
-    diagonals -- and last every other operation's axis the same way.
-
-    ``assignment`` is the orbitals' orbits in ``group``, which say whether an
-    operation and its product with the mirror move the orbitals alike, and
-    ``decls`` the declared contents the round read, which say the mirror's
-    parity where they state one.
-
-    Returns ``(refuted, record)``: per operation left out, keyed by ``.ind``,
-    ``refuted_by = "projective class"`` with the ``pair`` of operations that
-    names it -- a commuting partner whose matrix does not commute with its own,
-    one that is kept where there is one -- their ``names``, the
-    ``commutation_phase``, whether that phase is the sign the two operations'
-    spin-½ lifts carry (``spin_half``), and a ``note``; and the step's own
-    record, every such pair and the subgroups of the kept order in the rule's
-    order, the first of them kept, with the rule's keys as this group reads
-    them (``rule``) and why it kept the first (``reason``) where several tie,
-    and on a flat layer the mirror's sign and how it was determined
-    (``horizontal_mirror``).  ``({}, None)`` where the class is the table's, or
-    is not read here.
+    Returns
+    -------
+    tuple
+        ``(refuted, record)`` as :func:`_class_record` returns them, the
+        record holding, on a flat layer, the mirror's sign and how it was
+        determined (``horizontal_mirror``).  ``({}, None)`` where the class is
+        the table's, or is not read here.
     """
     if bool(group.spinor) or any(bool(s.time_reversal) for s in group._symmetries):
         return {}, None
@@ -1306,30 +1315,43 @@ def _projective_class_refuted(group, validated, *, assignment=None, decls=()):
 def _free_standing_lift(model, group, free_standing):
     r"""A substrate group with the horizontal mirror adjoined: the free-standing layer's group.
 
-    ``free_standing`` is the free-standing cell of the same point set
-    (:func:`.._realized._layer_realized`), whose group is identified the first time it is
-    asked for and kept on the record.  On a flat layer that group holds the
-    mirror ``σ_h``, which moves no orbital, and every operation of ``group``
-    -- each keeps the layer's side -- matched by rotation and by translation
-    modulo the lattice (:func:`_match_operations`); the free-standing group of
-    ``group`` is ``group``
-    with ``σ_h`` adjoined, the whole cell group where ``group`` is the whole
-    substrate cell's and otherwise a cell carrying exactly those operations,
-    identified as a descent's is (:func:`_orbit_cell`), so that the tie rule
-    reads it in its own conventional cell, as the free-standing layer's own
-    measurement does.
+    On a flat layer the free-standing cell's group holds the mirror ``σ_h``,
+    which moves no orbital, and every operation of ``group``, matched by
+    rotation and by translation modulo the lattice (:func:`_match_operations`).
+    The group returned is ``group`` with ``σ_h`` adjoined: the free-standing
+    cell's own group where its unitary operations are exactly these, and
+    otherwise the group of a cell built to carry exactly those operations
+    (:func:`_orbit_cell`).
 
-    Returns ``(free, of)`` -- the free-standing group, and per unitary
-    operation of it ``(ind of g in group, whether it is σ_h·g)`` -- or
-    ``None`` where the layer is not flat: the mirror is not an operation of
-    that cell, or it moves an orbital.
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        The model whose orbitals are assigned to the free-standing cell's
+        group (:func:`.._tables._assign_orbitals`).
+    group : GroupData
+        The substrate group, every operation of which keeps the layer's side.
+    free_standing : dict
+        The free-standing cell of the same point set
+        (:func:`.._realized._layer_realized`): ``"cell"``, ``"cell_typat"``,
+        ``"labels"`` (each orbital's species) and ``"symprec"``.  Its group is
+        identified the first time it is asked for and kept under ``"group"``.
+
+    Returns
+    -------
+    tuple or None
+        ``(free, of)``: the free-standing group, and for each of its unitary
+        operations, by ``.ind``, ``(ind of g in group, whether it is σ_h·g)``.
+        ``None`` where the free-standing group is not set in vacuum along
+        exactly one direction, where the mirror is not one of its operations
+        or moves an orbital, or where an identification or the assignment of
+        the orbitals is refused.
 
     Raises
     ------
     ..refusal.InternalError
-        Where an operation of ``group`` is not one of the free-standing cell's:
-        a substrate only removes operations, so this is the package
-        disagreeing with itself.
+        Where an operation of ``group`` is not an operation of the
+        free-standing cell, or where no generic point's orbit is identified as
+        the operations to carry (:func:`_orbit_cell`).
     """
     parent = free_standing.get("group")
     if parent is None:
@@ -1366,8 +1388,7 @@ def _free_standing_lift(model, group, free_standing):
             "substrate, are not operations of the free-standing cell of the same point "
             f"set ({parent.name} #{parent.number_str}): "
             + ", ".join(_record_name(by_ind[int(i)], lattice) for i in missing)
-            + ". A substrate only removes operations, so this is the package disagreeing "
-            "with itself, not a measurement about the model.")
+            + ". Report it, with the model and the call.")
     at = {int(s.ind): p for p, s in enumerate(psyms)}
     prod = parent._get_product_table(get_diff=False)
     of_parent = {}
@@ -1383,14 +1404,18 @@ def _free_standing_lift(model, group, free_standing):
         species += "_"
 
     def _diagnose(got, unitary, unmatched_kept, unmatched_found, orbit):
-        """What the identification of the free-standing cell was read as, and why that is a defect."""
+        """What the free-standing cell was identified as, with the counts unmatched.
+
+        ``got`` is the group the cell was identified as and ``unitary`` its
+        unitary operations; ``unmatched_kept`` and ``unmatched_found`` are
+        what :func:`_match_operations` left unmatched.  ``orbit`` is not read.
+        """
         return (
             f"the free-standing cell built to carry {group.name} #{group.number_str} with the "
             f"horizontal mirror adjoined ({len(kept)} operations of {parent.name} "
             f"#{parent.number_str}) was identified as {got.name} #{got.number_str}, whose "
             f"{len(unitary)} unitary operations are not that set ({len(unmatched_kept)} "
-            f"missing, {len(unmatched_found)} extra), so this is the package's "
-            "identification disagreeing with its own construction.")
+            f"missing, {len(unmatched_found)} extra).")
 
     made = _orbit_cell(free_standing["cell"], free_standing["cell_typat"], parent, kept,
                        points=_DESCENT_POINTS, species=species, spinor=False,
@@ -1404,38 +1429,35 @@ def _free_standing_lift(model, group, free_standing):
 
 
 def _projective_class_carried(model, group, validated, *, free_standing):
-    r"""A flat layer's projective class on a substrate: the free-standing layer's reading, carried.
+    r"""A flat layer's projective class on a substrate, read on the free-standing layer.
 
-    On a flat layer read without spin the free-standing group is this one with
-    the horizontal mirror ``σ_h`` adjoined, and its matrices are these times the
-    mirror's sign, every operation composed with the mirror given
-    ``D(σ_h) D(g)`` (:func:`_mirror_sign`): nothing a substrate measures is
-    missing from it, and nothing is measured again.  So the class is read there
-    once (:func:`_free_standing_lift`, :func:`_class_kept`) -- the largest
-    subgroup on which the states carry an ordinary representation, by the one
-    tie rule in the free-standing layer's own conventional cell -- and the
-    substrate carries its part that preserves the layer's normal, as it carries a declaration read
-    in the free-standing layer's site groups (:func:`_carried_reduction`):
-    every operation the class leaves out of the free-standing layer is left out
-    here too.  The two environments then read one class, and the group kept on
-    a substrate is the half of the one kept free-standing that preserves the
-    layer's normal.  This
-    group's own matrices decide only whether there is a class to read -- the
-    free-standing pairs are its pairs and their products with the mirror -- and
-    name the pairs on the record.  The sign is the lowest-angular-momentum
-    rule's: a substrate reads no declared content under a mirror it does not
-    have, and the class does not depend on the sign.
-
-    Where the layer is not flat -- the mirror moves an orbital, or is not an
-    operation of the free-standing cell -- the orbitals' positions tell an
-    operation from its product with the mirror, the free-standing group is not
-    this one with the mirror adjoined, and the class is read here
+    The class is read once on the free-standing group, ``group`` with the
+    horizontal mirror ``σ_h`` adjoined (:func:`_free_standing_lift`), each
+    operation composed with the mirror given its partner's matrix times
+    ``+1``, the even parity the lowest-angular-momentum rule assigns, and a
+    tie settled by the tie rule in that group (:func:`_class_kept`).  Every
+    operation the class leaves out there is left out here, so the group kept
+    on the substrate is the part of the one kept free-standing that preserves
+    the layer's normal.  The matrices of ``group`` decide only whether there
+    is a class to read, and name the pairs on the record.  Where
+    :func:`_free_standing_lift` returns ``None``, the class is read on
+    ``group`` itself, with no operation paired with the mirror
     (:func:`_projective_class_refuted`).
 
-    Returns ``(refuted, record)`` as :func:`_projective_class_refuted` does, the
-    pairs those of this group and the record naming the free-standing group the
-    class was read on (``read_on``) and how many of its operations were kept
-    there.
+    ``model`` is the model, ``validated`` the detector's verdicts on
+    ``group``, and ``free_standing`` the free-standing cell
+    :func:`_free_standing_lift` reads.  Returns ``(refuted, record)`` as
+    :func:`_projective_class_refuted` does, the pairs those of ``group``, the
+    record naming the free-standing group the class was read on and how many
+    of its operations were kept there (``read_on``).  Returns ``({}, None)``
+    where the class is the table's, or is not read here.
+
+    Raises
+    ------
+    ..refusal.InternalError
+        Where ``group`` has a pair of commuting operations whose matrices
+        commute only up to a phase and the free-standing group has none, and
+        where :func:`_free_standing_lift` raises.
     """
 
     members = _class_members(group, validated)
@@ -1454,24 +1476,29 @@ def _projective_class_carried(model, group, validated, *, free_standing):
         return _projective_class_refuted(group, validated)
     free, of = lift
     # each operation composed with the mirror is given the mirror's sign times
-    # its partner's matrix, the sign the even one of the lowest-angular-momentum
-    # rule: D(sigma_h g) = D(sigma_h) D(g)
+    # its partner's matrix, D(sigma_h g) = D(sigma_h) D(g), with the sign +1,
+    # the even parity the lowest-angular-momentum rule assigns
     sign = 1
     at = {int(s.ind): p for p, s in enumerate(group._symmetries)}
     fD = {p: (sign if of[int(s.ind)][1] else 1) * D[at[of[int(s.ind)][0]]]
           for p, s in enumerate(free._symmetries) if not s.time_reversal}
     got = _class_kept(free, fD, sorted(fD))
-    if got is None:                     # pragma: no cover - the pairs above are its pairs too
+    if got is None:                     # pragma: no cover: the pairs above are its pairs too
         raise InternalError(
             f"the projective class of the states measured in {group.name} "
             f"#{group.number_str} has {len(pairs)} pairs of commuting operations whose "
             "matrices do not commute, and the free-standing group with the horizontal mirror "
-            f"adjoined, {free.name} #{free.number_str}, has none: the mirror's matrix "
-            "commutes with every other, so this is the package disagreeing with itself.")
+            f"adjoined, {free.name} #{free.number_str}, has none. Report it, with the "
+            "model and the call.")
     _fpairs, fkept, franked = got
 
     def _here(subgroup):
-        """A subgroup of the free-standing group, by its operations here that preserve the layer's normal."""
+        """A subgroup of the free-standing group, by its operations here that preserve the layer's normal.
+
+        ``subgroup`` holds ``.ind`` of the free-standing group.  Returns the
+        sorted ``.ind`` in ``group`` of its operations that are not composed
+        with the mirror.
+        """
         return tuple(sorted(of[int(i)][0] for i in subgroup if not of[int(i)][1]))
 
     ranked = tuple(_here(c) for c in franked)
@@ -1483,17 +1510,17 @@ def _projective_class_carried(model, group, validated, *, free_standing):
 
 
 def _match_operations(kept, found, symprec, lattice) -> tuple:
-    r"""Pair each kept operation with the identified one that *is* it.
+    r"""Each kept operation paired with the identified operation that is the same one.
 
-    Two operations are the same when their rotations are the same integer matrix
-    and their translations agree **modulo the lattice** -- the sense in which a
-    space-group translation is defined -- to the finder's distance ``symprec``,
-    their difference read as the length it is on ``lattice`` (rows the cell's
-    vectors), in the units the finder's distance is in.  The
-    pairing is one-to-one by construction — a matched operation is removed from
-    the pool — so an identification that is still too large shows up as an
-    unmatched *found* operation and one that has moved as an unmatched *kept*
-    one.  Returns ``(pairs, kept_unmatched, found_unmatched)``.
+    Two operations are the same where their rotations are the same integer
+    matrix and their translations differ, modulo the lattice, by a Cartesian
+    length of at most ``symprec`` on ``lattice`` (rows the cell's vectors, in
+    the units ``symprec`` is in).  ``kept`` and ``found`` are sequences of
+    operations, and each operation of ``found`` is paired at most once.
+    Returns ``(pairs, kept_unmatched, found_unmatched)`` by ``.ind``: the
+    pairs ``(kept, found)``; the kept operations paired with none, left
+    where the identification moved them; and the identified ones paired with
+    none, left where the identification is too large.
     """
     lat = np.asarray(lattice, dtype=float)
     pool = list(found)
@@ -1518,40 +1545,26 @@ def _match_operations(kept, found, symprec, lattice) -> tuple:
 def _shared_origin(found, kept, pairs) -> GroupData:
     r"""The identified group, written in the origin of the operations it was built to carry.
 
-    An identification names a group, puts it in the tables' setting and orders
-    its operations, and it reads each translation off the cell it is handed.
-    The operations kept are the ones every earlier step was measured against,
-    written in the origin the centres satisfy.  Where the cell an
-    identification reads was built on exact centres -- every cell under a
-    declared precision is, the centres made exact before any is identified
-    (:func:`.._realized._exact_centers`, :func:`.._realized._position_pass`) -- the two agree to
-    rounding and nothing moves.  Where they differ, it is by one shift of the
-    origin, ``t' = t − (1 − A)·δ``: the group the cell allows, named on the
-    centres projected onto its own positions, carried onto the ones the
-    centres were moved to where it does not carry them, or a cell read with
-    centres no declaration made exact.  The identified group is carried onto
-    the kept operations by that one shift (:func:`_moved_origin`): every
-    translation moved by ``(1 − A)·δ`` and the origin of the tables' setting
-    (``shiftUC``) by ``δ``, which leaves every operation's tabulated
-    translation where it was.
+    An identification reads each translation off the cell it is handed, and
+    the operations kept are written in the origin the centers satisfy.  The
+    two differ by one shift of the origin ``δ``: each kept translation is the
+    identified one plus ``(1 − A)·δ``, ``A`` the operation's rotation.  The
+    differences ``d_g = t_kept(g) − t_found(g)``, modulo the lattice, are
+    averaged over the pairs to ``δ``, and ``found`` is moved by it
+    (:func:`_moved_origin`).
 
-    ``δ`` is read off the pairs.  Two copies of one group, each closing
-    exactly, differ by translations ``d_g = t_kept(g) − t_found(g)`` that
-    compose as the group does, ``d_{gh} = d_g + A_g·d_h``, and their average
-    over the group is the ``δ`` with ``d_g = (1 − A_g)·δ`` for every ``g``.
-
-    ``pairs`` are :func:`_match_operations`' ``(kept, identified)`` pairs of
-    ``.ind``, one for every unitary operation of ``found``.  Where every pair's
-    translations agree to rounding -- every cell built from exact numbers --
-    ``found`` is returned as it is, bit for bit; otherwise a new record is
-    returned and the identification's own is left as it was made.
+    ``found`` is the identified group, ``kept`` the operations it was built to
+    carry, each with ``.ind`` and ``.translation``, and ``pairs`` the
+    ``(kept, identified)`` pairs of ``.ind`` of :func:`_match_operations`.
+    Returns ``found`` itself where every pair's translations agree to
+    :data:`.._tolerance._EXACT_CLOSURE`, as on every cell built from exact
+    numbers; otherwise a new record, ``found`` left as it was.
 
     Raises
     ------
     ..refusal.InternalError
-        Where no single shift carries the identified operations onto the kept
-        ones.  Two exact copies of one group are always related by one, so
-        this is arithmetic in this package failing rather than a measurement.
+        Where no single shift carries the identified translations onto the
+        kept ones to within :data:`.._tolerance._EXACT_CLOSURE`.
     """
     by_kept = {int(s.ind): s for s in kept}
     by_found = {int(s.ind): s for s in found._symmetries}
@@ -1567,19 +1580,20 @@ def _shared_origin(found, kept, pairs) -> GroupData:
     if miss > _EXACT_CLOSURE:
         raise InternalError(
             f"group #{found.number_str}: the operations identified on the cell and the "
-            f"{len(diffs)} it was built to carry are not one group about two origins -- "
-            f"the best single shift misses by {miss:.3g}. Both close exactly, so this "
-            "is arithmetic in this package failing, not a measurement about the model.")
+            f"{len(diffs)} it was built to carry are not one group about two origins: "
+            f"the best single shift of the origin misses by {miss:.3g} in reduced "
+            "coordinates. Report it, with the model and the call.")
     return _moved_origin(found, delta)
 
 
 def _moved_origin(group, delta) -> GroupData:
-    r"""``group`` written about an origin moved by ``delta``, reduced, in its 3D cell.
+    r"""``group`` written about an origin moved by ``delta``.
 
-    Every translation moves by ``(1 − A)·δ`` and the origin of the tables'
-    setting (``shiftUC``) by ``δ``, which leaves every operation's tabulated
-    translation where it was: the same group, about another point.  A new
-    record is returned and ``group`` is left as it was.
+    ``delta`` is the shift ``δ``, in reduced coordinates of the group's 3D
+    cell.  Every translation moves by ``(1 − A)·δ``, ``A`` the operation's
+    rotation, and the origin of the tables' setting (``shiftUC``) by ``δ``,
+    which leaves every operation's tabulated translation where it was.
+    Returns a new record; ``group`` is left as it was.
     """
     delta = np.asarray(delta, dtype=float).reshape(-1)
     moved = []
@@ -1599,35 +1613,56 @@ def _moved_origin(group, delta) -> GroupData:
 
 def _orbit_cell(base_cell, base_typat, group, kept, *, points, species, spinor,
                 include_TR, symprec, diagnose):
-    r"""The cell that carries exactly ``kept``, identified — from the first point that does.
+    r"""The cell that carries exactly ``kept``, and its identified group.
 
-    The parent cell's own points plus the orbit of one generic point under
-    ``kept``, as one extra species (:func:`_generic_orbit`), handed to
-    :func:`_group_of`, the one identification that can name the subgroup and
-    stamp the ``.ind`` order every table lookup keys on, and then verified
-    against ``kept`` operation by operation (:func:`_match_operations`).  A
-    generic point's orbit under a group has that group for its stabilizer, so a
-    cell read as still non-primitive, or with operations other than ``kept``,
-    is an accident of that point and not a statement about the operations: the
-    orbit is rebuilt from the next point of ``points``.
+    The cell is ``base_cell``'s own points plus the orbit of one generic point
+    under ``kept``, as one extra species (:func:`_generic_orbit`).  It is
+    identified (:func:`_group_of`) and checked against ``kept`` operation by
+    operation (:func:`_match_operations`).  A cell read as non-primitive, or
+    with operations other than ``kept``, is rebuilt from the next point of
+    ``points``.  The group returned carries the operations ``kept`` in the
+    origin they were measured in (:func:`_shared_origin`).
 
-    Returns ``(group, cell, cell_typat, pairs, point, orbit)`` — ``orbit`` in the
-    identified group's 3D cell — or the :class:`..refusal.Refusal` the
-    identification made.  The group carries the operations ``kept``
-    themselves, in the origin they were measured in (:func:`_shared_origin`),
-    and not the translations the identification reads off the parent cell's
-    own points: those are the positions as handed in, and where a declared
-    precision has moved the centres it is ``kept`` that they satisfy -- the
-    origin they were written in is the one fitted to the moved centres, also
-    where the descent is the centres' own, the operations they are not carried
-    by within the precision left out.
+    Parameters
+    ----------
+    base_cell : pythtb.TBModel
+        The point set ``group`` was identified on, as a model.
+    base_typat : sequence
+        The species of each point of ``base_cell``.
+    group : GroupData
+        The group identified on ``base_cell``.
+    kept : sequence
+        The operations of ``group`` the cell is to carry.
+    points : sequence of tuple of float
+        The generic points, tried in turn (:data:`_DESCENT_POINTS`,
+        :data:`_DECLARED_POINTS`).
+    species : str
+        The species the orbit is added as, one ``base_typat`` does not hold.
+    spinor, include_TR : bool
+        Whether the cell is identified in double-valued tables, and with time
+        reversal adjoined (:func:`_group_of`).
+    symprec : float
+        The symmetry finder's distance, in the model's units of length, also
+        the one the operations are matched to.
+    diagnose : callable
+        Writes the reason the error is raised with, from ``(group, unitary
+        operations, kept unmatched, found unmatched, orbit)`` of the last
+        point.
+
+    Returns
+    -------
+    tuple or Refusal
+        ``(group, cell, cell_typat, pairs, point, orbit)``: the identified
+        group, the cell and its species, the pairs of
+        :func:`_match_operations`, the point used, and its orbit in reduced
+        coordinates of the 3D cell of ``group``.  The
+        :class:`..refusal.Refusal` an identification made, where one is
+        refused.
 
     Raises
     ------
     ..refusal.InternalError
-        When every point of ``points`` is read that way.  ``diagnose`` writes
-        what the last one was read as, from ``(group, unitary operations,
-        kept unmatched, found unmatched, orbit)``.
+        Where no point of ``points`` gives a cell read as exactly ``kept``.
     """
     last = None
     for seed in points:
@@ -1647,27 +1682,28 @@ def _orbit_cell(base_cell, base_typat, group, kept, *, points, species, spinor,
                     orbit_padded)
         last = (got, unitary, unmatched_kept, unmatched_found, orbit_padded)
     raise InternalError(
-        diagnose(*last) + f" That is the last of {len(points)} generic points tried, "
-        "and the orbit of none of them was identified as exactly the kept operations.")
+        diagnose(*last) + f" It comes from the last of {len(points)} generic points "
+        "tried, and none of them gave a cell whose group is exactly the kept operations. "
+        "Report it, with the model and the call.")
 
 
 def _centers_not_exactly_symmetric(model, group, assignment, *,
                                    tol) -> Refusal | None:
-    r"""Centres whose defect alone breaks operations — refused before anything is built.
+    r"""The refusal of orbital centers whose defect alone breaks operations.
 
     In convention I the Bloch phase carries ``e^{2πi k·(R + τ_j − τ_i)}``, so
-    centres that miss the group's own action by ``δ`` cost ``H(k)`` a covariance
-    residual of order ``2π·δ·max|H|`` whatever the hoppings do.  Where nothing
-    declares what noise means for the centres (no ``position_tol``, no
-    ``precision``) and that estimate is above the detector's tolerance, the
-    defect alone would break operations: which ones the Hamiltonian obeys would
-    be the geometry's verdict as much as the hoppings', and everything built on
-    it would be built again once the precision is declared.  So it is measured
-    as soon as the cell's group is identified, and refused there, loudly, with
-    the number to act on.
+    centers that miss the group's action by ``δ``, in reduced coordinates
+    (:func:`.._centers._position_defect`), cost ``H(k)`` a covariance residual
+    of order ``2π·δ·max|H|`` whatever the hoppings do, ``max|H|`` as
+    :func:`.._measure._max_hamiltonian` measures it.  It is read once the
+    cell's group is identified, where no tolerance for the centers is
+    declared (:func:`.._realized._realized_core`).
 
-    Returns the ``positions_not_exactly_symmetric`` refusal, or ``None`` when the
-    estimate is within ``tol`` and the detector's verdicts are the hoppings' own.
+    ``model`` is the model, ``group`` the cell's group, ``assignment`` the
+    orbitals' orbits in it, and ``tol`` the covariance tolerance, in the units
+    of ``H``.  Returns ``positions_not_exactly_symmetric`` where the estimate
+    is above ``tol``, naming ``group`` as an upper bound and carrying it in its
+    context; ``None`` otherwise.
     """
 
     delta = float(_position_defect(model, group, assignment,
@@ -1680,58 +1716,32 @@ def _centers_not_exactly_symmetric(model, group, assignment, *,
         return None
     return Refusal(
         "positions_not_exactly_symmetric",
-        f"the orbital centers miss the cell's own symmetry by {delta:.3g} (reduced): "
-        "declare this model's precision -- `realized_group(..., precision=)`, or "
-        "`position_tol=` for the centers alone -- and centers within it are moved onto "
-        "the positions the group puts them at, a k-dependent gauge transformation "
-        "that leaves the spectrum untouched. Undeclared, that defect alone costs H(k) a "
-        f"covariance residual of order 2*pi*delta*max|H| = {estimate:.3g}, above the "
-        f"tolerance every operation's residual is held to, tol = {float(tol):.3g} "
-        f"(max|H| = {max_h:.4g} about the mean on-site energy, measured here), so which "
-        "operations this Hamiltonian obeys would be read off the geometry as much as "
-        "off the hoppings. Nothing was built. The cell's group is "
-        f"{group.name} #{group.number_str}, an upper bound on what this Hamiltonian "
-        "obeys.",
+        f"the orbital centers miss the cell's own operations by delta = {delta:.3g}, in "
+        "reduced coordinates, which alone gives H(k) a covariance residual of order "
+        f"{estimate:.3g}, above tol = {float(tol):.3g}, in the units of H. The cell's "
+        f"group is {group.name} #{group.number_str}, an upper bound on what this "
+        "Hamiltonian obeys. Declare the model's precision with `precision=`, or a "
+        "tolerance for the centers alone with `position_tol=`.",
         value=delta, threshold=float(tol) / (2.0 * np.pi * max_h),
         context={"group": group, "number_str": str(group.number_str),
                  "position_defect": delta, "max_h": max_h, "tol": float(tol)})
 
 
 def _time_reversal_square(group, validated, *, tolerances=EXACT):
-    r"""The pure time reversal's square, against the one the tables read here ask for.
+    r"""The pure time reversal's square, against the sign the tables read here ask for.
 
-    Time reversal is an antiunitary operation ``A = X K``, and the detector
-    measures its intertwiner ``X`` like any other.  Its square ``A² = X X̄`` is a
-    unitary symmetry of ``H(k)``, and rescaling ``X → λX`` multiplies it by
-    ``|λ|²``, so where it is a multiple of the identity its **sign** belongs to
-    the Hamiltonian: ``+1`` on spin-free states, ``-1`` on spinors.  The tables
-    ask for one sign, the one the group's own multiplication table gives
-    ``T·T`` -- ``+1`` in single-valued tables, ``-1`` in double-valued ones --
-    and a time reversal whose square is the other one is not the time reversal
-    those tables describe: a spinless model carrying spinors in its orbital
-    index, as a wannier90 import does, read single-valued, or a model read
-    double-valued whose only antiunitary symmetry with the k-action of time
-    reversal squares to ``+1``.
+    Time reversal ``A = X K`` squares to ``X X̄``, whose sign, where it is a
+    multiple of the identity, no rescaling of ``X`` changes.  The tables ask
+    for ``+1`` where they are single-valued and ``-1`` where they are
+    double-valued.  A member of that sign is looked for as
+    :func:`_antiunitary_square` does, and it is the matrix every later step
+    reads for time reversal (:func:`_time_reversal_member`).
 
-    Where the solution space is more than one-dimensional -- a commutant, whose
-    members can square to either sign -- the question is whether *some* member
-    has the sign asked, and it is linear: time reversal's space is closed under
-    transposition, and a unitary ``X`` squares to ``s`` exactly where
-    ``Xᵀ = s X``.  So the member kept is the detector's own where its square
-    already is the sign; otherwise the unitary nearest its part of that
-    symmetry (or of one of three fixed combinations of the space), kept only
-    where it squares to the sign and stays inside the space; and where neither
-    is found, the detector's own again if its square reads the sign within the
-    margin a numerical model's noise leaves it.  That member is the
-    intertwiner every later step reads.
-
-    Returns ``None`` where the group has no pure time reversal or the detector
-    refuted it; otherwise ``ind``, ``asked`` (the sign the tables ask for),
-    ``measured`` (the sign of the square of the member the verdict rests on --
-    the one kept, or where none has the sign asked the detector's own -- where
-    that square is a multiple of the identity, else ``nan``), ``obeyed`` and
-    ``member`` (the member of the sign asked, or ``None`` where the space holds
-    none).
+    ``group`` is the round's group, ``validated`` the detector's verdicts on
+    it, and ``tolerances`` the call's declared tolerances
+    (:class:`.._tolerance.Tolerances`).  Returns the :class:`_Square`
+    reading, or ``None`` where ``group`` has no pure time reversal, or the
+    detector refuted it or kept no member for it.
     """
     position = next((p for p, s in enumerate(group._symmetries) if s.time_reversal
                      and np.array_equal(np.rint(np.asarray(s.rotation)).astype(int),
@@ -1750,27 +1760,42 @@ def _time_reversal_square(group, validated, *, tolerances=EXACT):
 def _antiunitary_square(group, validated, position, *, asked=None, tolerances=EXACT):
     r"""One antiunitary operation's square, against the sign the group's table gives it.
 
-    :func:`_time_reversal_square`'s reading, for any antiunitary operation
-    ``g·T`` whose unitary part squares to the identity modulo the lattice: its
-    square ``X X̄`` is then an intertwiner of the identity, rescaling ``X``
-    moves it only by ``|λ|²``, and where it is a multiple of the identity its
-    sign is the Hamiltonian's own, to be read against the sign the group's
-    multiplication table gives ``(g·T)²``.  The solution space of such an
-    operation is closed under transposition as time reversal's is, so a member
-    of the sign asked is looked for the same way: in the members of its own
-    form, or where none has it (:func:`.._measure._own_form_read`) in the detector's
-    whole space, which then says whether any matrix with its action on ``k``
-    squares to the sign asked.
+    For an operation ``g·T`` whose unitary part squares to the identity modulo
+    the lattice, the square ``X X̄`` of its member ``X`` is a member of the
+    identity's, and where it is a multiple of the identity its sign is the
+    Hamiltonian's own.  A member of the sign asked, ``s``, is looked for in
+    turn: the detector's own; the unitary nearest ``(Y + s·Yᵀ)/2``, for ``Y``
+    the detector's own or one of three fixed combinations of the solution
+    space, kept where it squares to ``s`` and stays in the space; and the
+    detector's own again, where its square reads ``s`` within
+    :data:`.._tolerance._TIME_REVERSAL_SQUARE_MARGIN`.  The space is the
+    members of the operation's own form, or the detector's whole space where
+    none has that form (:func:`.._measure._own_form_read`).
 
-    Returns ``None`` where the detector refuted the operation, it carries no
-    member, or its unitary part does not square to the identity -- a threefold
-    or a fourfold with time reversal, whose square is another operation with a
-    phase of its own, and so no sign to read; otherwise the record
-    :func:`_time_reversal_square` returns.  ``asked`` is the sign the table
-    would give, where that is known without it, and the table is then not built.
-    ``tolerances`` is the record of what the call declared: a member read off a
-    model symmetric only within its precision squares to the sign that far
-    off, and its solution space holds a member to that precision.
+    Parameters
+    ----------
+    group : GroupData
+        The round's group.
+    validated : ValidatedGroup
+        The detector's verdicts on ``group``, with each operation's members.
+    position : int
+        The operation's position in ``group``.
+    asked : int, default None
+        The sign the table gives the square, where it is known without the
+        table.  ``None`` reads it off the table.
+    tolerances : Tolerances, default EXACT
+        The call's declared tolerances: how far from ``s`` a member of a
+        model symmetric only within its precision may square, and how far
+        outside the space it may lie.
+
+    Returns
+    -------
+    _Square or None
+        The reading, with ``obeyed`` false and ``member`` ``None`` where no
+        member of the sign asked is found.  ``None`` where the detector
+        refuted the operation or kept no member for it, or where its unitary
+        part does not square to the identity, as for a threefold or a fourfold
+        with time reversal.
     """
 
     ind = int(group._symmetries[position].ind)
@@ -1834,9 +1859,11 @@ def _antiunitary_square(group, validated, position, *, asked=None, tolerances=EX
 def _time_reversal_member(validated, square):
     """The detector's record with time reversal's member of the sign asked in place.
 
-    ``square`` is :func:`_time_reversal_square`'s reading; where it kept the
-    detector's own member, or found none of the sign asked, the record is
-    returned as it stands.
+    ``validated`` is the detector's record and ``square`` the
+    :class:`_Square` of :func:`_time_reversal_square`.  Returns a new record
+    whose member for time reversal is ``square.member``; ``validated`` itself
+    where ``square`` is ``None``, found no member of the sign asked, or kept
+    the detector's own.
     """
     if (square is None or not square.obeyed
             or square.member is validated._intertwiners.get(square.ind)):
@@ -1847,80 +1874,57 @@ def _time_reversal_member(validated, square):
 
 def _ansatz_refuted(model, group, assignment, validated, *, layout, spin,
                     blocks=None, max_candidates=2 ** 20, skip=()):
-    r"""The operations the detector left undetermined, resolved by tensor structure.
+    r"""The operations whose matrices do not have their tensor structure on the multiplets.
 
-    The detector's verdicts are per **k-action class**, and a surviving class of
-    more than one member proves only that *some* operator with that k-action is
-    a symmetry: its members are marked ``"undetermined"``
-    (``ValidatedGroup._verdicts``) and are individually undetermined there.
-    On a slab that is the whole horizontal-mirror family — every class is the
-    pair ``{g, σ_h·g}``, the in-plane partner satisfies the intertwiner problem,
-    and no presentation can change that, because a layer's ``H(k)`` does not
-    depend on ``k_z`` and ``σ_h·g`` and ``g`` therefore impose the identical
-    constraint.
+    An operation's matrix is ``D(g) = O(g) ⊗ S(g)``, ``O`` carrying each
+    multiplet where the operation carries its site and ``S(g)`` its own lift:
+    the tables' spin lift on a one-dimensional multiplet, the model's own
+    block on a wider one.  The test asks whether a member of the operation's
+    own form (:func:`.._measure._own_form_read`) has that structure, on the
+    ``g`` branch alone (:func:`.._multiplets._ansatz_defects`).  An operation
+    without one, its scaled defect above the gate, is refuted by its tensor
+    structure.  It is asked of the operations the detector left undetermined,
+    which share their action on ``k`` with another; and, where the multiplets
+    are stated by ``site_multiplets=``, of those it found obeyed as well.
+    Every obeyed operation carries a measured multiplet, and a stated one only
+    where it does not mix it with another.
 
-    What *does* separate them is the **tensor structure** of the representation:
-    ``D(g) = O(g) ⊗ S(g)``, with ``O`` fixed by the site permutation (the
-    identity on a flat layer's sites) and ``S(g)`` the operation's own spin
-    lift, and ``S(σ_h·g)`` is a different SU(2) element from ``S(g)``.  Each
-    operation's own form -- each site's states carried onto its image's, with
-    its own spin lift -- was read where the detector spoke
-    (:func:`.._measure._own_form_read`): the solution space every reading here reads is
-    the members of that form, which tells a pair apart by its lift on a
-    multiplet of any dimension, and the operations none of whose members has
-    it are refuted there and passed in as ``skip``.  What is left is the form
-    on the **multiplets** (:func:`.._multiplets._ansatz_defects`): each carried
-    where the operation carries its site, with the tables' lift on a
-    one-dimensional multiplet and the model's own block on a wider one, which
-    on a spinless model is what tells a pair apart.  An operation it refutes
-    -- its scaled defect above the gate -- is **broken by tensor structure**, a
-    per-operation verdict the descent below can act on where ``_build_rep``'s
-    own covariance gate (a *global* "no candidate closes") cannot.
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        The model.
+    group : GroupData
+        The round's group.
+    assignment : OrbitalAssignment
+        The orbitals' orbits in ``group``.
+    validated : ValidatedGroup
+        The detector's verdicts on ``group``.
+    layout : SiteMultiplets or None
+        The multiplets; ``layout.determined_by`` is ``"declaration"`` where
+        they are stated.  ``None`` has :func:`.._multiplets._ansatz_defects`
+        measure them.
+    spin : SpinBasis or None
+        The declared spin partners, or ``None``.
+    blocks : dict, default None
+        The multiplet blocks built once for the round, ``{ind: {channel:
+        S}}`` (:func:`.._multiplets._multiplet_blocks`).  ``None`` has
+        :func:`.._multiplets._ansatz_defects` build them.
+    max_candidates : int, default 2 ** 20
+        The most candidates a multiplet's block enumeration may try.
+    skip : set of int, default ()
+        The ``.ind`` of the operations their own form refuted, which are not
+        tested again.
 
-    Applied to the operations the detector declares undetermined, and, where
-    the multiplets are stated by ``site_multiplets=`` rather than measured, to
-    the ones it found obeyed as well.  Measured multiplets are the finest
-    partition every kept operation's space has a block-form member on, so an
-    obeyed operation carries them by construction; stated ones it carries only
-    where it does not mix them -- a square's fourfold does mix ``p_x`` and
-    ``p_y`` stated as two singlets, and is no symmetry of the crystal stated.
-    Where every k-action class is a singleton (every fully periodic model on
-    its primitive cell, and every 2D model on a substrate) and nothing is
-    stated, this runs on nothing and costs nothing: a singleton class carries
-    the detector's own ``"obeyed"`` verdict, and its own form is the whole
-    question.
-
-    **One lift per operation, and it is the tables' own.**  An operation is never
-    represented through its ``σ_h`` partner's lift: representing ``g``
-    by ``S(σ_h)·S(g)`` is representing a *different* operation, and a model
-    written for the opposite spin quantization axis reads the group it
-    genuinely has in pythtb's convention.
-
-    **So the test asks the operation's own branch, in every environment**, as
-    its own form is read.  On the
-    ``g⁻¹`` branch a member is read as ``D(g)†``, whose spin factor is
-    ``S(g)†``: on a **fourfold** ``S(C4)† = −S(σ_h)·S(C4)``, the ``σ_h``
-    partner's lift exactly, and on an antiunitary twofold it can be the
-    partner's too, so accepting either branch keeps an operation on a lift the
-    tables do not give it.  On a substrate cell the partner is not in the cell
-    at all; on a free-standing one it is, and the operation kept on its
-    partner's lift reaches the group besides it.  Measured on lin3g
-    free-standing, where every multiplet is one spinor orbital: on the ``g``
-    branch exactly one member of each of the sixteen ``σ_h`` pairs holds, and
-    the two ``-4`` members and the time-reversal partners of the two diagonal
-    twofolds, which pass on the ``g⁻¹`` branch alone, are refuted with the
-    rest; and on the SRSI paper's ``P41'`` model in the opposite-axis
-    transcription the ``g`` branch keeps ``{E, C2(z), m(x), m(y)}`` at ~7e-16
-    on each, where both branches together also keep ``C4`` and ``C4⁻¹`` (``g``
-    branch 1.0, ``g⁻¹`` branch 6.7e-16) and the survivors are not a group.
-    Only the acceptance of an operation reads one branch: which branch the
-    representation is built on is :func:`.._build._build_rep`'s convention.
-
-    Returns ``(tested, refuted)`` — the per-operation record of the test, and
-    the subset that failed — or the :class:`..refusal.Refusal` a declared
-    spinor pair the operations do not carry onto one pair makes, or that a
-    multiplet's own block enumeration made past ``max_candidates``
-    (``rep_search_too_large``, where ``blocks`` was not already built for it).
+    Returns
+    -------
+    tuple or Refusal
+        ``(tested, refuted)``: the record of the test for each operation
+        tested, by ``.ind``, as :func:`.._multiplets._ansatz_defects` returns
+        it, and those of them not realizable.  ``({}, {})`` where nothing is
+        tested.  The :class:`..refusal.Refusal` the test made: a declared
+        spinor pair the operations do not carry onto one pair, or a block
+        enumeration past ``max_candidates`` (``rep_search_too_large``) where
+        ``blocks`` is ``None``.
     """
 
     shared = set(validated.undetermined)
@@ -1944,10 +1948,12 @@ def _ansatz_refuted(model, group, assignment, validated, *, layout, spin,
 def _translation_permutation(model, assignment, position):
     r"""The matrix carrying every orbital onto its translate's under one pure translation.
 
-    ``P[σ(i), i] = 1`` for the site permutation ``σ`` the operation at
-    ``position`` makes, each site's orbitals onto its image's in the order the
-    sites list them, spin by spin.  ``None`` where a site and its image hold
-    different numbers of orbitals.
+    ``P[σ(i), i] = 1``, ``σ`` carrying each state onto its translate's under
+    the operation at ``position`` of the group: each site's orbitals onto its
+    image's (``assignment.permutations``), in the order the sites list them
+    (``assignment.site_orbitals``), spin by spin.  ``model`` gives the number
+    of states.  Returns ``P``, of shape ``(nstate, nstate)``, or ``None``
+    where a site and its image hold different numbers of orbitals.
     """
     perm = np.asarray(assignment.permutations, dtype=int)
     site_orbs = tuple(assignment.site_orbitals)
@@ -1955,7 +1961,7 @@ def _translation_permutation(model, assignment, position):
     P = np.zeros((nstate, nstate), dtype=complex)
     for i, orbs in enumerate(site_orbs):
         dst = site_orbs[int(perm[int(position), i])]
-        if len(dst) != len(orbs):                   # pragma: no cover - defensive
+        if len(dst) != len(orbs):                   # pragma: no cover: defensive
             return None
         for slot, a in enumerate(orbs):
             for s in range(nspin):
@@ -1965,40 +1971,53 @@ def _translation_permutation(model, assignment, position):
 
 def _translation_held(model, group, assignment, validated, position, *, spin=None,
                       tol=None, commuting=()):
-    r"""Whether ``H(k)`` obeys one pure translation once each site's orbitals are carried onto its translate's within the site.
+    r"""Whether ``H(k)`` obeys one pure translation, with a change of basis within each site.
 
-    A translation carries every site onto a copy of it, and a model may write
-    the copy's orbitals in another basis -- a frame turned from one site to the
-    next, a sign or a phase on an orbital -- and still be one crystal written on
-    a bigger cell.  So the translation is read as every operation is, on its own
-    solution space: the matrices commuting with ``H(k)`` at every ``k``, since a
-    translation acts on ``k`` as the identity does, restricted to the blocks
-    carrying each site's states onto its translate's
-    (:func:`.._matrices._block_members`).  It holds where that restriction has a
-    member nonsingular on every block (:func:`.._matrices._filled_check`): any
-    unitary on each site's orbitals is allowed, the permutation of the sites
-    itself among them, and on states that carry a spin, native or declared,
-    the spin untouched -- every operation is read with its own spin rotation,
-    and a translation's is the identity.  ``tol`` is the declared tolerance,
-    relative to ``max|H|``, every one of those readings takes; ``None`` where
-    nothing was declared.
+    The translation's solution space, the matrices commuting with ``H(k)`` at
+    every ``k``, is restricted to the blocks carrying each site's states onto
+    its translate's (:func:`.._matrices._block_members`).  The translation
+    holds where that restriction has a member nonsingular on every block
+    (:func:`.._matrices._filled_check`).  The member may act as any unitary on
+    each site's orbitals, the permutation of the sites among them, and leaves
+    a spin, native or declared, untouched.  The matrix it holds with is read
+    among the members commuting with ``commuting``: the member nearest the
+    permutation of the sites (:func:`_translation_permutation`), or the first
+    of the fixed generic members (:func:`.._matrices._generic_members`) where
+    that one is singular, made unitary block by block.
 
-    Translations commute, so the matrix a translation holds with is read among
-    the members commuting with ``commuting``, the matrices already read for the
-    others: the member nearest the permutation itself
-    (:func:`_translation_permutation`), or the first of the fixed generic ones
-    the verdict reads (:func:`.._matrices._generic_members`) where that one is
-    singular, made unitary block by block.
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        The model.
+    group : GroupData
+        The cell's group.
+    assignment : OrbitalAssignment
+        The orbitals' orbits in ``group``.
+    validated : ValidatedGroup
+        The detector's verdicts on ``group``, whose solution spaces are read.
+    position : int
+        The translation's position in ``group``.
+    spin : SpinBasis, default None
+        The declared spin partners; ``None`` where none are declared.
+    tol : float, default None
+        The declared tolerance, relative to ``max|H|``, every reading takes;
+        ``None`` where nothing was declared.
+    commuting : sequence of ndarray, default ()
+        The matrices already read for the other translations.
 
-    Returns ``(held, matrix, turn)``: whether the translation holds so; the
-    unitary it holds with, ``None`` where no member commuting with
-    ``commuting`` is nonsingular; and how far that unitary turns each site's
-    orbitals onto its translate's -- half the smallest arc of the unit circle
-    holding every eigenvalue of its blocks, so that one phase common to all of
-    them is no turn, and ``0.0`` within the declared tolerance.  A space the
-    detector kept none of, or one past the read-off's own ceiling, is read as
-    not holding: the permutation alone is measured there
-    (:func:`_translation_residual`).
+    Returns
+    -------
+    tuple
+        ``(held, matrix, turn)``: whether the translation holds so; the
+        unitary it holds with, ``None`` where no member commuting with
+        ``commuting`` is nonsingular; and how far that unitary turns each
+        site's orbitals onto its translate's, half the smallest arc of the
+        unit circle holding every eigenvalue of its blocks, so that a phase
+        common to all of them is no turn, ``0.0`` within the declared
+        tolerance and ``nan`` where there is no unitary.  ``(False, None,
+        nan)`` where the translation does not hold, the detector kept no space
+        for the translation, or its space is past the memory ceiling
+        :data:`.._detector._READOFF_MAX_BYTES`.
     """
 
     nothing = (False, None, float("nan"))
@@ -2017,7 +2036,7 @@ def _translation_held(model, group, assignment, validated, position, *, spin=Non
                            tol=tol)
     image = _channel_permutation(assignment, int(position), model, sites)
     blocks = _ansatz_blocks(sites._chan_states, image, 1)
-    if any(len(rows) != len(cols) for rows, cols in blocks):   # pragma: no cover - defensive
+    if any(len(rows) != len(cols) for rows, cols in blocks):   # pragma: no cover: defensive
         return nothing
     pieces, lifts = blocks, None
     if int(model.nspin) == 2 or spin is not None:
@@ -2073,7 +2092,7 @@ def _translation_held(model, group, assignment, validated, position, *, spin=Non
 
 
 def _translation_residual(model, assignment, position, k_pts, grid=None):
-    r"""How far ``H(k)`` is from obeying one **pure translation** as written.
+    r"""How far ``H(k)`` is from obeying one pure translation as written.
 
     For a model that writes every copy of a site in one basis, in pythtb's
     convention I
@@ -2081,26 +2100,27 @@ def _translation_residual(model, assignment, position, k_pts, grid=None):
     .. math:: T_\tau\,|\varphi_i(k)\rangle = e^{-2\pi i\,k\cdot\tau}\,
               |\varphi_{\sigma(i)}(k)\rangle,
 
-    so ``D(τ)`` is the orbital permutation ``σ`` times a *global* phase — no
-    internal factor (a translation rotates nothing), no SU(2) lift (it acts on
-    spin as the identity) — and the covariance statement collapses to
-    ``P H(k) P† = H(k)``, ``P`` the permutation matrix
-    (:func:`_translation_permutation`); ``max_k`` of its defect is returned.  A
-    model that writes the copies in bases turned from site to site obeys the
-    translation with that change of basis beside the permutation, which
-    :func:`_translation_held` reads.  Returns ``None`` when the permutation
-    cannot be built (translationally paired sites carrying different numbers of
-    orbitals).
+    so ``D(τ)`` is the orbital permutation ``σ`` times a global phase, and
+    covariance is ``P H(k) P† = H(k)``, ``P`` the permutation matrix
+    (:func:`_translation_permutation`).  A model that writes the copies in
+    bases turned from site to site obeys the translation with that change of
+    basis beside the permutation, which :func:`_translation_held` reads.
+
+    ``model`` and ``assignment`` give ``P`` for the translation at
+    ``position`` of the group.  ``k_pts`` is the grid, and ``grid`` the
+    detector's own ``H`` on it (:class:`.._detector._GridHamiltonians`), or
+    ``None`` to evaluate ``H`` here.  Returns the largest entry of
+    ``|P H(k) P† − H(k)|`` over the grid, in the units of ``H``, or ``None``
+    where a site and its image hold different numbers of orbitals.
     """
     P = _translation_permutation(model, assignment, position)
-    if P is None:                                   # pragma: no cover - defensive
+    if P is None:                                   # pragma: no cover: defensive
         return None
     # `grid` is the detector's own evaluation of H on this same mesh, handed in
-    # by `realized_group`'s measurement context when the two k-sets are byte for
-    # byte the same one (checked there, not assumed here).  It is the same array
-    # either way -- `_GridHamiltonians` and the call below evaluate the model's one
-    # Bloch sum on the same points -- so this measurement does not change, only
-    # its cost.
+    # by the measurement context where the two k-sets are byte for byte the
+    # same one (checked there, not assumed here).  Both evaluate the model's
+    # one Bloch sum on the same points, so the measurement is the same either
+    # way.
     H = (np.asarray(grid.full()) if grid is not None
          else np.asarray(_bloch.hamiltonian(model, np.atleast_2d(k_pts))))
     return float(np.abs(np.einsum("ab,kbc,dc->kad", P, H, P.conj()) - H).max())
@@ -2108,47 +2128,65 @@ def _translation_residual(model, assignment, position, k_pts, grid=None):
 
 def _lattice_verdict(model, group, assignment, validated, refuted, tol, k_pts,
                      context=None, *, spin=None, matrix_tol=None) -> dict:
-    r"""What the Hamiltonian did with the cell's own pure translations.
+    r"""What the Hamiltonian does with the cell's own pure translations.
 
-    A lattice supergroup carries ``_lattice_index - 1`` fractional translations
-    ``{1|τ}`` and, with each of them, a whole coset of partners ``τ·g``.  Every
-    one of them sits in the **identity's k-action class** — a pure translation
-    acts trivially on ``k``, and ``τ·g`` acts exactly as ``g`` does — so the
-    detector marks them ``"undetermined"``, and the tensor structure tells the
-    partners apart (:func:`_ansatz_refuted`).
+    A cell whose point set repeats under ``_lattice_index − 1`` fractional
+    translations ``{1|τ}`` has a lattice supergroup.  Each translation is read
+    at the sites.  It holds where its permutation of the sites holds as
+    written, its residual (:func:`_translation_residual`) at most ``tol``, or
+    else where a change of basis within each site carries the sites' orbitals
+    onto their translates' (:func:`_translation_held`), read among the
+    members commuting with the matrices the translations before it hold
+    with.  Where a translation holds and no matrix it holds with commutes
+    with those, only the translations obeyed as written are counted.  A
+    translation the detector, the declaration or the centers refuted stays
+    refuted; one refuted by its tensor structure alone is read again here.
 
-    **A translation is read at the sites.**  It carries every site onto a copy
-    of it, and a model may write the copies in bases turned from site to site,
-    so it holds where its solution space has a member carrying each site's
-    orbitals onto its translate's by any change of basis within the site
-    (:func:`_translation_held`); where the copies are written alike that member
-    is the permutation of the sites itself, measured directly against ``tol``
-    (:func:`_translation_residual`), and nothing is read beyond it.
-    Translations commute, so each is read among the members commuting with the
-    matrices the others hold with.  A Hamiltonian obeying several translations
-    only with changes of basis that do not commute -- magnetic translations,
-    a flux threading the cell -- obeys no crystal's translations, and of those
-    only the translations obeyed as written are counted.  A translation the
-    declaration or the centres refuted stays refuted whatever the hoppings
-    obey: the crystal they state has no such translation.
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        The model.
+    group : GroupData
+        The cell's group.
+    assignment : OrbitalAssignment
+        The orbitals' orbits in ``group``.
+    validated : ValidatedGroup
+        The detector's verdicts on ``group``.
+    refuted : dict
+        The operations refuted past the detector, by ``.ind``, each with its
+        record.
+    tol : float
+        The covariance tolerance, in the units of ``H``.
+    k_pts : ndarray
+        The grid the residuals are measured on.
+    context : _MeasurementContext, default None
+        The measurement context, whose grid of ``H`` is reused where it is
+        this model's on ``k_pts``.
+    spin : SpinBasis, default None
+        The declared spin partners.
+    matrix_tol : float, default None
+        The declared tolerance, relative to ``max|H|``, that
+        :func:`_translation_held` reads with; ``None`` where nothing was
+        declared.
 
-    Returns the record the descent step carries:
-    ``index``, ``fractional_translations``, ``operations`` (one entry per
-    translation, with the ``.ind``, the reduced and Cartesian ``τ``, the direct
-    covariance ``residual`` of the permutation itself, the scaled
-    tensor-structure defect, and ``refuted_by`` in the descent's own words: the
-    detector's reason, ``"no symmetry matrix"`` or ``"covariance"``, when the
-    detector's own measurement refuted the translation, the refuting
-    measurement's own word where the verdicts that read the detector's spaces
-    refuted it -- ``"tensor structure"``, ``"declaration"``, ``"centers"`` --
-    ``"translation"`` when none of them did and the Hamiltonian does not obey
-    it, and ``None`` when it does), ``realized`` (the translations the
-    Hamiltonian **obeys** — a supercell, if any), ``dressing`` (for each of
-    them, the ``matrix`` it is obeyed with, which carries each site's orbitals
-    onto its translate's, and the ``turn`` that matrix makes,
-    :func:`_translation_held`), ``refuted`` (the translations refuted here and
-    by nothing before) and ``coset_partners_refuted`` (how many refuted
-    unitary operations are not themselves pure translations).
+    Returns
+    -------
+    dict
+        Empty where the cell has no fractional translation.  Otherwise
+        ``index``; ``fractional_translations``; ``operations``, one entry per
+        translation with its ``ind``, ``translation`` (reduced ``τ``),
+        ``cartesian``, ``refuted_by``, the ``scaled`` tensor-structure
+        defect, the ``residual`` of the permutation as written, and ``tol``;
+        ``realized``, the translations the Hamiltonian obeys; ``dressing``,
+        for each of them the ``matrix`` it is obeyed with and the ``turn``
+        that matrix makes; ``refuted``, the translations refuted here and by
+        nothing before, each with its record; and
+        ``coset_partners_refuted``, how many refuted unitary operations are
+        not pure translations.  ``refuted_by`` is ``None`` for a translation
+        obeyed, the detector's reason where the detector refuted it, the word
+        of the verdict that refuted it otherwise (``"tensor structure"``,
+        ``"declaration"``, ``"centers"``), and ``"translation"`` where none
+        did and the Hamiltonian does not obey it.
     """
     index = int(getattr(group, "_lattice_index", 1) or 1)
     if index <= 1:
@@ -2188,8 +2226,8 @@ def _lattice_verdict(model, group, assignment, validated, refuted, tol, k_pts,
         found.append((position, ind, tuple(float(x) for x in t),
                       tuple(float(x) for x in t @ lattice), why, scaled, residual))
 
-    # THE HOPPINGS' TO DECIDE: every translation the detector, the declaration
-    # and the centres left standing.  Those obeyed as written carry the
+    # The translations the detector, the declaration and the centers left
+    # standing, for the hoppings to decide.  Those obeyed as written carry the
     # permutation itself; every other one is read at the sites, among the
     # members commuting with the matrices read before it
     standing = [f for f in found if f[1] not in broken and f[4] in (None, "tensor structure")]
@@ -2242,20 +2280,22 @@ def _lattice_verdict(model, group, assignment, validated, refuted, tol, k_pts,
 
 
 def _supercell_refusal(group, validated, lattice_record) -> Refusal:
-    r"""The verdict on a Hamiltonian that obeys the cell's own pure translation.
+    r"""The ``supercell`` refusal of a Hamiltonian that obeys the cell's own pure translation.
 
-    Not a tolerance and not a defect in the model: the model **is** a supercell,
-    and every k-point label, EBR row and SRSI computed on its folded zone would
-    be a statement about the wrong Brillouin zone.  Where the copies are
-    written in bases turned from site to site, the message says how far, and
-    ``context["dressing"]`` carries the matrices each translation is obeyed
-    with.  A falsy :class:`..refusal.Refusal`, never a returned group; the loop
-    that measured it names the cell's group in it and carries it in
-    ``context["group"]`` (:func:`.._realized._named_refusal`).
+    ``lattice_record`` is :func:`_lattice_verdict`'s record, with at least one
+    translation in ``realized``.  The reason names the first of them, the
+    index and the primitive lattice the realized translations generate
+    (:func:`.._spacegroup._primitive_lattice`), and how far the matrices in
+    ``dressing`` turn each site's orbitals, where they turn them at all.
+    ``validated`` is the detector's verdicts, carried in the context with the
+    translations, the index, the primitive lattice, the dressing and the
+    record.  ``group`` is the cell's group, whose lattice gives the Cartesian
+    vectors; it is named in the reason and carried in ``context["group"]`` by
+    :func:`.._realized._named_refusal`.
     """
-    # the finer lattice is the one the Hamiltonian was measured to have, i.e. the
-    # one the REALIZED translations generate -- not every translation the point
-    # set allows, which is what the cell allows and is a different statement
+    # the finer lattice is the one the Hamiltonian was measured to have, the
+    # one the realized translations generate, and not the one every
+    # translation the point set allows would generate
     taus = tuple(lattice_record["realized"])
     lattice = np.asarray(group._lattice, dtype=float)
     prim = _primitive_lattice(lattice, taus)
@@ -2263,28 +2303,22 @@ def _supercell_refusal(group, validated, lattice_record) -> Refusal:
     cart = np.round(np.asarray(taus[0], dtype=float) @ lattice, 6)
     turn = max(float(d["turn"]) for d in lattice_record["dressing"])
     turned = ("" if turn == 0.0 else
-              ", each site's orbitals carried onto its translate's by a change of basis "
-              f"within the site that turns them by up to {turn:.3g} rad")
+              ", once each site's orbitals are carried onto its translate's by a change "
+              f"of basis within the site, which turns them by up to {turn:.3g} rad")
     rebuild = ("Rebuild the model on its primitive cell"
                if turn == 0.0 else
-               "Rebuild the model on its primitive cell, every copy's orbitals written in "
-               "one basis -- context[\"dressing\"] holds the matrices carrying each site's "
-               "orbitals onto its translate's --")
+               "Rebuild the model on its primitive cell, with every copy's orbitals "
+               "written in one basis: `context[\"dressing\"]` holds the matrices that "
+               "carry each site's orbitals onto its translate's")
     return Refusal(
         "supercell",
         f"the Hamiltonian obeys the pure translation {tau.tolist()} (reduced) = "
-        f"{cart.tolist()} (Cartesian) that this cell's point set allows{turned}, so the "
-        f"model is a supercell: its lattice is an index-{int(prim['index'])} "
-        "sublattice of the crystal's own, whose primitive vectors are "
+        f"{cart.tolist()} (Cartesian){turned}. The model is written on a supercell: its "
+        f"lattice is a sublattice of index {int(prim['index'])} of the crystal's "
+        "lattice, whose primitive vectors are "
         f"{np.round(np.asarray(prim['cartesian'], dtype=float), 6).tolist()} "
-        "(Cartesian). Every "
-        "k-point label, EBR row and symmetry indicator computed here would be "
-        "computed on a folded Brillouin zone -- the bands at one k of this cell are "
-        "the crystal's bands at several k of its own zone, and no table names that "
-        f"combination -- so no group is returned. {rebuild} and ask again; or, if "
-        "the translation is meant to be broken, break it in the Hamiltonian -- a "
-        "supercell whose hoppings distinguish the copies is a primitive model of a "
-        "bigger cell and is descended to automatically.",
+        f"(Cartesian). {rebuild}. Where the translation is meant to be broken, break it "
+        "in the Hamiltonian, or declare the copies different atoms with `typat=`.",
         value=float(lattice_record["index"]), threshold=1.0,
         context={"translations": taus, "index": int(lattice_record["index"]),
                  "primitive_lattice": prim,
@@ -2293,33 +2327,41 @@ def _supercell_refusal(group, validated, lattice_record) -> Refusal:
 
 
 def _declared_cell_reduction(model, group, assignment, *, spin, characters):
-    r"""Step 1: the cell the **declared content** leaves, before any Hamiltonian.
+    r"""The operations of the cell that the declaration leaves, read before any hopping.
 
-    The first of the three steps a measurement is: ``typat=`` says
-    the atoms are different and ``characters=`` says what they *are*, and both
-    are statements about the crystal that are made before a hopping is read.
-    An operation the declared content is not carried by is therefore not an
-    operation of this cell at all — it is not a symmetry the Hamiltonian
-    breaks, and it never reaches a verdict.
+    ``characters`` is read in the site groups of ``group``
+    (:func:`.._declaration._declared_site_contents`).  An operation is excluded
+    where it carries a site onto a site declared with different site irreps,
+    or carries the span of a declared function, such as ``px``, out of itself
+    (:func:`.._declaration._content_compatible`).  The operations kept are the
+    largest subgroup of ``group`` inside those left, the first by the tie rule
+    where several of that order exist
+    (:func:`.._declaration._largest_compatible_group`).
 
-    Two reductions, one rule (:func:`.._declaration._content_compatible`): the
-    **species split**, where two sites of one orbit were declared different
-    content -- the whole content each holds, however the words partition its
-    orbitals, and as corep content where a word states that alone -- and the
-    operations exchanging them go, and the **stabilizer of a declared
-    function**, where a shorthand names a Cartesian polynomial whose span at
-    its site is not invariant and the operations carrying it out of itself go.
-    A single ``px`` at a ``3m`` site is a crystal with one mirror.  What is
-    kept is the largest group inside the operations left, where a declaration
-    that leaves sites of an orbit undeclared leaves operations that do not
-    compose.
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        The model.
+    group : GroupData
+        The cell's group.
+    assignment : OrbitalAssignment
+        The orbitals' orbits in ``group``.
+    spin : SpinBasis or None
+        The declared spin partners, or ``None``.
+    characters : sequence or mapping
+        The declaration, as ``characters=`` gives it.
 
-    Returns ``(kept, excluded, read_in)`` — the ``.ind`` kept, one record
-    per excluded operation with the reason it was excluded, and where each
-    declaration's word was read — or a :class:`..refusal.Refusal` where the
-    declaration cannot be read in *this* cell's site groups at all, which is a
-    statement about the group the loop is on and not about the crystal: the
-    loop carries it and asks again on the next one.
+    Returns
+    -------
+    tuple or Refusal
+        ``(kept, excluded, read_in)``: the ``.ind`` kept, a frozenset over
+        every operation; ``{ind: record}`` for each operation excluded, with
+        its reason, sites and orbitals; and, by the declaration's orbitals,
+        the site group and group each word was read in.  The
+        :class:`..refusal.Refusal` the reading made where a word names nothing
+        in these site groups, or ``site_group`` where a site group has no
+        table.  The refusal is about this cell's site groups, not the crystal,
+        and the loop asks again on the next group.
     """
 
     try:
@@ -2334,27 +2376,40 @@ def _declared_cell_reduction(model, group, assignment, *, spin, characters):
 
 
 def _layer_declared_reading(model, labels, *, extras, spinor, spin, symprec, characters):
-    r"""Step 1 read in a layer's own site groups: the free-standing layer group's.
+    r"""The declaration read in the free-standing layer's site groups.
 
-    What a declaration says two sites are is read where its words were
-    written, and a layer's site groups hold ``σ_h``: ``E'`` and ``E''`` are
-    different irreps of ``-6m2``, as ``s`` and ``p_z`` are different functions
-    there, and a site declared the one and a site declared the other are
-    different sites in every environment, as two sites of different ``typat``
-    are.  On a substrate ``σ_h`` is gone and both restrict to one irrep of
-    ``3m``, so the substrate's own site groups cannot say it: this reads the
-    declaration in the site groups of the same point set with nothing under
-    it, the free-standing cell, and the substrate's step 1 carries what it
-    excludes (:func:`_carried_reduction`).  Where the substrate's site groups
-    name nothing for the words at all -- a free-standing layer's declaration,
-    read on a substrate by the cross-check -- they are read in this cell's and
-    restricted (:func:`_restricted_contents`).
+    The layer's cell is built free-standing, with nothing under it, and its
+    group identified; the declaration is read there by
+    :func:`_declared_cell_reduction`.  On a substrate the operations this
+    reading excludes are excluded too (:func:`_carried_reduction`), and words
+    the substrate's site groups name nothing for are read here and restricted
+    (:func:`_restricted_contents`).
 
-    Returns ``{"group", "assignment", "kept", "excluded", "read_in"}`` -- that
-    cell's group, the orbitals' orbits in it and :func:`_declared_cell_reduction`'s
-    reading there -- or ``None`` where the words name nothing in those site
-    groups, written in the in-plane names a substrate's own site groups read,
-    or the cell is not identified.
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        The layer, presented as a slab.
+    labels : sequence
+        The species of each orbital.
+    extras : sequence of (position, label)
+        The declared decorations.
+    spinor : bool
+        Whether the cell is identified in double-valued tables.
+    spin : SpinBasis or None
+        The declared spin partners, or ``None``.
+    symprec : float
+        The symmetry finder's distance, in the model's units of length.
+    characters : sequence or mapping
+        The declaration, as ``characters=`` gives it.
+
+    Returns
+    -------
+    dict or None
+        ``{"group", "assignment", "kept", "excluded", "read_in"}``: the
+        free-standing group, the orbitals' orbits in it, and
+        :func:`_declared_cell_reduction`'s reading there.  ``None`` where the
+        identification, the assignment of the orbitals or the reading is
+        refused, as it is for words written in a substrate's site irreps.
     """
     cell, cell_typat = _decorated_cell(model, labels, environment="free-standing",
                                        decorations=extras)
@@ -2374,23 +2429,38 @@ def _layer_declared_reading(model, labels, *, extras, spinor, spin, symprec, cha
 
 
 def _restricted_contents(model, written, group, layout, *, spin, characters) -> tuple:
-    r"""The declared words read where they were written, restricted to this group's site groups.
+    r"""The declaration read in a larger group's site groups, restricted to this group's.
 
-    ``written`` is the declaration as a larger group of the same point set
-    reads it -- a layer's free-standing group, for the layer on a substrate
-    (:func:`_layer_declared_reading`) -- whose site irreps the words are:
-    ``E'`` and ``A2''`` of a ``-6m2`` site, which a substrate's ``3m`` names
-    nothing for.  Read there, on the multiplets this group's Hamiltonian
-    measures, each content is re-keyed onto this group's own operations,
-    matched by rotation and translation modulo the lattice
-    (:func:`_operation_key`), and the operations this group does not have drop
-    out: that is the restriction of the declared content to the smaller site
-    groups, ``A2''`` read as the ``A1`` of ``3m`` it restricts to, as after any
-    descent.
+    The words are read in the site groups of ``written["group"]``, a larger
+    group of the same point set, on the multiplets ``layout`` holds.  Each
+    reading is then re-keyed onto the operations of ``group``, matched by
+    rotation and translation modulo the lattice
+    (:func:`.._subgroups._operation_key`); the operations ``group`` does not
+    have drop out, which is the restriction to its site groups (``A2''`` of
+    ``-6m2`` read as the ``A1`` of ``3m``).
 
-    Returns one :class:`.._sitechars.DeclaredContent` per declared content, or
-    ``()`` where the words name nothing in the larger group's site groups
-    either.
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        The model.
+    written : dict
+        The declaration read in the larger group, as
+        :func:`_layer_declared_reading` returns it.
+    group : GroupData
+        The group the readings are restricted to.
+    layout : SiteMultiplets
+        The multiplets the Hamiltonian measures in ``group``.
+    spin : SpinBasis or None
+        The declared spin partners, or ``None``.
+    characters : sequence or mapping
+        The declaration, as ``characters=`` gives it.
+
+    Returns
+    -------
+    tuple of DeclaredContent
+        One for each declaration read, keyed on the operations of ``group``.
+        ``()`` where the words name nothing in the larger group's site groups
+        either.
     """
 
     larger, there = written["group"], written["assignment"]
@@ -2409,28 +2479,35 @@ def _restricted_contents(model, written, group, layout, *, spin, characters) -> 
 
 
 def _carried_reduction(group, assignment, own, wider):
-    r"""Step 1 on this cell, with the declared content also read in a larger group of its points.
+    r"""The operations of the cell the declaration leaves, read here and in a larger group.
 
-    ``wider`` is the declaration read in the site groups of a group of the same
-    point set that holds more operations -- a layer's free-standing group, for
-    the layer on a substrate (:func:`_layer_declared_reading`) -- and every
-    operation it excludes is excluded here too wherever this cell has it,
-    matched by rotation and translation modulo the lattice
-    (:func:`_operation_key`): two sites declared different content are
-    different sites whatever group is asked about them.  ``own`` is this cell's
-    own reading (:func:`_declared_cell_reduction`), whose exclusions stand
-    beside those, or the refusal it made where the words name nothing in this
-    cell's site groups; where it read them, it also says where they were read.
+    Each operation ``wider`` excludes is excluded in ``group`` too, matched by
+    rotation and translation modulo the lattice
+    (:func:`.._subgroups._operation_key`), beside the exclusions of ``own``.
+    Only exclusions by the declaration itself are carried from either reading.
+    The operations kept are then the largest subgroup of ``group`` inside those
+    neither excludes, asked here
+    (:func:`.._declaration._largest_compatible_group`).
 
-    What is carried from either reading is what the declared content is not
-    carried by.  The operations kept are then the largest group inside the
-    operations neither excludes, asked once, here
-    (:func:`.._declaration._largest_compatible_group`), so an operation either
-    reading left out only because its own largest group did not hold it is
-    asked again rather than carried.
+    Parameters
+    ----------
+    group : GroupData
+        The cell's group.
+    assignment : OrbitalAssignment
+        The orbitals' orbits in ``group``.
+    own : tuple or Refusal
+        :func:`_declared_cell_reduction`'s reading on ``group``, or the
+        refusal it made.
+    wider : dict
+        The declaration read in a larger group of the same point set, as
+        :func:`_layer_declared_reading` returns it.
 
-    Returns ``(kept, excluded, read_in)`` on this group, as
-    :func:`_declared_cell_reduction` does.
+    Returns
+    -------
+    tuple
+        ``(kept, excluded, read_in)`` on ``group``, as
+        :func:`_declared_cell_reduction` returns it.  ``read_in`` is the one
+        ``own`` holds, or the one of ``wider`` where ``own`` is a refusal.
     """
 
     if isinstance(own, Refusal):
@@ -2468,64 +2545,78 @@ def _carried_reduction(group, assignment, own, wider):
 
 
 def _declared_cell(base_cell, base_typat, group, kept, *, spinor, include_TR, symprec):
-    r"""The reduced cell of a step 1 reduction, identified and verified.
+    r"""The cell lowered to the operations the declaration leaves, and its group.
 
-    Built exactly as a descent cell is (:func:`_descend_once`) — the parent
-    cell's own points plus the orbit of one generic point under the operations
-    kept, as one extra species — because only ``_group_of`` can *name* a
-    subgroup and stamp the ``.ind`` order every table lookup keys on, and it
-    answers about a cell.  What differs is what the cell **is**: not a group
-    the Hamiltonian selected out of a larger one, but the declared crystal's
-    own cell, so it carries no descent step and its provenance is ``realized``.
+    The cell is built and identified as a descent's is (:func:`_orbit_cell`),
+    from the generic points :data:`_DECLARED_POINTS`, the orbit added as a
+    species ``base_typat`` does not hold.
 
-    Returns ``(group, cell, cell_typat, pairs, point, orbit, species)``, or the
-    :class:`..refusal.Refusal` the identification itself made.
+    Parameters
+    ----------
+    base_cell : pythtb.TBModel
+        The point set ``group`` was identified on, as a model.
+    base_typat : sequence
+        The species of each point of ``base_cell``.
+    group : GroupData
+        The cell's group.
+    kept : collection of int
+        The ``.ind`` the declaration leaves (:func:`_declared_cell_reduction`);
+        its unitary operations are the ones carried.
+    spinor, include_TR : bool
+        Whether the cell is identified in double-valued tables, and with time
+        reversal adjoined.
+    symprec : float
+        The symmetry finder's distance, in the model's units of length.
+
+    Returns
+    -------
+    tuple or Refusal
+        ``(group, cell, cell_typat, pairs, point, orbit, species)``: what
+        :func:`_orbit_cell` returns, and the species of the orbit.  The
+        :class:`..refusal.Refusal` an identification made, where one is
+        refused.
 
     Raises
     ------
     ..refusal.InternalError
-        Where the operations kept do not close, or no generic point of
-        :data:`_DECLARED_POINTS` gives a cell identified as them
-        (:func:`_orbit_cell`).  The operations kept are a group by
-        construction -- the largest subgroup inside the ones the declared
-        content is carried by (:func:`.._declaration._largest_compatible_group`)
-        -- and the orbit of a generic point under a subgroup has exactly it for
-        a stabilizer, so anything else is arithmetic in this package failing
-        rather than a measurement about the model: a cell reduction, like a
-        descent, can only land on a smaller group, never fail.
+        Where the unitary operations of ``kept`` do not close, or no generic
+        point gives a cell read as exactly them.
     """
     kept_syms = [s for s in group._symmetries
                  if int(s.ind) in set(kept) and not s.time_reversal]
     leaks = _descent_closure(group, kept_syms)
-    if leaks:                                    # pragma: no cover - defensive
+    if leaks:                                    # pragma: no cover: defensive
         raise InternalError(
-            f"the {len(kept_syms)} operations kept from those the declared orbital content "
-            f"is carried by are not a group: {len(leaks)} of their products leave the set, "
-            f"the first being #{leaks[0][0]} * #{leaks[0][1]} = #{leaks[0][2]}. They are the "
-            "largest subgroup inside the compatible operations by construction, so this is "
-            "a defect here and not a statement about the model.")
+            f"the {len(kept_syms)} operations kept from those that carry the site irreps "
+            f"declared with characters= are not a group: {len(leaks)} of their products "
+            f"leave the set, the first being #{leaks[0][0]} * #{leaks[0][1]} = "
+            f"#{leaks[0][2]}. Report it, with the model and the call.")
     species = _DECLARED_SPECIES
-    while any(str(t) == species for t in base_typat):   # pragma: no cover - defensive
+    while any(str(t) == species for t in base_typat):   # pragma: no cover: defensive
         species += "_"
     names = {int(s.ind): _record_name(s, group._lattice) for s in group._symmetries}
 
     def _diagnose(got, unitary, unmatched_kept, unmatched_found, orbit):
-        """What the identification of one reduced cell was read as, and why that is a defect."""
+        """What one reduced cell was identified as, with its orbit and symprec.
+
+        ``got`` is the group the cell was identified as and ``unitary`` its
+        unitary operations; ``unmatched_kept`` and ``unmatched_found`` are
+        what :func:`_match_operations` left unmatched, and ``orbit`` the orbit
+        added to the cell.
+        """
         return (
-            f"the cell built to carry the {len(kept_syms)} operations the declared orbital "
-            f"content leaves was identified as {got.name} #{got.number_str}, whose "
-            f"{len(unitary)} unitary operations are not that set: "
+            f"the cell built to carry the {len(kept_syms)} operations kept from those that "
+            "carry the site irreps declared with characters= was identified as "
+            f"{got.name} #{got.number_str}, whose {len(unitary)} unitary operations are "
+            "not that set: "
             + (f"{len(unmatched_kept)} of the operations kept "
                + ", ".join(f"#{i} {names.get(int(i), '?')}" for i in unmatched_kept)
                + " were not found in it" if unmatched_kept else "")
             + (" and " if unmatched_kept and unmatched_found else "")
             + (f"{len(unmatched_found)} of its operations {unmatched_found} are not among "
                "them" if unmatched_found else "")
-            + ". The operations kept are a subgroup (the largest inside the compatible "
-            "ones) and the orbit of a generic point under a subgroup has exactly that "
-            "subgroup for a stabilizer, so this is arithmetic in this package failing "
-            f"rather than a measurement about the model. The orbit is "
-            f"{np.asarray(orbit, dtype=float).tolist()} at symprec {float(symprec):.3g}.")
+            + ". The orbit added to the cell is "
+            f"{np.asarray(orbit, dtype=float).tolist()}, at symprec {float(symprec):.3g}.")
 
     made = _orbit_cell(base_cell, base_typat, group, kept_syms, points=_DECLARED_POINTS,
                        species=species, spinor=spinor, include_TR=include_TR,
@@ -2538,28 +2629,44 @@ def _declared_cell(base_cell, base_typat, group, kept, *, spinor, include_TR, sy
 
 def _declared_contents(model, group, assignment, validated, layout, *, spin, characters,
                        read_in=None):
-    r"""``(decls, layout)`` — the declared content, and the multiplets it is read on.
+    r"""The round's declarations, read on the multiplets the Hamiltonian measures.
 
-    ``characters=`` is resolved in the site tables of the group the loop is
-    currently on, into one :class:`.._sitechars.DeclaredContent` per declared
-    content, and read on the multiplets the Hamiltonian measures: a
-    declaration states what each site holds, and how the orbitals are
-    partitioned inside a site is their basis
-    (:func:`.._declaration._declared_blocks`).  The multiplets are the measured
-    ones, whatever the declaration.
+    The declaration is read in the site tables of the operations of ``group``
+    the detector kept, and each site's declarations are then read on the
+    measured multiplets (:func:`.._declaration._declared_blocks`).  The
+    multiplets are not changed by the declaration.
 
-    ``characters`` may be the declaration as written or a mapping of contents
-    already resolved on a larger group, which is what a descent hands back
-    round: the constraint is then carried and restricted rather than resolved
-    again, since a fresh resolution in a smaller site group refuses exactly
-    where the restriction is merely reducible.
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        The model.
+    group : GroupData
+        The round's group.
+    assignment : OrbitalAssignment
+        The orbitals' orbits in ``group``.
+    validated : ValidatedGroup
+        The detector's verdicts on ``group``.
+    layout : SiteMultiplets
+        The measured multiplets.
+    spin : SpinBasis or None
+        The declared spin partners, or ``None``.
+    characters : sequence or mapping
+        The declaration as ``characters=`` gives it, or
+        ``{orbitals: DeclaredContent}`` read on an earlier round, whose
+        constraints are carried rather than read again.
+    read_in : dict, default None
+        :func:`_declared_cell_reduction`'s ``read_in``, so that a declaration
+        read in a cell the declaration lowered still says where its word was
+        read.
 
-    ``read_in`` is step 1's own reading of the same words
-    (:func:`_declared_cell_reduction`), so that a content resolved in a cell
-    the declaration itself reduced still says where the word was read.
-
-    A grammar error here is the same :class:`..refusal.Refusal`
-    :func:`.._build._build_rep` would return for it.
+    Returns
+    -------
+    tuple or Refusal
+        ``(decls, layout)``: one record per declaration read, each with its
+        :class:`.._sitechars.DeclaredContent` and the channels it lies on,
+        and ``layout`` as handed in.  The :class:`..refusal.Refusal` the
+        reading made, as :func:`.._build._build_rep` makes it, or
+        ``site_group`` where a site group has no table.
     """
 
     kept_u = {int(s.ind) for s in group._symmetries
@@ -2585,32 +2692,52 @@ def _declared_contents(model, group, assignment, validated, layout, *, spin, cha
 
 
 def _declared_parts_of(decls) -> tuple:
-    """The declared contents a round was read from, a block's in place of its one sum.
+    """The declarations a round was read from, as they were written and resolved.
 
-    What is carried to the next round and handed to the build: the
-    declaration as it was written and resolved, so that every round reads it
-    against its own measured multiplets (:func:`.._declaration._declared_blocks`).
+    ``decls`` is the round's declarations, as :func:`_declared_contents`
+    returns them.  Where a site's declarations were read as one sum over its
+    multiplets, the declarations it was made of stand in its place, so that
+    each later round, and the build, reads them on its own multiplets.
+    Returns the :class:`.._sitechars.DeclaredContent` of each declaration.
     """
     return tuple(g["content"] for d in decls for g in d.get("groups", (d,)))
 
 
 def _declared_contents_wider(model, group, assignment, layout, *, spin, characters,
                              read_in=None) -> tuple:
-    r"""The declared words read in the site groups of the group the loop is on.
+    r"""The declaration read in the site groups of every operation of the round's group.
 
-    The verdict stage reads a declaration in the site tables of the operations
-    the detector kept (:func:`_declared_contents`), and a Hamiltonian that
-    breaks most of the cell leaves those too small to name the word: ``A1`` of
-    a ``3m`` site names nothing in the trivial site group the surviving
-    operations leave.  What the word means is fixed where it was written — the
-    site groups of the group the loop is on, or, on a layer, their in-plane
-    part, since a free-standing layer's site groups carry ``σ_h`` and so have
-    primed names only — and that reading, carried through the descent and
-    restricted to the smaller site group, is the declaration there, as it is
-    after any other descent.
+    :func:`_declared_contents` reads only the operations the detector kept,
+    whose site groups can be too small to name a word: ``A1`` of a ``3m`` site
+    names nothing in a trivial site group.  Here the words are read in the site
+    groups of all of ``group`` and, where it is a layer set in vacuum along one
+    direction, of its operations that keep the layer's side.  The two are
+    tried in that order, and the first whose site groups name every word is
+    returned.  The reading is carried through the descent and restricted, as
+    any declaration is.
 
-    Returns one :class:`.._sitechars.DeclaredContent` per declared multiplet,
-    or ``()`` where the words name nothing in either.
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        The model.
+    group : GroupData
+        The round's group.
+    assignment : OrbitalAssignment
+        The orbitals' orbits in ``group``.
+    layout : SiteMultiplets
+        The measured multiplets.
+    spin : SpinBasis or None
+        The declared spin partners, or ``None``.
+    characters : sequence or mapping
+        The declaration, as ``characters=`` gives it.
+    read_in : dict, default None
+        :func:`_declared_cell_reduction`'s ``read_in``.
+
+    Returns
+    -------
+    tuple of DeclaredContent
+        One for each declaration read.  ``()`` where the words name nothing
+        in either set of site groups.
     """
 
     readings = [list(group._symmetries)]
@@ -2637,14 +2764,13 @@ def _declared_contents_wider(model, group, assignment, layout, *, spin, characte
 
 
 def _restricts_to(contents, group, assignment) -> bool:
-    r"""Whether carried contents are **restrictions** to this group's site groups.
+    r"""Whether carried declarations are restrictions to the site groups of ``group``.
 
-    A content read in a larger site group and carried down says what every
-    operation of the smaller one does, which is what makes it the restriction
-    there.  One read in a *smaller* group than the site group it lands in — the
-    in-plane part of a free-standing layer's site group, read before a descent
-    that never came — leaves the other operations unsaid, and is not a reading
-    of the word in that site group at all.
+    ``contents`` holds :class:`.._sitechars.DeclaredContent` carried to
+    ``group``, and ``assignment`` the orbitals' orbits in it.  A declaration
+    is a restriction where it states a character for every unitary operation
+    of ``group`` that fixes the site of its first orbital.  Returns ``True``
+    where every one of ``contents`` is.
     """
     site_of = np.asarray(assignment.site_of_orbital, dtype=int)
     unitary = {int(s.ind) for s in group._symmetries if not s.time_reversal}
@@ -2657,12 +2783,15 @@ def _restricts_to(contents, group, assignment) -> bool:
 
 
 def _rekey_contents(contents, pairs, refuted):
-    """The declared contents on a re-identified group, through ``(old, new)`` pairs.
+    """The declarations carried onto a re-identified group.
 
-    Operations the smaller group no longer has drop out of every constraint,
-    and that dropping **is** the restriction of the declared irrep to the
-    smaller site group: nothing is re-resolved, so a restriction that has become
-    reducible is carried where a fresh resolution would refuse it.
+    ``contents`` holds :class:`.._sitechars.DeclaredContent`, ``pairs`` the
+    ``(old, new)`` ``.ind`` of the operations the two groups share, and
+    ``refuted`` the old ``.ind`` to leave out.  Each constraint is re-keyed
+    (:meth:`.._sitechars.DeclaredContent.rekeyed`), and the operations the new
+    group does not have drop out, which is the restriction to its site groups.
+    A restriction that is reducible is carried as it is.  Returns each
+    declaration re-keyed.
     """
     drop = {int(i) for i in (refuted or ())}
     keep = tuple((int(a), int(b)) for a, b in pairs if int(a) not in drop)
@@ -2670,42 +2799,40 @@ def _rekey_contents(contents, pairs, refuted):
 
 
 def _declaration_refuted(group, validated, *, refuted, verdict, tolerances=EXACT):
-    r"""Which operations the **declared orbital content** breaks, and what is left.
+    r"""The operations the declaration breaks, and the subgroup it leaves.
 
-    The fourth per-operation verdict, written from the one reading of the
-    solution spaces (:func:`.._declaration._verdicts_and_choices`, made once per
-    round for every measurement that needs it).  ``characters=`` is a statement
-    about what the orbitals *are*, and the hoppings cannot contradict it — they
-    can only be the hoppings of a crystal with less symmetry.
+    The subgroup is the largest one of the unitary operations still standing on
+    which the declaration is covariant with ``H``
+    (:func:`.._declaration._covariant_subgroup`).  Where several of that order
+    exist, it is the first by the tie rule.  The identity alone is always such
+    a subgroup.  Every unitary operation outside it is broken by the
+    declaration, and so is its product with time reversal, where that is
+    standing.  The subgroup returned holds the product with time reversal of
+    each unitary operation it keeps, where that is standing.
 
-    What is returned is the largest subgroup on which one representation per
-    orbit of the sectors of the Hamiltonian's conserved matrices under **that
-    subgroup**, of those the hoppings leave open, gives every declared site
-    what was declared -- the same content where the whole site was declared, a
-    content holding it where part was (:func:`.._declaration._covariant_subgroup`,
-    :class:`.._sectors.SectorSearch`) -- the first by the tie rule where
-    several of that order exist (:func:`_tie_ranked`); and the identity alone
-    always does, which is what makes a descent by declaration land somewhere
-    rather than refuse.  A coupled part of the crystal is one orbit of one
-    sector, carried by every one-dimensional character, and uncoupled orbitals
-    a symmetry exchanges are an orbit of several, which a smaller group splits.
-    Where the sectors read nothing, the coupled parts' requirements decide: an
-    operation whose declared multiplets of one part need different scalars,
-    or whose solution space holds no nonsingular member in the block form of
-    the multiplets a ``multiplets=`` states, is *individually* disallowed, and
-    the subgroup is the largest on which every part has a one-dimensional
-    character of it meeting all of its requirements.  Every declaration is such a
-    constraint, wherever it sits, and an undeclared orbital, the reference
-    orbital included, imposes none: declaring one sublattice of an orbit is
-    the same statement as declaring the other, where the hoppings carry the
-    two alike.  Every operation outside the subgroup is refuted the same way,
-    and so is the primed partner of each: a site character is a character of
-    the *unitary* site group, and the antiunitary copy of a broken operation is
-    broken with it.
+    Parameters
+    ----------
+    group : GroupData
+        The round's group.
+    validated : ValidatedGroup
+        The detector's verdicts on ``group``.
+    refuted : dict
+        The operations already refuted this round, by ``.ind``, which are not
+        asked.
+    verdict : _declaration._Verdict
+        The round's one reading of the solution spaces
+        (:func:`.._declaration._verdicts_and_choices`), whose requirements
+        are read.
+    tolerances : Tolerances, default EXACT
+        What the call declared, against which a character's distance from the
+        value a requirement asks is read.
 
-    Returns the :class:`_DeclarationVerdict`, or the
-    ``rep_search_too_large`` :class:`..refusal.Refusal` of a search past its
-    ceiling.
+    Returns
+    -------
+    _DeclarationVerdict or Refusal
+        The verdict, each operation broken recorded with
+        ``refuted_by = "declaration"``.  The ``rep_search_too_large``
+        :class:`..refusal.Refusal` of a search past its ceiling.
     """
 
     syms = group._symmetries
@@ -2738,8 +2865,8 @@ def _declaration_refuted(group, validated, *, refuted, verdict, tolerances=EXACT
             if q in standing:
                 partner[int(u)] = q
     broken = {}
-    # the contents read together, and those the sectors alone weigh, each named
-    # where it is read
+    # the declarations read together, and those the sectors alone weigh, each
+    # named where it is read
     read_together = tuple(got.joint) + tuple(got.by_sectors)
     for ind in sub.broken:
         rows = tuple(r for r in got.rows if int(r.ind) == int(ind))
@@ -2754,8 +2881,9 @@ def _declaration_refuted(group, validated, *, refuted, verdict, tolerances=EXACT
         together = next((j for j in read_together
                          if any(int(ind) in row for row in j.theta.values())), None)
         if culprit is None and together is not None:
-            # a content read over several multiplets: the declared value there,
-            # and what its multiplets carry, each against its own part's scale
+            # a declaration read over several multiplets: the declared value
+            # there, and what its multiplets carry, each against its own part's
+            # scale
             said = (together.decl["constraints"].get(int(ind), 0.0),
                     sum(v for row in together.theta.values()
                         for g, v in row.items() if int(g) == int(ind)))
@@ -2775,9 +2903,9 @@ def _declaration_refuted(group, validated, *, refuted, verdict, tolerances=EXACT
                 "declared orbital content breaks: a site character is a character of the "
                 "unitary site group, so the two stand or fall together")
             broken[int(partner[int(ind)])] = mate
-    # the returned subgroup is the GREY one the survivors generate: a site
-    # character decides about the unitary half, and the primed copy of an
-    # operation it keeps is kept with it
+    # the subgroup returned holds the primed copy of each unitary operation
+    # kept, where it stands: a site character decides about the unitary half,
+    # and the primed copy is kept with it
     grey = set(sub.subgroup) | {partner[i] for i in sub.subgroup
                                    if i in partner}
     return _DeclarationVerdict(refuted=broken, subgroup=tuple(sorted(grey)),
@@ -2789,99 +2917,86 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
                         context, spin, layout, decls=None,
                         reference_orbital=0, max_candidates=2 ** 20, free_standing=None,
                         centers=None, sectors=None, own_form=None):
-    r"""One verdict per operation of the group, each with the reason behind it.
+    r"""The verdicts on the round's operations past the detector's, with their reasons.
 
-    Each verdict judges noise against the call's own tolerances
-    (:class:`.._tolerance.Tolerances`).  The detector has already spoken for most of them:
-    :attr:`ValidatedGroup.discrepancies` carries ``"no symmetry matrix"``,
-    ``"covariance"`` and ``"out of plane"`` per operation, antiunitary coset
-    included.  So have the orbital **centres**, where a precision is declared:
-    ``centers`` is their verdict (:func:`.._realized._centers_carried`), the operations they
-    are not carried by within the declared precision, ``"centers"``, which
-    stands for each of them whatever else reads it and which every verdict below
-    reads as already given.  Four measurements finish the verdict where those
-    cannot decide.
+    The detector's verdicts are in ``validated``, and the centers' and each
+    operation's own form are handed in.  Where the own form refutes a unitary
+    operation the detector found obeyed, only the pure translations are read
+    besides, and the group is lowered on that.  Otherwise, in order: the
+    tensor structure of the operations the detector left undetermined, or of
+    every one it kept where the multiplets are stated (:func:`_ansatz_refuted`);
+    the one reading of the solution spaces, which pins what the hoppings fix
+    (:func:`.._declaration._verdicts_and_choices`); the declaration
+    (:func:`_declaration_refuted`); the pure translations
+    (:func:`_lattice_verdict`); and, where every unitary operation still
+    stands, the states' projective class on a spinless reading
+    (:func:`_projective_class_refuted`, or on a substrate
+    :func:`_projective_class_carried`).
 
-    The **own form** of every operation the detector kept, read once where the
-    detector spoke (:func:`.._measure._own_form_read`) and handed in as ``own_form``, the
-    records of the operations it refuted: a matrix with the operation's action
-    on ``k`` represents it only where it carries each site's states onto its
-    image's, with the operation's own spin lift on states that carry a spin
-    (``"tensor structure"``, the record's ``own_form`` naming the condition
-    that failed).  Where it refutes a unitary operation the detector found
-    obeyed, the group is lowered at once: the multiplets, the declared content
-    and everything read on them belong to the group that holds, and are read
-    there on the next round.
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        The model.
+    group : GroupData
+        The round's group.
+    assignment : OrbitalAssignment
+        The orbitals' orbits in ``group``.
+    validated : ValidatedGroup
+        The detector's verdicts on ``group``.
+    tolerances : Tolerances
+        What the call declared, against which every verdict reads noise.
+    nk : int
+        The points of the grid along each periodic direction.
+    context : _MeasurementContext
+        The measurement context, whose grid of ``H`` the translations reuse.
+    spin : SpinBasis or None
+        The declared spin partners, or ``None``.
+    layout : SiteMultiplets
+        The measured or stated multiplets.
+    decls : sequence of dict, default None
+        The round's declarations, as :func:`_declared_contents` returns them;
+        ``None`` or empty where nothing is declared.
+    reference_orbital : int, default 0
+        The orbital the lowest-angular-momentum rule reads the crystal from
+        first, the one the build is given.
+    max_candidates : int, default 2 ** 20
+        The most candidates a block enumeration may try.
+    free_standing : dict, default None
+        On a substrate, the free-standing cell of the same point set, on
+        which the projective class is read.
+    centers : dict, default None
+        The operations the centers are not carried by within the declared
+        precision, by ``.ind``, each with its record
+        (:func:`.._realized._centers_carried`).  They stand whatever else is
+        read.
+    sectors : SectorReading, default None
+        The sectors of the Hamiltonian's conserved matrices
+        (:func:`.._sectors.read_sectors`).
+    own_form : dict, default None
+        The operations their own form refutes, by ``.ind``, each with its
+        record (:func:`.._measure._own_form_read`).
 
-    The **tensor structure** of the operations the detector leaves undetermined:
-    a surviving k-action class of more than one member proves only that *some*
-    operator with that k-action is a symmetry, and each member's own form, and
-    on the multiplets :func:`_ansatz_refuted`, say which member it is
-    (``"tensor structure"``) -- its own spin lift telling a layer's ``σ_h``
-    pair apart where the multiplets are wider than one orbital and cannot.
-
-    The **declared orbital content**, where there is one, read as what each
-    site holds on the multiplets the Hamiltonian measures: every operation
-    outside the largest subgroup the content is covariant on is broken by the
-    declaration (:func:`_declaration_refuted`), each subgroup asked on its own
-    orbits of the sectors of the Hamiltonian's conserved matrices -- ``sectors``,
-    read once where the model entered (:func:`.._sectors.read_sectors`).
-
-    The **pure translations** of a cell whose point set repeats under one, each
-    read at the sites, as written or with each site's orbitals carried onto its
-    translate's by a change of basis within the site (:func:`_lattice_verdict`).
-    Their refutations join the rest under ``"translation"``; a translation the
-    Hamiltonian *obeys* means the model is a supercell, which the record carries
-    under ``realized`` for the step that owns that verdict.
-
-    And what the same reading **pins**, by the same function: the scalar each
-    orbit of multiplets carries relative to the anchor where the hoppings fix
-    it, the ratios inside a part they leave free of it, and the coupled parts
-    themselves (:func:`.._declaration._verdicts_and_choices`).  What the hoppings
-    leave open is no measurement, and nothing here chooses it: the labelling
-    is chosen once, by the lowest-angular-momentum rule inside
-    :func:`.._build._build_rep`, among the characters the declarations leave.
-    The reading is carried out of here so that the build assembles what was
-    measured rather than measuring it a second time.  ``reference_orbital``
-    is the one that build will be given: the orbital the lowest-angular-momentum
-    rule reads the crystal from first, so that the descent and the build read
-    one crystal.
-
-    And last, once every other verdict leaves each unitary operation standing,
-    the **projective class** of the states on a spinless reading: where the
-    matrices the operations are on these states carry a class the single-valued
-    tables do not -- two commuting operations whose matrices anticommute, the
-    spin-½ sign of spinors stored in the orbital index -- the operations outside
-    the largest subgroup that carries an ordinary representation are refuted
-    (:func:`_projective_class_refuted`), and a tie between subgroups of that
-    order is settled by the tie rule (:func:`_tie_ranked`), never by their
-    intersection.  On a flat layer the class is read once, on the free-standing
-    layer, every operation composed with the horizontal mirror given the
-    mirror's chosen sign times its partner's matrix; a layer on a substrate
-    carries the part of that reading that preserves the layer's normal
-    (``free_standing``, the
-    free-standing cell of its point set, :func:`_projective_class_carried`)
-    rather than reading the class itself.
-
-    Returns ``(refuted, lattice, declaration, choices, projective)`` -- the
-    operations refuted past the detector, keyed by ``.ind``, the lattice record
-    (empty where the cell carries no fractional translation), the declaration's
-    own record (``None`` where nothing was declared), the one reading of the
-    solution spaces and the projective class's own record (``None`` where
-    nothing was refuted by it) -- or the :class:`..refusal.Refusal` the tensor
-    test's own multiplet permutation, the declared reading or the block
-    enumeration made.
+    Returns
+    -------
+    tuple or Refusal
+        ``(refuted, lattice, declaration, choices, projective)``: the
+        operations refuted past the detector, by ``.ind``, each with its
+        record; :func:`_lattice_verdict`'s record; the
+        :class:`_DeclarationVerdict`, ``None`` where nothing is declared; the
+        reading of the solution spaces; and the projective class's record,
+        ``None`` where the class is not read or is the table's.  Where the
+        own form lowers the group, the last three are ``None``.  The
+        :class:`..refusal.Refusal` the multiplet blocks, the tensor test, the
+        reading or the declaration made.
     """
     syms = group._symmetries
     centered = dict(centers or {})
     own_form = dict(own_form or {})
-    # THE OWN FORM of every operation the detector found obeyed, first: a
-    # unitary operation none of whose matrices carries each site onto its
-    # image with its own spin lift is not an operation of this Hamiltonian,
-    # and the multiplets the rest of this round reads were measured with it.
-    # So the group is lowered on that verdict at once, with the pure
+    # The own form of each operation the detector found obeyed, first.  A
+    # unitary one it refutes lowers the group at once, with the pure
     # translations measured as for any descent, and the next round reads the
-    # rest on the group that holds.
+    # rest on the group that holds, since the multiplets this round reads were
+    # measured with that operation.
     obeyed = set(validated.obeyed)
     lifted = {i: r for i, r in own_form.items() if i in obeyed}
     if any(int(s.ind) in lifted and not s.time_reversal for s in syms):
@@ -2894,11 +3009,10 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
         if lattice and lattice["refuted"]:
             refuted = {**refuted, **lattice["refuted"]}
         return {**refuted, **centered}, lattice, None, None, None
-    # THE MULTIPLET BLOCKS, once per round.  The tensor test, the declared
-    # reading and the representation built on the group that settles all read
-    # them, and they are one object; building them per reader is the one cost a
-    # wannier90 Hamiltonian cannot carry.  They are read on the operations that
-    # hold their own form: one refuted by it has no matrix to read a block off
+    # The multiplet blocks, built once per round: the tensor test, the reading
+    # of the declaration and the representation all read them.  They are read
+    # on the operations whose own form holds, since one refuted by it has no
+    # matrix to read a block off.
     blocks = _multiplet_blocks(
         model, group, assignment, spin, validated, layout,
         [p for p, s in enumerate(group._symmetries)
@@ -2907,8 +3021,8 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
         max_candidates=max_candidates, sectors=sectors)
     if isinstance(blocks, Refusal):
         return blocks
-    # THE UNDETERMINED OPERATIONS, each told apart from its partners: by its own
-    # form, read once above, and on the multiplets by its tensor structure
+    # The undetermined operations, each told apart from its partners by its own
+    # form, read above, and by its tensor structure on the multiplets.
     shared = {i: r for i, r in own_form.items() if i not in obeyed}
     got = _ansatz_refuted(model, group, assignment, validated,
                           layout=layout, spin=spin, blocks=blocks,
@@ -2917,12 +3031,12 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
         return got
     # the operations their own form or their tensor test refuted, and any
     # antiunitary one found obeyed that its own form refuted: those start no
-    # descent, as no antiunitary refutation does; and the centres' verdict,
+    # descent, as no antiunitary refutation does; and the centers' verdict,
     # which every reading below takes as given
     refuted = {**lifted, **got[1], **shared, **centered}
-    # THE ONE READING of the solution spaces: the verdict on the declared
-    # content and the choice the representation is built from, together, over
-    # the operations that are still standing.
+    # The one reading of the solution spaces, over the operations still
+    # standing: the verdict on the declaration and the choice the
+    # representation is built from, together.
     standing = set(validated._indices) - set(refuted)
     positions = [p for p, sym in enumerate(syms)
                  if int(sym.ind) in standing and not sym.time_reversal]
@@ -2954,11 +3068,11 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
         # integer operation indices as keys: a mapping merge, not keyword
         # arguments to a call
         refuted = {**refuted, **declaration.refuted}
-    # THE LATTICE, measured on the same group and before anything is concluded
-    # from the rest.  A cell whose point set repeats under a pure translation was
-    # returned as the lattice supergroup, and only the Hamiltonian can say what
-    # that means: obeyed, the model IS a supercell; broken, the model's own
-    # lattice is its translation group and the first descent is the one to it.
+    # The pure translations, measured on the same group.  A cell whose point set
+    # repeats under one is identified as a lattice supergroup.  Where the
+    # Hamiltonian obeys the translation the model is a supercell; where it
+    # breaks it, the model's own lattice is the translation group, and the
+    # first descent is to it.
     lattice = _lattice_verdict(model, group, assignment, validated, refuted,
                                tolerances.energy,
                                _detection_grid(int(group._dim_k), int(nk)),
@@ -2966,16 +3080,12 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
                                matrix_tol=tolerances.matrix or None)
     if lattice and lattice["refuted"]:
         refuted = {**refuted, **lattice["refuted"]}
-    # THE STATES' PROJECTIVE CLASS, last, and read on a group: once every other
-    # verdict leaves each unitary operation of it standing.  A spinless reading
-    # whose states carry a class the single-valued tables do not -- spinors in a
-    # spinless model's orbital index -- has operations no single-valued
-    # representation carries, and they leave the group here exactly as a broken
-    # one does, for the descent to lower.  A layer reads it once, free-standing:
-    # there every operation composed with the horizontal mirror has the
-    # mirror's chosen sign times its partner's matrix, and a substrate carries
-    # the part of that reading that preserves the layer's normal rather than
-    # making its own.
+    # The states' projective class, last, read only where every unitary
+    # operation still stands.  On a spinless reading whose states carry a class
+    # the single-valued tables do not, such as spinors in the orbital index,
+    # the operations no single-valued representation carries are refuted, as
+    # broken ones are.  On a substrate the class is read on the free-standing
+    # layer, and its part that preserves the layer's normal is carried.
     projective = None
     unitary = {int(s.ind) for s in syms if not s.time_reversal}
     if not unitary & (set(validated.broken) | set(refuted)):
@@ -2993,82 +3103,74 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
 def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR,
                   symprec, step, refuted=None, lattice_record=None,
                   declaration=None, projective=None, centers=None) -> tuple | Refusal:
-    r"""Lower one cell to the unitary operations the Hamiltonian was measured to obey.
+    r"""One descent step: the cell lowered to the unitary operations that hold.
 
-    The kept set ``K`` is known before this runs — it is
-    ``ValidatedGroup._indices`` minus the antiunitary operations — so nothing
-    here searches for a group.  What the cell is *for* is the identification
-    step: only ``_group_of`` (spglib + ``irrep`` on a point set) can **name** the
-    subgroup, supply the setting transformation ``refUC``/``shiftUC`` and stamp
-    the ``.ind`` order every table lookup downstream keys on, and it answers
-    about a cell.  So a cell carrying exactly ``K`` is built — the parent cell's
-    own points plus the orbit of one generic point under ``K``, as one extra
-    species — and handed back.  **The model is never touched.**
+    The operations kept, ``K``, are those of ``validated._indices`` that are
+    unitary and not in ``refuted``.  Where they do not close, ``K`` is the
+    largest subgroup inside them, the first by the tie rule where several of
+    that order exist (:func:`.._subgroups._resolve_closure`).  That subgroup
+    can be the identity alone, so a set that does not close is never refused.
+    An operation left out is recorded under ``refuted_by = "closure"``, or
+    ``"tie"`` where only subgroups the rule did not keep hold it.  The cell is
+    ``base_cell`` with the orbit of a generic point under ``K`` added,
+    identified and checked by :func:`_orbit_cell` from the points
+    :data:`_DESCENT_POINTS`.  The model is not changed.
 
-    ``refuted`` is the tensor-structure verdict of :func:`.._measure._own_form_read` — the
-    operations none of whose matrices carries each site's states onto its
-    image's with the operation's own spin lift — and of :func:`_ansatz_refuted`
-    — the operations the detector left undetermined (``"undetermined"``) whose
-    tensor structure on the multiplets refutes them — together with the
-    operations the **declared orbital content** breaks
-    (:func:`_declaration_refuted`, ``refuted_by = "declaration"``).  They leave ``K`` exactly as a detector discrepancy does
-    and are recorded beside them, ``refuted_by`` saying which measurement made
-    each verdict.
+    Parameters
+    ----------
+    base_cell : pythtb.TBModel
+        The point set ``group`` was identified on, as a model, with any
+        species the environment puts under it.
+    base_typat : sequence
+        The species of each point of ``base_cell``.
+    group : GroupData
+        The round's group.
+    validated : ValidatedGroup
+        The detector's verdicts on ``group``; its discrepancies are recorded
+        as dropped, except on operations the centers refuted.
+    spinor, include_TR : bool
+        Whether the cell is identified in double-valued tables, and with time
+        reversal adjoined.
+    symprec : float
+        The symmetry finder's distance, in the model's units of length.
+    step : int
+        The step's number, from 1.
+    refuted : dict, default None
+        The verdict stage's refutations, by ``.ind``, each a record with its
+        ``refuted_by`` (:func:`_operation_verdicts`).
+    lattice_record : dict, default None
+        :func:`_lattice_verdict`'s record.  Where it is not empty, it is
+        carried onto the step as ``lattice``, with its note.
+    declaration : _DeclarationVerdict, default None
+        The declaration's verdict, carried onto the step as ``declaration``,
+        with the readings that tie, where several do.
+    projective : dict, default None
+        The projective class's record, carried onto the step as
+        ``projective``.
+    centers : _CentersVerdict, default None
+        The centers' verdict under a declared precision
+        (:func:`.._realized._centers_carried`), carried onto the step as
+        ``centers``: the precision, the move, the operations kept, the
+        subgroups that tie and a note.
 
-    ``declaration`` is that verdict's own record, carried onto the step so the
-    returned group can say which readings of the declared content were possible
-    where several tie (``tied``, in the order the tie rule ranks them, the one
-    returned first).
-
-    ``centers`` is the orbital centres' verdict under a declared precision
-    (:func:`.._realized._centers_carried`), whose refuted operations are among ``refuted``
-    under ``refuted_by = "centers"`` and stand for them over the detector's
-    reading: carried onto the step as ``centers``, the move the parent group
-    asked of the centres, the operations that carry them within the
-    precision and a note.
-
-    ``projective`` is the record of the states' **projective class**
-    (:func:`_projective_class_refuted`), whose refuted operations are among
-    ``refuted`` under ``refuted_by = "projective class"``: carried onto the step
-    as ``projective``, the pairs of commuting operations whose matrices do not
-    commute and, where subgroups of the kept order tied, all of them in the
-    order the rule ranked them; on a layer, the sign the horizontal mirror was
-    given free-standing, or on a substrate the free-standing group the class
-    was read on (:func:`_projective_class_carried`).
-
-    ``lattice_record`` is :func:`_lattice_verdict`'s record when the parent is a
-    **lattice supergroup** — a cell that is a supercell of the crystal's own
-    primitive cell whose Hamiltonian was measured to break the translation.  The
-    step then *is* the lattice descent, and the identification is asserted to
-    come back **primitive** (``_lattice_index == 1``): the generic orbit under a
-    group whose translations are the model's own lattice has no finer
-    translation, so anything else is a defect here rather than a measurement.
-
-    A kept set that does **not close** is resolved rather than refused
-    (:func:`_resolve_closure`): the largest subgroup inside it, or where several
-    tie the first by the tie rule (:func:`_tie_ranked`), down to the identity
-    alone — every Hamiltonian obeys some space group and the question which one
-    is never refused.  The operations that leaves out are recorded beside the
-    refuted ones, ``refuted_by = "closure"`` for one no candidate subgroup
-    carries — an operation sitting the wrong side of the declared tolerance —
-    and ``"tie"``
-    for one only the candidates the rule did not keep carry; the step's ``tie``
-    record lists the candidates in the rule's order and says why the first was
-    kept.
-
-    The cell is identified and verified by :func:`_orbit_cell`: an
-    identification that does not reproduce ``K``, or is still not primitive, is
-    an accident of the generic point, and the orbit is rebuilt from the next one
-    of :data:`_DESCENT_POINTS`.
-
-    Returns ``(group, cell, cell_typat, record)``, or the
-    :class:`..refusal.Refusal` the identification itself made.
+    Returns
+    -------
+    tuple or Refusal
+        ``(group, cell, cell_typat, record)``: the group identified, the cell
+        and its species, and the step's record.  The record holds ``step``,
+        ``from`` and ``to`` (each a group's ``number_str``, ``name`` and
+        ``size``), ``dropped`` and ``n_dropped`` (one entry per operation
+        dropped, with its ``refuted_by``), ``refuted_by`` (the count of each),
+        ``kept``, ``pairs`` (:func:`_match_operations`) and ``cell`` (the
+        generic point, its orbit and its species), and ``tie``,
+        ``declaration``, ``projective``, ``centers`` and ``lattice`` where
+        they apply.  The :class:`..refusal.Refusal` an identification made,
+        where one is refused.
 
     Raises
     ------
     ..refusal.InternalError
-        When no generic point of the sequence gives a cell identified as ``K``:
-        the package's identification disagreeing with its own construction.
+        Where no generic point gives a cell read as exactly ``K``.
     """
     refuted = dict(refuted or {})
     antiunitary = {int(s.ind) for s in group._symmetries if s.time_reversal}
@@ -3079,14 +3181,14 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
     by_ind = {int(s.ind): s for s in group._symmetries}
 
     def _name(ind):
-        """The operation as the descent's record lists it (:func:`_record_name`)."""
+        """The name of operation ``ind``, as the step lists it (:func:`_record_name`)."""
         return _record_name(by_ind[int(ind)], lattice)
 
-    # THE SURVIVORS RESOLVED TO A GROUP.  An operation the declared tolerance
-    # puts on the wrong side of the gate leaves the kept set here rather than
-    # being returned or refused; where several candidate subgroups tie, the one
-    # kept is the first by the tie rule (`_resolve_closure`), and the step says
-    # which and why.
+    # The operations kept, resolved to a group where they do not close.  An
+    # operation the declared tolerance puts on the wrong side of the gate leaves
+    # them here rather than being returned or refused; where several subgroups
+    # tie, the one kept is the first by the tie rule (`_resolve_closure`), and
+    # the step says which and why.
     left_out: tuple = ()
     tie = None
     if _descent_closure(group, kept):
@@ -3119,19 +3221,20 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
         kept = [s for s in kept if int(s.ind) in resolved]
 
     def _entry(i):
-        """One broken operation, in the fields the measurement that broke it has.
+        """The step's entry for the operation ``i`` of ``refuted``.
 
-        A verdict about the declared content carries no residual: nothing was
-        near a gate, the hoppings are not those of the crystal that was
-        declared, and what the record has to say is which orbitals, what they
-        were declared to be and what they measure.
+        The entry holds the fields of the measurement that broke it.  Where
+        the centers, the declaration or the projective class broke it, the
+        residual is ``nan`` and the entry holds what that verdict rests on:
+        for the declaration, the orbitals, what they were declared and what
+        they measure.
         """
         rec = refuted[i]
         why = str(rec.get("refuted_by", "tensor structure"))
         base = {"ind": int(i), "name": _name(i), "refuted_by": why,
                 "step": int(step), "of": str(group.number_str)}
         if why == "centers":
-            # a verdict about where the centres are carries no residual of H:
+            # a verdict about where the centers are carries no residual of H:
             # what it rests on is how far the operation alone would move one
             return dict(base, residual=float("nan"), miss=float(rec["miss"]),
                         precision=float(rec["precision"]), note=str(rec["note"]))
@@ -3152,7 +3255,7 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
                     **({} if rec.get("covariance") is None else
                        {"covariance": float(rec["covariance"])}))
 
-    # the centres' verdict stands for the operations it refutes, whatever the
+    # the centers' verdict stands for the operations it refutes, whatever the
     # detector read on them: each broken operation is listed once, with its reason
     centered = {int(i) for i, r in refuted.items()
                if isinstance(r, dict) and r.get("refuted_by") == "centers"}
@@ -3165,11 +3268,17 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
         _entry(i) for i in sorted(refuted)) + left_out
 
     species = _DESCENT_SPECIES
-    while any(str(t) == species for t in base_typat):   # pragma: no cover - defensive
+    while any(str(t) == species for t in base_typat):   # pragma: no cover: defensive
         species += "_"
 
     def _diagnose(got, unitary, unmatched_kept, unmatched_found, orbit):
-        """What the identification of one descent cell was read as, and why that is a defect."""
+        """What one descent cell was identified as, with its orbit and symprec.
+
+        ``got`` is the group the cell was identified as and ``unitary`` its
+        unitary operations; ``unmatched_kept`` and ``unmatched_found`` are
+        what :func:`_match_operations` left unmatched, and ``orbit`` the orbit
+        added to the cell.
+        """
         where = np.round(np.asarray(orbit, dtype=float), 6).tolist()
         if int(got._lattice_index) > 1:
             return (
@@ -3178,11 +3287,8 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
                 f"#{got.number_str} and is still not primitive: it carries the pure "
                 "translation "
                 f"{np.round(np.asarray(got._fractional_translations[0], dtype=float), 6).tolist()} "
-                f"(index {int(got._lattice_index)}). The generic orbit added to it is a free "
-                "orbit under a group whose translations are the model's own lattice, and "
-                "such an orbit cannot carry a finer translation, so this is arithmetic in "
-                "this package failing rather than a measurement about the model. The orbit "
-                f"is {where} at symprec {float(symprec):.3g}.")
+                f"(index {int(got._lattice_index)}). The orbit added to the cell is "
+                f"{where}, at symprec {float(symprec):.3g}.")
         return (
             f"the cell built to carry the {len(kept)} operations the Hamiltonian obeys (from "
             f"{group.name} #{group.number_str}) was identified as {got.name} "
@@ -3192,16 +3298,11 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
             + (" and " if unmatched_kept and unmatched_found else "")
             + (f"{len(unmatched_found)} of its operations {unmatched_found} are not among "
                "the kept ones" if unmatched_found else "")
-            + ". Returning this group would label the bands with a group that is either "
-            "larger than the one measured or in a different position, so the descent "
-            f"stops here. The generic orbit added to the cell is {where}; a symprec "
-            f"({float(symprec):.3g}) too tight for it, or a cell whose own points are "
-            "closer together than symprec, is what makes the identification miss.")
+            + f". The orbit added to the cell is {where}, at symprec {float(symprec):.3g}.")
 
-    # The cell handed in already carries the environment that was asked for --
-    # its shadow species, where there is one, are part of the point set the
-    # descent is lowering -- so nothing is put under it here: the orbit, and
-    # exactly the orbit, is what this cell adds.
+    # The cell handed in already carries the environment asked for, its shadow
+    # species included, so nothing is put under it here: the orbit is all this
+    # cell adds.
     made = _orbit_cell(base_cell, base_typat, group, kept, points=_DESCENT_POINTS,
                        species=species, spinor=spinor, include_TR=include_TR,
                        symprec=symprec, diagnose=_diagnose)
@@ -3216,11 +3317,10 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
         "to": {"number_str": str(got.number_str), "name": str(got.name),
                "size": int(got._size)},
         "dropped": broken, "n_dropped": len(broken),
-        # how each verdict was reached: the detector's own reasons, "tensor
-        # structure" for the operations it kept and the tensor structure
-        # refuted -- an undetermined member of a class, or an operation whose
-        # own spin lift its space does not carry -- and the rest in the words
-        # above
+        # how each verdict was reached: the detector's own reasons; "tensor
+        # structure" for an operation it kept that the tensor structure refuted,
+        # an undetermined member of a class or one whose own spin lift its space
+        # does not carry; and the rest in the words above
         "refuted_by": {r: sum(1 for b in broken if b["refuted_by"] == r)
                        for r in sorted({b["refuted_by"] for b in broken})},
         "kept": tuple(sorted(int(s.ind) for s in kept)),
@@ -3276,18 +3376,19 @@ _DROPPED_BY_WORDS = {"centers": "by the centers", "hoppings": "by the hoppings",
 def _descent_counts(steps, time_reversal) -> dict:
     r"""What a descent dropped, every step together, by cause.
 
-    ``{cause: count}``, in the order the measurement meets the causes: the
-    orbital centres beyond a declared precision; the hoppings; the declared
-    orbital content; ``"closure"``, operations the Hamiltonian obeys that are
-    left out so that the operations kept form a group; ``"tie"``, operations
-    only the subgroups the tie rule did not keep hold; ``"time reversal"``, the
-    operations combined with it where it was measured broken between two steps;
-    and the states' projective class.  Each step drops operations of the cell
-    no earlier step dropped, so the counts add up to the cell's group less the
-    group the descent arrives at, a reduction of the cell by the declared
-    content between two steps aside.  The descent's ``dropped_by`` holds the
-    ones that are not zero, which its note and the record's one-line summary
-    read.
+    ``steps`` holds the steps' records (:func:`_descend_once`), and
+    ``time_reversal`` the record of time reversal's measurement, or ``None``.
+    Returns ``{cause: count}`` in the order the measurement meets the causes:
+    ``"centers"``, beyond a declared precision; ``"hoppings"``, every
+    operation dropped for no other cause; ``"declaration"``; ``"closure"``,
+    operations the Hamiltonian obeys that are left out so that the operations
+    kept form a group; ``"tie"``, operations only the subgroups the tie rule
+    did not keep hold; ``"time reversal"``, the operations combined with it
+    where it is measured broken between two steps; and ``"projective
+    class"``.  The counts add up to the number of coset representatives of
+    the lattice translations in the group the first step lowered, less that
+    in the group the last arrived at, a reduction of the cell by the
+    declaration between two steps aside.
     """
     dropped = [str(b["refuted_by"]) for st in steps for b in st["dropped"]]
     named = {r: dropped.count(r)
@@ -3304,28 +3405,24 @@ def _descent_counts(steps, time_reversal) -> dict:
 
 
 def _descent_clauses(counts) -> tuple:
-    r"""``(split, lowered)``: a descent's counts by cause, and what its operations kept carry, in words.
+    r"""A descent's counts by cause, and what its operations kept carry, in words.
 
-    ``counts`` is :func:`_descent_counts`'.  ``split`` says what dropped the
-    cell's operations: in the words the note has always had where only the
-    hoppings and the declared content did, and otherwise each cause once, in
-    the order the measurement meets them.  An operation the states' projective
-    class leaves out is one the Hamiltonian obeys, and so is one left out so
-    that the operations kept form a group, or by the tie rule.  ``lowered``
-    names the group the cell was lowered to where the centres, the closure, the
-    tie rule or the states' class dropped some, the largest group of its
-    operations that carries what each of them asks, and is ``None`` where the
-    hoppings and the declared content alone did.
+    ``counts`` is what :func:`_descent_counts` returns.  Returns ``(split,
+    lowered)``.  ``split`` says what dropped the cell's operations: each of
+    the hoppings and the declaration that did, or, where any other cause did,
+    each cause once in the order the measurement meets them.  ``lowered``
+    describes the group the cell was lowered to, the largest group of its
+    operations that carries what each cause asks, where the centers, the
+    closure, the tie rule or the states' projective class dropped any; it is
+    ``None`` where none of those four dropped any.
     """
     d_cen, d_hop, d_decl = counts["centers"], counts["hoppings"], counts["declaration"]
     d_closure, d_tie = counts["closure"], counts["tie"]
     d_tr, d_proj = counts["time reversal"], counts["projective class"]
-    # WHO BROKE WHAT.  The hoppings and the declared orbital content are two
-    # different statements about the crystal, and a record that added them up
-    # would hide which of the two is the one to act on.  So is the states'
-    # projective class, which no hopping breaks: the spinless reading of spinor
-    # states has no single-valued representation there.  And so are the
-    # centres, beyond the declared precision: the geometry, not the hoppings.
+    # Each cause is counted apart.  The hoppings and the declaration are two
+    # different statements about the crystal, and the states' projective class
+    # and the centers beyond the declared precision are neither, so a sum would
+    # hide which one to act on.
     split = (
         f"the Hamiltonian broke {d_hop} of them by its hoppings and the declared "
         f"orbital content broke {d_decl} more" if d_hop and d_decl else
@@ -3376,8 +3473,10 @@ def _descent_clauses(counts) -> tuple:
 def _lattice_note(lattice_record, got=None) -> str:
     """The lattice descent in words, and the group it arrived at where ``got`` names it.
 
-    ``got`` is left out where that group is not what holds: a grey group on
-    which time reversal is then measured broken.
+    ``lattice_record`` is :func:`_lattice_verdict`'s record of a translation
+    the Hamiltonian broke.  ``got`` is the group the step arrived at, left out
+    where it is not the group that holds: a grey group on which time reversal
+    is then measured broken.  Returns the sentence.
     """
     tau = np.round(np.asarray(lattice_record["fractional_translations"][0],
                               dtype=float), 6)

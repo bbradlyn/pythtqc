@@ -1,47 +1,62 @@
-r"""The space group a Hamiltonian obeys, and that group's tables in the model's own cell.
+r"""The space group a Hamiltonian obeys, and the tables of that group.
 
-:func:`realized_group` measures the group: the space group of the lattice of
-occupied sites, lowered to the operations ``H(k)`` obeys, with each orbital's
-Wyckoff position and the representation that labels the bands.  The other
-calls read the group it returns:
+:func:`realized_group` measures the group.  The cell is the orbitals'
+positions, each with its species, and any points declared with
+``decorations=``.  The call finds the cell's space group and lowers it to the
+operations the Hamiltonian obeys.  The record it returns also holds the
+Wyckoff position of each orbital and the representation of the group, which
+labels the bands.  Every Hamiltonian periodic in two or three directions
+obeys some space group, ``P1`` at the least.
 
-* :func:`operations` and :func:`operation_index`: each operation by its
-  index, the key every per-operation record is written on, with its Seitz
-  symbol in the tables' setting and its name in the model's Cartesian frame;
-  and the index a Seitz symbol names;
+A model periodic in two directions is a layer.  It is read as a slab, a
+three-dimensional cell with vacuum along the layer's normal, whose group is a
+space group.  The group of a layer's cell depends on the environment the
+layer is read in, on a substrate or free-standing.
+
+The other calls read the group :func:`realized_group` returns:
+
+* :func:`operations` and :func:`operation_index`: the operations of the group,
+  one for each coset of the lattice translations, with their indices, Seitz
+  symbols and names, and the index a Seitz symbol names;
 * :func:`high_symmetry_points`, :func:`little_group` and :func:`k_grid`: the
-  tabulated k-points, the operations that leave a k invariant, and a mesh with
-  the high-symmetry points it holds;
-* :func:`corep_table` and :func:`identify_from_characters`: the character table
-  of the little group at a high-symmetry point, and the coreps measured
-  characters carry;
-* :func:`wyckoff_sites_tables`: each site's Wyckoff position in the tables'
-  setting, which every table is read with;
+  tabulated high-symmetry points, the operations that leave a k-point
+  invariant up to a reciprocal lattice vector, and a k-point mesh with the
+  high-symmetry points on it;
+* :func:`corep_table` and :func:`identify_from_characters`: the character
+  table of the little group at a high-symmetry point, and the little-group
+  representations that measured characters identify;
+* :func:`wyckoff_sites_tables`: each site's Wyckoff position in the
+  conventional cell used by the irreptables package;
 * :func:`ebr_data`, :func:`indicator_group` and :func:`decompose_ebrs`: the
-  group's elementary band representations, its indicator group, and a symmetry data
-  vector written in its elementary band representations;
-* :func:`stack_presentation`: a layer repeated along its normal with no hopping
-  between the copies, the three-dimensional crystal its rows at ``k_z = 1/2`` are
-  measured on;
+  group's elementary band representations, its symmetry-indicator group, and
+  a symmetry data vector written in its elementary band representations;
+* :func:`stack_presentation`: a layer repeated along its normal with no
+  hopping between the copies, the crystal on which a layer's little-group
+  representations at the high-symmetry points with ``k_z = 1/2`` are
+  measured;
 * :func:`tables_status`: whether the tables are installed.
 
 Every call but :func:`realized_group`, :func:`stack_presentation` and
-:func:`tables_status` takes the group, ``r.group`` of what ``realized_group``
-returns.  Each record returned prints what it holds with ``summary()``, and a
-call that cannot complete returns a falsy ``Refusal`` in its place.
+:func:`tables_status` takes the group, ``r.group``, where ``r`` is the record
+:func:`realized_group` returns.  Each record returned prints what it holds
+with ``summary()``.  A call that cannot answer the question it is asked
+returns a ``Refusal`` in place of the record.  The refusal names the check
+that stopped the call, and is falsy.
 
-The tables are irrep's, the ``irreptables`` package, for the 230 space groups
-and their grey groups, time reversal adjoined; a Hamiltonian that breaks time
-reversal is returned the unitary group, with a
-:class:`..refusal.MagneticScopeWarning`.  Every k-point taken or returned is in
-the model's own reduced coordinates, generally not the tables', so the points
-are taken from :func:`high_symmetry_points`, or by their tabulated names.  The
-characters and labels are in the physical convention for a lattice translation,
-``e^{-ik·t}``, where the tables' own pages write ``e^{+ik·t}``: away from the
-time-reversal-invariant momenta, a label read at ``k`` here is the tables' label
-at ``-k``.  A model periodic in two directions is a layer, read as a slab, a
-three-dimensional cell with vacuum along the layer's normal, whose group is a
-space group.
+The tables are those of the Bilbao Crystallographic Server as the irreptables
+package ships them.  They cover the 230 space groups and their grey groups,
+the space groups with time reversal adjoined.  For a Hamiltonian that breaks
+time reversal, :func:`realized_group` returns the unitary subgroup of its
+magnetic group, with a :class:`..refusal.MagneticScopeWarning`.
+
+Every k-point taken or returned is in the reduced coordinates of the model's
+own reciprocal lattice, which are generally not the tables'.  A call that
+takes a high-symmetry point accepts its tabulated name, or its coordinates as
+:func:`high_symmetry_points` returns them.  The characters and labels returned
+are in the convention in which a lattice translation ``t`` acts as
+``e^{-ik·t}``.  The tables of the Bilbao Crystallographic Server write
+``e^{+ik·t}``.  At a point that is not time-reversal invariant, the label the
+server prints at ``k`` is the label returned here at ``-k``.
 """
 
 from __future__ import annotations

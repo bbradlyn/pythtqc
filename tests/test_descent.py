@@ -847,7 +847,7 @@ def test_the_consistency_guard_surfaces_a_descent_that_did_not_clear_the_gate(
 
     patch_everywhere(monkeypatch, "_build_rep", refusing_at(1.42))
     with pytest.raises(InternalError,
-                       match=r"still does not carry H\(k\) onto itself within the "
+                       match=r"still does not carry H\(k\) onto H\(gk\) within the "
                              "tolerance") as err:
         tqg.realized_group(build(), **kw)
     said = str(err.value)
@@ -856,7 +856,7 @@ def test_the_consistency_guard_surfaces_a_descent_that_did_not_clear_the_gate(
     if chain is not None:
         assert f"by the descent {chain}" in said
     assert "reaches 1.42 against 5e-14" in said
-    assert "a defect to report, not a tolerance to loosen" in said
+    assert "Report it, with the model and the call" in said
 
     # inside the declared tolerance the guard is not what the caller is told
     patch_everywhere(monkeypatch, "_build_rep", refusing_at(1e-9))
@@ -864,7 +864,7 @@ def test_the_consistency_guard_surfaces_a_descent_that_did_not_clear_the_gate(
     assert not near and isinstance(near, Refusal)
     assert near.gate == "rep_not_covariant"
     assert (near.value, near.threshold) == (1e-9, tqs.EXACT_TOL)
-    assert "a defect to report" not in near.reason
-    assert f"The group identified is {name} #{number_str}" in near.reason
+    assert "Report it" not in near.reason
+    assert f"the group identified is {name} #{number_str}" in near.reason
     assert near.context["group"].name == name
     assert near.context["group"].number_str == number_str

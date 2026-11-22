@@ -837,7 +837,7 @@ def test_a_spectrum_too_degenerate_to_parametrize_is_refused_not_guessed(monkeyp
     assert not tight and tight.gate == "detector_too_large"
     assert tight.context["n_pairs"] == 8
     assert (tight.value, tight.threshold) == (9 * pair, 7 * pair)
-    assert "`realized_group(..., max_bytes=2.4e3)` runs it" in tight.reason
+    assert "Pass `max_bytes=2.4e3` to `realized_group`." in tight.reason
     ceiling = _detector._find_intertwiners(km, -np.eye(2), k, max_bytes=7 * pair,
                                    degenerate_max_bytes=tight.value)
     assert (ceiling.dim, ceiling.window) == (default.dim, default.window)
@@ -868,7 +868,7 @@ def test_a_spectrum_too_degenerate_to_parametrize_is_refused_not_guessed(monkeyp
     refused = G.realized_group(km, typat=[0, 1], cross_check=False, max_bytes=1e3)
     assert not refused and refused.gate == "detector_too_large"
     assert refused.reason.startswith(
-        "The cell's group at this point is P3m11' #156.50, an upper bound")
+        "the group the cell allows is P3m11' #156.50, an upper bound")
     assert refused.context["group"].number_str == "156.50"
     runs = G.realized_group(km, typat=[0, 1], cross_check=False, max_bytes=2.4e3)
     monkeypatch.undo()
@@ -1058,5 +1058,5 @@ def test_the_grid_is_the_models_own_bloch_sum_bit_for_bit():
     assert shared.n_evaluated == len(k), "the source grid is evaluated once, not once per op"
     assert shared.rotated(-k)._sum() is shared._sum(), "a rotated grid shares the blocks"
 
-    with pytest.raises(ValueError, match="different k-grid"):
+    with pytest.raises(ValueError, match="holds H on points other than k_pts="):
         _detector._find_intertwiners(model, np.eye(2), _mesh(4, 2), hamiltonians=shared)

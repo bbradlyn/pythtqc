@@ -1,7 +1,9 @@
-"""A layer's presentations and its two environments: the slab a two-dimensional
-model is read on, the decoupled stack that carries its bands at every ``k_z``,
-the substrate under every site, and the check that the group on a substrate is
-the part of the free-standing group that preserves the layer's normal.
+"""A layer's presentations and its two environments.
+
+The slab cell a layer is read on; its decoupled stack, which carries the
+layer's bands at every ``k_z``; the substrate put under every site; and the
+comparison of the group on a substrate with the part of the free-standing group
+that preserves the layer's normal.
 """
 
 from __future__ import annotations
@@ -37,23 +39,21 @@ DECORATION_DZ = 0.05
 
 #: The vacuum between the copies of the decoupled stack, in the model's own
 #: length units: the period is the layer's extent along its normal plus this.
-#: No hopping crosses it, so no symmetry content can depend on it.
+#: No hopping crosses it, so neither the bands nor the group depend on it.
 STACK_C = 8.0
 
 
 def _is_presented_as_a_slab(model, c=SLAB_C) -> bool:
-    """Whether ``model`` already *is* its own slab presentation.
+    """Whether ``model`` is already its own slab presentation.
 
-    True for a ``dim_r = 3`` model whose non-periodic lattice vector lies along
-    the layer's normal and is at least ``c`` long — deep enough for the model
-    and a decorated cell to share one lattice, its vacuum included, which
-    :func:`.._tables._assign_orbitals` requires — and for a ``dim_r = 3`` model with no
-    non-periodic direction to measure.  A vector tilted off the normal is put
-    on it by :func:`_slab_presentation`, however long it is.
-    :func:`.._realized.realized_group` asks this before calling
-    :func:`_slab_presentation`, which builds a new model in every case: the
-    decision is made outside, so that a model handed back untouched is the
-    original object and not a copy that happens to compare equal.
+    ``c`` is the least length of a slab's non-periodic lattice vector, in the
+    units of the model's lattice vectors.  True for a three-dimensional cell
+    not periodic in exactly two directions, and for one whose non-periodic
+    lattice vector is exactly perpendicular to the periodic ones and at least
+    ``c`` long.  False otherwise: for a two-dimensional cell, and for a
+    non-periodic vector tilted off the normal or shorter than ``c``.
+    :func:`.._realized.realized_group` reads a model for which it is
+    true as it stands, and presents any other with :func:`_slab_presentation`.
     """
     if int(model.lattice.dim_r) != 3:
         return False
@@ -70,52 +70,58 @@ def _is_presented_as_a_slab(model, c=SLAB_C) -> bool:
 
 def _slab_presentation(model, *, c=SLAB_C, check=True, n_check=_bloch.CHECK_K,
                        seed=_bloch.CHECK_SEED, record=None):
-    r"""Internal to :func:`.._realized.realized_group`: a layer on a 3D slab lattice.
+    r"""A layer on a three-dimensional slab cell, with the same Hamiltonian.
 
-    A ``dim_r = 2`` model: the third lattice vector becomes ``c·ẑ`` and stays
-    non-periodic, every orbital keeps ``z = 0``, and every hopping is copied
-    with a zero third component.  A ``dim_k = 2`` Bloch phase never sees that
-    direction, so ``H(k)`` comes out bit-identical — measured here rather
-    than assumed.
+    A two-dimensional cell gains the third lattice vector ``c·ẑ``, which is
+    not periodic.  Every orbital is put at height zero and every hopping's
+    lattice vector is given a zero third component, so ``H(k)`` is unchanged
+    bit for bit.  A three-dimensional cell keeps every orbital's Cartesian
+    position, and its non-periodic lattice vector is put along the layer's
+    normal and stretched to the length ``c`` where it is shorter.  Where that
+    vector was tilted off the normal, each orbital's reduced coordinates in the
+    plane move by its reduced coordinate along the old vector times the
+    vector's in-plane part, in reduced coordinates of the periodic directions.
+    ``H(k)`` then becomes ``Λ(k)† H(k) Λ(k)``, with
+    ``Λ(k) = diag(exp(2πi k·Δ))`` and ``Δ`` each orbital's move.  A new model
+    is returned in every case.
 
-    A ``dim_r = 3`` slab is copied with its non-periodic lattice vector along
-    the layer's normal, stretched to ``c`` where it is shorter, every orbital
-    kept where it is.  Stretching moves no atom: the reduced coordinate along
-    the vector shrinks by exactly the factor the vector grows.  A vector tilted
-    off the normal -- a slab cut from a crystal along one of the crystal's own
-    lattice vectors has one -- is put on the normal at the same length,
-    because a layer's group cannot depend on how that vector was chosen: there
-    is no translation along it, while a symmetry finder reads the cell as a
-    three-dimensional lattice on it, a lattice of copies of the layer stacked
-    aslant.  Every orbital keeps its Cartesian position, so its reduced
-    coordinates along the periodic directions move by ``Δ = h·t``, its reduced
-    height ``h`` along the old vector times the vector's tilt ``t``, the
-    in-plane part of the vector in those coordinates.  In pythtb's convention
-    the Bloch phase carries ``e^{2πi k·τ}`` per orbital, so ``H(k)`` becomes
-    ``Λ(k)† H(k) Λ(k)`` with ``Λ(k) = diag(e^{2πi k·Δ})``: a k-dependent gauge
-    transformation, which moves no energy.  A layer whose orbitals all lie in
-    the plane through the origin moves none and comes out bit-identical.
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        A layer: periodic in exactly two directions of a two- or
+        three-dimensional cell.
+    c : float, default 30.0
+        The least length of the non-periodic lattice vector, in the units of
+        the model's lattice vectors.
+    check : bool, default True
+        Whether the new ``H(k)`` is compared with the model's: bit for bit
+        where no orbital moved, and through ``Λ(k)`` to
+        ``_PRESENTATION_RELATIVE`` times ``max|H|`` where some did.
+    n_check : int, default 8
+        The number of random ``k`` the comparison is made at.
+    seed : int, default 1729
+        The seed the random ``k`` are drawn with.
+    record : dict, optional
+        Filled, where one is handed in, with ``residual``, the largest
+        difference the comparison found (``0.0`` without ``check``), and
+        ``tilted``: ``None``, or for a tilted vector a mapping of ``tilt``,
+        the vector's in-plane part in reduced coordinates of the periodic
+        directions; ``max_move``, the largest move of an orbital in reduced
+        coordinates; ``n_moved``, the number of orbitals moved;
+        ``spectrum_residual``, the largest difference of the two spectra
+        (``0.0`` without ``check``); and a ``note``.
 
-    A new model comes back every time.  ``record``, where one is handed in, is
-    filled with what was measured: ``residual``, the largest difference between
-    the presentation's ``H(k)`` and the model's, carried back through the move,
-    over ``n_check`` random ``k`` (``0.0`` where ``check`` is off), and
-    ``tilted``, ``None`` unless the vector was tilted off the normal, and then
-    its ``tilt``, the largest move of an orbital's reduced coordinates
-    (``max_move``), how many orbitals moved (``n_moved``), the largest
-    difference of the two spectra over the same ``k`` (``spectrum_residual``)
-    and a ``note``.
+    Returns
+    -------
+    pythtb.TBModel
+        The slab, periodic in the model's two periodic directions.
 
     Raises
     ------
-    InternalError
-        The model is not periodic in exactly two directions of a two- or
-        three-dimensional cell: :func:`.._realized.realized_group` refuses a model periodic
-        in fewer before it presents anything, and reads one periodic in three
-        as its own cell.  Or the presentation changed the Hamiltonian: not
-        bit-identical where no orbital moved, or beyond rounding once carried
-        back through the move where some did.  A presentation changes nothing
-        in exact arithmetic, so that is the package disagreeing with itself.
+    ..refusal.InternalError
+        Where the model is not periodic in exactly two directions of a two- or
+        three-dimensional cell, which :func:`.._realized.realized_group` never
+        hands in, or where the comparison finds ``H(k)`` changed.
     """
     from pythtb import Lattice, TBModel
 
@@ -125,19 +131,17 @@ def _slab_presentation(model, *, c=SLAB_C, check=True, n_check=_bloch.CHECK_K,
     per = tuple(int(d) for d in model.periodic_dirs)
     if dim_r not in (2, 3) or len(per) != 2:
         raise InternalError(
-            f"a slab presentation was asked for a model periodic in {len(per)} "
-            f"direction{'' if len(per) == 1 else 's'} of a {dim_r}-dimensional cell. "
-            "realized_group refuses a model periodic in fewer than two directions "
-            "before it presents anything, and a fully periodic one is its own cell, so "
-            "only a layer is presented as a slab.")
+            f"a slab cell was asked for a model periodic in {len(per)} "
+            f"direction{'' if len(per) == 1 else 's'} of a {dim_r}-dimensional cell, "
+            "which is not a layer. Report it, with the model and the call.")
     if dim_r == 3:
-        # Already a slab -- so this is a copy, with its vacuum stretched to `c`
-        # where it is thinner.  That moves no atom (the reduced coordinate
-        # shrinks by exactly the factor the vector grows) and cannot touch
-        # `H(k)`, since a dim_k = 2 Bloch phase never sees the non-periodic
-        # direction; a cell decorated on it is given the model's own
-        # vacuum whatever the stretch (`_pad_cell`).  Measured below like every
-        # other presentation built here, `grow = 1` -- the plain copy --
+        # Already a slab, so this is a copy, its vacuum stretched to `c` where
+        # it is thinner.  That moves no atom, since the reduced coordinate
+        # shrinks by the factor the vector grows, and it leaves `H(k)` alone,
+        # since a dim_k = 2 Bloch phase never reads the non-periodic direction.
+        # A cell decorated on it is given the model's own vacuum whatever the
+        # stretch (`_pad_cell`).  The copy is compared with the model below, as
+        # every presentation built here is, the plain copy (`grow = 1`)
         # included.
         lat = np.asarray(model.lat_vecs, dtype=float)
         orb = np.asarray(model.orb_vecs, dtype=float)
@@ -150,13 +154,14 @@ def _slab_presentation(model, *, c=SLAB_C, check=True, n_check=_bloch.CHECK_K,
         overlap = plane @ lat[off]
         move = None
         if np.any(overlap != 0.0):
-            # THE VECTOR TILTED OFF THE LAYER'S NORMAL, put on it.  The layer is
-            # the same layer whichever non-periodic vector it was written with,
-            # and the cell a symmetry finder reads must not stack its copies
-            # aslant.  Every orbital stays where it is: the vector's in-plane
-            # part, `tilt` on the periodic directions, is carried into each
-            # orbital's in-plane coordinates in proportion to its height, and
-            # the height is re-expressed on the normal, which the vector now is.
+            # The vector tilted off the layer's normal is put on it.  The layer
+            # is the same layer whichever non-periodic vector it was written
+            # with, and the cell a symmetry finder reads must not stack its
+            # copies aslant.  Every orbital stays where it is: the vector's
+            # in-plane part, `tilt` on the periodic directions, is carried into
+            # each orbital's in-plane coordinates in proportion to its height,
+            # and the height is re-expressed on the normal, which the vector
+            # now is.
             normal = np.cross(plane[0], plane[1])
             normal = normal / np.linalg.norm(normal)
             rise = float(np.dot(lat[off], normal))
@@ -198,28 +203,16 @@ def _slab_presentation(model, *, c=SLAB_C, check=True, n_check=_bloch.CHECK_K,
                 spectrum = float(np.abs(np.linalg.eigvalsh(a) - np.linalg.eigvalsh(b)).max())
             else:
                 worst = float(np.abs(a - b).max())
-            if worst > gate:                        # pragma: no cover - a defect, raised
+            if worst > gate:                        # pragma: no cover, a defect that raises
                 raise InternalError(
-                    ("this slab presentation, carried back through the move of its "
-                     "orbitals, is not the model's Hamiltonian to rounding: "
+                    ("the slab cell's Hamiltonian, carried back through the move of its "
+                     "orbitals, is not the model's: "
                      f"max|Lambda H_slab(k) Lambda^dagger - H(k)| = {worst:.3g} over "
-                     f"{n_check} random k. The hoppings were copied in order, the "
-                     "non-periodic lattice vector was put on the layer's normal and "
-                     "every orbital kept where it was, so in pythtb's convention H(k) "
-                     "changed by the k-dependent gauge transformation "
-                     "Lambda(k) = diag(e^{2 pi i k.Delta}) alone, Delta each orbital's "
-                     "move." if moved else
-                     "this slab presentation is not bit-identical to the model: "
-                     f"max|H_slab(k) - H(k)| = {worst:.3g} over {n_check} random k. The "
-                     "hoppings and the orbitals were copied in order, and at most the "
-                     "non-periodic lattice vector and the reduced coordinate along it "
-                     "were scaled, by reciprocal factors, or the vector put on the "
-                     "layer's normal with every orbital in the plane through the "
-                     "origin, so no atom moved and a dim_k = 2 Hamiltonian cannot "
-                     "see it.")
-                    + f" It is held to {gate:.3g}, and a presentation changes nothing, "
-                    "so this is the package disagreeing with itself, not a property "
-                    "of the model.")
+                     f"{n_check} random k, with Lambda(k) = diag(e^{{2 pi i k.Delta}}) "
+                     "and Delta each orbital's move," if moved else
+                     "the slab cell's Hamiltonian is not the model's: "
+                     f"max|H_slab(k) - H(k)| = {worst:.3g} over {n_check} random k,")
+                    + f" held to {gate:.3g}. Report it, with the model and the call.")
         record["residual"] = worst
         if move is not None:
             n_moved = int(np.count_nonzero(np.abs(move).max(axis=1) > 0.0))
@@ -270,34 +263,34 @@ def _slab_presentation(model, *, c=SLAB_C, check=True, n_check=_bloch.CHECK_K,
         worst = float(np.abs(a - b).max())
         if worst != 0.0:
             raise InternalError(
-                "the 3D presentation is not bit-identical to the 2D model: "
-                f"max|H3(k) - H2(k)| = {worst:.3g} over {n_check} random k. The "
-                "presentation is a relabeling of the same Hamiltonian and changes "
-                "nothing, so this is the package disagreeing with itself, not a "
-                "property of the model.")
+                "the slab cell's Hamiltonian is not the two-dimensional model's bit for "
+                f"bit: max|H_slab(k) - H(k)| = {worst:.3g} over {n_check} random k. "
+                "Report it, with the model and the call.")
         record["residual"] = worst
     return out
 
 
 def stack_presentation(model, *, c=STACK_C, params=None):
-    """The layer repeated along its normal with no hopping between the copies: a crystal with the layer's bands at every ``k_z``.
+    """A layer repeated along its normal, with no hopping between the copies.
 
-    The three-dimensional crystal a layer's rows at ``k_z = ½`` are measured
-    on: the layer's own lattice and a third vector along its normal, every
-    orbital at its own height, every hopping within one copy.  Its
-    ``H(k, k_z)`` is the layer's ``H(k)`` up to the phases of the orbitals'
-    heights, ``Λ(k_z)† H(k) Λ(k_z)`` with ``Λ`` diagonal, which each call
-    measures, so its spectrum and symmetry are the layer's at every ``k_z``
-    and ``c`` changes neither.
+    The crystal's lattice vectors are the layer's two and a third along the
+    layer's normal.  The third has the length of the layer's extent along the
+    normal, from its lowest orbital to its highest, plus ``c``.  Each orbital
+    keeps its height along the normal.  The crystal's Bloch Hamiltonian is
+    ``H(k, k_z) = Λ(k_z)† H(k) Λ(k_z)``, with ``H(k)`` the layer's.
+    ``Λ(k_z)`` is diagonal, with the entry ``exp(2πi k_z z)`` for an orbital
+    at height ``z`` from the layer's middle plane, in units of the third
+    lattice vector.  So the crystal's bands at every ``k_z`` are the layer's
+    bands at ``k``, whatever ``c``.
 
     Parameters
     ----------
     model : pythtb.TBModel
-        A layer: periodic in two directions, in a cell of two or three.
-    c : float, optional
-        The vacuum between the copies, in the model's length units; the period
-        is the layer's extent along its normal plus ``c``.  Default
-        :data:`STACK_C`, ``8.0``.
+        A model periodic in two directions, in a cell of two or three
+        dimensions.
+    c : float, default 8.0
+        The width of the vacuum between the copies, in the length units of the
+        model's lattice vectors.  The default is ``pythtqc.groups.STACK_C``.
     params : dict, optional
         The scalar value of each parameter of the model, keyed by name:
         ``{"lam": 0.3}``.
@@ -305,33 +298,43 @@ def stack_presentation(model, *, c=STACK_C, params=None):
     Returns
     -------
     pythtb.TBModel or Refusal
-        The stack, periodic in three directions, its parameters evaluated at
-        ``params``.  A ``Refusal`` in its place is falsy.
+        The crystal, periodic in three directions, with each parameter of the
+        model set to its value in ``params``.  A ``Refusal`` in its place is
+        falsy and names what stopped the call.
+
+    Examples
+    --------
+    Kane-Mele without its Rashba term, repeated along its normal, is periodic
+    in three directions:
+
+    >>> from pythtb.models import kane_mele                       # doctest: +SKIP
+    >>> st = stack_presentation(kane_mele(0.0, -1.0, 0.3, 0.0))   # doctest: +SKIP
+    >>> st.lattice.dim_k, tuple(st.periodic_dirs)                  # doctest: +SKIP
+    (3, (0, 1, 2))
+
+    Refusals
+    --------
+    ``not_a_layer``
+        the model is not periodic in exactly two directions of a two- or
+        three-dimensional cell.
+    ``hopping_across_the_stack``
+        a hopping's lattice vector has a component along the non-periodic
+        lattice vector of a three-dimensional cell, so the layer is coupled to
+        its images along that vector.
 
     Raises
     ------
     ValueError
         A name in ``params`` that is not a parameter of the model, a parameter
-        given no value, or a value that is not a number.
-    ..refusal.InternalError
-        The stack's ``H`` is not the layer's up to the heights' phases: the
-        package disagreeing with itself.
+        of the model that ``params`` leaves out, or a value that is not a
+        number.
 
-    Refusals
+    See Also
     --------
-    ``not_a_layer``
-        The model is not periodic in exactly two directions of a two- or
-        three-dimensional cell.
-    ``hopping_across_the_stack``
-        A hopping runs along the non-periodic direction, so the model is not
-        one decoupled layer.
-
-    Examples
-    --------
-    >>> from pythtb.models import kane_mele                       # doctest: +SKIP
-    >>> st = stack_presentation(kane_mele(0.0, -1.0, 0.3, 0.0))   # doctest: +SKIP
-    >>> st.lattice.dim_k, tuple(st.periodic_dirs)                  # doctest: +SKIP
-    (3, (0, 1, 2))
+    symmetry_indicator : the symmetry-indicator class of a band set.  A
+        layer's little-group representations at the high-symmetry points with
+        ``k_z = 1/2``, which the layer's own Bloch Hamiltonian does not reach,
+        are measured on this crystal.
     """
     from pythtb import Lattice, TBModel
 
@@ -341,9 +344,9 @@ def stack_presentation(model, *, c=STACK_C, params=None):
     if int(model.lattice.dim_k) != 2 or len(per) != 2 or dim_r not in (2, 3):
         return Refusal(
             "not_a_layer",
-            f"the decoupled stack is built from a layer -- two periodic directions in a "
-            f"2D or 3D cell; this model has dim_r = {dim_r}, dim_k = "
-            f"{int(model.lattice.dim_k)} and periodic directions {per}.",
+            f"the model has dim_r = {dim_r}, dim_k = {int(model.lattice.dim_k)} and "
+            f"periodic directions {per}. Pass a layer, a model periodic in two "
+            "directions of a two- or three-dimensional cell.",
             value=float(int(model.lattice.dim_k)), threshold=2.0,
             context={"dim_r": dim_r, "dim_k": int(model.lattice.dim_k),
                      "periodic_dirs": per})
@@ -361,17 +364,16 @@ def stack_presentation(model, *, c=STACK_C, params=None):
     if dim_r == 3:
         stack_dir = next(d for d in range(3) if d not in per)
 
-    # every hopping must live inside the plane, structurally
+    # every hopping joins two orbitals of one copy
     amps, i_idx, j_idx, R = _bloch.hopping_arrays(model)
     n_hop = int(R.shape[0])
     worst_hop = int(np.abs(R[:, stack_dir]).max()) if dim_r == 3 and n_hop else 0
     if worst_hop:
         return Refusal(
             "hopping_across_the_stack",
-            f"{worst_hop} lattice units of hopping run along the non-periodic direction, "
-            "so this is not one decoupled layer. Stacking it would either drop those "
-            "hoppings or give H(k) a k_z it does not have; neither is the same "
-            "Hamiltonian in another presentation.",
+            f"a hopping's lattice vector has a component of {worst_hop} along the "
+            "non-periodic lattice vector. Check the model's hoppings along that "
+            "direction.",
             value=float(worst_hop), threshold=0.0,
             context={"n_hoppings": n_hop, "stacking_direction": stack_dir})
 
@@ -389,12 +391,14 @@ def stack_presentation(model, *, c=STACK_C, params=None):
     lat3 = np.zeros((3, 3))
     lat3[:2] = plane
     lat3[2] = normal * period
-    # The new a1, a2 ARE the model's own, so the in-plane reduced coordinates
-    # are copied rather than recomputed -- a projection would round them at
-    # 1e-17 and the bit-identity gate below would (rightly) see it.  The only
-    # correction is the in-plane part of a non-periodic third vector, which is
-    # exactly zero for every presentation this package builds and is measured
-    # rather than assumed.
+    # The new a1 and a2 are the model's own, so the in-plane reduced
+    # coordinates are copied rather than recomputed: a projection would round
+    # them at 1e-17, and the comparison below holds k_z = 0 bit for bit.  The
+    # one correction is for the in-plane part of a slab's non-periodic third
+    # vector, zero for every slab this package builds: each orbital's in-plane
+    # coordinates move by its reduced coordinate along that vector times the
+    # vector's in-plane part.  The comparison below does not carry H(k)
+    # through that move, so where an orbital off the plane moves it raises.
     orb = np.asarray(model.orb_vecs, dtype=float)
     orb3 = np.zeros((int(model.norb), 3))
     orb3[:, :2] = orb[:, list(per)]
@@ -413,14 +417,14 @@ def stack_presentation(model, *, c=STACK_C, params=None):
     out.set_onsite(model.onsite, mode="set")
     # the model's own hopping table, row for row and in one pass, each lattice
     # vector written on the two in-plane directions; the component dropped is
-    # zero on every row (gated above), so no two rows become one term
+    # zero on every row (refused above), so no two rows become one term
     R3 = np.zeros((n_hop, 3), dtype=int)
     R3[:, 0] = R[:, per[0]]
     R3[:, 1] = R[:, per[1]]
     out._append_hops(amps, i_idx, j_idx, R3)
 
-    # the identity, measured on every call, on the k-set every presentation
-    # here is measured on
+    # H_stack(k, k_z) = Lambda^dagger H(k) Lambda, measured on every call, on
+    # the k-set every presentation here is measured on
     rng = np.random.default_rng(_bloch.CHECK_SEED)
     k2 = rng.uniform(-0.5, 0.5, size=(_bloch.CHECK_K, 2))
     a = np.asarray(_bloch.hamiltonian(model, k2))
@@ -440,44 +444,33 @@ def stack_presentation(model, *, c=STACK_C, params=None):
             raise InternalError(
                 "the decoupled stack is not the layer: max|H_stack(k, k_z) - "
                 f"Lambda^dagger H_layer(k) Lambda| = {d:.3g} at k_z = {float(kz)}, "
-                f"against {held:.3g}, over {_bloch.CHECK_K} random k, Lambda the phases "
-                "of the orbitals' heights. The presentation is the same Hamiltonian and "
-                "changes nothing but that gauge, so this is the package disagreeing with "
-                "itself, not a property of the model.")
+                f"held to {held:.3g}, over {_bloch.CHECK_K} random k, with "
+                "Lambda = diag(e^{2 pi i k_z z}) and z each orbital's reduced height. "
+                "Report it, with the model and the call.")
     return out
 
 
 def _layer_on_stack(group, assignment, stack) -> tuple:
     r"""A layer's group and orbital sites, carried onto the layer's decoupled stack.
 
-    :func:`stack_presentation` repeats the layer along its normal with no
-    hopping between the copies, and an operation of the layer carries each copy
-    onto itself as it carries the layer, so the stack's group is the layer's:
-    the same operations, each the same Cartesian rotation and translation,
-    written in the stack's cell, and the same sites, each operation moving them
-    as it moves the layer's.  Nothing is identified again.  The stack's cell
-    keeps the layer's in-plane lattice vectors and puts its normal at another
-    length, reversed where the slab's vacuum is its middle axis (the stack's
-    cell is right-handed), so every operation keeps its reduced form, up to the
-    order and the sense in which the two cells list their axes, and the tables'
-    setting is carried in that same order: a k-point at ``k_z = ½`` of the
-    layer's group is one of the stack's own zone.  Both cells are written about
-    the layer's middle plane, and a site off it is carried at its height from
-    that plane, so the lattice vector each operation moves a site by is read
-    again in the stack's cell.
-
-    ``group`` and ``assignment`` are the group a layer's representation was
-    built in, on its slab cell, and the orbital sites in it; ``stack`` is that
-    layer's decoupled stack.  Returns ``(group, assignment)`` on the stack's
-    cell: three periodic directions and none along a vacuum.
+    ``group`` is the group a layer's representation was built in, on its slab
+    cell, ``assignment`` the orbitals' sites in it, and ``stack`` that layer's
+    decoupled stack (:func:`stack_presentation`).  Nothing is identified
+    again.  Each operation keeps its Cartesian rotation and translation and is
+    written in the stack's cell, whose axes are the slab cell's up to their
+    order, their sense and the length of the normal.  Each site keeps its
+    height from the layer's middle plane, and the lattice vector each operation
+    moves a site by is read again in the stack's cell.  The tables' setting is
+    carried with the same order of the axes, so a k-point at ``k_z = 1/2`` of
+    the layer's group is one of the stack's zone.  Returns
+    ``(group, assignment)`` on the stack's cell, periodic in three directions.
 
     Raises
     ------
     ..refusal.InternalError
-        Where the two cells are not one layer's, or an operation, a site or a
-        lattice shift does not read as one of the stack's cell.  The stack is
-        built from the layer's own lattice and orbitals, so either is a defect
-        here.
+        Where the stack's cell is not the slab cell with its normal at another
+        length or reversed, or where an operation, a site or a lattice vector
+        does not read as one of the stack's cell to ``_CARRY_TOL``.
     """
     old = np.asarray(group._lattice, dtype=float)
     new = np.asarray(stack.lat_vecs, dtype=float)
@@ -492,12 +485,10 @@ def _layer_on_stack(group, assignment, stack) -> tuple:
             or any(abs(float(carry[:, int(d)] @ axes[:, int(d)]) - 1.0) > _CARRY_TOL
                    for d in group.periodic_dirs)):
         raise InternalError(
-            f"#{group.number_str}: the decoupled stack's cell is not the layer's cell "
-            "with its normal at another length or reversed -- the cell the group was "
-            f"measured on has lattice {np.round(old, 6).tolist()} and the stack's "
-            f"{np.round(new, 6).tolist()} -- so its operations cannot be carried "
-            "onto the stack. The stack is built from the layer's own lattice, so "
-            "this is a defect here, not a property of the model.")
+            f"{group.name} #{group.number_str}: the decoupled stack's lattice "
+            f"{np.round(new, 6).tolist()} is not the layer's lattice "
+            f"{np.round(old, 6).tolist()} with its normal at another length or "
+            "reversed. Report it, with the model and the call.")
     inverse = np.linalg.inv(carry)
     padded = [int(d) for d in group._vacuum_dirs]
 
@@ -506,7 +497,7 @@ def _layer_on_stack(group, assignment, stack) -> tuple:
         return float(np.abs(x - np.rint(x)).max()) if x.size else 0.0
 
     def _centered(x):
-        """Reduced coordinates, the vacuum one taken about the middle plane, in [-½, ½)."""
+        """``x`` with each coordinate along the vacuum brought into [-1/2, 1/2)."""
         x = np.array(x, dtype=float, copy=True)
         if padded and x.size:
             # a whole cell subtracted, so a coordinate already there is untouched
@@ -514,7 +505,10 @@ def _layer_on_stack(group, assignment, stack) -> tuple:
         return x
 
     def _placed(x):
-        """Positions carried onto the stack's cell at their heights, wrapped into the cell."""
+        """The slab's reduced positions ``x`` in the stack's cell, at their heights.
+
+        The third coordinate is taken modulo 1.
+        """
         y = _centered(x) @ carry.T
         if y.size:
             y[..., 2] = y[..., 2] % 1.0
@@ -552,11 +546,10 @@ def _layer_on_stack(group, assignment, stack) -> tuple:
     worst = max(worst, _miss(shifts))
     if worst > _CARRY_TOL:
         raise InternalError(
-            f"#{group.number_str}: an operation of the layer, or a lattice vector it "
-            f"moves a site by, reads in the decoupled stack's cell {worst:.3g} away from "
-            "one of that cell. The stack shares the layer's in-plane lattice and every "
-            "operation of a layer keeps its plane, so this is a defect here, not a "
-            "property of the model.")
+            f"{group.name} #{group.number_str}: an operation of the layer, or a lattice "
+            "vector it moves a site by, written in the decoupled stack's cell, is "
+            f"{worst:.3g} from the nearest operation or lattice vector of that cell. "
+            "Report it, with the model and the call.")
     ref = axes @ np.asarray(group._refUC, dtype=float)
     shift = axes @ np.asarray(group._shiftUC, dtype=float)
     sg = copy.copy(group._sg)
@@ -573,33 +566,27 @@ def _layer_on_stack(group, assignment, stack) -> tuple:
 
 
 def _off_plane_direction(model3d) -> int:
-    """The one non-periodic lattice direction of a slab cell (``2`` if none is)."""
+    """The index of the non-periodic lattice vector of the 3D cell ``model3d``.
+
+    The first is returned where several are non-periodic, and ``2`` where
+    none is.
+    """
     per = tuple(int(d) for d in model3d.periodic_dirs)
     return next((d for d in range(3) if d not in per), 2)
 
 
 def _substrate_decorations(model3d, typat=None, *, dz=DECORATION_DZ) -> tuple:
-    r"""Internal to :func:`.._realized.realized_group`: the substrate under every site.
+    r"""The substrate under a layer: one atom of a species of its own below every site.
 
-    A layer lying on something has one side different from the other, and the
-    way to say that to a symmetry finder is to put the substrate in the cell:
-    one non-orbital atom of its own species at the site's own height minus
-    ``dz``, under every one of the model's sites.  Every operation with
-    ``R[2,2] = −1`` would then carry a shadow onto the layer, so every such
-    operation is gone — ``σ_h``, the in-plane twofolds, ``S_n`` and
-    three-dimensional inversion with them — while the in-plane group and the
-    layer's own geometry, buckling included, are untouched.  What is left is
-    the subgroup of the free-standing layer group that preserves the layer's
-    normal.  Under
-    *every* site rather than once at the origin, because a single shadow would
-    also remove every operation that does not fix the origin, which is a
-    statement about the coordinates the model was written in.
-
-    Returns
-    -------
-    tuple
-        ``((position, label), ...)`` — the decoration sequence
-        :func:`_decorated_cell` takes, one entry per distinct site.
+    ``model3d`` is the layer's slab and ``typat`` the species of each orbital,
+    ``None`` for one species.  Each distinct orbital position gets one atom
+    ``dz`` below it, in reduced coordinates of the non-periodic lattice vector.
+    The atoms' species is one more than the largest integer species, or
+    ``"__substrate__"`` where the species are not integers.  Every operation
+    that turns the layer over carries such an atom above the layer, so the
+    cell keeps the subgroup of the free-standing group that preserves the
+    layer's normal.  Returns ``((position, label), ...)``, the decorations
+    :func:`_decorated_cell` takes.
     """
     norb = int(model3d.norb)
     labels = [0] * norb if typat is None else list(typat)
@@ -622,39 +609,32 @@ def _substrate_decorations(model3d, typat=None, *, dz=DECORATION_DZ) -> tuple:
 
 def _decorated_cell(model3d, typat=None, *, dz=DECORATION_DZ, environment=None,
                     decorations=None):
-    r"""Internal to :func:`.._realized.realized_group`: the cell carrying the crystal field.
+    r"""The cell a group is identified on: the model's orbitals and any added species.
 
-    The point set the group is identified on: the model's orbitals, plus any
-    species that state a distortion the positions do not show.  Geometry only —
-    it never carries a Hamiltonian, and the model is not modified.
-
-    ``environment`` chooses the base: ``"substrate"`` (the default) puts one
-    shadow species under every site (:func:`_substrate_decorations`), leaving
-    the subgroup that preserves the layer's normal, and ``"free-standing"``
-    puts nothing under
-    the layer.  ``decorations`` adds on top of that base, and in 3D — where a
-    model is its own cell and there is no base — it is the whole mechanism: one
-    atom at the strengthened bond's midpoint lowers diamond to ``R-3m``, which
-    is the group the distorted Fu-Kane-Mele Hamiltonian obeys.
+    ``model3d`` is the model presented in 3D, a slab or a crystal, and
+    ``typat`` the species of each orbital, ``None`` for one species.  On a
+    slab, ``environment`` sets the base: ``"substrate"``, or ``None``, puts
+    the atoms of :func:`_substrate_decorations` ``dz`` below every site, and
+    ``"free-standing"`` puts nothing.  A crystal periodic in three directions
+    has no base.  ``decorations``, a sequence of ``(position, label)`` in
+    reduced coordinates, is added on top of the base.  The cell carries no
+    Hamiltonian, and ``model3d`` is not changed.  Returns ``(cell, species)``:
+    the cell, its orbitals the model's followed by the added atoms, and the
+    species of each point.  :func:`.._tables._assign_orbitals` takes the
+    model's own ``typat``, not these species.
 
     Raises
     ------
     ValueError
-        When ``typat`` does not carry one entry per orbital.
-
-    Returns
-    -------
-    (pythtb.TBModel, list)
-        The decorated cell and the species list to identify it with.  Pass the
-        *model's own* ``typat`` to :func:`.._tables._assign_orbitals`, not this one.
+        Where ``typat`` does not hold one entry per orbital.
     """
     from pythtb import Lattice, TBModel
 
     norb = int(model3d.norb)
     labels = [0] * norb if typat is None else list(typat)
     if len(labels) != norb:
-        raise ValueError(f"typat must have one entry per orbital ({norb}), "
-                         f"got {len(labels)}")
+        raise ValueError(f"realized_group(): the length of typat= is {len(labels)}, and "
+                         f"the model has {norb} orbitals. Pass one entry per orbital.")
     extra_atoms = () if decorations is None else tuple(decorations)
     # A fully periodic cell has no side to make different: it is its own cell in
     # every environment, and only `decorations=` adds to it.
@@ -671,42 +651,35 @@ def _decorated_cell(model3d, typat=None, *, dz=DECORATION_DZ, environment=None,
         extra.append(lab)
     cell = TBModel(Lattice(np.asarray(model3d.lat_vecs, dtype=float), pos,
                            periodic_dirs=list(model3d.periodic_dirs)), spinful=False)
-    # the model's own orbitals lead the cell, and a cell built on a cell keeps
-    # the count of the model it was built on: the vacuum is theirs
+    # the model's own orbitals lead the cell, and the count of them is kept,
+    # since the vacuum is measured from them alone; a cell built on a cell
+    # keeps the count of the model it was built on
     setattr(cell, _OWN_ORBITALS, int(getattr(model3d, _OWN_ORBITALS, norb)))
     return cell, labels + extra
 
 
 def _environment_record(free_group, sub_group) -> dict:
-    r"""The two environments of one layer, compared — the consistency gate.
+    r"""The substrate group held against the free-standing one, operation by operation.
 
-    **A substrate means a subgroup.**  It removes every operation that flips the
-    layer's side and nothing else, so the group of a layer on a substrate is the
-    ``R[2,2] = +1`` **subgroup** of the free-standing layer group of the *same*
-    crystal — the same point set, the same coordinates, one species added below
-    it.  That is a statement two independent selections can be held to, and this
-    holds them to it, operation for operation:
+    ``free_group`` and ``sub_group`` are one layer's groups, identified
+    free-standing and on a substrate.  A substrate removes every operation
+    that turns the layer over and nothing else, so the substrate group is the
+    subgroup of the free-standing group that preserves the layer's normal.
+    Operations are matched by rotation, by translation modulo the lattice to
+    ``1e-6``, and by whether they are combined with time reversal
+    (:func:`.._subgroups._operation_key`).
 
-    (a) every operation of the substrate group is an operation of the
-        free-standing group that preserves the layer's normal, matched by rotation and translation modulo the
-        lattice (:func:`_operation_key`) — anything else is ``missing``;
-    (b) every operation of the free-standing group that preserves the layer's
-        normal is in the
-        substrate group — anything else is ``extra``;
-    (c) both cosets, unitary and antiunitary, are compared the same way, since
-        the key carries ``time_reversal``;
-    (d) no operation of the substrate group flips the side (``flipping``), and
-        no operation of either group mixes the plane with the vacuum direction
-        (``unmapped``), which would not be a layer operation at all.
-
-    Nothing is projected and every operation carries its own lift, which is what
-    makes the subgroup statement exact rather than approximate: a buckled
-    honeycomb on a substrate keeps precisely the six operations of its
-    ``p-3m1`` that preserve the layer's normal, and reads ``p3m1``, not the ``p6mm`` that the in-plane image
-    of a point set flattened onto one plane would report.
-
-    Returns the record; ``agrees`` is ``False`` on any failure and ``None``
-    where the two cells cannot be compared at all (no single vacuum direction).
+    Returns a mapping.  ``free_standing`` and ``substrate`` hold each group's
+    number, name and size.  ``rows`` holds each substrate operation that
+    preserves the normal, with the free-standing one it matches, or ``None``.
+    ``missing`` holds the substrate operations with no match, and ``extra``
+    the free-standing operations that preserve the normal and have no match.
+    ``flipping`` holds the substrate operations that turn the layer over, and
+    ``unmapped`` the operations of either group that mix the plane with the
+    non-periodic direction.  ``agrees`` is ``True`` where those four are
+    empty, with ``outcome`` ``"agree"`` and a ``note`` saying so, and
+    ``False`` otherwise.  It is ``None``, nothing compared, where the two
+    cells do not share a single non-periodic direction.
     """
     lp = tuple(int(d) for d in free_group._vacuum_dirs)
     wp = tuple(int(d) for d in sub_group._vacuum_dirs)
@@ -749,10 +722,10 @@ def _environment_record(free_group, sub_group) -> dict:
 
     # each substrate operation paired with the free-standing one it is: the same
     # rotation and coset, and the same translation modulo the lattice to the
-    # key's own tolerance -- compared as numbers, so two translations a rounding
-    # apart that the keys' six decimals would put on two sides of a boundary
-    # (a group written about an origin fitted to noisy centres has such
-    # translations) are still one operation
+    # key's own tolerance.  The translations are compared as numbers, so two a
+    # rounding apart that the keys' six decimals would put on two sides of a
+    # boundary are still one operation; a group written about an origin fitted
+    # to noisy centers has such translations
     def _same(a, b):
         if a[0] != b[0] or a[2] != b[2]:
             return False
@@ -791,29 +764,28 @@ def _environment_record(free_group, sub_group) -> dict:
 
 
 def _raise_environment_contradiction(record, held=1):
-    """The two environments contradicting the subgroup statement — raised, never returned.
+    """Raise the two environments' contradiction of the subgroup statement.
 
-    A substrate removes every operation that flips the layer's side and nothing
-    else, so the substrate group of a layer is the subgroup of its
-    free-standing group that preserves the layer's normal, and two selections of one Hamiltonian that
-    contradict it are this package disagreeing with itself.  Where one of them
-    returned the candidate the tie rule keeps among several its measurement
-    could not choose between, a failure that another pair of the candidates
-    does not have is that choice and not a contradiction, and it is an outcome
-    of the cross-check rather than this.  ``held`` is how many pairs of the two
-    environments' candidates were held to the statement, the pair returned
-    among them.
+    The statement is that the substrate group is the subgroup of the
+    free-standing group that preserves the layer's normal.  ``record`` is what
+    :func:`_environment_record` returns with ``agrees`` ``False``.  ``held``
+    is how many pairs of the two environments' candidate groups were held to
+    the statement, the pair returned among them; it exceeds one where the tie
+    rule chose among candidates.  It is called only where no pair satisfies
+    the statement: where another pair does, the disagreement is the tie
+    rule's choice, and the cross-check records it.
 
     Raises
     ------
     ..refusal.InternalError
-        Always, naming the operations each side carries that the other does not.
+        Always, naming up to four operations of each kind that breaks the
+        statement.
     """
     free, sub = record["free_standing"], record["substrate"]
 
     def _list(rows):
         return ", ".join(f"{r['name']} (#{r['ind']})" for r in rows[:4]) + (
-            ", ..." if len(rows) > 4 else "")
+            ", and others" if len(rows) > 4 else "")
 
     bits = []
     if record["missing"]:
@@ -828,26 +800,19 @@ def _raise_environment_contradiction(record, held=1):
                     + _list(record["extra"]))
     if record["flipping"]:
         bits.append(f"{len(record['flipping'])} operations of the substrate group flip "
-                    "the layer's side (R[2,2] = -1), which a substrate removes by "
-                    "construction: " + _list(record["flipping"]))
+                    "the layer's side (R[2,2] = -1): " + _list(record["flipping"]))
     if record.get("unmapped"):
-        bits.append(f"{len(record['unmapped'])} operations mix the plane with the "
-                    "vacuum direction and are not layer operations at all: "
+        bits.append(f"{len(record['unmapped'])} operations mix the layer's plane with "
+                    "its non-periodic direction: "
                     + _list(record["unmapped"]))
     raise InternalError(
-        f"the free-standing realized group ({free['name']} #{free['number_str']}) and the "
-        f"one on a substrate ({sub['name']} #{sub['number_str']}) do not describe the "
-        f"same Hamiltonian, the operations counted as {_PER_COSET}: "
+        f"the layer's free-standing group {free['name']} #{free['number_str']} and its "
+        f"group on a substrate {sub['name']} #{sub['number_str']} disagree, the "
+        f"operations counted as {_PER_COSET}: "
         + "; ".join(bits)
-        + ". A substrate removes every operation that flips the layer's side and "
-        "nothing else, so the substrate group is the R[2,2] = +1 subgroup of the "
-        "free-standing layer group of the same crystal -- the two selections agreeing "
-        "is not a coincidence to be checked politely, it is what makes either of them "
-        "the group of this model."
-        + (f" Where the tie rule chose, the subgroups it did not keep were held to it "
-           f"too, {int(held) - 1} more pair{'' if int(held) == 2 else 's'} of the two "
-           "environments' candidates, and it holds for none." if int(held) > 1 else "")
-        + " Neither is returned: two selections of one "
-        "Hamiltonian contradicting it is a defect here, not a measurement about the "
-        "model, and `realized_group(..., cross_check=False)` shows each environment's "
-        "realized group on its own.")
+        + "."
+        + (f" The other candidates of a tie were compared too, {int(held) - 1} more "
+           f"pair{'' if int(held) == 2 else 's'}, and no pair agrees." if int(held) > 1 else "")
+        + " Neither is returned. Report it, with the model and the call. "
+        "realized_group(..., cross_check=False) returns the group of the environment "
+        "asked for alone.")

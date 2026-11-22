@@ -1,6 +1,9 @@
-"""Each operation of a group by its index, with its Seitz symbol in the tables'
-setting and its name in the model's frame: the key every per-operation record
-is written on.
+"""The operations of a group by index, each with its Seitz symbol and its name.
+
+The Seitz symbol is written in the conventional cell used by the irreptables
+package, and the name in the Cartesian axes in which the pythtb Lattice is
+specified.  Records with an entry for each operation of the group name the
+operation by its index.
 """
 
 from __future__ import annotations
@@ -25,15 +28,20 @@ __all__ = ["Operation", "OperationTable", "operations", "operation_index"]
 # the operations by index, and their Seitz symbols
 # --------------------------------------------------------------------------
 
-#: The order of the rotation part of an integer rotation matrix, read off the
-#: trace of its proper part ``det(R)·R``, whose eigenvalues are
-#: ``1, e^{±2πi/n}``.  The determinant then separates ``n`` from ``n̄``, which
-#: one trace leaves open and ITA's symbols keep apart.
+#: The order ``n`` of the proper part ``det(R)·R`` of an integer rotation matrix
+#: ``R``, the ``n`` of the Seitz symbol ``n`` or ``-n`` (``m`` for ``-2``), read
+#: off its trace, since its eigenvalues are ``1, e^{±2πi/n}``.  The determinant
+#: then tells the rotation ``n`` from the rotoinversion ``-n``, which the trace
+#: alone leaves open.
 _ROTATION_ORDER = {3: 1, 2: 6, 1: 4, 0: 3, -1: 2}
 
 
 def _primitive_direction(u) -> tuple:
-    """A direction as its smallest integer triple, first nonzero component positive."""
+    """A direction as its smallest integer triple, its first nonzero component positive.
+
+    ``u`` is a direction, three numbers that are rounded to integers.  Returns
+    the integer components.
+    """
     v = np.rint(np.asarray(u, dtype=float)).astype(int)
     divisor = 0
     for x in v:
@@ -49,11 +57,13 @@ def _primitive_direction(u) -> tuple:
 
 
 def _rotation_axis(proper) -> tuple:
-    """The axis of a proper rotation — a reflection's normal — as an integer triple.
+    """The axis of the proper rotation ``proper``, as an integer triple.
 
-    The axis spans the kernel of ``proper − 1``, so it is orthogonal to that
-    matrix's rows and the cross product of two independent ones gives it
-    exactly, in integers, with no eigenvalue problem to solve.
+    ``proper`` is an integer rotation matrix other than the identity.  For a
+    mirror or a rotoinversion ``R`` it is ``det·R``, whose axis is the mirror's
+    normal or the rotoinversion's axis.  The axis is the cross product of two
+    independent rows of ``proper − 1``, which are orthogonal to it.  Returns it
+    as :func:`_primitive_direction` writes it.
     """
     rows = np.rint(np.asarray(proper, dtype=float)).astype(int) - np.eye(3, dtype=int)
     for i, j in ((0, 1), (0, 2), (1, 2)):
@@ -61,23 +71,30 @@ def _rotation_axis(proper) -> tuple:
         if u.any():
             return _primitive_direction(u)
     raise InternalError(                             # pragma: no cover - guard
-        "an operation's rotation fixes a plane rather than an axis, which no "
-        "proper rotation other than the identity does. This is arithmetic in this "
-        "package failing, not a measurement about the model.")
+        "the proper rotation det(R)·R of an operation fixes a plane, and is not the "
+        "identity. Report it, with the model and the call.")
 
 
 def _direction_text(axis) -> str:
-    """An integer direction as ITA writes it, one signed digit per component."""
+    """The integer direction ``axis`` as a Seitz symbol writes it, ``1-10``.
+
+    Each component is one digit, with a minus sign before a negative one.
+    Returns the string.
+    """
     if max(abs(int(x)) for x in axis) > 9:
         raise InternalError(                         # pragma: no cover - guard
-            f"the symmetry direction {tuple(int(x) for x in axis)} has a component "
-            "above nine, which no crystallographic axis has, so writing it digit by "
-            "digit would not read back. This is arithmetic in this package failing.")
+            f"the axis {tuple(int(x) for x in axis)} of an operation has a component "
+            "above nine, which no crystallographic axis has. Report it, with the model "
+            "and the call.")
     return "".join(str(int(x)) for x in axis)
 
 
 def _parse_direction(text) -> tuple | None:
-    """An integer direction read back from the digits it is written as."""
+    """An integer direction read back from ``text``, as :func:`_direction_text` writes it.
+
+    Returns three ints, or ``None`` where ``text`` holds anything but digits
+    and minus signs or does not hold three digits.
+    """
     out, sign, digits = [], 1, str(text)
     while digits:
         head, digits = digits[0], digits[1:]
@@ -92,12 +109,15 @@ def _parse_direction(text) -> tuple | None:
 
 
 def _rotation_sense(sym, group, axis) -> int:
-    """``+1`` or ``−1``: which way the rotation part turns about ``axis``.
+    """The sense of the turn of operation ``sym`` about ``axis``.
 
-    The turn is a fact about the crystal and not about a setting, so it is
-    measured where the geometry is — in the model's own Cartesian frame, by
-    :func:`.._sitechars.classify` — and then referred to the direction the
-    symbol names, which is written in the tables' conventional basis.
+    ``sym`` is an operation of ``group``, of order above two, and ``axis`` the
+    direction of its axis in the conventional cell used by the irreptables
+    package (:func:`_rotation_axis`).  The turn is that of the proper part
+    ``det·R``.  It is measured in the Cartesian axes in which the pythtb
+    Lattice is specified, by :func:`.._sitechars.classify`, and its sign is
+    taken against ``axis`` carried into those axes.  Returns ``+1`` for a
+    counterclockwise turn about ``axis`` and ``-1`` for a clockwise one.
     """
 
     info = _sitechars.classify(sym)
@@ -107,30 +127,34 @@ def _rotation_sense(sym, group, axis) -> int:
 
 
 def _fraction_mod_one(x) -> Fraction:
-    """One translation component as an exact fraction of the conventional cell."""
+    """The translation component ``x`` as an exact fraction, modulo one.
+
+    ``x`` is a component in the conventional cell used by the irreptables
+    package.  It is assumed within :data:`_LATTICE_TOL` of a fraction of
+    denominator :data:`_SEITZ_DENOMINATOR` or less, as every tabulated
+    translation is.  Returns that fraction, in ``[0, 1)``.
+    """
     value = Fraction(float(x)).limit_denominator(_SEITZ_DENOMINATOR)
     if abs(float(value) - float(x)) > _LATTICE_TOL:
         raise InternalError(                         # pragma: no cover - guard
-            f"the conventional-setting translation component {float(x):.9g} is no "
-            f"fraction of denominator {_SEITZ_DENOMINATOR} or less, though every "
-            "tabulated translation is one. This is arithmetic in this package "
-            "failing, not a measurement about the model.")
+            f"the translation component {float(x):.9g}, in the conventional cell used "
+            "by the irreptables package, is no fraction of denominator "
+            f"{_SEITZ_DENOMINATOR} or less. Report it, with the model and the call.")
     return value % 1
 
 
 def _reduced_translation(t, centering) -> tuple:
-    r"""``t`` reduced modulo the crystal's own lattice, as three exact fractions.
+    r"""One fixed representative of the translation ``t`` modulo the lattice.
 
-    A Seitz symbol's translation is fixed only up to a lattice translation, and
-    on a centred lattice the conventional cell holds more than one
-    representative of the same operation — the ``F`` lattice holds four.  This
-    is the shortest of them: smallest sum of components, ties broken towards
-    the smaller first component.  It is what a written symbol is *matched*
-    against, so that any representative names the operation it belongs to; what
-    is written is the tables' own (:func:`_written_translation`).  The two agree
-    on every operation of all 230 space groups in both valuednesses but 108,
-    which are the ``c``-glide F-centred cubic groups #219, #226 and #228, where
-    the tables keep ``1/2,1/2,1/2``.
+    ``t`` is a translation in the conventional cell used by the irreptables
+    package, and ``centering`` the centering vectors of that cell's lattice
+    (:func:`_centering_of`).  The representatives are ``t`` and ``t`` plus
+    each centering vector, each component modulo one
+    (:func:`_fraction_mod_one`).  The one returned has the smallest sum of
+    components, ties going to the smaller first component, then the smaller
+    second.  A written symbol is matched on it, so that any representative
+    names the same operation.  The symbol is written with the representative
+    the tables give (:func:`_written_translation`).  Returns three fractions.
     """
     best = None
     for shift in ((0.0, 0.0, 0.0),) + tuple(centering):
@@ -143,26 +167,31 @@ def _reduced_translation(t, centering) -> tuple:
 
 
 def _centering_of(group) -> tuple:
-    """The centering translations of this group's Bravais lattice."""
+    """The centering vectors of the Bravais lattice of ``group``.
+
+    ``group`` is a :class:`GroupData`, whose name opens on its lattice letter.
+    Returns the vectors other than zero, in the conventional cell used by the
+    irreptables package, none for a primitive lattice.
+    """
     letter = str(group.name)[:1]
     if letter not in _CENTERINGS:
         raise InternalError(                         # pragma: no cover - guard
-            f"#{group.number_str}'s name {group.name!r} does not start with a Bravais "
-            "lattice letter, so the lattice its translations are reduced modulo "
-            "cannot be determined.")
+            f"the name {group.name!r} of group #{group.number_str} does not start with "
+            "a Bravais lattice letter. Report it, with the model and the call.")
     return _CENTERINGS[letter]
 
 
 def _tabulated_translations(group) -> dict:
-    """The group's own tabulated conventional-setting translations, by rotation.
+    """The translations the tables give the operations of ``group``, by rotation.
 
-    Keyed ``(reference-cell rotation, antiunitary)``.  Matching this cell to the
-    standard setting is what puts the tabulated operations on the record in the
-    first place, so these are read off what is already there rather than loaded:
-    ``irrep`` keeps them as ``u_symmetries_tables`` and ``au_symmetries_tables``
-    and pairs them with the cell's own operations through the same reference-cell
-    rotation.  Empty for a record whose setting was never determined, which no
-    public call reaches.
+    ``group`` is a :class:`GroupData`.  The tabulated operations are those the
+    irrep package keeps on its record of the group, ``u_symmetries_tables``
+    and ``au_symmetries_tables``.  Returns a mapping from
+    ``(rotation, antiunitary)`` to the translation, an array of shape (3,).
+    ``rotation`` is the bytes of the integer rotation matrix and ``antiunitary``
+    a bool.  The matrix and the translation are in the conventional cell used
+    by the irreptables package.  The mapping is empty where the record carries
+    no tabulated operations.
     """
     sg = getattr(group, "_sg", None)
     out = {}
@@ -175,12 +204,14 @@ def _tabulated_translations(group) -> dict:
 
 
 def _written_translation(sym, group, tabulated, shortest) -> tuple:
-    """The translation the symbol is written with: the tables' own where they carry it.
+    """The translation the Seitz symbol of operation ``sym`` is written with.
 
-    A physicist reads this symbol against a printed general position, so the
-    representative written is the one the tables hold for that operation.  Where
-    the tables carry no entry for it, what is written is the shortest
-    representative instead (:func:`_reduced_translation`).
+    ``sym`` is an operation of ``group``, ``tabulated`` the mapping
+    :func:`_tabulated_translations` returns for ``group``, and ``shortest``
+    the representative :func:`_reduced_translation` gives for the translation
+    of ``sym``.  Returns the tabulated translation of the rotation and
+    antiunitarity of ``sym``, each component modulo one, or ``shortest`` where
+    none is tabulated; either is three fractions.
     """
     rotation = np.asarray(sym.rotation_refUC(np.asarray(group._refUC, dtype=float)),
                           dtype=int)
@@ -191,11 +222,12 @@ def _written_translation(sym, group, tabulated, shortest) -> tuple:
 
 
 def _translation_text(parts) -> str:
-    """Three translation components as ITA writes them, comma separated.
+    """Three translation components as a Seitz symbol writes them, ``0,1/2,1/4``.
 
-    Each is an exact fraction, but in a model's own frame
-    (:func:`_own_frame_translation`), where a component that is none is the
-    float it is, written as a decimal.
+    ``parts`` holds the components, each a fraction or, in a model's own
+    reduced coordinates (:func:`_own_frame_translation`), a float.  A fraction
+    is written ``n/d``, or ``n`` where it is an integer, and a float to four
+    significant digits.  Returns the components joined by commas.
     """
     return ",".join(f"{p:.4g}" if isinstance(p, float)
                     else f"{p.numerator}" if p.denominator == 1
@@ -203,14 +235,13 @@ def _translation_text(parts) -> str:
 
 
 def _own_frame_translation(t) -> tuple:
-    """``t``, in a model's own reduced coordinates, modulo its lattice.
+    """The translation ``t`` modulo the lattice, in a model's own reduced coordinates.
 
-    Each component is the exact fraction it is within :data:`_LATTICE_TOL`, of
-    denominator :data:`_SEITZ_DENOMINATOR` or less, as every tabulated
-    translation is (:func:`_fraction_mod_one`).  A model whose origin sits off
-    every point its operations fix carries other translations in its own
-    frame, and such a component is kept as the number it is, modulo one.  A
-    lattice vector of the cell reads as three zeros.
+    A component within :data:`_LATTICE_TOL` of a fraction of denominator
+    :data:`_SEITZ_DENOMINATOR` or less is that fraction, modulo one.  Any other
+    component is the float it is, modulo one; a model whose origin sits off
+    every point its operations fix carries such translations.  Returns three
+    components, three zeros for a lattice vector of the cell.
     """
     parts = []
     for x in np.asarray(t, dtype=float).reshape(-1):
@@ -221,16 +252,15 @@ def _own_frame_translation(t) -> tuple:
 
 
 def _record_name(sym, lattice) -> str:
-    """One operation of a group as a record lists it.
+    """The name of operation ``sym`` as a record that lists operations writes it.
 
-    Its name in the frame ``characters=`` is written in
-    (:func:`._sitechars.operation_name`), with its translation in Seitz form,
-    in the cell's reduced coordinates (:func:`_own_frame_translation`), where
-    that is not a lattice vector of the cell -- ``{E|1/2,0,0}``, a half
-    translation, which ``E`` alone would print as the identity -- and a ``'``
-    where it carries time reversal.  The frame a declaration is written in
-    names a site's operations without their translations: its own operations
-    are told apart by their rotations alone.
+    ``lattice`` holds the cell's lattice vectors as rows, in Cartesian axes.
+    The name is that of :func:`._sitechars.operation_name`, in the Cartesian
+    axes in which the pythtb Lattice is specified.  Where the translation of
+    ``sym``, in the cell's reduced coordinates (:func:`_own_frame_translation`),
+    is not a lattice vector, the name is written in Seitz form with it:
+    ``{E|1/2,0,0}`` for a half translation, which ``E`` alone would print as
+    the identity.  A trailing ``'`` marks time reversal.  Returns the name.
     """
 
     name = _sitechars.operation_name(sym, np.asarray(lattice, dtype=float))
@@ -241,11 +271,16 @@ def _record_name(sym, lattice) -> str:
 
 
 def _seitz_key(sym, group) -> tuple:
-    """``(det, order, axis, sense, translation)`` of one operation, conventional setting.
+    """The quantities the Seitz symbol of operation ``sym`` is written from.
 
-    Everything the symbol is written from, and everything a written symbol is
-    matched against — the same quantities either way, so that a spelling that
-    names this operation resolves to it whichever representative it uses.
+    ``sym`` is an operation of ``group``.  Returns
+    ``(det, order, axis, sense, translation)``, read in the conventional cell
+    used by the irreptables package: the determinant of the rotation ``R``;
+    the order ``n`` of its proper part ``det·R``, the ``n`` of the symbol
+    ``n`` or ``-n``; its axis (:func:`_rotation_axis`), empty for order one;
+    its sense (:func:`_rotation_sense`), ``0`` for order two or one; and the
+    representative of its translation :func:`_reduced_translation` gives.
+    A written symbol is matched on the same quantities (:func:`_matches`).
     """
     refUC = np.asarray(group._refUC, dtype=float)
     rotation = np.asarray(sym.rotation_refUC(refUC), dtype=int)
@@ -254,10 +289,10 @@ def _seitz_key(sym, group) -> tuple:
     trace = int(round(float(np.trace(proper))))
     if trace not in _ROTATION_ORDER:                   # pragma: no cover - guard
         raise InternalError(
-            f"operation #{int(sym.ind)}'s rotation has trace {trace} and determinant "
-            f"{det} in the conventional setting, which is no crystallographic "
-            "rotation. This is arithmetic in this package failing, not a measurement "
-            "about the model.")
+            f"the rotation of operation #{int(sym.ind)}, in the conventional cell used "
+            f"by the irreptables package, has determinant {det}, and its proper rotation "
+            f"det(R)·R has trace {trace}, which is no crystallographic rotation. Report "
+            "it, with the model and the call.")
     order = _ROTATION_ORDER[trace]
     axis = () if order == 1 else _rotation_axis(proper)
     sense = _rotation_sense(sym, group, axis) if order > 2 else 0
@@ -266,7 +301,14 @@ def _seitz_key(sym, group) -> tuple:
 
 
 def _seitz_text(key, time_reversal, written=None) -> str:
-    """One operation's Seitz symbol, from the quantities it is written from."""
+    """An operation's Seitz symbol, ``{-4+_001|0,0,1/2}``, from its quantities.
+
+    ``key`` is what :func:`_seitz_key` returns for the operation, and
+    ``time_reversal`` whether it is antiunitary, which adds a trailing ``'``.
+    ``written`` is the translation to write, three fractions
+    (:func:`_written_translation`); where it is ``None``, the translation in
+    ``key`` is written.  Returns the symbol.
+    """
     det, order, axis, sense, parts = key
     parts = parts if written is None else written
     if order == 1:
@@ -281,15 +323,20 @@ def _seitz_text(key, time_reversal, written=None) -> str:
 
 
 def _parse_seitz(text, centering) -> tuple | None:
-    """A written Seitz symbol read back, or ``None`` when it is not one.
+    """The written Seitz symbol ``text`` read back, as ``(key, time_reversal)``.
 
-    Gives ``((det, order, axis, sense, translation), time_reversal)`` in the
-    same quantities :func:`_seitz_key` measures, with ``sense`` ``0`` where the
-    spelling left it out.  The direction is turned the way
-    :func:`_primitive_direction` turns it and the sense turns with it, since
-    ``n⁺`` about ``[uvw]`` and ``n⁻`` about ``[-u-v-w]`` are one operation; the
-    translation is reduced modulo the crystal's lattice, so any representative
-    of it names the same operation.
+    ``centering`` holds the centering vectors of the group's lattice
+    (:func:`_centering_of`).  ``key`` is in the quantities :func:`_seitz_key`
+    measures, with ``sense`` ``0`` where ``text`` gives none.  The axis is
+    turned so that its first nonzero component is positive, and the sense with
+    it, since ``n+`` about ``[uvw]`` and ``n-`` about ``[-u-v-w]`` are one
+    operation.  The translation is reduced by :func:`_reduced_translation`.
+    Spaces between the parts of the symbol are ignored.  The underscore
+    before the axis may be left out, and the translation's components may be
+    separated by spaces in place of commas.  Returns ``None`` where ``text``
+    is not a Seitz symbol.  A translation component that is no fraction of
+    denominator :data:`_SEITZ_DENOMINATOR` or less is not caught here: it
+    raises in :func:`_fraction_mod_one`.
     """
     body = str(text).strip()
     time_reversal = body.endswith("'")
@@ -340,7 +387,14 @@ def _parse_seitz(text, centering) -> tuple | None:
 
 
 def _matches(key, time_reversal, wanted, wanted_tr) -> bool:
-    """Whether a written symbol names the operation one row carries."""
+    """Whether a written symbol names the operation of ``key``.
+
+    ``key`` and ``time_reversal`` are an operation's quantities
+    (:func:`_seitz_key`) and whether it is antiunitary; ``wanted`` and
+    ``wanted_tr`` are the same, read off the symbol (:func:`_parse_seitz`).
+    They match where every quantity agrees, the sense compared only where the
+    symbol gives one.
+    """
     if bool(time_reversal) != bool(wanted_tr):
         return False
     det, order, axis, sense, parts = key
@@ -352,39 +406,45 @@ def _matches(key, time_reversal, wanted, wanted_tr) -> bool:
 
 @dataclass(frozen=True)
 class Operation:
-    """One operation of a group: its index, its Seitz symbol in the tables' setting, and its name in the model's frame.
+    """One operation of a group: its index, its Seitz symbol and its name.
 
-    One row of an :class:`OperationTable`, ``r.operations[index]``;
-    ``summary()`` prints it.
+    One row of an :class:`OperationTable`, ``r.operations[index]``.  Records
+    with an entry for each operation of the group, such as the matrices of
+    ``r.rep`` and the verdicts of ``r.numerical.validated``, name the
+    operation by this index.  ``summary()`` prints it.
 
     Attributes
     ----------
     index : int
-        Its index in the tables' order, the key every per-operation record is
-        written on: ``rep.matrices``, the verdicts of the measurement, the
-        entries of a descent.
+        Its index, in the order of the tables of the irreptables package.
     seitz : str
-        Its Seitz symbol ``{R|t}`` in the tables' conventional setting,
-        ``{-4+_001|0,0,1/2}``, with a trailing ``'`` where it is combined with
-        time reversal.
+        Its Seitz symbol ``{R|t}``, written in the conventional cell used by
+        the irreptables package: ``{3+_001|0,0,0}``.  A trailing ``'`` marks
+        an operation combined with time reversal.
     name : str
-        The same operation in the model's own Cartesian frame, the frame
-        ``characters=`` is written in: ``C4(z)``, ``m(x)``,
-        ``S4^-1([1-10])``, an axis along none of ``x``, ``y`` and ``z`` named
-        by its direction in the lattice vectors; primed as the Seitz symbol is.
-    rotation, translation : ndarray, shapes (3, 3) and (3,)
-        Its rotation, integer, and its translation, in the model's reduced
-        coordinates.
+        Its name in the Cartesian axes in which the pythtb Lattice is
+        specified: ``C3(z)``, ``C3^-1(z)``, ``m(x)``.  These are the axes
+        ``characters=`` is written in.  An axis, or a mirror's normal, along
+        none of ``x``, ``y`` and ``z`` is named by its direction in the
+        lattice vectors: ``C2([1-10])``, ``m([1-10])``.  A trailing ``'``
+        marks time reversal, as in the Seitz symbol.
+    rotation : ndarray of int, shape (3, 3)
+        Its rotation, in the model's reduced coordinates.
+    translation : ndarray, shape (3,)
+        Its translation, in the model's reduced coordinates.
     antiunitary : bool
-        Whether it is combined with time reversal, as half of a grey group's
-        operations are.
+        Whether it is combined with time reversal.
     rotation_cartesian : ndarray, shape (3, 3)
-        Its rotation in the Cartesian axes the lattice vectors are written in,
-        a layer's normal as ``z``.
+        Its rotation in the Cartesian axes in which the pythtb Lattice is
+        specified.  A layer whose Lattice is specified in two dimensions has
+        its normal along ``z``.
     spin_lift : ndarray, shape (2, 2), or None
-        Its matrix on the spin, ``e^{−iθ n̂·σ/2}`` with ``n̂`` in those axes
-        and the spin along their ``z``, an improper operation's that of its
-        proper part; ``None`` in a group of states without spin.
+        If not ``None``, its matrix on a spin one-half.  For a rotation by
+        ``θ`` about the unit vector ``n`` it is ``e^{-iθ n·σ/2}``, with ``n``
+        in the same Cartesian axes and the spin along their ``z``.  An
+        improper operation carries the matrix of its proper part.  An
+        operation combined with time reversal carries the matrix of its
+        unitary part.  ``None`` where the group is not a double group.
     """
 
     index: int
@@ -421,17 +481,18 @@ class Operation:
 
 
 class OperationTable(dict):
-    """The operations of one group, a mapping from each index to its :class:`Operation`.
+    """The operations of a group, a mapping from each index to its operation.
 
-    What :func:`operations` returns and ``r.operations`` holds: ``table[4]`` is
-    operation 4, and ``.values()`` gives the operations in index order.  It
-    prints as a table of each operation's index, Seitz symbol and name, which
-    ``summary()`` returns.
+    The record :func:`operations` returns, which ``r.operations`` also holds.
+    It holds one operation for each coset of the lattice translations.
+    ``table[2]`` is the :class:`Operation` of index 2, and ``table.values()``
+    gives the operations in index order.  Printed, it is a table of each
+    operation's index, Seitz symbol and name.  ``summary()`` prints it.
 
     Attributes
     ----------
     group : GroupData
-        The group these are the operations of, ``r.group``.
+        The group whose operations these are, ``r.group``.
     """
 
     def __init__(self, rows=(), *, group=None):
@@ -440,7 +501,10 @@ class OperationTable(dict):
         self.group = group
 
     def _named(self) -> str:
-        """The group as the table prints it, ``P4mm1' #99.164``."""
+        """The group's name and number as the table prints them, ``P4mm1' #99.164``.
+
+        Empty where the table has no group.
+        """
         group = self.group
         return "" if group is None else f"{group.name} #{group.number_str}"
 
@@ -448,7 +512,7 @@ class OperationTable(dict):
         return f"OperationTable({self._named()}, operations {_index_ranges(self)})"
 
     def summary(self) -> str:
-        """The table itself: each operation's index, its Seitz symbol and its name."""
+        """The table as printed: each operation's index, Seitz symbol and name."""
         return str(self)
 
     def __str__(self) -> str:
@@ -464,27 +528,30 @@ class OperationTable(dict):
 
 
 def _operation_rows(group, indices=None) -> OperationTable | Refusal:
-    """The rows of a group's operations, those of ``indices`` or every one.
+    """The operations of ``group`` as an :class:`OperationTable`, all or some.
 
-    ``group`` is a :class:`GroupData` or a refusal, which is returned as it is;
-    ``indices`` the operations' indices, in any order, every operation of the
-    group where ``None``.  The rows are in index order.  Refuses
-    ``lattice_not_descended`` on a lattice supergroup and ``tables_not_ready``
-    where the group has no conventional setting.
+    ``group`` is a :class:`GroupData`, or a refusal, which is returned as it
+    is.  ``indices`` holds the indices of the operations to list, in any
+    order; with ``None`` every operation is listed.  Returns the table, its
+    rows in index order.  Refuses ``lattice_not_descended`` where the group
+    holds a pure translation that is not a lattice vector of the model's cell,
+    and ``tables_not_ready`` where the model's cell could not be matched to
+    the conventional cell used by the irreptables package.
     """
     if isinstance(group, Refusal):
         return group
     if not isinstance(group, GroupData):
         raise InternalError(                         # pragma: no cover - guard
-            f"the operations' rows are read off a group, and a "
-            f"{type(group).__name__} is none. This is the package failing, not a "
-            "measurement about the model.")
+            f"the operations were asked of a {type(group).__name__}, which is not a "
+            "group. Report it, with the model and the call.")
     gate = _lattice_not_descended(group)
     if gate is not None:
         return gate
     if not group._tables_ready:
-        return Refusal("tables_not_ready", group._setup_note or "irrep tables are not set "
-                       "up for this cell", context={"number_str": group.number_str})
+        return Refusal("tables_not_ready", group._setup_note or f"the cell of "
+                       f"{group.name} #{group.number_str} could not be matched to the "
+                       "setting the installed tables are written in. Report the model, "
+                       "with this reason.", context={"number_str": group.number_str})
 
     lattice = np.asarray(group._lattice, dtype=float)
     tabulated = _tabulated_translations(group)
@@ -511,41 +578,45 @@ def _operation_rows(group, indices=None) -> OperationTable | Refusal:
 
 
 def operations(group) -> OperationTable | Refusal:
-    """Every operation of a group by its index, with its Seitz symbol and its name in the model's frame.
+    """The operations of a group, one for each coset of the lattice translations.
 
-    The index is the key every per-operation record is written on:
-    ``rep.matrices``, the verdicts of the measurement, the entries of a
-    descent.  The Seitz symbol ``{R|t}`` is the one the tables and the Bilbao
-    Crystallographic Server print, in their conventional setting, with an
-    underscore before the axis and a minus sign for an overbar: ``-4+_001`` is
-    ``4̄⁺₀₀₁``.  The name is the same operation in the model's Cartesian frame,
-    the frame ``characters=`` is written in.
+    Each operation has an index, a Seitz symbol and a name.  The operations
+    are listed in the order of the tables of the irreptables package.  In a
+    double group each operation's product with the rotation by 2π is in the
+    group too, and is not listed.  The Seitz symbol ``{R|t}`` is written in
+    the conventional cell used by the irreptables package.  An underscore
+    stands before the direction of the axis, and a minus sign for an overbar,
+    as in ``{-4+_001|0,0,0}``.  The name is written in the Cartesian axes in
+    which the pythtb Lattice is specified.
 
     Parameters
     ----------
     group : GroupData
-        The group, ``r.group`` of what ``realized_group`` returns.
+        The group, ``r.group``.
 
     Returns
     -------
     OperationTable or Refusal
-        ``table[index]`` is one :class:`Operation`, with its ``seitz``, its
-        ``name``, its matrices and whether it is antiunitary;
-        ``print(table)`` lists them all.  ``r.operations`` is the same table.
-        A ``Refusal`` in its place is falsy.
+        A mapping from each index to its :class:`Operation`.  ``r.operations``
+        holds the same table.  A ``Refusal`` in its place is falsy and names
+        what stopped the call.
 
     Refusals
     --------
     A refusal handed in as ``group`` is returned as it is.
 
     ``tables_not_ready``
-        The group has no conventional setting to write a Seitz symbol in.
+        the installed tables cannot be read for this group in this cell.
 
     Raises
     ------
     TypeError
         ``group`` is not a group: ``r`` or ``r.rep`` in its place, or
         anything else.
+
+    See Also
+    --------
+    operation_index : the index of the operation a Seitz symbol names.
     """
     _require_group("operations", group)
     return _operation_rows(group)
@@ -554,40 +625,49 @@ def operations(group) -> OperationTable | Refusal:
 def operation_index(group, seitz) -> int | Refusal:
     """The index of the operation a Seitz symbol names.
 
-    A rotation written about either direction of its axis, ``4+`` about
-    ``[001]`` or ``4-`` about ``[00-1]``, and any representative of its
-    translation modulo the lattice name the same operation, so a symbol copied
-    off a printed table is read whichever choices it makes; spaces and the
-    underscore before the axis are free.
+    The symbol is read in the conventional cell used by the irreptables
+    package, the cell :func:`operations` writes the symbols in.  A rotation
+    written about either direction of its axis names the same operation:
+    ``3+_001`` and ``3-_00-1`` are one.  A symbol whose translation differs
+    by a lattice vector names the same operation too.  Spaces between the
+    parts of the symbol are ignored, and the underscore before the axis may
+    be left out.
 
     Parameters
     ----------
     group : GroupData
-        The group, ``r.group`` of what ``realized_group`` returns.
+        The group, ``r.group``.
     seitz : str
         A Seitz symbol ``{R|t}``, with a trailing ``'`` for an operation
-        combined with time reversal.
+        combined with time reversal: ``"{3+_001|0,0,0}'"``.
 
     Returns
     -------
     int or Refusal
-        The operation's index.  A ``Refusal`` in its place is falsy.
+        The operation's index.  A ``Refusal`` in its place is falsy and names
+        what stopped the call.
 
     Refusals
     --------
     A refusal handed in as ``group`` is returned as it is.
 
     ``tables_not_ready``
-        The group has no conventional setting to read a Seitz symbol in.
+        the installed tables cannot be read for this group in this cell.
     ``unknown_operation``
-        No operation of the group is written so; the refusal names the nearest
-        spellings it carries.
+        ``seitz`` names no operation of the group.  The refusal names up to
+        three of the group's symbols, the nearest in spelling where any is
+        close.
 
     Raises
     ------
     TypeError
         ``group`` is not a group: ``r`` or ``r.rep`` in its place, or
         anything else.
+
+    See Also
+    --------
+    operations : the operations of a group, each with its index, Seitz symbol
+        and name.
     """
     _require_group("operation_index", group)
     rows = _operation_rows(group)
@@ -604,13 +684,8 @@ def operation_index(group, seitz) -> int | Refusal:
     near = difflib.get_close_matches(str(seitz), carried, n=3, cutoff=0.4) or carried[:3]
     return Refusal(
         "unknown_operation",
-        f"no operation of {rows._named()} is written {str(seitz)!r}. "
-        f"The nearest spellings it carries are {', '.join(near)}. A symbol is the "
-        "conventional-setting `{R|t}`: the rotation part `1`, `-1`, `m`, `2`, `3`, "
-        "`4`, `6`, `-3`, `-4` or `-6`, a `+` or `-` for the sense of a rotation of "
-        "order above two, the direction of the axis after an underscore, then the "
-        "translation as three fractions -- `{-4+_001|0,0,1/2}` -- with a trailing "
-        "`'` where the operation is antiunitary. `operations(group)` prints every "
-        "symbol this group carries against its index.",
+        f"`{str(seitz)}` names no operation of {rows._named()}. "
+        f"The symbols it carries include `{'`, `'.join(near)}`. `operations(group)` "
+        "lists every operation of the group with its index and Seitz symbol.",
         context={"number_str": str(rows.group.number_str), "seitz": str(seitz),
                  "nearest": tuple(near), "carried": tuple(carried)})

@@ -419,9 +419,9 @@ def test_what_the_call_refuses_before_anything_is_measured():
     with no periodic direction in a plane or in space.  Nothing is measured, so
     no group is named; the count of periodic directions is the value.
     """
-    with pytest.raises(ValueError, match="environment must be"):
+    with pytest.raises(ValueError, match="environment='2d' is neither"):
         tqg.realized_group(kane_mele(0.0, -1.0, 0.3, 0.0), environment="2d")
-    with pytest.raises(ValueError, match="no other side"):
+    with pytest.raises(ValueError, match="periodic in three directions, which takes no environment"):
         tqg.realized_group(tqc_models.i213_flicker2018(), **SUB)
     with pytest.raises(TypeError, match="unexpected keyword argument 'enviroment'"):
         tqg.realized_group(kane_mele(0.0, -1.0, 0.3, 0.0), enviroment="substrate")

@@ -21,7 +21,7 @@ from pythtb.models import ssh
 
 chain = tqc.realized_group(ssh(1.0, 0.5))            # ssh(v, w): intra- and intercell hopping
 print(chain)
-#  Refusal[fewer_than_two_periodic_directions]: this model has one periodic direction in its one-dimensional cell, along lattice vector 0: it is a chain or a ribbon, whose symmetry is a rod or frieze group. Neither a molecule nor a chain is in this package's scope yet: it reads a crystal periodic in three directions and a layer periodic in two, whose symmetry is a space group, and a model periodic in fewer is refused whatever the dimension of its cell.  (measured 1, threshold 2)
+#  Refusal[fewer_than_two_periodic_directions]: this model has one periodic direction in its one-dimensional cell, along lattice vector 0: it is a chain or a ribbon, whose symmetry is a rod or frieze group.  (measured 1, threshold 2)
 #      context: dim_r, periodic_dirs
 ```
 
@@ -41,7 +41,7 @@ print(tqc.realized_group(space).gate)
 #  fewer_than_two_periodic_directions
 dot = TBModel(Lattice([[1.0, 0.0], [0.0, 1.0]], [[0.0, 0.0]], periodic_dirs=[]))
 print(tqc.realized_group(dot))                       # one orbital, no periodic direction
-#  Refusal[fewer_than_two_periodic_directions]: this model has no periodic direction in its two-dimensional cell: it is a molecule, whose symmetry is a point group. Neither a molecule nor a chain is in this package's scope yet: it reads a crystal periodic in three directions and a layer periodic in two, whose symmetry is a space group, and a model periodic in fewer is refused whatever the dimension of its cell.  (measured 0, threshold 2)
+#  Refusal[fewer_than_two_periodic_directions]: this model has no periodic direction in its two-dimensional cell: it is a molecule, whose symmetry is a point group.  (measured 0, threshold 2)
 #      context: dim_r, periodic_dirs
 ```
 

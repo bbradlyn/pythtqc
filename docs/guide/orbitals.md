@@ -452,7 +452,7 @@ every word the site accepts:
 ```python
 refusal = tqc.realized_group(km, typat=[0, 1], characters={0: "B1"})
 print("\n".join(str(refusal).splitlines()[:6]))     # its first lines; the table follows
-#  Refusal[unknown_label]: The group identified is P3m11' #156.50, every operation of it obeyed; its representation was not built: orbital 0: 'B1' is not an irrep of this site group, a sum of its irreps, a shell or a known shorthand.
+#  Refusal[unknown_label]: the group identified is P3m11' #156.50, every operation of it obeyed; orbital 0: 'B1' is not an irrep of this site group, a sum of its irreps, a shell or a known shorthand.
 #    site group: order 6, classes E, 2C3(z), 3m(x)
 #    valid labels: -E1, A1, A2, -1E2E + -E1, E
 #    shells:       s, p, d, f
@@ -475,7 +475,7 @@ measured multiplet:
 
 ```python
 print(tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1], characters={(0, 1): "A1"}))
-#  Refusal[ambiguous_multiplet]: The group identified is P4mm1' #99.164, every operation of it obeyed; its representation was not built: orbitals (0, 1): the joint form names the site irreps its orbitals hold together, and 'A1' is 1-dimensional against the 2 orbitals named, so it is not what they hold jointly; {0: 'A1', 1: 'A1'} is the spelling for 2 separate A1 orbitals.
+#  Refusal[ambiguous_multiplet]: the group identified is P4mm1' #99.164, every operation of it obeyed; orbitals (0, 1): the joint form names the site irreps its orbitals hold together, and 'A1' is 1-dimensional against the 2 orbitals named, so it is not what they hold jointly; {0: 'A1', 1: 'A1'} is the spelling for 2 separate A1 orbitals.
 #      context: declared_irrep, dim, group, multiplet, multiplets, orbitals, site
 ```
 

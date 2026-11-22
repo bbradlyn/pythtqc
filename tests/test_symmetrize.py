@@ -838,7 +838,7 @@ def test_the_covariance_refusal_points_at_the_route_when_a_tolerance_was_declare
                        context={"n_candidates": 2})
 
     patch_everywhere(monkeypatch, "_build_rep", refusing)
-    with pytest.raises(InternalError, match="onto its invariant part, still does not") as err:
+    with pytest.raises(InternalError, match="onto its symmetric part, still does not") as err:
         _realized._realize(model, typat=[0, 0, 1, 1], tol=tol,
                            characters=["s", "dx2-y2", "s", "s"])
     assert "P4mm1' #99.164" in str(err.value) and "reaches 0.5 against" in str(err.value)
@@ -854,7 +854,7 @@ def test_the_covariance_refusal_points_at_the_route_when_a_tolerance_was_declare
     alone, together = edge.context["obeyed_alone"], edge.value
     assert alone <= edge.threshold < together <= edge.threshold + alone
     assert f"the worst to {alone:.3g}" in edge.reason
-    assert f"onto itself only to {together:.3g}" in edge.reason and "precision" in edge.reason
+    assert f"onto H(gk) only to {together:.3g}" in edge.reason and "precision" in edge.reason
 
     # rep_search_too_large: the same group named and carried
     # the enumeration forced through the private entry, which takes the strategy
@@ -863,7 +863,7 @@ def test_the_covariance_refusal_points_at_the_route_when_a_tolerance_was_declare
                           strategy="enumerate", max_candidates=8)
     assert not capped and capped.gate == "rep_search_too_large"
     assert capped.value == 32 and capped.threshold == 8
-    assert "The group identified is P4mm1' #99.164" in capped.reason
+    assert "the group identified is P4mm1' #99.164" in capped.reason
     assert capped.context["group"].number_str == "99.164"
     roomy = tqg.realized_group(tqc_models.lin3g(), typat=[0, 0, 1, 1],
                                characters=["s", "dx2-y2", "s", "s"], max_candidates=8,
@@ -883,7 +883,7 @@ def test_the_covariance_refusal_points_at_the_route_when_a_tolerance_was_declare
     assert grids < tight.value == pytest.approx(113033.6, rel=1e-12, abs=0)
     assert tight.threshold == 1e5
     assert "113 kB at its peak" in tight.reason
-    assert "The group identified is P4mm1' #99.164" in tight.reason
+    assert "the group identified is P4mm1' #99.164" in tight.reason
     assert tight.context["group"].number_str == "99.164"
     assert "`realized_group(..., max_bytes=1.2e5)` runs it" in tight.reason
     runs = _realized._realize(model, typat=[0, 0, 1, 1], tol=tol, max_bytes=1.2e5,
@@ -1325,7 +1325,7 @@ def test_a_declared_position_tol_snaps_the_centers_before_anything_else(
     assert head.context["tol"] == pytest.approx(1e-8 * head.context["max_h"], rel=1e-12)
     assert head.context["group"].number_str == "187.210"
     assert head.context["group"]._size == 24
-    assert head.reason.startswith("the orbital centers miss the cell's own symmetry")
+    assert head.reason.startswith("the orbital centers miss the cell's own operations")
     assert "precision=" in head.reason and "position_tol=" in head.reason
     assert "positions" not in head.context, "none was declared, so none was made"
 
@@ -1570,7 +1570,7 @@ def test_centers_too_far_from_symmetric_break_the_operations_they_miss(km_odd):
         "the moved centres read in the group's frame"
 
     # 4. and the declaration itself is grammar: a non-positive one is a bug
-    with pytest.raises(ValueError, match="position_tol must be"):
+    with pytest.raises(ValueError, match="position_tol=0.0 is not a positive number"):
         tqg.realized_group(km_odd, environment="free-standing", typat=[0, 1],
                            position_tol=0.0)
 
@@ -2164,7 +2164,7 @@ def test_the_declaration_is_grammar(km_odd):
         assert f"{' and '.join(kw)} declare the same thing twice" in str(e.value), \
             "the message names exactly what was doubled"
     for bad in (0.0, -1e-6, float("nan"), float("inf"), "six decimals"):
-        with pytest.raises(ValueError, match="precision must be"):
+        with pytest.raises(ValueError, match="precision=.* is not a positive number"):
             tqg.realized_group(km_odd, typat=[0, 1], precision=bad)
 
 

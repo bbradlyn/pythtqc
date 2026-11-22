@@ -1890,9 +1890,9 @@ def test_find_intertwiners_zero_nullspace_is_a_proof():
     assert _detector._find_intertwiners(m, -np.eye(2), k).method == "eigen"
     assert _detector._find_intertwiners(m, -np.eye(2), k, solver="stacked").method == "stacked"
 
-    with pytest.raises(ValueError, match="at least two k-points"):
+    with pytest.raises(ValueError, match="k_pts= has length 1"):
         _detector._find_intertwiners(m, -np.eye(2), np.zeros((1, 2)))
-    with pytest.raises(ValueError, match="solver must be"):
+    with pytest.raises(ValueError, match="solver= is 'gram'"):
         _detector._find_intertwiners(m, -np.eye(2), k, solver="gram")
 
 

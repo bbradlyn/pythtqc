@@ -1,6 +1,8 @@
-"""The eigen-sift detector: every matrix ``X`` with ``X H(k) = H(Rk) X`` on a grid
-of ``k``, found at one point and sifted over the rest, with the covariance of
-each candidate over the whole grid.
+"""The matrices an operation could be on a Hamiltonian.
+
+Every matrix ``X`` with ``X H(k) = H(Rk) X`` on a grid of ``k`` is found, by
+default, at one point and sifted over the others, and each candidate's
+covariance is measured over the whole grid.
 """
 
 from __future__ import annotations
@@ -18,9 +20,9 @@ from ._tolerance import (
 
 #: How many seeded pseudo-random complex combinations of a degenerate solution
 #: basis are searched for a well-conditioned (hence polar-extractable) element.
-#: Sixteen is far more than the generic case needs — a random combination of a
-#: ``*``-algebra basis is nonsingular with probability one — and is kept fixed
-#: so the search is reproducible without a parameter to thread.
+#: Sixteen is far more than the generic case needs, since a random combination
+#: of a ``*``-algebra basis is nonsingular with probability one.  It is fixed so
+#: that the search is reproducible without a parameter to thread.
 _UNITARY_PROBES = 16
 
 #: Seed of that search.  Fixed, so two calls on the same model return the same
@@ -31,16 +33,14 @@ _UNITARY_PROBE_SEED = 1729
 #: How many k-points at the head of the grid the eigen route looks at when it
 #: picks its **parametrization point** ``k1`` (the one whose source spectrum has
 #: the largest spread, so that the fewest eigenvalue pairs match by accident).
-#: Four is enough because the choice only has to avoid a *degenerate* point:
-#: nothing about the verdict depends on which point is picked, only the size of
-#: the stage-0 basis and hence the cost.
+#: Four is enough because the choice only has to avoid a *degenerate* point.
+#: The point picked sets the size of the stage-0 basis, and so the cost.
 _EIGEN_PROBES = 4
 
 
 #: Consecutive sift stages that must leave the basis size unchanged before the
-#: sift stops.  Three is a stopping rule, not a soundness one: an over-counted
-#: dimension is refused by its full-grid residual, exactly as a subset solve's
-#: is (:attr:`_IntertwinerSpace.residuals`).
+#: sift stops.  Three is a stopping rule: before it stops, the sift checks the
+#: basis at every point (:func:`_grid_probe`).
 _SIFT_STABLE = 3
 
 #: Factor by which an emptied sift widens its window before trying again.
@@ -53,148 +53,133 @@ _EIGEN_ESCALATION = 10.0
 #: one" not matter.
 _GRID_PROBES = 2
 
-#: Byte ceiling on the tensor-structure projection :func:`.._build._build_rep`'s read-off runs on
-#: one generator's solution space (``16·dim·nstate²``).  It bites only on a
-#: **vacuous** space, whose ``dim`` is ``nstate²`` — a scalar Hamiltonian, where
-#: the enumeration is the honest instrument anyway — and it makes the read-off
-#: defer rather than allocate gigabytes.
+#: Byte ceiling on projecting one operation's solution space onto its site
+#: blocks, ``16·dim·nstate²`` bytes for a space of dimension ``dim``: the
+#: representation's build, the declaration, the descent, the multiplets, the
+#: sectors and the site spaces each skip the projection past it rather than
+#: allocate gigabytes.  It is meant for a **vacuous** space, whose ``dim`` is
+#: ``nstate²``: a scalar Hamiltonian.
 _READOFF_MAX_BYTES = 2.5e8
 
 
 @dataclass(frozen=True)
 class _IntertwinerSpace:
-    """The matrices an operation could be on this Hamiltonian.
+    """The matrices an operation could be on a Hamiltonian, with their covariance.
 
-    Its dimension says whether the operation holds at all: ``dim == 0`` is a
-    *proof* that no such matrix exists, so the operation is broken rather than
-    unfitted, while ``dim >= 2`` says the model conserves something beyond the
-    group and at ``g = identity`` the basis is the commutant of ``{H(k)}``
-    itself.  The space is falsy at dimension zero, the proof that the
-    operation is broken, as a :class:`..refusal.Refusal` is, so
-    ``isinstance(out, Refusal)`` is the test for a refusal.
-    :attr:`residuals` carries the covariance each candidate achieves,
-    in the units of ``H``: the number a symmetry gate reads.  The detector is
-    walked through in
-    ``docs/background/measurement.md#the-cell-and-a-verdict-on-each-operation``.
+    The record :func:`_find_intertwiners` returns.  It is falsy at dimension
+    zero, as a :class:`..refusal.Refusal` is, so ``isinstance(out, Refusal)``
+    tells a refusal apart.  ``dim == 0`` means that no matrix solves the
+    equation within the cut at the points sifted, among the eigenvector pairs
+    the window admits, or at the points solved on the stacked routes.  At
+    ``dim == 0`` the operation is read as broken.  Otherwise it is judged on
+    :attr:`residuals`, and a nonzero dimension alone does not mean it holds.
 
     Attributes
     ----------
     dim : int
-        Dimension of the solution space.  ``0`` is the detector's *proof* that
-        the Hamiltonian does not obey the operation; ``dim == nstate**2`` with
-        :attr:`vacuous` set is the opposite verdict, the constraint being the
-        zero operator so that *every* ``X`` solves it.
+        The dimension of the space.  Where the operation holds and nothing was
+        fitted, it is the dimension of the space of matrices that commute with
+        every ``H(k)``.  Where :attr:`fit` is ``"fitted"``, it is the
+        dimension of the solutions among the matrices of the forms fitted,
+        which can be smaller.
     basis : ndarray, shape (dim, nstate, nstate)
-        Orthonormal (in the Frobenius inner product) basis of the solution
-        space, in no particular phase.  At ``g = identity`` this basis *is* the
-        commutant of ``{H(k)}`` — the model's conserved operators, enumerated.
-        When :attr:`vacuous` the basis spans all of ``M_nstate`` and is anchored
-        so that ``basis[0]`` is the identity matrix.
+        A basis of the space, orthogonal in the Frobenius inner product, each
+        member of norm ``sqrt(nstate)``, in no particular phase.  At the
+        identity it spans the model's conserved operators.  Where
+        :attr:`vacuous`, it spans every matrix and ``basis[0]`` is the
+        identity.
     unitaries : ndarray, shape (n_candidates, nstate, nstate)
-        Unitary candidates, one per row of ``residuals``/``unitarity``.  The
-        first ``dim`` rows are the polar-extracted unitary nearest each basis
-        solution (``X = W S V†`` → ``W V†``).  When ``dim >= 2`` one further row
-        is appended: the **searched** unitary, an element of the solution space
-        itself rather than merely near it (see ``search``).  ``n_candidates`` is
-        therefore ``dim`` for ``dim <= 1`` and ``dim + 1`` for ``dim >= 2``.
+        The candidates: the polar factor of each member of :attr:`basis`, and,
+        at ``dim >= 2``, one more, a unitary member of the space found by the
+        search :attr:`search` describes.  ``n_candidates`` is ``dim`` for
+        ``dim <= 1`` and ``dim + 1`` otherwise.
     residuals : ndarray, shape (n_candidates,)
-        ``max_k ‖ U H(k) U† − H(Rk) ‖_max`` for each candidate, **over every
-        supplied k-point** (not only the ones the nullspace was solved on) —
-        the covariance residual achieved, in the units of ``H``.  This is the
-        number to gate on.
+        ``max_k ‖U H(k) U† − H(Rk)‖_max`` of each candidate over every point
+        supplied, in the units of ``H``; ``H(k)*`` in place of ``H(k)`` for an
+        antiunitary operation.
     unitarity : ndarray, shape (n_candidates,)
-        ``‖X†X − 1‖_max`` of each candidate before polar extraction, with ``X``
-        scaled to ``‖X‖_F = sqrt(nstate)``: how far the raw solution already
-        was from unitary.  A basis of a degenerate space routinely lands on
-        singular, sector-projector-like elements and reads ``O(1)`` here; the
-        appended searched row reads machine-zero by construction.
+        ``‖X†X − 1‖_max`` of each candidate before its polar factor is taken,
+        ``X`` of Frobenius norm ``sqrt(nstate)``.
     singular_values : ndarray
-        Singular values of the constraint operator, ascending, as solved (on
-        ``n_kpts_solve`` k-points).  The gap between ``singular_values[dim-1]``
-        and ``singular_values[dim]`` is what the nullspace verdict rests on.
+        Ascending.  On the eigen route, the singular values of the constraint
+        on the basis entering the last point sifted that constrains anything;
+        zeros where no point does; every distance between an energy of
+        ``H(Rk)`` and one of ``H(k)`` at the parametrization point where no
+        pair falls within the window; and the constraint's norm at each point
+        of the grid where :attr:`vacuous`.  On the stacked routes, the
+        singular values of the stacked constraint on :attr:`n_kpts_solve`
+        points.  Where :attr:`fit` is ``"fitted"``, each member's largest
+        covariance ``‖X H(k) − H(Rk) X‖_F`` over the grid, at unit norm.
     scale : float
-        The scale the cut is measured against: ``dim`` is exactly
-        ``count(singular_values <= cut * scale)``, and ``singular_values[0] /
-        scale`` is the "how far from a solution" number to read.  Where the
-        space is the fit over the whole grid (:attr:`fit` ``"fitted"``),
-        ``singular_values`` holds each member's largest covariance over the
-        grid, ``‖X H(k) − H(Rk) X‖_F`` at unit norm, ascending, and ``scale``
-        the largest ``‖L_k‖``: the members were counted on those, point by
-        point.  When
-        :attr:`vacuous` there is no such scale, every singular value being
-        rounding noise, and this reads ``max |H|`` over the grid instead.
+        What the cut is relative to: the constraint's norm at the last point
+        sifted that constrains anything, or the stacked constraint's largest
+        singular value.  Where :attr:`fit` is ``"fitted"``, the largest such
+        norm over the grid.  ``max|H|`` at the parametrization point where no
+        point sifted constrains anything, and over the grid where
+        :attr:`vacuous`.
     tol : float
-        The declared symmetry tolerance, absolute and in the units of ``H``:
-        the number a caller's covariance gate is set by.  Nothing here is gated
-        on it; :attr:`residuals` is what a gate reads.
+        The covariance a candidate may carry, in the units of ``H``.
     cut : float
-        The relative, dimensionless nullspace cut applied:
-        ``dim == count(singular_values <= cut * scale)``.  Equal to
-        :attr:`tol` unless the caller declared the two apart.
+        The relative cut applied to the singular values.  Equal to :attr:`tol`
+        unless the two were declared apart.
     method : str
-        Which route solved it — ``"eigen"`` (the default), ``"stacked"``, or
-        ``"stacked_subset"``, the same full-precision stacked SVD over a
-        deterministic subset of the grid.  None of the three trades precision
-        for size.
+        The route that solved it: ``"eigen"``, ``"stacked"``, or
+        ``"stacked_subset"``, the stacked solve on an evenly strided subset of
+        the grid.
     n_kpts : int
-        Number of k-points supplied — where the residuals were measured.
+        The number of points supplied, where the residuals are measured.
     n_kpts_solve : int
-        Number of k-points the nullspace was solved on.
+        The number of points the space was solved on.
     window : float
-        The eigen route's matching window ``δ``, relative to ``max|H − μ·1|``
-        at the parametrization point, ``μ`` the mean on-site energy: the
-        stage-0 basis is the outer products of eigenvector pairs with
-        ``|E'_a − E_b| <= δ·max|H − μ·1|``.  Never narrower, in the units of
-        ``H``, than the covariance a kept candidate may carry, so it reads above
-        one where ``H`` sits at its mean at that point.  ``0.0`` for the
-        stacked routes, which have no window.
+        The eigen route's energy window, relative to ``max|H − μ·1|`` at the
+        parametrization point, ``μ`` the mean on-site energy.  The first basis
+        is spanned by the outer products of the pairs of eigenvectors, one of
+        ``H(k)`` and one of ``H(Rk)``, whose energies differ by at most the
+        window times ``max|H − μ·1|``.  It is never narrower, in the units
+        of ``H``, than the covariance a kept candidate may carry.  ``0.0``
+        for the stacked routes.
     k_solve : int
-        Index (into the supplied ``k_pts``) of the eigen route's
-        parametrization point ``k1`` — the probe point of largest spectral
-        spread.  ``-1`` for the stacked routes.
+        The index in the grid of the eigen route's parametrization point;
+        ``-1`` for the stacked routes.
     basis_size : tuple of int
-        The eigen route's basis size after each sifted point, starting with the
-        stage-0 parametrization.  ``()`` for the stacked routes.
+        The eigen route's basis size after each point sifted, the
+        parametrization point first; ``()`` for the stacked routes.
     escalations : tuple of float
-        Windows the eigen route tried and abandoned, in order, before settling
-        on :attr:`window` — what makes a raised tolerance effective on a model
-        that is symmetric only to its own numerical defect.
+        The windows the eigen route tried and widened, in order, before
+        :attr:`window`.
     antiunitary : bool
-        Whether the antiunitary equation was solved.
+        Whether the antiunitary equation ``X H(k)* = H(Rk) X`` was solved.
     vacuous : bool
-        The constraint operator vanished: ``H(k)`` and ``H(Rk)`` are the *same
-        scalar* matrix at every sampled k, so the equation says nothing and
-        every ``X`` solves it.  ``dim`` is then ``nstate**2`` and the full
-        matrix space is returned rather than a nullspace read out of rounding
-        noise — which is what a one-band model does at every operation its
-        ``h(k)`` obeys.  It is not an acceptance: what certifies the operation
-        is ``residuals``, measured from ``H`` exactly as in every other case.
+        Whether the constraint vanished: ``H(k)`` and ``H(Rk)`` are the same
+        multiple of the identity at every point, to within ``1e-9`` of
+        ``max|H|`` over the grid, so every ``X``
+        solves it and ``dim`` is ``nstate**2``.  The operation is still judged
+        on :attr:`residuals`.
     search : dict
-        Empty unless ``dim >= 2``.  Then: ``n_probes``/``seed`` of the
-        combination search, ``picked`` (index into the searched pool, ``< dim``
-        if a bare basis element won), ``sigma_min`` of the winner and
-        ``sigma_min_basis``, the best any bare basis element managed — the
-        pair that shows what the search bought.
+        Empty unless ``dim >= 2``.  Then ``n_probes`` and ``seed`` of the
+        seeded search over combinations of the basis; ``picked``, the winner's
+        index in the pool searched, below ``dim`` where a basis member won;
+        ``sigma_min``, the winner's least singular value; and
+        ``sigma_min_basis``, the largest least singular value of a basis
+        member.
     fit : str
         What the fit over the whole grid among the matrices of the operation's
-        forms (``forms`` of :func:`_find_intertwiners`) settled, where the sift
-        kept no candidate within ``tol`` or its space lies off a form
-        (:func:`_off_a_form`): ``"fitted"``, the space is the fit's;
-        ``"fit not closer"``, the fit's best candidate was not closer and the
-        sift's space is returned; ``"spectra"``, ``"none at the points
-        sifted"`` and ``"none over the grid"``, a proof that no matrix of the
-        forms meets ``tol`` -- two spectra apart by more than ``n·tol`` at a
-        point sifted, the stacked constraint at the points sifted, the count
-        over the grid; ``"not fitted: memory"``, a form's fit would not fit
-        the memory the basis may take and no proof was made.  ``""`` where
-        nothing was asked: no forms given, a candidate within ``tol`` and of
-        every form it is near to rounding, a vacuous space or the stacked
+        forms settled (``forms`` of :func:`_find_intertwiners`).
+        ``"fitted"``: the space is the fit's.  ``"fit not closer"``: the
+        sift's space is returned.  ``"spectra"``, ``"none at the points
+        sifted"`` and ``"none over the grid"``: no matrix of the forms meets
+        ``tol``, proved by two spectra at a point sifted apart by more than
+        ``n·tol``, by the forms' constraint at the points sifted, or by the
+        count over the grid.  ``"not fitted: memory"``: a form's fit would
+        take more memory than the trial basis may, and nothing is proved.
+        ``""`` where no fit was made: no forms given, a candidate within
+        ``tol`` whose space lies off no form, a vacuous space, or the stacked
         route.
     fitted_forms : tuple
-        The forms fitted where the sift's candidate met ``tol`` and its space lay
-        off them (:func:`_off_a_form`): the space depends on the forms given
-        only through these, so it answers for any set of forms holding them.
-        Empty otherwise.
+        If nonempty, the forms the space lies near and off by the thresholds
+        of :func:`_off_a_form` while its candidate meets ``tol``, for which the
+        fit was asked.  The space then depends on the forms given only through
+        these.
     """
 
     dim: int
@@ -234,17 +219,14 @@ class _IntertwinerSpace:
 
 
 def _identity_anchored_matrix_basis(n: int) -> np.ndarray:
-    r"""Orthogonal basis of *all* ``n x n`` matrices, the identity first.
+    r"""A basis of every ``n x n`` matrix, the identity first.
 
-    The basis a vacuous constraint returns.  Every element carries
-    :math:`\lVert\cdot\rVert_F = \sqrt n` — the normalization
-    :func:`_find_intertwiners` gives any solution basis — so ``out[0]`` is the
-    identity matrix itself, and the candidate loop downstream extracts
-    :math:`\mathbb 1` from it before anything else.  The remaining diagonal
-    elements are the unitary-DFT combinations of the diagonal matrix units,
-    orthogonal to :math:`\mathbb 1` and to one another because the DFT columns
-    are; the off-diagonal ones are the matrix units, orthogonal to everything.
-    Exact, deterministic, and ``n**2`` of them.
+    The basis a vacuous constraint returns, of shape ``(n**2, n, n)``.  Its
+    members are orthogonal in the Frobenius inner product, each of norm
+    ``sqrt(n)`` as every solution basis is, so ``out[0]`` is the identity
+    itself and the first candidate.  The other diagonal members carry the
+    columns of the discrete Fourier transform on their diagonal, and the
+    off-diagonal members are the matrix units times ``sqrt(n)``.
     """
     out = np.zeros((n * n, n, n), dtype=complex)
     j = np.arange(n)
@@ -261,47 +243,49 @@ def _identity_anchored_matrix_basis(n: int) -> np.ndarray:
 
 
 def _as_k_action(k_action, dim_k: int) -> Callable[[np.ndarray], np.ndarray]:
-    """Normalize ``k_action`` to a callable on ``(Nk, dim_k)`` arrays."""
+    """``k_action`` as a callable on arrays of shape ``(Nk, dim_k)``.
+
+    A callable is returned as it is.  A ``(dim_k, dim_k)`` matrix ``M``
+    becomes ``k -> k @ M.T``; a matrix of another shape raises ``ValueError``.
+    """
     if callable(k_action):
         return k_action
     M = np.asarray(k_action, dtype=float)
     if M.shape != (dim_k, dim_k):
-        raise ValueError(f"k_action matrix must be ({dim_k}, {dim_k}), got {M.shape}")
+        raise ValueError(f"_find_intertwiners(): k_action= is a matrix of shape {M.shape}. "
+                         f"Pass a ({dim_k}, {dim_k}) matrix or a callable.")
     return lambda k: np.asarray(k, dtype=float) @ M.T
 
 
 class _GridHamiltonians:
-    r"""``H(k)`` on a fixed k-grid, evaluated once and shared by every operation.
+    r"""``H(k)`` on one grid of ``k``, evaluated once and shared by every operation.
 
-    ``H(k)`` on the detection mesh does not depend on which operation is being
-    tested, so the detector builds one of these and hands it to every
-    operation's test.  The rotated grid ``H(Rk)`` of a given operation is a
-    *different* k-set and gets its own instance from :meth:`rotated`; operations
-    that share a k-action share that one too, because they share the whole
-    solve.  Every point is summed from the model's lattice-vector blocks, built
-    once for the model and handed on to the rotated grids, and the grid is
-    evaluated in k-chunks whose phases and matrices stay inside ``max_bytes``.
+    The grid's ``H(k)`` does not depend on the operation tested.  The image
+    grid ``H(Rk)`` of an operation is another instance, made by
+    :meth:`rotated`.  The grid is evaluated in chunks of points that stay
+    within ``max_bytes``.
 
     Parameters
     ----------
     model : pythtb.TBModel
+        The model.
     k_pts : array, shape (Nk, dim_k)
-        The grid.  Held by reference; do not mutate it.
-    max_bytes : float, optional
-        Budget for one evaluation, in bytes.  Default ``256e6``.  A grid whose
-        Hamiltonians fit inside it is evaluated **in one call** (bit-identical
-        to ``model.hamiltonian`` on the same points) and cached whole; a larger
-        one is streamed.
-    bloch : optional
-        The model's Bloch sum, where another grid of the same model already
-        holds it (:meth:`rotated` hands its own on).
-        Looked up at the first evaluation otherwise.
+        The grid, in reduced coordinates.  A float array is held by reference
+        and must not be changed.
+    max_bytes : float, default 256e6
+        The memory one evaluation may take, in bytes.  A grid whose
+        Hamiltonians fit in it is evaluated in one call, ``model.hamiltonian``
+        on the same points bit for bit, and kept whole; a larger one is
+        streamed.
+    bloch : _bloch._BlochSum, optional
+        The model's Bloch sum (:func:`.._bloch.evaluator`), where another grid
+        of the same model holds it.  ``None`` looks it up at the first
+        evaluation.
 
     Attributes
     ----------
     n_evaluated : int
-        How many k-points have been evaluated — the number the sharing is
-        meant to reduce, so it is reported rather than assumed.
+        How many k-points have been evaluated.
     """
 
     def __init__(self, model, k_pts, max_bytes=256e6, *, bloch=None):
@@ -325,7 +309,7 @@ class _GridHamiltonians:
 
     @property
     def chunk(self) -> int:
-        """k-points per evaluation: what one point holds, against ``max_bytes``."""
+        """The number of k-points one evaluation takes within ``max_bytes``."""
         return max(1, int(self.max_bytes // self._sum().point_bytes))
 
     @property
@@ -339,11 +323,11 @@ class _GridHamiltonians:
         return np.asarray(self._sum()(k))
 
     def full(self) -> np.ndarray:
-        """The whole grid as one ``(Nk, nstate, nstate)`` array, cached.
+        """The whole grid as one array of shape ``(Nk, nstate, nstate)``, kept.
 
-        Materializes ``16·Nk·nstate²`` bytes whatever the budget says — the
-        stacked solver needs the whole stack by construction — so where the
-        grid can be streamed :meth:`chunks` is the cheaper route.
+        It takes ``16·Nk·nstate²`` bytes whatever ``max_bytes`` says, since the
+        stacked route needs the whole stack.  :meth:`chunks` streams a grid
+        instead.
         """
         if self._full is None:
             if self.fits:
@@ -371,11 +355,11 @@ class _GridHamiltonians:
         return self._points[i]
 
     def chunks(self):
-        """Successive ``(lo, hi, H[lo:hi])`` blocks of the grid, within the budget.
+        """Successive ``(lo, hi, H[lo:hi])`` blocks of the grid, within ``max_bytes``.
 
-        Caches the whole grid on the first pass when it :attr:`fits`, so a
-        shared instance evaluates a grid once however many operations stream
-        over it; streams without caching when it does not.
+        A grid that :attr:`fits` is kept whole on the first pass, so a shared
+        instance evaluates it once however many operations read it.  A larger
+        grid is streamed and not kept.
         """
         if self._full is None and self.fits:
             self.full()
@@ -388,38 +372,35 @@ class _GridHamiltonians:
             yield lo, hi, self._evaluate(self.k_pts[lo:hi])
 
     def rotated(self, k_rot) -> "_GridHamiltonians":
-        """The same model, Bloch sum and budget on the rotated k-set ``Rk``."""
+        """The same model, Bloch sum and budget on ``k_rot``, the images of the grid."""
         return _GridHamiltonians(self.model, k_rot, self.max_bytes,
                                  bloch=self._sum())
 
 
 # --------------------------------------------------------------------------
-# the eigen-sift solver: parametrize at one k, sift the rest
+# The eigen-sift solver: the space is parametrized at one k and sifted over the rest.
 # --------------------------------------------------------------------------
 #
 # ``X H_k = H'_k X`` at a *single* k has an explicit nullspace.  With
 # ``H_k = V E V†`` and ``H'_k = V' E' V'†``, the equation on ``Y = V'† X V``
 # reads ``Y_ab (E_b − E'_a) = 0``: ``Y`` is supported on matching-energy pairs,
 # so the solution space is spanned by the outer products
-# ``B_ab = V'[:, a] V[:, b]†`` over those pairs — ``n`` of them for a
+# ``B_ab = V'[:, a] V[:, b]†`` over those pairs.  There are ``n`` of them for a
 # non-degenerate matching spectrum, ``Σ d_i d'_i`` over degeneracy blocks in
-# general, and **zero** when the spectra do not match at all, which is a proof
-# of breaking at ``O(n³)`` cost.  Every further k-point is then a *sift*: an
-# ``n² × m`` constraint whose nullspace narrows the basis.
+# general, and **none** when the spectra do not match at all, which proves at
+# ``O(n³)`` cost that no ``X`` solves the equation.  Every further k-point is
+# then a *sift*: an ``n² × m`` constraint whose nullspace narrows the basis.
 
 
 class _ConstraintPair:
-    """``(H_src(k), H(Rk))`` at one point or in chunks, source already conjugated.
+    """The pairs ``(H_src(k), H(Rk))`` on a grid, at one point or in chunks.
 
-    The one place the antiunitary equation differs from the unitary one: the
-    source Hamiltonian is ``H(k)*``.  Keeping the conjugation here means the
-    *cache* is shared between the two (``H(k)`` does not know which equation is
-    being solved), which is the whole point of :class:`_GridHamiltonians`.
-
-    The two grids chunk **identically** — :attr:`_GridHamiltonians.chunk` and
-    :attr:`_GridHamiltonians.fits` depend only on the model, the budget and the
-    number of points, all of which the rotated grid inherits — so zipping their
-    chunk iterators pairs each k with its own image and not another's.
+    ``src_grid`` and ``rot_grid`` are the :class:`_GridHamiltonians` of the
+    points ``k`` and of their images ``Rk``.  With ``conj``, for an
+    antiunitary operation, the source is ``H(k)*``.  The conjugation is taken
+    here, so that one grid of ``H(k)`` is read by both equations.  The two grids
+    chunk alike, since a rotated grid has the model, the budget and the number
+    of points of its source, so each ``k`` is paired with its own image.
     """
 
     def __init__(self, src_grid, rot_grid, conj):
@@ -436,27 +417,16 @@ class _ConstraintPair:
 
 
 def _stage_nullspace(B, Hs, Hr, block_bytes=6.4e7):
-    r"""Right singular vectors of one stage's constraint, streamed and blocked.
+    r"""The singular values and right singular vectors of one stage's constraint.
 
-    Column ``j`` of the stage operator is ``vec(B_j H_k − H'_k B_j)``, an
-    ``n² × m`` matrix, and what is wanted from it is the combinations ``y``
-    with ``‖C y‖`` small — the **right** singular vectors, and only those.
-
-    Three things happen here at once, and each is load-bearing.  The operator
-    is written into one pre-allocated array in blocks of the basis index, which
-    holds the *temporaries* to one block instead of two further copies of the
-    whole thing.  It is then reduced to an ``m × m`` triangular factor by
-    **TSQR** — a Householder QR of each row block, the factors stacked and
-    reduced once more — which is backward stable, so the singular values of the
-    final ``R`` are those of the operator to ``eps‖C‖``, and which never copies
-    more than one block (measured at ``n = 192, m = 2n``: agreement to 5.7e-16
-    relative against a single QR of the whole matrix, at 4.1 s against 7.7 s).
-    And only ``R`` is decomposed, so the ``n² × m`` left factor that an SVD of
-    the tall matrix would compute and discard is never formed at all (23.7 s,
-    same size).
-
-    This is emphatically *not* the normal-equation shortcut: nothing is
-    squared, and a true nullvector is not floored at ``sqrt(eps)``.
+    ``B`` holds the ``m`` basis matrices, shape ``(m, n, n)``, and ``Hs`` and
+    ``Hr`` the source and image Hamiltonians at one point.  Column ``j`` of
+    the constraint ``C`` is ``vec(B_j Hs − Hr B_j)``, an ``n² × m`` matrix.  It
+    is reduced to an ``m × m`` triangular factor by a QR of its row blocks,
+    whose factors are stacked and reduced once more, and only that factor is
+    decomposed.  The QR is backward stable and nothing is squared, so the
+    singular values are those of ``C`` to ``eps‖C‖``.  ``block_bytes`` bounds
+    the memory of one block, in bytes.
 
     Returns
     -------
@@ -483,25 +453,16 @@ def _stage_nullspace(B, Hs, Hr, block_bytes=6.4e7):
 
 
 def _visit_order(nk):
-    """The order the sift walks the grid in: bit-reversed, not lexicographic.
+    """The order the sift visits ``nk`` grid points in, bit-reversed.
 
-    Consecutive points of a lexicographic mesh are **correlated** — the first
-    ``nk**(1/d)`` of them share every coordinate but one, so they lie on a line
-    of the Brillouin zone, and a line is exactly where a model has *more*
-    symmetry than it has generically.  Measured on inversion-symmetric
-    Kane–Mele (``rashba = 0``, ``s_z`` conserved) with a lexicographic 6×6
-    mesh: the first seven points all sit at ``kx = 0``, the solution space is
-    four-dimensional along that line and two-dimensional on the grid, and a
-    sift that stops after three unchanged stages stops at four — a *wrong*
-    dimension, whose searched unitary then reads residual 2.86 against the
-    stacked route's 2.0e-15.
-
-    The van der Corput (bit-reversal) permutation visits ``0, nk/2, nk/4,
-    3nk/4, …`` instead, so consecutive stages are as far apart as the grid
-    allows.  It is deterministic, depends on nothing but ``nk``, and costs
-    ``O(nk log nk)`` integer operations once.  The whole-grid confirmation of
-    :func:`_grid_probe` is what makes the stopping rule *sound*; this only
-    makes it cheap.
+    The indices are bit-reversed over the least power of two not below
+    ``nk``, and those past ``nk - 1`` skipped: ``nk = 6`` gives
+    ``0, 4, 2, 1, 5, 3``, consecutive points far apart in the grid's order.
+    Consecutive points of a lexicographic mesh lie on one line of the
+    Brillouin zone, where a model can have more symmetry than on the whole
+    grid.  Whether the sift may stop is settled by :func:`_grid_probe`; this
+    order only lets it stop sooner.  Returns a list of the indices ``0`` to
+    ``nk - 1``.
     """
     bits = max(1, int(max(nk - 1, 1)).bit_length())
     out = []
@@ -516,28 +477,22 @@ def _visit_order(nk):
 
 
 def _grid_probe(pair, B, n, threshold, block_bytes=3.2e7):
-    r"""Where on the **whole** grid does this basis fail to intertwine?
+    r"""The point of the whole grid where a sifted basis fails most, if it fails.
 
-    The sift stops early — that is the point of it — and an early stop can
-    leave a basis that solves the sampled points and not the others.  Before
-    stopping, a seeded generic combination ``X = Σ y_j B_j`` of the surviving
-    basis is streamed over every supplied k-point: ``X`` is a generic element
-    of the span, so it solves at ``k`` exactly when the whole basis does (a
-    non-solving direction has nonzero weight in ``y`` with probability one, and
-    :data:`_GRID_PROBES` independent draws make that a formality).  The point
-    of largest ``max|X H_k − H'_k X|`` is handed back so the sift can resume
-    *there* — the most informative point in the grid — instead of guessing.
-
-    ``X`` carries ``‖X‖_F = sqrt(n)``, the normalization the whole package
-    gives a solution, so the returned number is on the scale of the covariance
-    residual and is compared against the same absolute ``threshold``.
+    ``pair`` is the :class:`_ConstraintPair` of the grid and ``B`` the basis
+    the sift kept, shape ``(m, n, n)``.  :data:`_GRID_PROBES` seeded
+    combinations ``X = Σ y_j B_j``, each of norm ``sqrt(n)``, are streamed
+    over every point, ``block_bytes`` bounding the memory of one block.  With
+    probability one such a combination fails at a point wherever some member
+    of the space does.  ``threshold`` is in the units of ``H``.
 
     Returns
     -------
     index : int
-        The worst point, or ``-1`` when the basis intertwines everywhere to
-        within ``threshold``.
+        The point of largest ``max|X H_k − H'_k X|``, or ``-1`` where that is
+        at most ``threshold`` everywhere.
     worst : float
+        That largest value, in the units of ``H``.
     """
     m = int(B.shape[0])
     rng = np.random.default_rng(_UNITARY_PROBE_SEED)
@@ -561,7 +516,7 @@ def _grid_probe(pair, B, n, threshold, block_bytes=3.2e7):
 
 
 def _size(n_bytes) -> str:
-    """A number of bytes as a reader reads it: ``1.449 GB``, ``100.4 kB``."""
+    """``n_bytes`` written as a reader reads it: ``1.449 GB``, ``100.4 kB``."""
     for unit, scale in (("GB", 1e9), ("MB", 1e6), ("kB", 1e3)):
         if n_bytes >= scale:
             return f"{n_bytes / scale:.4g} {unit}"
@@ -579,70 +534,57 @@ def _budget_that_runs(n_bytes) -> str:
 
 
 def _detector_too_large(n_pairs, n, budget) -> Refusal:
-    r"""The solve whose exactly degenerate pairs the detector's memory does not hold.
+    r"""The refusal ``detector_too_large``: pairs no window drops, past the budget.
 
-    At one k-point the eigen route's trial basis is one ``n × n`` matrix per
-    pair of eigenvectors at matching energies, and a spectrum with exactly
-    degenerate levels has more of them within the window's floor than the
-    budget holds.  Narrowing the window cannot drop those pairs without
-    returning a solution space that is wrong rather than coarse, so the solve
-    is refused, with the least budget that forms the basis -- those pairs and
-    one more -- and the calls that run it.
+    ``n_pairs`` is the number of eigenvector pairs at one point closer than
+    rounding or the floor, ``n`` the number of states, and ``budget`` the
+    bytes the eigen route's trial basis may take, one ``n × n`` matrix a
+    pair.  A narrower window would drop some of those pairs and return a
+    wrong space rather than a coarse one.  The refusal names the least budget
+    that holds the pairs and one more, as the ``max_bytes`` of
+    :func:`.._realized.realized_group` that runs the call.
     """
     need = 16.0 * float(n) ** 2 * (int(n_pairs) + 1)
     runs = _budget_that_runs(need)
     return Refusal(
         "detector_too_large",
-        f"measuring the symmetry matrices at one k-point needs {_size(need)} against the "
-        f"{_size(budget)} it may take: {int(n_pairs)} pairs of eigenvectors at matching "
-        f"energies, one {int(n)} x {int(n)} matrix each, which is what a spectrum with "
-        "exactly degenerate levels costs. Narrowing the energy window to fit would drop "
-        "exactly degenerate pairs and return a solution space that is wrong rather than "
-        "coarse, so the window is not narrowed. This is a limit on memory, not a "
-        f"statement about the model: `realized_group(..., max_bytes={runs})` runs it, "
-        "and a model whose degeneracies are lifted does not reach it.",
+        f"measuring the symmetry matrices at one k-point needs {_size(need)} of memory "
+        f"for {int(n_pairs)} pairs of eigenvectors of H(k) and H(Rk) at equal energies, "
+        f"H having {int(n)} states, and {_size(budget)} is allowed. Pass `max_bytes={runs}` to "
+        "`realized_group`.",
         value=need, threshold=float(budget),
         context={"n_bytes": need, "max_bytes": float(budget), "n_pairs": int(n_pairs),
                  "n_states": int(n)})
 
 
 def _pair_basis(E, V, Ep, Vp, delta, h, max_pairs, floor, gate=0.0):
-    r"""Outer products over matching-energy pairs — the stage-0 solution space.
+    r"""The first basis of the sift: outer products over pairs at matching energies.
 
-    ``B_j = V'[:, a] V[:, b]†`` for every pair with ``|E'_a − E_b| <= max(δ·h,
-    gate)``: the window is relative to the Hamiltonian's magnitude at this
-    point, and never narrower than ``gate``, the covariance a candidate the
-    nullspace keeps may carry, in the units of ``H``.  Levels closer than that
-    are one level at the precision the solve is read at, whatever point the
-    solve is parametrized at -- where every band is one cluster split below the
-    gate, the magnitude at a point where ``H`` sits at its mean is the
-    splitting itself, and a relative window there would read the splitting as
-    a gap.  These are Frobenius-**orthonormal** by construction (``⟨B_ab, B_cd⟩ =
-    δ_ac δ_bd``, both eigenbases being unitary), which is the normalization the
-    sifted basis then inherits for free.
+    ``E`` and ``V`` are the eigenvalues and eigenvectors, as columns, of the
+    source Hamiltonian at one point, and ``Ep`` and ``Vp`` those of its image.
+    Each pair with ``|Ep_a − E_b|`` at most ``max(delta·h, gate)`` gives the
+    member ``Vp[:, a] V[:, b]†``.  ``delta`` is the window relative to ``h``,
+    the Hamiltonian's magnitude at this point, and ``gate`` the covariance a
+    kept candidate may carry, in the units of ``H``.  The members are
+    orthonormal in the Frobenius inner product.
 
-    ``max_pairs`` is the memory valve.  Two populations reach it and they are
-    not the same problem.  A spectrum *nearly degenerate* at this point, its
-    levels crowded inside the window, matches pairs it has no business
-    matching, and the honest remedy is a
-    **narrower window**: the dropped pairs are the distant ones, the accuracy
-    claim ``eps/δ`` degrades smoothly, and the effective ``δ`` is returned, so
-    what was used is reported.  A Hamiltonian with genuinely **degenerate**
-    blocks (a supercell, whose folded bands are exactly degenerate across the
-    star of each folded k-point) has ``Σ d_i d'_i`` pairs at *zero* gap, and
-    narrowing cannot drop any of them: the window collapses to machine
-    precision, the surviving basis cannot represent an exact solution at all,
-    and the returned space is then wrong rather than merely coarse (measured on
-    a 4×4×3 Fu–Kane–Mele supercell, ``n = 192``: ``δ = 1.3e-15``, ``dim = 3``,
-    residual 0.93).  So below ``floor``, ``eps/cut`` of the Hamiltonian's own
-    magnitude read on the window's scale ``h`` — the window at which the
-    dropped cross terms reach the nullspace cut — or below ``gate``, where
-    the pairs dropped are levels the precision does not tell apart, no basis
-    is formed: the first entry comes back ``None`` and the second is how many
-    pairs the honest solve needs, the pairs within ``floor`` and ``gate``, for
-    :func:`_find_intertwiners` to raise the budget to its ceiling or refuse.
-    A resource limit is not a measurement about the physics and must not be
-    returned as one.  The window returned is the one used, relative to ``h``.
+    ``max_pairs`` bounds the number of pairs.  Past it the ``max_pairs``
+    nearest pairs are kept and the window narrows to them.  ``floor`` is the
+    narrowest window, relative to ``h``, at which the pairs dropped stay
+    below the cut.  No basis is formed where the window falls below
+    ``floor``, or where the pairs within ``gate`` alone pass ``max_pairs``:
+    dropping those pairs would make the space wrong rather than coarse.
+
+    Returns
+    -------
+    B : ndarray, shape (m, n, n), or None
+        The members; ``None`` where no basis is formed.
+    delta : float or int
+        The window used, relative to ``h``.  Where no basis is formed, the
+        number of pairs within ``floor`` and ``gate``, which the solve needs.
+    gaps : ndarray or None
+        Every ``|Ep_a − E_b|`` over ``h``, ascending; ``None`` where no basis
+        is formed.
     """
     gaps = np.abs(Ep[:, None] - E[None, :])
     delta = max(float(delta), float(gate) / h)
@@ -660,35 +602,36 @@ def _pair_basis(E, V, Ep, Vp, delta, h, max_pairs, floor, gate=0.0):
 
 def _sift(pair, nk, n, *, cut, floor, delta, stable, max_pairs, probes=_EIGEN_PROBES,
           k1=None):
-    """One eigen-sift pass at window ``delta``, over a :class:`_ConstraintPair`.
+    """One pass of the eigen sift at the window ``delta``, as a record.
 
-    The only tolerance the sift needs is the **cut** — relative, applied to each
-    stage's singular values against that stage's operator norm, and never
-    stricter than ``sqrt(n)·floor`` in the units of ``H``, which a unitary
-    candidate whose covariance is within ``floor`` at that point stays under: at
-    a point where the operator is itself that small, one band's whole operator
-    being the violation, a relative cut alone would read a violation inside it
-    as total.  ``floor`` is the cut itself, read in the units of ``H``, unless
-    a declared precision sets it at the gate.  The covariance gate is not
-    otherwise read here: what the sift hands back is a solution space, and
-    whether its members are symmetries is settled afterwards, on residuals
-    measured from ``H``.  The energy window is never narrower than ``floor``
-    either: levels closer than the covariance a kept candidate may carry are
-    paired at any point the sift is parametrized at (:func:`_pair_basis`).
+    ``pair`` is the :class:`_ConstraintPair` of a grid of ``nk`` points and
+    ``n`` states.  The space is parametrized at one point
+    (:func:`_pair_basis`, at most ``max_pairs`` pairs) and cut down at the
+    others in the order :func:`_visit_order` gives.  At each point a
+    combination is kept where its singular value is at most ``cut`` times the
+    constraint's norm there, or ``sqrt(n)·floor``, ``floor`` being the
+    covariance in the units of ``H`` a kept candidate may carry.  Once
+    ``stable`` points in a row leave the basis unchanged, the sift stops,
+    unless :func:`_grid_probe` finds a point where the basis fails; the sift
+    resumes there.  No candidate is judged here.  The parametrization point
+    is ``k1`` where given; otherwise the point of widest source spectrum among
+    the first ``probes`` points, or over the whole grid where all of those are
+    degenerate within the window.
 
-    Hands back one record of the sift; see :func:`_find_intertwiners` for what
-    each entry becomes.  ``flat`` is set when the parametrization point is
-    degenerate to within the window at *every* grid point — a scalar or flat
-    Hamiltonian, where :func:`_find_intertwiners` falls back to the absolute
-    vacuity test.  Passing ``k1`` names the parametrization point outright and
-    suppresses that exit: it is how the detector comes back after the vacuity
-    test said no, and how a widened window re-sifts the same point.
+    Returns a mapping that :func:`_find_intertwiners` reads.  Without ``k1``,
+    ``"flat"`` is true where every point is degenerate within the window, and
+    the record then holds the norms over the grid the vacuity test reads.
+    ``"too_large"`` holds the number of pairs the solve needs where no basis
+    is formed.  Otherwise ``"basis"`` is the basis kept, empty where nothing
+    survives, with its singular values, its scale, the window used, the
+    points sifted and ``"spectral"``, the most the two spectra differ at one
+    level over those points.
     """
     spectra: dict[int, tuple] = {}
     # The energy window's scale is the Hamiltonian's magnitude about its mean
     # on-site energy, `w`, which a constant shift of H does not move.  The tests
-    # that bound rounding -- the window's floor, the vacuity cut, the probe of the
-    # whole grid -- read its magnitude with the energy zero, `h`, since rounding
+    # that bound rounding (the window's floor, the vacuity cut, the probe of the
+    # whole grid) read its magnitude with the energy zero, `h`, since rounding
     # is relative to the numbers the arithmetic holds.
     mu = _bloch.onsite_mean(pair.src.model)
 
@@ -712,9 +655,9 @@ def _sift(pair, nk, n, *, cut, floor, delta, stable, max_pairs, probes=_EIGEN_PR
                            and np.ptp(Ep) <= max(delta * w, floor)):
         # every probe point is degenerate to within the window: look over the
         # whole grid for a point that is not, and report the per-point norm of
-        # the constraint operator on the way -- it is exactly
-        # max_ab |E_b - E'_a|, so the absolute vacuity test costs no more than
-        # the eigenvalues already needed.
+        # the constraint operator on the way.  That norm is max_ab |E_b - E'_a|,
+        # so the absolute vacuity test costs no more than the eigenvalues
+        # already needed.
         spread, s_max, h_grid = np.empty(nk), np.empty(nk), 0.0
         for lo, hi, Hs, Hr in pair.chunks():
             Ei, Epi = np.linalg.eigvalsh(Hs), np.linalg.eigvalsh(Hr)
@@ -729,14 +672,11 @@ def _sift(pair, nk, n, *, cut, floor, delta, stable, max_pairs, probes=_EIGEN_PR
             return {"flat": True, "k_solve": i1, "n_solve": nk, "h": h_grid,
                     "grid_s_max": np.sort(s_max), "grid_h": h_grid or 1.0,
                     "basis": None, "trace": (), "window": float(delta)}
-        # The grid holds a point that is NOT degenerate within the window: the
-        # probes were merely unlucky (a stacked layer's first grid points all
-        # sit on the k_z line above Gamma, where a Kramers pair is degenerate at
-        # every k_z).  Parametrize at the point the scan found -- exactly what a
-        # forced re-sift (`k1=i1`) would do, without the round trip.  A
-        # record without a basis is only ever a *flat* record: whatever reads
-        # one would otherwise have no basis to read, as a Rashba layer's
-        # decoupled stack, measured as a crystal, shows.
+        # The grid holds a point that is not degenerate within the window, though
+        # every probe point is (a stacked layer's first grid points all sit on the
+        # k_z line above GM, where a Kramers pair is degenerate at every k_z).
+        # The sift is parametrized at the point the scan found, as a forced
+        # re-sift (`k1=i1`) would be.
 
     # the window reads `w`; its floor, the rounding of an eigenvector, is
     # eps/cut of `h`, carried onto the window's scale; and it never narrows below
@@ -745,8 +685,8 @@ def _sift(pair, nk, n, *, cut, floor, delta, stable, max_pairs, probes=_EIGEN_PR
                                       np.finfo(float).eps / max(float(cut), 1e-300) * (h / w),
                                       gate=floor)
     if B is None:
-        # the exactly degenerate pairs alone are past the budget: no basis, and
-        # how many pairs the solve needs
+        # the pairs no window drops are past the budget: no basis, and how
+        # many pairs the solve needs
         return {"flat": False, "k_solve": i1, "too_large": int(delta_used)}
     m = int(B.shape[0])
     trace, n_solve = [m], 1
@@ -771,9 +711,9 @@ def _sift(pair, nk, n, *, cut, floor, delta, stable, max_pairs, probes=_EIGEN_PR
     # The floor of the stage cut.  A candidate whose covariance is within
     # `floor` at a point, read in the units of H on a unitary member, has a
     # singular value of at most sqrt(n)*floor there, so no smaller one is
-    # evidence that it breaks: where the operator at a point is itself that
-    # small -- one band, whose operator IS the violation, or H(k) nearly a
-    # multiple of 1, at a Dirac point -- the point says nothing at the precision
+    # evidence that it breaks.  Where the operator at a point is itself that
+    # small (one band, whose operator is the violation itself, or H(k) nearly a
+    # multiple of 1, at a Dirac point), the point says nothing at the precision
     # declared, and the relative cut alone would read a violation inside it as
     # total.
     least = float(np.sqrt(n)) * float(floor)
@@ -789,7 +729,7 @@ def _sift(pair, nk, n, *, cut, floor, delta, stable, max_pairs, probes=_EIGEN_PR
         n_solve += 1
         Hs, Hr = pair.at(i)
         # ||L_k||, the operator norm of X -> X H_k - H'_k X on the *whole*
-        # matrix space, is max_ab |E_b - E'_a| -- two eigenvalue problems.  It
+        # matrix space, is max_ab |E_b - E'_a|, from two eigenvalue problems.  It
         # is the scale the cut is relative to, and not the largest singular
         # value of the constraint *restricted to the surviving basis*: those
         # two agree while the basis still contains non-solutions and part
@@ -840,8 +780,8 @@ def _sift(pair, nk, n, *, cut, floor, delta, stable, max_pairs, probes=_EIGEN_PR
 
     # No stage was informative: the Sylvester operator vanished against max|H|
     # at every point sifted, so there is no scale of its own and `max|H|` is
-    # what the (vanishing) constraint is measured against -- the same
-    # convention the vacuity branch uses.
+    # what the (vanishing) constraint is measured against, as in the vacuity
+    # branch.
     if s_last is None:
         s_last, scale_last, informative = np.zeros(m), h, False
     scale = float(scale_last) if informative else h
@@ -852,12 +792,11 @@ def _sift(pair, nk, n, *, cut, floor, delta, stable, max_pairs, probes=_EIGEN_PR
 
 
 def _orthonormal_basis(B, n):
-    """Re-orthonormalize a sifted basis to the package's ``‖·‖_F = sqrt(n)``.
+    """The matrices ``B`` made orthogonal, each of Frobenius norm ``sqrt(n)``.
 
-    The sift's basis is orthonormal *by construction* — the stage-0 outer
-    products are, and every stage multiplies by a matrix of orthonormal columns
-    — so this only removes the accumulated rounding, and the order (ascending
-    in the last stage's singular values) survives it.
+    ``B`` holds ``d`` matrices of shape ``(n, n)``, orthonormal up to rounding
+    as the sift's are by construction.  Their order survives.  Returns an
+    array of shape ``(d, n, n)``.
     """
     d = int(B.shape[0])
     if d == 0:
@@ -867,7 +806,15 @@ def _orthonormal_basis(B, n):
 
 
 def _candidates_and_search(basis, dim, n):
-    """The candidate pool and the ``dim >= 2`` seeded unitary search."""
+    """A space's candidates: its basis and, at ``dim >= 2``, a searched unitary.
+
+    ``basis`` holds the ``dim`` members, each of norm ``sqrt(n)``.  At
+    ``dim >= 2`` the members and :data:`_UNITARY_PROBES` seeded combinations
+    of them are brought to that norm, the one of largest least singular value
+    is picked, and its polar factor, itself a member of the space, is
+    appended.  Returns the list of candidates and the record
+    :attr:`_IntertwinerSpace.search`.
+    """
     cands, search = list(basis), {}
     if dim >= 2:
         rng = np.random.default_rng(_UNITARY_PROBE_SEED)
@@ -886,37 +833,37 @@ def _candidates_and_search(basis, dim, n):
 
 
 def _refit_on_form(pair, form, n, *, cut, floor):
-    r"""The matrices of a form that carry ``H(k)`` onto ``H(Rk)``, fitted over the whole grid.
+    r"""A form's matrices that carry ``H(k)`` onto ``H(Rk)``, fitted over the grid.
 
-    ``form`` is the boolean ``(n, n)`` pattern of the entries a matrix of the
-    operation may hold.  The sift fixes its basis at a few points, and a
-    direction it discards at one point -- a singular value small there but not
-    zero, or a pair of levels outside the window -- takes with it the part
-    of a nearly exact solution that lies along it, the solution's own residual
-    at that point divided by that singular value or gap; at the other points
-    that part costs its full size.  Here nothing is discarded: the members of
-    the form minimizing ``Σ_k ‖X H(k) − H(Rk) X‖²_F`` are the eigenvectors of
-    lowest eigenvalue of the Hermitian matrix that sum is, of size ``p``, the
-    number of entries the form allows.  For entries ``(a, b)`` and ``(c, d)``
+    ``pair`` is the :class:`_ConstraintPair` of the grid, ``form`` the boolean
+    ``(n, n)`` pattern of the entries a matrix of the operation may hold, and
+    ``n`` the number of states.  ``cut`` is the relative cut, and ``floor``
+    the covariance at one point, in the units of ``H``, that a member may
+    carry.  The ``p`` entries the form allows are fitted
+    over every point: the directions minimizing
+    ``Σ_k ‖X H(k) − H(Rk) X‖²_F`` are the eigenvectors of lowest eigenvalue of
+    the Hermitian ``p × p`` matrix
 
     .. math::
 
         G_{ab,cd} = \sum_k \delta_{ac} (H_k^2)_{db} + \delta_{bd} (H'^2_k)_{ac}
                     - 2 H'_{k,ac} H_{k,db},
 
-    ``H_k`` the source (conjugated for an antiunitary operation) and ``H'_k`` its
-    image, accumulated over the grid's chunks block by block of the form
-    (:func:`_cross_term`), at a cost of ``N_k p²`` and the eigenvectors at
-    ``p³``.
+    ``H_k`` the source, conjugated for an antiunitary operation, and ``H'_k``
+    its image.  The members are counted as the sift counts them.  In
+    ascending order, a direction is a member where at every point its
+    covariance ``‖X H(k) − H(Rk) X‖_F``, ``X`` of unit norm, is within
+    ``max(cut·‖L_k‖, sqrt(n)·floor)``, ``‖L_k‖`` the norm of
+    ``X -> X H(k) − H(Rk) X`` there.  The count stops at the first that is not.
 
-    The eigenvalues of ``G`` are squares, and the smallest are rounding where
-    the cut is read, so they count nothing.  The members are counted as the
-    sift counts them, on each point's own constraint: in ascending order, a
-    member is one where at every point its covariance ``‖X H(k) − H(Rk) X‖_F``,
-    ``X`` of unit norm, is within the sift's cut, ``max(cut·‖L_k‖, sqrt(n)·floor)``,
-    and the count stops at the first that is not.  Returns the members with
-    unit norm, shape ``(count, n, n)``, each member's largest covariance over
-    the grid, and the largest ``‖L_k‖``.
+    Returns
+    -------
+    members : ndarray, shape (count, n, n)
+        The members, each of unit norm.
+    worst : ndarray, shape (count,)
+        Each member's largest covariance over the grid.
+    scale : float
+        The largest ``‖L_k‖`` over the grid.
     """
     rows, cols, blocks = _form_blocks(form)
     p = int(rows.size)
@@ -954,12 +901,14 @@ def _refit_on_form(pair, form, n, *, cut, floor):
 
 
 def _form_blocks(form):
-    """A form's entries, block by block: ``rows``, ``cols`` and each block's ``(rows, cols, start)``.
+    """A form's entries, listed block by block.
 
-    A form carries each site's states onto its image's, so its entries fall in
-    rectangular blocks, one per site: the columns of one site share the rows
-    they may reach.  The entries are listed block by block, each block's in
-    row-major order.
+    ``form`` is the boolean ``(n, n)`` pattern of the entries a matrix of an
+    operation may hold.  The columns that may reach the same rows make one
+    rectangular block, one block a site for a form that carries each site's
+    states onto its image's.  Returns ``rows`` and ``cols``, the entries block
+    by block, each block's in row-major order, and ``blocks``, each block's
+    ``(rows, cols, start)``, ``start`` the position of its first entry.
     """
     form = np.asarray(form, dtype=bool)
     reach = {}
@@ -978,11 +927,14 @@ def _form_blocks(form):
 
 
 def _cross_term(Hs, Hr, blocks, p):
-    r"""``Σ_k H'_{k,ac} H_{k,db}`` for every pair of entries ``(a, b)``, ``(c, d)`` of a form.
+    r"""``Σ_k H'_{k,ac} H_{k,db}`` for every two entries ``(a, b)``, ``(c, d)`` of a form.
 
-    Block by block one matrix product over the points: for the blocks
-    ``(R_I, C_I)`` and ``(R_J, C_J)``, ``H'[R_I, R_J]`` and ``H[C_J, C_I]``,
-    each flattened over the points, multiplied.
+    ``Hs`` and ``Hr`` hold the source ``H`` and the image ``H'`` at the
+    points, shape ``(Nk, n, n)``, and ``blocks`` and ``p`` are the form's
+    blocks and number of entries (:func:`_form_blocks`).  For the blocks
+    ``(R_I, C_I)`` and ``(R_J, C_J)`` it is one matrix product of
+    ``H'[R_I, R_J]`` and ``H[C_J, C_I]``, each flattened over the points.
+    Returns the ``p × p`` matrix.
     """
     nk = int(Hs.shape[0])
     out = np.zeros((p, p), dtype=complex)
@@ -997,7 +949,14 @@ def _cross_term(Hs, Hr, blocks, p):
 
 
 def _sifted_constraints(pair, points, n, *, cut, floor):
-    """``(H_src(k), H(Rk), g_k)`` at each point given, ``g_k`` the sift's cut there."""
+    """The source, the image and the sift's cut at each point given.
+
+    ``pair`` is the :class:`_ConstraintPair` of the grid, ``points`` the
+    indices of the points, and ``n`` the number of states.  The cut at a point
+    is ``g_k = max(cut·‖L_k‖, sqrt(n)·floor)``, ``‖L_k‖`` the constraint's norm
+    there and ``floor`` in the units of ``H``.  Returns a list of
+    ``(H_src(k), H(Rk), g_k)``, which :func:`_form_admits` reads.
+    """
     least = float(np.sqrt(n)) * float(floor)
     out = []
     for i in points:
@@ -1009,19 +968,20 @@ def _sifted_constraints(pair, points, n, *, cut, floor):
 
 
 def _form_admits(constraints, form):
-    r"""Whether a matrix of a form can meet the sift's cut at every one of the points given.
+    r"""Whether a matrix of a form can meet the sift's cut at every point given.
 
-    A unitary ``U`` within the covariance gate at a point has
-    ``‖U H(k) − H(Rk) U‖_F = ‖U H(k) U† − H(Rk)‖_F ≤ n·tol``, so ``U/sqrt(n)``,
-    of unit norm, is within ``sqrt(n)·tol`` there, which the sift's cut
-    ``g_k = max(cut·‖L_k‖, sqrt(n)·floor)`` never undercuts.  Such a matrix
-    of the form has ``x† G x ≤ Σ_k g_k²``, ``G`` the Hermitian matrix of
-    :func:`_refit_on_form` summed over the points alone, so a lowest
-    eigenvalue of ``G`` above that bound, by more than the rounding of the
-    eigenvalues, ``p·eps·‖G‖``, is a proof that no matrix of the form meets the
-    gate at those points, nor on any grid that holds them.  It costs ``p²`` a
-    point for the ``p`` entries the form allows, and ``p³`` once.
-    ``constraints`` is :func:`_sifted_constraints`' list.
+    ``constraints`` is the list :func:`_sifted_constraints` returns, with the
+    cut ``g_k`` at each point, and ``form`` the boolean pattern of the entries
+    a matrix of the operation may hold.  A matrix ``x`` of the form, of unit
+    norm, within ``g_k`` at each point has ``x† G x ≤ Σ_k g_k²``, ``G`` the
+    matrix of :func:`_refit_on_form` summed over these points.  So a lowest
+    eigenvalue of ``G`` above that bound, by more than its rounding
+    ``p·eps·‖G‖`` for the ``p`` entries the form allows, proves that no
+    matrix of the form meets the cut at these points, nor on any grid that
+    holds them.  A unitary within the covariance gate ``tol`` at a point is
+    within ``sqrt(n)·tol`` there at unit norm, so where the constraints were
+    made with a ``floor`` of at least ``tol`` the proof holds for the gate as
+    well.  Returns ``False`` only on that proof.
     """
     rows, cols, blocks = _form_blocks(form)
     p = int(rows.size)
@@ -1044,7 +1004,7 @@ def _off_a_form(basis, forms, n, *, cut):
     Parameters
     ----------
     basis : ndarray, shape (dim, n, n)
-        The sift's orthonormal basis, each member of norm ``sqrt(n)``.
+        The sift's orthogonal basis, each member of norm ``sqrt(n)``.
     forms : sequence of ndarray of bool, shape (n, n)
         The entries a matrix of each operation sharing this action on ``k`` may
         hold.
@@ -1056,15 +1016,12 @@ def _off_a_form(basis, forms, n, *, cut):
     Returns
     -------
     list of ndarray
-        The forms for which the member of the space nearest it holds outside
-        it more than :data:`.._tolerance._IN_BLOCKS` of the space's scale (or
-        ``cut``, where larger), the floor every reading of an operation's site
-        blocks takes as rounding, and no more than
-        :data:`.._tolerance.ANSATZ_GATE` of its own norm (or ``cut``), within
-        which the member is read as of the form.  A member that far off its
-        form is a matrix of the operation the multiplets cannot be read off,
-        though a matrix of the form may meet the gate; a space with nothing near
-        a form holds another operation's matrices.
+        Each form whose nearest member of the space holds outside it more than
+        rounding and no more than a near miss.  Rounding is
+        :data:`.._tolerance._IN_BLOCKS`, or ``cut`` where larger, times the
+        most any member holds outside the form, or times one where that is
+        less.  A near miss is :data:`.._tolerance.ANSATZ_GATE`, or ``cut``
+        where larger, of the member's norm.
     """
     rounding = max(_IN_BLOCKS, float(cut or 0.0))
     near = max(ANSATZ_GATE, float(cut or 0.0))
@@ -1082,14 +1039,15 @@ def _off_a_form(basis, forms, n, *, cut):
 
 
 def _candidate_measures(cands, n, *, full=None, pair=None):
-    """Polar factors, their full-grid covariance residuals and their unitarity.
+    """The candidates' polar factors, covariance over the grid and unitarity.
 
-    ``full`` is ``(H_src, H_rot)`` already in memory — the stacked route has
-    them by construction and the arithmetic is one batched product.  ``pair``
-    is a :class:`_ConstraintPair` instead, and the residual then **streams**
-    over the grid in the chunks :class:`_GridHamiltonians` bounds, so the eigen
-    route never holds ``nk·n²`` anything either.  Both measure the same number:
-    ``max_k ‖U H(k)^(*) U† − H(Rk)‖_max`` over *every* supplied k-point.
+    ``cands`` holds the candidate matrices, each ``n x n``.  ``full`` is the
+    pair ``(H_src, H_rot)`` of whole grids in memory, as the stacked route has
+    them.  Otherwise ``pair``, a :class:`_ConstraintPair`, is streamed over in
+    chunks.  Both give ``max_k ‖U H_src(k) U† − H(Rk)‖_max`` over every point
+    supplied, ``H_src(k)`` being ``H(k)*`` for an antiunitary operation.
+    Returns the unitaries, the residuals and each candidate's
+    ``‖X†X − 1‖_max``, as :class:`_IntertwinerSpace` holds them.
     """
     eye = np.eye(n)
     unitaries = np.empty((len(cands), n, n), dtype=complex)
@@ -1220,12 +1178,14 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
     k_pts = np.atleast_2d(np.asarray(k_pts, dtype=float))
     dim_k = int(model.lattice.dim_k)
     if k_pts.shape[1] != dim_k:
-        raise ValueError(f"k_pts must have {dim_k} columns, got {k_pts.shape[1]}")
+        raise ValueError(f"_find_intertwiners(): k_pts= has {k_pts.shape[1]} columns. "
+                         f"Pass {dim_k} reduced coordinates for each point.")
     if k_pts.shape[0] < 2:
-        raise ValueError("_find_intertwiners needs at least two k-points: at a single k "
-                         "every function of H(k) is an intertwiner")
+        raise ValueError(f"_find_intertwiners(): k_pts= has length {k_pts.shape[0]}. "
+                         "Pass at least two points.")
     if solver not in ("eigen", "stacked"):
-        raise ValueError(f"solver must be 'eigen' or 'stacked', got {solver!r}")
+        raise ValueError(f"_find_intertwiners(): solver= is {solver!r}. "
+                         "Pass 'eigen' or 'stacked'.")
     cut = float(tol) if cut is None else float(cut)
     # the covariance, in the units of H, a candidate the nullspace keeps may carry
     # at a point: the cut read in those units, unless a declared precision, whose
@@ -1235,7 +1195,9 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
     act = _as_k_action(k_action, dim_k)
     k_rot = np.asarray(act(k_pts), dtype=float)
     if k_rot.shape != k_pts.shape:
-        raise ValueError(f"k_action returned shape {k_rot.shape}, expected {k_pts.shape}")
+        raise ValueError(f"_find_intertwiners(): k_action= maps k_pts= of shape "
+                         f"{k_pts.shape} to an array of shape {k_rot.shape}. Pass a "
+                         "k_action= that keeps the shape of the points it is handed.")
 
     n = int(model.nstate)
     n2 = n * n
@@ -1247,8 +1209,9 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
     else:
         src_grid = hamiltonians
         if src_grid.n_kpts != nk or not np.array_equal(src_grid.k_pts, k_pts):
-            raise ValueError("hamiltonians= was built on a different k-grid than the "
-                             "k_pts supplied here; a shared cache is keyed by its grid")
+            raise ValueError("_find_intertwiners(): hamiltonians= holds H on points other "
+                             "than k_pts=. Pass the hamiltonians= built on these k_pts=, "
+                             "or None.")
     rot_grid = src_grid.rotated(k_rot)
 
     window_used, k_solve, trace, escalated, spectral, sifted = 0.0, -1, (), (), 0.0, ()
@@ -1259,15 +1222,15 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
         Hsrc = H.conj() if antiunitary else H
 
         def _constraint(a, b):
-            """Stacked ``X H(k) - H(Rk) X`` operator on row-major ``vec(X)``."""
+            """The operator ``X -> X a_k − b_k X`` on row-major ``vec(X)``, by point."""
             # vec(X H) = (I (x) H^T) vec(X);  vec(H' X) = (H' (x) I) vec(X)
             return (np.einsum("ij,kab->kiajb", eye, a.transpose(0, 2, 1)).reshape(-1, n2, n2)
                     - np.einsum("kij,ab->kiajb", b, eye).reshape(-1, n2, n2))
 
-        # ---- solve.  The audit oracle: one full-precision stacked SVD.  A grid
-        # too large to stack is cut down to a deterministic even-strided subset
-        # of its own points -- never reordered, and never degraded to the normal
-        # equations, whose sqrt(eps) floor would make dim == 0 an unsound verdict.
+        # Solve: one full-precision stacked SVD.  A grid too large to stack is
+        # cut down to an evenly strided subset of its own points, never
+        # reordered, and never solved by the normal equations, whose sqrt(eps)
+        # floor would make dim == 0 an unsound verdict.
         nk_solve = int(min(nk, max(2, max_solve_entries // (n2 * n2))))
         if nk_solve >= nk:
             method, nk_solve, take = "stacked", nk, slice(None)
@@ -1280,12 +1243,12 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
         s = s[order]
         vecs = Vh.conj().T[:, order]
 
-        # ---- cut.  Two regimes, and the second is not the first with a smaller
-        # number: when the constraint operator *vanishes* it has no scale of its
+        # Cut: two regimes, and the second is not the first with a smaller
+        # number.  When the constraint operator *vanishes* it has no scale of its
         # own, so a relative cut has nothing to be relative to and would read its
         # own rounding noise as one.  Vacuity is therefore judged absolutely,
-        # against the scale of H over the grid -- the scale that noise is
-        # proportional to -- and a vacuous constraint means every X solves.
+        # against the scale of H over the grid, to which that noise is
+        # proportional, and a vacuous constraint means every X solves.
         h_scale = float(max(np.abs(H).max(), np.abs(Hr).max()))
         if not h_scale > 0.0:
             h_scale = 1.0                   # H is identically zero: any scale will do
@@ -1315,8 +1278,9 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
 
         start = eigen_window(tol) if window is None else float(window)
         delta = start
-        # the window valve, and the ceiling a spectrum with exactly degenerate
-        # blocks may raise the budget to: never below the valve
+        # the pairs max_bytes holds, past which the window narrows, and the
+        # budget's ceiling, which the pairs no window drops may raise the
+        # budget to: never below max_bytes
         max_pairs = max(1, int(float(max_bytes) // (16 * n2)))
         ceiling = max(float(max_bytes), float(max_bytes if degenerate_max_bytes is None
                                               else degenerate_max_bytes))
@@ -1327,9 +1291,9 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
                         stable=int(stable), max_pairs=max_pairs, k1=forced)
             if "too_large" in rec:
                 if max_pairs < ceiling_pairs:
-                    # the valve would drop exactly degenerate pairs: the solve
+                    # the pairs no window drops are past max_bytes: the solve
                     # again from its start, as a call with the ceiling for its
-                    # budget runs it
+                    # max_bytes runs it
                     max_pairs, delta, tried, forced = ceiling_pairs, start, [], None
                     continue
                 return _detector_too_large(rec["too_large"], n, ceiling)

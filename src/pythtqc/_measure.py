@@ -1,6 +1,8 @@
-"""``H(k)`` on the detection grid and one solution space per k-action, shared by
-every step of one call: the verdict on each operation of a group, and each kept
-operation's solution space read once in its own form.
+"""Whether a Hamiltonian obeys each operation of a group, as measured.
+
+``H(k)`` on the detection grid and each action's solution space are found once
+and shared by every step of one call.  Each kept operation's solution space is
+then read once in the operation's own form.
 """
 
 from __future__ import annotations
@@ -27,21 +29,29 @@ __all__ = ["ValidatedGroup", "Discrepancy"]
 
 @dataclass(frozen=True)
 class Discrepancy:
-    """One operation the Hamiltonian breaks, and how the measurement refuted it.
+    """One operation the Hamiltonian breaks, and how it was found broken.
+
+    An entry of :attr:`ValidatedGroup.discrepancies`.
 
     Attributes
     ----------
     index : int
-        The operation, by index.
-    refuted_by : str
-        ``"no symmetry matrix"`` where no matrix with its action on ``k``
-        carries ``H(k)`` onto itself, a proof; ``"covariance"`` where the
-        nearest one misses by more than the tolerance; or ``"out of plane"``
-        for an operation of a layer's slab that the model's ``k`` cannot
-        represent.
+        The operation's index, as the group's operations list it
+        (``r.operations`` for the group returned).
+    refuted_by : {"no symmetry matrix", "covariance", "out of plane"}
+        How the operation was found broken.  ``"no symmetry matrix"``: no
+        nonzero matrix ``X`` has ``X H(k) = H(Rk) X`` at the k-points
+        measured, within ``cut``, ``Rk`` being the operation's image of ``k``
+        (``H(k)*`` in place of ``H(k)`` for an operation combined with time
+        reversal).  ``"covariance"``: such matrices exist, and the operation's
+        covariance residual is above ``tol``.  ``"out of plane"``: the
+        operation does not map the layer's plane onto itself, so it has no
+        action on the layer's ``k``.
     residual : float
-        Its covariance residual in the units of ``H``, infinite where no matrix
-        exists.
+        The operation's covariance residual, in the units of H, as
+        :attr:`ValidatedGroup.residuals` holds it.  Infinite where no matrix
+        was found, and for an operation out of the plane, for which
+        ``residuals`` holds no entry.
     """
 
     index: int
@@ -51,36 +61,57 @@ class Discrepancy:
 
 @dataclass(frozen=True)
 class ValidatedGroup:
-    """The verdict of the Hamiltonian on each operation of a group, with how well each one holds.
+    """Whether the Hamiltonian obeys each operation of a group, as measured.
 
-    ``r.numerical.validated`` of what :func:`..groups.realized_group` returns,
-    and the record a ``cell_group_not_realized`` refusal carries in
-    ``context["validated"]``; ``summary()`` prints it.
+    :func:`..groups.realized_group` returns it as ``r.numerical.validated``,
+    for the group returned.  A ``cell_group_not_realized`` refusal carries it
+    in ``context["validated"]``, for the group in ``context["group"]``.  That
+    refusal is returned where an operation combined with time reversal, kept
+    before ``H`` is projected onto its symmetric part, is broken after it.
+
+    An operation is kept where one unitary ``U`` has ``U H(k) U† = H(Rk)``
+    within ``tol`` at every k-point measured, ``Rk`` being the operation's
+    image of ``k``.  For an operation combined with time reversal, ``H(k)*``
+    stands in place of ``H(k)``.  The operations kept are those in
+    ``obeyed`` and in ``undetermined``.  Operations that act alike on ``k``,
+    and alike in whether they are combined with time reversal, are measured
+    once: a class found broken breaks every member, and a class kept with
+    more than one member leaves each member undetermined.  ``summary()``
+    returns the verdicts as text, with the largest covariance residual of
+    the operations kept.
 
     Attributes
     ----------
     obeyed : tuple of int
-        The operations obeyed, by index, each the only one of its class to act
-        on ``k`` as it does.
-    broken : tuple of int
-        The operations the Hamiltonian breaks, by index.
+        The operations kept that share their measurement with no other
+        operation, by index.
     undetermined : tuple of int
-        The operations kept whose verdict another operation, acting on ``k``
-        alike, shares, as an operation and its product with the horizontal
-        mirror do on a free-standing layer: the measurement says one of the
-        class holds, and the representation settles which.
+        The operations kept that share their measurement with another
+        operation, by index.  On a free-standing layer, an operation and its
+        product with the horizontal mirror share one.  ``H(k)`` does not tell
+        such operations apart, so each is then held to its own form: its
+        solution space is read for a matrix ``O(g) ⊗ S(g)`` that carries each
+        site's orbitals onto its image's, with the operation's own spin factor
+        ``S(g)``.  In the record ``realized_group`` returns, each one holds.
+    broken : tuple of int
+        The operations broken, by index, one for each entry of
+        :attr:`discrepancies`.
+    discrepancies : tuple of Discrepancy
+        One entry per broken operation, with how it was found broken.
     residuals : dict
-        ``{index: residual}``: each operation's covariance residual,
-        ``max_k ‖U H(k) U† − H(Rk)‖`` in the units of ``H``, infinite where no
-        matrix exists.
-    tol : float
-        The tolerance the residuals are read against, in the units of ``H``.
-    n_kpoints : int
-        The number of ``k``-points they are measured on.
+        ``{index: residual}``, the covariance residual of each operation
+        measured, in the units of H.  It is the largest absolute entry of
+        ``U H(k) U† - H(Rk)`` over the k-points measured, for the unitary
+        ``U`` drawn from the operation's solution space that makes it
+        smallest.  It is ``0.0`` for the identity, and infinite where no
+        matrix was found.  An operation out of the layer's plane has no
+        entry.
     closed : bool
         Whether the operations kept form a group.
-    discrepancies : tuple of Discrepancy
-        One row per broken operation, with how it was refuted.
+    tol : float
+        The tolerance each covariance residual is held to, in the units of H.
+    n_kpoints : int
+        The number of k-points the residuals are measured on.
     """
 
     # the operations kept, those obeyed and those undetermined
@@ -117,38 +148,51 @@ class ValidatedGroup:
     # (`_own_form_read`); then, for each operation none of whose members has
     # it, the condition that failed, the covariance of the matrix of that form
     # nearest its space where one was measured, and the detector's whole
-    # space -- no matrix of the operation's own, read only for whether any
-    # matrix with its action on k has the square the tables ask for
-    # (`_antiunitary_square`)
+    # space, which holds no matrix of the operation's own form and is read only
+    # for whether any matrix with its action on k has the square the tables ask
+    # for (`_antiunitary_square`)
     _own_form: Any = field(default=None, repr=False, compare=False)
 
     @property
     def broken(self) -> tuple:
-        """The indices of the operations the Hamiltonian breaks."""
+        """The operations broken, by index, one for each entry of ``discrepancies``."""
         return tuple(d.index for d in self.discrepancies)
 
     @property
     def obeyed(self) -> tuple:
-        """The indices of the operations obeyed, each the only one of its class to act on ``k`` as it does."""
+        """The operations kept that share their measurement with no other, by index."""
         return tuple(i for i in self._indices if self._verdicts.get(i) == "obeyed")
 
     @property
     def undetermined(self) -> tuple:
-        """The indices of the operations kept whose verdict another operation, acting on ``k`` alike, shares.
+        """The operations kept that share their measurement with another, by index.
 
-        The measurement says some operation of the class holds; the
-        representation settles which.
+        ``H(k)`` does not tell them apart, so each is then held to its own form
+        ``O(g) ⊗ S(g)``.  In the record ``realized_group`` returns, each one
+        holds.
         """
         return tuple(i for i in self._indices
                      if self._verdicts.get(i) == "undetermined")
 
     def _counted(self) -> str:
-        """``"16 of 16 coset representatives of the lattice translations obeyed"``."""
+        """The count of operations kept among those measured, as the summary prints it.
+
+        ``"16 of 16 coset representatives of the lattice translations obeyed"``.
+        """
         n_kept = len(self._indices)
         return f"{n_kept} of {n_kept + len(self.discrepancies)} {_PER_COSET} obeyed"
 
     def summary(self) -> str:
-        """The verdicts, a line for each part, with the attribute that holds it."""
+        """The verdicts, a line for each part, with the attribute that holds it.
+
+        The parts are the counts of operations kept, broken and undetermined;
+        the double group, where the group is one; the broken operations by
+        name; where operations are undetermined, that they act on ``k`` as
+        another does and ``H`` alone does not say which of each pair holds;
+        whether the operations kept form a group, where they do not; and the
+        largest covariance residual of those kept, against ``tol``.
+        Returns the lines as one string.
+        """
         n_broken, shared = len(self.discrepancies), len(self.undetermined)
         lines = [self._counted() + ", "
                  + ("none broken" if not n_broken else f"{n_broken} broken") + ", "
@@ -178,7 +222,7 @@ class ValidatedGroup:
                          "k-points   (.residuals, .tol, .n_kpoints)")
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover, a convenience
         shared = len(self.undetermined)
         return (f"ValidatedGroup({self._counted()}, which "
                 + ("form a group" if self.closed else "do not form a group")
@@ -191,16 +235,17 @@ class ValidatedGroup:
 
 
 # --------------------------------------------------------------------------
-# the "irrep says / Hamiltonian does" split
+# the grid of k-points the operations are measured on
 # --------------------------------------------------------------------------
 
 def _detection_grid(dim_k: int, nk: int) -> np.ndarray:
-    """The detection mesh, from pythtb's own Monkhorst-Pack hypercube.
+    """The detection grid: ``nk`` points along each of ``dim_k`` directions.
 
-    Not a hand-rolled meshgrid: the same points, built in one place.  Shared by
-    :func:`_validate_group` and by the lattice measurement of
-    :func:`.._descent._translation_residual`, so that a translation is measured on exactly
-    the k-set the rest of the group was.
+    The points are ``j/nk``, ``j = 0, ..., nk - 1``, in reduced coordinates,
+    ``k = 0`` included, built by pythtb's ``Mesh``.  Returns an array of shape
+    ``(nk**dim_k, dim_k)``.  :func:`_validate_group` and the measurement of a
+    translation, :func:`.._descent._translation_residual`, both read it, so a
+    translation is measured on the same points as the rest of the group.
     """
     from pythtb import Mesh
 
@@ -214,76 +259,53 @@ def _detection_grid(dim_k: int, nk: int) -> np.ndarray:
 # --------------------------------------------------------------------------
 
 def _model_key(model) -> str:
-    """What identifies a Hamiltonian to :class:`_MeasurementContext`: its content.
+    """The key that identifies a Hamiltonian to :class:`_MeasurementContext`.
 
-    The lattice, the orbital centres, the on-site block and the whole hopping
-    list — the Hamiltonian and nothing else — hashed together from the arrays
-    pythtb stores them in, at every size: a wannier90 import's 723,408
-    hoppings hash in under a tenth of a second.  Two models with the same key
-    have the same ``H(k)`` at every ``k``, which is the whole claim the context
-    rests on: it is what lets the cross-check's realized group in the other
-    environment, whose slab presentation is a *different object* with
-    bit-identical content (measured, and refused if it were not), share the
-    grid and the solution spaces the first one paid for.  The model's
-    lattice-vector blocks are kept under the same key
-    (:func:`.._bloch.model_key`).
+    It is a hash of ``model``'s lattice, orbital centers, on-site terms and
+    hoppings (:func:`.._bloch.model_key`), and two models with the same key
+    have the same ``H(k)`` at every ``k``.  So the other environment's slab
+    presentation, a new model built from the same terms, shares the grid and the
+    solution spaces already found.  Returns the key, a string.
     """
     return _bloch.model_key(model)
 
 
 class _MeasurementContext:
-    r"""``H(k)`` on the detection grid, and one solution space per k-action.
+    r"""``H(k)`` on the detection grid, and one solution space per action on ``k``.
 
-    For the bundled pipeline that goes straight from model to realized group
-    there is no reason to recompute ``H(k)`` and the solution spaces at every
-    step of the descent.  One of these is created per :func:`.._realized.realized_group`
-    call and handed to every :func:`_validate_group` that call makes — the first
-    measurement, one per descent step, the re-measurement after the hopping
-    projection, and the cross-check's other environment — so that
+    One is created per call of :func:`.._realized.realized_group` and handed to
+    every :func:`_validate_group` the call makes: the first measurement, each
+    step of the descent, the measurement after the hoppings are projected, and
+    the other environment's.  ``H(k)`` on the grid is evaluated once
+    (:class:`.._detector._GridHamiltonians`).  Each class of operations is
+    solved once, keyed by its action on the periodic directions of ``k`` and
+    whether it is antiunitary, and never by an operation's index, which every
+    descent renumbers.  Where the sites are given, the key also holds the forms
+    the class's space may be fitted in, unless the space's own candidate meets
+    ``tol`` and nothing is fitted.  The translation is not in the key, since
+    :func:`.._detector._find_intertwiners` does not read it.
 
-    * ``H(k)`` on the detection mesh is evaluated **once**, by
-      :class:`.._detector._GridHamiltonians` from the model's lattice-vector
-      blocks — in one call where the grid fits its memory budget, in bounded
-      k-chunks where it does not — and
-    * each **k-action class** is solved once, keyed by the in-plane action the
-      detector poses its problem in — the rotation restricted to the periodic
-      directions together with the antiunitary flag — and never by an
-      operation's index, which is renumbered by every descent and differs
-      between the two environments.  The translation is deliberately **not** in
-      the key: :func:`.._detector._find_intertwiners` never sees it (a
-      translation's phase is absorbed into the intertwiner ``X``), which is why
-      :func:`_validate_group` already shares one solve among the members of a
-      class within a single call.  This lifts that same sharing to the whole
-      pipeline.  Where the sites are given, the key also holds the forms the
-      class's space may be fitted in, unless its own candidate meets the gate
-      and nothing is fitted.
+    The grid and the spaces are rebuilt together where the model's key
+    (:func:`_model_key`), the k-points, ``tol``, ``cut``, ``window``,
+    ``solver``, ``max_bytes`` or the nullspace floor differs from the binding
+    before (:meth:`bind`).  A move of the centers or a projection of the
+    hoppings makes a model with a new key, and so a rebuild.
 
-    That the two environments share almost everything is not a coincidence: the
-    substrate group is the ``R[2,2] = +1`` subgroup of the free-standing one and
-    ``σ_h`` acts trivially on in-plane ``k``, so the two pose the *same* set of
-    in-plane k-actions.
-
-    **Invalidation is structural, not remembered.**  The key carries the
-    model's content (:func:`_model_key`, whatever the model's size), the k-set
-    and the six numbers the solution space depends on —
-    ``tol``, ``cut``, ``window``, ``solver``, the detector's ceiling
-    ``max_bytes``, and the floor below which its nullspace keeps a candidate,
-    which a declared precision sets at the gate — and any difference rebuilds
-    grid and spaces together.  The two steps of the chain that change the
-    Hamiltonian, the position pass and the hopping projection, both hand back a
-    new model with new content and therefore invalidate it by construction.
-
-    The counters are measurements: ``hits`` and ``misses`` count classes reused
-    and classes solved, ``rebuilds`` counts invalidations (the first bind
-    included).
-
-    ``sectors`` keeps the sectors of each model the call measured
-    (:func:`.._sectors.read_sectors`), keyed by the model's content with the
-    sites and spinor pairs they are read on and the tolerance they are read at:
-    read where a model enters, on the first round, and kept through every later
-    one and the other environment, which measure the same Hamiltonian.  A model
-    the hopping projection made is a new one, and the reading made before it is
-    the one its rounds carry.
+    Attributes
+    ----------
+    grid : _detector._GridHamiltonians or None
+        ``H(k)`` on the bound grid, ``None`` before the first binding.
+    spaces : dict
+        The solution space found under each key.
+    hits, misses, rebuilds : int
+        The classes reused, the classes solved, and the bindings that rebuilt,
+        the first included.
+    sectors : dict
+        The sectors of each model the call read
+        (:func:`.._sectors.read_sectors`), keyed by :func:`_model_key`, the
+        sites and spinor pairs they are read on and the tolerance.  A reading
+        made where a model enters is kept through the later rounds and the
+        other environment.
     """
 
     __slots__ = ("_key", "grid", "spaces", "hits", "misses", "rebuilds", "sectors")
@@ -299,7 +321,15 @@ class _MeasurementContext:
 
     def bind(self, model, k_pts, *, tol, cut, window, solver, max_bytes=None,
              floor=None):
-        """The shared grid for this request, rebuilt when anything it rests on moved."""
+        """The grid of ``H(k)`` for ``model`` on ``k_pts``, rebuilt where its key differs.
+
+        ``tol``, ``cut``, ``window``, ``solver``, ``max_bytes`` and ``floor``
+        are the settings :func:`_validate_group` hands the detector.  With the
+        model's key and the k-points they make the binding's key.  Where it
+        differs from the last binding's, the grid is evaluated anew and every
+        solution space kept is dropped.  Returns the
+        :class:`.._detector._GridHamiltonians`.
+        """
         key = (_model_key(model),
                np.ascontiguousarray(np.asarray(k_pts, dtype=float)).tobytes(),
                float(tol), None if cut is None else float(cut),
@@ -314,10 +344,11 @@ class _MeasurementContext:
         return self.grid
 
     def solved(self, key, *also):
-        """The solution space already found for this k-action class, or ``None``.
+        """The solution space already found under ``key``, or ``None``.
 
         ``also`` are keys tried first, under which a space that answers for
-        ``key`` as well is kept.
+        ``key`` as well is kept.  Each call counts a hit where a space is
+        found and a miss where none is.
         """
         got = next((self.spaces[k] for k in also if k in self.spaces), None)
         if got is None:
@@ -329,19 +360,18 @@ class _MeasurementContext:
         return got
 
     def remember(self, key, space) -> None:
-        """Keep a solution space for the rest of this call."""
+        """Keep the solution space ``space`` under ``key`` until the next rebuild."""
         self.spaces[key] = space
 
     def grid_for(self, model, k_pts):
-        """The bound grid when it is this model on exactly this k-set, else ``None``.
+        """The bound grid where it is ``model``'s on the same ``k_pts``, else ``None``.
 
-        The lattice measurement (:func:`.._descent._translation_residual`) runs on the
-        detection mesh by construction — see :func:`_detection_grid` — so it can
-        read ``H`` off the grid the detector already evaluated instead of
-        evaluating it again.  Both halves of that are **checked** rather than
-        assumed: the model has to be the one the grid was built on (identity, so
-        a context rebound to some other Hamiltonian can never be read here), and
-        the k-set has to be the same points byte for byte.
+        The grid is returned only where ``model`` is the object it was bound
+        to, not only a model of the same key, and ``k_pts`` are the same points
+        bit for bit.  The measurement of a translation
+        (:func:`.._descent._translation_residual`) and
+        :func:`_grid_covariance` measure on the detection grid, and read
+        ``H(k)`` off this one where they can.
         """
         if self.grid is None or self.grid.model is not model:
             return None
@@ -353,7 +383,10 @@ class _MeasurementContext:
         return None
 
     def record(self) -> dict:
-        """The counters, so what the sharing did can be reported."""
+        """The counters ``hits``, ``misses``, ``rebuilds`` and ``spaces``, by name.
+
+        ``spaces`` is how many solution spaces are kept.
+        """
         return {"hits": int(self.hits), "misses": int(self.misses),
                 "rebuilds": int(self.rebuilds), "spaces": len(self.spaces)}
 
@@ -362,143 +395,90 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
                     k_pts=None, include_antiunitary=True, keep_intertwiners=True,
                     window=None, solver="eigen", max_bytes=None, context=None,
                     assignment=None, _floor=None) -> ValidatedGroup | Refusal:
-    """Which operations of a group ``H(k)`` obeys, one residual each.
+    """Which operations of a group ``H(k)`` obeys, each with its covariance residual.
 
-    Returned as :attr:`.._realized.RealizedGroupNumerical.validated`; the descent and the
-    symmetric projection put the same question to a group at a tighter ``tol``,
-    on a different mesh, or to a subgroup assembled by hand.  Each candidate operation goes to
-    :func:`.._detector._find_intertwiners`, which solves ``X H(k) = H(Rk) X`` (or
-    ``X H(k)* = H(Rk) X`` for an antiunitary one) over a k-grid with no tensor
-    structure assumed for what the operation does to orbitals, so an empty
-    solution space is a *proof* that the operation is broken rather than a
-    threshold verdict
-    (``docs/background/measurement.md#the-cell-and-a-verdict-on-each-operation``).
+    Each operation of ``group`` is put to
+    :func:`.._detector._find_intertwiners`, which finds every matrix ``X``
+    with ``X H(k) = H(Rk) X`` on a grid of ``k``, and ``X H(k)* = H(Rk) X``
+    for an antiunitary operation.  Operations that act alike on ``k``, and
+    alike in whether they are antiunitary, pose one problem, solved once, and
+    share its verdict.  Nothing checks that ``group`` is ``model``'s: its
+    operations are measured against whatever Hamiltonian is handed in.
 
     Parameters
     ----------
     model : pythtb.TBModel
-        The Hamiltonian under test; its ``hamiltonian`` is evaluated on the
-        detection mesh and nothing about its geometry is re-derived here.
+        The Hamiltonian measured.
     group : GroupData
-        The candidate operations.  Which group goes with which model is not
-        checked — see the validity conditions below.  A group comes from
-        :func:`.._realized.realized_group`: ``realized_group(model, ...).group``.
-    nk : int, optional
-        Divisions of the Γ-centred detection mesh per periodic direction.
-        Default 8.
-    tol : float, optional
-        **The declared symmetry tolerance**, absolute and in the units of H:
-        the covariance gate on ``max_k ‖U H U† − H(Rk)‖_max``, and the number
-        the detector's other two follow — ``cut`` defaults to it, and the
-        matching ``window`` is derived from it as
-        ``clip(10·sqrt(tol), 1e-3, 0.3)``.  So one declaration still sets gate,
-        cut and window, and they cannot silently disagree.  A **wannier90**
-        Hamiltonian is symmetric only to its own numerical defect, several
-        decades above machine precision, so such a model must declare it:
-        ``_validate_group(model, group, tol=1e-6)``.  Every per-operation entry
-        then carries that number, which is what the verdict rests on
-        (``docs/guide/numerical.md``).
-    cut : float, optional
-        The detector's **nullspace cut**, relative and dimensionless: a
-        singular value counts as zero when ``s <= cut·‖L‖``, or when it is at
-        most ``sqrt(n)·cut`` in the units of ``H``, the most a unitary candidate
-        within the cut can have
-        (:func:`.._detector._find_intertwiners`).  ``None`` (the
-        default) is ``tol``.  Declaring it apart says that this model's
-        *arithmetic* is noisier than the physics the gate judges — the gate
-        stays where the residuals are read, the cut moves to where the
-        solution space is found.
-    k_pts : array, optional
-        Use this k-set instead of the default mesh.
-    include_antiunitary : bool, optional
-        Also test the group's antiunitary operations.
-    keep_intertwiners : bool, optional
-        Keep, for each surviving operation, the polar-extracted unitary
-        (``ValidatedGroup._intertwiners``) **and the detector's whole
-        solution space** (``ValidatedGroup._bases``).  That space is what
-        :func:`.._build._build_rep`'s ``strategy="readoff"`` reads the
-        representation's discrete choices off.
-    window, solver : optional
-        Forwarded to :func:`.._detector._find_intertwiners`: the eigen route's
-        matching window (``None`` derives it from ``tol``) and which solver
-        runs (``"eigen"`` by default, ``"stacked"`` for the audit oracle).
-    max_bytes : float, optional
-        The memory the detector's trial basis may take at a k-point where a
-        spectrum's exactly degenerate levels need more than its own
-        ``512e6`` bytes: the ceiling
-        :func:`.._detector._find_intertwiners` raises its budget to there
-        (``degenerate_max_bytes``).  Never below the detector's own budget,
-        which is also how wide an energy window it reads on a nearly
-        degenerate spectrum and which this does not move.  ``None`` (default)
-        keeps that budget as the ceiling.
-    context : optional
-        A shared measurement context, which :func:`.._realized.realized_group` creates once
-        per call and hands to every measurement it makes, so that a k-action
-        class posed twice is solved once.  ``None`` (the default) is this
-        function's behaviour bit for bit, and what comes back is identical
-        either way: the solve is a deterministic function of the model, the
-        k-set and ``tol``/``cut``/``window``/``solver``/``max_bytes``.
-    assignment : optional
-        The cell's sites and each operation's permutation of them, as
-        :func:`.._realized.realized_group` reads them.  Given, an operation
-        whose sifted matrices miss ``tol`` is fitted over the whole mesh among
-        the matrices carrying each site's states onto its image's under one of
-        the operations sharing its action on ``k``
-        (:func:`.._detector._find_intertwiners`' ``forms``), and each record's
-        ``fit`` says what that settled.  ``None`` (default) fits nothing.
+        The operations measured.
+    nk : int, default 8
+        The number of points along each periodic direction of the grid
+        (:func:`_detection_grid`).
+    tol : float, default 1e-8
+        The covariance check's tolerance, an energy in the units of ``H``.  An
+        operation is kept where a unitary of its solution space carries
+        ``H(k)`` onto ``H(Rk)`` within ``tol`` at every point of the grid.
+        The detector's ``cut`` and ``window`` follow it where they are
+        ``None``.
+    cut : float, default None
+        The detector's relative nullspace cut
+        (:func:`.._detector._find_intertwiners`).  ``None`` is ``tol``.
+    k_pts : ndarray, shape (Nk, dim_k), default None
+        The points measured on, in reduced coordinates.  ``None`` is the grid
+        of ``nk``.
+    include_antiunitary : bool, default True
+        Whether the group's antiunitary operations are measured.  With
+        ``include_antiunitary=False`` they are absent from what is returned.
+    keep_intertwiners : bool, default True
+        Whether each kept operation's intertwiner and whole solution space
+        are kept in what is returned, for :func:`.._build._build_rep`.
+    window : float, default None
+        The detector's starting energy window, relative to
+        ``max|H - μ·1|``.  ``None`` derives it from ``tol``.
+    solver : {"eigen", "stacked"}, default "eigen"
+        The detector's route.
+    max_bytes : float, default None
+        The memory, in bytes, the detector may take at a point whose
+        degenerate pairs need more than its own budget, its
+        ``degenerate_max_bytes``.  ``None`` keeps its own budget.
+    context : _MeasurementContext, default None
+        The measurement one call shares among its steps, which holds ``H(k)``
+        on the grid and the spaces already solved.  What is returned is the
+        same with or without it.
+    assignment : .._spacegroup.OrbitalAssignment, default None
+        The cell's sites and each operation's permutation of them.  Given,
+        the detector may fit a class's space over the whole grid among the
+        matrices carrying each site's states onto its image's under one of
+        the class's operations, its ``forms``.  ``None`` fits nothing.
+    _floor : float, default None
+        The detector's nullspace floor: the covariance at one point, in the
+        units of ``H``, that a candidate it keeps may carry.  ``None`` is
+        ``cut``.
 
     Returns
     -------
     ValidatedGroup or Refusal
-        Carries the surviving indices, the discrepancy list (with reasons and
-        residuals), and :attr:`ValidatedGroup.closed` — whether the survivors
-        form a subgroup under the group's own product table.
+        The verdict on each operation measured.  An operation is broken by
+        ``"no symmetry matrix"`` where its space is empty, by
+        ``"covariance"`` where its residual, the smallest over the unitaries
+        drawn from its space, is above ``tol``, and by ``"out of plane"``
+        where it does not map a layer's plane onto itself.  Each kept
+        operation's intertwiner is a unitary of its space whose phase is not
+        fixed; the identity's is the unit matrix, its residual ``0.0``.
+        ``closed`` says whether the operations kept form a group under
+        ``group``'s product table.
 
     Refusals
     --------
-    ``"detector_too_large"``
-        one operation's solve needs more memory than ``max_bytes`` allows, its
-        spectrum's exactly degenerate pairs alone being past it: handed back
-        as :func:`.._detector._find_intertwiners` returns it, with what the
-        solve needs and the ``max_bytes=`` that runs it.  A limit on memory,
-        not a statement about the model, so no operation is recorded broken.
+    ``detector_too_large``
+        the degenerate pairs at one point need more memory than the larger of
+        the detector's budget and ``max_bytes``, returned as the detector
+        returns it; no operation is recorded broken.
 
-    Notes
-    -----
-    **Validity conditions.**
-
-    * ``reason="no symmetry matrix"`` is a *proof* the operation is broken: no
-      matrix with that k-action commutes with ``H(k)`` at all.  At a declared
-      ``tol`` above machine precision it is a proof at that tolerance, not a
-      claim that the operation fails to machine precision — for the defect
-      itself, measure it with ``solver="stacked"``.
-      ``reason="covariance"`` is weaker: a solution exists but does
-      not close the gate, which usually means an almost-symmetry or a badly
-      conditioned grid.
-    * The extracted ``intertwiners`` carry an **arbitrary overall phase**.
-      They are candidates for :func:`..symmetry.normalize_rep`, not finished
-      representations: a stored operator equal to ``(−i)×`` the true one passes
-      every covariance test and relabels every corep at once.
-    * ``closed`` is a self-check: a surviving set that is not closed under
-      composition means the gate, the grid or the model is wrong, and it is
-      reported rather than patched.
-    * **Verdicts are per k-action class, not per operation.**  Operations
-      sharing a k-action and an antiunitarity — for a layer, every pair
-      ``{g, σ_h·g}`` — pose one intertwiner problem and share one verdict, so a
-      survivor of a multi-member class reads ``"undetermined"`` rather than
-      ``"obeyed"``.  **"Everything survives" on a layer is therefore not a
-      statement that the horizontal mirror holds.**
-    * **The model/group pairing belongs to whoever makes it** and is
-      deliberately unchecked: the operations are measured against whatever
-      Hamiltonian is handed in.  That is what lets a cell's candidates be
-      measured against a model whose own point set would give a larger group —
-      but a wrong pairing is then silent.
-
-    Examples
+    See Also
     --------
-    A square-lattice model whose cell is ``P4/mmm`` (16 operations) but whose
-    hoppings are anisotropic keeps only the 8 operations of ``Pmmm``; the
-    discrepancy list names the eight that fail and their residuals.
+    _own_form_read : each kept operation's space read in its own form, the
+        next step of :func:`.._realized.realized_group`.
     """
     if k_pts is None:
         k_pts = _detection_grid(int(group._dim_k), int(nk))
@@ -507,10 +487,9 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
     # One evaluation of H on the detection grid for the whole group: H(k) does
     # not depend on which operation is being tested, and it is summed from the
     # model's lattice-vector blocks inside a memory budget whatever the model's
-    # size.  With a shared context that evaluation is for the whole *pipeline*
-    # rather than for this call -- the descent's steps, the re-measurement after
-    # a projection and the other environment's realized group measure the same H
-    # on the same mesh.
+    # size.  With a shared context, realized_group evaluates H once for the
+    # whole call: the descent's steps, the measurement after a projection and
+    # the other environment's measurement read the same H on the same grid.
     if context is None:
         grid_H = _GridHamiltonians(model, k_pts)
     else:
@@ -552,16 +531,16 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
             disc.append({"ind": ind, "refuted_by": "out of plane", "residual": np.inf})
             continue
         actions[ind] = (action, bool(sym.time_reversal))
-        # operations sharing (k-action, antiunitarity) pose the *identical*
+        # operations sharing (k-action, antiunitarity) pose the identical
         # problem, so it is solved once and `solved_on` names which operation
         key = (np.round(np.asarray(action(probe), dtype=float), 10).tobytes(),
                bool(sym.time_reversal))
         if key not in solved_class:
-            # The class may already have been solved earlier in this pipeline --
-            # by the measurement before a descent step, or by the other
-            # environment, which poses the identical in-plane actions.
-            # `solved_on` stays THIS group's own first member either way, so the
-            # record says which operation of the group that was asked about.
+            # The class may already have been solved earlier in this call, by
+            # the measurement before a descent step or by the other environment,
+            # which poses the same in-plane actions.  `solved_on` stays this
+            # group's own first member either way, so the record names an
+            # operation of the group that was asked about.
             # the space depends on the forms it may be fitted in as well, except
             # where the sift's own candidate meets the gate and none is fitted
             class_forms = tuple(forms.get(key, ()))
@@ -624,7 +603,7 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
                                      space.unitaries[int(np.argmin(space.residuals))])
                 # The whole space, not only the member with the best residual:
                 # where `dim >= 2` the solution of tensor-structure form is
-                # generally a *different* member (see ValidatedGroup._bases), and
+                # generally a different member (see ValidatedGroup._bases), and
                 # `_build._build_rep`'s read-off needs the span to find it.
                 # Stored by reference, so a k-action class costs one array.
                 bases[ind] = space.basis
@@ -647,7 +626,7 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
     # class posed the identical intertwiner problem, so a class survival is
     # shared while a class failure is individually conclusive (see the
     # ValidatedGroup docstring).  Unitary and antiunitary operations with the
-    # same k-action solve *different* problems and are never classmates.
+    # same k-action solve different problems and are never classmates.
     by_key = {}
     for ind, (action, tr) in actions.items():
         # the k-action is a linear callable on reduced k; probing the basis
@@ -678,15 +657,18 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
 
 
 def _grid_covariance(model, group, *, nk, context=None):
-    r"""A candidate matrix's covariance residual, measured as the detector measures its own.
+    r"""A measure of a candidate matrix's covariance residual, as the detector's own.
 
-    Returns the measure :func:`.._multiplets._own_form_spaces` hands a
-    candidate to: called with an operation's position in
-    ``group._symmetries`` and a matrix, it returns
-    ``max_k ‖U H(k)^(*) U† − H(Rk)‖`` for ``U`` the unitary nearest that matrix,
-    over the detection grid the detector solved on -- the same grid, read off
-    the call's measurement context where it holds it, and the same number the
-    detector certifies each of its own candidates by.
+    ``model`` and ``group`` are the Hamiltonian and the group it was measured
+    against, and ``nk`` the number of points along each periodic direction of
+    the grid :func:`_validate_group` measured on (:func:`_detection_grid`).
+    ``H(k)`` on that grid is read off ``context`` where it holds it
+    (:meth:`_MeasurementContext.grid_for`), and evaluated otherwise.  Returns a
+    function of an operation's position in ``group._symmetries`` and a matrix,
+    which returns ``max_k ‖U H(k) U† − H(Rk)‖_max`` over the grid, ``U`` the
+    unitary nearest the matrix and ``H(k)*`` in place of ``H(k)`` for an
+    antiunitary operation.  :func:`.._multiplets._own_form_spaces` holds a
+    matrix of an operation's own form to it.
     """
 
     k_pts = _detection_grid(int(group._dim_k), int(nk))
@@ -710,35 +692,36 @@ def _grid_covariance(model, group, *, nk, context=None):
 def _own_form_read(model, group, assignment, spin, validated, *, tolerances, covariance=None):
     r"""Every kept operation's solution space, read once in its own form.
 
-    The detector's spaces are per action on ``k``, and hold every matrix with
-    that action: another operation's, or one composed with a symmetry the
-    Hamiltonian has beyond the crystal's.  Each operation is held to its own
-    form -- each site's states carried onto its image's, with its own spin lift
-    on states that carry a spin -- once, here, and the members of that form are
-    what every later reading of the operation reads: the multiplets, the
-    transport round an orbit, the tensor structure, the sectors and the
-    representation (:func:`.._multiplets._own_form_spaces`).  ``tolerances`` is the
-    record of what the call declared, every threshold judging noise against
-    it, and ``covariance`` is :func:`_grid_covariance`'s measure, which a form
-    missed by more than rounding is held to as well: the member nearest it,
-    its part in the form, carries ``H(k)`` onto ``H(gk)`` within the covariance
-    gate the operation was kept at, or the operation is not one of this
-    Hamiltonian's -- as spin blocks written in a frame turned against the
-    lattice by more than the gate allows show.
+    The detector's space for an operation holds every matrix with its action
+    on ``k``, those of other operations with that action among them.  Each kept
+    operation's space is cut to the members of its own form, each site's states
+    carried onto its image's with the operation's own spin lift on states that
+    carry a spin (:func:`.._multiplets._own_form_spaces`).  Every later reading
+    of the operation reads those members.
 
-    Returns ``(validated, refuted)``: the detector's record with each kept
-    operation's space in its own form and its intertwiner a member of it -- the
-    detector's own, made unitary on the form where it lies outside -- and the
-    records of the operations none of whose members has their form, refuted by
-    it (``"tensor structure"``, with ``own_form`` naming the condition that
-    failed and ``covariance`` how far the part in the form carries ``H``,
-    where that was measured).  A refuted operation's space is empty, and its
-    intertwiner and the detector's whole space are left as the detector
-    measured them, for the one question asked of them: whether any matrix
-    with its action on ``k`` has the square the tables ask for, which time
-    reversal's verdict says (:func:`.._descent._antiunitary_square`).  The record
-    returned says it was read, so that it is read once:
-    :func:`.._build._build_rep`, handed it, reads it as it stands.
+    ``model``, ``group``, ``assignment`` and ``spin`` are the Hamiltonian, the
+    group it was measured against, the cell's sites with each operation's
+    permutation of them, and the spin partners declared, ``None`` where none
+    were.  ``validated`` is :func:`_validate_group`'s record for them.
+    ``tolerances`` is the call's :class:`.._tolerance.Tolerances`, which every
+    threshold of the reading reads.  ``covariance`` is
+    :func:`_grid_covariance`'s measure: where a form is missed by more than
+    rounding, the operation is kept only where the part in the form of the
+    member nearest the form carries ``H(k)`` onto ``H(Rk)`` within
+    ``validated.tol``.  ``None`` holds the form alone.
+
+    Returns ``(validated, refuted)``.  In ``validated`` each kept operation's
+    space is the members of its own form, and its intertwiner a member of it:
+    the detector's own where it lies in the form, else the unitary nearest its
+    projection onto the form, or nearest the form's first member where that
+    projection vanishes.  An operation with no member of its form keeps an
+    empty space and the detector's intertwiner, and ``_own_form`` holds the
+    detector's whole space for it, read only for whether a matrix of an
+    antiunitary operation squares to the sign the tables give it
+    (:func:`.._descent._antiunitary_square`).  ``_own_form`` is set, so the
+    record is read once.  ``refuted`` maps each such operation's index to its
+    record from :func:`.._multiplets._own_form_spaces`, whose ``own_form``
+    names the condition that failed.
     """
 
     kept = set(validated._indices)
@@ -775,17 +758,19 @@ def _own_form_read(model, group, assignment, spin, validated, *, tolerances, cov
 
 
 def _own_form_once(model, group, assignment, spin, validated, *, tol=None):
-    r"""The record each operation's own form was read on: as it stands where it was read, else read here, once.
+    r"""``validated`` with each kept operation's space read in its own form, once.
 
-    :func:`.._realized.realized_group` reads every record in the verdict stage
-    (:func:`_own_form_read`); a record handed in as the detector measured it,
-    :func:`_validate_group`'s own, is read here instead, by the same function.
-    ``tol`` is the declared tolerance, relative to ``max|H|``, the reading
-    judges noise against -- the one the multiplets handed in were measured
-    at, ``None`` for the exact defaults -- and an operation whose members miss
-    their form by more than rounding holds where the member nearest it, its
-    part in the form, carries ``H(k)`` within the covariance gate it was kept
-    at, measured over a mesh as many points as the record's own.
+    ``model``, ``group``, ``assignment``, ``spin`` and ``validated`` are as
+    :func:`_own_form_read` takes them.  A record already read, as
+    :func:`.._realized.realized_group` reads every record it measures, is
+    returned as it stands.  One as :func:`_validate_group` returns it is read
+    here by :func:`_own_form_read`, the covariance measured on a grid of
+    ``n_kpoints ** (1/dim_k)`` points along each periodic direction, rounded
+    and at least 2 (:func:`_grid_covariance`).  ``tol`` is the declared
+    tolerance relative to ``max|H|``, the one the multiplets handed to
+    :func:`.._build._build_rep` were measured at; ``None`` keeps the exact
+    defaults.  Returns the record read; the refuted operations' records are
+    not returned.
     """
     if getattr(validated, "_own_form", None) is not None:
         return validated
@@ -800,34 +785,25 @@ def _own_form_once(model, group, assignment, spin, validated, *, tol=None):
 
 #: How ``max|H|`` is measured: the largest entry of ``H(k)`` over this many
 #: seeded random k, floored by the model's own largest hopping or on-site
-#: magnitude (which it bounds, ``|t_ij(R)| ≤ max_k |H_ij(k)|``, so the floor only
-#: ever catches a k-sample that undershot) -- all of it with the mean on-site
-#: energy taken off the diagonal.
+#: magnitude.  The largest entry over every k bounds them,
+#: ``|t_ij(R)| ≤ max_k |H_ij(k)|``, so the floor only catches a sample of k
+#: that undershot.  The mean on-site energy is taken off the diagonal
+#: throughout.
 _MAX_H_NK, _MAX_H_SEED = 64, 3
 
 
 def _max_hamiltonian(model) -> float:
-    r"""``max|H|`` — the Hamiltonian's own magnitude, measured on the model.
+    r"""``max|H|``, the largest entry of the Hamiltonian about its mean on-site energy.
 
-    The declared symmetry tolerance is **absolute**, in the units of ``H``, so a
-    *relative* precision only becomes one after being read against this number
-    (``docs/guide/numerical.md#how-to-read-it``).  It is measured two ways and
-    the larger is taken:
-    the largest entry of ``H(k)`` on a fixed set of random k — the thing the
-    covariance residual is a residual *of* — and the largest hopping or
-    on-site magnitude in the model's own numbers.
-    The second is a floor rather than a competitor: each hopping is a Fourier
-    coefficient of ``H_ij(k)``, so ``|t_ij(R)| ≤ max_k |H_ij(k)|`` and the
-    read-off can only win where the finite k-sample undershot.
-
-    **Both with the energy zero taken off.**  A constant shift ``H → H + c·1``
-    moves no covariance residual, ``U(H + c)U† − (H(gk) + c) = U H U† − H(gk)``,
-    and no centre defect's either, since a centre carries no phase onto its own
-    on-site term; it moves every entry on the diagonal.  So the magnitude is
-    that of ``H − μ·1``, ``μ`` the mean on-site energy per state
-    (:func:`.._bloch.onsite_mean`): subtracting a Fermi energy from a wannier90
-    import moves no tolerance, and a model whose on-site energies average to
-    zero reads the largest entry of ``H`` itself.
+    ``model`` is the Hamiltonian.  ``μ``, the mean on-site energy per state
+    (:func:`.._bloch.onsite_mean`), is taken off the diagonal, so a constant
+    shift of ``H`` moves nothing.  Returns, in the units of ``H``, the largest
+    of three magnitudes: of ``H(k) − μ·1`` over 64 seeded random ``k``, of the
+    on-site terms less ``μ``, and of the hoppings.  The last two are bounded
+    by the largest entry of ``H(k) − μ·1`` over every ``k``,
+    ``|t_ij(R)| ≤ max_k |H_ij(k)|``, so they exceed the sampled one only
+    where the sample undershot.  A relative precision is read against this
+    number.
     """
     mu = _bloch.onsite_mean(model)
     site = _bloch.onsite(model)
