@@ -2901,9 +2901,6 @@ def regular_content(group, *, kpoints=None) -> dict | Refusal:
     --------
     A refusal handed in as ``group`` is returned as it is.
 
-    ``regular_content_not_integral``
-        the tables' characters give a multiplicity that is no integer, or a
-        vector of other than ``n_1`` bands at a point.
     ``magnetic_type_out_of_scope``
         a magnetic group of type III or IV, which
         :func:`.groups.realized_group` never returns.
@@ -2943,7 +2940,7 @@ def _regular_content(group, kpoints=None, *, call="regular_content") -> dict | R
         if name not in hsp and name not in hsp.out_of_plane:
             _tables._resolve_kpoint(call, group, name)
 
-    n_u, n_copy = len(group._u_symmetries), _bands_per_copy(group)
+    n_copy = _bands_per_copy(group)
     out, bands = {}, {}
     for name in wanted:
         if name in hsp.out_of_plane:
@@ -2969,28 +2966,20 @@ def _regular_content(group, kpoints=None, *, call="regular_content") -> dict | R
             norm = sum(abs(complex(char[i])) ** 2 for i in lg.unitary)
             m = n_copy * dim / norm
             if abs(m - round(m)) > _INT_TOL:
-                return Refusal(
-                    "regular_content_not_integral",
-                    f"the multiplicity of {label} at {name} in one copy of the regular band "
-                    f"representation of {group.name} #{group.number_str} is {m:.6g}, which "
-                    "is not an integer. Report it, with the model and the call.",
-                    value=float(m), threshold=float(_INT_TOL),
-                    context={"kpname": name, "label": label, "n_unitary": n_u,
-                             "bands_per_copy": n_copy, "little_group": len(lg.unitary)})
+                raise InternalError(
+                    f"{group.name} #{group.number_str}: the multiplicity of {label} at {name} "
+                    f"in one copy of the regular band representation is {m:.6g}, which is not "
+                    "an integer. Report it, with the model and the call.")
             out[label] = int(round(m))
             total += round(m) * dim
         bands[name] = total
     bands = {n: bands[n] for n in sorted(bands, key=_tables.point_order)}
     off = {n: b for n, b in bands.items() if abs(b - n_copy) > _INT_TOL}
     if off:
-        return Refusal(
-            "regular_content_not_integral",
-            f"one copy of the regular band representation of {group.name} "
-            f"#{group.number_str} has {n_copy} bands, and the numbers of bands its "
-            f"multiplicities give at these points are {off}. Report it, with the model "
-            "and the call.",
-            value=float(max(off.values())), threshold=float(n_copy),
-            context={"bands": bands, "n_unitary": n_u, "bands_per_copy": n_copy})
+        raise InternalError(
+            f"{group.name} #{group.number_str}: one copy of the regular band representation "
+            f"has {n_copy} bands, and the numbers of bands its multiplicities give at these "
+            f"points are {off}. Report it, with the model and the call.")
     return _tables.ordered_content(out)
 
 
@@ -3073,10 +3062,6 @@ def regular_completion(symmetry_data, realized=None, *,
         a little-group representation the model does not measure is matched by
         no measured one that occurs as often in every elementary band
         representation.
-    ``regular_content_not_integral``
-        the characters of the little-group representations give one copy a
-        multiplicity that is not an integer, or other than ``n_1`` bands at a
-        point.
     ``magnetic_type_out_of_scope``
         a magnetic group of type III or IV, which
         :func:`.groups.realized_group` never returns.

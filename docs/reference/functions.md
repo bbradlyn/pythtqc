@@ -1098,10 +1098,6 @@ A refusal handed in as `realized` is returned as it is.
   no measured one that occurs as often in every elementary band
   representation.
 
-- **`regular_content_not_integral`**: the characters of the little-group representations give one copy a
-  multiplicity that is not an integer, or other than `n_1` bands at a
-  point.
-
 - **`magnetic_type_out_of_scope`**: a magnetic group of type III or IV, which
   [`realized_group`](#realized_group) never returns.
 

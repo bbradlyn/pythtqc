@@ -376,18 +376,6 @@ as often as it in every elementary band representation of the group.
   `regular_completion`, the tables' Wyckoff positions could not be read in the group's
   cell; report it, with the model and the call.
 
-#### `regular_content_not_integral`
-
-Returned by `regular_content` and `regular_completion`, when one copy of the regular band
-representation holds some little-group representation a number of times that is not an
-integer, or has a number of bands at some point other than one copy's.
-
-- **What it means.** One copy is the band representation induced from the general Wyckoff
-  position, so its multiplicities are integers and it has the same number of bands at
-  every point. A copy that does not means the tables' characters and the little group
-  disagree. That is the package disagreeing with itself.
-- **What to do.** Report it, with the model and the call.
-
 ### Stable real-space invariants
 
 #### `wyckoff_orbit_content_incomplete`

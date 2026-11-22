@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The check `regular_content_not_integral` is gone. One copy of the regular band
+  representation holds every little-group representation a whole number of times in
+  every group of the tables, so a copy that does not is a defect of the package, and
+  `regular_content` and `regular_completion` raise `InternalError` for it.
 - `regular_completion` and `regular_content` count one copy of the regular band
   representation as the band representation induced from the general Wyckoff position:
   `|U|` bands, and `2|U|`, the Kramers pair there, for a spinful model in a group with
