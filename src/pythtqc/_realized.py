@@ -1633,7 +1633,8 @@ def realized_group(model, *, typat=None, environment=None, cross_check=True,
         For a numerical model such as a wannier90 import, the relative
         precision of its numbers: a positive number.  Centers and hoppings
         symmetric within it are made exactly symmetric; left out, the model is
-        read as exact.
+        read as exact, each operation held to ``1e-8`` times ``max|H|``, the
+        largest entry of ``H(k)`` once the mean on-site energy is subtracted.
     spin : str, mapping or SpinBasis, optional
         For a spinless model whose orbital index carries spin, as a wannier90
         import's does: which two orbitals are the spin states of one Wannier

@@ -200,6 +200,26 @@ def _energy_shifted(model, c):
     return out
 
 
+def _scaled(model, s):
+    """``s·H``: every on-site energy and hopping multiplied by ``s``, the same model in other units."""
+    dim_r = int(model.lattice.dim_r)
+    out = TBModel(Lattice(np.asarray(model.lat_vecs, dtype=float),
+                          np.asarray(model.orb_vecs, dtype=float).tolist(),
+                          periodic_dirs=list(model.periodic_dirs)),
+                  spinful=(int(model.nspin) == 2))
+    ons = np.asarray(model.onsite, dtype=complex) * float(s)
+    if ons.ndim == 3:
+        out.set_onsite(ons, mode="set")
+    else:
+        out.set_onsite([float(x.real) for x in ons], mode="set")
+    for h in model.hoppings:
+        amp = np.asarray(h["amplitude"], dtype=complex) * float(s)
+        out.set_hop(amp if amp.ndim else complex(amp), h["from_orbital"],
+                    h["to_orbital"], list(h.get("lattice_vector", [0] * dim_r)),
+                    mode="add")
+    return out
+
+
 #: One ``s`` orbital on a tetragonal lattice, ``c = 1.4``: hoppings to the
 #: first three shells in the plane, out to three cells along ``a``, and to the
 #: planes above and below, one cell along ``c``.
@@ -322,7 +342,7 @@ def test_the_three_classes_are_read_off_the_measured_residuals(lin3g, lin3g_jitt
 # ---------------------------------------------------------------------------
 
 @pytest.mark.slow
-def test_the_jittered_lin3g_comes_back_as_the_clean_one(lin3g_clean, lin3g_jittered):
+def test_the_jittered_lin3g_comes_back_as_the_clean_one(lin3g, lin3g_clean, lin3g_jittered):
     """The theorem of this wave, on the primary golden.
 
     Every hopping jittered at 1e-7 breaks the representation outright — at the
@@ -330,6 +350,11 @@ def test_the_jittered_lin3g_comes_back_as_the_clean_one(lin3g_clean, lin3g_jitte
     projection the model carries the clean one's **labels, matrices, content,
     partitions and EBR decomposition**, having moved ``H`` by less than the
     jitter moved it.
+
+    The same model in other units is read the same: with nothing declared the
+    gate is ``1e-8`` of ``max|H|``, so ``lin3g`` jittered at 1e-9 and multiplied
+    by 1e-3 or by 1e3 is projected onto the same group, with the same rows and
+    labels, and moved by a defect a million times larger at the larger scale.
     """
     out, model, _tol = lin3g_jittered
     rec = out.numerical.symmetrization
@@ -366,6 +391,18 @@ def test_the_jittered_lin3g_comes_back_as_the_clean_one(lin3g_clean, lin3g_jitte
     db = tqe.decompose(b)
     assert da.decomposable and db.decomposable
     assert _sum_labels(da) == _sum_labels(db)
+
+    # ... and in other units, with nothing declared
+    small, large = (_realized._realize(_scaled(jitter(lin3g, 1e-9), s), typat=[0, 0, 1, 1],
+                                       characters=["s", "dx2-y2", "s", "s"])
+                    for s in (1e-3, 1e3))
+    assert small and large, (str(small), str(large))
+    assert small.group.name == large.group.name == "P4mm1'"
+    assert small.wyckoff_orbits.summary() == large.wyckoff_orbits.summary()
+    assert (tqw.hsp_table(small, bands=bands).symmetry_data
+            == tqw.hsp_table(large, bands=bands).symmetry_data == a.symmetry_data)
+    moved = (small.numerical.symmetrization.defect, large.numerical.symmetrization.defect)
+    assert moved[1] == pytest.approx(1e6 * moved[0], rel=1e-6)
 
 
 @pytest.mark.slow
@@ -429,8 +466,8 @@ def test_the_record_carries_the_measurements_that_license_it(lin3g_jittered):
     assert rec.checks.drop_threshold < 10 * _ULP * rec.scale
     assert rec.checks.drop_gap > 1e10
     assert rec.checks.n_hoppings == int(out.model.nhops) == 16
-    # the after-the-fact verification, at the DEFAULT tolerance
-    assert rec.verification.tol == 1e-8
+    # the after-the-fact verification, at the DEFAULT tolerance, 1e-8 of max|H|
+    assert rec.verification.tol == pytest.approx(1e-8 * rec.scale, rel=1e-12)
     assert rec.verification.n_kept == rec.verification.n_operations
     assert rec.verification.worst_residual < 1e-12
     assert rec.verification.near_kept
@@ -1267,7 +1304,7 @@ def test_a_declared_position_tol_snaps_the_centres_before_anything_else(
     assert head.context["position_defect"] == head.value
     assert head.threshold == pytest.approx(
         head.context["tol"] / (2 * np.pi * head.context["max_h"]))
-    assert head.context["tol"] == 1e-8
+    assert head.context["tol"] == pytest.approx(1e-8 * head.context["max_h"], rel=1e-12)
     assert head.context["group"].number_str == "187.210"
     assert head.context["group"]._size == 24
     assert head.reason.startswith("the orbital centers miss the cell's own symmetry")

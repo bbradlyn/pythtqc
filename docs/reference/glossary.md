@@ -356,23 +356,25 @@ Cartesian length.
 | name | what it checks, and where | unit | default |
 |---|---|---|---|
 | `precision` | the model's own relative precision, one fact about its numbers, from which `tol = 10 × precision × max\|H\|`, `position_tol = precision`, `cut = tol / max\|H\|` and `window` from `cut` are derived, and `symprec` raised where the declared noise in the positions would defeat the symmetry finder (`realized_group`) | dimensionless | `None` |
-| `tol` | the covariance check `max_k ‖U H(k) U† − H(Rk)‖`, which separates an operation the Hamiltonian obeys from one it breaks, and the declared tolerance a near-symmetric operation is read against (`realized_group`) | energy, in the units of `H` | `1e-8`, unless `precision` derives one |
-| `cut` | the nullspace cut `s ≤ cut · s_max`, never stricter than `s ≤ √n · cut` read in the units of `H` for `n` states (`√n · tol` under `precision`), which decides what the measurement finds before any check applies (`realized_group`) | dimensionless, relative to the largest singular value | `tol`; `tol / max\|H\|` under `precision` |
-| `window` | the matching window inside which two eigenvectors are paired at the first `k` (`realized_group`) | dimensionless, relative to `max\|H − μ\|`, `μ` the mean on-site energy | `clip(10·sqrt(tol), 1e-3, 0.3)`; `clip(10·sqrt(cut), 1e-3, 0.3)` under `precision` |
+| `tol` | the covariance check `max_k ‖U H(k) U† − H(Rk)‖`, which separates an operation the Hamiltonian obeys from one it breaks, and the declared tolerance a near-symmetric operation is read against (`realized_group`) | energy, in the units of `H` | `1e-8 × max\|H\|`, unless `precision` derives one |
+| `cut` | the nullspace cut `s ≤ cut · s_max`, never stricter than `s ≤ √n · tol` read in the units of `H` for `n` states, which decides what the measurement finds before any check applies (`realized_group`) | dimensionless, relative to the largest singular value | `tol / max\|H\|`: `1e-8` with nothing declared, `10 × precision` under `precision` |
+| `window` | the matching window inside which two eigenvectors are paired at the first `k` (`realized_group`) | dimensionless, relative to `max\|H − μ\|`, `μ` the mean on-site energy | `clip(10·sqrt(cut), 1e-3, 0.3)` |
 | `position_tol` | how far an orbital centre may miss where the group puts it, about the origin that fits the centres, and still be moved onto it, and how far a shift of every centre together may reach and still be removed, so that the centres are written in the model's own frame (`realized_group`); a variety's width (`wyckoff_sites_tables`) | reduced coordinates of the cell | `None`; `1e-4` in `wyckoff_sites_tables` |
 | `symprec` | spglib's tolerance for finding the group from the positions (`realized_group`) | Cartesian length, in the model's units | `1e-5` |
-| `degeneracy_tol` | which bands are one degenerate multiplet, and so the rows of every character table (`characters`, `coreps_at`, `hsp_table`, `sewing_matrix`, `multiplets`) | energy | `1e-8` |
+| `degeneracy_tol` | which bands are one degenerate multiplet, and so the rows of every character table (`characters`, `coreps_at`, `hsp_table`, `sewing_matrix`, `multiplets`) | energy | `1e-8 × max\|H\|`; `1e-8` in `multiplets`, which reads energies alone |
 | `label_tol` | how far a fitted corep multiplicity may sit from an integer (`coreps_at`, `hsp_table`) | dimensionless | `1e-3` |
 
 The covariance check's tolerance a representation is built at is an energy, as
-`tol` is: the larger of `5e-14` and `|G|·N·ε·max|H|`, the rounding a
+`tol` is: the larger of `5e-14 × max|H|` and `|G|·N·ε·max|H|`, the rounding a
 representation of `|G|` operations on `N` states carries, which is the exact
 class of [numerical models](../guide/numerical.md). No `precision`
 handed to `realized_group` moves it, since those set the tolerance of the
 measurement's check. Rounding never refuses a valid model; a miss above the
 check's tolerance is a real one.
 
-Every default of a keyword above is the signature's own, and these lines print them:
+Every default of a keyword above is the signature's own, and these lines print them; a
+`degeneracy_tol` of `None` is `1e-8 × max|H|`, `max|H|` the largest entry of `H(k)` once the
+mean on-site energy is subtracted:
 
 ```python
 import inspect
@@ -392,10 +394,10 @@ for call, names in [(tqc.realized_group, "position_tol precision symprec"),
         for n in names.split()))
 #  realized_group         position_tol=None, precision=None, symprec=1e-05
 #  wyckoff_sites_tables   position_tol=0.0001
-#  coreps_at              degeneracy_tol=1e-08, label_tol=0.001
-#  hsp_table              degeneracy_tol=1e-08, label_tol=0.001
-#  characters             degeneracy_tol=1e-08
-#  sewing_matrix          degeneracy_tol=1e-08
+#  coreps_at              degeneracy_tol=None, label_tol=0.001
+#  hsp_table              degeneracy_tol=None, label_tol=0.001
+#  characters             degeneracy_tol=None
+#  sewing_matrix          degeneracy_tol=None
 #  multiplets             degeneracy_tol=1e-08
 ```
 

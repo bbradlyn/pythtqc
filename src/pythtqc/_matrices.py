@@ -2390,7 +2390,7 @@ def _atom_blocks(states, su2):
 
 
 def covariance_gate(n_operations, nstate, scale, phases=0.0) -> float:
-    r"""The rounding a representation's covariance carries, ``max(5e-14, |G|·N·ε·max|H|, phases)``: the most an exact one misses by.
+    r"""The rounding a representation's covariance carries, ``max(5e-14·max|H|, |G|·N·ε·max|H|, phases)``: the most an exact one misses by.
 
     An exact representation's covariance ``max_k ‖D H(k) D† − H(Rk)‖`` is the
     rounding of its own arithmetic: its matrices are products of up to ``|G|``
@@ -2419,12 +2419,17 @@ def covariance_gate(n_operations, nstate, scale, phases=0.0) -> float:
     Returns
     -------
     float
-        The covariance check's tolerance, in the units of ``H``: ``5e-14`` for a
-        few operations on a few orbitals of order-one size, ``1.2e-12`` for the
-        96 operations of ``Im-3m1'`` on 32 states with ``max|H| = 1.76``.
+        The covariance check's tolerance, in the units of ``H``: ``5e-14·max|H|``
+        for a few operations on a few orbitals, ``1.2e-12`` for the 96
+        operations of ``Im-3m1'`` on 32 states with ``max|H| = 1.76``.  It is
+        proportional to ``max|H|``, so the same model in other units is held to
+        the same gate in those units; a Hamiltonian that vanishes is held to
+        ``5e-14``.
     """
-    return max(EXACT_TOL, float(n_operations) * float(nstate)
-               * float(np.finfo(float).eps) * float(scale), float(phases))
+    scale = float(scale)
+    return max(EXACT_TOL * (scale if scale > 0.0 else 1.0),
+               float(n_operations) * float(nstate) * float(np.finfo(float).eps) * scale,
+               float(phases))
 
 
 def _phase_rounding(bloch, group, operations, k_pts) -> float:

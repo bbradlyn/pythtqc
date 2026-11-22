@@ -23,7 +23,7 @@ out = tqc.coreps_at(r, gamma, bands=1)                # the lowest band alone, a
 print(isinstance(out, tqc.Refusal), bool(out))
 #  True False
 print(out)
-#  Refusal[multiplet_split]: the bands [0] cut through the degenerate multiplet [0, 1] at k = [0.0, 0.0] (energies [-3.162277660168, -3.162277660168], spread 0 at tolerance 1e-08): on part of a degenerate multiplet the characters depend on the basis chosen inside the multiplet. Ask for every band of the multiplet, or end the bands at a gap.  (measured 0, threshold 1e-08)
+#  Refusal[multiplet_split]: the bands [0] cut through the degenerate multiplet [0, 1] at k = [0.0, 0.0] (energies [-3.162277660168, -3.162277660168], spread 0 at tolerance 2.96873e-08): on part of a degenerate multiplet the characters depend on the basis chosen inside the multiplet. Ask for every band of the multiplet, or end the bands at a gap.  (measured 0, threshold 2.96873e-08)
 #      context: bands, energies, k, multiplet
 ```
 
@@ -39,17 +39,17 @@ print(out)
   [the reference](../reference/refusals.md#multiplet_split).
 - **the sentence after it**: `out.reason`, the diagnosis, naming what is at fault (here the
   bands, the k-point and their energies) and what to do.
-- **`(measured 0, threshold 1e-08)`**: `out.value`, the number the check measured, and
+- **`(measured 0, threshold 2.96873e-08)`**: `out.value`, the number the check measured, and
   `out.threshold`, what the check demanded. Here the value is the energy spread of the
   levels the lowest band belongs to, in the units of `H`, and two levels closer than the
-  threshold `1e-8` are one multiplet. A check with no number to measure, such as a word
-  that names nothing, carries `None` in both.
+  threshold, `1e-8 × max|H|` with `max|H| = 2.97` here, are one multiplet. A check with
+  no number to measure, such as a word that names nothing, carries `None` in both.
 - **`context: bands, energies, k, multiplet`**: the keys of `out.context`, everything
   needed to act on the refusal without running the call again.
 
 ```python
 print(out.gate, out.value, out.threshold, out.context["multiplet"])
-#  multiplet_split 0.0 1e-08 (0, 1)
+#  multiplet_split 0.0 2.9687334080044094e-08 (0, 1)
 print(tqc.coreps_at(r, gamma, bands=2).coreps)
 #  {'-GM6': 1}
 ```

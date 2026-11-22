@@ -72,7 +72,8 @@ The space group obeyed by H, obtained by descent from the space group of the lat
 - **`precision`** (`float, optional`): For a numerical model such as a wannier90 import, the relative
   precision of its numbers: a positive number.  Centers and hoppings
   symmetric within it are made exactly symmetric; left out, the model is
-  read as exact.
+  read as exact, each operation held to `1e-8` times `max|H|`, the
+  largest entry of `H(k)` once the mean on-site energy is subtracted.
 
 - **`spin`** (`str, mapping or SpinBasis, optional`): For a spinless model whose orbital index carries spin, as a wannier90
   import's does: which two orbitals are the spin states of one Wannier
@@ -565,7 +566,7 @@ The energies and eigenvectors at one k, from one diagonalization.
 
 ```text
 sewing_matrix(
-    realized, operation=None, k=None, *, states=None, bands=None, degeneracy_tol=1e-08
+    realized, operation=None, k=None, *, states=None, bands=None, degeneracy_tol=None
 )
 ```
 
@@ -591,8 +592,9 @@ The matrix of one operation on a set of bands, at a k-point the operation leaves
   diagonalization.  Eigenvector rows alone, or a `WFArray` of a sector
   with fewer states than the model, carry no energies.
 
-- **`degeneracy_tol`** (`float, default 1e-8`): The energy, in the units of `H`, within which bands are one
-  multiplet.
+- **`degeneracy_tol`** (`float, optional`): A number in the units of `H`: bands closer in energy than it are one
+  multiplet.  Left out, `1e-8` times `max|H|`, the largest entry of
+  `H(k)` once the mean on-site energy is subtracted.
 
 **Returns**
 
@@ -622,7 +624,7 @@ The matrix of one operation on a set of bands, at a k-point the operation leaves
 ### `characters`
 
 ```text
-characters(realized, k, *, states=None, bands=None, degeneracy_tol=1e-08)
+characters(realized, k, *, states=None, bands=None, degeneracy_tol=None)
 ```
 
 The characters of a set of bands at one k: the trace of each unitary operation of the little group over each degenerate multiplet of the set.
@@ -641,8 +643,9 @@ The characters of a set of bands at one k: the trace of each unitary operation o
   solved `WFArray`, or the pair [`solve_at`](#solve_at) returns, reuses one
   diagonalization.  They carry energies, the rows being the multiplets.
 
-- **`degeneracy_tol`** (`float, default 1e-8`): The energy, in the units of `H`, within which bands are one
-  multiplet.
+- **`degeneracy_tol`** (`float, optional`): A number in the units of `H`: bands closer in energy than it are one
+  multiplet.  Left out, `1e-8` times `max|H|`, the largest entry of
+  `H(k)` once the mean on-site energy is subtracted.
 
 **Returns**
 
@@ -674,9 +677,7 @@ A refusal handed in as `realized` is returned unchanged, and one from
 ### `coreps_at`
 
 ```text
-coreps_at(
-    realized, k, *, states=None, bands=None, degeneracy_tol=1e-08, label_tol=0.001
-)
+coreps_at(realized, k, *, states=None, bands=None, degeneracy_tol=None, label_tol=0.001)
 ```
 
 The coreps a set of bands carries at one high-symmetry point, multiplet by multiplet.
@@ -696,8 +697,9 @@ The coreps a set of bands carries at one high-symmetry point, multiplet by multi
   solved `WFArray`, or the pair [`solve_at`](#solve_at) returns, reuses one
   diagonalization.
 
-- **`degeneracy_tol`** (`float, default 1e-8`): The energy, in the units of `H`, within which bands are one
-  multiplet.
+- **`degeneracy_tol`** (`float, optional`): A number in the units of `H`: bands closer in energy than it are one
+  multiplet.  Left out, `1e-8` times `max|H|`, the largest entry of
+  `H(k)` once the mean on-site energy is subtracted.
 
 - **`label_tol`** (`float, default 1e-3`): How far a fitted multiplicity may sit from an integer, dimensionless.
 
@@ -736,7 +738,7 @@ A refusal handed in as `realized` is returned unchanged.
 ### `hsp_table`
 
 ```text
-hsp_table(realized, *, states=None, bands=None, degeneracy_tol=1e-08, label_tol=0.001)
+hsp_table(realized, *, states=None, bands=None, degeneracy_tol=None, label_tol=0.001)
 ```
 
 The coreps a set of bands carries at every high-symmetry point of the group: its symmetry data vector.
@@ -752,8 +754,9 @@ The coreps a set of bands carries at every high-symmetry point of the group: its
   `WFArray` is read as it stands, and a point its mesh does not hold is
   refused there.
 
-- **`degeneracy_tol`** (`float, default 1e-8`): The energy, in the units of `H`, within which bands are one
-  multiplet.
+- **`degeneracy_tol`** (`float, optional`): A number in the units of `H`: bands closer in energy than it are one
+  multiplet.  Left out, `1e-8` times `max|H|`, the largest entry of
+  `H(k)` once the mean on-site energy is subtracted.
 
 - **`label_tol`** (`float, default 1e-3`): How far a fitted multiplicity may sit from an integer at each point,
   dimensionless.

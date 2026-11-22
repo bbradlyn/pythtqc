@@ -32,6 +32,7 @@ from pythtqc import groups as tqg
 from pythtqc import sewing as tqsew
 from pythtqc.refusal import Refusal
 from pythtqc import _layers
+from pythtqc import _measure
 from pythtqc import _realized
 from pythtqc import _spacegroup
 from pythtqc import _tables
@@ -462,7 +463,8 @@ def test_p4232_both_routes_give_the_same_group_and_letters(route, request):
     """``P4_232 1' #208.45``, 48 of 48, from the Hamiltonian and from the geometry.
 
     ``realized_group(m208)`` measures the centring translation
-    (covariance residual 2.4 against ``tol = 1e-8``), refutes it and its coset,
+    (covariance residual 2.4 against a tolerance of ``1e-8`` of ``max|H|``),
+    refutes it and its coset,
     and descends; the paper's own decoration — the 24-fold orbit of a generic
     point, ``p4232_symmetry_cell()`` — reads the same group off the geometry
     before any Hamiltonian is consulted.  The ``(d_z2, d_x2-y2)`` doublet is
@@ -482,9 +484,11 @@ def test_p4232_both_routes_give_the_same_group_and_letters(route, request):
         assert step.realized == ()
         assert step.coset_partners_refuted == 71
         assert step.operations[0].residual == pytest.approx(2.4, abs=5e-2)
-        # the residual is O(1) against the gate it is measured at, which is
-        # what makes the refutation a measurement and not a near miss
-        assert step.operations[0].tol == 1e-8
+        # the residual is O(1) against the gate it is measured at, 1e-8 of the
+        # model's max|H|, which is what makes the refutation a measurement and
+        # not a near miss
+        assert step.operations[0].tol == pytest.approx(
+            1e-8 * _measure._max_hamiltonian(tqc_models.p4232_cano2018()), rel=1e-12)
     else:
         # `_group_of` of `p4232_symmetry_cell()`, then `_assign_orbitals` and
         # `_validate_group` on the golden: the session's shared decorated record

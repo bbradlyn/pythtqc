@@ -22,7 +22,8 @@ from . import _centres
 from . import _measure
 from .refusal import InternalError, Refusal
 from ._tolerance import (
-    EXACT_TOL, _DROP_RELATIVE, _EXACT_CLOSURE, _IN_BLOCKS, _RANGE_RELATIVE, within)
+    EXACT_TOL, _DROP_RELATIVE, _EXACT_CLOSURE, _IN_BLOCKS, _RANGE_RELATIVE, eigen_window,
+    within)
 from ._text import _counted_as, _index_ranges, _orbitals_named
 from ._detector import _GridHamiltonians, _budget_that_runs, _size
 from ._matrices import (
@@ -36,11 +37,11 @@ __all__ = ["Symmetrization", "SymmetrizationChecks", "SymmetrizationVerification
            "SymmetrizationSiteMultiplets", "SymmetrizationCopies", "SymmetrizationParts",
            "SymmetrizationShares", "EXACT_GATE"]
 
-#: The least covariance an operation obeyed exactly is held to, ``5e-14`` in the
-#: units of ``H``.  A model's own boundary between exact and near is
-#: :func:`..symmetry.covariance_gate` of its representation, this or the
-#: rounding its arithmetic carries where that is larger, and no declared ``tol``
-#: moves it.
+#: The least covariance an operation obeyed exactly is held to, ``5e-14`` for a
+#: Hamiltonian whose largest entry is one.  A model's own boundary between exact
+#: and near is :func:`..symmetry.covariance_gate` of its representation, this
+#: times ``max|H|`` or the rounding its arithmetic carries where that is larger,
+#: and no declared ``tol`` moves it.
 EXACT_GATE = float(EXACT_TOL)
 
 #: ``_build_rep``'s own internal-factor gate, the floor of the provisional pass's
@@ -776,7 +777,7 @@ def _with_centres(model, orb, *, check=True, n_check=_bloch.CHECK_K,
             -0.5, 0.5, size=(int(n_check), int(model.lattice.dim_k)))
         Ea = np.linalg.eigvalsh(np.asarray(_bloch.hamiltonian(model, k)))
         Eb = np.linalg.eigvalsh(np.asarray(_bloch.hamiltonian(out, k)))
-        scale = max(float(np.abs(Ea).max()), 1.0)
+        scale = float(np.abs(Ea).max()) or 1.0
         resid = float(np.abs(Ea - Eb).max())
         if resid > 1e-9 * scale:
             worst = float(np.abs(orb - np.asarray(model.orb_vecs, dtype=float)).max(
@@ -1210,7 +1211,7 @@ def _symmetrize(model, group, assignment, validated, *, tol, k_grid=None, params
     verify, verify_nk, verify_tol : optional
         Measure the operations again on the model returned (default ``True``),
         on a mesh of ``verify_nk`` divisions (default: the one ``validated``
-        used), at ``verify_tol`` (default ``1e-8``).
+        used), at ``verify_tol`` (default ``1e-8`` times ``max|H|``).
     max_bytes : float, optional
         The memory the average may take at its peak, in bytes.  Default ``1e9``.
     max_candidates : int, optional
@@ -1503,7 +1504,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
                                 apart=apart, held=held_apart)
         Hnew = np.asarray(_bloch.hamiltonian(out, k_random))
         checks["k_identity"] = float(np.abs(Hnew - target).max())
-        if checks["k_identity"] > gate * max(scale, 1.0):
+        if checks["k_identity"] > gate * (scale if scale > 0.0 else 1.0):
             # The transform is exact by theorem once the range box is closed, and
             # the box has been measured closed at the same relative size -- so
             # this is the rebuild's own arithmetic going wrong, not a statement
@@ -1511,7 +1512,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
             # for it: then the average is no finite sum of hoppings to rebuild.
             own = _centres_account_for(current, group, assignment, ops,
                                        failure=checks["k_identity"],
-                                       gate=gate * max(scale, 1.0),
+                                       gate=gate * (scale if scale > 0.0 else 1.0),
                                        check="the symmetrized Hamiltonian rebuilt from its "
                                              "hoppings",
                                        declared=_centres_declared)
@@ -1521,7 +1522,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
                 f"realized_group(): the rebuilt hopping list does not reproduce the symmetrized "
                 f"Hamiltonian off the transform grid: max_k |H_new(k) - H_sym(k)| = "
                 f"{checks['k_identity']:.3g} on {k_random.shape[0]} random k, against "
-                f"{gate * max(scale, 1.0):.3g}, while the largest coefficient outside the "
+                f"{gate * (scale if scale > 0.0 else 1.0):.3g}, while the largest coefficient outside the "
                 f"range box is {out_box:.3g} relative (so the transform did not alias). "
                 "The inverse transform is exact under those conditions; this is a defect "
                 "in the rebuild, not a measurement.")
@@ -1574,12 +1575,19 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
     # ---- 6. the verification: the exact pipeline may now run ---------------
     verification: dict[str, Any] = {}
     if verify:
-        vtol = (float(_default_of(_measure._validate_group, "tol")) if verify_tol is None
-                else float(verify_tol))
+        # with nothing asked, the gate a model of exact numbers is held to,
+        # relative to the magnitude of H as the measurement's own is
+        vtol = (float(_default_of(_measure._validate_group, "tol")) * (scale if scale > 0.0 else 1.0)
+                if verify_tol is None else float(verify_tol))
+        vcut = (float(_default_of(_measure._validate_group, "tol"))
+                if verify_tol is None and scale > 0.0 else None)
         nk = (int(verify_nk) if verify_nk is not None
               else max(2, int(round(float(validated.n_kpoints) ** (1.0 / dim_k)))))
-        again = _measure._validate_group(current, group, nk=nk, tol=vtol, keep_intertwiners=False,
-                                        max_bytes=budget, assignment=assignment)
+        again = _measure._validate_group(current, group, nk=nk, tol=vtol, cut=vcut,
+                                        window=None if vcut is None else eigen_window(vcut),
+                                        keep_intertwiners=False, max_bytes=budget,
+                                        assignment=assignment,
+                                        _floor=None if vcut is None else vtol)
         if isinstance(again, Refusal):
             return again                    # the detector's memory limit, as it came
         kept_now = {int(i) for i in again._indices}

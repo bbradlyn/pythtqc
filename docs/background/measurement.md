@@ -56,7 +56,7 @@ A space that is not empty must still hold a matrix of the form an operation
 has, a permutation of the sites times each site's own matrix and, with spin,
 the operation's own spin rotation; and that matrix `U` must pass the
 covariance check, `max_k ‖U H(k) U† − H(Rk)‖` at most `tol`, an energy in the
-units of `H`, `1e-8` unless a declared `precision=` derives another
+units of `H`, `1e-8 × max|H|` unless a declared `precision=` derives another
 ([the glossary](../reference/glossary.md#tolerances)). Each operation that fails
 is recorded with what refuted it
 ([the records reference](../reference/records.md)).

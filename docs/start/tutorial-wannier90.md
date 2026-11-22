@@ -60,9 +60,9 @@ about silicon.
 - **Time reversal.** A spinless model whose hoppings are all real obeys it.
   These carry imaginary parts up to 4.2e-4 eV, and the covariance tolerance
   `tol` — how far `U H(k) U†` may miss `H(Rk)`, `U` an operation's matrix on
-  the orbitals, for the operation still to count as obeyed — is 1e-8 eV when
-  nothing is declared: machine level, the right tolerance for a model built
-  from exact numbers and far below a Wannier90 model's own noise.
+  the orbitals, for the operation still to count as obeyed — is 1e-8 times
+  `max|H|` when nothing is declared: machine level, the right tolerance for a
+  model built from exact numbers and far below a Wannier90 model's own noise.
 - **The cell.** The operations a Hamiltonian is measured against are first
   found from the orbital centres, by spglib, to a Cartesian tolerance
   `symprec`, 1e-5 Å by default ([every tolerance, its unit and its

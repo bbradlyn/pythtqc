@@ -746,7 +746,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
     tol : float, optional
         The covariance gate, absolute and in the units of ``H``.  Omitted, it
         is :func:`covariance_gate` of this build: the larger of the exact floor
-        :data:`.._tolerance.EXACT_TOL`, ``5e-14``, and ``|G|·N·ε·max|H|``, the rounding a
+        :data:`.._tolerance.EXACT_TOL`, ``5e-14·max|H|``, and ``|G|·N·ε·max|H|``, the rounding a
         representation of the ``|G|`` operations represented, on ``N`` states,
         carries, with ``max|H|`` the largest entry of ``H(k)`` on the battery,
         and the rounding of the Bloch phases of ``H(k)`` and ``H(Rk)`` there,

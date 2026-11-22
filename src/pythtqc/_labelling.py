@@ -25,6 +25,7 @@ from ._declaration import (
     _copies_of_one_irrep, _declared_atoms, _declared_needs, _distance_from_trivial,
     _holds_part, _lead_of, _meets, _named_content, _one_copy, _returned_rows)
 from .sewing import DEGENERACY_TOL, _as_columns, multiplets
+from ._measure import _max_hamiltonian
 
 
 #: What each key of the labelling reads, in the order :func:`_labelling` asks
@@ -226,8 +227,12 @@ def _band_fibers(model, group, D, syms):
     evals, evecs = np.asarray(evals), np.asarray(evecs)
     if evals.ndim == 1:                     # solve_ham drops a length-1 k axis
         evals, evecs = evals[None], evecs[None]
+    # one level within 1e-8 of the Hamiltonian's own magnitude, as the band
+    # readings group them, so the model in other units groups the same bands
+    scale = _max_hamiltonian(model)
+    tol = DEGENERACY_TOL * scale if scale > 0.0 else DEGENERACY_TOL
     return tuple((name, k, lg, multiplets(np.asarray(evals[i], dtype=float).reshape(-1),
-                                          DEGENERACY_TOL), _as_columns(evecs[i]))
+                                          tol), _as_columns(evecs[i]))
                  for i, (name, k, lg) in enumerate(wanted))
 
 

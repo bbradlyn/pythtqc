@@ -24,6 +24,7 @@ row of the table says which.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+from functools import cached_property
 from typing import Any
 
 import numpy as np
@@ -1480,6 +1481,12 @@ class SpaceGroupRep:
                 "the model has been edited since realized_group measured it, and this "
                 "representation describes the model as it was: call realized_group on the "
                 "edited model and label its bands through what it returns.")
+
+    @cached_property
+    def _scale(self) -> float:
+        """``max|H|`` of the model: the largest entry of ``H(k)`` once the mean on-site energy is subtracted, measured once."""
+        from ._measure import _max_hamiltonian
+        return _max_hamiltonian(self._model)
 
     def _kpoint(self, call, k):
         """``k`` as coordinates, a tabulated name read as the coordinates :func:`..groups.high_symmetry_points` gives it, or the refusal ``out_of_plane`` for a name out of a layer's plane."""

@@ -198,6 +198,19 @@ def disagreements(thresholds: Thresholds, readouts: Mapping[str, Any]) -> tuple:
 # the multiplet analysis — small functions over pythtb's energy arrays
 # ==========================================================================
 
+
+def _degeneracy(rep, degeneracy_tol) -> float:
+    """The energy within which bands are one multiplet: as passed, or ``1e-8·max|H|``.
+
+    Relative to the Hamiltonian's own magnitude where none is passed, so that the
+    model in other units groups the same bands; a Hamiltonian that vanishes is
+    read at ``1e-8``.
+    """
+    if degeneracy_tol is not None:
+        return float(degeneracy_tol)
+    scale = rep._scale
+    return DEGENERACY_TOL * scale if scale > 0.0 else DEGENERACY_TOL
+
 def _resolved(energies, degeneracy_tol):
     """Energies at the resolution the multiplets were grouped at: each rounded to the nearest multiple of ``degeneracy_tol``."""
     tol = float(degeneracy_tol)
@@ -466,9 +479,14 @@ def _states_at_k(H, w, V):
     """``max |H V - V diag(w)|`` — the measured "these states are at this k" number."""
     return float(np.abs(H @ V - V * np.asarray(w, dtype=float)[None, :]).max())
 
-def _foreign_states(H, k, residual):
-    """The ``states_not_at_k`` refusal, or ``None`` when the residual closes."""
-    gate = STATES_AT_K_GATE * max(1.0, float(np.linalg.norm(H, 2)))
+def _foreign_states(H, k, residual, scale):
+    """The ``states_not_at_k`` refusal, or ``None`` when the residual closes.
+
+    The residual is held to ``1e-8`` of ``scale``, the model's ``max|H|``, so that
+    the model in other units is held to the same gate, at a point where ``H(k)``
+    vanishes as anywhere; a Hamiltonian that vanishes is held to ``1e-8``.
+    """
+    gate = STATES_AT_K_GATE * (float(scale) if scale > 0.0 else 1.0)
     if residual <= gate:
         return None
     return Refusal(
@@ -748,7 +766,7 @@ def _sewing_core(rep, operation, k, V, idx, H, *, atol=1e-8,
                                                         residual=float(residual)))
 
 def _sewing_matrix_rep(rep, operation=None, k=None, *, states=None, bands=None,
-                       degeneracy_tol=DEGENERACY_TOL, _atol=1e-8,
+                       degeneracy_tol=None, _atol=1e-8,
                        _mesh_tol=MESH_TOL) -> SewingMatrix | Refusal:
     """What :func:`sewing_matrix` returns, read off a representation: ``realized.rep``, or one built by hand.
 
@@ -761,6 +779,7 @@ def _sewing_matrix_rep(rep, operation=None, k=None, *, states=None, bands=None,
     k = _point_of("sewing_matrix", rep._group, k)
     if isinstance(k, Refusal):
         return k
+    degeneracy_tol = _degeneracy(rep, degeneracy_tol)
     bloch = (_measured_sum(rep) if states is None or states is rep._model
              else None)
     got = _resolve_states(states, rep, k, mesh_tol=_mesh_tol, bloch=bloch)
@@ -774,7 +793,7 @@ def _sewing_matrix_rep(rep, operation=None, k=None, *, states=None, bands=None,
     resid = float("nan") if w is None else _states_at_k(H, w, V)
 
     if w is not None:
-        foreign = _foreign_states(H, k, resid)
+        foreign = _foreign_states(H, k, resid, rep._scale)
         if foreign is not None:
             return foreign
         chosen = set(idx)
@@ -800,7 +819,7 @@ def _sewing_matrix_rep(rep, operation=None, k=None, *, states=None, bands=None,
                    kpoint=_tabulated_name(rep._group, k))
 
 def sewing_matrix(realized, operation=None, k=None, *, states=None, bands=None,
-                  degeneracy_tol=DEGENERACY_TOL,
+                  degeneracy_tol=None,
                   _atol=_sewing_matrix_rep.__kwdefaults__["_atol"],
                   _mesh_tol=MESH_TOL) -> SewingMatrix | Refusal:
     """The matrix of one operation on a set of bands, at a k-point the operation leaves invariant: the sewing matrix ``B(g,k)_mn = <u_m(k)|U(g;k)|u_n(k)>``.
@@ -830,9 +849,10 @@ def sewing_matrix(realized, operation=None, k=None, *, states=None, bands=None,
         solved ``WFArray``, or the pair :func:`solve_at` returns, reuses one
         diagonalization.  Eigenvector rows alone, or a ``WFArray`` of a sector
         with fewer states than the model, carry no energies.
-    degeneracy_tol : float, default 1e-8
-        The energy, in the units of ``H``, within which bands are one
-        multiplet.
+    degeneracy_tol : float, optional
+        A number in the units of ``H``: bands closer in energy than it are one
+        multiplet.  Left out, ``1e-8`` times ``max|H|``, the largest entry of
+        ``H(k)`` once the mean on-site energy is subtracted.
 
     Returns
     -------
@@ -1063,7 +1083,7 @@ class BandCharacters:
         return (f"BandCharacters({_kpoint_text(self.kpoint, self.k)}, bands "
                 f"{_runs(self.bands)} in {n} multiplet{'' if n == 1 else 's'})")
 
-def _characters_rep(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
+def _characters_rep(rep, k, *, states=None, bands=None, degeneracy_tol=None,
                     _atol=1e-8, _mesh_tol=MESH_TOL) -> BandCharacters | Refusal:
     """What :func:`characters` returns, read off a representation: ``realized.rep``, or one built by hand.
 
@@ -1072,7 +1092,7 @@ def _characters_rep(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERAC
     return _characters(rep, k, states=states, bands=bands, degeneracy_tol=degeneracy_tol,
                        atol=_atol, mesh_tol=_mesh_tol, bloch=None, call="characters")
 
-def characters(realized, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
+def characters(realized, k, *, states=None, bands=None, degeneracy_tol=None,
                _atol=_characters_rep.__kwdefaults__["_atol"],
                _mesh_tol=MESH_TOL) -> BandCharacters | Refusal:
     """The characters of a set of bands at one k: the trace of each unitary operation of the little group over each degenerate multiplet of the set.
@@ -1091,9 +1111,10 @@ def characters(realized, k, *, states=None, bands=None, degeneracy_tol=DEGENERAC
         The states at ``k``: ``None`` (default) solves the model there; a
         solved ``WFArray``, or the pair :func:`solve_at` returns, reuses one
         diagonalization.  They carry energies, the rows being the multiplets.
-    degeneracy_tol : float, default 1e-8
-        The energy, in the units of ``H``, within which bands are one
-        multiplet.
+    degeneracy_tol : float, optional
+        A number in the units of ``H``: bands closer in energy than it are one
+        multiplet.  Left out, ``1e-8`` times ``max|H|``, the largest entry of
+        ``H(k)`` once the mean on-site energy is subtracted.
 
     Returns
     -------
@@ -1168,6 +1189,7 @@ def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol,
     if isinstance(got, Refusal):
         return got
     w, V = got
+    degeneracy_tol = _degeneracy(rep, degeneracy_tol)
     if w is None:
         raise ValueError(
             "characters needs energies: its rows are the degenerate multiplets at k, so a "
@@ -1179,7 +1201,7 @@ def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol,
     bloch = _measured_sum(rep, bloch)
     H = _hamiltonian_at(rep, k, bloch)
     resid = _states_at_k(H, w, V)
-    foreign = _foreign_states(H, k, resid)
+    foreign = _foreign_states(H, k, resid, rep._scale)
     if foreign is not None:
         return foreign
 
@@ -1439,7 +1461,7 @@ def _isolation(spectrum, bands):
         return float("inf")
     return float(min(abs(w[a] - w[b]) for a in inside for b in outside))
 
-def _coreps_at_rep(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
+def _coreps_at_rep(rep, k, *, states=None, bands=None, degeneracy_tol=None,
                    label_tol=LABEL_TOL, _ktol=1e-5, _atol=1e-8,
                    _mesh_tol=MESH_TOL) -> CorepsAt | Refusal:
     """What :func:`coreps_at` returns, read off a representation: ``realized.rep``, or one built by hand.
@@ -1450,7 +1472,7 @@ def _coreps_at_rep(rep, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY
                       label_tol=label_tol, ktol=_ktol, atol=_atol, mesh_tol=_mesh_tol,
                       bloch=None)
 
-def coreps_at(realized, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
+def coreps_at(realized, k, *, states=None, bands=None, degeneracy_tol=None,
               label_tol=LABEL_TOL, _ktol=_coreps_at_rep.__kwdefaults__["_ktol"],
               _atol=_coreps_at_rep.__kwdefaults__["_atol"],
               _mesh_tol=MESH_TOL) -> CorepsAt | Refusal:
@@ -1474,9 +1496,10 @@ def coreps_at(realized, k, *, states=None, bands=None, degeneracy_tol=DEGENERACY
         The states at ``k``: ``None`` (default) solves the model there; a
         solved ``WFArray``, or the pair :func:`solve_at` returns, reuses one
         diagonalization.
-    degeneracy_tol : float, default 1e-8
-        The energy, in the units of ``H``, within which bands are one
-        multiplet.
+    degeneracy_tol : float, optional
+        A number in the units of ``H``: bands closer in energy than it are one
+        multiplet.  Left out, ``1e-8`` times ``max|H|``, the largest entry of
+        ``H(k)`` once the mean on-site energy is subtracted.
     label_tol : float, default 1e-3
         How far a fitted multiplicity may sit from an integer, dimensionless.
 
@@ -1843,7 +1866,7 @@ def _multiplicity_note(rep, block, fibers) -> str:
                     "group's own table admits, and another can label them differently")
     return "; ".join(said)
 
-def _hsp_table_rep(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
+def _hsp_table_rep(rep, *, states=None, bands=None, degeneracy_tol=None,
                    label_tol=LABEL_TOL, _ktol=1e-5, _atol=1e-8,
                    _mesh_tol=MESH_TOL) -> HSPTable | Refusal:
     """What :func:`hsp_table` returns, read off a representation: ``realized.rep``, or one built by hand.
@@ -1892,6 +1915,8 @@ def _hsp_table_rep(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TO
     else:
         per_point = {name: states for name, _ in wanted}
 
+    if wanted:
+        degeneracy_tol = _degeneracy(rep, degeneracy_tol)
     for name, k in wanted:
         got = _coreps_at(rep, k, states=per_point[name], bands=block,
                          degeneracy_tol=degeneracy_tol, label_tol=label_tol, ktol=_ktol,
@@ -1914,7 +1939,7 @@ def _hsp_table_rep(rep, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TO
                     _rep=rep if int(rep._group._dim_k) < 3 else None,
                     _site_content=_site_content_record(rep), _heights=_table_heights(rep))
 
-def hsp_table(realized, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TOL,
+def hsp_table(realized, *, states=None, bands=None, degeneracy_tol=None,
               label_tol=LABEL_TOL, _ktol=_hsp_table_rep.__kwdefaults__["_ktol"],
               _atol=_hsp_table_rep.__kwdefaults__["_atol"],
               _mesh_tol=MESH_TOL) -> HSPTable | Refusal:
@@ -1931,9 +1956,10 @@ def hsp_table(realized, *, states=None, bands=None, degeneracy_tol=DEGENERACY_TO
         ``None`` (default) solves the model at the points, once; a solved
         ``WFArray`` is read as it stands, and a point its mesh does not hold is
         refused there.
-    degeneracy_tol : float, default 1e-8
-        The energy, in the units of ``H``, within which bands are one
-        multiplet.
+    degeneracy_tol : float, optional
+        A number in the units of ``H``: bands closer in energy than it are one
+        multiplet.  Left out, ``1e-8`` times ``max|H|``, the largest entry of
+        ``H(k)`` once the mean on-site energy is subtracted.
     label_tol : float, default 1e-3
         How far a fitted multiplicity may sit from an integer at each point,
         dimensionless.

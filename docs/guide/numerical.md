@@ -62,9 +62,9 @@ print(repr(rn))
   together being no displacement, and a shift of all of them together no larger than
   `position_tol` is then removed as noise, so that they come back in the model's own
   frame.
-- **`measured max|H| 17.42`**: the Hamiltonian's largest entry, taken about its mean on-site
-  energy, so that a constant shift of `H`, such as a Fermi energy subtracted at the import,
-  moves no tolerance.
+- **`measured max|H| 17.42`**: the largest entry of `H(k)` once the mean on-site energy is
+  subtracted, so that a constant shift of `H`, such as a Fermi energy subtracted at the
+  import, moves no tolerance.
 - **`symmetrized (defect 5.54e-07)`**: operations obeyed within the declaration licensed a
   projection of `H` onto its group-invariant part, which moved it by `5.54e-7` in the units
   of `H` ([then symmetrize](#then-symmetrize)).
@@ -88,8 +88,10 @@ at `10 × precision × L`, and `symprec_raised` is `True`. Giving
 `position_tol` beside `precision` declares the same thing twice and raises `ValueError`;
 `symprec` may be given beside it, as the finder's floor.
 
-With nothing declared, the same model is measured at the default `tol = 1e-8`, the
-covariance check's tolerance for a model built from exact numbers:
+With nothing declared, the same model is measured at the default `tol = 1e-8 × max|H|`,
+the covariance check's tolerance for a model built from exact numbers, relative to the
+Hamiltonian's size as a declared one is, so that the same model in other units reads the
+same:
 
 ```python
 print(repr(tqc.realized_group(noisy, typat=[0, 0, 1, 1], characters=["s", "dx2-y2", "s", "s"])))
@@ -107,7 +109,7 @@ three classes:
 
 | class | residual | what it means |
 |---|---|---|
-| **exact** | at most `max(5e-14, \|G\|·N·ε·h)` | symmetric to the rounding a representation of `\|G\|` operations on `N` states carries, `ε` the machine precision and `h` the largest entry of `H(k)` with its energy zero kept, since rounding is relative to the numbers held. Nothing to do. |
+| **exact** | at most `max(5e-14·h, \|G\|·N·ε·h)` | symmetric to the rounding a representation of `\|G\|` operations on `N` states carries, `ε` the machine precision and `h` the largest entry of `H(k)` with its energy zero kept, since rounding is relative to the numbers held. Nothing to do. |
 | **near** | above that, at most `tol` | symmetric within the declaration, not to machine precision: the signal for the projection. |
 | **broken** | above `tol` | the model does not obey the operation, and nothing is symmetrized into it. |
 
@@ -164,7 +166,8 @@ print(bad.gate, f"{bad.value:.1e}", bad.context["group"].name, bad.context["numb
 ```
 
 The centres miss the cell's own operations by `2e-8` in reduced coordinates, which costs
-`H(k)` a residual of about `3.7e-7`, far above the default `tol` of `1e-8`. Measured as it
+`H(k)` a residual of about `3.7e-7`, far above the default `tol`, `1e-8 × max|H|`, here
+`3e-8`. Measured as it
 stands, the model would have its operations broken by its geometry as much as by its
 hoppings, so the call refuses `positions_not_exactly_symmetric`, quoting the defect and
 naming the cell's group, `P6mm1' #183.186`, as an upper bound on what the Hamiltonian obeys.

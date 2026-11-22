@@ -268,8 +268,8 @@ print(fit.numerical.source is fitted, fit.model is fitted)
 #  True False
 ```
 
-- `precision`: the declared relative `precision`; `max_h`, the Hamiltonian's
-  largest entry measured about its mean on-site energy, in the units of `H`;
+- `precision`: the declared relative `precision`; `max_h`, the largest entry of
+  `H(k)` once the mean on-site energy is subtracted, in the units of `H`;
   the four tolerances derived from them, `tol`, `cut`, `window` and
   `position_tol`; and `symprec` with `symprec_raised`, the symmetry finder's
   tolerance and whether the declaration raised it. Each is in
@@ -568,7 +568,7 @@ print(r.numerical.validated)
 print(r.numerical.validated.summary())
 #  24 of 24 coset representatives of the lattice translations obeyed, none broken, none undetermined   (.obeyed, .broken, .undetermined)
 #    the single-valued group's, each standing for itself and its negative in the double group
-#    each one's covariance residual, at most 1.6e-14 against the tolerance 1e-08, on 36 k-points   (.residuals, .tol, .n_kpoints)
+#    each one's covariance residual, at most 4.7e-14 against the tolerance 3e-08, on 36 k-points   (.residuals, .tol, .n_kpoints)
 print(r.numerical.validated.broken, r.numerical.validated.closed)
 #  () True
 print(fs.numerical.validated)

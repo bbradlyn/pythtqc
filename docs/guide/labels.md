@@ -50,7 +50,8 @@ print(round(content.isolation, 2))
 `table` is the **character table** of the set of bands at Γ (`GM`), the one
 object every label is read from. Its rows are the degenerate multiplets of the
 six bands, three doublets, grouped at the energy tolerance `degeneracy_tol`
-(`1e-8` in the model's energy units, by default). Its columns are the unitary
+(`1e-8 × max|H|` by default, `max|H|` the largest entry of `H(k)` once the mean
+on-site energy is subtracted). Its columns are the unitary
 operations of the little group at Γ, those that leave Γ invariant up to a
 reciprocal-lattice vector, of the group measured from the Hamiltonian. An entry is the trace, over one multiplet, of the
 **sewing matrix** `B(g, k)_mn = ⟨u_m(k)| U(g; k) |u_n(k)⟩`, the matrix of the
@@ -237,10 +238,10 @@ complete.
 
 `multiplets` reads as one level the energies closer than `degeneracy_tol`, in
 the units of `H`, `1e-8` by default; `characters`, `coreps_at` and
-`hsp_table` take the same keyword for their rows. A model whose degenerate
-levels carry noise, as a fitted one's can, takes a tolerance above the noise
-and below the closest gap between levels: at `M` two doublets lie `0.271`
-apart, and a tolerance above that reads them as one level.
+`hsp_table` take the same keyword for their rows, `1e-8 × max|H|` by default.
+A model whose degenerate levels carry noise, as a fitted one's can, takes a
+tolerance above the noise and below the closest gap between levels: at `M` two
+doublets lie `0.271` apart, and a tolerance above that reads them as one level.
 
 ```python
 em = tqc.solve_at(model, hsp["M"])[0]

@@ -2234,13 +2234,14 @@ def _shared_characters(table, table3, matched) -> tuple:
                     worst = max(worst, abs(x - chi3[j3]))
     return worst, n, tuple(shared)
 
-def _stack_fibers(table3, tol) -> tuple:
+def _stack_fibers(table3, tol, scale=1.0) -> tuple:
     """Each fiber at ``k_z = ½`` against the fiber in the plane at the same in-plane k.
 
     On a stack with no hopping between the copies the two are the same states:
-    the same energies, the same partition into multiplets, the same characters
-    at every operation both little groups hold.  Returns ``(fibers, first)``:
-    one record per pair, and the first pair that differs, or ``None``.
+    the same energies, to ``1e-9`` of ``scale``, the stack's ``max|H|``, the same
+    partition into multiplets, the same characters at every operation both
+    little groups hold.  Returns ``(fibers, first)``: one record per pair, and
+    the first pair that differs, or ``None``.
     """
     fibers = []
     for name_out, rec_out in table3._records.items():
@@ -2267,7 +2268,8 @@ def _stack_fibers(table3, tol) -> tuple:
                            "n_shared_operations": len(common),
                            "partition_equal": bool(same_partition),
                            "multiplicities_equal": bool(same_multiset)})
-            if not (same_partition and same_multiset and energy < 1e-9
+            if not (same_partition and same_multiset
+                    and energy < 1e-9 * (float(scale) if scale > 0.0 else 1.0)
                     and defect < tol):
                 return tuple(fibers), fibers[-1]
     return tuple(fibers), None
@@ -2441,7 +2443,7 @@ def _stack_in_group(table, group, rep, restriction, *, c, characters_tol):
                "the stack labels the layer's bands differently in the same group")
 
     # ---- 5. the fiber at k_z = ½ is the fiber at k_z = 0 ------------------
-    fibers, bad = _stack_fibers(table3, characters_tol)
+    fibers, bad = _stack_fibers(table3, characters_tol, scale)
     record["gates"]["fibers"] = fibers
     if bad is not None:
         defect("fibers", max(bad["energy_defect"], bad["character_defect"]),

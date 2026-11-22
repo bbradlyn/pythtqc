@@ -35,9 +35,11 @@ import numpy as np
 # the declaration's own rules
 # --------------------------------------------------------------------------
 
-#: The covariance gate where nothing is declared, in the units of ``H``: machine
+#: The covariance gate where nothing is declared, relative to ``max|H|``: machine
 #: level for a model built from exact numbers, which is every model whose numbers
-#: were typed rather than computed.
+#: were typed rather than computed.  The gate is ``1e-8 · max|H|`` in the units of
+#: ``H``, so that the same model in other units is read the same; a Hamiltonian
+#: that vanishes is held to ``1e-8``.
 DEFAULT_ENERGY = 1e-8
 
 #: The symmetry finder's distance where nothing is asked, in the model's length
@@ -239,8 +241,8 @@ def eigen_window(relative) -> float:
     r"""The matching window a tolerance asks for: ``clip(10·sqrt(relative), 1e-3, 0.3)``.
 
     ``relative`` is the tolerance read relative to the Hamiltonian's magnitude:
-    ``tol / max|H|`` under a declared precision, and a declared ``tol`` itself
-    otherwise, which is that reading for a model whose magnitude is one.
+    ``tol / max|H|``, and a ``tol`` declared without a precision itself, which
+    is that reading for a model whose magnitude is one.
     """
     return float(min(max(10.0 * np.sqrt(float(relative)), _EIGEN_WINDOW_FLOOR),
                      _EIGEN_WINDOW_CEIL))
@@ -351,9 +353,9 @@ _LAYOUT_MERGE = 0.5
 # --------------------------------------------------------------------------
 
 #: The exact floor of :func:`.._build._build_rep`'s covariance gate,
-#: ``max_k ‖D H(k) D† − H(Rk)‖`` of a built representation, **absolute and in
-#: the units of** ``H``.  The gate itself is :func:`..symmetry.covariance_gate`:
-#: this floor, or the rounding the representation's own arithmetic carries
+#: ``max_k ‖D H(k) D† − H(Rk)‖`` of a built representation, **relative to**
+#: ``max|H|``.  The gate itself is :func:`..symmetry.covariance_gate`: this floor
+#: times ``max|H|``, or the rounding the representation's own arithmetic carries
 #: where that is larger.  The same gate is the boundary between an *exact*
 #: operation and a merely near one
 #: (:func:`..symmetrization._classify_operations`), and it is not a knob the
@@ -450,9 +452,9 @@ class Tolerances:
     r"""What one realization judges noise against, each in the units of what it compares.
 
     Resolved once from the declaration (:meth:`declared`) and handed whole to
-    every step that judges noise.  With nothing declared every field is its exact
-    default, and a model built from exact numbers is measured against exactly the
-    numbers it always was.
+    every step that judges noise.  With nothing declared every reading of a
+    matrix keeps its exact default, and the gate is ``1e-8`` of the
+    Hamiltonian's own magnitude.
 
     Attributes
     ----------
@@ -461,25 +463,27 @@ class Tolerances:
         where nothing was declared.
     scale : float or None
         ``max|H|``, the largest entry of ``H(k)`` about the mean on-site energy,
-        measured where a declaration is read against it, ``None`` otherwise.
+        measured where the record is resolved for a model, ``None`` otherwise.
     energy : float
         How far ``U H(k) U†`` may miss ``H(Rk)`` and the operation still be
         obeyed: the covariance gate, in the units of ``H``.  ``10 · p · max|H|``
-        under a precision, a declared ``tol`` as given, ``1e-8`` otherwise.
+        under a precision, a declared ``tol`` as given, ``1e-8 · max|H|``
+        otherwise.
     cut : float or None
         The detector's nullspace cut, relative and dimensionless: ``energy /
-        max|H| = 10 · p`` under a precision, a declared ``cut`` as given, and
-        ``None`` where it follows ``energy`` (:func:`.._detector._find_intertwiners`).
+        max|H|``, ``10 · p`` under a precision and ``1e-8`` with nothing
+        declared, a declared ``cut`` as given, and ``None`` where it follows a
+        declared ``tol`` (:func:`.._detector._find_intertwiners`).
     window : float or None
         The detector's matching window, relative: ``clip(10·sqrt(cut), 1e-3,
-        0.3)`` under a precision, a declared ``window`` as given, and ``None``
-        where it follows ``energy``.
+        0.3)``, a declared ``window`` as given, and ``None`` where it follows a
+        declared ``tol``.
     floor : float or None
         The covariance, in the units of ``H``, below which the detector's
         nullspace keeps a candidate at a point whatever the relative cut says:
-        ``energy`` under a precision, the gate itself, so that the cut never
-        discards what the gate would keep; ``None`` where it is the cut read in
-        the units of ``H``, as a declared ``cut`` is.
+        ``energy``, the gate itself, so that the cut never discards what the
+        gate would keep; ``None`` where it is the cut read in the units of
+        ``H``, as a declared ``cut`` or ``tol`` is.
     centre : float or None
         How far a centre may sit from where the operations put it, in reduced
         coordinates: ``p`` under a precision, a declared ``position_tol`` as
@@ -524,8 +528,12 @@ class Tolerances:
         nullspace keeps a candidate whatever the cut says is the gate itself.
         The finder's distance follows the model's lattice
         (:func:`finder_distance`).  Without a precision, a declared ``tol``,
-        ``cut``, ``window`` and ``position_tol`` stand as given, and the gate is
-        ``1e-8`` where ``tol`` is not declared either.
+        ``cut``, ``window`` and ``position_tol`` stand as given.  Where
+        neither ``precision`` nor ``tol`` is declared, the gate is ``1e-8 ·
+        max|H|``, relative as a precision's is, so that the same model in other
+        units is read the same, and the cut and window not declared are read
+        against the same ``max|H|``: the cut ``1e-8`` and the floor the gate
+        itself.
 
         Every judgement of a matrix read off ``H`` -- whether orbitals form one
         multiplet, whether a member sits in a measured space, which scalar a
@@ -535,10 +543,11 @@ class Tolerances:
         under a precision.  Where nothing is declared it is ``0.0``, and every
         such threshold keeps its exact default.
 
-        ``scale_of`` measures ``max|H|``, and is asked only where a declaration
-        is read against it.  The grammar of the declaration -- a positive
-        number, and not two that say the same thing -- is checked where the call
-        starts, before anything is resolved.
+        ``scale_of`` measures ``max|H|``; without it, and for a Hamiltonian
+        that vanishes, a gate not declared is ``1e-8`` in the units of ``H``.
+        The grammar of the declaration -- a positive number, and not two that
+        say the same thing -- is checked where the call starts, before anything
+        is resolved.
         """
         declared_tol = tol is not None
         scale = None
@@ -556,6 +565,18 @@ class Tolerances:
         elif precision is None and declared_tol:
             scale = scale_of()
             matrix = float(tol) / scale if scale > 0.0 else 0.0
+        elif precision is None and scale_of is not None:
+            # nothing declared: the gate is relative to the same magnitude, so
+            # that the model in other units is read the same, and the detector's
+            # relative numbers are read against it as a precision's are; every
+            # matrix read off H keeps its exact default
+            scale = scale_of()
+            if scale > 0.0:
+                tol = DEFAULT_ENERGY * scale
+                if cut is None:
+                    cut, floor = DEFAULT_ENERGY, tol
+                if window is None:
+                    window = eigen_window(DEFAULT_ENERGY)
         if tol is None:
             tol = DEFAULT_ENERGY
         return cls(precision=None if precision is None else float(precision),

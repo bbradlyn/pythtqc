@@ -470,6 +470,9 @@ def test_sewing_has_one_states_slot_and_gates_its_k_provenance(lin3g_undeclared)
     foreign = tqw.sewing_matrix(undeclared, rep.little_group(kM)[0], kM, states=at_gamma)
     assert not foreign and foreign.gate == "states_not_at_k"
     assert foreign.value > 1.0 and foreign.value / foreign.threshold > 1e6
+    # ... against 1e-8 of the model's max|H|, whatever the units of H
+    assert foreign.threshold == pytest.approx(1e-8 * _measure._max_hamiltonian(model),
+                                              rel=1e-12)
 
     # a mesh that does not carry M refuses rather than re-solving there
     mesh = Mesh(["k", "k"])

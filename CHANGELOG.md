@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- `realized_group` with nothing declared holds each operation to `1e-8` times `max|H|`,
+  the largest entry of `H(k)` once the mean on-site energy is subtracted, where it held it
+  to `1e-8` in whatever units `H` was written in, so that the same model in other units
+  read differently: `lin3g` with every hopping and on-site energy off by a relative `1e-9`
+  returned `P1` as written and `P4mm1'` with every energy divided by 100. It returns
+  `P4mm1'` at both scales now. An operation obeyed exactly is held to `5e-14` times
+  `max|H|` at the least, and `hsp_table`, `coreps_at`, `characters` and `sewing_matrix`
+  read bands within `1e-8` times `max|H|` as one multiplet unless `degeneracy_tol` is
+  given, a number in the units of `H`. A model multiplied by a constant returns the same
+  group, rows and labels, and every number in the units of `H` multiplied by it.
 - The refusals' reasons, the errors' messages and the summaries are spelled the American
   way, "the orbital centers", "labeling", "modeling", and name the symmetry data vector
   where they said "the content". The reason a refusal gives for centers a little off
