@@ -157,14 +157,14 @@ s = r.numerical.symmetrization
 worst = max(s.residuals[i] for i in s.near)
 print(f"{len(s.near)} of {len(r.rep.matrices)} near-symmetric, worst at {worst:.1e} eV "
       f"against tol {s.tol:.1e} eV; H moved by {s.defect:.1e} eV")
-#  23 of 24 near-symmetric, worst at 4.4e-03 eV against tol 4.9e-03 eV; H moved by 1.4e-03 eV
+#  23 of 24 near-symmetric, worst at 1.5e-03 eV against tol 4.9e-03 eV; H moved by 1.4e-03 eV
 ```
 
 Every one of the 72 broken operations is refuted by `no symmetry matrix`: no
 matrix with its action on `k` carries `H(k)` onto `H(Rk)`, not even within the
 declared precision. Of the 24 kept, all but the identity hold only within the
 declaration — **near-symmetric** — and averaging `H` over the group moved it by
-about a third of the worst of them.
+about as much as the worst of them misses.
 [Numerical and wannier90 models](../guide/numerical.md#exact-near-and-broken)
 has the three classes, exact, near and broken, and the projection in full.
 

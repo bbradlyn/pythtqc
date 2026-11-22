@@ -336,6 +336,12 @@ def test_the_three_classes_are_read_off_the_measured_residuals(lin3g, lin3g_jitt
     assert EXACT_GATE == 5e-14 == tqs.EXACT_TOL, \
         "the floor of _build_rep's own gate, and that number does not move"
 
+    # exact or near is read on each operation's own matrix: a model of exact numbers
+    # whose measured residuals sit a little above the exact gate, the measurement's own
+    # rounding at the point it starts from, is returned as it was handed in
+    exact = tqg.realized_group(tqc_models.p4122_atomic())
+    assert exact.group.name == "P4_1221'" and exact.numerical.symmetrization is None
+
 
 # ---------------------------------------------------------------------------
 # 2.  the theorem: symmetrization recovers the clean model's physics

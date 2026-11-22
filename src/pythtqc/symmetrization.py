@@ -74,9 +74,11 @@ def _classify_operations(validated, tol, *, exact_gate=EXACT_GATE, anchored=None
         least it is.
     anchored : dict, optional
         ``{ind: residual}``, each operation's covariance in the representation
-        the projection is built with, ``rep.numerical.residuals``.  An operation it holds
-        is classified at the larger of that and its measured residual, which a
-        basis turned inside a site, by less than ``tol``, makes near.
+        the projection is built with, ``rep.numerical.residuals``.  An operation it
+        holds is exact or near by that covariance, its own matrix's, and not by
+        the measured residual, whose floor is the measurement's own rounding; a
+        basis turned inside a site by less than ``tol`` makes it near.  An
+        operation is broken by its measured residual, as without it.
 
     Returns
     -------
@@ -91,9 +93,11 @@ def _classify_operations(validated, tol, *, exact_gate=EXACT_GATE, anchored=None
     tol = float(tol)
     out = {}
     for ind in validated._indices:
-        r = _residual_read(validated, anchored, ind, missing=np.inf)
-        out[int(ind)] = ("exact" if r <= exact_gate else
-                         "near" if r <= tol else "broken")
+        measured = float(validated.residuals.get(int(ind), np.inf))
+        r = (float(anchored[int(ind)]) if anchored and int(ind) in anchored
+             else measured)
+        out[int(ind)] = ("broken" if measured > tol or r > tol else
+                         "exact" if r <= exact_gate else "near")
     return out
 
 def _named(sets) -> str:
@@ -104,11 +108,10 @@ def _named(sets) -> str:
     return "orbitals " + " and ".join(_index_ranges(s) for s in sets)
 
 def _residual_read(validated, anchored, ind, *, missing):
-    """The residual one operation is classified at: the detector's, or the larger of it and the anchored one."""
-    r = float(validated.residuals.get(int(ind), missing))
+    """The residual one operation is classified exact or near at: its own matrix's where anchored holds it, the detector's otherwise."""
     if anchored and int(ind) in anchored:
-        r = max(r, float(anchored[int(ind)]))
-    return r
+        return float(anchored[int(ind)])
+    return float(validated.residuals.get(int(ind), missing))
 
 # --------------------------------------------------------------------------
 # the record
@@ -717,9 +720,9 @@ def _projection_operators(model, group, assignment, validated, *, tol, build_kw)
 
     :func:`_provisional_rep` at the scale the projection reads, ``max|H|`` about
     the mean on-site energy on a fixed probe of eight k-points.  Whether an
-    operation is near is read on its matrices' covariance as well as on the
-    detector's residual (:func:`_classify_operations`), and the average is
-    taken with them (:func:`_symmetrized`).
+    operation is exact or near is read on its matrices' covariance
+    (:func:`_classify_operations`), and the average is taken with them
+    (:func:`_symmetrized`).
     """
     mu = _bloch.onsite_mean(model)
     probe = np.random.default_rng(1729).uniform(-0.5, 0.5, size=(8, int(group._dim_k)))
@@ -1271,13 +1274,17 @@ def _symmetrize(model, group, assignment, validated, *, tol, k_grid=None, params
 def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
                  max_passes=3, verify=True, verify_nk=None, verify_tol=None,
                  max_bytes=1e9, _parts=None, _held=None, _centres_declared=False,
-                 **build_kw):
+                 _operators=None, **build_kw):
     """The pass :func:`_symmetrize` runs, every keyword of its provisional build passed by name.
 
     :func:`..groups.realized_group` calls it on its own records, handing in the
     parts of the crystal and the identical copies it read apart (``_parts``,
     ``_held``), whether a tolerance for the centers was declared
     (``_centres_declared``), and whatever the build it will make is asked for.
+    It hands in the operators as well, ``_operators``: the exact gate, the
+    provisional build and its record (:func:`_projection_operators`), and the
+    classes read on them, which the pass reads as they are rather than measuring
+    them again.
     """
 
     tol = float(tol)
@@ -1301,8 +1308,11 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
     # ---- 1. the classification, and the one thing that is refused ----------
     # against the exact gate of THIS model and operation set, measured once: the
     # detection record carries neither the number of states nor max|H|
-    exact_gate = _exact_gate(model, group, validated, build_kw)
-    classes = _classify_operations(validated, tol, exact_gate=exact_gate)
+    if _operators is not None:
+        exact_gate, handed, classes = _operators
+    else:
+        exact_gate = _exact_gate(model, group, validated, build_kw)
+        handed, classes = None, _classify_operations(validated, tol, exact_gate=exact_gate)
     broken = sorted(i for i, c in classes.items() if c == "broken")
     if broken:
         worst = max(float(validated.residuals.get(i, np.inf)) for i in broken)
@@ -1346,8 +1356,9 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
             context={"position_defect": pos_defect, "bloch_tol": _BLOCH_TOL})
 
     # ---- 2. the operators, and the classes read on them ---------------------
-    rep, prov = _projection_operators(model, group, assignment, validated, tol=tol,
-                                      build_kw=build_kw)
+    rep, prov = (handed if handed is not None else
+                 _projection_operators(model, group, assignment, validated, tol=tol,
+                                       build_kw=build_kw))
     if not rep:
         if rep.gate == "rep_not_covariant":
             built = rep.context.get("indices", validated._indices)
@@ -1359,12 +1370,14 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
             if own is not None:
                 return own
         return rep
-    # each operation read again at the larger of the detector's residual and its
-    # own matrix's covariance in this representation: a basis turned inside a
-    # site is exact to the detector and near to the matrix the tables' spin lift
-    # and the multiplets anchor, which is the matrix the average is taken with
+    # exact or near is read on each operation's own matrix's covariance in this
+    # representation, the matrix the average is taken with: a basis turned inside
+    # a site is exact to the detector and near to the matrix the tables' spin lift
+    # and the multiplets anchor
     anchored = {int(i): float(v) for i, v in rep.numerical.residuals.items()}
-    classes = _classify_operations(validated, tol, exact_gate=exact_gate, anchored=anchored)
+    if handed is None:
+        classes = _classify_operations(validated, tol, exact_gate=exact_gate,
+                                       anchored=anchored)
     indices = tuple(int(i) for i in rep._indices)
     D = _exact_representation(group, {int(i): np.asarray(rep.matrices[int(i)])
                                       for i in indices})

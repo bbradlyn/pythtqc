@@ -113,12 +113,16 @@ three classes:
 | **near** | above that, at most `tol` | symmetric within the declaration, not to machine precision: the signal for the projection. |
 | **broken** | above `tol` | the model does not obey the operation, and nothing is symmetrized into it. |
 
-Two residuals are measured, and the larger is read: that of the best matrix found that
-carries `H(k)` onto `H(gk)`, and that of the operation's own matrix in the
-representation the projection is built with, whose spin factor is the tables' lift and
-whose multiplets are the ones measured or declared. A spin frame, or a declared multiplet,
-turned inside a site by less than the declaration is exact to the first, which turns with
-it, and near to the second, which does not, and the projection turns the Hamiltonian back.
+Two residuals are measured. That of the best matrix found that carries `H(k)` onto
+`H(gk)` says whether the operation is kept, against `tol`. That of the operation's own
+matrix, in the representation the projection is built with, whose spin factor is the
+tables' lift and whose multiplets are the ones measured or declared, says whether it is
+exact or near. The first is only as accurate as the measurement, which on a model built
+from exact numbers can leave it above the exact class, while the operation's own matrix
+carries the model onto itself to rounding: such a model is returned as it was handed in.
+A spin frame, or a declared multiplet, turned inside a site by less than the declaration
+is exact to the first, which turns with it, and near to the second, which does not, and
+the projection turns the Hamiltonian back.
 
 ```python
 from collections import Counter

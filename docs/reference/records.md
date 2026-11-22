@@ -297,7 +297,8 @@ print(fit.numerical.source is fitted, fit.model is fitted)
 - `symmetrization`, a `Symmetrization`: `defect`, how far `H(k)` moved, in the
   units of `H`, and `scale`, its magnitude, `defect / scale` the move relative to it;
   `near` and `exact`, the operations that were near-symmetric, which licensed
-  the projection, and those already exact, with their measured `residuals`;
+  the projection, and those already exact, with `residuals`, each operation's
+  own matrix's covariance in the representation the projection is built with;
   `tol`, the tolerance they were read against;
   `site_multiplets`, how far the orbitals' multiplets held only within the declared
   precision; `parts`, the parts of the crystal coupled to one another only

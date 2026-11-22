@@ -4022,27 +4022,25 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
             if contents:
                 sym_kw["characters"] = {
                     tuple(int(o) for o in c.orbitals): c for c in contents}
-            # NEAR, READ ON THE MATRICES THE PROJECTION IS BUILT WITH.  The
-            # detector reads any member of an operation's solution space, so a
-            # basis turned inside a site -- a spin frame off the tables', orbitals
-            # off the multiplets the representation is written on -- is exact to
-            # it, while the matrix the tables' spin lift and those multiplets
-            # anchor misses H by the turn.  Where nothing has said near yet, that
-            # representation is built, up to the labelling, which no covariance
-            # sees, and its covariance read operation by operation; the
-            # projection, where it runs, builds it whole.  An operation exact to
-            # the detector and on its own matrix stays exact; a build that cannot
-            # be made here reads nothing, and the build on what settles says what
-            # it says.
-            if (not layout._near and not coupled and not alike
-                    and not any(c == "near" for c in classes.values())):
-                provisional, _record = _projection_operators(
-                    model, group, assignment, validated, tol=tolerances.energy,
-                    build_kw={**sym_kw, "spin": spin, "_labelled": False})
-                if provisional:
-                    classes = _classify_operations(
-                        validated, tolerances.energy, exact_gate=exact_gate,
-                        anchored=provisional.numerical.residuals)
+            # EXACT OR NEAR, READ ON EACH OPERATION'S OWN MATRIX: the matrices the
+            # projection is built with, built once, up to the labeling, which no
+            # covariance sees, and handed to the projection.  The detector reads
+            # any member of an operation's solution space, and its residual has
+            # the measurement's own rounding for a floor, which on a model of
+            # exact numbers can lie above the exact gate; and a basis turned
+            # inside a site is exact to it while the operation's own matrix
+            # misses H by the turn.  So the operation's own matrix decides
+            # whether H is made symmetric; the detector's residual keeps deciding
+            # whether the operation is kept.  Where the build cannot be made,
+            # the detector's residual is read, and the projection, if it runs,
+            # meets the same refusal.
+            provisional, record = _projection_operators(
+                model, group, assignment, validated, tol=tolerances.energy,
+                build_kw={**sym_kw, "spin": spin, "_labelled": False})
+            if provisional:
+                classes = _classify_operations(
+                    validated, tolerances.energy, exact_gate=exact_gate,
+                    anchored=provisional.numerical.residuals)
             if (any(c == "near" for c in classes.values())
                     or layout._near or coupled or alike):
                 got = _symmetrized(model, group, assignment, validated,
@@ -4052,6 +4050,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                                            {"orbitals": apart, "coupling": coupling}),
                                    _held=({"sets": held_apart, "off": off} if alike else None),
                                    _centres_declared=tolerances.centre is not None,
+                                   _operators=(exact_gate, (provisional, record), classes),
                                    **sym_kw)
                 if isinstance(got, Refusal):
                     if got.gate == "rep_not_covariant":

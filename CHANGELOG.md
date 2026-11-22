@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `realized_group` returns a model built from exact numbers as it was handed in, where it
+  could return it made symmetric by a defect of rounding's size: the model of
+  `examples/tqc_srsi_sg212_photonic.py` was returned `P4_3321'` "symmetrized (defect
+  3e-14)", its measurement run three times over. Whether an operation is exact or only
+  near is now read on its own matrix, in the representation the projection is built
+  with, and no longer on the measurement's best matrix, whose accuracy at the k-point it
+  starts from can be a little worse than rounding. Which operations are kept is
+  unchanged, and a model with noise is made symmetric as before.
 - `realized_group` with nothing declared holds each operation to `1e-8` times `max|H|`,
   the largest entry of `H(k)` once the mean on-site energy is subtracted, where it held it
   to `1e-8` in whatever units `H` was written in, so that the same model in other units
