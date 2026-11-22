@@ -567,6 +567,19 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
             class_forms = tuple(forms.get(key, ()))
             cached = key + (b"".join(f.tobytes() for f in class_forms),)
             space = None if context is None else context.solved(cached, key + (None,))
+            if space is None and context is not None:
+                # a space fitted in the forms its sift lay off answers for every
+                # set of the forms it was asked with that holds them: the same
+                # sift, the same forms off it, the same fit
+                near = context.spaces.get(key + ("forms fitted",))
+                if near is not None:
+                    asked, near = near
+
+                    def among(f, fs):
+                        return any(np.array_equal(f, g) for g in fs)
+                    if (all(among(f, class_forms) for f in near.fitted_forms)
+                            and all(among(f, asked) for f in class_forms)):
+                        space = near
             if space is None:
                 space = _find_intertwiners(
                     model, action, k_pts, antiunitary=bool(sym.time_reversal), tol=tol,
@@ -580,6 +593,8 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
                     alone = (space.fit == "" and space.dim
                              and float(np.min(space.residuals)) <= float(tol))
                     context.remember(key + (None,) if alone else cached, space)
+                    if space.fitted_forms:
+                        context.remember(key + ("forms fitted",), (class_forms, space))
             solved_class[key] = (ind, space)
         solved_on, space = solved_class[key]
         dims[ind] = space.dim

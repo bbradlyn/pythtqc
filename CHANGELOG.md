@@ -20,6 +20,16 @@
   read bands within `1e-8` times `max|H|` as one multiplet unless `degeneracy_tol` is
   given, a number in the units of `H`. A model multiplied by a constant returns the same
   group, rows and labels, and every number in the units of `H` multiplied by it.
+- `realized_group` keeps an operation whose symmetry matrix meets the tolerance while
+  lying a little off the operation's own form -- each site's orbitals carried onto its
+  image's -- where it dropped it as broken by the tensor structure: the `p` and `d`
+  orbitals at `8c` of `Im-3m` with a relative noise of `1e-9` on every term, every
+  operation of which they obey within `3.2e-9` of `max|H|`, return `Im-3m1'` with
+  nothing declared, where they returned `I4/mmm1'` with 64 operations dropped. Where the
+  matrix found lies off a form it is near by more than rounding, the matrices of that
+  form are fitted over the whole k-point mesh, as where the matrix found misses the
+  tolerance, and the operation is read by the fitted one wherever it meets the tolerance.
+  What it returns for a model without noise is unchanged.
 - The refusals' reasons, the errors' messages and the summaries are spelled the American
   way, "the orbital centers", "labeling", "modeling", and name the symmetry data vector
   where they said "the content". The reason a refusal gives for centers a little off

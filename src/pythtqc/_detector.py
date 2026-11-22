@@ -12,7 +12,8 @@ import numpy as np
 
 from . import _bloch
 from .refusal import Refusal
-from ._tolerance import DEFAULT_ENERGY, _EIGEN_WINDOW_CEIL, _VACUOUS_CUT, eigen_window
+from ._tolerance import (
+    ANSATZ_GATE, DEFAULT_ENERGY, _EIGEN_WINDOW_CEIL, _IN_BLOCKS, _VACUOUS_CUT, eigen_window)
 
 
 #: How many seeded pseudo-random complex combinations of a degenerate solution
@@ -177,7 +178,8 @@ class _IntertwinerSpace:
     fit : str
         What the fit over the whole grid among the matrices of the operation's
         forms (``forms`` of :func:`_find_intertwiners`) settled, where the sift
-        kept no candidate within ``tol``: ``"fitted"``, the space is the fit's;
+        kept no candidate within ``tol`` or its space lies off a form
+        (:func:`_off_a_form`): ``"fitted"``, the space is the fit's;
         ``"fit not closer"``, the fit's best candidate was not closer and the
         sift's space is returned; ``"spectra"``, ``"none at the points
         sifted"`` and ``"none over the grid"``, a proof that no matrix of the
@@ -185,8 +187,14 @@ class _IntertwinerSpace:
         point sifted, the stacked constraint at the points sifted, the count
         over the grid; ``"not fitted: memory"``, a form's fit would not fit
         the memory the basis may take and no proof was made.  ``""`` where
-        nothing was asked: no forms given, a candidate within ``tol``, a
-        vacuous space or the stacked route.
+        nothing was asked: no forms given, a candidate within ``tol`` and of
+        every form it is near to rounding, a vacuous space or the stacked
+        route.
+    fitted_forms : tuple
+        The forms fitted where the sift's candidate met ``tol`` and its space lay
+        off them (:func:`_off_a_form`): the space depends on the forms given
+        only through these, so it answers for any set of forms holding them.
+        Empty otherwise.
     """
 
     dim: int
@@ -209,6 +217,7 @@ class _IntertwinerSpace:
     basis_size: tuple = ()
     escalations: tuple = ()
     fit: str = ""
+    fitted_forms: tuple = ()
 
     def __bool__(self) -> bool:
         return self.dim > 0
@@ -1029,6 +1038,49 @@ def _form_admits(constraints, form):
     return float(w[0]) - rounding <= bound
 
 
+def _off_a_form(basis, forms, n, *, cut):
+    r"""The forms the space lies off by more than rounding while near them.
+
+    Parameters
+    ----------
+    basis : ndarray, shape (dim, n, n)
+        The sift's orthonormal basis, each member of norm ``sqrt(n)``.
+    forms : sequence of ndarray of bool, shape (n, n)
+        The entries a matrix of each operation sharing this action on ``k`` may
+        hold.
+    n : int
+        The number of states.
+    cut : float or None
+        The relative cut the solve was asked at.
+
+    Returns
+    -------
+    list of ndarray
+        The forms for which the member of the space nearest it holds outside
+        it more than :data:`.._tolerance._IN_BLOCKS` of the space's scale (or
+        ``cut``, where larger), the floor every reading of an operation's site
+        blocks takes as rounding, and no more than
+        :data:`.._tolerance.ANSATZ_GATE` of its own norm (or ``cut``), within
+        which the member is read as of the form.  A member that far off its
+        form is a matrix of the operation the multiplets cannot be read off,
+        though a matrix of the form may meet the gate; a space with nothing near
+        a form holds another operation's matrices.
+    """
+    rounding = max(_IN_BLOCKS, float(cut or 0.0))
+    near = max(ANSATZ_GATE, float(cut or 0.0))
+    flat = np.asarray(basis, dtype=complex).reshape(len(basis), n, n)
+    off = []
+    for form in forms:
+        outside = flat[:, ~np.asarray(form, dtype=bool)]
+        if not outside.size:
+            continue
+        sv = np.linalg.svd(outside, compute_uv=False)
+        least = float(sv[-1]) if len(sv) == len(flat) else 0.0
+        if rounding * max(float(sv[0]), 1.0) < least <= near * float(np.sqrt(n)):
+            off.append(form)
+    return off
+
+
 def _candidate_measures(cands, n, *, full=None, pair=None):
     """Polar factors, their full-grid covariance residuals and their unitarity.
 
@@ -1186,7 +1238,11 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
         (:func:`_form_admits`) -- is fitted over the whole grid
         (:func:`_refit_on_form`).  The members of every form whose fit meets
         ``tol`` are returned together; where none does, the closest fit is
-        returned if the sift kept nothing or it is closer.
+        returned if the sift kept nothing or it is closer.  The forms are
+        fitted the same way where the sift's candidate meets ``tol`` but its
+        space lies off a form by more than rounding while near it
+        (:func:`_off_a_form`): those forms, and the fit's members are returned
+        wherever they meet ``tol``, the sift's space only where none does.
         :attr:`_IntertwinerSpace.fit` says which.  ``()`` (default) fits
         nothing.
 
@@ -1306,7 +1362,7 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
     rot_grid = src_grid.rotated(k_rot)
 
     window_used, k_solve, trace, escalated, spectral, sifted = 0.0, -1, (), (), 0.0, ()
-    fit = ""
+    fit, astray = "", []
 
     if solver == "stacked":
         H, Hr = src_grid.full(), rot_grid.full()
@@ -1434,9 +1490,15 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
         # a form that can meet the gate there is fitted over the grid.
         missed = (not dim and spectral <= n * float(tol)) or (
             dim and float(residuals.min()) > float(tol))
+        # ... and where the sift's candidate meets the gate while its space lies
+        # off one of the forms by more than rounding, near it: the matrices of
+        # that form are fitted the same way, and an operation is read by a
+        # matrix of its own form wherever one meets the gate
+        astray = (_off_a_form(basis, forms, n, cut=cut)
+                  if forms and not vacuous and dim and not missed else [])
         if forms and not vacuous and not dim and not missed:
             fit = "spectra"
-        elif forms and not vacuous and missed:
+        elif forms and not vacuous and (missed or astray):
             outcomes, best = set(), None
             # The proofs below read the sift's cut never below sqrt(n)·tol, the
             # most a unitary within the gate can miss a point by at unit norm
@@ -1449,7 +1511,7 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
             # this action on k can both hold, each by a matrix of its own form,
             # and each is broken only where no matrix of its form meets the gate
             held = []
-            for form in forms:
+            for form in (astray or forms):
                 if 16 * int(np.count_nonzero(form)) ** 2 > ceiling:
                     outcomes.add("not fitted: memory")
                     continue
@@ -1477,14 +1539,18 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
                 s = np.sort(np.concatenate([h[1] for h in held]))
                 scale = max(float(h[2]) for h in held)
                 fit = "fitted"
-            elif best is not None and (not dim or float(best[4][1].min())
-                                       < float(residuals.min())):
+            elif best is not None and not astray and (not dim or float(best[4][1].min())
+                                                      < float(residuals.min())):
                 members, worst, op_max, (cands, search), got = best
                 dim, basis = len(members), members
                 unitaries, residuals, unitarity = got
                 s, scale = np.sort(worst), float(op_max)
                 fit = "fitted"
             elif best is not None:
+                fit = "fit not closer"
+            elif astray:
+                # no form fitted meets the gate: the sift's candidate, which
+                # does, stands
                 fit = "fit not closer"
             else:
                 fit = next(o for o in ("not fitted: memory", "none over the grid",
@@ -1497,4 +1563,5 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
                              antiunitary=bool(antiunitary), vacuous=vacuous,
                              search=search, window=window_used, k_solve=k_solve,
                              basis_size=tuple(int(t) for t in trace),
-                             escalations=escalated, fit=fit)
+                             escalations=escalated, fit=fit,
+                             fitted_forms=tuple(astray) if astray else ())

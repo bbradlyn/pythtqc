@@ -585,6 +585,14 @@ def test_validate_group_forwards_the_one_declared_tolerance(near_symmetry):
     assert old._records[ind]["method"] in ("stacked", "stacked_subset"), \
         "solver= reached the detector and changed the algorithm, not only the record"
 
+    # the default tolerance reads an operation whose matrix lies a little off its
+    # own form by the matrix of that form that meets it: the p orbitals at 8c of
+    # Im-3m with a noise of 2e-9 are Im-3m1', every one of its 96 operations kept
+    from test_symmetrize import jitter
+    noisy = G.realized_group(jitter(tqc_models.im3m_8c(shells=("p",)), rel=2e-9, seed=3))
+    assert (noisy.group.number_str, len(noisy.numerical.validated._indices)) \
+        == ("229.141", 96), "Im-3m1' at the default tolerance"
+
 
 def test_the_cut_finds_the_space_and_the_gate_judges_it(near_symmetry):
     """Three roles under three names: which number moves decides what moves.
