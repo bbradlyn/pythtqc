@@ -178,7 +178,7 @@ def test_the_b1_twist_moves_every_label_and_no_wyckoff_position(
 
     swap = {"-E1": "-E2", "-E2": "-E1"}
 
-    def relabelled(d):
+    def relabeled(d):
         return {frozenset((t.multiplicity, swap.get(t.irrep, t.irrep), t.wyckoff) for t in s)
                 for s in d.candidate_sums}
 
@@ -199,7 +199,7 @@ def test_the_b1_twist_moves_every_label_and_no_wyckoff_position(
         assert a.decomposable and b.decomposable
         assert _positions(a) == _positions(b) == positions, (
             "a global character cannot move a Wyckoff position")
-        assert relabelled(a) == bare(b), (
+        assert relabeled(a) == bare(b), (
             "... and it must relabel every site irrep it touches")
         assert "lowest-l" in a.site_content.determined_by
         assert "lowest-l" not in b.site_content.determined_by
@@ -475,10 +475,10 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
         assert turned.rep._characters.irreps == ("E'",) * 4
         valence = tqw.hsp_table(turned, bands=2)
         assert valence and coreps_by_point(valence) == even, turn
-        assert [key for choice in turned.rep._characters._labellings["choices"]
+        assert [key for choice in turned.rep._characters._labelings["choices"]
                 for key, _labels in choice["others"]] == ["orbitals", "orbitals", "bands"]
-        assert tqw._ANOTHER_LABELLING_RELABELS in valence.summary()
-        assert tqw.hsp_table(turned, bands=4).note == tqw._ANOTHER_LABELLING_RELABELS
+        assert tqw._ANOTHER_LABELING_RELABELS in valence.summary()
+        assert tqw.hsp_table(turned, bands=4).note == tqw._ANOTHER_LABELING_RELABELS
 
     # The honeycomb with site group 3 -- the mirrors through the hexagon centre
     # exchanging the sublattices, P31m1' on a substrate and P-62m1' free-standing
@@ -493,7 +493,7 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
                                        typat=[0, 0, 0, 0], environment=environment,
                                        cross_check=False)
             assert site3, str(site3)
-            assert [key for choice in site3.rep._characters._labellings["choices"]
+            assert [key for choice in site3.rep._characters._labelings["choices"]
                     for key, _labels in choice["others"]] == ["bands"]
             band = tqw.hsp_table(site3, bands=1)
             assert {p: coreps_by_point(band)[p] for p in lowest} == lowest, \
@@ -519,7 +519,7 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
             assert got, str(got)
             assert got.group.number_str == "150.26"
             table = got.rep._characters
-            assert [key for choice in table._labellings["choices"]
+            assert [key for choice in table._labelings["choices"]
                     for key, _labels in choice["others"]] == decided, \
                 "the orbitals read alike under both: the band labels decide, or none rests on it"
             lower = tqw.hsp_table(got, bands=bands)
@@ -529,7 +529,7 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
             if soc is None:
                 assert table.irreps == ("1E2E",) * 4
                 assert coreps_by_point(lower)["M"] == {"M1": 2}
-                assert lower.note == tqw._ANOTHER_LABELLING_RELABELS
+                assert lower.note == tqw._ANOTHER_LABELING_RELABELS
             else:
                 assert not lower.note, "no band label depends on the choice"
                 assert not tqw.hsp_table(got, bands=8).note, "nor over all the bands"
@@ -2467,8 +2467,8 @@ def _square_pxpy(sublattices=1):
     """
     from pythtb import Lattice, TBModel
 
-    centres = [[0.0, 0.0]] * 2 + ([[0.5, 0.5]] * 2 if sublattices > 1 else [])
-    m = TBModel(Lattice([[1.0, 0.0], [0.0, 1.0]], centres, periodic_dirs=[0, 1]),
+    centers = [[0.0, 0.0]] * 2 + ([[0.5, 0.5]] * 2 if sublattices > 1 else [])
+    m = TBModel(Lattice([[1.0, 0.0], [0.0, 1.0]], centers, periodic_dirs=[0, 1]),
                 spinful=False)
     for s in range(sublattices):
         o = 2 * s
@@ -2626,12 +2626,12 @@ _BOUND_AT_A_SITE = {
         lambda: tqm.p2m_mirror_pair(phases={2: 1j}), {}, "10.43",
         (((0,), (1,)), ((2,), (3,))), {0: {"A'": 2}, 1: {"A'": 2}}, ("A'",) * 4, None),
     "Im-3m 8c, d turned at every site, read from an 8c orbital": (
-        lambda: tqm.im3m_8c(("d",), rotated=True, centre=True),
+        lambda: tqm.im3m_8c(("d",), rotated=True, center=True),
         {"nk": 4, "reference_orbital": 1},
         "229.141", _THE_8C_D_TURNED,
         {0: {"A1g": 1}, **{s: {"Eg": 2, "A1g": 1} for s in range(1, 5)}}, None, None),
     "Im-3m 8c, p and d in each site's own frame": (
-        lambda: tqm.im3m_8c(("p", "d"), centre=True), {"nk": 4}, "229.141",
+        lambda: tqm.im3m_8c(("p", "d"), center=True), {"nk": 4}, "229.141",
         _THE_8C_PD,
         {0: {"A1g": 1}, **{s: {"Eu": 1, "A2u": 1, "Eg": 2, "A1g": 1} for s in range(1, 5)}},
         None, None),
@@ -2862,7 +2862,7 @@ def test_a_site_s_operations_bind_its_orbitals_and_copies_of_one_irrep_are_one(c
     # says so, with every site's shell aligned and with one site's turned
     for apart in _LABELS_REST_ON.get(case, ()):
         note = tqw.hsp_table(realize(apart(), **kwargs), bands=6).note
-        assert note == tqw._ANOTHER_LABELLING_RELABELS, note
+        assert note == tqw._ANOTHER_LABELING_RELABELS, note
     # the covariance gate is the larger of the exact floor times max|H|, the rounding the
     # representation's own arithmetic carries, |G| N eps max|H| on its battery, and
     # the rounding of the Bloch phases there; the second is above the floor where
@@ -2996,12 +2996,12 @@ def test_two_decoupled_sublattices_are_measured_and_the_convention_names_the_res
             assert terms_turned == terms
             for n in (2, 4, 6):
                 assert coreps_by_point(bands_turned[n]) == coreps_by_point(bands[n]) or all(
-                    t.note == tqw._ANOTHER_LABELLING_RELABELS
+                    t.note == tqw._ANOTHER_LABELING_RELABELS
                     for t in (bands[n], bands_turned[n])), (soc, environment, n)
             if soc and environment == "substrate":
                 # the six bands read alike under every labelling, and which
                 # multiplet carries which label rests on the one returned
-                assert bands[6].note == tqw._ANOTHER_LABELLING_RELABELS
+                assert bands[6].note == tqw._ANOTHER_LABELING_RELABELS
                 assert coreps_by_point(bands[6]) == {
                     "GM": {"-GM7": 1, "-GM8": 1, "-GM9": 1},
                     "K": {"-K4": 1, "-K5": 1, "-K6": 2}, "M": {"-M5": 3}}

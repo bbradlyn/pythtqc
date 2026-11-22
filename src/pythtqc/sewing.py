@@ -1771,16 +1771,16 @@ def _table_heights(rep):
 #: The keys under which a labeling set aside can label a band otherwise: the
 #: site content at the lowest angular momentum, the functions the orbitals read
 #: as, and the band labels.
-_RELABELLING_KEYS = ("content", "orbitals", "bands")
+_RELABELING_KEYS = ("content", "orbitals", "bands")
 
 #: The note, where some energy multiplet of a set of bands reads otherwise under
 #: another labeling the hoppings leave open.
-_ANOTHER_LABELLING_RELABELS = (
+_ANOTHER_LABELING_RELABELS = (
     "another labeling the hoppings leave open keeps every site irrep and labels some energy "
     "multiplets of these bands differently; it keeps which bands are degenerate and the labels "
     "of all the model's bands together")
 
-def _labelling_note(rep, block) -> str:
+def _labeling_note(rep, block) -> str:
     """The sentence :attr:`HSPTable.note` carries, or ``""``.
 
     Where the lowest-angular-momentum rule kept one of several labelings of a
@@ -1792,14 +1792,14 @@ def _labelling_note(rep, block) -> str:
     apart, no label rests on the choice and nothing is said.
     """
     table = getattr(rep, "_characters", None)
-    record = getattr(table, "_labellings", {}) or {}
+    record = getattr(table, "_labelings", {}) or {}
     held = {int(b) for b in block}
-    if any(key in _RELABELLING_KEYS and _labelled_apart(rec["chosen"], other, held)
+    if any(key in _RELABELING_KEYS and _labeled_apart(rec["chosen"], other, held)
            for rec in record.get("choices", ()) for key, other in rec["others"]):
-        return _ANOTHER_LABELLING_RELABELS
+        return _ANOTHER_LABELING_RELABELS
     return ""
 
-def _labelled_apart(chosen, other, held) -> bool:
+def _labeled_apart(chosen, other, held) -> bool:
     """Whether a multiplet the bands ``held`` hold whole is labeled otherwise under ``other``.
 
     ``chosen`` and ``other`` are ``{point: ((bands, {corep: m}), ...)}``, and one
@@ -1832,7 +1832,7 @@ def _multiplicity_note(rep, block, fibers) -> str:
     choice, and a set of bands with weight there is labeled by it and can read
     differently under another; where a declaration states the content there is
     no such choice.  Those giving one site content are labelings like any
-    other, and :func:`_labelling_note` says where a set of bands rests on them.
+    other, and :func:`_labeling_note` says where a set of bands rests on them.
     The weight is read off the eigenvectors the content was read from, where
     they are to hand, and a set of bands is taken to have some where they are
     not.
@@ -1930,7 +1930,7 @@ def _hsp_table_rep(rep, *, states=None, bands=None, degeneracy_tol=None,
             counts[lab] = counts.get(lab, 0) + int(v)
 
     notes = (_multiplicity_note(rep, block, per_point.values()),
-             _labelling_note(rep, block))
+             _labeling_note(rep, block))
     return HSPTable(bands=block, group=rep._group, kpoints=dict(points),
                     symmetry_data=_tables.ordered_content(counts), multiplets=rows,
                     complete=not refusals, refusals=refusals,

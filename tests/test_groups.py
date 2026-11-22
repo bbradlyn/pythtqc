@@ -633,9 +633,9 @@ def test_default_typat_treats_same_content_sites_as_one_species():
     assert r._lattice_index == 2
     assert r._fractional_translations == ((0.5, 0.5, 0.0),)
     assert r._tables_ready is False
-    labelled = _spacegroup._group_of(square_two_orbitals(0.0), include_TR=False, typat=[0, 1])
-    assert labelled and labelled._sg_number == 123
-    assert labelled._lattice_index == 1
+    labeled = _spacegroup._group_of(square_two_orbitals(0.0), include_TR=False, typat=[0, 1])
+    assert labeled and labeled._sg_number == 123
+    assert labeled._lattice_index == 1
 
 
 def test_orbital_off_every_wyckoff_orbit_refuses():
@@ -852,9 +852,9 @@ def test_product_table_with_spinor_factors():
     # slow to build: the diamond's 96 operations, and a centred list, where
     # several operations share each rotation and are told apart by translation
     diamond_group = _spacegroup._group_of(diamond(), spinor=True)
-    centred = _spacegroup._group_of(square_two_orbitals(), spinor=True)
-    assert diamond_group._size == 96 and centred._lattice_index > 1
-    for h in (diamond_group, centred):
+    centered = _spacegroup._group_of(square_two_orbitals(), spinor=True)
+    assert diamond_group._size == 96 and centered._lattice_index > 1
+    for h in (diamond_group, centered):
         built, irreps_own = h._get_product_table(get_diff=True), h._sg.get_product_table(get_diff=True)
         assert len(built) == len(irreps_own) == 3
         for ours, theirs in zip(built, irreps_own):
@@ -1644,8 +1644,8 @@ def test_high_symmetry_points_names_the_tabulated_points_out_of_the_plane():
     # the band labels of the lowest-angular-momentum rule are compared point by
     # point in the tables' own order, GM R M X here, whatever order the points are
     # listed in
-    from pythtqc import _labelling
-    fibers = _labelling._band_fibers(cubic(), unitary, dict.fromkeys(
+    from pythtqc import _labeling
+    fibers = _labeling._band_fibers(cubic(), unitary, dict.fromkeys(
         range(len(unitary._symmetries))), unitary._symmetries)
     assert [f[0] for f in fibers] == list(_tables._points_in_table_order(unitary)) \
         == ["GM", "R", "M", "X"]

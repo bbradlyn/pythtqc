@@ -235,7 +235,7 @@ def test_group_of_serves_the_lattice_supergroup(cubic_supergroup):
 
 
 @pytest.mark.slow
-def test_the_dimerized_chain_descends_to_the_bond_centred_p4mmm(dimerized):
+def test_the_dimerized_chain_descends_to_the_bond_centered_p4mmm(dimerized):
     """``P4/mmm1' #123.340``, 32 of 32, with the origin at a bond centre.
 
     The dimerization moves no atom, so the point set still repeats under

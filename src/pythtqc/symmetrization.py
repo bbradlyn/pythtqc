@@ -18,7 +18,7 @@ from typing import Any
 import numpy as np
 
 from . import _bloch
-from . import _centres
+from . import _centers
 from . import _measure
 from .refusal import InternalError, Refusal
 from ._tolerance import (
@@ -30,7 +30,7 @@ from ._matrices import (
     SiteMultiplets, _BLOCH_TOL, _default_of, _nearest_representation, _resolve_spin,
     bloch_operator, covariance_gate)
 from ._grammar import _declaration_grammar
-from ._centres import _centres_account_for, _position_defect
+from ._centers import _centers_account_for, _position_defect
 from ._build import _build_rep, _exact_gate
 
 __all__ = ["Symmetrization", "SymmetrizationChecks", "SymmetrizationVerification",
@@ -752,7 +752,7 @@ def _exact_representation(group, D):
         return D
     return {i: nearest[position[i]] for i in D}
 
-def _with_centres(model, orb, *, check=True, n_check=_bloch.CHECK_K,
+def _with_centers(model, orb, *, check=True, n_check=_bloch.CHECK_K,
                   seed=_bloch.CHECK_SEED):
     r"""The model with its orbital centres at ``orb``, its spectrum measured unchanged.
 
@@ -834,7 +834,7 @@ def _parts_coupling(model, parts) -> float:
 def _as_held(X, held):
     r"""``X`` with what the sectors read at the declared precision keep apart held apart.
 
-    ``held`` is :func:`.._labelling._held_sets`'s: ``"copies"``, each set of
+    ``held`` is :func:`.._labeling._held_sets`'s: ``"copies"``, each set of
     identical copies' basis in the states, copy-major, with its number of
     copies, the states one copy holds and its orbitals; and ``"shares"``,
     each set of sectors splitting multiplets between orbits no operation
@@ -1273,14 +1273,14 @@ def _symmetrize(model, group, assignment, validated, *, tol, k_grid=None, params
 
 def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
                  max_passes=3, verify=True, verify_nk=None, verify_tol=None,
-                 max_bytes=1e9, _parts=None, _held=None, _centres_declared=False,
+                 max_bytes=1e9, _parts=None, _held=None, _centers_declared=False,
                  _operators=None, **build_kw):
     """The pass :func:`_symmetrize` runs, every keyword of its provisional build passed by name.
 
     :func:`..groups.realized_group` calls it on its own records, handing in the
     parts of the crystal and the identical copies it read apart (``_parts``,
     ``_held``), whether a tolerance for the centers was declared
-    (``_centres_declared``), and whatever the build it will make is asked for.
+    (``_centers_declared``), and whatever the build it will make is asked for.
     It hands in the operators as well, ``_operators``: the exact gate, the
     provisional build and its record (:func:`_projection_operators`), and the
     classes read on them, which the pass reads as they are rather than measuring
@@ -1362,11 +1362,11 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
     if not rep:
         if rep.gate == "rep_not_covariant":
             built = rep.context.get("indices", validated._indices)
-            own = _centres_account_for(
+            own = _centers_account_for(
                 model, group, assignment, {int(i): syms_by_ind[int(i)] for i in built},
                 failure=rep.value, gate=rep.threshold,
                 check="the covariance of the representation the projection is built with",
-                declared=_centres_declared)
+                declared=_centers_declared)
             if own is not None:
                 return own
         return rep
@@ -1477,10 +1477,10 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
             # the average is a finite sum of hoppings only where its operators
             # carry the centers exactly, and each coefficient beyond the box is
             # a mean over the grid of what the centers' miss puts into H
-            own = _centres_account_for(current, group, assignment, ops,
+            own = _centers_account_for(current, group, assignment, ops,
                                        failure=out_box * biggest, gate=gate * biggest,
                                        check="the symmetrized Hamiltonian's hoppings beyond its range",
-                                       declared=_centres_declared)
+                                       declared=_centers_declared)
             if own is not None:
                 return own
             return Refusal(
@@ -1523,12 +1523,12 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
             # this is the rebuild's own arithmetic going wrong, not a statement
             # about the model, and it raises, unless the centers' miss accounts
             # for it: then the average is no finite sum of hoppings to rebuild.
-            own = _centres_account_for(current, group, assignment, ops,
+            own = _centers_account_for(current, group, assignment, ops,
                                        failure=checks["k_identity"],
                                        gate=gate * (scale if scale > 0.0 else 1.0),
                                        check="the symmetrized Hamiltonian rebuilt from its "
                                              "hoppings",
-                                       declared=_centres_declared)
+                                       declared=_centers_declared)
             if own is not None:
                 return own
             raise InternalError(
@@ -1744,14 +1744,14 @@ def _symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=Non
     """
 
     model = _bloch.bound(model, params)
-    frame = _centres._assigned_sites(model, group, assignment)
+    frame = _centers._assigned_sites(model, group, assignment)
     syms = group._symmetries
     unitary = [k for k, s in enumerate(syms) if not s.time_reversal]
     rotations = np.array([np.asarray(syms[k].rotation, dtype=float) for k in unitary])
     perm = np.asarray(assignment.permutations, dtype=int)[unitary]
     shift = np.asarray(assignment.lattice_shift, dtype=float)[unitary]
     rows = list(range(len(unitary)))
-    x, trans, closure = _centres._symmetric_sites(frame, perm, shift, rotations, rows)
+    x, trans, closure = _centers._symmetric_sites(frame, perm, shift, rotations, rows)
     if not closure <= _EXACT_CLOSURE:          # pragma: no cover - an assignment is an action
         raise InternalError(
             f"the unitary operations of {group.name} #{group.number_str} do not carry "
@@ -1760,9 +1760,9 @@ def _symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=Non
             "in this package failing, not a measurement about the model.")
     raw = np.asarray(model.orb_vecs, dtype=float)
     dim_r = int(model.lattice.dim_r)
-    moves = _centres._moves_of(frame, x)
+    moves = _centers._moves_of(frame, x)
     worst = float(np.abs(moves).max(initial=0.0))
-    before = _centres._frame_defect(frame, perm, rotations, trans, rows)
+    before = _centers._frame_defect(frame, perm, rotations, trans, rows)
     if not within(worst, max_move):
         return Refusal(
             "positions_not_nearly_symmetric",
@@ -1775,21 +1775,21 @@ def _symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=Non
             value=worst, threshold=float(max_move),
             context={"defect_before": float(before),
                      "n_moved": int(np.count_nonzero(np.abs(moves).max(axis=1) > 0.0))})
-    delta = _centres._rational_offset(trans, rotations, rows, model.periodic_dirs)
+    delta = _centers._rational_offset(trans, rotations, rows, model.periodic_dirs)
     in_frame = delta is not None and within(float(np.abs(delta).max(initial=0.0)), max_move)
     final = x - delta if in_frame else x
-    shifted = _centres._moves_of(frame, final)
+    shifted = _centers._moves_of(frame, final)
     orb = raw + shifted[:, :dim_r]
     if np.array_equal(orb, raw):
         out, resid, measured = model, 0.0, 0
     else:
-        (out, resid), measured = _with_centres(model, orb), _bloch.CHECK_K
+        (out, resid), measured = _with_centers(model, orb), _bloch.CHECK_K
     final_trans = np.array([final[perm[r, 0]] + shift[r, 0] - rotations[r] @ final[0]
                             for r in rows])
     offset = (0.0 - np.asarray(delta) * frame.scale)[:dim_r] if in_frame else np.zeros(dim_r)
     return out, {
-        "defect_before": _centres._frame_defect(frame, perm, rotations, final_trans, rows),
-        "defect_after": _centres._frame_defect(frame, perm, rotations, final_trans, rows,
+        "defect_before": _centers._frame_defect(frame, perm, rotations, final_trans, rows),
+        "defect_after": _centers._frame_defect(frame, perm, rotations, final_trans, rows,
                                               sites=final),
         "max_move": worst, "offset": tuple(float(c) for c in offset),
         "frame": "model" if in_frame else "fitted",

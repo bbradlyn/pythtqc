@@ -231,7 +231,7 @@ def p4232_validated(p4232, p4232_candidate_group):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.slow
-def test_p4232_bare_orbital_cell_is_body_centred_and_is_served_as_a_supergroup(p4232):
+def test_p4232_bare_orbital_cell_is_body_centered_and_is_served_as_a_supergroup(p4232):
     """The bare 2a orbital point set is bcc, so its cubic cell is a supercell.
 
     Re-pinned in wave R4a, which retired the ``non_primitive_cell`` refusal this

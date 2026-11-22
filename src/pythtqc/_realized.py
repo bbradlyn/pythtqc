@@ -30,8 +30,8 @@ from ._subgroups import (
     _tie_ranked, _tie_reason, _tie_rule_words)
 from ._matrices import _resolve_spin, _spin_pair_split
 from ._grammar import _declaration_grammar, _names_joint_keys
-from ._centres import (
-    _cell_sites, _centres_account_for, _centres_account_for_closure, _frame_defect, _geometry,
+from ._centers import (
+    _cell_sites, _centers_account_for, _centers_account_for_closure, _frame_defect, _geometry,
     _moved_extras, _moves_of, _rational_offset, _site_action, _symmetric_sites)
 from .symmetry import _declaration_checks, _wyckoff_orbit_table
 from ._sectors import read_sectors, sector_action
@@ -39,17 +39,17 @@ from ._multiplets import _site_multiplets
 from ._layers import (
     DECORATION_DZ, SLAB_C, _decorated_cell, _environment_record,
     _is_presented_as_a_slab, _raise_environment_contradiction, _slab_presentation)
-from ._labelling import _held_sets, _parts_apart
+from ._labeling import _held_sets, _parts_apart
 from ._measure import (
     ValidatedGroup, _MeasurementContext, _grid_covariance, _max_hamiltonian,
     _own_form_read, _validate_group)
 from ._build import _BUILD_KEYWORDS, _build_rep, _exact_gate
 from .symmetrization import (
     EXACT_GATE, _classify_operations, _held_off, _memory_budget, _parts_coupling,
-    _projection_operators, _search_ceiling, _symmetrized, _with_centres)
+    _projection_operators, _search_ceiling, _symmetrized, _with_centers)
 from ._descent import (
     _DROPPED_BY_WORDS, _antiunitary_settled, _beyond_grey, _carried_onto,
-    _carried_reduction, _centres_not_exactly_symmetric, _declared_cell,
+    _carried_reduction, _centers_not_exactly_symmetric, _declared_cell,
     _declared_cell_reduction, _declared_contents, _declared_contents_wider,
     _declared_parts_of, _descend_once, _descent_clauses, _descent_counts,
     _lattice_note, _layer_declared_reading, _match_operations, _operation_verdicts,
@@ -2357,9 +2357,9 @@ def _call_resolved(model, *, typat, environment, decorations, c, nk, tol, cut, w
     site_of = sites = site_orbs = lattice = None
     if (spin is not None or build_kw.get("multiplets") is not None
             or _names_joint_keys(build_kw.get("characters"))):
-        lattice, centres, _ = _pad_cell(model, c)
+        lattice, centers, _ = _pad_cell(model, c)
         sites, site_orbs, _ = _sites_and_typat(
-            centres, None,
+            centers, None,
             (finder_distance(precision, model, symprec) if tolerances is None
              else tolerances.finder), lattice)
         site_of = np.zeros(int(model.norb), dtype=int)
@@ -2524,14 +2524,14 @@ def _measured_selection(model, res, *, typat, cross_check, decorations, dz, c, c
         # that are exact, in the model's own frame wherever noise is all that
         # kept them from it.
         read = None
-        if tolerances.centre is not None:
-            got = _exact_centres(m3, cell, cell_typat, extras=extras, rebuild=rebuild,
+        if tolerances.center is not None:
+            got = _exact_centers(m3, cell, cell_typat, extras=extras, rebuild=rebuild,
                                  tolerances=tolerances)
             if isinstance(got, Refusal):
                 return got
             m3, cell, cell_typat, read = got
         got = _realized_core(m3, cell, cell_typat, fully_periodic=True,
-                             centres_read=read, **measured)
+                             centers_read=read, **measured)
         if isinstance(got, Refusal):
             return got
         sel, cross = got, None
@@ -2630,12 +2630,12 @@ def _representation_built(res, sld, *, selection_only, build_kw):
             # the miss of covariance are what to act on, whatever its size
             syms = {int(s.ind): s for s in group._symmetries}
             built = rep.context.get("indices", validated._indices)
-            own = _centres_account_for(m3, group, assignment,
+            own = _centers_account_for(m3, group, assignment,
                                        {int(i): syms[int(i)] for i in built},
                                        failure=rep.value, gate=rep.threshold,
                                        check="the covariance of the representation of "
                                              "the group",
-                                       declared=tolerances.centre is not None)
+                                       declared=tolerances.center is not None)
             if own is not None:
                 return own
         if (rep.gate == "rep_not_covariant"
@@ -3134,8 +3134,8 @@ def _layer_realized(model, *, environment, cross_check, typat, decorations, extr
     # the layer below, the free-standing one a substrate carries included, is
     # then made on centres that are exact.
     read = None
-    if tolerances.centre is not None:
-        got = _exact_centres(m3, cell, cell_typat, extras=extras, rebuild=rebuild,
+    if tolerances.center is not None:
+        got = _exact_centers(m3, cell, cell_typat, extras=extras, rebuild=rebuild,
                              tolerances=tolerances)
         if isinstance(got, Refusal):
             return got
@@ -3177,7 +3177,7 @@ def _layer_realized(model, *, environment, cross_check, typat, decorations, extr
                          context=context, spin=spin, max_bytes=max_bytes,
                          build_kw=build_kw, returned=returned,
                          declared_wider=wider, free_standing=free_standing,
-                         centres_read=read)
+                         centers_read=read)
     if isinstance(got, Refusal):
         return got
     if not returned or not cross_check:
@@ -3195,7 +3195,7 @@ def _layer_realized(model, *, environment, cross_check, typat, decorations, extr
     # close (`_resolve_closure`), a free-standing layer whose lift a flat cell
     # cannot pin, the readings of a declared content
     # (`_declaration._covariant_subgroup`), the subgroups carrying the centres
-    # within a declared precision (`_centres_carried`), or those carrying the
+    # within a declared precision (`_centers_carried`), or those carrying the
     # states' projective class (`_projective_class_refuted`) -- its measurement
     # determined a set of candidate groups, not one, and the two environments'
     # candidate sets are held against each other (`_environment_candidates`).
@@ -3490,7 +3490,7 @@ def _model_sectors(model, group, assignment, spin, validated, *, tolerances, con
 def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                    context, spin, max_bytes, build_kw,
                    fully_periodic, returned, declared_wider=None, free_standing=None,
-                   centres_read=None):
+                   centers_read=None):
     r"""The group this Hamiltonian obeys — three steps, rounded until they settle.
 
     One loop around the three the measurement is, and nothing in it knows what
@@ -3506,8 +3506,8 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
        the reduced cell is identified once, with provenance ``realized``, and is
        the cell every later descent builds on.  The orbitals are assigned to its
        Wyckoff orbits.  Where a tolerance for the centres is declared
-       (``tolerances.centre``) they were made exact before the cell was handed
-       in (:func:`_exact_centres`, whose record is ``centres_read``), so the cell
+       (``tolerances.center``) they were made exact before the cell was handed
+       in (:func:`_exact_centers`, whose record is ``centers_read``), so the cell
        is identified on exact centres; where the whole group did not carry them
        within it, the position pass runs here instead -- the lossless step, and
        before the detector, so that what the detector reads is the hoppings' own
@@ -3515,7 +3515,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
        centres it moved (:func:`_position_pass`).  Where nothing declares it, the
        centres are measured here all the same, and a defect that alone would
        break operations at the detector's tolerance is refused before anything
-       is built (:func:`_centres_not_exactly_symmetric`).
+       is built (:func:`_centers_not_exactly_symmetric`).
     2. **One verdict per operation** of that group, the antiunitary coset
        included: the detector's own (:func:`_validate_group`), the tensor
        structure of the operations it keeps -- on a spinful model each one it
@@ -3625,8 +3625,8 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
         # no group yet, so none to name; operations read off centers no
         # declaration speaks for, open by what their miss accounts for, are
         # those centers' to act on
-        if tolerances.centre is None:
-            own = _centres_account_for_closure(group)
+        if tolerances.center is None:
+            own = _centers_account_for_closure(group)
             if own is not None:
                 return own
         return group
@@ -3671,8 +3671,8 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
         return _refused(assignment)
     # centres the whole group carried within the declaration were moved before
     # the cell was identified, and that move is the record's
-    if centres_read is not None and centres_read.branch == "carried":
-        positions = dict(centres_read.positions)
+    if centers_read is not None and centers_read.branch == "carried":
+        positions = dict(centers_read.positions)
 
     layout = choices = None
     time_reversal = None
@@ -3703,7 +3703,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
     read_in: dict = {}
     reduce_pending = build_kw.get("characters") is not None
     reversal_measured = reversal_head = weighed = projected = False
-    centres_measured = False
+    centers_measured = False
     while True:
         # STEP 1, and before anything reads a hopping: the reductions the
         # DECLARED CONTENT makes to the cell itself.  Two sites of one orbit
@@ -3764,7 +3764,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                         return _refused(assignment)
                     continue
         # The CENTRES, next -- and only where a tolerance for them was declared
-        # (`tolerances.centre`, a precision's `p` or `position_tol`), which says
+        # (`tolerances.center`, a precision's `p` or `position_tol`), which says
         # what "noise" means for them, and the whole group the cell allows did
         # not carry them within it, so that they were not moved before the cell
         # was identified.  This is the lossless step (a k-dependent gauge,
@@ -3779,20 +3779,20 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
         # like any other.  It runs once, and the cell every later identification
         # is built on is built again on the moved centres, so that each of them
         # reads centres that are exact.
-        centres = None
-        if (tolerances.centre is not None
+        centers = None
+        if (tolerances.center is not None
                 and not (positions or {}).get("adjusted")):
-            got = _position_pass(model, group, tolerances, labels, centres_read)
+            got = _position_pass(model, group, tolerances, labels, centers_read)
             if isinstance(got, Refusal):
                 return _refused(got)
             before = group
-            model, group, assignment, positions, centres, extras_now = got
-            env_cell, env_typat = centres_read.rebuild(model, extras_now)
+            model, group, assignment, positions, centers, extras_now = got
+            env_cell, env_typat = centers_read.rebuild(model, extras_now)
             base_cell, base_typat = _cell_carried(
                 env_cell, env_typat, base_cell, base_typat,
-                len(centres_read.frame.points),
+                len(centers_read.frame.points),
                 (np.asarray(group._shiftUC, dtype=float)
-                 - np.asarray(before._shiftUC, dtype=float)) * centres_read.frame.scale)
+                 - np.asarray(before._shiftUC, dtype=float)) * centers_read.frame.scale)
             cell, cell_typat = base_cell, list(base_typat)
             if free_standing is not None:
                 # the free-standing cell of the same point set, on the moved centres
@@ -3800,14 +3800,14 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                     model, free_standing["labels"], environment="free-standing",
                     decorations=extras_now)
                 free_standing.pop("group", None)
-        elif tolerances.centre is None and not centres_measured:
+        elif tolerances.center is None and not centers_measured:
             # ... and where nothing declares what noise means for the centres,
             # they are measured all the same, once: a defect that alone breaks
             # operations at the detector's tolerance would make every verdict
             # below the geometry's as much as the hoppings', so it is refused
             # here, before anything is built, with the number to act on.
-            centres_measured = True
-            refused = _centres_not_exactly_symmetric(model, group, assignment,
+            centers_measured = True
+            refused = _centers_not_exactly_symmetric(model, group, assignment,
                                                      tol=tolerances.energy)
             if refused is not None:
                 return _refused(refused)
@@ -3916,8 +3916,8 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                                       build_kw.get("max_candidates", 2 ** 20)
                                       or 2 ** 20),
                                   free_standing=free_standing,
-                                  centres=(None if centres is None
-                                           else centres.refuted),
+                                  centers=(None if centers is None
+                                           else centers.refuted),
                                   sectors=sectors, own_form=own_form)
         if isinstance(got, Refusal):
             # fired before the group is settled: what is named is the cell's
@@ -3942,7 +3942,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                                 symprec=tolerances.finder, step=len(steps) + 1,
                                 refuted=refuted, lattice_record=lattice,
                                 declaration=declaration, projective=projective,
-                                centres=centres)
+                                centers=centers)
             if isinstance(got, Refusal):
                 return _refused(got)
             # THE OPERATIONS COMBINED WITH TIME REVERSAL the descent leaves
@@ -4090,7 +4090,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
             # meets the same refusal.
             provisional, record = _projection_operators(
                 model, group, assignment, validated, tol=tolerances.energy,
-                build_kw={**sym_kw, "spin": spin, "_labelled": False})
+                build_kw={**sym_kw, "spin": spin, "_labeled": False})
             if provisional:
                 classes = _classify_operations(
                     validated, tolerances.energy, exact_gate=exact_gate,
@@ -4103,7 +4103,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                                    _parts=(None if apart is None else
                                            {"orbitals": apart, "coupling": coupling}),
                                    _held=({"sets": held_apart, "off": off} if alike else None),
-                                   _centres_declared=tolerances.centre is not None,
+                                   _centers_declared=tolerances.center is not None,
                                    _operators=(exact_gate, (provisional, record), classes),
                                    **sym_kw)
                 if isinstance(got, Refusal):
@@ -4222,7 +4222,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
 
 
 @dataclass(frozen=True)
-class _CentresRead:
+class _CentersRead:
     """What the measurement continues from, the centres made exact under a declared precision.
 
     Attributes
@@ -4256,7 +4256,7 @@ class _CentresRead:
 
 
 @dataclass(frozen=True)
-class _CentresVerdict:
+class _CentersVerdict:
     """Which operations of a group carry the orbital centres within a declared precision.
 
     Attributes
@@ -4284,11 +4284,11 @@ class _CentresVerdict:
     note: str
 
 
-def _exact_centres(model, cell, cell_typat, *, extras, rebuild, tolerances):
+def _exact_centers(model, cell, cell_typat, *, extras, rebuild, tolerances):
     r"""The centres made exact under a declared precision, before the cell's setting is read.
 
     A declared precision says each centre is known to ``p``
-    (``tolerances.centre``), in reduced coordinates.  The cell's operations come
+    (``tolerances.center``), in reduced coordinates.  The cell's operations come
     first, read off the centres as they are by the symmetry finder at its own
     distance -- its non-magnetic search, since a cell of centres carries no
     moment and time reversal moves no centre, so that the grey group's
@@ -4324,16 +4324,16 @@ def _exact_centres(model, cell, cell_typat, *, extras, rebuild, tolerances):
     declared beside the model, which moves with the centres.
 
     Returns ``(model, cell, cell_typat, read)``, ``read`` the
-    :class:`_CentresRead` the measurement continues from, or the refusal the
+    :class:`_CentersRead` the measurement continues from, or the refusal the
     spectrum check made.
     """
     import spglib
 
 
-    p = float(tolerances.centre)
+    p = float(tolerances.center)
     extras = tuple(extras or ())
     frame = _cell_sites(cell, cell_typat, tolerances.finder, n_extra=len(extras))
-    read = _CentresRead(branch="as found", frame=frame, source=model, extras=extras,
+    read = _CentersRead(branch="as found", frame=frame, source=model, extras=extras,
                         rebuild=rebuild, positions=None)
     if not len(frame.moving):                   # pragma: no cover - a model has orbitals
         return model, cell, cell_typat, read
@@ -4373,7 +4373,7 @@ def _exact_centres(model, cell, cell_typat, *, extras, rebuild, tolerances):
     if np.array_equal(orb, raw):
         moved, resid, n_check = model, 0.0, 0
     else:
-        (moved, resid), n_check = _with_centres(model, orb), _bloch.CHECK_K
+        (moved, resid), n_check = _with_centers(model, orb), _bloch.CHECK_K
     new_cell, new_typat = rebuild(moved, moved_extras)
     final_trans = np.array([final[perm[g, 0]] + shift[g, 0] - rotations[g] @ final[0]
                             for g in rows])
@@ -4423,11 +4423,11 @@ def _moved_note(move, offset, in_frame, delta, p, resid,
                    ": nothing was moved.")
 
 
-def _centres_carried(group, frame, perm, shift, rotations, ind_of_row,
-                     tolerances) -> _CentresVerdict:
+def _centers_carried(group, frame, perm, shift, rotations, ind_of_row,
+                     tolerances) -> _CentersVerdict:
     r"""Which operations of the group carry the orbital centres within the declared precision.
 
-    A declared precision ``p`` -- ``tolerances.centre``, a precision's own ``p``
+    A declared precision ``p`` -- ``tolerances.center``, a precision's own ``p``
     or a declared ``position_tol`` -- says that each centre is known to ``p``, in
     reduced coordinates: the centres are carried by a group of operations
     within it where projecting them onto the nearest set that group carries
@@ -4447,14 +4447,14 @@ def _centres_carried(group, frame, perm, shift, rotations, ind_of_row,
     ``perm`` and ``shift`` are the unitary operations' action on the sites of
     ``frame`` (:func:`_site_action`), row by row as ``ind_of_row`` keys them.
 
-    Returns the :class:`_CentresVerdict`: the move the whole group asks, the
+    Returns the :class:`_CentersVerdict`: the move the whole group asks, the
     ``.ind`` of the operations kept (all of them
     where the whole group carries the centres), the refuted operations keyed by
     ``.ind`` (``refuted_by = "centers"``, with ``miss``, ``precision`` and
     ``note``), the tied subgroups in the rule's order where several tied, and
     a note, empty where nothing is refuted.
     """
-    p = float(tolerances.centre)
+    p = float(tolerances.center)
     syms = group._symmetries
     every = frozenset(int(s.ind) for s in syms)
     row_of = {int(i): r for r, i in enumerate(ind_of_row)}
@@ -4468,7 +4468,7 @@ def _centres_carried(group, frame, perm, shift, rotations, ind_of_row,
 
     whole = move(every)
     if within(whole, p):
-        return _CentresVerdict(precision=p, move=whole, kept=tuple(sorted(every)),
+        return _CentersVerdict(precision=p, move=whole, kept=tuple(sorted(every)),
                                refuted={}, tied=(), note="")
     # the primed partner of each unitary operation, through the group's own
     # product table: T * g, with T the pure time reversal, which moves no centre
@@ -4547,7 +4547,7 @@ def _centres_carried(group, frame, perm, shift, rotations, ind_of_row,
                f"rule `realized_group` states -- {_tie_rule_words(group)} -- since "
                f"{_tie_reason(group, ranked)}" if len(ranked) > 1 else "")
             + ".")
-    return _CentresVerdict(precision=p, move=whole, kept=tuple(sorted(primed(kept))),
+    return _CentersVerdict(precision=p, move=whole, kept=tuple(sorted(primed(kept))),
                            refuted=refuted, tied=ranked if len(ranked) > 1 else (), note=note)
 
 
@@ -4557,7 +4557,7 @@ def _position_pass(model, group, tolerances, labels, read):
     The centres the cell was handed in with are read against the group the
     cell allows, under the declared precision: the largest group of its
     operations whose exact positions are within ``p`` of them carries them
-    (:func:`_centres_carried`), the whole group wherever it does.  They are
+    (:func:`_centers_carried`), the whole group wherever it does.  They are
     projected onto that group's positions (:func:`_symmetric_sites`), a shift of
     all of them together that is noise is removed so that they are written in
     the model's own frame (:func:`_rational_offset`), and the model is moved
@@ -4568,18 +4568,18 @@ def _position_pass(model, group, tolerances, labels, read):
     centres' verdict, broken by them in the verdict stage, the descent that
     follows keeping that origin.
 
-    ``read`` is :func:`_exact_centres`' record: the cell's sites as handed in,
+    ``read`` is :func:`_exact_centers`' record: the cell's sites as handed in,
     and the decorations that move with the centres.
 
     Returns ``(model, group, assignment, record, verdict, extras)`` -- ``verdict``
-    the centres' own (:func:`_centres_carried`) where it refutes an operation,
+    the centres' own (:func:`_centers_carried`) where it refutes an operation,
     ``None`` otherwise, and ``extras`` the decorations moved with the centres --
     or the :class:`..refusal.Refusal` the move made.
     """
     from types import SimpleNamespace
 
 
-    p = float(tolerances.centre)
+    p = float(tolerances.center)
     frame = read.frame
     source = read.source
     extras = tuple(read.extras)
@@ -4600,7 +4600,7 @@ def _position_pass(model, group, tolerances, labels, read):
             "(`typat=`, `decorations=`).",
             value=float("nan"), threshold=p, context={"group": group})
     perm, shift = action
-    verdict = _centres_carried(group, frame, perm, shift, rotations, ind_of_row, tolerances)
+    verdict = _centers_carried(group, frame, perm, shift, rotations, ind_of_row, tolerances)
     beyond = bool(verdict.refuted)
     kept = set(int(i) for i in verdict.kept)
     rows = [r for r, i in enumerate(ind_of_row) if i in kept]
@@ -4634,7 +4634,7 @@ def _position_pass(model, group, tolerances, labels, read):
     if np.array_equal(orb, raw):
         moved, resid, n_check = model, 0.0, 0
     else:
-        (moved, resid), n_check = _with_centres(model, orb), _bloch.CHECK_K
+        (moved, resid), n_check = _with_centers(model, orb), _bloch.CHECK_K
     moved_extras = _moved_extras(extras, shifted, len(frame.points) - len(extras), dim_r)
     # the group, carried onto the origin the moved centres are exact about: once
     # in the frame the centres were read in, which the defects below are
@@ -4789,27 +4789,27 @@ def _cell_group_not_realized(group, validated, three_d, refuted=None) -> Refusal
     (:func:`.._descent._projective_class_refuted`) are counted under their own name: no
     hopping breaks them, and no single-valued representation carries them.
     So are those the orbital **centres** are not carried by within a declared
-    precision (:func:`_centres_carried`), whose verdict stands for them whatever
+    precision (:func:`_centers_carried`), whose verdict stands for them whatever
     the detector read on them.
     """
     refuted = dict(refuted or {})
     classed = {i for i, r in refuted.items()
                if isinstance(r, dict) and r.get("refuted_by") == "projective class"}
-    centred = {i for i, r in refuted.items()
+    centered = {i for i, r in refuted.items()
                if isinstance(r, dict) and r.get("refuted_by") == "centers"}
-    structural = {i: r for i, r in refuted.items() if i not in classed | centred}
+    structural = {i: r for i, r in refuted.items() if i not in classed | centered}
     lifted = sum(1 for r in structural.values()
                  if isinstance(r, dict) and bool(r.get("spin_lift")))
     reasons = {}
     for d in validated.discrepancies:
-        if int(d.index) not in centred:
+        if int(d.index) not in centered:
             reasons[d.refuted_by] = reasons.get(d.refuted_by, 0) + 1
     if structural:
         reasons["tensor structure"] = len(structural)
     if classed:
         reasons["projective class"] = len(classed)
-    if centred:
-        reasons["centers"] = len(centred)
+    if centered:
+        reasons["centers"] = len(centered)
     n_broken = len(set(validated.broken) | set(refuted))
     n_obeyed = len(set(validated._indices) - set(refuted))
     proven = reasons.get("no symmetry matrix", 0)
@@ -4871,11 +4871,11 @@ def _cell_group_not_realized(group, validated, three_d, refuted=None) -> Refusal
                              "they are not operations of the spinless crystal; `spin=` "
                              "reads the same states in the double group.")
            if classed else "")
-        + (the(len(centred), "broken by the centers do not carry the orbital centers "
+        + (the(len(centered), "broken by the centers do not carry the orbital centers "
                              "onto one another within the declared precision: moving the "
                              "centers onto the positions they put them at would move one "
                              "further than the precision allows.")
-           if centred else "")
+           if centered else "")
         + lattice
         + " "
         f"{group.number_str} is what the positions allow, an unmeasured upper "

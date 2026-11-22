@@ -425,8 +425,8 @@ phases_upper = wf_chiral.berry_phase(axis_idx=0, state_idx=[2, 3], berry_evals=T
 cos_upper = np.real(np.trace(w_upper, axis1=1, axis2=2)) / 2.0
 psi_upper = np.arccos(np.clip(cos_upper, -1.0, 1.0))
 winding_upper = float(np.abs(np.diff(psi_upper)).sum() / (2 * np.pi))
-centre_upper = float(np.abs(phases_upper).max())
-row("bands 2 and 3", f"both centers at zero at every k_y, largest |phi / 2pi| {centre_upper:.6f},",
+center_upper = float(np.abs(phases_upper).max())
+row("bands 2 and 3", f"both centers at zero at every k_y, largest |phi / 2pi| {center_upper:.6f},",
     "and the loop does not wind" if int(round(winding_upper)) == 0
     else f"and each branch winds by ±{int(round(winding_upper))}")
 print("   only bands 0 and 1 wind: they carry the obstruction section 5 diagnoses")

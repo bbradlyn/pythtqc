@@ -314,7 +314,7 @@ above it in this table, the public ones among them.
 | `_detector` | the eigen-sift detector: every matrix `X` with `X H(k) = H(Rk) X` on a grid of `k` |
 | `_matrices` | the arithmetic of the operations' matrices: their composition, their phase, the Bloch operator, the members of a solution space inside given blocks |
 | `_grammar` | the grammar of `characters=` and `site_multiplets=`, read where a call starts |
-| `_centres` | the orbital centres against the group's action: where the operations put them, and how far they miss |
+| `_centers` | the orbital centres against the group's action: where the operations put them, and how far they miss |
 | `_naming` | site irreps named off the tables, each by the elementary band representation it induces |
 | `symmetry` | the representation's records: each operation's matrix on the model's states, the atomic-limit table and each Wyckoff orbit's row |
 | `_sectors` | the sectors the conserved matrices acting within sites split the states into |
@@ -326,7 +326,7 @@ above it in this table, the public ones among them.
 | `_srsitables` | the tables of the stable real-space invariants as shipped, and the paper's names for the symmetry indicators |
 | `ebr` | whether a content could be an atomic limit, and its symmetry-indicator class |
 | `srsi` | the stable real-space invariants of a set of bands and of a model, and the no-go criterion on a gapped splitting |
-| `_labelling` | the labelling the Hamiltonian leaves open, chosen once by the lowest-angular-momentum rule, and the atomic-limit table read off it |
+| `_labeling` | the labelling the Hamiltonian leaves open, chosen once by the lowest-angular-momentum rule, and the atomic-limit table read off it |
 | `_measure` | `H(k)` on the detection grid and one solution space per k-action: the verdict on each operation of a group |
 | `_build` | the representation, built once on what the verdict stage measured |
 | `symmetrization` | a model symmetric only to its declared precision, made exactly symmetric |

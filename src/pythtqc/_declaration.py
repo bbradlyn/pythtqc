@@ -1327,7 +1327,7 @@ def _parts_read(decls, anc, ops):
     # solution space spoke about it.  That is a decoupled multiplet -- what it
     # carries relative to the anchor is a question this Hamiltonian cannot
     # answer, on this site or any other -- and it is the labelling's to settle
-    # (:func:`.._labelling._labelling`), as a declaration states it.
+    # (:func:`.._labeling._labeling`), as a declaration states it.
     free_classes = frozenset(
         cls for cls in range(nclass)
         if any(cls in got for got in seen.values())

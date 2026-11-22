@@ -274,11 +274,11 @@ print(indicator.indicator_group, indicator.indicators)
 
 ```python
 # the four nearest neighbours of the atom at the origin: the other atom and three images
-neighbours = atoms[1] + np.array([[0, 0, 0], [0, -1, 0], [1, -1, 0], [0, -1, 1]])
-print(np.round(np.linalg.norm((neighbours - atoms[0]) @ lattice, axis=1), 4))
+neighbors = atoms[1] + np.array([[0, 0, 0], [0, -1, 0], [1, -1, 0], [0, -1, 1]])
+print(np.round(np.linalg.norm((neighbors - atoms[0]) @ lattice, axis=1), 4))
 #  [2.3372 2.3372 2.3372 2.3372]
-centres = (atoms[0] + neighbours) / 2                           # the centres of its four bonds
-print([s.wyckoff for s in tqc.wyckoff_sites_tables(r.group, centres)])
+centers = (atoms[0] + neighbors) / 2                           # the centres of its four bonds
+print([s.wyckoff for s in tqc.wyckoff_sites_tables(r.group, centers)])
 #  ['3a', '9d', '9d', '9d']
 ```
 

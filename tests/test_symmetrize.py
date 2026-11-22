@@ -1060,7 +1060,7 @@ def _thick_slab(shifts=None):
     return m
 
 
-def _move_one_centre(model, delta, which=1, direction=0):
+def _move_one_center(model, delta, which=1, direction=0):
     """The same model with one orbital centre displaced — the w90 defect, isolated."""
     orb = np.asarray(model.orb_vecs, dtype=float).copy()
     orb[which, direction] += delta
@@ -1193,7 +1193,7 @@ def test_a_tied_orientation_branch_is_measured_the_same_representation():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.slow
-def test_a_declared_position_tol_snaps_the_centres_before_anything_else(
+def test_a_declared_position_tol_snaps_the_centers_before_anything_else(
         km_odd, km_odd_free_standing):
     """The public regression that motivated the wiring, through the one call.
 
@@ -1233,7 +1233,7 @@ def test_a_declared_position_tol_snaps_the_centres_before_anything_else(
     centres right every operation is exact and the hopping pass never runs.
     """
     clean = km_odd_free_standing
-    displaced = _move_one_centre(km_odd, 1e-8)
+    displaced = _move_one_center(km_odd, 1e-8)
 
     out = tqg.realized_group(displaced, environment="free-standing", typat=[0, 1],
                              characters={0: "A1"},
@@ -1374,7 +1374,7 @@ def test_the_position_pass_runs_before_the_hopping_projection(km_odd,
     declared.
     """
     clean = km_odd_free_standing
-    both = jitter(_move_one_centre(km_odd, 1e-8))
+    both = jitter(_move_one_center(km_odd, 1e-8))
     tol = TOL_FACTOR * JITTER * _max_H(km_odd)
 
     out = _realized._realize(both, environment="free-standing", typat=[0, 1],
@@ -1479,7 +1479,7 @@ def test_the_position_pass_runs_before_the_hopping_projection(km_odd,
 
 
 @pytest.mark.slow
-def test_centres_too_far_from_symmetric_break_the_operations_they_miss(km_odd):
+def test_centers_too_far_from_symmetric_break_the_operations_they_miss(km_odd):
     """"Broken is not near", for the geometry — now through the pipeline.
 
     A centre displaced by **1e-3**, asked (``symprec = 2e-3``) about the group
@@ -1511,7 +1511,7 @@ def test_centres_too_far_from_symmetric_break_the_operations_they_miss(km_odd):
     24-operation cell these counts are measured against is the free-standing
     one.
     """
-    bad = _move_one_centre(km_odd, 1e-3)
+    bad = _move_one_center(km_odd, 1e-3)
 
     # 1. asked about the group they only nearly have: the operations the centres
     #    miss by more than the declaration are broken by them, the group
@@ -1547,7 +1547,7 @@ def test_centres_too_far_from_symmetric_break_the_operations_they_miss(km_odd):
     cell, cell_typat = _layers._decorated_cell(clean3, [0, 1])
     group = _spacegroup._group_of(cell, typat=cell_typat, spinor=True)
     asg = _tables._assign_orbitals(clean3, group, typat=[0, 1])
-    refused = _symmetrize_positions(_move_one_centre(clean3, 1e-3), group, asg,
+    refused = _symmetrize_positions(_move_one_center(clean3, 1e-3), group, asg,
                                     max_move=1e-6)
     assert not refused and refused.gate == "positions_not_nearly_symmetric"
     assert refused.value == pytest.approx(5e-4, rel=1e-6, abs=0)
@@ -2105,7 +2105,7 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
     # the labellings that keep every site corep and label some band otherwise,
     # each by what set it aside
     def set_aside(out):
-        return [key for choice in out.rep._characters._labellings["choices"]
+        return [key for choice in out.rep._characters._labelings["choices"]
                 for key, _labels in choice["others"]]
     assert set_aside(bare) == ["content", "orbitals"]
     coreps = {(0, 1, 2): "2x-E1 + -1E2E", (3, 4, 5): "2x-E1 + -1E2E"}
@@ -2266,7 +2266,7 @@ def test_a_defect_above_the_declaration_descends_as_the_explicit_knobs_do(km_odd
     without tables and says so -- its note carries ``irrep``'s own message, and
     every row names the tables as unavailable, and why.
     """
-    bad = _move_one_centre(km_odd, 1e-3)
+    bad = _move_one_center(km_odd, 1e-3)
     got = tqg.realized_group(bad, typat=[0, 1], characters={0: "A1"},
                              symprec=2e-3, precision=1e-6, cross_check=False)
     expl = tqg.realized_group(bad, typat=[0, 1], characters={0: "A1"},

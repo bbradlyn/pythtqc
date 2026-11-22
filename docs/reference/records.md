@@ -118,9 +118,9 @@ print(declared)
 #  RealizedGroup(P31' #143.2; cell lowered by the declared content from P6mm1' #183.186 (12 of 24 coset representatives of the lattice translations excluded; these are the single-valued group's, each standing for itself and its negative in the double group); descended from P3m11' #156.50 (6 of 12 broken by the declared content); on a substrate (the default), the free-standing group P31' #143.2 agrees)
 
 rng = np.random.default_rng(7)
-centres = np.asarray(km.orb_vecs, dtype=float)
-centres[0, 0] += 1e-8
-fitted = TBModel(Lattice(np.asarray(km.lat_vecs, dtype=float), centres.tolist(),
+centers = np.asarray(km.orb_vecs, dtype=float)
+centers[0, 0] += 1e-8
+fitted = TBModel(Lattice(np.asarray(km.lat_vecs, dtype=float), centers.tolist(),
                          periodic_dirs=[0, 1]), spinful=True)
 fitted.set_onsite(np.asarray(km.onsite), mode="set")
 for h in km.hoppings:

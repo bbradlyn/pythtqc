@@ -38,8 +38,8 @@ from ._declaration import (
     _covariant_subgroup, _declaration_breaks, _declared_blocks, _declared_key,
     _lead_of, _multiplet_characters, _named_content, _normalize_declaration,
     _verdicts_and_choices)
-from ._labelling import (
-    _assembled, _atomic_limit_table, _coupled_parts, _labelling, _wyckoff_sites)
+from ._labeling import (
+    _assembled, _atomic_limit_table, _coupled_parts, _labeling, _wyckoff_sites)
 
 
 @dataclass(frozen=True)
@@ -469,7 +469,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
                strategy="readoff", max_candidates=2 ** 20,
                k_pts=None, n_battery=6, tol=None, internal_tol=1e-9,
                product_tol=1e-9, seed=101, _choices=None,
-               _returned=True, _labelled=True,
+               _returned=True, _labeled=True,
                _search_record=None) -> SpaceGroupRep | Refusal:
     r"""The matrix each symmetry operation is, on this model's orbitals.
 
@@ -977,7 +977,7 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
         return ops
     mul = _multiplet_layout(model, group, assignment, ops, multiplets=multiplets,
                             characters=characters, reference_orbital=reference_orbital,
-                            _labelled=_labelled)
+                            _labeled=_labeled)
     if not isinstance(mul, _Multiplets):
         return mul
     meas = _measurement_read(model, group, assignment, ops, mul, internal_tol=internal_tol,
@@ -1229,7 +1229,7 @@ def _represented_operations(model, group, assignment, *, validated, multiplets, 
 
 
 def _multiplet_layout(model, group, assignment, ops, *, multiplets, characters,
-                      reference_orbital, _labelled):
+                      reference_orbital, _labeled):
     """The multiplets, their orbits under the operations, and the anchor.
 
     Parameters
@@ -1246,7 +1246,7 @@ def _multiplet_layout(model, group, assignment, ops, *, multiplets, characters,
         As in :func:`_build_rep`.
     reference_orbital : int
         As in :func:`_build_rep`.
-    _labelled : bool
+    _labeled : bool
         Whether the labelling is named: with it ``False`` and nothing declared, the site
         tables are not read.
     ops : _Operations
@@ -1281,8 +1281,8 @@ def _multiplet_layout(model, group, assignment, ops, *, multiplets, characters,
     try:
         # the site tables read a declaration and name the labelling; a build
         # whose matrices are wanted only up to that labelling, with nothing
-        # declared, needs neither (`_labelled=False`)
-        if _labelled or characters is not None:
+        # declared, needs neither (`_labeled=False`)
+        if _labeled or characters is not None:
             site_tables = _site_tables(group, assignment, kept_u_ind, kept_au_ind,
                                        range(len(site_orbs)))
     except Exception as exc:                     # noqa: BLE001 - see below
@@ -2155,7 +2155,7 @@ def _returned_representation(model, group, assignment, ops, mul, meas, bat, acc,
     # relative to one another, not what they are.  The multiplets' characters
     # are read once on the representation as settled
     # (:func:`_multiplet_characters`); one chooser takes each part's candidates
-    # -- what its declarations leave -- to one labelling (:func:`_labelling`);
+    # -- what its declarations leave -- to one labelling (:func:`_labeling`);
     # and it is put in here (:func:`_assembled`), so that the matrices returned
     # are the representation induced from the returned site content in the
     # tables' convention, spin up along +z in a right-handed frame.  The record
@@ -2171,7 +2171,7 @@ def _returned_representation(model, group, assignment, ops, mul, meas, bat, acc,
         for j in tuple(verdict.joint) + tuple(verdict.by_sectors):
             measured_at.setdefault(tuple(int(o) for o in j.decl["orbitals"]), set()).update(
                 int(g) for row in j.theta.values() for g in row)
-        choice = _labelling(D, raw, decls, pool=pool, model=model, group=group,
+        choice = _labeling(D, raw, decls, pool=pool, model=model, group=group,
                             assignment=assignment, layout=layout,
                             syms=syms, u_pos=u_pos, cperm=cperm, classes=classes,
                             parts=coupled_parts, ref_chan=ref_chan,
@@ -2889,7 +2889,7 @@ def _gate(ops, mul, bat, records):
                    "candidates": candidates})
 
 
-def _one_labelling_apart(ops, mul, bat, A, B, tol=1e-8):
+def _one_labeling_apart(ops, mul, bat, A, B, tol=1e-8):
     """Whether two settled candidates differ by one character on each coupled part.
 
     Asked of the unitary operations, which the site irreps and the band
@@ -2929,7 +2929,7 @@ def _pin_branch(ops, mul, bat, survivors):
         per.setdefault(int(grp[0]["orientation"]), []).append(grp)
     if sorted(per) != [-1, 1] or any(len(v) != 1 for v in per.values()):
         return out
-    if site_tables and not _one_labelling_apart(ops, mul, bat, per[1][0][0]["normalized"][0],
+    if site_tables and not _one_labeling_apart(ops, mul, bat, per[1][0][0]["normalized"][0],
                                                 per[-1][0][0]["normalized"][0]):
         return out
     return replace(out, survivors=[per[1][0]], tie=True, note=(
@@ -2946,7 +2946,7 @@ def _pin_branch(ops, mul, bat, survivors):
 def _with_multiplicity_spaces(table, chosen, group, assignment):
     """``table`` with each conserved pseudospin's chosen content on it, and its rows marked.
 
-    ``chosen`` is the chooser's record of each pseudospin (:func:`_labelling`):
+    ``chosen`` is the chooser's record of each pseudospin (:func:`_labeling`):
     the site content returned at the orbit's lead multiplet, and every content
     the representations of its copies give there, in the order the key ranked
     them, each named against the same site table.  A row of such an orbit that

@@ -351,8 +351,8 @@ print([(o.wyckoff, o.label, o.determined_by) for o in r.wyckoff_orbits])
 other = tqc.realized_group(models.lin3g(), typat=[0, 0, 1, 1], characters={0: "dx2-y2"})
 print(tuple(o.label for o in other.wyckoff_orbits))
 #  ('-E2', '-E1', '-E')
-relabelled = tqc.coreps_at(other, hsp["GM"], bands=6)
-print(relabelled, [m.label for m in relabelled.multiplets])
+relabeled = tqc.coreps_at(other, hsp["GM"], bands=6)
+print(relabeled, [m.label for m in relabeled.multiplets])
 #  CorepsAt(GM: -GM6 + 2x-GM7) ['-GM7', '-GM6', '-GM7']
 ```
 

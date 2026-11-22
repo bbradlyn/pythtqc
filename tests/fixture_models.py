@@ -2368,7 +2368,7 @@ IM3M_8C_SHELLS = {
 }
 
 
-def im3m_8c(shells=("p", "d"), rotated=False, centre=False, seed=5, rotation_seed=11):
+def im3m_8c(shells=("p", "d"), rotated=False, center=False, seed=5, rotation_seed=11):
     """Real harmonics at the ``8c`` sites of ``Im-3m``, each written in its site's own frame.
 
     ``8c`` is an orbit of eight sites in the conventional cell, four in the
@@ -2386,7 +2386,7 @@ def im3m_8c(shells=("p", "d"), rotated=False, centre=False, seed=5, rotation_see
 
     The ``8c`` sites alone make a simple cubic point set of half the cell's
     edge, whose own lattice is finer than the body-centred one, so the crystal
-    is found by a descent from ``Pm-3m1'``.  ``centre`` puts an ``s`` orbital
+    is found by a descent from ``Pm-3m1'``.  ``center`` puts an ``s`` orbital
     at ``2a``, the origin, as orbital 0: the point set then has the
     body-centred lattice and nothing finer, and the ``s`` is the reference the
     other orbitals are read against.
@@ -2399,7 +2399,7 @@ def im3m_8c(shells=("p", "d"), rotated=False, centre=False, seed=5, rotation_see
     rotated : bool, optional
         Turn every site's basis inside each isotypic component.  Default
         ``False``.
-    centre : bool, optional
+    center : bool, optional
         Put an ``s`` orbital at ``2a`` first.  Default ``False``.
     seed : int, optional
         Seed of the random hoppings.  Default ``5``.
@@ -2410,7 +2410,7 @@ def im3m_8c(shells=("p", "d"), rotated=False, centre=False, seed=5, rotation_see
     -------
     pythtb.TBModel
         Spinless 3D model, four sites times the functions of ``shells``, and
-        the ``s`` at ``2a`` where ``centre``.
+        the ``s`` at ``2a`` where ``center``.
     """
     ops = []
     for perm in itertools.permutations(range(3)):
@@ -2420,11 +2420,11 @@ def im3m_8c(shells=("p", "d"), rotated=False, centre=False, seed=5, rotation_see
         ops.extend(P @ np.diag(signs) for signs in itertools.product([1, -1], repeat=3))
     sites = [0.25 * axis for axis in IM3M_8C_AXES]
     orbitals, names = [], []
-    if centre:
+    if center:
         sites = [np.zeros(3)] + sites
         orbitals.append((0, 0, _harmonic("s", 0)))
         names.append((0, "s"))
-    first = 1 if centre else 0
+    first = 1 if center else 0
     for s, axis in enumerate(IM3M_8C_AXES):
         z = axis / np.linalg.norm(axis)
         x = np.array([axis[0], -axis[1], 0.0]) / np.sqrt(2.0)
@@ -2632,8 +2632,8 @@ def r3m_p_shell(angle=0.0, spinful=False, seed=3, pair=False):
     V = _turned_p_shell(angle, order)
     sites, ops = [np.zeros(3)], R3M_OPS
     if pair:
-        centre = R3M_PAIR_U * R3M_LATTICE.sum(axis=0)
-        sites, ops = [centre, -centre], list(R3M_OPS) + [-R for R in R3M_OPS]
+        center = R3M_PAIR_U * R3M_LATTICE.sum(axis=0)
+        sites, ops = [center, -center], list(R3M_OPS) + [-R for R in R3M_OPS]
         V = np.kron(np.eye(2), V)
     orbitals = [(s, 1, _harmonic(name, 1)) for s in range(len(sites)) for name in order]
     if spinful:

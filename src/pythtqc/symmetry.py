@@ -465,7 +465,7 @@ class _OrbitalTable:
     # multiplet under the one returned and under each of those, with the key
     # that set it aside -- read by `sewing.hsp_table` to say where a set of
     # bands' labels rest on that choice
-    _labellings: dict = field(default_factory=dict, repr=False, compare=False)
+    _labelings: dict = field(default_factory=dict, repr=False, compare=False)
 
     def __len__(self) -> int:
         return len(self.orbitals)

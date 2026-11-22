@@ -1344,7 +1344,7 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     # ... and copies every representation of which gives one site content: a
     # labelling like any other, under the one sentence
     note = tqw.hsp_table(tqg.realized_group(tqc_models.p1bar_s_copies()), bands=2).note
-    assert note == tqw._ANOTHER_LABELLING_RELABELS, note
+    assert note == tqw._ANOTHER_LABELING_RELABELS, note
     # ... and copies none of whose representations is admitted: the build
     # refuses, saying how many sums of irreps of that dimension it weighed
     record = _sectors.InducedOrbit.record
@@ -1725,7 +1725,7 @@ def test_the_shipped_fixture_is_the_papers_closed_form_conjugated_onto_pythtbs_a
 
 
 @pytest.mark.slow
-def test_the_transcription_in_pythtbs_convention_is_labelled_s_in_its_own_group():
+def test_the_transcription_in_pythtbs_convention_is_labeled_s_in_its_own_group():
     """The paper's ``s`` on the ``2c`` pair is the label each frame's own group serves.
 
     The SRSI paper writes its fourfold operator as ``tau_1 . e^{+i pi sigma_3 / 4}``,

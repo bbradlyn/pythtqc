@@ -51,7 +51,7 @@ def _position_defect(model, group, assignment, ops):
     return worst
 
 
-def _centre_misses(model, group, assignment, ops):
+def _center_misses(model, group, assignment, ops):
     r"""Each orbital's miss of each operation, modulo the lattice.
 
     The miss is ``A·τ_a + t − s − τ_{g(a)}``, the identity
@@ -90,7 +90,7 @@ def _centre_misses(model, group, assignment, ops):
 def _miss_reach(model, group, assignment, ops) -> float:
     r"""The most the centers' miss of ``ops`` can move ``H``, in its units.
 
-    For an operation ``g``, the misses ``e_a`` of :func:`_centre_misses` put
+    For an operation ``g``, the misses ``e_a`` of :func:`_center_misses` put
     a phase error ``2π k·W(e_j − e_i)`` on the hopping from ``i`` to ``j`` at
     the image point ``k W``.  For ``k`` in ``[-1, 1]`` along each periodic
     direction that error is at most ``2π |W(e_j − e_i)|``, the components'
@@ -110,7 +110,7 @@ def _miss_reach(model, group, assignment, ops) -> float:
     whole = (size + size.swapaxes(-2, -1)).sum(axis=0)   # each hopping and its conjugate
     per = [int(d) for d in group.periodic_dirs]
     worst = 0.0
-    for ind, miss in _centre_misses(model, group, assignment, ops).items():
+    for ind, miss in _center_misses(model, group, assignment, ops).items():
         act = group._k_action_of(ops[ind])
         if act is None:
             continue
@@ -123,7 +123,7 @@ def _miss_reach(model, group, assignment, ops) -> float:
     return worst
 
 
-def _centres_account_for(model, group, assignment, ops, *, failure, gate, check,
+def _centers_account_for(model, group, assignment, ops, *, failure, gate, check,
                          declared=False):
     r"""The refusal where the centers' miss accounts for a failed check.
 
@@ -164,7 +164,7 @@ def _centres_account_for(model, group, assignment, ops, *, failure, gate, check,
                  "failure": failure})
 
 
-def _centres_account_for_closure(refusal):
+def _centers_account_for_closure(refusal):
     r"""The refusal where the centers' miss accounts for operations that do not close.
 
     ``refusal`` is a refusal of the cell's identification, made with no

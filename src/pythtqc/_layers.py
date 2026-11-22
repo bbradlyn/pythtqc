@@ -505,7 +505,7 @@ def _layer_on_stack(group, assignment, stack) -> tuple:
         x = np.asarray(x, dtype=float)
         return float(np.abs(x - np.rint(x)).max()) if x.size else 0.0
 
-    def _centred(x):
+    def _centered(x):
         """Reduced coordinates, the vacuum one taken about the middle plane, in [-½, ½)."""
         x = np.array(x, dtype=float, copy=True)
         if padded and x.size:
@@ -515,7 +515,7 @@ def _layer_on_stack(group, assignment, stack) -> tuple:
 
     def _placed(x):
         """Positions carried onto the stack's cell at their heights, wrapped into the cell."""
-        y = _centred(x) @ carry.T
+        y = _centered(x) @ carry.T
         if y.size:
             y[..., 2] = y[..., 2] % 1.0
         return y
@@ -523,7 +523,7 @@ def _layer_on_stack(group, assignment, stack) -> tuple:
     moved, worst = [], 0.0
     for sym in group._symmetries:
         rotation = carry @ np.asarray(sym.rotation, dtype=float) @ inverse
-        own = _centred(np.asarray(sym.translation, dtype=float))
+        own = _centered(np.asarray(sym.translation, dtype=float))
         translation = carry @ own
         # an operation of a layer moves nothing along its normal, so its
         # translation reads alike whatever length the normal has

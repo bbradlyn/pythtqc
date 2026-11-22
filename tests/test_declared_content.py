@@ -864,13 +864,13 @@ def test_a_declaration_a_complex_twist_serves_is_served_with_it():
     assert abs(twist[named["C2(z)"]] + 1.0) < 1e-9, "the declaration asks for it"
     assert abs(twist[four] * twist[named["C4^-1(z)"]] - 1.0) < 1e-9
     assert abs(twist[four] + 1j) < 1e-9, "the band labels take -i"
-    assert [key for choice in out._characters._labellings["choices"]
+    assert [key for choice in out._characters._labelings["choices"]
             for key, _labels in choice["others"]] == ["bands"]
     lowest = tqw._hsp_table_rep(out, bands=2)
     assert lowest._records["GM"].coreps == {"-GM5": 1, "-GM8": 1}
     assert list(lowest.symmetry_data) == ["-GM5", "-GM8", "-M6", "-M7", "-N2", "-X3", "-X4"]
     assert list(lowest.multiplets["M"][0].corep_names) == ["-M6", "-M7"]
-    assert lowest.note == tqw._ANOTHER_LABELLING_RELABELS
+    assert lowest.note == tqw._ANOTHER_LABELING_RELABELS
     assert all(abs(abs(v) - 1.0) < 1e-9 for v in twist.values())
     assert max(out.numerical.residuals.values()) < 1e-13 and out.numerical.product_residual < 1e-13, \
         "a complex character preserves the covariance and the product table"

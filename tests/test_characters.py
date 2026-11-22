@@ -226,7 +226,7 @@ def test_declaring_nothing_and_declaring_the_truth_agree_bit_for_bit(
 
 
 @pytest.mark.slow
-def test_a_declaration_fixes_the_labelling_as_far_as_its_site_symmetry_reaches(
+def test_a_declaration_fixes_the_labeling_as_far_as_its_site_symmetry_reaches(
         lin3g_undeclared):
     """What a declaration settles is every labelling it rules out, and no more.
 

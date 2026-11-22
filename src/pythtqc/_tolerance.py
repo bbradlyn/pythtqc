@@ -484,7 +484,7 @@ class Tolerances:
         ``energy``, the gate itself, so that the cut never discards what the
         gate would keep; ``None`` where it is the cut read in the units of
         ``H``, as a declared ``cut`` or ``tol`` is.
-    centre : float or None
+    center : float or None
         How far a centre may sit from where the operations put it, in reduced
         coordinates: ``p`` under a precision, a declared ``position_tol`` as
         given, ``None`` where nothing declares it.
@@ -507,7 +507,7 @@ class Tolerances:
     cut: float | None = None
     window: float | None = None
     floor: float | None = None
-    centre: float | None = None
+    center: float | None = None
     matrix: float = 0.0
     finder: float = DEFAULT_FINDER
     finder_floor: float = DEFAULT_FINDER
@@ -581,7 +581,7 @@ class Tolerances:
             tol = DEFAULT_ENERGY
         return cls(precision=None if precision is None else float(precision),
                    scale=scale, energy=tol, cut=cut, window=window, floor=floor,
-                   centre=position_tol, matrix=matrix,
+                   center=position_tol, matrix=matrix,
                    finder=finder_distance(precision, model, symprec),
                    finder_floor=symprec)
 

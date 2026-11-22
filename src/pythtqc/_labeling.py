@@ -28,7 +28,7 @@ from .sewing import DEGENERACY_TOL, _as_columns, multiplets
 from ._measure import _max_hamiltonian
 
 
-#: What each key of the labelling reads, in the order :func:`_labelling` asks
+#: What each key of the labelling reads, in the order :func:`_labeling` asks
 #: them: the site content at the lowest angular momentum (orbits read together
 #: read one by one, and identical copies copy by copy, first; then at the lead's
 #: site, over the crystal, on the lead's row), the letter the orbitals read as,
@@ -124,7 +124,7 @@ class _PseudospinChoice:
 
 
 @dataclass(frozen=True)
-class _LabellingChoice:
+class _LabelingChoice:
     """The labelling the chooser took, one per coupled part, and what it rests on.
 
     Attributes
@@ -139,7 +139,7 @@ class _LabellingChoice:
         The character chosen for each part.
     candidates : list
         Every option each part had, with where it came from.
-    labelled : tuple of dict
+    labeled : tuple of dict
         The parts whose other options label a band differently, and those labels.
     parts : list
         The multiplets of each part.
@@ -159,7 +159,7 @@ class _LabellingChoice:
     raw: dict
     chosen: list
     candidates: list
-    labelled: tuple
+    labeled: tuple
     parts: list
     part_states: list
     spaces: tuple
@@ -613,7 +613,7 @@ def _in_tables_gauge(rec, winner, *, group, layout, syms, u_pos, cperm, site_tab
                                  tol=getattr(layout, "_tol", None) or None)
 
 
-def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_pos,
+def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_pos,
                cperm, classes, parts, ref_chan, site_tables, measured_at,
                multiplicity=()):
     r"""The labelling returned: what each coupled part of the crystal carries, chosen once.
@@ -659,7 +659,7 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
        representation whose character is nearest the trivial one: where it
        decides, no band label rests on it.
 
-    Returns the :class:`_LabellingChoice`: the character every multiplet is
+    Returns the :class:`_LabelingChoice`: the character every multiplet is
     assembled with; the representation chosen on each orbit built
     by induction, as matrices on the orbit's states; every multiplet's
     character under the labelling's representation before its characters are
@@ -1105,7 +1105,7 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
     # ... AND THE BAND LABELS EACH OF THEM GIVES, read by the chooser's own band
     # key with every other part at the labelling kept: those that label a band
     # differently are the choice the band labels rest on
-    labelled = []
+    labeled = []
     for i, (cands, ties) in enumerate(open_of):
         if not ties:
             continue
@@ -1114,7 +1114,7 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
         others = tuple((name, got) for name, got in
                        ((name, reader.reading(cands[j])) for j, name in ties) if got != mine)
         if others:
-            labelled.append({"part": i, "chosen": mine, "others": others})
+            labeled.append({"part": i, "chosen": mine, "others": others})
     # the matrices built for representations no labelling returns are not kept
     winners = {id(getattr(w, "_cand", None)) for w in (o["W"] for o in held_at
                                                        if o["W"] is not None)}
@@ -1127,8 +1127,8 @@ def _labelling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u
     for i, chans in enumerate(chans_of):
         for c in chans:
             of_chan[int(c)] = chosen[i]
-    return _LabellingChoice(of_chan=of_chan, swaps=tuple(swaps), raw=raw_after, chosen=chosen,
-                            candidates=candidates, labelled=tuple(labelled), parts=chans_of,
+    return _LabelingChoice(of_chan=of_chan, swaps=tuple(swaps), raw=raw_after, chosen=chosen,
+                            candidates=candidates, labeled=tuple(labeled), parts=chans_of,
                             part_states=part_states, spaces=tuple(spaces_out),
                             lift_trace=lift_trace, matrices_carried=matrices_carried)
 
@@ -1166,7 +1166,7 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
 
     Every character here was measured before the labelling was chosen
     (:func:`.._declaration._multiplet_characters`), and the labelling itself is
-    :func:`_labelling`'s; this writes them down.  A row's site irrep is what
+    :func:`_labeling`'s; this writes them down.  A row's site irrep is what
     its multiplet carries under the labelling returned, named from the
     tables (:func:`_named_content`).  How it is known
     (:attr:`_OrbitalRow.determined_by`) is ``"declaration"`` for a declared
@@ -1220,7 +1220,7 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
             carried[id(d)] = _meets({}, _declared_needs(d, final, lift_trace))
         if d.get("matrices"):
             # ... and declared matrices on the matrices returned, which the
-            # labelling read as it chose (:func:`_labelling`)
+            # labelling read as it chose (:func:`_labeling`)
             carried[id(d)] = (carried[id(d)]
                               and choice.matrices_carried.get(id(d), True))
 
@@ -1360,9 +1360,9 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
         checks=_returned_rows(checks),
         frame=dict(names), residual=float(worst), site_tables=dict(site_tables),
         spin=spin,
-        _labellings={"parts": tuple(tuple(int(a) for a in states)
+        _labelings={"parts": tuple(tuple(int(a) for a in states)
                                     for states in choice.part_states),
-                     "choices": tuple(choice.labelled)})
+                     "choices": tuple(choice.labeled)})
 
 
 def _wyckoff_sites(group, assignment):

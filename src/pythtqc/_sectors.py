@@ -2024,7 +2024,7 @@ def induced_orbits(reading, action, group, layout, kept, cperm, *, reference=Non
         bases = None
         if tol is not None:
             # held to their shares, as the projection onto the symmetric part
-            # holds them (:func:`.._labelling._held_sets`)
+            # holds them (:func:`.._labeling._held_sets`)
             members = [t for r in roots for t in orbits[r]]
             if all(int(reading.sectors[t].copies) == 1 for t in members):
                 bases = held_shares(reading, members, atom_sites(reading, layout), tol,
@@ -2048,7 +2048,7 @@ def induced_orbits(reading, action, group, layout, kept, cperm, *, reference=Non
                 continue
             if any(len(set(h) & set(sectors)) > 1 for h in held):
                 # several sectors of the orbit one multiplet holds, held to their
-                # shares as the projection holds them (:func:`.._labelling._held_sets`)
+                # shares as the projection holds them (:func:`.._labeling._held_sets`)
                 if tol is not None:
                     bases = held_shares(reading, sectors, sites, tol,
                                         on=held_on(reading, layout, held, sectors))

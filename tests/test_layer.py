@@ -323,7 +323,7 @@ def p_shell_honeycomb(t_sigma=1.0, t_pi=0.4, t_z=0.3):
     return m
 
 
-def pxpy_centred(t_sp=0.4, e_s=0.5, t_ss=0.0, s_first=False):
+def pxpy_centered(t_sp=0.4, e_s=0.5, t_ss=0.0, s_first=False):
     """The ``p_x, p_y`` honeycomb with an ``s`` orbital at the hexagon centre.
 
     The centre is ``1a`` of ``P6/mmm``, and the ``s`` is σ-bonded to the six
@@ -607,7 +607,7 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
     declared = {(0, 1): "E'", (2, 3): "E''", 4: "s"}
     mirrors = ("E", "C3(z)", "C3^-1(z)", "m([010])", "m([100])", "m(y)")
     twofolds = ("E", "C3(z)", "C3^-1(z)", "C2([2-10])", "C2([1-20])", "C2(x)")
-    hc = tqg.realized_group(pxpy_centred(), characters=declared, **FREE)
+    hc = tqg.realized_group(pxpy_centered(), characters=declared, **FREE)
     assert not isinstance(hc, Refusal), str(hc)
     assert (hc.group.number_str, hc.group.name, len(hc.operations)) == ("156.50", "P3m11'", 12)
     assert hc.decoration.declared.subgroup.number_str == "187.210"
@@ -621,7 +621,7 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
     assert {t.name for t in w.tie} == set(twofolds[3:])
     assert {t.environment for t in w.tie} == {"free-standing"}
     assert "the one the tie rule keeps" in w.note
-    apart = tqg.realized_group(pxpy_centred(t_sp=0.0, t_ss=-0.4), characters=declared,
+    apart = tqg.realized_group(pxpy_centered(t_sp=0.0, t_ss=-0.4), characters=declared,
                                **FREE)
     assert not isinstance(apart, Refusal), str(apart)
     assert (apart.group.number_str, apart.descent.cell_group.number_str) == \
@@ -631,7 +631,7 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
     assert apart.environment.cross_check.outcome == "agree"
     for e_s, t_ss, first in ((0.5, -0.4, True), (-0.2, 0.25, False), (-0.2, 0.25, True)):
         words = {(1, 2): "E'", (3, 4): "E''"} if first else {(0, 1): "E'", (2, 3): "E''"}
-        moved = tqg.realized_group(pxpy_centred(t_sp=0.0, e_s=e_s, t_ss=t_ss, s_first=first),
+        moved = tqg.realized_group(pxpy_centered(t_sp=0.0, e_s=e_s, t_ss=t_ss, s_first=first),
                                    typat=[1, 0, 0, 0, 0] if first else [0, 0, 0, 0, 1],
                                    characters=words, **FREE)
         assert not isinstance(moved, Refusal), f"{(e_s, t_ss, first)}: {moved}"
@@ -640,7 +640,7 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
         assert moved.environment.cross_check.outcome == "agree"
         assert moved.environment.cross_check.substrate.number_str == "156.50"
         assert sorted(moved.rep._characters.irreps) == sorted(hc.rep._characters.irreps)
-    bare = tqg.realized_group(pxpy_centred(t_sp=0.0, t_ss=-0.4), **FREE)
+    bare = tqg.realized_group(pxpy_centered(t_sp=0.0, t_ss=-0.4), **FREE)
     assert not isinstance(bare, Refusal), str(bare)
     assert (bare.group.number_str, len(bare.numerical.validated._indices)) == ("191.234", 48)
     assert bare.environment.cross_check.outcome == "agree"
@@ -657,7 +657,7 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
     assert (w.outcome, w.free_standing.number_str, w.tie) == ("agree", "75.2", ()), \
         "nor has the free-standing one, so the rule's order moves nothing"
 
-    turned = tqg.realized_group(pxpy_centred(), characters=declared, **FREE)
+    turned = tqg.realized_group(pxpy_centered(), characters=declared, **FREE)
     assert not isinstance(turned, Refusal), str(turned)
     assert (turned.group.number_str, turned.group.name) == ("149.22", "P3121'"), \
         "the twofolds' reading"

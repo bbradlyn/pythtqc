@@ -270,7 +270,7 @@ def test_pyxtal_is_in_the_tables_setting_for_every_one_of_the_230_space_groups()
     assert offenders == [], offenders
 
 
-def test_a_drifted_centre_reads_as_the_general_position_rather_than_refusing():
+def test_a_drifted_center_reads_as_the_general_position_rather_than_refusing():
     """Measured, and worth stating: the ``wyckoff_unresolved`` gate cannot fire.
 
     The **general** position's variety is the whole cell, so in exact arithmetic
@@ -481,7 +481,7 @@ def test_a_model_s_z_srsis_are_the_band_route_s_on_all_of_its_bands(request, nam
     assert tuple(model_srsis.theta_Z) == want_names, name
 
 
-def test_the_safety_gate_can_tell_a_setting_problem_from_a_modelling_one(
+def test_the_safety_gate_can_tell_a_setting_problem_from_a_modeling_one(
         lin3g_declared_cross_checked):
     """Which letters a content *does* fit, when the geometry's letters do not.
 

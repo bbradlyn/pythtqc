@@ -151,9 +151,9 @@ builds anything:
 from pythtb import Lattice
 from pythtb.models import kane_mele
 
-def with_centres(model, centres):
-    """The model's own hoppings, with its orbital centres at `centres` (reduced)."""
-    out = TBModel(Lattice(model.lat_vecs, centres, periodic_dirs=model.periodic_dirs),
+def with_centers(model, centers):
+    """The model's own hoppings, with its orbital centres at `centers` (reduced)."""
+    out = TBModel(Lattice(model.lat_vecs, centers, periodic_dirs=model.periodic_dirs),
                   spinful=True)
     out.set_onsite(model.onsite, mode="set")
     for h in model.hoppings:
@@ -162,7 +162,7 @@ def with_centres(model, centres):
     return out
 
 km = kane_mele(0.0, -1.0, 0.3, 0.25)                               # delta, t, soc, rashba
-moved = with_centres(km, km.orb_vecs + [[1e-8, 0.0], [0.0, 0.0]])  # one centre 1e-8 off
+moved = with_centers(km, km.orb_vecs + [[1e-8, 0.0], [0.0, 0.0]])  # one centre 1e-8 off
 bad = tqc.realized_group(moved, characters={0: "A1"})
 print(bad.gate, f"{bad.value:.1e}", bad.context["group"].name, bad.context["number_str"],
       f"{2 * np.pi * bad.value * bad.context['max_h']:.1e}")
@@ -239,7 +239,7 @@ low as `P1`, with no refusal at all:
 
 ```python
 rng = np.random.default_rng(3)
-blurred = with_centres(km, km.orb_vecs + 5e-5 * rng.normal(size=(2, 2)))  # every centre off
+blurred = with_centers(km, km.orb_vecs + 5e-5 * rng.normal(size=(2, 2)))  # every centre off
 print(repr(tqc.realized_group(blurred)))
 #  RealizedGroup(P21' #3.2; on a substrate (the default), the free-standing group P21' #3.2 agrees)
 print(repr(tqc.realized_group(blurred, precision=1e-3)))

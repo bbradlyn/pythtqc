@@ -52,7 +52,7 @@ from . import sewing as _sewing
 from .refusal import InternalError, Refusal
 from ._text import _label_terms, _orbitals_named
 from ._matrices import _BLOCH_TOL
-from ._centres import _position_defect
+from ._centers import _position_defect
 from .symmetry import (BandRepresentation, WyckoffOrbit, WyckoffOrbitNumerical,
                        _OrbitBandRepresentation, _paper_label, _terms_of,
                        _wyckoff_orbits_of)

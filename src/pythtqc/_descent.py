@@ -33,7 +33,7 @@ from ._matrices import (
     _characters_of_subgroup, _commuting_pair_phases, _filled_check,
     _generic_members, _identity_position, _minimal_generators, _multiplets_of,
     _proportionality, _rephasable, _unitarized)
-from ._centres import _position_defect
+from ._centers import _position_defect
 from ._naming import _site_tables
 from ._multiplets import _ansatz_defects, _multiplet_blocks
 from ._declaration import (
@@ -1524,7 +1524,7 @@ def _shared_origin(found, kept, pairs) -> GroupData:
     written in the origin the centres satisfy.  Where the cell an
     identification reads was built on exact centres -- every cell under a
     declared precision is, the centres made exact before any is identified
-    (:func:`.._realized._exact_centres`, :func:`.._realized._position_pass`) -- the two agree to
+    (:func:`.._realized._exact_centers`, :func:`.._realized._position_pass`) -- the two agree to
     rounding and nothing moves.  Where they differ, it is by one shift of the
     origin, ``t' = t − (1 − A)·δ``: the group the cell allows, named on the
     centres projected onto its own positions, carried onto the ones the
@@ -1651,7 +1651,7 @@ def _orbit_cell(base_cell, base_typat, group, kept, *, points, species, spinor,
         "and the orbit of none of them was identified as exactly the kept operations.")
 
 
-def _centres_not_exactly_symmetric(model, group, assignment, *,
+def _centers_not_exactly_symmetric(model, group, assignment, *,
                                    tol) -> Refusal | None:
     r"""Centres whose defect alone breaks operations — refused before anything is built.
 
@@ -2788,7 +2788,7 @@ def _declaration_refuted(group, validated, *, refuted, verdict, tolerances=EXACT
 def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
                         context, spin, layout, decls=None,
                         reference_orbital=0, max_candidates=2 ** 20, free_standing=None,
-                        centres=None, sectors=None, own_form=None):
+                        centers=None, sectors=None, own_form=None):
     r"""One verdict per operation of the group, each with the reason behind it.
 
     Each verdict judges noise against the call's own tolerances
@@ -2796,7 +2796,7 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
     :attr:`ValidatedGroup.discrepancies` carries ``"no symmetry matrix"``,
     ``"covariance"`` and ``"out of plane"`` per operation, antiunitary coset
     included.  So have the orbital **centres**, where a precision is declared:
-    ``centres`` is their verdict (:func:`.._realized._centres_carried`), the operations they
+    ``centers`` is their verdict (:func:`.._realized._centers_carried`), the operations they
     are not carried by within the declared precision, ``"centers"``, which
     stands for each of them whatever else reads it and which every verdict below
     reads as already given.  Four measurements finish the verdict where those
@@ -2873,7 +2873,7 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
     enumeration made.
     """
     syms = group._symmetries
-    centred = dict(centres or {})
+    centered = dict(centers or {})
     own_form = dict(own_form or {})
     # THE OWN FORM of every operation the detector found obeyed, first: a
     # unitary operation none of whose matrices carries each site onto its
@@ -2893,7 +2893,7 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
         refuted = dict(lifted)
         if lattice and lattice["refuted"]:
             refuted = {**refuted, **lattice["refuted"]}
-        return {**refuted, **centred}, lattice, None, None, None
+        return {**refuted, **centered}, lattice, None, None, None
     # THE MULTIPLET BLOCKS, once per round.  The tensor test, the declared
     # reading and the representation built on the group that settles all read
     # them, and they are one object; building them per reader is the one cost a
@@ -2919,7 +2919,7 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
     # antiunitary one found obeyed that its own form refuted: those start no
     # descent, as no antiunitary refutation does; and the centres' verdict,
     # which every reading below takes as given
-    refuted = {**lifted, **got[1], **shared, **centred}
+    refuted = {**lifted, **got[1], **shared, **centered}
     # THE ONE READING of the solution spaces: the verdict on the declared
     # content and the choice the representation is built from, together, over
     # the operations that are still standing.
@@ -2987,12 +2987,12 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
                                                          assignment=assignment,
                                                          decls=decls or ())
         refuted = {**refuted, **more}
-    return {**refuted, **centred}, lattice, declaration, choices, projective
+    return {**refuted, **centered}, lattice, declaration, choices, projective
 
 
 def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR,
                   symprec, step, refuted=None, lattice_record=None,
-                  declaration=None, projective=None, centres=None) -> tuple | Refusal:
+                  declaration=None, projective=None, centers=None) -> tuple | Refusal:
     r"""Lower one cell to the unitary operations the Hamiltonian was measured to obey.
 
     The kept set ``K`` is known before this runs — it is
@@ -3020,10 +3020,10 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
     where several tie (``tied``, in the order the tie rule ranks them, the one
     returned first).
 
-    ``centres`` is the orbital centres' verdict under a declared precision
-    (:func:`.._realized._centres_carried`), whose refuted operations are among ``refuted``
+    ``centers`` is the orbital centres' verdict under a declared precision
+    (:func:`.._realized._centers_carried`), whose refuted operations are among ``refuted``
     under ``refuted_by = "centers"`` and stand for them over the detector's
-    reading: carried onto the step as ``centres``, the move the parent group
+    reading: carried onto the step as ``centers``, the move the parent group
     asked of the centres, the operations that carry them within the
     precision and a note.
 
@@ -3154,14 +3154,14 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
 
     # the centres' verdict stands for the operations it refutes, whatever the
     # detector read on them: each broken operation is listed once, with its reason
-    centred = {int(i) for i, r in refuted.items()
+    centered = {int(i) for i, r in refuted.items()
                if isinstance(r, dict) and r.get("refuted_by") == "centers"}
     broken = tuple(
         {"ind": int(d.index), "name": _name(d.index),
          "refuted_by": str(d.refuted_by),
          "residual": float(d.residual),
          "step": int(step), "of": str(group.number_str)}
-        for d in validated.discrepancies if int(d.index) not in centred) + tuple(
+        for d in validated.discrepancies if int(d.index) not in centered) + tuple(
         _entry(i) for i in sorted(refuted)) + left_out
 
     species = _DESCENT_SPECIES
@@ -3252,13 +3252,13 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
                 "`descent.tied` lists them in that order.")
     if projective is not None:
         record["projective"] = dict(projective)
-    if centres is not None:
-        record["centers"] = {"precision": float(centres.precision),
-                             "move": float(centres.move),
-                             "kept": tuple(int(i) for i in centres.kept),
+    if centers is not None:
+        record["centers"] = {"precision": float(centers.precision),
+                             "move": float(centers.move),
+                             "kept": tuple(int(i) for i in centers.kept),
                              "tied": tuple(tuple(int(i) for i in c)
-                                           for c in centres.tied),
-                             "note": str(centres.note)}
+                                           for c in centers.tied),
+                             "note": str(centers.note)}
     if lattice_record:
         record["lattice"] = dict(lattice_record)
         record["lattice"]["note"] = _lattice_note(lattice_record, got)

@@ -633,7 +633,7 @@ class _WyckoffPosition:
         """
         best = np.inf
         A, b = self.jacobian, self.offset
-        for shift in _NEIGHBOUR_SHIFTS:
+        for shift in _NEIGHBOR_SHIFTS:
             rhs = np.asarray(position, dtype=float) + shift - b
             if self.n_free == 0:
                 resid = rhs
@@ -644,7 +644,7 @@ class _WyckoffPosition:
         return best
 
 
-_NEIGHBOUR_SHIFTS = np.array([[i, j, k] for i in (-1, 0, 1)
+_NEIGHBOR_SHIFTS = np.array([[i, j, k] for i in (-1, 0, 1)
                               for j in (-1, 0, 1) for k in (-1, 0, 1)], dtype=float)
 
 
@@ -1815,7 +1815,7 @@ def _translation_closure(symmetries) -> float:
     nonsymmorphic points are all asserted against operations that are not
     consistent with one another.  The centres themselves are moved onto an
     exactly symmetric set without reading these translations at all
-    (:func:`.._centres._symmetric_sites`).
+    (:func:`.._centers._symmetric_sites`).
 
     The product ``gh`` is found by its **rotation** (an exact integer matrix)
     and its antiunitarity, never by comparing translations; the residual is
@@ -2443,7 +2443,7 @@ def _group_of(model, *, spinor=None, include_TR=True, symprec=DEFAULT_FINDER, ty
     reads the operations off the centres as they are, moves the centres onto
     the nearest set those operations carry exactly and removes a shift of every
     centre together that is noise, all before it asks here
-    (:func:`.._realized._exact_centres`): the setting, the tables' origin and the names are
+    (:func:`.._realized._exact_centers`): the setting, the tables' origin and the names are
     read on exact centres, the operations close, and their repair from the
     tabulated ones (:func:`_exact_operations`) is not reached.  The repair and
     its two refusals are reached by a numerical cell with no precision
@@ -2749,7 +2749,7 @@ def _variety_residual(arms, points) -> np.ndarray:
     for _A, b, P in arms:
         # (n_point, 27, 3): every point, shifted by every neighbouring lattice
         # vector, projected onto the complement of this arm's variety
-        delta = (points[:, None, :] - b[None, None, :] + _NEIGHBOUR_SHIFTS[None, :, :])
+        delta = (points[:, None, :] - b[None, None, :] + _NEIGHBOR_SHIFTS[None, :, :])
         resid = np.abs(delta @ P.T).max(axis=2).min(axis=1)
         best = np.minimum(best, resid)
     return best
@@ -2761,7 +2761,7 @@ def _variety_contains_variety(inner, outer, tol) -> bool:
     _A_out, b_out, P_out = outer
     if float(np.abs(P_out @ A_in).max()) > tol:
         return False                      # the directions do not fit
-    delta = b_in - b_out + _NEIGHBOUR_SHIFTS
+    delta = b_in - b_out + _NEIGHBOR_SHIFTS
     return bool(np.abs(delta @ P_out.T).max(axis=1).min() <= tol)
 
 
