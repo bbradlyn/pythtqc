@@ -1,30 +1,32 @@
-r"""Whether a band set could be an atomic limit, and its symmetry-indicator class.
+r"""Whether bands could be an atomic limit, and their symmetry-indicator class.
 
-An elementary band representation (EBR) is the band set one site irrep induces
-from its Wyckoff position, where that band set is no sum of others; an atomic
-limit's symmetry data vector is a sum of EBRs with nonnegative integer
-multiplicities.
+A site irrep at a Wyckoff position induces a band representation.  An
+elementary band representation (EBR) is one that is not a sum of others.  The
+symmetry data vector of an atomic limit is a sum of the symmetry data vectors
+of EBRs with nonnegative integer multiplicities.  The symmetry data vector of
+some topological sets of bands is such a sum too.
 
-* :func:`decompose`: every such sum that carries a band set's symmetry data
-  vector, or none, with what that rests on;
-* :func:`symmetry_indicator`: the class of the symmetry data vector among the
-  band structures modulo the atomic limits, nonzero where no band set with
-  this vector is an atomic limit;
-* :func:`regular_completion`: the bands that would carry a band set up to
-  whole copies of the regular band representation;
-* :func:`subtract`: one band set's symmetry data vector less another's;
-* :func:`ebr_rows`, :func:`in_plane_restriction`, :func:`content_of`,
-  :func:`regular_content` and :func:`kpoint_of_label`: the EBRs as symmetry data
-  vectors, the coreps a layer measures, a vector as multiplicities, one regular
-  copy's vector, and the point a corep belongs to.
+* :func:`decompose`: every such sum that carries a symmetry data vector;
+* :func:`symmetry_indicator`: the class of a symmetry data vector among the
+  band structures of the group modulo its atomic limits;
+* :func:`regular_completion`: the symmetry data vector of the bands that
+  complete a set of bands to copies of the regular band representation;
+* :func:`subtract`: the symmetry data vector of the bands in one set and not
+  in another;
+* :func:`ebr_rows`: the EBRs of a group as symmetry data vectors;
+* :func:`in_plane_restriction`: the little-group representations a model
+  measures, and what the others repeat;
+* :func:`content_of`: a symmetry data vector as integer multiplicities;
+* :func:`regular_content`: the symmetry data vector of one copy of the regular
+  band representation;
+* :func:`kpoint_of_label`: the point a little-group representation is at.
 
-Each call takes the table :func:`.sewing.hsp_table` returns, alone, or a
-symmetry data vector written out by hand with what
-:func:`.groups.realized_group` returned beside it.  A sum is necessary for an
-atomic limit and never sufficient: the coreps at isolated k-points are blind
-to what happens between them.  The group's data is ``irrep``'s tables, read
-through :mod:`._tables` and carried into the convention in which a lattice
-translation acts as ``e^{-ik·t}``.
+:func:`decompose`, :func:`symmetry_indicator` and :func:`regular_completion`
+take the table :func:`.sewing.hsp_table` returns, alone, or a symmetry data
+vector written out by hand with what :func:`.groups.realized_group` returned
+beside it.  The group's data are the tables of the irreptables package, read
+in the convention in which a lattice translation is represented by
+``e^(-ik.t)``.
 """
 
 from __future__ import annotations
@@ -74,12 +76,21 @@ DEFAULT_ENUMERATION_CAP = 200
 # --------------------------------------------------------------------------
 
 def _kind(group) -> str:
-    """``"irreps"`` for a group with no time reversal, ``"coreps"`` otherwise: what a summary calls the labels."""
+    """The word a summary uses for the little-group representations of ``group``.
+
+    Returns ``"irreps"`` for a group with no time reversal, of magnetic type
+    I, and ``"coreps"`` for any other group, and for ``None``.
+    """
     return "irreps" if getattr(group, "magnetic_type", None) == "I" else "coreps"
 
 
 def _label_lines(sums) -> list:
-    """Each sum of elementary band representations on its own line, by its label, the first few."""
+    """The lines a summary prints for sums of elementary band representations.
+
+    ``sums`` is a sequence of :class:`.symmetry.BandRepresentation`.  Returns
+    an indented line holding the ``label`` of each of the first ``_SHOWN``,
+    and a last line counting the rest where there are more.
+    """
     lines = ["    " + s.label for s in sums[:_SHOWN]]
     if len(sums) > _SHOWN:
         lines.append(f"    and {len(sums) - _SHOWN} more")
@@ -88,20 +99,32 @@ def _label_lines(sums) -> list:
 
 @dataclass(frozen=True)
 class SiteContent:
-    """The site irreps a symmetry data vector's labels rest on, each orbital's, and how each is known.
+    """The site irrep of each orbital, and how each is known.
+
+    Held in :attr:`EBRDecomposition.site_content` and
+    :attr:`SymmetryIndicator.site_content`.  The names of the little-group
+    representations, and so the sums and the class read from them, depend on
+    these site irreps.
 
     Attributes
     ----------
     number_str : str
-        The group the site irreps are named in.
+        The number of the group the site irreps are named in, such as
+        ``"99.164"``.
     irreps : tuple of str
-        Each orbital's site irrep, by orbital.
+        The site irrep of each orbital, in the order of the orbitals.
     determined_by : tuple of str
-        How each orbital's site irrep is known: ``"hamiltonian"``, fixed by
-        the Hamiltonian; ``"declaration"``, declared; ``"lowest-l"``, chosen
+        How the site irrep of each orbital is known: ``"hamiltonian"``, fixed
+        by the Hamiltonian; ``"declaration"``, declared; ``"declaration not
+        carried"``, declared, while the Hamiltonian's own blocks carry another
+        site irrep, the one named in :attr:`irreps`; ``"lowest-l"``, assigned
         by the lowest-angular-momentum rule among those the hoppings allow.
     residual : float
-        The largest residual of the site irreps' reading, in the units of H.
+        The largest defect in reading the orbitals' characters off the
+        matrices of the representation: how far an orbital's block is from
+        its character times the operation's spin factor, or, for a multiplet
+        of several orbitals, from multiplying as the site group does.  It is
+        dimensionless, the entries of the matrices being at most 1 in size.
     """
 
     number_str: str
@@ -112,31 +135,46 @@ class SiteContent:
 
 @dataclass(frozen=True)
 class Restriction:
-    """Which coreps of the group's elementary band representations a model measures, and whether each of the others repeats a measured one.
+    """The little-group representations a model measures, and what the others repeat.
 
-    A corep at a point the model does not sample, as a layer's at
-    ``k_z = 1/2``, that occurs in every elementary band representation as
-    often as a measured one adds no condition; where every one does, what is
-    read on the measured coreps is exact.  ``summary()`` prints it.
+    The record :func:`in_plane_restriction` returns, and the one
+    :attr:`EBRDecompositionNumerical.restriction` and
+    :attr:`SymmetryIndicatorNumerical.restriction` hold.  A little-group
+    representation at a point not measured, such as a layer's at
+    ``k_z = 1/2``, may occur in every elementary band representation as often
+    as a measured one.  It is then said to repeat that one, and adds no
+    condition to a symmetry data vector.  Where every one left out repeats a
+    measured one, the decomposition or class read from the measured ones is
+    that of the whole symmetry data vector.  ``summary()`` prints those left
+    out, and the measured one each repeats.
 
     Attributes
     ----------
     kpoints : tuple of str
-        The k-points read.
-    retained, dropped : tuple of str
-        The coreps kept, and those left out.
+        The tabulated names of the points measured.
+    retained : tuple of str
+        The little-group representations of the group's elementary band
+        representations at those points, the measured ones.
+    dropped : tuple of str
+        If nonempty, those at the other points, which are left out.  Empty
+        where every tabulated point is measured.
     copies : dict
-        ``{corep left out: (kept coreps it repeats, ...)}``: each elementary
-        band representation holds it as often as it holds those.
+        If nonempty, ``{left out: (measured, ...)}``: for each little-group
+        representation left out, the measured ones it repeats.  An empty tuple
+        for one that repeats no measured one.
     orphans : tuple of str
-        The coreps left out that repeat none: conditions given up.
+        If nonempty, the little-group representations left out that repeat no
+        measured one.  The multiplicity of each is an entry of a symmetry data
+        vector that the measured ones do not fix.
     exact : bool
-        Whether every corep left out repeats a kept one, so that what is read
-        on the kept coreps is exact.
+        Whether every little-group representation left out repeats a measured
+        one.
     outside_layer : dict
-        ``{Wyckoff position: heights}``: the positions of a free-standing
-        layer's group off the layer, which hold none of its orbitals; their
-        band representations are left out.
+        If nonempty, ``{Wyckoff position: heights}``: the Wyckoff positions of
+        a layer's group that are fixed along its normal, with a height outside
+        the range of the orbitals' heights.  The heights are measured from the
+        layer's middle plane along its normal, in the model's units of length.
+        The band representations induced from those positions are left out.
     """
 
     kpoints: tuple
@@ -146,10 +184,10 @@ class Restriction:
     orphans: tuple
     exact: bool
     outside_layer: dict = field(default_factory=dict)
-    # the rank of the matrix of elementary band representations on the kept
-    # coreps and on all of them; for a layer, the heights its orbitals span from
-    # its middle plane; whether an orphan was refused; whether the group has no
-    # time reversal, for the word a summary prints
+    # The rank of the matrix of elementary band representations on the kept
+    # little-group representations and on all of them; for a layer, the heights
+    # its orbitals span from its middle plane; whether the call refuses an orphan;
+    # whether the group has no time reversal, for the word a summary prints.
     _rank: int = field(default=0, repr=False)
     _full_rank: int = field(default=0, repr=False)
     _layer_extent: tuple | None = field(default=None, repr=False)
@@ -157,7 +195,7 @@ class Restriction:
     _irreps: bool = field(default=False, repr=False)
 
     def summary(self) -> str:
-        """The coreps left out, a line for each part, with the attribute that holds it."""
+        """What is left out, a line for each part, with the attribute that holds it."""
         kind = "irreps" if self._irreps else "coreps"
         if not self.dropped:
             return (f"every tabulated point is measured, and no {kind[:-1]} is left out   "
@@ -185,14 +223,22 @@ class Restriction:
                          "representations are left out   (.outside_layer)")
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover, convenience only
         kind = "irreps" if self._irreps else "coreps"
         return (f"Restriction({len(self.retained)} {kind} kept, {len(self.dropped)} left out, "
                 + ("exact)" if self.exact else "not exact)"))
 
 
 def _where_line(restriction, completeness, kind) -> str | None:
-    """What a decomposition was read without, the points refused or out of the plane, in one line; ``None`` where nothing was left out."""
+    """The line of a summary that says which points a decomposition was read without.
+
+    ``restriction`` is the decomposition's :class:`Restriction`,
+    ``completeness`` its :class:`Completeness`, and ``kind`` the word for its
+    little-group representations (:func:`_kind`).  The line names the points
+    at which the table refused and those not measured, or out of a layer's
+    plane, and says whether the sums are exact without them.  Returns
+    ``None`` where no point was left out.
+    """
     r = restriction
     refused = sorted(completeness.refused or (), key=_tables.point_order)
     away = sorted({kpoint_of_label(label) for label in r.dropped} - set(refused),
@@ -217,7 +263,13 @@ def _where_line(restriction, completeness, kind) -> str | None:
 
 
 def _outside_line(restriction) -> str | None:
-    """A free-standing layer's positions off it, whose band representations were left out, in one line; ``None`` where there are none."""
+    """The line of a summary naming the Wyckoff positions off a free-standing layer.
+
+    ``restriction`` is a :class:`Restriction`.  The line says that the
+    positions of its ``outside_layer`` lie off the layer, or outside the slab
+    its orbitals span, and that their band representations are left out.
+    Returns ``None`` where ``outside_layer`` is empty.
+    """
     outside = sorted(restriction.outside_layer)
     if not outside:
         return None
@@ -229,23 +281,30 @@ def _outside_line(restriction) -> str | None:
 
 @dataclass(frozen=True)
 class Completeness:
-    """Whether a decomposition is exact or a necessary condition, and why.
+    """Whether a decomposition's sums are those of the whole symmetry data vector.
+
+    Held in :attr:`EBRDecompositionNumerical.completeness`.
 
     Attributes
     ----------
     source : {"HSPTable", "mapping"}
-        Whether the symmetry data vector was measured in a table or written
-        out by hand.
+        ``"HSPTable"`` for a symmetry data vector measured in a table,
+        ``"mapping"`` for one written out by hand.
     complete : bool
-        Whether every point was measured; ``True`` for a vector written out
-        by hand, whose completeness is taken as stated.
+        Whether the table refused at no point.  ``True`` for a vector written
+        out by hand, which is taken as complete.
     claim : {"exact", "necessary-condition"}
-        ``"necessary-condition"`` where coreps left out repeat no kept one.
+        ``"exact"`` where the sums are those of the whole symmetry data vector.
+        ``"necessary-condition"`` where a little-group representation left out
+        repeats no measured one.  The sums then carry the symmetry data vector
+        on the little-group representations measured, and may not carry the
+        whole vector.
     refused : dict
-        ``{kpoint: gate}`` for each point a table refused and the decomposition
-        left out.
+        If nonempty, ``{point: gate}``: each point at which the table refused,
+        with the name of its refusal.  The decomposition leaves those points
+        out.
     note : str
-        The same in a sentence.
+        What the record holds, in a sentence.
     """
 
     source: str
@@ -257,16 +316,19 @@ class Completeness:
 
 @dataclass(frozen=True)
 class Enumeration:
-    """How far the list of sums goes.
+    """The cap on the number of sums listed, and whether the list stops at it.
+
+    Held in :attr:`EBRDecompositionNumerical.enumeration`.
 
     Attributes
     ----------
     cap : int
-        The most sums listed.
+        The largest number of sums listed.
     n_solutions : int
-        How many were listed.
+        The number of sums listed.
     truncated : bool
-        Whether the list stops at the cap, short of every sum.
+        Whether the search stopped at the cap, so that there may be more sums
+        than are listed.
     """
 
     cap: int
@@ -276,19 +338,23 @@ class Enumeration:
 
 @dataclass(frozen=True)
 class SignedCombinations:
-    """The sums of elementary band representations with multiplicities of either sign that carry a symmetry data vector no nonnegative sum carries.
+    """The combinations of elementary band representations with signed multiplicities.
 
-    One found is the signature of a fragile band set, none of a stable
-    obstruction; signed terms can cancel without limit, so either is evidence.
+    Held in :attr:`EBRDecomposition.signed_combinations`, where no sum with
+    nonnegative multiplicities carries the symmetry data vector.  Each
+    multiplicity is searched between minus and plus the bound,
+    :attr:`EBRDecompositionNumerical.bound`.  No bound holds for a signed
+    multiplicity, so a combination may have a multiplicity beyond the bound
+    searched.
 
     Attributes
     ----------
     sums : tuple of ..symmetry.BandRepresentation
-        Each combination, with multiplicities between ``-bound`` and
-        ``bound``, ``bound`` being :attr:`EBRDecompositionNumerical.bound`;
-        empty where none was found.
+        If nonempty, each combination found that carries the symmetry data
+        vector, up to the cap on the list.
     truncated : bool
-        Whether the list stops at the cap, short of every combination.
+        Whether the search stopped at the cap, so that there may be more
+        combinations than are listed.
     """
 
     sums: tuple
@@ -329,7 +395,7 @@ class EBRDecompositionNumerical:
     _kind: str = field(default="coreps", repr=False, compare=False)
 
     def summary(self) -> str:
-        """What the decomposition was read on, a line for each part, with the attribute that holds it."""
+        """What the decomposition was read on, a line for each part with its attribute."""
         lines = []
         where = _where_line(self.restriction, self.completeness, self._kind)
         if where is not None:
@@ -345,7 +411,7 @@ class EBRDecompositionNumerical:
                          "is taken as stated   (.completeness)")
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover, convenience only
         return (f"EBRDecompositionNumerical(bound {self.bound}"
                 + (", rigorous" if self.bound_is_rigorous else "")
                 + f", {self.completeness.claim})")
@@ -407,7 +473,7 @@ class EBRDecomposition:
     _group: Any = field(default=None, repr=False, compare=False)
 
     def summary(self) -> str:
-        """Whether a sum carries the vector, a line for each part, with the attribute that holds it."""
+        """Whether a sum carries the vector, a line for each part with its attribute."""
         kind = _kind(self._group)
         n = len(self.candidate_sums)
         numerical = self.numerical
@@ -450,7 +516,7 @@ class EBRDecomposition:
                          "Wyckoff positions stay   (.site_content)")
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover, convenience only
         n = len(self.candidate_sums)
         return (f"EBRDecomposition({'decomposable' if self.decomposable else 'not decomposable'}"
                 f", {n} candidate sum{'' if n == 1 else 's'}, "
@@ -459,11 +525,16 @@ class EBRDecomposition:
 
 
 def _signed_sums_line(signed, bound) -> str:
-    """What the search with negative multiplicities allowed found, in one line.
+    """The line of a summary that says what the signed search found.
 
-    Every combination it lists has a negative multiplicity, since the
-    nonnegative search within the same bound found none; a list cut at its cap
-    counts at least that many.  Signed multiplicities have no rigorous bound.
+    ``signed`` is the :class:`SignedCombinations` found by the search with
+    multiplicities of either sign, and ``bound`` the bound each multiplicity
+    was searched within, :attr:`EBRDecompositionNumerical.bound`.  Each
+    combination found has a negative multiplicity, since the search with
+    nonnegative multiplicities within the same bound found none.  The line
+    counts them, "at least" where the list stops at its cap, or says that
+    none was found with multiplicities between ``-bound`` and ``bound``.
+    Returns the line.
     """
     n = len(signed.sums)
     if n:
@@ -538,7 +609,7 @@ class RegularCompletion:
                          "(.decomposition)")
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover, convenience only
         return (f"RegularCompletion({self.copies} cop{'y' if self.copies == 1 else 'ies'} of "
                 f"{self.bands_per_copy} bands, padding "
                 f"{_sewing.format_coreps(self.padding) or 'none'}, "
@@ -568,29 +639,45 @@ INDICATOR_CONVENTION = (
 
 @dataclass(frozen=True)
 class SmithVerification:
-    """The Smith normal form of the group's matrix of elementary band representations, computed again, exactly.
+    """The Smith normal form of the group's matrix, computed again in exact integers.
 
-    A disagreement with the tables' form raises, so a record returned holds
-    one that agrees.
+    Held in :attr:`SymmetryIndicatorNumerical.verification`.  The matrix is
+    the group's matrix of elementary band representations, whose columns are
+    their symmetry data vectors.  Its Smith normal form is computed again and
+    compared with the one the irreptables package ships with it.  A record
+    returned holds two forms with the same elementary divisors, in which the
+    class has the same order.
 
     Attributes
     ----------
     divisors_denovo : tuple of int
-        The elementary divisors above 1 computed again.
-    agrees, shipped_is_smith, denovo_is_smith : bool
-        Whether the two forms agree, and whether each is a Smith form of the
-        matrix.
+        The elementary divisors above 1 of the form computed again.
+    agrees : bool
+        Whether the two forms have the same elementary divisors and give the
+        class the same order.  ``True`` in a record returned.
+    shipped_is_smith : bool
+        Whether the two unimodular matrices the irreptables package ships
+        bring the matrix to the diagonal form it ships.  ``True`` in a record
+        returned.
+    denovo_is_smith : bool
+        Whether the form computed again is a Smith normal form of the matrix.
+        ``True`` in a record returned.
     values_denovo : tuple of int
-        The class in the coordinates of the form computed again.
+        The class read in the form computed again: the entries of its
+        ``U y`` (:attr:`SymmetryIndicator.values`) at its elementary divisors
+        above 1, each modulo that divisor.
     order_denovo : int
-        The class's order computed again.
+        The order of the class, computed again.
     change_of_basis : tuple
-        The automorphism of the indicator group that carries the tables'
-        coordinates onto those of the form computed again.
+        The automorphism of the indicator group that carries
+        :attr:`SymmetryIndicator.values` to :attr:`values_denovo`: a matrix
+        with a row for each entry of :attr:`values_denovo` and a column for
+        each entry of :attr:`SymmetryIndicator.values`, each element modulo
+        the elementary divisor of its column.
     change_of_basis_is_identity : bool
         Whether that automorphism is the identity.
     note : str
-        The same in a sentence.
+        What the record holds, in a sentence.
     """
 
     divisors_denovo: tuple
@@ -608,15 +695,23 @@ class SmithVerification:
 class LatticeCheck:
     """The compatibility relations, checked exactly on the symmetry data vector.
 
+    Held in :attr:`SymmetryIndicatorNumerical.lattice_check`.  The
+    compatibility relations require the entries of ``U y`` at the rows where
+    ``D`` is zero to vanish for every band structure of the group.
+    Here ``U M V = D`` is the Smith normal form the irreptables package ships
+    for the group's matrix ``M`` of elementary band representations, and
+    ``y`` is the symmetry data vector.
+
     Attributes
     ----------
     in_lattice : bool
-        Whether the vector satisfies every compatibility relation; a record
-        returned holds one that does.
+        Whether the symmetry data vector satisfies every compatibility
+        relation.  ``True`` in a record returned.
     residual : int
-        The largest violation.
+        The largest absolute value of an entry of ``U y`` that a compatibility
+        relation requires to vanish.  Zero in a record returned.
     relations : int
-        How many compatibility relations the group has.
+        The number of compatibility relations of the group.
     """
 
     in_lattice: bool
@@ -626,18 +721,24 @@ class LatticeCheck:
 
 @dataclass(frozen=True)
 class IndicatorComponent:
-    """One component of a layer's class, and whether it reads coreps out of the layer's plane.
+    """One component of a layer's symmetry-indicator class.
+
+    Held in :attr:`TwoDimensionalReading.components`.  A component is one
+    entry of ``U y``, taken modulo its elementary divisor
+    (:attr:`SymmetryIndicator.values`).
 
     Attributes
     ----------
     slot : int
-        The Smith coordinate it is.
+        The index of the entry of ``U y``.
     divisor : int
-        Its modulus.
+        The elementary divisor the component is taken modulo.
     value : int
-        Its value.
+        The component, modulo :attr:`divisor`.
     reads_out_of_plane : bool
-        Whether its linear form reads a corep at a point out of the plane.
+        Whether the entry, a linear form in the symmetry data vector, has a
+        nonzero coefficient on a little-group representation at a point out of
+        the layer's plane.
     """
 
     slot: int
@@ -648,32 +749,44 @@ class IndicatorComponent:
 
 @dataclass(frozen=True)
 class TwoDimensionalReading:
-    """How a layer's class reads: the class of its decoupled stack, every component an invariant of that stack.
+    """How a layer's symmetry-indicator class is read, as the class of its stack.
+
+    Held in :attr:`SymmetryIndicatorNumerical.two_dimensional`.  A layer's
+    class is read in a three-dimensional space group, whose tables have points
+    out of the layer's plane, at ``k_z = 1/2``.  It is the class of the
+    layer's decoupled stack, the layer repeated along its normal with no
+    hopping between copies.
 
     Attributes
     ----------
     applied : bool
-        Whether the reading applies; a record returned holds one that does.
+        ``True`` in every record returned.
     dim_k : int
-        The layer's periodic dimensions.
-    periodic_dirs, vacuum_dirs : tuple of int
-        Its periodic directions, and its normal.
+        The number of the layer's periodic directions.
+    periodic_dirs : tuple of int
+        The layer's periodic directions, by lattice vector.
+    vacuum_dirs : tuple of int
+        The lattice vector along the layer's normal.
     presentation : {"SLAB", "decoupled-STACK"}
-        Whether the class was read in the slab's group, or in the group of the
-        decoupled stack the coreps out of the plane were measured on.
+        ``"decoupled-STACK"`` where the little-group representations out of
+        the plane were measured on the decoupled stack, ``"SLAB"`` where none
+        was.  The class is read in the layer's own group in both cases.
     out_of_plane_kpoints : tuple of str
         The tabulated points out of the layer's plane.
     out_of_plane_labels : tuple of str
-        The coreps there.
+        The little-group representations at those points.
     components : tuple of IndicatorComponent
-        Each component of the class, and whether it reads a corep out of the
-        plane.
+        Each component of the class, and whether it has a coefficient on a
+        little-group representation out of the plane.
     support : dict
-        ``{indicator: where}``, each of the paper's named indicators and where
-        its coefficients sit: ``"in-plane only"``, ``"out-of-plane only"`` or
-        ``"mixed"``.
+        If nonempty, ``{indicator: where}``: for each named indicator, as
+        :attr:`SymmetryIndicator.indicators` names it, the little-group
+        representations on which its coefficients are nonzero.
+        ``"in-plane only"`` for those in the plane alone,
+        ``"out-of-plane only"`` for those out of it alone, ``"mixed"`` for
+        both.
     note : str
-        The same in a sentence.
+        What the record holds, in a sentence.
     """
 
     applied: bool
@@ -690,24 +803,32 @@ class TwoDimensionalReading:
 
 @dataclass(frozen=True)
 class HamiltonianIdentity:
-    """The decoupled stack's Hamiltonian held to the layer's, in the gauge of the orbitals' heights.
+    """The decoupled stack's Hamiltonian compared with the layer's.
+
+    Held in :attr:`StackChecks.hamiltonian_identity`.  Each orbital sits at
+    its height ``h`` along the normal, and the stack's period is ``C``.  The
+    stack's ``H(k, k_z)`` is then the layer's ``H(k)`` in the gauge of the
+    phases ``exp(2 pi i k_z h / C)`` of the orbitals.  The two are compared in
+    that gauge.
 
     Attributes
     ----------
     residual : float
-        The largest difference over the in-plane k-points and the ``k_z``
-        probed, in the units of H.
+        The largest difference between the two over the in-plane k-points and
+        the values of ``k_z`` probed, in the units of H.
     threshold : float
-        What it is held to: zero for a flat layer, otherwise the rounding the
-        phases carry.
+        The largest residual allowed, in the units of H: zero for a layer
+        whose orbitals lie in one plane, otherwise the rounding the phases
+        carry.
     at_zero : float
-        The difference at ``k_z = 0``, held to zero.
+        The difference at ``k_z = 0``, where every phase is 1.  Zero in a
+        record returned.
     n_k : int
-        The in-plane k-points probed.
+        The number of in-plane k-points probed.
     k_z : tuple of float
-        The ``k_z`` probed.
+        The values of ``k_z`` probed, in reduced coordinates.
     note : str
-        The same in a sentence.
+        What the record holds, in a sentence.
     """
 
     residual: float
@@ -720,16 +841,18 @@ class HamiltonianIdentity:
 
 @dataclass(frozen=True)
 class StackHoppings:
-    """The hoppings between the stack's copies: none.
+    """The hoppings between the copies of the decoupled stack: none.
+
+    Held in :attr:`StackChecks.no_hopping_across_the_stack`.
 
     Attributes
     ----------
     n_hoppings : int
-        The layer's hoppings.
+        The number of the layer's hoppings.
     worst : float
-        The largest hopping between copies.
+        The largest hopping between copies.  Zero in a record returned.
     note : str
-        The same in a sentence.
+        What the record holds, in a sentence.
     """
 
     n_hoppings: int
@@ -739,20 +862,26 @@ class StackHoppings:
 
 @dataclass(frozen=True)
 class RepresentationCheck:
-    """The layer's own matrices held against the stack's Hamiltonian.
+    """The matrices of the layer's representation, checked on the stack's Hamiltonian.
+
+    Held in :attr:`StackChecks.representation`.
 
     Attributes
     ----------
     covariance : float
-        The largest covariance residual over every operation, in the units of H.
+        The largest covariance residual, ``max |D H(k) D^-1 - H(Rk)|`` over
+        every operation and the k-points probed, in the units of H.  Here
+        ``D`` is the operation's matrix on the orbitals and ``R`` its
+        rotation.
     threshold : float
-        What it is held to.
+        The largest residual allowed, the rounding the arithmetic of the
+        matrices carries, in the units of H.
     n_operations : int
-        The operations checked.
+        The number of operations checked.
     n_k : int
-        The k-points probed.
+        The number of k-points probed.
     note : str
-        The same in a sentence.
+        What the record holds, in a sentence.
     """
 
     covariance: float
@@ -764,22 +893,29 @@ class RepresentationCheck:
 
 @dataclass(frozen=True)
 class CharactersCheck:
-    """The two presentations' band characters and labels where their k-points meet.
+    """The band characters of the layer and of its stack at the k-points they share.
+
+    Held in :attr:`StackChecks.characters`.  Each point of the layer's table
+    is paired with the point of the stack's table in the layer's plane at the
+    same reduced k.  The characters of the bands are compared there,
+    operation by operation.
 
     Attributes
     ----------
     worst : float
         The largest difference between two characters compared.
     threshold : float
-        What it is held to.
+        The largest difference allowed.
     n_comparisons : int
-        How many characters were compared.
+        The number of characters compared.
     shared_kpoints : tuple
-        ``(layer's k-point, stack's k-point)`` for each pair compared.
+        ``(layer's point, stack's point)`` for each pair compared, by
+        tabulated name.
     labels_equal : bool
-        Whether the labels agree at each pair.
+        Whether the two tables give the same little-group representations,
+        with the same multiplicities, at each pair.
     note : str
-        The same in a sentence.
+        What the record holds, in a sentence.
     """
 
     worst: float
@@ -792,24 +928,33 @@ class CharactersCheck:
 
 @dataclass(frozen=True)
 class StackFiber:
-    """A fiber of the stack at ``k_z = 1/2`` held against the fiber in the plane at the same in-plane k.
+    """The stack's bands at one point at ``k_z = 1/2``, against those in the plane.
+
+    Held in :attr:`StackChecks.fibers`.  The bands at a point at
+    ``k_z = 1/2`` are compared with those at the point of the plane with the
+    same in-plane k.  With no hopping between the copies, the two are the
+    same states, with the same energies, multiplets and characters.
 
     Attributes
     ----------
     kpoint : str
-        The point at ``k_z = 1/2``.
+        The tabulated name of the point at ``k_z = 1/2``.
     in_plane_kpoint : str
-        The point in the plane it is held against.
+        The tabulated name of the point in the plane it is compared with.
     energy_defect : float
-        The largest difference between their energies, in the units of H.
+        The largest difference between the energies at the two points, in the
+        units of H.  Infinite where the two hold different numbers of
+        multiplets.
     character_defect : float
-        The largest difference between their characters.
+        The largest difference between the characters at the two points, over
+        the operations both little groups hold.
     n_shared_operations : int
-        The operations both little groups hold.
+        The number of operations both little groups hold.
     partition_equal : bool
-        Whether the two fibers split into multiplets alike.
+        Whether the bands at the two points split into multiplets alike.
     multiplicities_equal : bool
-        Whether they carry the same corep multiplicities.
+        Whether the two points carry the same multiplicities, whichever
+        little-group representations carry them.
     """
 
     kpoint: str
@@ -823,20 +968,24 @@ class StackFiber:
 
 @dataclass(frozen=True)
 class StackChecks:
-    """Each check that ties the decoupled stack to the layer, with its measured number.
+    """Each check that ties the stack to the layer, with the number it measured.
+
+    Held in :attr:`StackCompletion.gates`.
 
     Attributes
     ----------
     hamiltonian_identity : HamiltonianIdentity
-        The stack's Hamiltonian against the layer's.
+        The stack's Hamiltonian compared with the layer's.
     no_hopping_across_the_stack : StackHoppings
         The hoppings between the copies.
     representation : RepresentationCheck
-        The layer's matrices on the stack's Hamiltonian.
+        The layer's matrices checked on the stack's Hamiltonian.
     characters : CharactersCheck
-        The two presentations' characters where they meet.
+        The band characters of the layer and of the stack at the k-points
+        they share.
     fibers : tuple of StackFiber
-        Each fiber at ``k_z = 1/2`` against its partner in the plane.
+        The stack's bands at each point at ``k_z = 1/2``, compared with those
+        at the point of the plane with the same in-plane k.
     """
 
     hamiltonian_identity: HamiltonianIdentity
@@ -848,24 +997,30 @@ class StackChecks:
 
 @dataclass(frozen=True)
 class StackInput:
-    """The layer the decoupled stack was built for, as handed in.
+    """The layer whose decoupled stack was built, as handed in.
+
+    Held in :attr:`StackCompletion.input`.
 
     Attributes
     ----------
     group : ..groups.NamedGroup
         The layer's group.
     dim_k : int
-        Its periodic dimensions.
-    periodic_dirs, vacuum_dirs : tuple of int
-        Its periodic directions, and its normal.
+        The number of the layer's periodic directions.
+    periodic_dirs : tuple of int
+        The layer's periodic directions, by lattice vector.
+    vacuum_dirs : tuple of int
+        The lattice vector along the layer's normal.
     kpoints : tuple of str
-        The points its table measured.
+        The tabulated names of the points the layer's table measured.
     orphans : tuple of str
-        The coreps out of its plane that repeat none in it.
+        The little-group representations out of the layer's plane that repeat
+        none in it, as :attr:`Restriction.orphans` holds them.
     symmetry_data : dict
-        Its symmetry data vector.
+        The layer's symmetry data vector, ``{corep: multiplicity}``.
     n_represented : int
-        The operations its representation holds a matrix for.
+        The number of operations the layer's representation holds a matrix
+        for.
     """
 
     group: Any
@@ -882,19 +1037,21 @@ class StackInput:
 class StackGroup:
     """The decoupled stack's group: the layer's own, carried onto the stack's cell.
 
+    Held in :attr:`StackCompletion.stack`.
+
     Attributes
     ----------
     group : ..groups.NamedGroup
         The group.
     dim_k : int
-        Its periodic dimensions, three.
+        The number of the stack's periodic directions, three.
     periodic_dirs : tuple of int
-        Its periodic directions.
+        The stack's periodic directions, by lattice vector.
     typat : tuple of int
-        Each orbital's species.
+        The species of each orbital's site.
     divisors : tuple of int
-        The elementary divisors above 1 of its matrix of elementary band
-        representations.
+        The elementary divisors above 1 of the group's matrix of elementary
+        band representations.
     """
 
     group: Any
@@ -906,10 +1063,12 @@ class StackGroup:
 
 @dataclass(frozen=True)
 class StackCompletion:
-    """How a layer's coreps out of its plane were measured, on its decoupled stack in its own group.
+    """The measurement of a layer's little-group representations at ``k_z = 1/2``.
 
-    The decoupled stack is the layer repeated along its normal with no hopping
-    between copies.
+    Held in :attr:`SymmetryIndicatorNumerical.completion`.  The decoupled
+    stack is the layer repeated along its normal with no hopping between
+    copies, each orbital at its own height.  It obeys the layer's own group,
+    and the little-group representations at ``k_z = 1/2`` are measured on it.
 
     Attributes
     ----------
@@ -917,23 +1076,26 @@ class StackCompletion:
         ``"decoupled stack"``.
     outcome : str
         ``"completed"``.
-    stopped_at, stop_reason : None
-        Where the measurement stopped, and why; ``None`` for one that
-        completed.
+    stopped_at : None
+        Where the measurement stopped.  ``None`` in a record returned.
+    stop_reason : None
+        Why the measurement stopped.  ``None`` in a record returned.
     stack_period : float
-        The stack's period, in the model's units of length.
+        The stack's period, in the model's units of length: the layer's
+        extent along its normal plus the vacuum between the copies.
     stack_extent : float
-        The layer's extent along its normal, in the same units.
+        The layer's extent along its normal, in the model's units of length.
     environment : str or None
         The layer's environment, ``"free-standing"`` or ``"substrate"``.
     note : str
-        The same in a sentence.
+        What the record holds, in a sentence.
     input : StackInput
         The layer as handed in.
     stack : StackGroup
         The stack's group.
     gates : StackChecks
-        Each check that ties the stack to the layer.
+        Each check that ties the stack to the layer, with the number it
+        measured.
     """
 
     route: str
@@ -950,7 +1112,13 @@ class StackCompletion:
 
 
 def _completion_record(record) -> StackCompletion:
-    """A completed stack's mapping as a :class:`StackCompletion`."""
+    """The :class:`StackCompletion` of a layer's decoupled stack, from its mapping.
+
+    ``record`` is the mapping :func:`_stack_in_group` builds for a completed
+    stack: the record's own fields, with ``"input"``, ``"stack"`` and
+    ``"gates"`` as mappings of their own.  Returns the record, each of those
+    three parts a record of its class.
+    """
     from ._realized import NamedGroup
 
     def named(part):
@@ -998,47 +1166,60 @@ def _completion_record(record) -> StackCompletion:
 
 @dataclass(frozen=True)
 class SymmetryIndicatorNumerical:
-    """How an indicator class was read: what :attr:`SymmetryIndicator.numerical` holds.
+    """How a symmetry-indicator class was read.
 
-    ``summary()`` prints it.
+    Held in :attr:`SymmetryIndicator.numerical`.  ``summary()`` prints the
+    symmetry data vector on every point of the group's tables, how the
+    little-group representations a layer does not measure were obtained, and
+    the check of the Smith normal form.
 
     Attributes
     ----------
     verification : SmithVerification
-        The Smith normal form computed again, exactly.
+        The Smith normal form of the group's matrix of elementary band
+        representations, computed again in exact integers.
     lattice_check : LatticeCheck
-        The compatibility relations.
+        The compatibility relations, checked on the symmetry data vector.
     restriction : Restriction
-        The coreps measured.
+        The little-group representations measured, and those left out.
     reconstructed : dict
-        ``{corep: corep}``: each corep out of the layer's plane the symmetry
-        data vector does not name, and the corep in the plane whose
-        multiplicity it takes, which it repeats in every elementary band
-        representation it was read on.  Empty for a crystal and for a table
-        whose coreps there were measured.
+        If nonempty, ``{left out: measured}``: each little-group
+        representation left out that the symmetry data vector does not name,
+        and the measured one whose multiplicity it takes.  The two occur as
+        often as each other in every elementary band representation the
+        vector was read on.
     completed_symmetry_data : dict
-        The symmetry data vector on every point of the group's tables, the
-        coreps out of a layer's plane completed or measured on its decoupled
-        stack, the zeros dropped.
+        The symmetry data vector on every point of the group's tables,
+        ``{corep: multiplicity}``, the zeros dropped.  A layer's little-group
+        representations out of its plane are measured on its decoupled stack,
+        or take the multiplicity of the one in the plane they repeat.  A
+        vector written out by hand is read as given at each point out of the
+        plane where it names a little-group representation.
     completion : StackCompletion or None
-        How a layer's coreps out of its plane were measured on its decoupled
-        stack; ``None`` where none had to be.
+        If not ``None``, how a layer's little-group representations out of its
+        plane were measured on its decoupled stack.  ``None`` where none had
+        to be.
     two_dimensional : TwoDimensionalReading or None
-        For a layer with an indicator, how its class reads; ``None`` for a
-        crystal and for a group with no indicator.
+        If not ``None``, how a layer's class was read.  ``None`` for a crystal
+        periodic in three directions, for a trivial indicator group, and where
+        there is no point out of the layer's plane to read.
     free_standing_group : ..groups.NamedGroup or None
-        For a layer on a substrate, the free-standing layer's group, as
-        :func:`..groups.realized_group` measured it, where it is larger than
-        the group the class lives in; its class is asked with
-        ``environment="free-standing"``.
+        If not ``None``, the group of the same layer free-standing, with
+        vacuum on both sides, as :func:`.groups.realized_group` measured it
+        beside the group on a substrate.  It is given where it is larger than
+        the group in which the class is computed.
     convention : str
-        :data:`INDICATOR_CONVENTION`: the class does not depend on the
-        translation convention the tables are written in.
+        :data:`INDICATOR_CONVENTION`, a statement that the class is computed
+        in the convention in which a lattice translation is represented by
+        ``e^(-ik.t)``, and is the same in the convention of the tables, in
+        which a lattice translation is represented by ``e^(+ik.t)``.
     indicators_note : str
         Where :attr:`SymmetryIndicator.indicators` came from, or why it is
         ``None``.
     group_provenance : str
-        ``"realized"`` or ``"descended"``: how the group was measured on H.
+        ``"realized"`` where the group is that of the model's cell;
+        ``"descended"`` where it was lowered from the group of the cell by the
+        operations the Hamiltonian breaks.
     """
 
     verification: SmithVerification
@@ -1102,54 +1283,64 @@ class SymmetryIndicatorNumerical:
                      "divisors and the same order of the class   (.verification)")
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover, convenience only
         return (f"SymmetryIndicatorNumerical({self.group_provenance}"
                 + (", completed on the stack" if self.completion is not None else "") + ")")
 
 
 @dataclass(frozen=True)
 class SymmetryIndicator:
-    r"""The symmetry-indicator class of a band set: the class of its symmetry data vector among the group's band structures modulo its atomic limits, ``X_BS = {BS}/{AI}``.
+    r"""The symmetry-indicator class of a set of bands.
 
-    A nonzero class says no band set with this symmetry data vector is an
-    atomic limit, nor any with atomic bands added; a zero class certifies
-    nothing, fragile band sets lying in it.  ``summary()`` prints it.  The
-    record is truthy whatever its class.
+    The record :func:`symmetry_indicator` returns.  ``summary()`` prints the
+    class, its indicator group and its order, the class in the named
+    indicators, and the symmetry data vector.  The record is truthy whatever
+    its class.
 
     Attributes
     ----------
     values : tuple of int
-        The class, one integer modulo each of :attr:`divisors`, in the
-        coordinates the Smith normal form of the group's matrix of elementary
-        band representations gives.
+        If nonempty, the class, one integer modulo each of :attr:`divisors`:
+        the entries of ``U y`` at which ``D`` holds an elementary divisor
+        above 1, each modulo that divisor.  Here ``U M V = D`` is the Smith
+        normal form the irreptables package ships for the group's matrix
+        ``M`` of elementary band representations, and ``y`` is the symmetry
+        data vector.  Another Smith normal form of the same matrix can give
+        the same class other values, and the same order.  Empty for a trivial
+        indicator group.
     divisors : tuple of int
-        The elementary divisors above 1 of that matrix: ``X_BS`` is
-        ``⊕ᵢ ℤ_{dᵢ}``; empty where the indicator group is trivial.
+        If nonempty, the elementary divisors above 1 of ``M``.  The indicator
+        group is the product of the cyclic groups of these orders.  Empty for
+        a trivial indicator group.
     indicator_group : str
-        The same as text, ``"Z2 x Z4"``; ``"trivial"`` where there is none.
+        The indicator group as text, ``"Z2 x Z4"``, or ``"trivial"``.
     indicators : dict or None
-        The class in the named indicators of the paper that tabulates the
-        stable real-space invariants, Hwang *et al.*, Nat. Commun. **17**, 8564
-        (2026): ``{name: value}``, computed through those invariants.  ``None``
-        for a group with no time reversal, which the paper does not tabulate,
-        for a trivial indicator group, and where the converted tables are not
-        installed.
+        If not ``None``, the class in the named indicators of Hwang *et al.*,
+        Nat. Commun. **17**, 8564 (2026), ``{name: value}``.  They are
+        computed from the integer-valued stable real-space invariants (ZSRSIs)
+        of the symmetry data vector.  ``None`` in three cases: a group with
+        no time reversal, which the paper does not tabulate; a trivial
+        indicator group; and a group for which the paper's tables are not
+        installed or cannot be read.
+        :attr:`SymmetryIndicatorNumerical.indicators_note` says which.
     order : int
-        The class's order, the fewest copies of the band set whose class is
-        zero: ``1`` for the zero class.  Unlike :attr:`values` it does not
-        depend on the coordinates.
+        The order of the class: the smallest number of copies of the set of
+        bands that together have the zero class, ``1`` for the zero class.
     symmetry_data : dict
-        The symmetry data vector, ``{corep: multiplicity}``: for a layer, the
-        coreps at the points of its plane.
+        The symmetry data vector, ``{corep: multiplicity}``.  For a layer, the
+        multiplicities at the points of its plane alone.
     site_content : SiteContent or None
-        The site irreps the labels rest on.  Where one is ``"lowest-l"``, the
-        class is that of the labeling the lowest-angular-momentum rule makes,
-        and a declaration states another.
+        If not ``None``, the site irrep of each orbital, and how each is
+        known, on which the names of the little-group representations rest.
+        Where one is ``"lowest-l"``, another declaration of the orbitals can
+        give the bands another class.  ``None`` where the representation holds
+        no site irreps.
     group : ..groups.GroupData
-        The group the class lives in, ``r.group``.
+        The group in which the class is computed, ``r.group``.
     numerical : SymmetryIndicatorNumerical
-        The Smith form computed again, the vector on every point of the
-        group's tables, and how a layer's coreps out of its plane were read.
+        The Smith normal form computed again, the symmetry data vector on
+        every point of the group's tables, and how a layer's little-group
+        representations out of its plane were read.
     """
 
     values: tuple
@@ -1161,9 +1352,9 @@ class SymmetryIndicator:
     site_content: SiteContent | None
     group: Any = field(repr=False, compare=False)
     numerical: SymmetryIndicatorNumerical
-    # the arithmetic: every corep of the group's elementary band representations,
-    # the vector on them, the same in the Smith coordinates, and where the
-    # divisors sit among those
+    # The arithmetic: every little-group representation of the group's elementary
+    # band representations, the vector on them, the same as U y, and which
+    # entries of U y have an elementary divisor above 1.
     _labels: tuple = field(default=(), repr=False)
     _y: tuple = field(default=(), repr=False)
     _y_prime: tuple = field(default=(), repr=False)
@@ -1196,7 +1387,7 @@ class SymmetryIndicator:
                          "class   (.site_content)")
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover, convenience only
         body = (f"class {tuple(int(v) for v in self.values)} in {self.indicator_group}"
                 if self.divisors else "trivial indicator group")
         stacked = (self.numerical is not None and self.numerical.completion is not None)
@@ -1209,34 +1400,32 @@ class SymmetryIndicator:
 # --------------------------------------------------------------------------
 
 def content_of(content) -> dict | Refusal:
-    """A band set's symmetry data vector as multiplicities: how many of each corep it carries.
-
-    A measured table and a vector written out by hand read the same way.
+    """The symmetry data vector of a set of bands, as integer multiplicities.
 
     Parameters
     ----------
     content : .sewing.HSPTable or mapping
-        A table :func:`.sewing.hsp_table` returned, or ``{corep: multiplicity}``.
+        The symmetry data vector.  Pass the table :func:`.sewing.hsp_table`
+        returns, or ``{corep: multiplicity}`` written out by hand.
 
     Returns
     -------
     dict or Refusal
-        ``{corep: multiplicity}``, the multiplicities integers and the zeros
-        dropped.  A ``Refusal`` in its place is falsy and names what stopped the
-        call.
-
-    Raises
-    ------
-    TypeError
-        Neither a table nor a mapping.
+        ``{corep: multiplicity}``, each multiplicity an integer, the zeros
+        dropped.  A ``Refusal`` in its place is falsy and names what stopped
+        the call.
 
     Refusals
     --------
     ``non_integer_multiplicity``
-        an entry is no whole number of coreps.
+        an entry is not an integer.
     ``negative_multiplicity``
-        an entry is negative: no band set has it, and a difference of two band
-        sets is one only where one contains the other.
+        an entry is negative.
+
+    Raises
+    ------
+    TypeError
+        ``content`` is neither a table nor a mapping.
     """
     src = content.symmetry_data if isinstance(content, _sewing.HSPTable) else content
     if not isinstance(src, Mapping):
@@ -1266,17 +1455,29 @@ def content_of(content) -> dict | Refusal:
 
 @dataclass(frozen=True)
 class _Source:
-    """What a symmetry data vector is read in: its group, and what the measurement it came from carries.
+    """What a symmetry data vector is read in, and what its measurement carries.
 
-    ``table`` is the :class:`.sewing.HSPTable` read, or ``None`` for a vector
-    written out by hand; ``rep`` the representation a layer's decoupled stack
-    is built from, where there is one; ``site_content`` the
-    :class:`SiteContent` the labels rest on; ``heights`` a layer's orbitals'
-    heights from its middle plane (``None`` for a crystal, and where the
-    group's own sites stand for the orbitals); ``free_standing`` the
-    free-standing layer's group as the measurement wrote it,
-    ``{"number_str", "name", "size"}``; ``provenance`` how the group was
-    measured, where the measurement says.
+    Attributes
+    ----------
+    group : ..groups.GroupData
+        The group the vector is read in.
+    table : ..sewing.HSPTable or None
+        The table read; ``None`` for a vector written out by hand.
+    rep : ..symmetry.SpaceGroupRep or None
+        The representation of the group on the model's orbitals, or ``None``.
+        A layer's decoupled stack is built from it.
+    site_content : SiteContent or None
+        The site irreps the names of the little-group representations rest on.
+    heights : tuple of float or None
+        Each orbital's height from a layer's middle plane along its normal, in
+        the model's units of length.  ``None`` for a crystal, and where the
+        group's own sites stand for the orbitals.
+    free_standing : dict or None
+        If not ``None``, for a layer on a substrate, the group the layer has
+        free-standing, ``{"number_str", "name", "size"}``.
+    provenance : str or None
+        How the table's group was measured, as the table records it; ``None``
+        for a vector written out by hand.
     """
 
     group: Any
@@ -1289,7 +1490,12 @@ class _Source:
 
 
 def _source_of_table(table) -> _Source:
-    """What a table carries: its group, its site irreps, a layer's heights and representation."""
+    """The :class:`_Source` of a vector measured in a table.
+
+    ``table`` is a :class:`.sewing.HSPTable`.  Returns its group, the table,
+    its representation and site irreps, a layer's heights, the free-standing
+    group its representation carries, and how its group was measured.
+    """
     rep = table._rep
     return _Source(group=table.group, table=table, rep=rep,
                    site_content=table._site_content, heights=table._heights,
@@ -1298,27 +1504,43 @@ def _source_of_table(table) -> _Source:
 
 
 def _source_of_rep(group, rep=None) -> _Source:
-    """What a representation carries for a vector read in ``group``, or the group alone where ``rep`` is ``None``."""
+    """The :class:`_Source` of a vector written out by hand, read in ``group``.
+
+    ``rep`` is the representation beside the vector, or ``None``.  Returns no
+    table and no provenance.  The site irreps, the heights and the
+    free-standing group are read off ``rep``, and are ``None`` where it is
+    ``None``.
+    """
     return _Source(group=group, rep=rep, site_content=_sewing._site_content_record(rep),
                    heights=None if rep is None else _sewing._table_heights(rep),
                    free_standing=getattr(rep, "_free_standing_group", None))
 
 
 def _source_of(symmetry_data, group, rep=None) -> _Source:
-    """What a private entry reads: a table's own carrying, or ``group`` and ``rep`` beside a vector."""
+    """The :class:`_Source` of a table, or of a vector handed in with its group.
+
+    ``symmetry_data`` is a :class:`.sewing.HSPTable`, read in what it carries,
+    ``group`` and ``rep`` not used; or a vector written out by hand, read
+    in ``group`` with ``rep`` beside it (:func:`_source_of_rep`).  Returns the
+    :class:`_Source`.
+    """
     if isinstance(symmetry_data, _sewing.HSPTable):
         return _source_of_table(symmetry_data)
     return _source_of_rep(group, rep)
 
 
 def _read(call, symmetry_data, realized) -> _Source | Refusal:
-    """What ``call`` reads its first two arguments in: a table alone, or a vector with what :func:`.groups.realized_group` returned.
+    """The :class:`_Source` a public call reads its first two arguments in.
 
-    A refusal handed in as ``realized`` is returned as it is.  Raises
-    ``TypeError``, starting with ``call``, saying what to pass: for a table
-    with anything beside it, a vector with nothing beside it, a second
-    argument that is not what ``realized_group`` returns, and a first that is
-    neither a table nor a mapping.
+    ``call`` is the call's name, which each error starts with.
+    ``symmetry_data`` is a :class:`.sewing.HSPTable`, passed alone.  Or it is
+    a vector written out by hand, ``{corep: multiplicity}``, passed with
+    ``realized``, what :func:`.groups.realized_group` returned.  Returns the
+    :class:`_Source`, or a refusal handed in as ``realized``, as it is.
+    Raises ``TypeError``, saying what to pass, for a table with ``realized``
+    beside it, a vector without it, a ``realized`` that is not what
+    ``realized_group`` returns, and a ``symmetry_data`` that is neither a
+    table nor a mapping.
     """
     from ._realized import RealizedGroup
 
@@ -1344,11 +1566,14 @@ def _read(call, symmetry_data, realized) -> _Source | Refusal:
 
 
 def _named_points(group, counts):
-    """The points a vector written out by hand is read at, or the refusal of the group's points.
+    """The points a vector written out by hand is read at.
 
-    Every tabulated point of the model's plane, and each tabulated point out of
-    it at which the vector names a corep; at such a point a corep it does not
-    name is read as zero.
+    ``counts`` is the vector, ``{corep: multiplicity}``, read in ``group``.
+    The points are every tabulated point of the model's plane, then each
+    tabulated point out of it at which ``counts`` gives a little-group
+    representation a nonzero multiplicity.  At such a point, a little-group
+    representation ``counts`` does not name is read as zero.  Returns the
+    points' names, or the refusal of the group's high-symmetry points.
     """
     hsp = _tables._high_symmetry_points(group)
     if isinstance(hsp, Refusal):
@@ -1359,7 +1584,13 @@ def _named_points(group, counts):
 
 
 def _check_names(call, group, names) -> None:
-    """Raise, starting with ``call``, on a name in ``names`` the group does not tabulate."""
+    """Raise on a point's name in ``names`` that ``group`` does not tabulate.
+
+    ``call`` is the public call's name, which the error starts with.  A name
+    of a tabulated point, in the model's plane or out of it, passes.  Raises
+    ``ValueError`` (:func:`._tables._resolve_kpoint`) on any other.  Nothing
+    is checked where the group's high-symmetry points are refused.
+    """
     hsp = _tables._high_symmetry_points(group)
     if isinstance(hsp, Refusal):
         return
@@ -1374,41 +1605,48 @@ def _check_names(call, group, names) -> None:
 
 def in_plane_restriction(group, *, kpoints=None, require_exact=True,
                          _layer=None) -> Restriction | Refusal:
-    """Which coreps of the group's elementary band representations a layer measures, and whether each of the others repeats a measured one.
+    """The little-group representations a model measures, and what the others repeat.
 
-    A layer's ``H(k)`` has no ``k_z``, so its coreps at ``k_z = 1/2`` are not
-    measured.  Each that occurs in every elementary band representation as
-    often as a measured one adds no condition, and where every one does, what
-    is read on the measured coreps is exact.
+    The little-group representations of the group's elementary band
+    representations are split into those at the points in ``kpoints``, the
+    measured ones, and the others, which are left out.  A layer, whose
+    ``H(k)`` has no ``k_z``, has no point at ``k_z = 1/2`` measured.  A
+    little-group representation left out may occur in every elementary band
+    representation as often as a measured one.  It is then said to repeat
+    that one, and adds no condition to a symmetry data vector.
 
     Parameters
     ----------
     group : .groups.GroupData
         The group, ``r.group``.
     kpoints : sequence of str, optional
-        The tabulated names of the points the model samples.  Default: every
-        tabulated point in its plane.
+        The tabulated names of the points measured.  Default: every tabulated
+        point, for a layer's group those in its plane.
     require_exact : bool, default True
-        Whether a corep left out that repeats none measured is refused.  With
-        ``require_exact=False``, those are returned as
-        :attr:`Restriction.orphans`.
+        Whether the call refuses where a little-group representation left out
+        repeats no measured one.
 
     Returns
     -------
     Restriction or Refusal
-        ``r.summary()`` prints it; ``r.copies`` pairs each corep left out with
-        the measured ones it repeats, and ``r.exact`` says whether each does.
-        A ``Refusal`` in its place is falsy and names what stopped the call.
+        The little-group representations measured and those left out, and for
+        each one left out the measured ones it repeats.  The record also says
+        whether every one left out repeats a measured one.  Where each does,
+        the decomposition or class read from the measured ones is that of the
+        whole symmetry data vector.  With ``require_exact=False``, the record
+        lists those that repeat none in its ``orphans``.  A ``Refusal`` in its
+        place is falsy and names what stopped the call.
 
     Refusals
     --------
     A refusal handed in as ``group`` is returned as it is.
 
     ``restriction_not_exact``
-        a corep left out repeats none measured.
+        a little-group representation left out repeats no measured one.  With
+        ``require_exact=False``, the call does not refuse.
     ``ebr_tables`` / ``irrep_tables`` / ``ebr_convention`` / ``tables_not_ready``
-        no elementary band representations of this group, or no tables in this
-        cell.
+        the tables installed hold no elementary band representations of this
+        group that can be read in the model's cell.
 
     Raises
     ------
@@ -1428,11 +1666,20 @@ def in_plane_restriction(group, *, kpoints=None, require_exact=True,
 
 
 def _restriction(group, points=None, *, require_exact=True, layer=None) -> Restriction | Refusal:
-    """What :func:`in_plane_restriction` returns, the names already read.
+    """What :func:`in_plane_restriction` returns, the names already checked.
 
-    ``points`` are the names of the points read, every tabulated point of the
-    plane where ``None``; ``layer`` is :func:`_layer_reading`'s record, whose
-    columns alone the rows are compared on.
+    ``group`` is the group and ``require_exact`` is as
+    :func:`in_plane_restriction` takes them.  ``points`` are the names of the
+    points the model samples, every tabulated point of the model's plane
+    where ``None``.  ``layer`` is the record of :func:`_layer_reading`, or
+    ``None``.  Where it is given, the little-group representations are
+    compared on the band representations within the layer alone, and the
+    positions off it fill ``outside_layer``.  Returns the
+    :class:`Restriction`, or a refusal: ``lattice_not_descended``, a refusal
+    of the tables or of the group's high-symmetry points, or
+    ``restriction_not_exact``.  Raises ``InternalError`` where, on a layer's
+    own band representations with every point of its plane compared, a
+    little-group representation out of the plane repeats none in it.
     """
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
@@ -1442,8 +1689,8 @@ def _restriction(group, points=None, *, require_exact=True, layer=None) -> Restr
         return data
     labels = list(data["labels_physics_convention"])
     matrix = np.asarray(data["matrix"], dtype=int)
-    # A LAYER'S OWN BAND REPRESENTATIONS: where a decomposition runs over the
-    # positions within the layer only, the rows are compared on those columns
+    # On a layer, the rows are compared on the columns of its own band
+    # representations, those of the positions within it.
     if layer is not None:
         matrix = matrix[:, list(layer["columns"])]
 
@@ -1464,10 +1711,11 @@ def _restriction(group, points=None, *, require_exact=True, layer=None) -> Restr
         copies[labels[i]] = tuple(same)
         if not same:
             missing.append(labels[i])
-    # ON A LAYER'S OWN BAND REPRESENTATIONS every row out of its plane repeats
-    # one in it: the layer's operations carry no translation along its normal
-    # and keep the positions within it within it.  That is a statement about
-    # the whole plane, so it is checked where every point of it was compared
+    # On a layer's own band representations every row out of its plane repeats
+    # one in it, since the layer's operations carry no translation along its
+    # normal and map each position within the layer to one within it.  That
+    # holds of the whole plane, so it is checked only where every point of the
+    # plane was compared.
     if layer is not None and missing:
         hsp = _tables._high_symmetry_points(group)
         whole = not isinstance(hsp, Refusal) and set(hsp) <= set(points)
@@ -1502,37 +1750,29 @@ def _restriction(group, points=None, *, require_exact=True, layer=None) -> Restr
 
 
 def _layer_reading(group, data, rep=None, *, heights=None):
-    r"""The band representations a layer's atomic limits are written over, or ``None`` for a crystal.
+    r"""The band representations of the Wyckoff positions within a layer.
 
-    A free-standing layer's group is read in a cell periodic along the layer's
-    normal, and some of its Wyckoff positions sit at a fixed height off the
-    layer, half the cell's length along the normal from its middle plane.  No
-    orbital of the layer is there, so the layer's own band representations are
-    those induced from the positions within it: each free to move along the
-    normal, or at a height between the lowest and the highest of the layer's
-    orbitals.  On those every row at ``k_z = ½`` repeats one in the plane,
-    which is what makes a decomposition read in the plane alone exact.  On a
-    substrate every position is free to move along the normal, and every one
-    is kept.
-
-    Heights are measured along the normal ``a1 × a2``, from the layer's middle
-    plane: each position's varieties written in the cell the group is read in
-    (``GroupData._refUC`` and ``_shiftUC``) against the orbitals --
-    ``heights``, the orbitals' own where they are given, else ``rep``'s
-    model's, or the group's own sites without either -- with the symmetry
-    finder's distance as the margin.  Returns ``{"columns",
-    "outside", "extent"}``: the indices of ``data``'s elementary band
-    representations within the layer, ``{position: heights}`` for the positions
-    outside it, and the orbitals' ``(lowest, highest)`` heights.  ``None`` for
-    a crystal periodic in three directions, and where the tables' Wyckoff
-    letters cannot be read in the group's cell: every position is then kept,
-    and the rows say whether the plane suffices.
+    ``group`` is the group, for a layer read in a cell periodic along its
+    normal.  ``data`` is the group's elementary band representations, as
+    :func:`._tables._ebr_data` gives them.  ``heights`` are the orbitals'
+    heights from the layer's middle plane along its normal, in the model's
+    units of length.  Without them the heights are those of the orbitals of
+    ``rep``'s model, or of the group's own sites where ``rep`` is ``None`` or
+    has no model.  A band representation is kept where its Wyckoff position
+    is free to move along the normal, or where each of its heights lies
+    between the lowest and the highest orbital, within the symmetry finder's
+    distance.  Returns
+    ``{"columns", "outside", "extent"}``: the indices of the band
+    representations of ``data`` kept, ``{Wyckoff position: heights}`` for
+    the positions left out, and the orbitals' ``(lowest, highest)`` heights.
+    Returns ``None`` for a crystal periodic in three directions, and where
+    the tables' Wyckoff letters cannot be read in the group's cell.
     """
     reading = _sewing._layer_height(group)
     if reading is None:
         return None
     if isinstance(_tables._sites_in_tables_setting(group), Refusal):
-        return None              # the letters are keys only once the settings agree
+        return None              # the tables' letters name positions once the settings agree
     normal_dir, height = reading
 
     if heights is not None:
@@ -1572,10 +1812,12 @@ _NO_BLOCK = object()
 def _same_group(a, b) -> bool:
     """Whether two group records are one group written in one cell.
 
-    The same entry of the tables, the same lattice and the same operations,
-    each rotation exactly and each translation modulo the lattice to rounding:
-    two records of one measurement are one group, and a group written in
-    another cell, or another group, is not.
+    ``a`` and ``b`` are :class:`.groups.GroupData`.  They are one group where
+    they have the same number in the tables, both spinful or both not, both
+    magnetic or both not, the same lattice, and the same operations, each
+    rotation exactly and each translation modulo the lattice to rounding.
+    Two records of one measurement are one group; a group written in another
+    cell, or another group, is not.
     """
     if a is b:
         return True
@@ -1600,17 +1842,25 @@ def _same_group(a, b) -> bool:
 
 
 def _table_bands(table):
-    """The band block an :class:`~.sewing.HSPTable` was handed, as it was handed in."""
+    """The band indices of the set a table was measured on.
+
+    ``table`` is a :class:`.sewing.HSPTable`.  Returns its ``bands``.  An
+    object with no ``bands`` gives its ``occ``, or ``None`` where it has
+    neither.
+    """
     block = getattr(table, "bands", _NO_BLOCK)
     return getattr(table, "occ", None) if block is _NO_BLOCK else block
 
 
 def _as_block(bands, nstate):
-    """``bands`` as sorted band indices, or ``None`` when it names none.
+    """``bands`` as sorted band indices.
 
-    An ``int`` is the lowest *n* bands and a sequence is exactly those indices —
-    :func:`.sewing._band_block`'s rule, and it is the one normalizer.  With
-    no state count in hand the same rule is applied without its bounds check.
+    ``bands`` is an integer *n*, the lowest *n* bands, or a sequence of band
+    indices.  ``nstate`` is the number of states, or ``None``.  With
+    ``nstate``, the indices are those :func:`.sewing._band_block` returns,
+    raising ``ValueError`` where it does; without it, the same rule is
+    applied unchecked.  Returns the indices, ascending, or ``None`` where
+    ``bands`` is ``None``.
     """
     if bands is None:
         return None
@@ -1622,15 +1872,16 @@ def _as_block(bands, nstate):
 
 
 def _cpsat(matrix, y, lo, hi, cap):
-    """Enumerate ``{x integer, lo ≤ x ≤ hi : M x = y}`` — CP-SAT, status reported.
+    """Integer solutions of ``M x = y`` within bounds, up to ``cap``, by CP-SAT.
 
-    ``irrep``'s own integer solve (``compute_ebr_decomposition``) is the same
-    machinery, but it neither takes a restricted matrix nor reports *why* it
-    found nothing, and telling ``INFEASIBLE`` from "hit the bound" is the whole
-    point of a "proof of none".  So the model is built here, over whatever
-    matrix the restriction produced, and the solver's status enum is returned
-    with the solutions.  (Building it here also sidesteps the ortools-9.15
-    ``status_name`` breakage ``_tables._ebr_solve_shim`` works around.)
+    ``matrix`` is ``M``, an integer array, and ``y`` an integer vector.  Each
+    entry of ``x`` lies between ``lo`` and ``hi``, both included.  The search,
+    by OR-Tools' CP-SAT solver, stops after ``cap`` solutions.  Returns
+    ``(status, solutions, truncated)``: the solver's status by name,
+    ``"OPTIMAL"``, ``"FEASIBLE"``, ``"INFEASIBLE"``, ``"MODEL_INVALID"`` or
+    ``"UNKNOWN"``; the solutions found, the least sum of absolute values
+    first, then in lexicographic order; and whether the search stopped at
+    ``cap``.  ``"INFEASIBLE"`` says that no solution lies within the bounds.
     """
     from ortools.sat.python import cp_model
 
@@ -1665,11 +1916,17 @@ def _cpsat(matrix, y, lo, hi, cap):
             collector.truncated)
 
 def _content_system(data, counts, retained):
-    """``(matrix, y, bound)``: the EBR matrix and the content on the rows ``retained``.
+    """The matrix of elementary band representations and a vector, on the rows kept.
 
-    ``bound`` is what each multiplicity is enumerated up to, the content's
-    largest entry: a rigorous bound wherever every column has a positive entry
-    among those rows (:attr:`EBRDecomposition.bound_is_rigorous`).
+    ``data`` is the group's elementary band representations, as
+    :func:`._tables._ebr_data` gives them.  ``counts`` is the symmetry data
+    vector, ``{corep: multiplicity}``; a little-group representation it does
+    not name is read as zero.  ``retained`` holds the little-group
+    representations kept.  Returns ``(matrix, y, bound)``: the matrix's rows
+    and the vector's entries on ``retained``, in its order, and the largest
+    entry of ``y``, at least 1, which each multiplicity is searched up to.
+    The bound is rigorous wherever every column has a positive entry among
+    those rows (:attr:`EBRDecompositionNumerical.bound_is_rigorous`).
     """
     labels = list(data["labels_physics_convention"])
     index = {label: i for i, label in enumerate(labels)}
@@ -1678,7 +1935,13 @@ def _content_system(data, counts, retained):
     return matrix, y, int(max(int(y.max()) if y.size else 0, 1))
 
 def _lifted(solutions, columns, n) -> tuple:
-    """Solutions over the band representations ``columns`` as multiplicities over all ``n``."""
+    """Solutions over some band representations, as multiplicities over all of them.
+
+    Each of ``solutions`` holds multiplicities, entry ``i`` that of the band
+    representation ``columns[i]``.  ``n`` is the number of the group's band
+    representations.  Returns each solution as ``n`` multiplicities, zero on
+    the band representations not in ``columns``.
+    """
     out = []
     for solution in solutions:
         vector = [0] * int(n)
@@ -1688,11 +1951,15 @@ def _lifted(solutions, columns, n) -> tuple:
     return tuple(out)
 
 def _ordered(solutions) -> tuple:
-    """Sums of elementary band representations, the fewest in all first, then in the tables' order.
+    """Sums of elementary band representations: fewest first, then the tables' order.
 
-    Of two sums with as many elementary band representations in all, the one
-    with more of the first the tables list comes first, so a sum at ``1a``
-    reads before the same sum at ``1b``.
+    ``solutions`` holds sums, each a sequence of multiplicities, entry ``j``
+    that of the ``j``-th elementary band representation the tables list.
+    Returns them sorted, the fewest elementary band representations in all
+    first, each multiplicity counted by its size.  Of two sums with as many,
+    the one with more of the first elementary band representation where they
+    differ comes first, so a sum at ``1a`` reads before the same sum at
+    ``1b``.
     """
     return tuple(sorted(solutions, key=lambda s: (sum(abs(int(m)) for m in s),
                                                   tuple(-int(m) for m in s))))
@@ -1813,7 +2080,20 @@ def decompose(symmetry_data, realized=None, *, allow_incomplete=False,
 def _decompose_in(source, symmetry_data, *, allow_incomplete=False,
                   cap=DEFAULT_ENUMERATION_CAP,
                   signed_combinations=True) -> EBRDecomposition | Refusal:
-    """What :func:`decompose` returns for ``symmetry_data`` read in ``source``."""
+    """What :func:`decompose` returns, for a vector already read in its group.
+
+    ``source`` is the :class:`_Source` :func:`_read` returns for
+    ``symmetry_data``, the table or the vector ``{corep: multiplicity}``
+    handed to the public call.  ``allow_incomplete``, ``cap`` and
+    ``signed_combinations`` are as :func:`decompose` takes them.
+    :func:`regular_completion` hands it the vector of the missing bands, with
+    no table in ``source``.  Returns the :class:`EBRDecomposition`, a refusal
+    :func:`decompose` names, or ``lattice_not_descended``.  Raises
+    ``InternalError`` where the search with negative multiplicities allowed
+    ends neither with solutions nor with a proof that there are none within
+    the bound, and where the tables' Smith factors do not fit the matrix
+    (:func:`._smith._smith_system`).
+    """
     group = source.group
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
@@ -1851,33 +2131,30 @@ def _decompose_in(source, symmetry_data, *, allow_incomplete=False,
             value=float(len(unknown)), threshold=0.0,
             context={"unknown": tuple(unknown), "basis": tuple(labels_all)})
 
-    # Only the rows that were measured may constrain the solve.  Dropping a
-    # measurement while keeping its equation would *over*-constrain the problem
-    # (the unmeasured multiplicities would be forced to zero), which is the
-    # opposite of the weaker claim the override is supposed to buy -- so a point
-    # that refused loses its EBR rows too.  A vector written out by hand is read
-    # at the points of the plane and at each point out of it that it names.
+    # Only the measured rows enter the equations.  A point that refused loses
+    # its rows of the matrix too, since keeping them would force the
+    # multiplicities there to zero.  A vector written out by hand is read at
+    # the points of the plane and at each point out of it that it names.
     resolved = (tuple(table.multiplets) if table is not None
                 else _named_points(group, counts))
     if isinstance(resolved, Refusal):
         return resolved
     exact_needed = table is None or table.complete
-    # A LAYER'S OWN BAND REPRESENTATIONS.  A free-standing layer's group has
-    # positions off the layer, which carry none of its orbitals: their band
-    # representations are left out before anything is solved, so that a capped
-    # enumeration lists the layer's own sums, and on the rest every row at
-    # k_z = 1/2 repeats one in the plane.
+    # A free-standing layer's group has positions off the layer, which carry
+    # none of its orbitals.  Their band representations are left out before
+    # anything is solved, so that a capped enumeration lists the layer's own
+    # sums.  On the rest every row at k_z = 1/2 repeats one in the plane.
     layer = _layer_reading(group, data, heights=source.heights)
     restriction = _restriction(group, resolved, require_exact=exact_needed, layer=layer)
     if isinstance(restriction, Refusal):
         return restriction
     columns = list(range(len(ebrs))) if layer is None else list(layer["columns"])
 
-    # THE COMPATIBILITY RELATIONS, read before anything is solved: a vector no
-    # band structure has -- a block that cuts through a crossing between two
-    # high-symmetry points -- has no decomposition to look for, and the
-    # indicator's own check says so.  Read on the vector the dropped rows
-    # complete, which an exact restriction determines.
+    # The compatibility relations are read before anything is solved.  A
+    # vector no band structure has, such as that of a set of bands cut through
+    # a crossing between two high-symmetry points, has no decomposition, and
+    # the indicator's own check refuses it.  The check reads the vector
+    # completed on the rows left out, which an exact restriction determines.
     if restriction.exact:
         y_all, _sources = _filled_content(counts, restriction, labels_all)
         _smith, _y_prime, wrong = _compatibility(data, group.number_str, labels_all, y_all)
@@ -1887,7 +2164,7 @@ def _decompose_in(source, symmetry_data, *, allow_incomplete=False,
     matrix, y, bound = _content_system(data, counts, restriction.retained)
     matrix = matrix[:, columns]
 
-    # a rigorous bound: M >= 0 and every column has a positive retained entry
+    # A rigorous bound: M >= 0 and every column has a positive retained entry.
     col_max = matrix.max(axis=0) if matrix.size else np.zeros(len(columns), dtype=int)
     rigorous = bool((matrix >= 0).all() and (y >= 0).all() and (col_max > 0).all())
 
@@ -1899,8 +2176,8 @@ def _decompose_in(source, symmetry_data, *, allow_incomplete=False,
     if not decomposable and signed_combinations:
         p_status, p_sol, p_trunc = _cpsat(matrix, y, -bound, bound, cap)
         if p_status not in ("OPTIMAL", "FEASIBLE", "INFEASIBLE"):  # pragma: no cover
-            # no limit is set, so the search runs to its end: it finds solutions,
-            # or proves there are none within the bound
+            # No limit is set, so the search runs to its end: it finds solutions,
+            # or proves there are none within the bound.
             raise InternalError(
                 f"the search with negative multiplicities allowed ended {p_status}, "
                 "with no limit set. Report it, with the model and the call.")
@@ -1950,7 +2227,13 @@ def _decompose_in(source, symmetry_data, *, allow_incomplete=False,
 
 
 def _site_content(record) -> SiteContent | None:
-    """The site irreps a measurement carries, as a :class:`SiteContent`; ``None`` where it carries none."""
+    """The site irreps a measurement carries, as a :class:`SiteContent`.
+
+    ``record`` is the mapping a table or a representation carries, its keys
+    ``"number_str"``, ``"irreps"``, ``"determined_by"`` and ``"residual"``
+    the fields of the same names; or a :class:`SiteContent`, returned as it
+    is; or ``None``, returned for a measurement that carries no site irreps.
+    """
     if record is None or isinstance(record, SiteContent):
         return record
     return SiteContent(number_str=str(record["number_str"]),
@@ -1966,35 +2249,26 @@ def _site_content(record) -> SiteContent | None:
 _magnetic_type = _spacegroup._magnetic_type
 
 def _named_forms(group, data, matrix, y, magnetic_type):
-    """``irreptables``' named indicator forms for the group, in this package's convention.
+    """The irreptables package's named indicators of a grey group, and their coefficients.
 
-    Returns ``(values, touched, note, coefficients)`` — the literature names
-    (``z4``, ``z2w,i``, ``η4I``, …) for the same classes the Smith form counts,
-    with the re-keyed coefficient vector of each form, or ``None`` and the
-    reason.  The coefficients are what :func:`_two_dimensional_reading` reads a
-    form's *support* off.
-
-    Two things have to be true before a shipped form is returned, and both are
-    *checked*, not assumed.
-
-    **It has to be an indicator of this group.**  A linear form is one exactly
-    when it vanishes, modulo its own modulus, on every EBR — that is what makes
-    it descend to ``{BS}/{AI}`` — and that is tested here on the group's own
-    matrix.  It is worth testing because the tables are not what their file
-    names suggest: ``single_indicators.json`` and ``double_indicators.json`` are
-    the **grey (type-II) tables keyed by the bare
-    space-group number**, byte for byte, so their ``factors`` are grey corep
-    labels (``A1A2``, ``GM2+GM3+``) and only 39 of 70 / 128 of 320 of them even
-    vanish on the unitary group's own EBRs.  Nothing is returned for a unitary
-    group rather than a partial sum over labels that never match.
-
-    **It has to be read on the right coordinates.**  The shipped coefficients
-    are keyed by BCS labels, and the transport permutes the row *positions*
-    (``y_BCS[j] = y_phys[P[j]]``), so the coefficient belonging on the returned
-    entry ``i`` is the shipped one at position ``P[i]``.  In scope that changes
-    exactly one form — grey ``220.90``'s ``z2``, whose coefficients sit on the
-    ``P``/``PA`` labels the transport swaps — and the ones it changes are
-    reported in ``touched``.
+    ``group`` is the group, ``magnetic_type`` its magnetic type, ``"I"`` to
+    ``"IV"``, and ``data`` its elementary band representations, as
+    :func:`._tables._ebr_data` gives them.  ``matrix`` is the matrix of
+    elementary band representations and ``y`` the symmetry data vector, both
+    on every row, in the order of ``data``'s little-group representations.
+    Each named indicator is a linear form shipped with its coefficients on the
+    Bilbao Crystallographic Server's names of the rows,
+    ``data["convention"]["labels_bcs"]``.  Its coefficient on
+    row ``i`` is the shipped one at ``P[i]``, ``P`` the convention's row
+    permutation.  A form is read only where it vanishes, modulo its modulus,
+    on every elementary band representation of the group.  Returns
+    ``(values, touched, note, coefficients)``: each form's value on ``y``
+    modulo its modulus, by the irreptables package's name (``z4``,
+    ``z2w,3``); the names of the forms the row permutation moves; a sentence
+    on how the forms were read; and each form's coefficients on the rows.
+    For a group that is not grey, and where any form cannot be read or fails
+    its check, returns ``None``, ``()``, the reason and ``{}``.  Only the
+    coefficients are read in the package, by :func:`_two_dimensional_reading`.
     """
     if magnetic_type != "II":
         return None, (), (
@@ -2007,7 +2281,7 @@ def _named_forms(group, data, matrix, y, magnetic_type):
         entry = _spacegroup._indicator_table(group.spinor, group._magnetic).get(
             str(group.number_str), {})
         forms = dict(entry.get("indicators", {}))
-    except Exception as exc:                   # pragma: no cover - table defect
+    except Exception as exc:                   # pragma: no cover, table defect
         return None, (), f"irreptables' indicator table could not be read: {exc}", {}
     if not forms:
         return None, (), ("irreptables ships no named indicator formulas for "
@@ -2054,32 +2328,28 @@ def _named_forms(group, data, matrix, y, magnetic_type):
 
 def _two_dimensional_reading(group, labels, u, slots, divisors, values, coeffs,
                              plane=None):
-    """For a layer: the class read in a three-dimensional group, and its rows out of the plane.
+    """How a layer's symmetry-indicator class reads, as the class of its decoupled stack.
 
-    Returns ``None`` for a fully periodic model, and for a group whose indicator
-    is trivial — there is nothing to say in either case — and otherwise the
-    :class:`TwoDimensionalReading` :attr:`SymmetryIndicatorNumerical.two_dimensional`
-    holds, its support keyed by the paper's names of the indicators.
-
-    **The statement.**  A 2D model's class is read in a three-dimensional
-    space group, its slab's, whose EBR basis carries k-points the model's plane
-    does not contain, at ``k_z = ½`` (``A``, ``H``, ``L`` for ``P6/mmm1'``).
-    The layer's ``H(k)`` has no ``k_z``, so the class is the class of the
-    layer's **decoupled stack** — the layer repeated along its normal with no
-    hopping between copies — whose rows at ``k_z = ½`` repeat the in-plane
-    ones: whatever content sits at ``Γ`` sits at ``A``, and every component is
-    an invariant of that stack, fixed by the layer's own content.
-
-    Support is measured, never assumed: a form is classified by which rows its
-    (transported) coefficient vector is nonzero on, and a Smith component by
-    which rows its row of ``u`` reads.
-
-    ``plane`` is the description of the model's own periodic plane when the
-    arithmetic was done in a *different* presentation's group — the decoupled
-    stack, which is fully periodic and so has no out-of-plane point of its own.
-    The statement still applies, because the model is still one layer: the points
-    are then the stack group's own, split by whether their k lies in the
-    layer's plane, and the dimensions reported are the layer's.
+    ``group`` is the group the class was read in.  ``labels`` are the
+    little-group representations of the rows of its matrix ``M`` of
+    elementary band representations, and ``u`` the left factor of its Smith
+    normal form ``u M v = D``.  ``slots`` are the coordinates at which ``D``
+    holds an elementary divisor above 1, ``divisors`` those divisors, and
+    ``values`` the class at them.  ``coeffs`` holds each named indicator's
+    coefficients on the rows, by the irreptables package's name
+    (:func:`_named_forms`).  ``plane`` is ``None`` where ``group`` is the
+    layer's own.  Where the class was read in the group of the decoupled
+    stack, ``plane`` describes the layer, ``{"points", "dim_k",
+    "periodic_dirs", "vacuum_dirs", "presentation"}``, ``"points"`` the
+    stack's points in the layer's plane.  A component reads out of the plane
+    where its row of ``u`` is nonzero on a row out of the plane.  A named
+    indicator's support is where its coefficients are nonzero.  Returns the
+    :class:`TwoDimensionalReading`, its support keyed by the paper's names, a
+    name the paper does not have left out.  Returns ``None`` for a trivial
+    indicator group and for a group whose tables have no row out of the
+    plane.  Where ``plane`` is ``None``, returns ``None`` also for a crystal
+    periodic in three directions and for a group whose high-symmetry points
+    cannot be read.
     """
     if not divisors:
         return None                            # no class to misread
@@ -2137,7 +2407,13 @@ def _two_dimensional_reading(group, labels, u, slots, divisors, values, coeffs,
         note=note)
 
 def _block_characters(record) -> dict:
-    """``{ind: tr B(g, k)}`` of a whole band block, from a :class:`.sewing.CorepsAt`."""
+    """The characters of a whole set of bands at one point, by operation.
+
+    ``record`` is a :class:`.sewing.CorepsAt` that carries its characters.
+    Returns ``{operation index: character}``, each the sum of the multiplets'
+    characters at that operation, at the operations the first multiplet
+    lists; empty where there is no multiplet.
+    """
     ch = record._characters
     columns = tuple(ch.multiplets[0].characters) if ch.multiplets else ()
     rows = np.asarray([[m.characters[i] for i in columns] for m in ch.multiplets],
@@ -2146,7 +2422,12 @@ def _block_characters(record) -> dict:
     return {int(c): complex(v) for c, v in zip(columns, total)}
 
 def _same_k(k_a, k_b, *, atol=1e-6) -> bool:
-    """Equal reduced k in the plane, modulo a reciprocal lattice vector."""
+    """Whether two k-points agree in the plane, up to a reciprocal lattice vector.
+
+    ``k_a`` and ``k_b`` are reduced coordinates, a layer's two or a stack's
+    three, of which the first two are compared.  They are the same where each
+    difference is within ``atol`` of an integer.
+    """
     d = np.asarray(k_a, dtype=float).reshape(-1)[:2] - np.asarray(
         k_b, dtype=float).reshape(-1)[:2]
     return bool(np.allclose(d, np.round(d), atol=atol))
@@ -2155,7 +2436,18 @@ def _same_k(k_a, k_b, *, atol=1e-6) -> bool:
 _KZ_PROBE = (0.0, 0.25, 0.5)
 
 def _stack_record(table, group, rep, restriction, *, c, environment, note) -> dict:
-    """The record a decoupled stack's measurement starts from: the layer as handed in."""
+    """The mapping a layer's decoupled stack is recorded in, before the stack is built.
+
+    ``table`` is the layer's :class:`.sewing.HSPTable`, ``group`` its group,
+    ``rep`` its representation and ``restriction`` the :class:`Restriction`
+    read on its points.  ``c`` is the vacuum between the copies, in the
+    model's units of length, ``environment`` the layer's environment or
+    ``None``, and ``note`` the sentence the record carries.  Returns the
+    mapping :func:`_completion_record` reads: its ``"outcome"``
+    ``"stopped"``, its ``"input"`` the layer as handed in, its ``"stack"``
+    and ``"gates"`` empty, and its ``"stack_period"`` ``c`` until the stack
+    is built.
+    """
     return {
         "route": "decoupled stack", "outcome": "stopped",
         "stopped_at": None, "stop_reason": None, "stack_period": float(c),
@@ -2172,19 +2464,22 @@ def _stack_record(table, group, rep, restriction, *, c, environment, note) -> di
     }
 
 def _stack_hamiltonian(rep, c):
-    """The layer's decoupled stack, and how far its ``H(k, k_z)`` is from the layer's ``H(k)``.
+    """A layer's decoupled stack, and how far its Hamiltonian is from the layer's.
 
-    Each orbital sits at its height ``h`` along the normal on the stack's
-    period ``C``, so the two are the same Hamiltonian in the gauge
-    ``Λ(k_z) = diag(e^{2πi k_z h / C})``: ``H_stack(k, k_z) = Λ† H_layer(k) Λ``.
-    Returns ``(stack, identity)``, or ``(refusal, None)`` where
-    :func:`.groups.stack_presentation` refuses.  ``identity`` holds the
-    largest difference between the two over eight seeded in-plane k at each
-    ``k_z`` of :data:`_KZ_PROBE` (``"residual"``), the threshold it is held to
-    -- zero for a flat layer, and otherwise the rounding the phases carry
-    (``"threshold"``) -- the difference at ``k_z = 0``, which no gauge touches
-    and is held to zero (``"at_zero"``), the stack's period (``"period"``) and
-    the layer's extent along its normal (``"extent"``).
+    ``rep`` is the layer's representation, whose model is repeated along its
+    normal with the vacuum ``c`` between the copies, in the model's units of
+    length (:func:`.groups.stack_presentation`).  Each orbital sits at its
+    height ``h`` along the normal on the stack's period ``C``, so
+    ``H_stack(k, k_z) = Λ† H_layer(k) Λ`` with ``Λ = diag(e^{2πi k_z h / C})``.
+    The two are compared at eight fixed in-plane k-points at each ``k_z`` of
+    :data:`_KZ_PROBE`.  Returns ``(stack, identity)``, or ``(refusal, None)``
+    where the stack is not built.  ``identity`` holds the largest difference,
+    ``"residual"``, and the difference at ``k_z = 0``, ``"at_zero"``, in the
+    units of H.  Its ``"threshold"``, the largest residual allowed, is zero
+    for a layer whose orbitals lie in one plane and otherwise the rounding the
+    phases carry, in the units of H.  Its ``"period"`` is ``C`` and its
+    ``"extent"`` the layer's extent along its normal, in the model's units of
+    length.
     """
     stack = _layers.stack_presentation(rep._model, c=c)
     if isinstance(stack, Refusal):
@@ -2214,7 +2509,16 @@ def _stack_hamiltonian(rep, c):
                    "period": period, "extent": extent}
 
 def _identity_record(rep, identity) -> dict:
-    """The stack's Hamiltonian against the layer's, and the hoppings between copies."""
+    """The two checks of the stack's Hamiltonian, as the stack's record holds them.
+
+    ``identity`` is the comparison :func:`_stack_hamiltonian` returns, and
+    ``rep`` the layer's representation.  Returns
+    ``{"hamiltonian_identity", "no_hopping_across_the_stack"}``: the
+    comparison, with the number of in-plane k-points and the values of
+    ``k_z``; and the number of the layer's hoppings, with zero for the largest
+    hopping between the copies, since :func:`.groups.stack_presentation`
+    builds no stack with one.
+    """
     return {"hamiltonian_identity": {
                 "residual": float(identity["residual"]),
                 "threshold": float(identity["threshold"]),
@@ -2228,17 +2532,23 @@ def _identity_record(rep, identity) -> dict:
                 "note": "measured by stack_presentation, which refuses on any nonzero"}}
 
 def _identity_holds(identity) -> bool:
-    """Whether the stack is the layer: equal at ``k_z = 0``, to the gauge's rounding elsewhere."""
+    """Whether the stack's Hamiltonian is the layer's, as compared by :func:`_stack_hamiltonian`.
+
+    ``identity`` is its comparison.  The two agree where they are equal at
+    ``k_z = 0`` and differ by at most the threshold at every ``k_z``.
+    """
     return identity["at_zero"] == 0.0 and identity["residual"] <= identity["threshold"]
 
 def _shared_characters(table, table3, matched) -> tuple:
-    """The two presentations' band characters where they meet.
+    """The band characters of a layer and of its decoupled stack where the two meet.
 
-    Every k-point of the layer's table against every point of the stack's in
-    the layer's plane at the same reduced k, operation by operation through
-    ``matched`` (``{layer ind: stack ind}``).  Returns ``(worst, n, points)``:
-    the largest difference, how many characters were compared, and the pairs of
-    points compared.
+    ``table`` is the layer's :class:`.sewing.HSPTable` and ``table3`` the
+    stack's, of the same bands.  Each point of ``table`` is paired with each
+    point of ``table3`` in the layer's plane with the same in-plane k
+    (:func:`_same_k`).  Their characters are compared at each operation
+    ``matched`` maps, ``{layer's operation index: stack's operation index}``.
+    Returns ``(worst, n, points)``: the largest difference, the number of
+    characters compared, and the pairs of points' names.
     """
     worst, n, shared = 0.0, 0, []
     for name2, rec2 in table._records.items():
@@ -2259,13 +2569,19 @@ def _shared_characters(table, table3, matched) -> tuple:
     return worst, n, tuple(shared)
 
 def _stack_fibers(table3, tol, scale=1.0) -> tuple:
-    """Each fiber at ``k_z = ½`` against the fiber in the plane at the same in-plane k.
+    """The stack's bands at each point out of the layer's plane, against those in it.
 
-    On a stack with no hopping between the copies the two are the same states:
-    the same energies, to ``1e-9`` of ``scale``, the stack's ``max|H|``, the same
-    partition into multiplets, the same characters at every operation both
-    little groups hold.  Returns ``(fibers, first)``: one record per pair, and
-    the first pair that differs, or ``None``.
+    ``table3`` is the decoupled stack's :class:`.sewing.HSPTable`.  Each of
+    its points out of the plane is compared with each point in the plane with
+    the same in-plane k (:func:`_same_k`).  With no hopping between the
+    copies the two hold the same states.  They agree where they split into
+    multiplets alike, carry the same multiplicities once sorted, have
+    energies within ``1e-9`` times ``scale``, the stack's ``max|H|``, and
+    characters within ``tol`` at every operation both little groups hold.
+    Returns ``(fibers, first)``: a mapping for each pair compared, which
+    :func:`_completion_record` reads into a :class:`StackFiber`, and the
+    first pair that does not agree, or ``None``.  The comparison stops at
+    that pair.
     """
     fibers = []
     for name_out, rec_out in table3._records.items():
@@ -2299,12 +2615,16 @@ def _stack_fibers(table3, tol, scale=1.0) -> tuple:
     return tuple(fibers), None
 
 def _stack_reading(group, g3, indicator3, data3):
-    """The two-dimensional reading of a class completed on the stack.
+    """The :class:`TwoDimensionalReading` of a layer's class read on its decoupled stack.
 
-    The model is one layer, whatever the stack's group says, so the statement
-    of :func:`_two_dimensional_reading` still applies: the points are the stack
-    group's own, split by whether their k lies in the layer's plane, and no
-    name is carried across.
+    ``group`` is the layer's group and ``g3`` the same group carried onto the
+    stack's cell.  ``indicator3`` is the :class:`SymmetryIndicator` read on
+    the stack in ``g3``, and ``data3`` the elementary band representations of
+    ``g3``, as :func:`._tables._ebr_data` gives them.  The points of ``g3``
+    are split by whether their ``k_z`` is an integer, and the reading is that
+    of :func:`_two_dimensional_reading`, with the layer's periodic
+    directions.  Returns it, or the reading ``indicator3`` holds where no
+    point of ``g3`` is found in the plane.
     """
     hsp3 = _tables._high_symmetry_points(g3)
     in_plane = () if isinstance(hsp3, Refusal) else tuple(
@@ -2325,48 +2645,50 @@ def _stack_reading(group, g3, indicator3, data3):
                "presentation": "decoupled-STACK"})
 
 def _stack_in_group(table, group, rep, restriction, *, c, characters_tol):
-    """The rows at ``k_z = ½`` measured on the layer's decoupled stack, in the layer's own group.
+    """A layer's class, completed on its decoupled stack in the layer's own group.
 
-    For a layer's representation.  The decoupled stack obeys exactly what the
-    layer obeys: with no hopping
-    between the copies, an operation of the stack, combined with a stacking
-    translation, carries one copy onto itself and is an operation of the
-    layer, and an operation of the layer is one of the stack's.  So the stack's
-    group is the group handed in, carried onto the stack's cell by each
-    operation's Cartesian action (:func:`._layers._layer_on_stack`), and its
-    matrices are the layer's own, the orbitals being the same; neither is
-    measured again.  What the stack adds is a crystal with the points at
-    ``k_z = ½``, and the rows there are measured on it.
-
-    Returns ``(indicator, record)``.  ``indicator`` is ``None`` where the stack
-    cannot be built for this layer — one with a hopping along its normal — or
-    the content cannot be read on it, the record's ``"outcome"`` then
-    ``"stopped"`` and ``"stopped_at"`` saying where.
+    ``table`` is the layer's :class:`.sewing.HSPTable`, ``group`` its group,
+    ``rep`` its representation and ``restriction`` the :class:`Restriction`
+    read on its points, whose ``orphans`` are not empty.  ``c`` is the vacuum
+    between the copies, in the model's units of length, and
+    ``characters_tol`` the largest difference allowed between two characters
+    compared.  The stack's group is ``group`` carried onto the stack's cell
+    (:func:`._layers._layer_on_stack`), and its matrices are those of
+    ``rep``.  The bands of ``table`` are measured again on the stack.
+    Returns ``(indicator, record)``.  ``indicator`` is the
+    :class:`SymmetryIndicator` read on the stack.  Its group is ``group``, its
+    symmetry data vector that of ``table`` in the plane, and it holds the
+    stack's completion and two-dimensional reading.  ``record`` is the mapping of
+    :func:`_stack_record`, its ``"outcome"`` ``"completed"``.  Where the
+    stack is not built (a hopping along the normal), ``rep`` has no matrix
+    for some operation, or the stack's table or class is refused,
+    ``indicator`` is ``None`` and the outcome ``"stopped"``, with
+    ``"stopped_at"`` and ``"stop_reason"`` saying where and why.
 
     Raises
     ------
     ..refusal.InternalError
         Where a check that ties the stack to the layer fails: the stack's
         Hamiltonian against the layer's, the layer's matrices on the stack's
-        Hamiltonian, the two presentations' band characters where they meet,
-        and each fiber at ``k_z = ½`` against its partner in the plane.  The
-        physics guarantees all four, so a failure is the package disagreeing
-        with itself, and the message names the check and its number.
+        Hamiltonian, the band characters and little-group representations
+        where the two presentations meet, and the stack's bands at each point at
+        ``k_z = 1/2`` against those at its partner in the plane.  The message
+        names the check and its number.
     """
 
     record = _stack_record(
         table, group, rep, restriction, c=c,
         environment=(None if getattr(rep, "_environment", None) is None
                      else str(rep._environment)),
-        note=("the layer's plane has no coordinate for the k-points at k_z = 1/2, where its "
-              "group's EBR basis has rows that repeat no in-plane row. The same layer "
-              "repeated along its normal with no hopping between copies, each orbital at "
-              "its own height, is a crystal whose bands do not depend on k_z, its "
-              "H(k, k_z) the layer's H(k) up to the phases of those heights, and whose "
-              "group is the layer's own, "
-              "each operation carried by its Cartesian action and represented by the "
-              "layer's own matrix, so those rows are measured on it. Every identity "
-              "that ties it to the layer is measured and recorded below."))
+        note=("the layer's plane has no coordinate for the k-points at k_z = 1/2, where "
+              "some little-group representations of its group repeat none in the plane. "
+              "The same layer repeated along its normal with no hopping between copies, "
+              "each orbital at its own height, is a crystal whose bands do not depend on "
+              "k_z, its H(k, k_z) the layer's H(k) up to the phases of those heights, and "
+              "whose group is the layer's own, each operation carried by its Cartesian "
+              "action and represented by the layer's own matrix, so those little-group "
+              "representations are measured on it. Every identity that ties it to the "
+              "layer is measured and recorded below."))
 
     def stop(where, reason, **extra):
         record["stopped_at"] = str(where)
@@ -2376,18 +2698,17 @@ def _stack_in_group(table, group, rep, restriction, *, c, characters_tol):
 
     def defect(check, number, what):
         raise InternalError(
-            f"the decoupled stack of this layer, read in its own group "
-            f"{group.name} #{group.number_str}, fails the check '{check}': {what} "
-            f"({number:.3g}). With no hopping between the copies the stack is the "
-            "layer, and obeys exactly what the layer obeys, so this is the package "
-            "disagreeing with itself, not a property of the model.")
+            f"{group.name} #{group.number_str}: the decoupled stack of this layer "
+            f"fails the check '{check}': {what} "
+            f"({number:.3g}). Report it, with the model "
+            "and the call.")
 
     # ---- 1. the stack, and the identity that makes it the layer ------------
     stack, identity = _stack_hamiltonian(rep, c)
     if isinstance(stack, Refusal):
-        # a layer the stack is not built for (a hopping along the normal)
+        # A layer the stack is not built for: one with a hopping along the normal.
         return stop("stack_presentation",
-                    "the decoupled stack is not built for this layer: " + stack.reason,
+                    "the stack is not built for this layer; " + stack.reason,
                     gate=stack.gate, value=stack.value)
     record["gates"].update(_identity_record(rep, identity))
     record["stack_period"], record["stack_extent"] = identity["period"], identity["extent"]
@@ -2401,16 +2722,17 @@ def _stack_in_group(table, group, rep, restriction, *, c, characters_tol):
                                  if int(s.ind) not in represented))
     if unrepresented:
         return stop("representation",
-                    "the representation handed in has no matrix for operations "
-                    f"{_text._runs(unrepresented)} of {group.name} #{group.number_str}, "
-                    "so the decoupled stack's rows at k_z = 1/2 cannot be read in that group",
+                    "the representation the table carries has no matrix for any "
+                    f"operation of {group.name} #{group.number_str} listed: "
+                    f"{_text._runs(unrepresented)}",
                     unrepresented=unrepresented)
     g3, asg3 = _layers._layer_on_stack(group, rep._assignment, stack)
     by_ind = {int(s.ind): s for s in g3._symmetries}
     rng = np.random.default_rng(20241004)
     battery = rng.uniform(-0.5, 0.5, size=(8, 3))
     battery[:len(_KZ_PROBE), 2] = _KZ_PROBE
-    # the stack is built here and held by nothing else, so no edit of it is checked for
+    # The layer's representation, carried onto the stack.  No key is kept against
+    # an edit of the stack's model, since nothing else holds it.
     rep3 = replace(rep, _model=stack, _group=g3, _assignment=asg3,
                    _operations=tuple(by_ind[int(i)] for i in rep._indices),
                    _battery=battery, _model_key=None)
@@ -2426,7 +2748,7 @@ def _stack_in_group(table, group, rep, restriction, *, c, characters_tol):
                  "max |D H(k) D^-1 - H(Rk)| over every operation")}
     if worst_d > gate:
         defect("representation", float(worst_d),
-               "the layer's own matrices do not carry the stack's H(k, k_z) onto itself")
+               "the layer's matrices do not carry the stack's H(k, k_z) onto itself")
     rep3 = replace(rep3, numerical=replace(rep3.numerical, residuals=residuals))
     typat = tuple(int(group._typat[int(s)]) for s in rep._assignment.site_of_orbital)
     record["stack"] = {"number_str": str(g3.number_str), "name": str(g3.name),
@@ -2434,15 +2756,15 @@ def _stack_in_group(table, group, rep, restriction, *, c, characters_tol):
                        "periodic_dirs": tuple(int(p) for p in g3.periodic_dirs),
                        "typat": typat}
 
-    # ---- 3. the content on the stack, same band block ----------------------
-    within = f"the decoupled stack, read in {group.name} #{group.number_str},"
+    # ---- 3. the symmetry data vector on the stack, of the same bands ------
+    within = f"the stack's table, read in {group.name} #{group.number_str},"
     table3 = _sewing._hsp_table_rep(rep3, bands=_table_bands(table))
     if isinstance(table3, Refusal):
-        return stop("stack_content", f"{within} has content that could not be read: "
+        return stop("stack_content", f"{within} is refused; "
                     + table3.reason, gate=table3.gate)
     if not table3.complete:
         return stop("stack_content",
-                    f"{within} has content missing at "
+                    f"{within} holds no little-group representations at "
                     f"{sorted(table3.refusals, key=_tables.point_order)}",
                     refusals={k: r.gate for k, r in table3.refusals.items()})
 
@@ -2454,24 +2776,26 @@ def _stack_in_group(table, group, rep, restriction, *, c, characters_tol):
                        if a in table.multiplets and b in table3.multiplets)
     record["gates"]["characters"] = {
         "note": ("the measured characters of the bands at the operations and k-points the "
-                 "two presentations share, and the labels there, the group being one"),
+                 "two presentations share, and the little-group representations there, the "
+                 "group being one"),
         "worst": worst_chi, "threshold": float(characters_tol), "n_comparisons": n_chi,
         "shared_points": shared_points, "labels_equal": labels_equal}
     if not n_chi:
-        defect("characters", 0.0, "the stack and the layer share no k-point in the plane")
+        defect("characters", 0.0, "it shares no k-point in the plane with the layer")
     if worst_chi > characters_tol:
         defect("characters", worst_chi,
-               "the stack's band characters differ from the layer's where they meet")
+               "its band characters differ from the layer's at the k-points they share")
     if not labels_equal:
         defect("characters", float(len(shared_points)),
-               "the stack labels the layer's bands differently in the same group")
+               "its little-group representations differ from the layer's at the k-points "
+               "they share")
 
-    # ---- 5. the fiber at k_z = ½ is the fiber at k_z = 0 ------------------
+    # ---- 5. the bands at k_z = 1/2 are the bands at k_z = 0 ---------------
     fibers, bad = _stack_fibers(table3, characters_tol, scale)
     record["gates"]["fibers"] = fibers
     if bad is not None:
         defect("fibers", max(bad["energy_defect"], bad["character_defect"]),
-               f"the fiber at {bad['point']} is not the fiber at {bad['in_plane_point']}")
+               f"its bands at {bad['point']} are not its bands at {bad['in_plane_point']}")
 
     # ---- 6. the class, in the layer's own group ----------------------------
     indicator3 = _indicator_in(
@@ -2479,13 +2803,14 @@ def _stack_in_group(table, group, rep, restriction, *, c, characters_tol):
                 free_standing=getattr(rep3, "_free_standing_group", None),
                 provenance=table3._group_provenance), table3)
     if isinstance(indicator3, Refusal):
-        return stop("stack_indicator", f"{within} has no class there: "
+        return stop("stack_indicator", f"{within} has no symmetry-indicator class; "
                     + indicator3.reason, gate=indicator3.gate)
     data3 = _tables._ebr_data(g3)
     record["stack"]["divisors"] = _divisors_of(data3, g3.number_str)
     record["outcome"] = "completed"
-    # the class lives in the layer's own group; what is printed of the vector is
-    # its plane's, the vector on every point being the stack's measured one
+    # The class is returned in the layer's own group, with the layer's symmetry
+    # data vector in its plane; the vector at every point, which the class is
+    # read from, is the one measured on the stack.
     numerical = replace(indicator3.numerical, completion=_completion_record(record),
                         two_dimensional=_stack_reading(group, g3, indicator3, data3),
                         _group=group)
@@ -2495,83 +2820,99 @@ def _stack_in_group(table, group, rep, restriction, *, c, characters_tol):
 
 
 def symmetry_indicator(symmetry_data, realized=None) -> SymmetryIndicator | Refusal:
-    r"""The symmetry-indicator class of a band set: the class of its symmetry data vector among the band structures modulo the atomic limits.
+    r"""The symmetry-indicator class of a set of bands.
 
-    A nonzero class says no band set with this symmetry data vector is an
-    atomic limit, nor any with atomic bands added; a zero class certifies
-    nothing.  A layer's class is read in its slab's three-dimensional group,
-    as the class of its decoupled stack, the layer repeated along its normal
-    with no hopping between copies.  A table's coreps at points out of the
-    layer's plane that repeat none in it are measured on that stack.  A vector
-    written out by hand is read at the points of the plane and at each point
-    out of it where it names a corep; a corep out of the plane it does not
-    name takes the multiplicity of the corep in the plane it repeats in every
-    elementary band representation of the layer's own Wyckoff positions.
+    The columns of the group's matrix :math:`M` of elementary band
+    representations are their symmetry data vectors.  The irreptables package
+    ships its Smith normal form, :math:`U M V = D`.  The class of the symmetry
+    data vector :math:`y` of the bands is the entries of :math:`U y` at which
+    the diagonal of :math:`D` holds an elementary divisor above 1, each taken
+    modulo that divisor.  A layer's class is read in the three-dimensional
+    space group of its slab, as the class of its decoupled stack, the layer
+    repeated along its normal with no hopping between copies.  Each of its
+    little-group representations at ``k_z = 1/2`` that occurs in every
+    elementary band representation as often as one in the plane takes that
+    one's multiplicity.  For a table, the others are measured on the stack.  A
+    vector written out by hand is read as given at each point out of the plane
+    where it names a little-group representation.  At the other points out of
+    the plane, how often each little-group representation occurs is compared
+    with those in the plane on the elementary band representations of the
+    Wyckoff positions within the layer.
 
     Parameters
     ----------
     symmetry_data : .sewing.HSPTable or mapping
-        The table :func:`.sewing.hsp_table` returns, which must be complete,
-        or ``{corep: multiplicity}`` written out by hand.
+        The symmetry data vector.  Pass the table :func:`.sewing.hsp_table`
+        returns, or ``{corep: multiplicity}`` written out by hand.
     realized : .groups.RealizedGroup, optional
-        What :func:`.groups.realized_group` returned, ``r``, the measurement
-        the coreps came from.  Pass it beside a vector written out by hand,
-        and with a table nothing.
+        What :func:`.groups.realized_group` returned for the model the
+        symmetry data vector was measured on.  Pass it with a vector written
+        out by hand, and nothing with a table.
 
     Returns
     -------
     SymmetryIndicator or Refusal
-        ``si.summary()`` prints the class.  ``si.values`` is the class, one
-        integer modulo each of ``si.divisors``, in the indicator group
-        ``si.indicator_group``, of order ``si.order``; ``si.indicators`` the
-        class in the named indicators of the paper that tabulates the stable
-        real-space invariants; ``si.group`` the group it lives in.  The record
-        is truthy whatever its class; a ``Refusal`` in its place is falsy and
-        names what stopped the call.
+        The class, one integer modulo each elementary divisor, with its
+        indicator group and its order.  For a group with time reversal and a
+        nontrivial indicator group, the record also holds the class in the
+        named indicators of Hwang *et al.*, Nat. Commun. **17**, 8564 (2026),
+        where the tables of that paper are installed.
+        A class can only be returned for a table that refused at no point.
+        The record is truthy whatever its class.
+
+    Examples
+    --------
+    The two lowest bands of Fu, Kane and Mele's diamond model, pythtb's
+    ``fu_kane_mele``, with the bond along ``[111]`` strengthened,
+    ``r = realized_group(fu_kane_mele(1.0, 0.125, [0.4, 0.0, 0.0, 0.0]),
+    characters={0: "s"})``, and their class as ``values`` and in the named
+    indicators:
+
+    >>> si = symmetry_indicator(hsp_table(r, bands=2))          # doctest: +SKIP
+    >>> si.indicator_group, si.values, si.indicators                # doctest: +SKIP
+    ('Z2 x Z4', (0, 1), {'z2w,1': 1, 'z2w,2': 1, 'z2w,3': 1, 'z4': 3})
 
     Refusals
     --------
     A refusal handed in as ``realized`` is returned as it is.
 
     ``incomplete_content``
-        the table refused at some point; there is no override.
-    ``indicator_not_evaluable``
-        a layer's coreps at ``k_z = 1/2`` repeat none in its plane and could
-        not be read: a vector whose layer's own band representations cannot
-        be read in the group's cell, or a table whose decoupled stack stopped
-        (``context["stack"]``).
+        the table refused at some point.
     ``not_a_band_structure``
-        the vector fails the group's compatibility relations.
+        the vector fails the compatibility relations of the group.
     ``unknown_label``
-        a corep the group's elementary band representations do not hold.
-    ``non_integer_multiplicity`` / ``negative_multiplicity``
-        the vector is no count of coreps.
+        the vector names a little-group representation that the group's
+        elementary band representations do not carry.
+    ``indicator_not_evaluable``
+        a layer's little-group representations at ``k_z = 1/2``, none of
+        which occurs in every elementary band representation as often as one
+        in its plane, could not be read.  For a table, the measurement on
+        the decoupled stack stopped, and ``context["stack"]`` says where.  For a
+        vector written out by hand, the Wyckoff positions of the tables cannot
+        be read in the group's cell.
+    ``non_integer_multiplicity``
+        an entry of the vector is not an integer.
+    ``negative_multiplicity``
+        an entry of the vector is negative.
     ``magnetic_type_out_of_scope``
         a magnetic group of type III or IV, which
         :func:`.groups.realized_group` never returns.
     ``ebr_tables`` / ``irrep_tables`` / ``ebr_convention`` / ``tables_not_ready``
-        no elementary band representations of this group, or no tables in this
-        cell.
+        the tables installed hold no elementary band representations of this
+        group that can be read in the model's cell.
 
     Raises
     ------
     TypeError
-        A table with anything beside it, a vector written out by hand with
-        nothing beside it, a second argument that is not what
-        :func:`.groups.realized_group` returned, or a first that is neither a
-        table nor a mapping.
-    ..refusal.InternalError
-        The tables' Smith form and the one computed again disagree, a check
-        that ties the decoupled stack to the layer fails, or two classes share
-        every named value: the package disagreeing with itself.
+        A table with ``realized`` beside it, a vector written out by hand
+        without it, a ``realized`` that is not what
+        :func:`.groups.realized_group` returned, or a ``symmetry_data`` that is
+        neither a table nor a mapping.
 
-    Examples
+    See Also
     --------
-    Fu, Kane and Mele's diamond with one bond detuned, its two lowest bands:
-
-    >>> si = symmetry_indicator(hsp_table(r, bands=2))          # doctest: +SKIP
-    >>> si.indicator_group, si.values, si.indicators                # doctest: +SKIP
-    ('Z2 x Z4', (0, 1), {'z2w,1': 1, 'z2w,2': 1, 'z2w,3': 1, 'z4': 3})
+    decompose : the sums of elementary band representations that carry a
+        symmetry data vector.  A vector with a nonzero class has none.
     """
     source = _read("symmetry_indicator", symmetry_data, realized)
     if isinstance(source, Refusal):
@@ -2579,20 +2920,45 @@ def symmetry_indicator(symmetry_data, realized=None) -> SymmetryIndicator | Refu
     return _indicator_in(source, symmetry_data)
 
 
-#: The restriction read on a group whose tables were read, refusing.
+#: The message raised where the restriction refuses on a group whose tables
+#: were already read.
 _RESTRICTION_REFUSED = (
-    "#{}: the coreps the model measures could not be read ({}) after the group's "
-    "elementary band representations and its points were: the package disagreeing "
-    "with itself, not a property of the model.")
+    "#{}: in_plane_restriction refused with {} on a group whose elementary band "
+    "representations and high-symmetry points were read. Report it, with the model "
+    "and the call.")
 
 
 def _symmetry_indicator(symmetry_data, group, *, rep=None):
-    """What :func:`symmetry_indicator` returns for a vector read in ``group``, with the site irreps and heights of ``rep`` where it is given; a table is read in what it carries."""
+    """What :func:`symmetry_indicator` returns, for a vector with its group handed in.
+
+    ``symmetry_data`` is a :class:`.sewing.HSPTable`, read in what it
+    carries, ``group`` and ``rep`` not used; or a vector written out by
+    hand, ``{corep: multiplicity}``, read in ``group`` with the site irreps
+    and the heights of ``rep`` where it is given (:func:`_source_of`).
+    Returns what :func:`_indicator_in` returns.
+    """
     return _indicator_in(_source_of(symmetry_data, group, rep), symmetry_data)
 
 
 def _indicator_in(source, symmetry_data) -> SymmetryIndicator | Refusal:
-    """What :func:`symmetry_indicator` returns for ``symmetry_data`` read in ``source``."""
+    """What :func:`symmetry_indicator` returns, for a vector already read in its group.
+
+    ``source`` is the :class:`_Source` ``symmetry_data`` is read in, as
+    :func:`_read` or :func:`_source_of` returns it, and ``symmetry_data`` is
+    the table or the vector ``{corep: multiplicity}``.  For a layer's table
+    whose little-group representations at ``k_z = 1/2`` include some that
+    repeat none in the plane, the class is completed on the layer's decoupled
+    stack (:func:`_stack_in_group`).  Returns the :class:`SymmetryIndicator`,
+    a refusal :func:`symmetry_indicator` names, or ``lattice_not_descended``.
+    Raises ``InternalError`` where the restriction refuses after the group's
+    tables were read, where the tables' Smith factors do not fit the matrix
+    (:func:`._smith._smith_system`), where the Smith normal form computed
+    again disagrees with the tables' (:func:`._smith._verify_smith`), where
+    the paper's tables leave out a group with a nontrivial indicator group or
+    the checks of :func:`._srsitables._canonical_gate` on its forms cannot be
+    made or fail (:func:`._srsitables._canonical_reading`), and where a check
+    of the decoupled stack fails.
+    """
     group = source.group
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
@@ -2611,11 +2977,9 @@ def _indicator_in(source, symmetry_data) -> SymmetryIndicator | Refusal:
         refused = {name: r.gate for name, r in (table.refusals or {}).items()}
         return Refusal(
             "incomplete_content",
-            f"the symmetry data vector is missing "
-            f"{sorted(refused, key=_tables.point_order)}: {refused}. An indicator "
-            "reads the whole symmetry data vector, and the class of a vector with a point "
-            "missing is the class of a different vector, so these bands have no class "
-            "here. Read each missing point's refusal in the table's `refusals`.",
+            f"the table holds no little-group representations at "
+            f"{sorted(refused, key=_tables.point_order)}: {refused}. Read each missing "
+            "point's refusal in the table's `refusals`.",
             value=float(len(refused)), threshold=0.0,
             context={"refusals": refused, "resolved": tuple(table.multiplets),
                      "completion": "stable-rsi"})
@@ -2629,9 +2993,9 @@ def _indicator_in(source, symmetry_data) -> SymmetryIndicator | Refusal:
     if unknown:
         return Refusal(
             "unknown_label",
-            f"the measured labels {unknown} are not in the EBR basis of group "
-            f"#{group.number_str}; the symmetry data vector and the indicator basis are not "
-            "written in the same alphabet.",
+            f"the labels {unknown} are not among those of the elementary band "
+            f"representations of {group.name} #{group.number_str}. Pass a symmetry "
+            "data vector read in this group.",
             value=float(len(unknown)), threshold=0.0,
             context={"unknown": tuple(unknown), "basis": labels})
 
@@ -2640,16 +3004,16 @@ def _indicator_in(source, symmetry_data) -> SymmetryIndicator | Refusal:
     if isinstance(points, Refusal):
         return points
     restriction = _restriction(group, points, require_exact=False)
-    if isinstance(restriction, Refusal):     # pragma: no cover - its gates were read above
+    if isinstance(restriction, Refusal):     # pragma: no cover, its gates were read above
         raise InternalError(_RESTRICTION_REFUSED.format(group.number_str, restriction.gate))
     layered = int(getattr(group, "_dim_k", 3)) < 3
 
     # ---- the rows out of the layer's own plane, measured on the stack -----
-    # For a table, which names the band block the stack has to measure again,
-    # and whose representation carries the model and the matrices the stack is
-    # built from.  The stack obeys exactly what the layer obeys, so the class is
-    # completed in the layer's own group, and only where rows at k_z = 1/2
-    # repeat no in-plane row.
+    # Only for a table: it names the bands the stack measures again, and its
+    # representation carries the model and the matrices the stack is built
+    # from.  The stack obeys exactly what the layer obeys, so the class is
+    # completed in the layer's own group, where some rows at k_z = 1/2 repeat
+    # no in-plane row.
     completion = None
     if layered and table is not None and source.rep is not None and restriction.orphans:
         stacked, completion = _stack_in_group(
@@ -2660,30 +3024,31 @@ def _indicator_in(source, symmetry_data) -> SymmetryIndicator | Refusal:
 
     # ---- a vector written out by hand, read on the layer's own band
     # representations: there every row out of its plane repeats one in it, so a
-    # corep there the vector does not name takes its partner's multiplicity
+    # little-group representation there the vector does not name takes its
+    # partner's multiplicity
     if layered and table is None and restriction.orphans:
         layer = _layer_reading(group, data, heights=source.heights)
         if layer is not None:
             restriction = _restriction(group, points, require_exact=False, layer=layer)
-            if isinstance(restriction, Refusal):     # pragma: no cover - as above
+            if isinstance(restriction, Refusal):     # pragma: no cover, as above
                 raise InternalError(_RESTRICTION_REFUSED.format(group.number_str,
                                                                 restriction.gate))
 
     if restriction.orphans:
         reason = (
-            (f"the EBR rows {list(restriction.orphans)} of #{group.number_str} sit at "
-             "k-points this symmetry data vector does not cover, out of a 2D model's "
-             "periodic plane "
-             "or carrying no information, and they duplicate no row it does cover, so "
-             "the symmetry data vector cannot be completed and the indicator has no value "
-             "here. The decoupled stack of the layer, the crystal on which those rows are "
-             f"measured, did not supply them: {str(completion['stop_reason']).rstrip('. ')} "
-             "(what was measured, and where it stopped, is in context['stack']).")
+            (f"the little-group representations {list(restriction.orphans)} of "
+             f"{group.name} #{group.number_str} are out of the layer's plane, and none "
+             "of them occurs in every elementary band representation as often as one "
+             "in the plane. "
+             "Their measurement on the layer's decoupled stack stopped: "
+             f"{str(completion['stop_reason']).rstrip('. ')}.")
             if completion is not None else
-            (f"the coreps {list(restriction.orphans)} of #{group.number_str} sit at "
-             "k-points out of the layer's plane, repeat none in it and cannot be read off "
-             "it in this group's cell; pass the table tqc.hsp_table(r, bands=...) returns, "
-             "whose coreps there are measured on the layer's decoupled stack."))
+            (f"the little-group representations {list(restriction.orphans)} of "
+             f"{group.name} #{group.number_str} are out of the layer's plane, and the "
+             "vector gives none of them. None of them occurs in every elementary band "
+             "representation as often as one in the plane, and the layer's own "
+             "elementary band representations cannot be read in this group's cell. "
+             "Pass the table hsp_table returns for these bands."))
         return Refusal(
             "indicator_not_evaluable", reason,
             value=float(len(restriction.orphans)), threshold=0.0,
@@ -2693,10 +3058,9 @@ def _indicator_in(source, symmetry_data) -> SymmetryIndicator | Refusal:
                      "number_str": group.number_str, "completion": "stable-rsi",
                      "stack": completion})
 
-    # Every dropped row duplicates a retained one, so its multiplicity is
-    # determined -- the in-plane restriction's own exactness argument, read in
-    # the other direction.  Nothing is guessed and nothing is zeroed, and the
-    # compatibility relations are read on the vector completed so
+    # Every row left out repeats a measured one, and one the vector does not
+    # name takes that one's multiplicity.  The compatibility relations are read
+    # on the vector so completed.
     y, reconstructed = _filled_content(counts, restriction, labels)
     (u, v, d, matrix), y_prime, wrong = _compatibility(data, group.number_str, labels, y)
     if wrong is not None:
@@ -2715,16 +3079,15 @@ def _indicator_in(source, symmetry_data) -> SymmetryIndicator | Refusal:
 
     _named, _touched, _note, coeffs = _named_forms(group, data, matrix, y, mtype)
     two_d = _two_dimensional_reading(group, labels, u, slots, divisors, values, coeffs)
-    # the paper's named indicators: one rational solve of BR.p = y -- the
-    # identical arithmetic `srsi.srsi_of_bands` does on the same y -- and then
-    # the tabulated forms
+    # The paper's named indicators: one rational solve of BR.p = y, the
+    # arithmetic srsi_of_bands does on the same y, and then the tabulated forms.
     indicators, indicators_note, _tex = _srsitables._canonical_reading(
         group, mtype, u, v, d, y, divisors)
 
     provenance = ((table._group_provenance if table is not None else None)
                   or source.provenance or str(getattr(group, "_provenance", "cell")))
-    # the free-standing layer's group, as `realized_group` measured it beside a
-    # substrate's, named where it is larger than the group the class lives in
+    # The free-standing layer's group, as realized_group measured it beside the
+    # group on a substrate, is named where it is larger than the class's group.
     free = source.free_standing
     if free and int(free["size"]) > int(group._size):
         from ._realized import NamedGroup
@@ -2754,7 +3117,14 @@ def _indicator_in(source, symmetry_data) -> SymmetryIndicator | Refusal:
 
 
 def _plane_vector(group, counts) -> dict:
-    """The coreps of a symmetry data vector at the points of a layer's plane; the whole vector for a crystal."""
+    """A symmetry data vector at the points of a layer's plane.
+
+    ``counts`` is the vector, ``{corep: multiplicity}``, read in ``group``.
+    Returns it ordered as :func:`._tables.ordered_content` orders it, for a
+    layer at the tabulated points of its plane alone.  For a crystal periodic
+    in three directions, and where the group's high-symmetry points cannot be
+    read, returns the whole vector.
+    """
     if int(getattr(group, "_dim_k", 3)) >= 3:
         return _tables.ordered_content(counts)
     hsp = _tables._high_symmetry_points(group)
@@ -2766,9 +3136,12 @@ def _plane_vector(group, counts) -> dict:
 
 
 def _incomplete_table(content):
-    """The ``incomplete_content`` refusal for a table that refused at some point, or ``None``.
+    """The ``incomplete_content`` refusal for a table that refused at some point.
 
-    A mapping, and a complete table, return ``None``.
+    ``content`` is a :class:`.sewing.HSPTable` or a vector written out by
+    hand.  Returns the refusal, naming each point refused and its refusal's
+    name, for a table not complete.  Returns ``None`` for a complete table
+    and for a vector written out by hand.
     """
     if not isinstance(content, _sewing.HSPTable) or content.complete:
         return None
@@ -2924,11 +3297,23 @@ def regular_content(group, *, kpoints=None) -> dict | Refusal:
 
 
 def _regular_content(group, kpoints=None, *, call="regular_content") -> dict | Refusal:
-    """What :func:`regular_content` returns; a name the group does not tabulate raises, starting with ``call``."""
+    """What :func:`regular_content` returns, for a group already checked to be one.
+
+    ``group`` and ``kpoints`` are as :func:`regular_content` takes them, and
+    ``call`` is the public call's name, which an error starts with.  Returns
+    ``{corep: multiplicity}`` of one copy of the regular band representation
+    at the points asked, a refusal :func:`regular_content` names,
+    ``lattice_not_descended``, or a refusal of a little group or of its
+    table.  Raises ``ValueError`` (:func:`._tables._resolve_kpoint`) for a
+    name in ``kpoints`` the group does not tabulate, and ``InternalError``
+    where a multiplicity is not an integer, the multiplicities at a point do
+    not give one copy's number of bands, or a point listed out of a layer's
+    plane has a little group that is read.
+    """
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
-    # the count of one copy below is written for magnetic types I and II
+    # The count of one copy below is written for magnetic types I and II.
     out_of_scope = _spacegroup._magnetic_scope_refusal(group)
     if out_of_scope is not None:
         return out_of_scope
@@ -2984,12 +3369,13 @@ def _regular_content(group, kpoints=None, *, call="regular_content") -> dict | R
 
 
 def _bands_per_copy(group) -> int:
-    """The bands of one copy of the regular band representation of ``group``.
+    """The number of bands of one copy of the regular band representation of ``group``.
 
-    One state at the general position for each unitary operation up to lattice
-    translations; two, the Kramers pair, for a spinful grey group.  Written for
-    magnetic types I and II, where an antiunitary operation means time reversal
-    is in the group; ``_regular_content`` refuses the other two first.
+    One state at the general position for each unitary operation up to
+    lattice translations, and two, the Kramers pair, for a spinful grey
+    group.  Written for magnetic types I and II, where an antiunitary
+    operation means time reversal is in the group;
+    :func:`_regular_content` refuses the other two types first.
     """
     n_u = len(group._u_symmetries)
     return 2 * n_u if bool(group.spinor) and len(group._au_symmetries) else n_u
@@ -3112,7 +3498,7 @@ def regular_completion(symmetry_data, realized=None, *,
     if isinstance(occ, Refusal):
         return occ
 
-    # more of a little-group representation than the copies hold, said in this call's terms
+    # More of a little-group representation than the copies hold is refused, by name.
     excess = {lab: occ.get(lab, 0) - target.get(lab, 0)
               for lab in sorted(set(occ) | set(target), key=_tables.corep_order)
               if occ.get(lab, 0) > target.get(lab, 0)}
@@ -3135,7 +3521,8 @@ def regular_completion(symmetry_data, realized=None, *,
     if isinstance(padding, Refusal):
         return padding
 
-    # the padding is a vector of the same measurement, read as one written out
+    # The padding is a vector of the same measurement, read as one written out
+    # by hand.
     got = _decompose_in(replace(source, table=None), padding)
     if isinstance(got, Refusal):
         return got

@@ -930,7 +930,7 @@ inside the levels (`multiplet_spread`) far below the gap between them
 - [`subtract`](#subtract) — The symmetry data vector of the bands in one set and not in another, `a - b`.
 - [`regular_completion`](#regular_completion) — The bands completing a band set to copies of the regular band representation.
 - [`ebr_rows`](#ebr_rows) — Each elementary band representation of the group as a symmetry data vector: the coreps it carries at the high-symmetry points.
-- [`in_plane_restriction`](#in_plane_restriction) — Which coreps of the group's elementary band representations a layer measures, and whether each of the others repeats a measured one.
+- [`in_plane_restriction`](#in_plane_restriction) — The little-group representations a model measures, and what the others repeat.
 
 ### `decompose`
 
@@ -1143,49 +1143,56 @@ A refusal handed in as `group` is returned as it is.
 in_plane_restriction(group, *, kpoints=None, require_exact=True)
 ```
 
-Which coreps of the group's elementary band representations a layer measures, and whether each of the others repeats a measured one.
+The little-group representations a model measures, and what the others repeat.
 
-A layer's `H(k)` has no `k_z`, so its coreps at `k_z = 1/2` are not
-measured.  Each that occurs in every elementary band representation as
-often as a measured one adds no condition, and where every one does, what
-is read on the measured coreps is exact.
+The little-group representations of the group's elementary band
+representations are split into those at the points in `kpoints`, the
+measured ones, and the others, which are left out.  A layer, whose
+`H(k)` has no `k_z`, has no point at `k_z = 1/2` measured.  A
+little-group representation left out may occur in every elementary band
+representation as often as a measured one.  It is then said to repeat
+that one, and adds no condition to a symmetry data vector.
 
 **Parameters**
 
 - **`group`** (`GroupData`): The group, `r.group`.
 
-- **`kpoints`** (`sequence of str, optional`): The tabulated names of the points the model samples.  Default: every
-  tabulated point in its plane.
+- **`kpoints`** (`sequence of str, optional`): The tabulated names of the points measured.  Default: every tabulated
+  point, for a layer's group those in its plane.
 
-- **`require_exact`** (`bool, default True`): Whether a corep left out that repeats none measured is refused.  With
-  `require_exact=False`, those are returned as
-  `Restriction.orphans`.
+- **`require_exact`** (`bool, default True`): Whether the call refuses where a little-group representation left out
+  repeats no measured one.
 
 **Returns**
 
-- `Restriction or Refusal`: `r.summary()` prints it; `r.copies` pairs each corep left out with
-  the measured ones it repeats, and `r.exact` says whether each does.
-  A `Refusal` in its place is falsy and names what stopped the call.
+- `Restriction or Refusal`: The little-group representations measured and those left out, and for
+  each one left out the measured ones it repeats.  The record also says
+  whether every one left out repeats a measured one.  Where each does,
+  the decomposition or class read from the measured ones is that of the
+  whole symmetry data vector.  With `require_exact=False`, the record
+  lists those that repeat none in its `orphans`.  A `Refusal` in its
+  place is falsy and names what stopped the call.
 
 **Refusals**
 
 A refusal handed in as `group` is returned as it is.
 
-- **`restriction_not_exact`**: a corep left out repeats none measured.
+- **`restriction_not_exact`**: a little-group representation left out repeats no measured one.  With
+  `require_exact=False`, the call does not refuse.
 
-- **`ebr_tables` / `irrep_tables` / `ebr_convention` / `tables_not_ready`**: no elementary band representations of this group, or no tables in this
-  cell.
+- **`ebr_tables` / `irrep_tables` / `ebr_convention` / `tables_not_ready`**: the tables installed hold no elementary band representations of this
+  group that can be read in the model's cell.
 
 ## Stable invariants
 
-- [`symmetry_indicator`](#symmetry_indicator) — The symmetry-indicator class of a band set: the class of its symmetry data vector among the band structures modulo the atomic limits.
+- [`symmetry_indicator`](#symmetry_indicator) — The symmetry-indicator class of a set of bands.
 - [`stack_presentation`](#stack_presentation) — The layer repeated along its normal with no hopping between the copies: a crystal with the layer's bands at every `k_z`.
-- [`srsi_tables`](#srsi_tables) — The stable real-space invariants of a grey space group, as the paper tabulates them.
-- [`srsi_of_bands`](#srsi_of_bands) — The integer-valued stable real-space invariants of a band set, from its symmetry data vector.
-- [`srsi_of_model`](#srsi_of_model) — A model's stable real-space invariants, read off its orbitals, a row for each Wyckoff orbit.
-- [`splitting`](#splitting) — Whether the bands asked for and the rest of a model's bands can both be atomic insulators.
-- [`nsit_criterion`](#nsit_criterion) — The paper's no-go criterion on a gapped splitting whose invariants are in hand.
-- [`atomic_realizations`](#atomic_realizations) — Every atomic insulator with a band set's symmetry data, each a set of orbitals at maximal Wyckoff positions.
+- [`srsi_tables`](#srsi_tables) — The stable real-space invariants of a grey space group, as tabulated.
+- [`srsi_of_bands`](#srsi_of_bands) — The integer-valued stable real-space invariants (ZSRSIs) of a band set.
+- [`srsi_of_model`](#srsi_of_model) — The stable real-space invariants of a model, a row for each Wyckoff orbit.
+- [`splitting`](#splitting) — The no-go test of a gapped splitting of a model's bands.
+- [`nsit_criterion`](#nsit_criterion) — The no-go test of a gapped splitting, from its invariants.
+- [`atomic_realizations`](#atomic_realizations) — Every atomic realization of given integer-valued stable real-space invariants.
 
 ### `symmetry_indicator`
 
@@ -1193,60 +1200,71 @@ A refusal handed in as `group` is returned as it is.
 symmetry_indicator(symmetry_data, realized=None)
 ```
 
-The symmetry-indicator class of a band set: the class of its symmetry data vector among the band structures modulo the atomic limits.
+The symmetry-indicator class of a set of bands.
 
-A nonzero class says no band set with this symmetry data vector is an
-atomic limit, nor any with atomic bands added; a zero class certifies
-nothing.  A layer's class is read in its slab's three-dimensional group,
-as the class of its decoupled stack, the layer repeated along its normal
-with no hopping between copies.  A table's coreps at points out of the
-layer's plane that repeat none in it are measured on that stack.  A vector
-written out by hand is read at the points of the plane and at each point
-out of it where it names a corep; a corep out of the plane it does not
-name takes the multiplicity of the corep in the plane it repeats in every
-elementary band representation of the layer's own Wyckoff positions.
+The columns of the group's matrix $`M`$ of elementary band
+representations are their symmetry data vectors.  The irreptables package
+ships its Smith normal form, $`U M V = D`$.  The class of the symmetry
+data vector $`y`$ of the bands is the entries of $`U y`$ at which
+the diagonal of $`D`$ holds an elementary divisor above 1, each taken
+modulo that divisor.  A layer's class is read in the three-dimensional
+space group of its slab, as the class of its decoupled stack, the layer
+repeated along its normal with no hopping between copies.  Each of its
+little-group representations at `k_z = 1/2` that occurs in every
+elementary band representation as often as one in the plane takes that
+one's multiplicity.  For a table, the others are measured on the stack.  A
+vector written out by hand is read as given at each point out of the plane
+where it names a little-group representation.  At the other points out of
+the plane, how often each little-group representation occurs is compared
+with those in the plane on the elementary band representations of the
+Wyckoff positions within the layer.
 
 **Parameters**
 
-- **`symmetry_data`** (`HSPTable or mapping`): The table [`hsp_table`](#hsp_table) returns, which must be complete,
-  or `{corep: multiplicity}` written out by hand.
+- **`symmetry_data`** (`HSPTable or mapping`): The symmetry data vector.  Pass the table [`hsp_table`](#hsp_table)
+  returns, or `{corep: multiplicity}` written out by hand.
 
-- **`realized`** (`RealizedGroup, optional`): What [`realized_group`](#realized_group) returned, `r`, the measurement
-  the coreps came from.  Pass it beside a vector written out by hand,
-  and with a table nothing.
+- **`realized`** (`RealizedGroup, optional`): What [`realized_group`](#realized_group) returned for the model the
+  symmetry data vector was measured on.  Pass it with a vector written
+  out by hand, and nothing with a table.
 
 **Returns**
 
-- `SymmetryIndicator or Refusal`: `si.summary()` prints the class.  `si.values` is the class, one
-  integer modulo each of `si.divisors`, in the indicator group
-  `si.indicator_group`, of order `si.order`; `si.indicators` the
-  class in the named indicators of the paper that tabulates the stable
-  real-space invariants; `si.group` the group it lives in.  The record
-  is truthy whatever its class; a `Refusal` in its place is falsy and
-  names what stopped the call.
+- `SymmetryIndicator or Refusal`: The class, one integer modulo each elementary divisor, with its
+  indicator group and its order.  For a group with time reversal and a
+  nontrivial indicator group, the record also holds the class in the
+  named indicators of Hwang *et al.*, Nat. Commun. **17**, 8564 (2026),
+  where the tables of that paper are installed.
+  A class can only be returned for a table that refused at no point.
+  The record is truthy whatever its class.
 
 **Refusals**
 
 A refusal handed in as `realized` is returned as it is.
 
-- **`incomplete_content`**: the table refused at some point; there is no override.
+- **`incomplete_content`**: the table refused at some point.
 
-- **`indicator_not_evaluable`**: a layer's coreps at `k_z = 1/2` repeat none in its plane and could
-  not be read: a vector whose layer's own band representations cannot
-  be read in the group's cell, or a table whose decoupled stack stopped
-  (`context["stack"]`).
+- **`not_a_band_structure`**: the vector fails the compatibility relations of the group.
 
-- **`not_a_band_structure`**: the vector fails the group's compatibility relations.
+- **`unknown_label`**: the vector names a little-group representation that the group's
+  elementary band representations do not carry.
 
-- **`unknown_label`**: a corep the group's elementary band representations do not hold.
+- **`indicator_not_evaluable`**: a layer's little-group representations at `k_z = 1/2`, none of
+  which occurs in every elementary band representation as often as one
+  in its plane, could not be read.  For a table, the measurement on
+  the decoupled stack stopped, and `context["stack"]` says where.  For a
+  vector written out by hand, the Wyckoff positions of the tables cannot
+  be read in the group's cell.
 
-- **`non_integer_multiplicity` / `negative_multiplicity`**: the vector is no count of coreps.
+- **`non_integer_multiplicity`**: an entry of the vector is not an integer.
+
+- **`negative_multiplicity`**: an entry of the vector is negative.
 
 - **`magnetic_type_out_of_scope`**: a magnetic group of type III or IV, which
   [`realized_group`](#realized_group) never returns.
 
-- **`ebr_tables` / `irrep_tables` / `ebr_convention` / `tables_not_ready`**: no elementary band representations of this group, or no tables in this
-  cell.
+- **`ebr_tables` / `irrep_tables` / `ebr_convention` / `tables_not_ready`**: the tables installed hold no elementary band representations of this
+  group that can be read in the model's cell.
 
 ### `stack_presentation`
 
@@ -1294,40 +1312,44 @@ and `c` changes neither.
 srsi_tables(group_or_number, *, spinor=None)
 ```
 
-The stable real-space invariants of a grey space group, as the paper tabulates them.
+The stable real-space invariants of a grey space group, as tabulated.
 
-From a measured group the tables come with the group, and every call that
-reads a model's site irreps reads them in these tables; from a space-group
-number with `spinor=` they need no model.
+The tables are those of Hwang et al., Stable real-space invariants and
+topology beyond symmetry indicators, Nat. Commun. 17, 8564 (2026).  They
+are read for a group a model was measured to have, or for a space-group
+number, which needs no model.
 
 **Parameters**
 
-- **`group_or_number`** (`GroupData or int`): A grey group a model was measured to have, `r.group`, or a
-  space-group number from 1 to 230.
+- **`group_or_number`** (`GroupData or int`): The group.  Pass `r.group` of what [`realized_group`](#realized_group)
+  returns, or a space-group number from 1 to 230.
 
-- **`spinor`** (`bool, optional`): With a number, and only then: the tables with spin-orbit coupling
-  (`True`) or without.
+- **`spinor`** (`bool, optional`): Whether the double-valued tables, those with spin-orbit coupling, are
+  read.  Pass it with a space-group number, and only then.
 
 **Returns**
 
-- `SRSITables or Refusal`: `tables.summary()` prints the invariants; `tables.theta(p)` evaluates
-  them on a configuration.  From a number, `tables.group` holds the grey
-  group's name, number and valuedness and no cell.  A `Refusal` in its
-  place is falsy.
+- `SRSITables or Refusal`: The tables of the group.  A `Refusal` in its place is falsy.
 
 **Refusals**
 
+A refusal handed in as `group_or_number` is returned as it is.
+
 - **`srsi_scope`**: the group is not grey, or the number is outside 1 to 230.
 
-- **`srsi_table_absent`**: one of the thirteen groups whose one invariant is the band count.
+- **`srsi_table_absent`**: the group is one of the thirteen space groups the tables leave out.
+  In each, the general position is the only Wyckoff position, and it has
+  one site irrep.  The one invariant is the band count.
 
-- **`srsi_data`**: the tables are not installed (`srsi_status`).
+- **`srsi_data`**: the tables are not installed.  `srsi_status` says which is
+  missing.
 
-- **`srsi_ebr_basis`**: the installed `irreptables` lists other elementary band representations
-  than the tables were converted against; `context["installed"]` holds its
-  list.
+- **`srsi_ebr_basis`**: the installed irreptables package lists elementary band
+  representations of the measured group other than those the tables
+  were converted against.  `context["installed"]` holds its list.
 
-- **`ebr_tables`, `irrep_tables`, `ebr_convention`**: from [`ebr_data`](#ebr_data).
+- **`ebr_tables` / `irrep_tables` / `ebr_convention`**: the tables installed hold no elementary band representations of the
+  measured group that can be read in this package's convention.
 
 ### `srsi_of_bands`
 
@@ -1335,39 +1357,62 @@ number with `spinor=` they need no model.
 srsi_of_bands(symmetry_data, realized=None)
 ```
 
-The integer-valued stable real-space invariants of a band set, from its symmetry data vector.
+The integer-valued stable real-space invariants (ZSRSIs) of a band set.
 
-They are the invariants of a rational site-symmetry vector `p` with the band
-set's symmetry data vector, every such `p` giving the same ones, and they are
-fractional exactly when the symmetry indicator is nonzero.  The invariants
-valued modulo n are no function of the symmetry data vector, so none are
-returned; [`srsi_of_model`](#srsi_of_model) reads them off a model's orbitals.
+The ZSRSIs are fixed by the symmetry data vector of the bands.  They are
+computed by writing the symmetry data vector as a rational sum of
+elementary band representations and applying to it the linear map
+`SRSITables.theta`.  The SRSIs valued modulo n are not fixed by the
+symmetry data vector and are not returned; [`srsi_of_model`](#srsi_of_model) computes
+them for a full model.
 
 **Parameters**
 
-- **`symmetry_data`** (`HSPTable or mapping`): The table [`hsp_table`](#hsp_table) returns, which must be complete,
-  or `{corep: multiplicity}` written out by hand, as
-  [`symmetry_indicator`](#symmetry_indicator) takes it.
+- **`symmetry_data`** (`HSPTable or mapping`): The symmetry data vector.  Pass the table [`hsp_table`](#hsp_table)
+  returns, or `{corep: multiplicity}` written out by hand.
 
-- **`realized`** (`RealizedGroup, optional`): What [`realized_group`](#realized_group) returned, `r`, the measurement
-  the coreps came from, in a grey group with tables.  Pass it beside a
-  vector written out by hand, and with a table nothing.
+- **`realized`** (`RealizedGroup, optional`): What [`realized_group`](#realized_group) returned for the model the
+  symmetry data vector was measured on.  Pass it with a vector written
+  out by hand, and nothing with a table.
 
 **Returns**
 
-- `BandSRSIs or Refusal`: `out.summary()` prints the invariants, whether they are fractional, and
-  the symmetry-indicator class, and `out.line()` the same on one line;
-  `out.theta_Z` holds the invariants by name and `out.indicator` the
-  class.  A `Refusal` in its place is falsy.
+- `BandSRSIs or Refusal`: The ZSRSIs of the band set by name, the symmetry-indicator class of
+  the same bands, and the rational sum of elementary band
+  representations the ZSRSIs were computed from.
 
 **Refusals**
 
 A refusal handed in as `realized` is returned as it is.
 
-- **`srsi_scope`, `srsi_table_absent`, `srsi_data`, `srsi_ebr_basis`**: from [`srsi_tables`](#srsi_tables): the group has no tables.
+- **`srsi_scope` / `srsi_table_absent`**: the tables hold no stable real-space invariants of the group: it is
+  not grey, or it is one of the thirteen space groups whose one
+  invariant is the band count.
 
-- **`incomplete_content`, `not_a_band_structure`, `indicator_not_evaluable`**: from [`symmetry_indicator`](#symmetry_indicator), with the refusals of the
-  symmetry data vector it reads.
+- **`srsi_data` / `srsi_ebr_basis`**: the tables of the stable real-space invariants are not installed, or
+  were converted against another list of elementary band
+  representations than the one installed.
+
+- **`incomplete_content`**: the table holds no little-group representations at some high-symmetry
+  point, for example where the bands split a degenerate multiplet.
+
+- **`not_a_band_structure`**: the vector fails the compatibility relations of the group.
+
+- **`indicator_not_evaluable`**: the bands are a layer's, and some of their little-group
+  representations at `k_z = 1/2` could not be read.  For each of these,
+  no little-group representation in the layer's plane occurs as often as
+  it does in every elementary band representation.  For a table, their
+  measurement on the layer's decoupled stack stopped.  For a vector
+  written out by hand, the Wyckoff positions of the tables cannot be
+  read in the group's cell.
+
+- **`unknown_label`**: the vector names a little-group representation that the group's
+  elementary band representations do not carry.
+
+- **`non_integer_multiplicity` / `negative_multiplicity`**: an entry of the vector is not a nonnegative integer.
+
+- **`ebr_tables` / `irrep_tables` / `ebr_convention` / `tables_not_ready`**: the tables installed hold no elementary band representations of this
+  group that can be read in the model's cell.
 
 ### `srsi_of_model`
 
@@ -1375,41 +1420,59 @@ A refusal handed in as `realized` is returned as it is.
 srsi_of_model(realized)
 ```
 
-A model's stable real-space invariants, read off its orbitals, a row for each Wyckoff orbit.
+The stable real-space invariants of a model, a row for each Wyckoff orbit.
 
-Each Wyckoff orbit's symmetry data vector is measured on its own orbitals
-and decomposed into elementary band representations at its Wyckoff position
-or, where the tables list none there, at a position its orbitals slide onto;
-a row's invariants are that decomposition's, and the model's their sum.  A
-model's orbitals are a known configuration, so both kinds are returned.
+The symmetry data vector of each Wyckoff orbit is measured on its own
+orbitals, from the trace of each little-group operation over them at each
+high-symmetry point.  It is decomposed into elementary band
+representations at each Wyckoff position that the orbitals can slide onto
+by varying the free coordinates of their own, and at which the tables
+list elementary band representations.  Their own position is among these
+where the tables list one there.  A row of a spinless model whose
+symmetry data vector has no such decomposition is given the stable
+real-space invariants of its own site irreps, each identified with one
+the tables list at its position, in `SRSITables.site_irreps`.  The
+stable real-space invariants (SRSIs) of a row are those of its
+decompositions, all of which agree, and the model's are the sum over the
+rows.  The orbitals are a known configuration, so the SRSIs valued modulo
+n are returned with the integer-valued ones.
 
 **Parameters**
 
-- **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned, `r`.
+- **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned for the model.
 
 **Returns**
 
-- `ModelSRSIs or Refusal`: `out.summary()` prints the invariants and each row's; `out.theta_Z`
-  and `out.theta_Zn` hold the model's, by name, and
-  `out.wyckoff_orbits` a row for each Wyckoff orbit, the row of
-  `r.wyckoff_orbits` with its invariants.  A `Refusal` in its place is
-  falsy.
+- `ModelSRSIs or Refusal`: The model's integer-valued SRSIs and its SRSIs valued modulo n, by
+  name, and a row for each row of `realized.wyckoff_orbits` with its
+  own SRSIs and its decompositions.
 
 **Refusals**
 
-- **`srsi_scope`, `srsi_table_absent`, `srsi_data`, `srsi_ebr_basis`**: from [`srsi_tables`](#srsi_tables): the group has no tables.
+A refusal handed in as `realized` is returned as it is.
 
-- **`wyckoff_orbit_content_incomplete`**: a Wyckoff orbit's symmetry data vector could not be read at a
+- **`srsi_scope` / `srsi_table_absent`**: the tables hold no SRSIs of the group: it is not grey, or it is one of
+  the thirteen space groups whose one invariant is the band count.
+
+- **`srsi_data` / `srsi_ebr_basis`**: the tables of the SRSIs are not installed, or were converted against
+  another list of elementary band representations than the one
+  installed.
+
+- **`ebr_tables` / `irrep_tables` / `ebr_convention` / `tables_not_ready`**: the tables installed hold no elementary band representations of this
+  group that can be read in the model's cell.
+
+- **`wyckoff_orbit_content_incomplete`**: the symmetry data vector of a Wyckoff orbit could not be read at some
   high-symmetry point.
 
-- **`wyckoff_orbit_not_localizable`**: a Wyckoff orbit's symmetry data vector is a band representation of no
-  position its orbitals can slide onto.
+- **`wyckoff_orbit_not_localizable`**: no sum of elementary band representations at any one position the
+  orbitals of a Wyckoff orbit can slide onto carries its symmetry data
+  vector.  The model is spinful, or one of the orbit's site irreps could
+  not be identified with a site irrep the tables list at its position.
 
-- **`wyckoff_setting`**: the symmetry data vector decomposes at a position the geometry says the
-  orbitals are not at: the package disagreeing with itself, a case to
-  report.
-
-- **`tables_not_ready`, `wyckoff_unresolved`, `ebr_tables`**: from [`wyckoff_sites_tables`](#wyckoff_sites_tables) and [`ebr_data`](#ebr_data).
+- **`wyckoff_setting` / `wyckoff_unresolved`**: the Wyckoff position of a Wyckoff orbit read from its centers differs
+  from the one at which its symmetry data vector is a sum of elementary
+  band representations, or the positions could not be read in the
+  setting of the tables.
 
 ### `splitting`
 
@@ -1417,40 +1480,59 @@ model's orbitals are a known configuration, so both kinds are returned.
 splitting(realized, *, bands=None)
 ```
 
-Whether the bands asked for and the rest of a model's bands can both be atomic insulators.
+The no-go test of a gapped splitting of a model's bands.
 
-The paper's no-go criterion on a gapped splitting of a model's bands: the
-valence bands are the bands asked for, the conduction bands the rest.  The
-whole model's invariants are read off its orbitals ([`srsi_of_model`](#srsi_of_model)),
-the integer-valued ones of the valence bands off their symmetry data
-vector ([`srsi_of_bands`](#srsi_of_bands)), and those of the conduction bands are the
-difference; [`nsit_criterion`](#nsit_criterion) decides.  The gap is taken as given.
+The record returned says whether the splitting is non-symmetry-indicated
+topological (NSIT).  The criterion is that of Hwang et al., Nat. Commun.
+17, 8564 (2026), as [`nsit_criterion`](#nsit_criterion) applies it.  The valence bands
+are the bands asked for and the conduction bands are the rest.  The
+stable real-space invariants (SRSIs) of all the bands are read off the
+model's orbitals with [`srsi_of_model`](#srsi_of_model).  The integer-valued SRSIs of
+the valence bands are read off their symmetry data vector with
+[`srsi_of_bands`](#srsi_of_bands), and those of the conduction bands are the
+difference.  The splitting is NSIT exactly where both sides have atomic
+realizations, the group has SRSIs valued modulo n, and no pair of
+realizations has SRSIs valued modulo n adding up to those of all the
+bands.  The bands are read at the high-symmetry points alone, so a gap
+between those points is taken as given.
 
 **Parameters**
 
-- **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned, `r`.
+- **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned for the model.
 
-- **`bands`** (`int or sequence of int`): The valence bands: an `int` is the lowest *n*, a sequence those bands.
-  Required.
+- **`bands`** (`int or sequence of int`): The valence bands.  Pass an integer `n` for the lowest `n` bands,
+  or a sequence of band indices.  Required.
 
 **Returns**
 
-- `Splitting or Refusal`: `out.nsit` holds whether the splitting is NSIT, which it is only
-  where both sides have atomic realizations and no pair of them adds up
-  to the whole model's invariants valued modulo n.  `out.valence` and
-  `out.conduction` hold each side's realizations, empty where its
-  invariants are fractional.  `out.summary()` prints it and what it
-  rests on.  The record is truthy.  A `Refusal` in its place is falsy.
+- `Splitting or Refusal`: Whether the splitting is NSIT, every atomic realization of each side,
+  and the pairs whose SRSIs valued modulo n add up to those of all the
+  bands.  The record is truthy even where `nsit` is `False`.
 
 **Refusals**
 
-- **`srsi_scope`, `srsi_table_absent`, `srsi_data`, `srsi_ebr_basis`**: from [`srsi_tables`](#srsi_tables): the group has no tables.
+A refusal handed in as `realized` is returned as it is.
 
-- **`wyckoff_orbit_content_incomplete`, `wyckoff_orbit_not_localizable`, `wyckoff_setting`**: from [`srsi_of_model`](#srsi_of_model), for the orbitals.
+- **`srsi_scope` / `srsi_table_absent`**: the tables hold no SRSIs of the group: it is not grey, or it is one of
+  the thirteen space groups whose one invariant is the band count.
 
-- **`incomplete_content`, `not_a_band_structure`, ...**: from [`hsp_table`](#hsp_table) and [`srsi_of_bands`](#srsi_of_bands), for the bands.
+- **`srsi_data` / `srsi_ebr_basis`**: the tables of the SRSIs are not installed, or were converted against
+  another list of elementary band representations than the one
+  installed.
 
-- **`srsi_realizations_truncated`**: from [`nsit_criterion`](#nsit_criterion), which lists each side at the default cap of
+- **`ebr_tables` / `irrep_tables` / `ebr_convention` / `tables_not_ready`**: the tables installed hold no elementary band representations of this
+  group that can be read in the model's cell.
+
+- **`wyckoff_orbit_content_incomplete` / `wyckoff_orbit_not_localizable` / `wyckoff_setting` / `wyckoff_unresolved`**: the SRSIs of the orbitals could not be read, as [`srsi_of_model`](#srsi_of_model)
+  says.
+
+- **`incomplete_content`**: the valence bands could not be read at some high-symmetry point, for
+  example where they split a degenerate multiplet.
+
+- **`not_a_band_structure` / `indicator_not_evaluable`**: the integer-valued SRSIs of the valence bands could not be read, as
+  [`srsi_of_bands`](#srsi_of_bands) says.
+
+- **`srsi_realizations_truncated`**: the enumeration of one side reached the default `cap` of
   [`atomic_realizations`](#atomic_realizations).
 
 ### `nsit_criterion`
@@ -1459,40 +1541,46 @@ difference; [`nsit_criterion`](#nsit_criterion) decides.  The gap is taken as gi
 nsit_criterion(tables, theta_total, theta_Z_v, theta_Z_c)
 ```
 
-The paper's no-go criterion on a gapped splitting whose invariants are in hand.
+The no-go test of a gapped splitting, from its invariants.
 
-All the bands together are an atomic insulator.  If the two sides, the
-valence and the conduction bands, are atomic insulators too, then the
-invariants valued modulo n of some atomic realization of each add up to the
-whole model's, modulo each n.  Every realization of each side is listed,
-since one pair that does not add up proves nothing.  The splitting is NSIT
-where both sides have realizations and no pair adds up; it is not where the
-valence bands' invariants are fractional or a side has no realization at
-all, which the symmetry data vector already shows, nor where the group has
-no invariants valued modulo n or some pair adds up.
+The record returned says whether the splitting is non-symmetry-indicated
+topological (NSIT).  The criterion is that of Hwang et al., Nat. Commun.
+17, 8564 (2026).  All the bands together are an atomic insulator, whose
+stable real-space invariants (SRSIs) are `theta_total`.  The valence
+and the conduction bands split them, and their integer-valued SRSIs
+(ZSRSIs) are `theta_Z_v` and `theta_Z_c`.  Where both sides are
+atomic insulators too, some atomic realization of each has SRSIs valued
+modulo n that add up to those of all the bands, modulo each n.  One pair
+that does not add up does not show the splitting topological, so every
+pair of realizations of the two sides, enumerated with
+[`atomic_realizations`](#atomic_realizations), is tested.  A side whose ZSRSIs are
+fractional has no realization.  The splitting is NSIT exactly where both
+sides have realizations, the group has SRSIs valued modulo n, and no pair
+adds up.
 
 **Parameters**
 
-- **`tables`** (`SRSITables`): The group's tables.
+- **`tables`** (`SRSITables`): The tables of the group, what [`srsi_tables`](#srsi_tables) returns.
 
-- **`theta_total`** (`Invariants or ModelSRSIs`): The whole model's invariants, with `theta_Z` and `theta_Zn` by
-  name: what `tables.theta` returns for the model's orbitals, or what
+- **`theta_total`** (`Invariants or ModelSRSIs`): The SRSIs of all the bands, as a record with the fields `theta_Z`
+  and `theta_Zn`, each keyed by the invariants' names.  Pass what
+  `SRSITables.theta` returns for the model's orbitals, or what
   [`srsi_of_model`](#srsi_of_model) returns.
 
-- **`theta_Z_v`, `theta_Z_c`** (`mapping`): `{name: value}`: the integer-valued invariants of the valence and of
-  the conduction bands, as `b.theta_Z` holds them.
+- **`theta_Z_v`, `theta_Z_c`** (`mapping`): The ZSRSIs of the valence and of the conduction bands,
+  `{name: value}`.  Pass for each the `theta_Z` of what
+  [`srsi_of_bands`](#srsi_of_bands) returns.
 
 **Returns**
 
-- `Splitting or Refusal`: `out.nsit` holds whether the splitting is NSIT; `out.summary()`
-  prints it, why, the realizations of each side and the pairs that add
-  up.  The record is truthy.  A `Refusal` in its place is falsy.
+- `Splitting or Refusal`: Whether the splitting is NSIT, every atomic realization of each side,
+  and the pairs whose SRSIs valued modulo n add up to those of all the
+  bands.  The record is truthy even where `nsit` is `False`.
 
 **Refusals**
 
-- **`srsi_realizations_truncated`**: from [`atomic_realizations`](#atomic_realizations), which lists each side at its default
-  cap: more realizations than the cap, which [`atomic_realizations`](#atomic_realizations)
-  with a larger `cap=` lists.
+- **`srsi_realizations_truncated`**: the enumeration of one side reached the default `cap` of
+  [`atomic_realizations`](#atomic_realizations).
 
 ### `atomic_realizations`
 
@@ -1500,31 +1588,39 @@ no invariants valued modulo n or some pair adds up.
 atomic_realizations(tables, theta_Z, *, cap=256)
 ```
 
-Every atomic insulator with a band set's symmetry data, each a set of orbitals at maximal Wyckoff positions.
+Every atomic realization of given integer-valued stable real-space invariants.
 
-The configurations with nonnegative integer multiplicities over the maximal
-site irreps whose integer-valued invariants are `theta_Z`: the same
-invariants are the same symmetry data.  Maximal positions are enough, since
-an atomic insulator moves onto them with its invariants unchanged, and the
-list is complete.  Fractional invariants have none: the band set carries a
-nonzero symmetry indicator, and nothing is enumerated.
+An atomic realization is a set of site irreps at maximal Wyckoff
+positions, with nonnegative integer multiplicities.  Those returned are
+every one whose integer-valued stable real-space invariants (ZSRSIs) are
+`theta_Z`.  They are found by enumerating the nonnegative integer
+solutions of the linear equations that set the ZSRSIs to `theta_Z` and
+the band count to the one `theta_Z` fixes.  Maximal positions suffice,
+since an atomic insulator moves onto them with its stable real-space
+invariants unchanged.  The list of realizations is complete.  All the
+realizations returned have one symmetry data vector, since two with the
+same ZSRSIs have the same one.  Each realization carries its own stable
+real-space invariants valued modulo n.  Fractional ZSRSIs have no
+realization.
 
 **Parameters**
 
-- **`tables`** (`SRSITables`): The group's tables, from [`srsi_tables`](#srsi_tables).
+- **`tables`** (`SRSITables`): The tables of the group, what [`srsi_tables`](#srsi_tables) returns.
 
-- **`theta_Z`** (`mapping`): `{name: value}`: the band set's integer-valued invariants, each once,
-  as `b.theta_Z` holds them.
+- **`theta_Z`** (`mapping`): The ZSRSIs, `{name: value}`, with one entry for each of the tables'
+  integer-valued invariants.  Pass the `theta_Z` of what
+  [`srsi_of_bands`](#srsi_of_bands) returns.
 
-- **`cap`** (`int, default 256`): The most realizations to list; more is refused.
+- **`cap`** (`int, default 256`): The number of realizations at which the enumeration stops.
 
 **Returns**
 
-- `Realizations or Refusal`: `out.summary()` prints every realization with its own invariants
-  valued modulo n; `out.realizations` holds them.  The record is truthy,
-  and an empty list with whole-number `theta_Z` is a fragile band set.
-  A `Refusal` in its place is falsy.
+- `Realizations or Refusal`: Every atomic realization of `theta_Z`, each with its stable
+  real-space invariants valued modulo n.  The list is empty where
+  `theta_Z` is fractional, and where no atomic insulator has these
+  ZSRSIs.  The record is truthy even where the list is empty.
 
 **Refusals**
 
-- **`srsi_realizations_truncated`**: more than `cap` realizations; a larger `cap=` lists them.
+- **`srsi_realizations_truncated`**: the enumeration reached `cap` realizations.  A `cap=` above their
+  number lists them all.

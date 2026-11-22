@@ -324,10 +324,11 @@ high-symmetry point.
 Returned by `decompose`, `symmetry_indicator`,
 `regular_completion`, `splitting` and `srsi_of_bands`.
 
-- **What it means.** The content violates the group's compatibility relations: coordinates
-  of its Smith form that vanish for every band structure of the group do not, so it lies
-  outside the lattice of band structures, with no class in `{BS}/{AI}` and no
-  decomposition
+- **What it means.** The symmetry data vector violates the group's compatibility
+  relations: written in the basis of the Smith normal form of the group's matrix of
+  elementary band representations, it has a nonzero coordinate where every band structure
+  of the group has zero. So it lies outside the lattice of band structures, with no class
+  in `{BS}/{AI}` and no decomposition
   ([how a symmetry indicator is computed](../background/tqc-primer.md#how-a-symmetry-indicator-is-computed)).
 - **Usual cause.** Bands asked for that do not make a full set at every `k`, as when they
   cut through a crossing between two high-symmetry points, or labels read in another group.
@@ -338,15 +339,20 @@ Returned by `decompose`, `symmetry_indicator`,
 
 Returned by `symmetry_indicator` and `srsi_of_bands`.
 
-- **What it means.** A layer's content does not reach some rows of the group's elementary
-  band representations, rows at k-points out of the plane that repeat no row in it, and the
-  decoupled stack of the layer, on which such rows are measured, did not supply them. The
-  indicator has no value.
-- **Usual cause.** A layer's symmetry data vector written out by hand whose coreps out of
-  the plane cannot be read off the layer's own band representations in the group's cell;
-  or a check of the stack that did not complete, which `context["stack"]` names.
-- **What to do.** Hand `symmetry_indicator` the table `hsp_table` returned, whose coreps
-  out of the plane are measured on the layer's decoupled stack
+- **What it means.** The multiplicities in the plane do not fix those of the little-group
+  representations the refusal names out of it, since none of them occurs in every
+  elementary band representation as often as one in the plane. For a table they are
+  measured on the layer's decoupled stack, the crystal that has those points, and that
+  measurement stopped. The class is read from the whole symmetry data vector, so without
+  them it has no value.
+- **Usual cause.** A layer's symmetry data vector written out by hand whose little-group
+  representations out of the plane cannot be read off the layer's own band representations
+  in the group's cell; or a check of the stack that did not complete, which
+  `context["stack"]` names.
+- **What to do.** For a vector written out by hand, pass the table `hsp_table` returns for
+  the same bands, whose little-group representations out of the plane are measured on the
+  layer's decoupled stack. For a table, `context["stack"]` holds the measurement on the
+  stack up to where it stopped, with the number measured by each check made before then
   ([a layer's class](../guide/indicators.md#a-layers-class-is-a-three-dimensional-class)).
 
 #### `restriction_not_exact`
@@ -382,8 +388,9 @@ as often as it in every elementary band representation of the group.
 
 Returned by `srsi_of_model` and `splitting`.
 
-- **What it means.** A Wyckoff orbit's content could not be identified at a high-symmetry point,
-  for a reason other than a trivial little group, so its symmetry content is incomplete.
+- **What it means.** The symmetry data vector of a Wyckoff orbit's own orbitals could not be
+  read at a high-symmetry point, for a reason other than a trivial little group, so it is
+  incomplete.
 - **Usual cause.** A refusal at that point, which `context["refusal"]` carries.
 - **What to do.** Read that refusal; its entry here says what to do.
 
@@ -391,13 +398,21 @@ Returned by `srsi_of_model` and `splitting`.
 
 Returned by `srsi_of_model` and `splitting`.
 
-- **What it means.** A Wyckoff orbit's measured content is no band representation of any
-  Wyckoff position on the closure of its own, the points its free coordinates sweep and the
-  higher-symmetry positions among them, nor a composite site irrep the tables carry: the
-  orbit's content is not an atomic limit at the position it sits on.
-- **Usual cause.** Orbitals whose content does not fit where they sit.
-- **What to do.** Check the orbitals' positions and their declared content;
-  `context["tried"]` lists the positions tried.
+- **What it means.** No sum of elementary band representations at any one Wyckoff position
+  a Wyckoff orbit's orbitals can slide onto carries its measured symmetry data vector.
+  Those positions are on the closure of its own position: the points its free coordinates
+  sweep and the higher-symmetry positions among them. Where the tables list elementary
+  band representations at no position on that closure, there is no position to read the
+  orbit at. Nor could the orbit's invariants be read from its site irreps. That is how the
+  invariants of composite site irreps are read, those whose band representation is a sum
+  of elementary ones at other positions. For a spinless model, each site irrep of the
+  orbit is identified with one the tables list at its position, and here one could not
+  be. The double-valued tables hold no composite site irrep, and a spinful model's orbit
+  is not read this way. In either case the orbit's symmetry data vector is consistent
+  with no atomic limit at the position it sits on, which is a statement about the model.
+- **Usual cause.** Orbitals whose symmetry data vector does not fit where they sit.
+- **What to do.** Check the orbitals' positions and their site irreps; `context["tried"]`
+  lists the positions tried.
 
 ### A layer and its stack
 
@@ -586,20 +601,20 @@ is left empty.
 
 #### `unknown_label`
 
-Returned by `realized_group`, `decompose`, `symmetry_indicator` and
+Returned by `realized_group`, `decompose`, `symmetry_indicator`, `srsi_of_bands` and
 `regular_completion`.
 
 - **What it means.** From `realized_group`, a declaration names nothing at the orbital's
   site: a word that is not an irrep of its site group, a sum of irreps, a shell or a
   shorthand, or an operation the site group does not hold. A declaration outside the
   grammar of `characters=`, such as an orbital out of range or a list of the wrong length,
-  raises `ValueError` before anything is measured. From `decompose` and
-  `symmetry_indicator`, the symmetry data vector holds labels that no elementary band
-  representation of the group holds. From `regular_completion`, one copy of the regular
+  raises `ValueError` before anything is measured. From `decompose`,
+  `symmetry_indicator` and `srsi_of_bands`, the symmetry data vector holds labels that no
+  elementary band representation of the group holds. From `regular_completion`, one copy of the regular
   band representation, computed from the group's characters, holds a label that no
   elementary band representation holds.
 - **Usual cause.** A word of another site group, such as `B1` at a site of symmetry `3m`;
-  for `decompose` and `symmetry_indicator`, a symmetry data vector labeled in another
+  for a symmetry data vector, one labeled in another
   group, or a mistyped label.
 - **What to do.** For a declaration, the reason prints the site group, its valid words and
   the frame its operations are named in; declare one of them. A word the cell's group has
@@ -887,8 +902,11 @@ Returned by `realized_group`.
 Returned by `wyckoff_sites_tables`, `srsi_of_model` and `splitting`.
 
 - **What it means.** The list of Wyckoff positions read is not written in the setting the
-  tables are, or an orbit's geometry and its measured content name different Wyckoff
-  positions. Every Wyckoff position returned would be read in the wrong setting, so none is.
+  tables are, or the Wyckoff position of an orbit read from its centers differs from the
+  one at which its measured symmetry data vector is a sum of elementary band
+  representations, which says the positions are read in a setting other than the tables'.
+  Every Wyckoff position returned would be read in the wrong setting, so none is, and no
+  stable real-space invariant is returned.
 - **What to do.** Report it.
 
 ## Two checks no returned group reaches

@@ -1,6 +1,10 @@
-"""The integer arithmetic of the elementary band representations: the Smith normal
-form of their matrix, a content in its coordinates, and the compatibility
-relations read off it.
+"""The integer arithmetic of a group's matrix of elementary band representations.
+
+The Smith normal form of the matrix is the one the irreptables package ships.
+A symmetry data vector is written in its coordinates, and the compatibility
+relations are the coordinates that vanish for every band structure of the
+group.  The Smith normal form is also computed again, exactly, and the
+shipped one is checked against it.
 """
 
 from __future__ import annotations
@@ -11,18 +15,19 @@ from .refusal import InternalError, Refusal
 
 
 # --------------------------------------------------------------------------
-# the Smith path: exact integer arithmetic, shared with the future witness
+# The Smith normal form and what is read off it, in exact integer arithmetic
 # --------------------------------------------------------------------------
 
 def _snf(matrix):
-    """Smith normal form over ℤ, by elimination: ``(U, D, V)`` with ``U M V = D``.
+    """The Smith normal form of an integer matrix, by exact elimination.
 
-    Deterministic and exact — plain Python integers throughout, no floats and no
-    pivoting choices left to chance, so two runs on the same table return the
-    same matrices.  ``U`` and ``V`` are unimodular and ``D`` is diagonal with
-    ``d_i | d_{i+1}``.  Written out here rather than delegated because it is the
-    *verifier*: its whole job is to be an independent computation of the Smith
-    form ``irreptables`` ships.
+    ``matrix`` is the integer matrix ``M``, a sequence of rows.  Returns
+    ``(U, D, V)``, each a list of rows of Python integers, with
+    ``U M V = D``.  ``U`` and ``V`` are unimodular.  ``D`` is diagonal with
+    nonnegative entries, the nonzero ones first, each dividing the next.
+    Each diagonal position starts from the nonzero entry of least magnitude,
+    the first in row order, and every step is fixed by the matrix alone, so
+    a matrix always gives the same ``U`` and ``V``.
     """
     A = [[int(x) for x in row] for row in matrix]
     m = len(A)
@@ -89,14 +94,24 @@ def _snf(matrix):
 
 
 def _matmul(a, b):
-    """Exact integer matrix product of two lists of lists."""
+    """The exact product ``a b`` of two integer matrices.
+
+    ``a`` and ``b`` are lists of rows, ``a`` with as many columns as ``b``
+    has rows.  Returns the product as a list of rows.
+    """
     n = len(b)
     return [[sum(row[k] * b[k][j] for k in range(n)) for j in range(len(b[0]))]
             for row in a]
 
 
 def _unimodular_inverse(u):
-    """The (integer) inverse of a unimodular integer matrix, by exact elimination."""
+    """The inverse of a unimodular integer matrix, by exact elimination.
+
+    ``u`` is a square integer matrix, a sequence of rows: the left factor of
+    a Smith form the tables ship.  Returns its inverse as a list of rows of
+    integers.  Raises :class:`~.refusal.InternalError` where ``u`` is
+    singular or its inverse is not an integer matrix.
+    """
     from fractions import Fraction
 
     n = len(u)
@@ -106,8 +121,8 @@ def _unimodular_inverse(u):
         p = next((r for r in range(c, n) if a[r][c]), None)
         if p is None:
             raise InternalError(
-                "the tabulated Smith factor u is singular, so it is not a change of "
-                "basis at all; the shipped Smith form is not one.")
+                "the left factor of the Smith normal form the irreptables package ships "
+                "is singular. Report it, with the model and the call.")
         a[c], a[p] = a[p], a[c]
         piv = a[c][c]
         a[c] = [x / piv for x in a[c]]
@@ -121,22 +136,30 @@ def _unimodular_inverse(u):
         for x in a[r][n:]:
             if x.denominator != 1:
                 raise InternalError(
-                    "the tabulated Smith factor u has a non-integer inverse, so it is "
-                    "not unimodular; the shipped Smith form is not one.")
+                    "the left factor of the Smith normal form the irreptables package "
+                    "ships has an inverse that is not an integer matrix. Report it, "
+                    "with the model and the call.")
             row.append(int(x))
         out.append(row)
     return out
 
 
 def _smith_system(data, number_str):
-    """``(u, v, d, matrix)`` from :func:`.groups.ebr_data`, as exact integers.
+    """The Smith form the irreptables package ships for a group's EBR matrix.
 
-    ``d`` is the diagonal of ``R`` extended with zeros to one entry per EBR row, so
-    ``d[i] == 0`` says exactly "row ``i`` of ``R`` is empty", which is the
-    compatibility-relation half of ``y'``.  ``irreptables`` stores a degenerate
-    Smith factor as a bare scalar where the group has a single EBR column
-    (measured on 63 of the 920 unitary-and-grey systems); both shapes are
-    normalized here.
+    ``data`` is the mapping :func:`.._tables._ebr_data` returns, of which
+    ``"matrix"``, the EBR matrix ``M``, and ``"smith"``, the factors ``u``
+    and ``v`` with the diagonal matrix ``R``, as ``(u, R, v)`` with
+    ``u M v = R``, are read.  ``number_str`` is the group's number, as
+    ``"166.98"``, for the message.  Returns ``(u, v, d, matrix)``, each a
+    list of Python integers or of rows of them.  ``d`` is the diagonal of
+    ``R`` extended with zeros to one entry per row of ``M``, so ``d[i]`` is
+    zero exactly where row ``i`` of ``R`` is zero.  A group with a single
+    EBR column, whose ``R`` the tables store as a vector and ``v`` as a
+    number, is returned in the same form: ``v`` as a 1 x 1 matrix, ``d``
+    with one entry per row of ``M``.  Raises
+    :class:`~.refusal.InternalError` where the factors' shapes do not fit
+    ``M``.
     """
     u, r, v = data["smith"]
     matrix = np.asarray(data["matrix"], dtype=int)
@@ -146,10 +169,10 @@ def _smith_system(data, number_str):
     v = np.atleast_2d(np.asarray(v, dtype=int))
     if u.shape != (n_row, n_row) or v.shape != (n_col, n_col):
         raise InternalError(
-            f"#{number_str}: the tabulated Smith factors have shapes u{u.shape}, "
-            f"v{v.shape} against an EBR matrix {matrix.shape}. The Smith form the "
-            "tables ship is what fixes this package's indicator basis, so a shape "
-            "that cannot be that form is a bug here, not a property of the model.")
+            f"#{number_str}: the factors u and v of the Smith normal form the "
+            f"irreptables package ships have shapes {u.shape} and {v.shape}, and the "
+            f"EBR matrix M has shape {matrix.shape}. Report it, with the model and "
+            "the call.")
     if r.ndim == 1:                            # single EBR column: R is stored flat
         d = [int(x) if i == 0 else 0 for i, x in enumerate(r)]
     else:
@@ -160,15 +183,24 @@ def _smith_system(data, number_str):
 
 
 def _filled_content(counts, restriction, labels):
-    """``(y, reconstructed)``: the content on every row of the basis, a dropped row read off the row it repeats.
+    """The symmetry data vector on every row, each dropped row read off a kept one.
 
-    A dropped row that duplicates a kept one carries that row's multiplicity
-    in any sum of the band representations it was compared on, so its value is
-    arithmetic and nothing is guessed: :func:`..ebr.symmetry_indicator` and
-    :func:`..ebr.decompose` complete the vector this way before the compatibility
-    relations are read, each once every dropped row repeats a kept one.  A
-    value supplied for a dropped row is left as it is, and the relations say
-    whether it agrees.
+    A row of the EBR matrix is a little-group representation at a
+    high-symmetry point.  ``labels`` lists the rows' labels, in order.
+    ``counts`` maps a label to its multiplicity.  ``restriction`` is the
+    :class:`..ebr.Restriction` of the points measured.  A row is kept where
+    its point is one of those, and dropped where it is not.
+    ``restriction.copies`` maps each dropped row to the kept rows it
+    repeats, those that occur as often as it in every elementary band
+    representation they were compared on, on a layer, the layer's own.  A
+    dropped row absent from ``counts`` takes the multiplicity of the first
+    kept row it repeats.  A multiplicity ``counts`` gives is kept, and the
+    compatibility relations say whether it agrees.  Any other row absent
+    from ``counts`` has multiplicity zero.  :func:`..ebr.symmetry_indicator`
+    and :func:`..ebr.decompose` call it only where every dropped row repeats
+    a kept one.  Returns ``(y, reconstructed)``: ``y``, the multiplicities
+    in the order of ``labels``; ``reconstructed``, the label of each dropped
+    row so filled, mapped to the label it was read off.
     """
     filled = dict(counts)
     reconstructed = {}
@@ -181,14 +213,19 @@ def _filled_content(counts, restriction, labels):
 
 
 def _compatibility(data, number_str, labels, y):
-    """``(smith, y_prime, refusal)``: the content in the Smith coordinates of the EBR matrix.
+    """The symmetry data vector in Smith coordinates, checked against the compatibility relations.
 
-    ``smith`` is :func:`_smith_system`'s ``(u, v, d, matrix)`` and ``y_prime``
-    is ``u y``.  The coordinates where ``d`` is zero vanish for every band
-    structure of the group -- they are its compatibility relations -- and
-    ``refusal`` is ``"not_a_band_structure"`` where one does not, ``None``
-    otherwise.  :func:`..ebr.symmetry_indicator` reads its class off the same
-    coordinates, and :func:`..ebr.decompose` asks the same question before it solves.
+    ``data`` and ``number_str`` are as :func:`_smith_system` takes them.
+    ``y`` is the symmetry data vector on every row of the EBR matrix, as
+    :func:`_filled_content` returns it.  ``labels`` lists the labels of those
+    rows; the refusal's context names the ``i``-th coordinate with the
+    ``i``-th of them.  With ``u`` and ``d`` as :func:`_smith_system` returns
+    them, the coordinates of ``y' = u y`` where ``d`` is zero vanish for
+    every band structure of the group: they are its compatibility relations.
+    Returns ``(smith, y_prime, refusal)``: ``smith``, the
+    ``(u, v, d, matrix)`` of :func:`_smith_system`; ``y_prime``, ``y'`` as a
+    list; ``refusal``, ``not_a_band_structure`` naming each of those
+    coordinates that does not vanish, or ``None`` where all do.
     """
     u, v, d, matrix = _smith_system(data, number_str)
     y_prime = [sum(u[i][j] * y[j] for j in range(len(y))) for i in range(len(u))]
@@ -198,14 +235,11 @@ def _compatibility(data, number_str, labels, y):
         return (u, v, d, matrix), y_prime, None
     return (u, v, d, matrix), y_prime, Refusal(
         "not_a_band_structure",
-        f"the symmetry data vector violates {len(off)} of #{number_str}'s compatibility "
-        f"relations: the Smith coordinates {[(i, int(v2)) for i, _l, v2 in off]} must "
-        "vanish for any band structure of this group and do not. These multiplicities "
-        "are those of no set of bands separated from the rest at every k-point, as when "
-        "the bands counted cut through a crossing between two high-symmetry points, so "
-        "they have no class in {BS}/{AI} and no decomposition. Check that a gap separates "
-        "the bands counted from the others at every k-point and that the labels came "
-        "from this group.",
+        f"the symmetry data vector violates #{number_str}'s compatibility relations: "
+        f"{len(off)} of its Smith coordinates that vanish for every band structure, "
+        f"{[(i, int(v2)) for i, _l, v2 in off]} as (index, value), are nonzero. Check "
+        "that a gap separates the bands counted from the others at every k-point and "
+        "that the labels came from this group.",
         value=float(max(abs(int(v2)) for _i, _l, v2 in off)), threshold=0.0,
         context={"violations": tuple((int(i), str(l), int(v2)) for i, l, v2 in off),
                  "y_prime": tuple(int(x) for x in y_prime),
@@ -217,41 +251,55 @@ def _structure(divisors) -> str:
 
 
 def _divisors_of(data, number_str) -> tuple:
-    """The nontrivial elementary divisors of a group's EBR matrix — its ``X_BS``."""
+    """The elementary divisors above 1 of a group's EBR matrix, as the tables ship them.
+
+    ``data`` and ``number_str`` are as :func:`_smith_system` takes them.
+    Returns them as integers in the order of the Smith diagonal, ``()``
+    where the indicator group is trivial.  The indicator group is the sum
+    of ``Z_d`` over them, which :func:`_structure` names.
+    """
     return tuple(int(x) for x in _smith_system(data, number_str)[2] if int(x) > 1)
 
 
 def _verify_smith(number_str, matrix, u, v, d, y, slots, divisors, values,
                   order) -> dict:
-    """The de-novo Smith computation, and what it is allowed to disagree about.
+    """The Smith form of the EBR matrix computed again, checked against the tables'.
 
-    The elementary divisors and the order of the class are properties of the
-    *matrix* and of the *content*: no choice of Smith basis can move them, so a
-    disagreement is this package misapplying a convention the tables fix, and
-    raises :class:`~.refusal.InternalError`.  The individual components can
-    legitimately differ between two Smith bases — that freedom is an
-    automorphism of ``⊕ᵢ ℤ_{d_i}`` — so the change of basis is *recorded*
-    instead, and whether it is the identity is reported rather than assumed.
+    ``matrix`` is the EBR matrix ``M``, ``u`` and ``v`` its factors and
+    ``d`` the diagonal of the tables' Smith form ``R``, as
+    :func:`_smith_system` returns them.  ``number_str`` is the group's
+    number, for the messages.  ``y`` is the symmetry data vector on every
+    row.  ``slots`` are the indices ``i`` with ``d[i] > 1``, ``divisors``
+    those ``d[i]``, ``values`` the class, ``(u y)_i mod d[i]`` at each
+    slot, and ``order`` the order of the class.  Raises
+    :class:`~.refusal.InternalError` where ``u M v`` is not the diagonal
+    matrix ``d`` gives, where :func:`_snf` of ``M`` gives other elementary
+    divisors, where the class of ``y`` has another order in the form
+    computed again, or where ``u`` is not unimodular.  The components of the
+    class may differ between the two bases, and are not compared.  Returns
+    the fields of :class:`..ebr.SmithVerification` as a mapping, with
+    ``"performed"`` added.  Its ``change_of_basis`` is ``u0 u^(-1)``, for
+    ``u0`` the left factor computed again, its rows on the slots of that
+    form and its columns on ``slots``, each entry reduced modulo the divisor
+    of its column.
     """
-    where = (f"#{number_str}: the Smith form of the EBR matrix is what fixes this "
-             "package's indicator basis, and irreptables ships it with the rows; "
-             "failing to apply it consistently is a bug here, not a property of any "
-             "model")
+    where = (f"#{number_str}")
     if _matmul(_matmul(u, matrix), v) != [[int(x) for x in row] for row in
                                           _diagonal_like(d, matrix)]:
         raise InternalError(
-            f"{where}: the shipped factors do not satisfy u M v = R on the transported "
-            "EBR matrix, so what was transported is not a Smith decomposition of it.")
+            f"{where}: the Smith normal form R the irreptables package ships and its "
+            "factors u and v do not satisfy u M v = R for the EBR matrix M. Report it, "
+            "with the model and the call.")
 
     u0, d0, _v0 = _snf(matrix)
     divisors0 = tuple(int(d0[i][i]) for i in range(min(len(d0), len(d0[0])))
                       if int(d0[i][i]) > 1)
     if sorted(divisors0) != sorted(divisors):
         raise InternalError(
-            f"{where}: an independent integer Smith computation of the same matrix gives "
-            f"elementary divisors {sorted(divisors0)} against the shipped "
-            f"{sorted(divisors)}. The divisors are a property of the matrix; two "
-            "computations of them cannot disagree unless one is wrong.")
+            f"{where}: the Smith normal form computed again from the EBR matrix has "
+            f"elementary divisors above 1 {sorted(divisors0)}, and the form the "
+            f"irreptables package ships has {sorted(divisors)}. Report it, with the "
+            "model and the call.")
 
     slots0 = [i for i in range(min(len(d0), len(d0[0]))) if int(d0[i][i]) > 1]
     y0 = [sum(u0[i][j] * y[j] for j in range(len(y))) for i in range(len(u0))]
@@ -262,10 +310,10 @@ def _verify_smith(number_str, matrix, u, v, d, y, slots, divisors, values,
         order0 = int(np.lcm(order0, int(step)))
     if order0 != order or bool(any(values0)) != bool(any(values)):
         raise InternalError(
-            f"{where}: the de-novo computation puts this symmetry data vector in a class of order "
-            f"{order0} against the shipped basis's {order}. The order of a class is "
-            "basis-independent, so the two Smith bases are not identifying the same "
-            "quotient.")
+            f"{where}: the class of the symmetry data vector has order {order0} in the "
+            f"Smith normal form computed again from the EBR matrix, and order {order} in "
+            "the form the irreptables package ships. Report it, with the model and the "
+            "call.")
 
     change = _matmul(u0, _unimodular_inverse(u))
     restricted = tuple(tuple(int(change[a][b]) % int(divisors[k])
@@ -291,7 +339,11 @@ def _verify_smith(number_str, matrix, u, v, d, y, slots, divisors, values,
 
 
 def _diagonal_like(d, matrix):
-    """``R`` rebuilt from its diagonal, in the shape of ``matrix``."""
+    """The diagonal matrix ``R`` rebuilt from its diagonal, in the shape of ``matrix``.
+
+    ``d`` is the diagonal as :func:`_smith_system` returns it, and
+    ``matrix`` a list of rows.  Returns ``R`` as a list of rows of integers.
+    """
     n_row, n_col = len(matrix), len(matrix[0])
     return [[int(d[i]) if i == j and i < len(d) else 0 for j in range(n_col)]
             for i in range(n_row)]

@@ -271,7 +271,7 @@ site irreps its copies can carry in `numerical.contents`, and
 Wyckoff positions that no symmetric deformation of the Wannier functions can
 change: the functions move only in symmetric clusters, and each move changes
 the multiplicities by a fixed pattern.
-[What a real-space invariant is](../guide/srsi.md#what-a-real-space-invariant-is).
+[What the stable real-space invariants are](../guide/srsi.md#what-the-stable-real-space-invariants-are).
 
 **Realization.** An atomic insulator with a band set's symmetry data: a
 nonnegative number of copies of each site irrep at each maximal Wyckoff

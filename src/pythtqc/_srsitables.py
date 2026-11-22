@@ -1,6 +1,11 @@
-"""The tables of the stable real-space invariants of Hwang et al., as shipped:
-each grey group's invariants over the site irreps at its Wyckoff positions, and
-the paper's names for the symmetry indicators against ``irreptables``' own.
+"""The tables of the stable real-space invariants of Hwang et al., as shipped.
+
+For each grey space group they tabulate, the tables give every invariant as a
+linear form in the site-irrep multiplicities at the Wyckoff positions, and the
+paper's symmetry indicators as forms in the invariants.  The paper's names for
+the symmetry indicators are paired here with those of the irreptables package.
+The list of elementary band representations the tables are read against is
+the one the irreptables package ships.
 """
 
 from __future__ import annotations
@@ -37,15 +42,14 @@ _POSITION = re.compile(r"^(\d+)([a-zA-Z])\((.*)\)$")
 #: A Wyckoff position as a call writes it, ``"12d"``: multiplicity, letter.
 _WYCKOFF = re.compile(r"^(\d+)([a-zA-Z])$")
 
-#: The paper the shipped tables come from; the converted files repeat it in
-#: their own provenance block, and every refusal that names a table carries it.
+#: The DOI of the paper the shipped tables come from.  The converted files
+#: hold it in their provenance block, and srsi_status() returns it.
 _DOI = "https://doi.org/10.1038/s41467-026-74844-w"
 
-#: Every refusal the SRSI calls return, with what it measures, in the order a
-#: calculation meets them: the tables, the arithmetic, the two routes onto a
-#: model, the criterion.  Those passed on from elsewhere are named where they
-#: are measured: ``ebr_tables``, ``irrep_tables`` and ``ebr_convention`` by
-#: :func:`..groups.ebr_data`, and on the bands' route those of
+#: Every refusal the SRSI calls return, with what it measures.  Those passed
+#: on from elsewhere are named where they are measured: ``ebr_tables``,
+#: ``irrep_tables`` and ``ebr_convention`` by :func:`..groups.ebr_data`, and
+#: on the bands' route those of
 #: :func:`..ebr.symmetry_indicator` and :func:`..sewing.hsp_table`.
 GATES = {
     "srsi_data":
@@ -90,21 +94,22 @@ GATES = {
 # ---------------------------------------------------------------------------
 
 def _count(n, noun) -> str:
-    """``"1 row"``, ``"3 rows"``: a count and its noun, in the number the count takes."""
+    """A count ``n`` and its ``noun``, plural unless ``n`` is 1: ``"1 row"``, ``"3 rows"``."""
     return f"{n} {noun}" + ("" if n == 1 else "s")
 
 
 def _valuedness(spinor) -> str:
-    """Which of a group's two tables: ``"double-valued"`` with spin, else ``"single-valued"``."""
+    """The tables ``spinor`` selects: ``"double-valued"`` if it is true, else ``"single-valued"``."""
     return "double-valued" if spinor else "single-valued"
 
 
 @functools.lru_cache(maxsize=None)
 def _grey_symbol(number_str: str, spinor: bool) -> str:
-    """The grey group's Hermann-Mauguin symbol, ``"I4321'"``, as irreptables' table of it names it.
+    """A grey group's Hermann-Mauguin symbol, as the irreptables package names it.
 
-    Empty where that table cannot be read, and a summary then names the group by
-    its number alone.
+    ``number_str`` is the group's number as the tables write it, ``"183.186"``,
+    and ``spinor`` selects its double-valued table.  Returns the symbol,
+    ``"P6mm1'"``, or ``""`` where that table cannot be read.
     """
     try:
         return str(_spacegroup._irrep_table(number_str, spinor, True).name)
@@ -113,23 +118,36 @@ def _grey_symbol(number_str: str, spinor: bool) -> str:
 
 
 def _label(group) -> str:
-    """``P6mm1' #183.186``: a group as a summary names it, by the tables' symbol and its number."""
+    """A group as a summary names it, by symbol and number: ``P6mm1' #183.186``.
+
+    ``group`` is a :class:`..groups.GroupData`; its ``number_str``, ``spinor``
+    and ``name`` are read.  The symbol is :func:`_grey_symbol`'s, or
+    ``group.name`` where that is empty.  Where both are empty, the number
+    stands alone.
+    """
     symbol = _grey_symbol(str(group.number_str), bool(group.spinor)) or str(group.name or "")
     return (f"{symbol} " if symbol else "") + f"#{group.number_str}"
 
 
 def _group(group) -> str:
-    """``P6mm1' #183.186, double-valued``: the group a summary is of, and which of its tables."""
+    """A group and which of its tables, as a summary heads them: ``P6mm1' #183.186, double-valued``.
+
+    ``group`` is as :func:`_label` takes it.
+    """
     return f"{_label(group)}, {_valuedness(group.spinor)}"
 
 
 def _values(values) -> str:
-    """``(1, -1/2, 0)``: invariants as a summary prints them, a lone one ``(0)``."""
+    """The invariants' ``values`` as a summary prints them: ``(1, -1/2, 0)``, a lone one ``(0)``."""
     return "(" + ", ".join(str(v) for v in values) + ")"
 
 
 def _span(names) -> str:
-    """``theta_1 to theta_3``, ``theta_4, theta_5``, ``theta_5``: consecutive invariants named."""
+    """The invariants ``names``, consecutive in the paper's order, written short.
+
+    Three or more are written ``theta_1 to theta_3``; one or two are listed,
+    ``theta_4, theta_5``.
+    """
     names = list(names)
     if len(names) >= 3:
         return f"{names[0]} to {names[-1]}"
@@ -137,13 +155,18 @@ def _span(names) -> str:
 
 
 def _and(items) -> str:
-    """``a``, ``a and b``, ``a, b and c``."""
+    """The strings ``items``, at least one, joined as a sentence lists them: ``a, b and c``."""
     items = list(items)
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
 def _zn_groups(theta_zn) -> list:
-    """``[(n, names, values), ...]``: the invariants valued modulo n, a group per modulus, in the tables' order."""
+    """The invariants valued modulo n, grouped by modulus.
+
+    ``theta_zn`` maps each name to its :class:`ModularValue`, in the paper's
+    order.  Returns ``[(n, names, values), ...]`` in that order, consecutive
+    invariants of one modulus forming one group.
+    """
     out: list = []
     for name, entry in theta_zn.items():
         if out and out[-1][0] == int(entry.modulus):
@@ -155,29 +178,53 @@ def _zn_groups(theta_zn) -> list:
 
 
 def _zn_text(theta_zn) -> str:
-    """``theta_4, theta_5 = (0, 1) mod 2``: each modulus its own clause."""
+    """The invariants valued modulo n as a summary writes them: ``theta_4, theta_5 = (0, 1) mod 2``.
+
+    ``theta_zn`` is as :func:`_zn_groups` takes it.  Each of its groups is one
+    clause, the clauses joined by ``"; "``.
+    """
     return "; ".join(f"{_span(names)} = {_values(values)} mod {n}"
                      for n, names, values in _zn_groups(theta_zn))
 
 
 def _invariants_text(theta_z, theta_zn=None) -> str:
-    """``theta_1 to theta_3 = (2, 2, 0); theta_4, theta_5 = (0, 1) mod 2``."""
+    """The invariants as a summary writes them.
+
+    ``theta_z`` maps each integer-valued invariant's name to its value, in the
+    paper's order.  ``theta_zn``, where given and nonempty, adds the invariants
+    valued modulo n as :func:`_zn_text` writes them:
+    ``theta_1 to theta_3 = (2, 2, 0); theta_4, theta_5 = (0, 1) mod 2``.
+    """
     text = f"{_span(theta_z)} = {_values(theta_z.values())}"
     return text + (f"; {_zn_text(theta_zn)}" if theta_zn else "")
 
 
 def _zn_header(theta_zn) -> str:
-    """``(theta_4, theta_5) mod 2``: the invariants valued modulo n a column of values holds."""
+    """The heading of a column of values modulo n: ``(theta_4, theta_5) mod 2``.
+
+    ``theta_zn`` is as :func:`_zn_groups` takes it.  Each of its groups is one
+    parenthesis, and the groups are joined as :func:`_and` joins them.
+    """
     return _and([f"({_span(names)}) mod {n}" for n, names, _v in _zn_groups(theta_zn)])
 
 
 def _zn_values(theta_zn) -> str:
-    """``(1, 1)``: the values under :func:`_zn_header`, a group per modulus."""
+    """The values of ``theta_zn`` as a row under :func:`_zn_header`'s heading: ``(1, 1)``.
+
+    ``theta_zn`` is as :func:`_zn_groups` takes it.  Each of its groups is one
+    parenthesis, the parentheses joined by ``"; "``.
+    """
     return "; ".join(_values(values) for _n, _names, values in _zn_groups(theta_zn))
 
 
 def _indicator_line(indicator, whose) -> str:
-    """A summary's line for the symmetry-indicator class of a band set."""
+    """A summary's line for the symmetry indicator of a band set.
+
+    ``indicator`` is a :class:`..ebr.SymmetryIndicator`, and ``whose`` the
+    possessive the line opens on, ``"their"``.  The line says that the
+    indicator group is trivial, or gives the class, with its order where the
+    class is not zero.
+    """
     if not indicator.divisors:
         return f"  {whose} symmetry-indicator group is trivial   (.indicator)"
     if not any(indicator.values):
@@ -188,12 +235,16 @@ def _indicator_line(indicator, whose) -> str:
 
 
 def _pair_text(pair) -> str:
-    """``B2 and B3 at 12d``: a pair no invariant tells apart."""
+    """The :class:`StablePair` ``pair`` as a summary names it: ``B2 and B3 at 12d``."""
     return f"{' and '.join(pair.irreps)} at {pair.wyckoff}"
 
 
 def _signed(terms) -> str:
-    """``2 x - 4 y + 1/2 z``: a sum of ``(coefficient, symbol)``, its signs written out."""
+    """A sum of ``terms`` with its signs written out: ``2 x - 4 y + 1/2 z``.
+
+    ``terms`` holds ``(coefficient, symbol)`` pairs, each coefficient an
+    integer or a fraction.  Returns ``"0"`` where there are none.
+    """
     out = []
     for coefficient, symbol in terms:
         coefficient = Fraction(coefficient)
@@ -204,17 +255,23 @@ def _signed(terms) -> str:
 
 
 def _formula(row) -> str:
-    """``2 (-1E2E)_e + 1 (-E)_a``: an invariant's terms, each a site irrep at its Wyckoff letter times its multiplicity.
+    """The formula of the invariant ``row``: ``2 (-1E2E)_e + 1 (-E)_a``.
 
-    A site irrep is spelled as the list of elementary band representations
-    spells it where it names one, ``A`` at a ``222`` site.
+    ``row`` is an :class:`_SRSIRow`.  Each term is a coefficient times the
+    multiplicity of a site irrep at the Wyckoff position of a letter.  The site
+    irrep is spelled as the list of elementary band representations spells it
+    where that differs from the paper: ``A`` for ``A1`` at a ``222`` site.
     """
     return _signed((term["coef"], f"({term.get('ebr_label') or term['irrep']})_{term['letter']}")
                    for term in row.terms)
 
 
 def _is_sum(p) -> bool:
-    """Whether ``p`` is a sum of term rows: an iterable, not a mapping or a string, of rows with ``multiplicity``, ``irrep`` and ``wyckoff``."""
+    """Whether ``p`` is a sum of terms, as :meth:`SRSITables.theta` takes one.
+
+    A sum is an iterable, not a mapping or a string, whose every item has
+    ``multiplicity``, ``irrep`` and ``wyckoff``.  An empty one counts.
+    """
     if isinstance(p, (Mapping, str, bytes)):
         return False
     try:
@@ -231,16 +288,16 @@ def _is_sum(p) -> bool:
 
 @dataclass(frozen=True)
 class ModularValue:
-    """One invariant valued modulo n: its value and the modulus.
+    """One stable real-space invariant valued modulo n, with its modulus.
 
-    An entry of every ``theta_Zn``.
+    Every ``theta_Zn`` field maps an invariant's name to one.
 
     Attributes
     ----------
     value : int or Fraction
-        The value, reduced modulo :attr:`modulus`; a fraction, unreduced, only
-        where :meth:`SRSITables.theta` was handed a rational site-symmetry
-        vector and the value is not a whole number.
+        The value, reduced modulo :attr:`modulus` where it is an integer.  A
+        value that is not an integer, which a rational site-symmetry vector
+        can give, is not reduced.
     modulus : int
         The modulus n.
     """
@@ -253,17 +310,19 @@ class ModularValue:
 class Invariants:
     r"""The stable real-space invariants of a site-symmetry vector, by name.
 
-    What :meth:`SRSITables.theta` returns.
+    The record :meth:`SRSITables.theta` returns.
 
     Attributes
     ----------
     theta_Z : dict
-        ``{name: value}``: each integer-valued invariant, an exact fraction, in
-        the tables' order; whole numbers exactly where the symmetry indicator is
-        zero.
+        ``{name: value}``: each integer-valued invariant (ZSRSI), in the
+        paper's order, as an exact rational number.  For a rational
+        site-symmetry vector whose symmetry data vector has a nonzero
+        symmetry indicator, some are not integers.
     theta_Zn : dict
-        ``{name: ModularValue}``: each invariant valued modulo n.  They belong to
-        the site-symmetry vector handed in, not to its symmetry data vector.
+        ``{name: ModularValue}``: each invariant valued modulo n.  Two
+        site-symmetry vectors with the same symmetry data vector can differ in
+        them.
     """
 
     theta_Z: dict
@@ -275,15 +334,30 @@ class Invariants:
 
 @dataclass(frozen=True)
 class _SRSIRow:
-    r"""One invariant :math:`\theta_i` of a group: its formula over the site irreps.
+    r"""One invariant :math:`\theta_i` of a group, with its formula over the site irreps.
 
-    ``index`` is the paper's, from 1; ``mod`` is ``n`` for one valued modulo n
-    and ``None`` for an integer-valued one; ``coefficients`` is the formula on
-    the elementary band representations, one per entry of ``tables._ebrs``;
-    ``terms`` is every term of the formula, ``{"coef", "irrep", "irrep_tex",
-    "letter", "column", "maximal", "ebr"}``, the site irrep as the paper spells
-    it and ``ebr_label`` where the list spells it otherwise, ``column`` ``None``
-    for a site irrep that induces no elementary band representation.
+    Attributes
+    ----------
+    index : int
+        The paper's index of the invariant, from 1.
+    name : str
+        The invariant's name, ``"theta_<index>"``.
+    mod : int or None
+        The modulus n of an invariant valued modulo n, ``None`` for an
+        integer-valued one.
+    coefficients : tuple of int
+        The formula on the elementary band representations, one coefficient
+        per entry of ``SRSITables._ebrs``.  Terms on a site irrep that induces
+        none do not enter it.
+    terms : tuple of dict
+        Every term of the formula.  ``"coef"`` is its coefficient,
+        ``"irrep"`` and ``"irrep_tex"`` the site irrep in the paper's spelling
+        and in TeX, and ``"letter"`` its Wyckoff letter.  ``"column"`` is the
+        index into ``SRSITables._ebrs`` of the elementary band representation
+        it induces, ``None`` where it induces none.  ``"maximal"`` and
+        ``"ebr"`` are as :class:`SiteIrrep` holds them.  ``"ebr_label"``,
+        where present, is the spelling of the list of elementary band
+        representations, where it differs from the paper's.
     """
 
     index: int
@@ -295,13 +369,32 @@ class _SRSIRow:
 
 @dataclass(frozen=True)
 class _SRSIIndicator:
-    r"""One symmetry indicator as the paper tabulates it: a form in the :math:`\theta_i`, modulo its own modulus.
+    r"""One symmetry indicator as the paper tabulates it, a form in the :math:`\theta_i`.
 
-    ``theta`` is the printed form ``{i: coefficient}``; ``derived``, where there
-    is one, the form equal to ``irreptables``' of the same name or to the
-    group's one Smith coordinate, with ``relation`` and ``source``;
-    ``ebr_failures`` the ``(column, value)`` of each elementary band
-    representation the printed form does not vanish on.
+    Attributes
+    ----------
+    name, name_tex : str
+        The paper's name for the indicator, ``"z4"``, and its TeX.
+    mod : int
+        The modulus the indicator is valued in.
+    theta : dict
+        ``{i: coefficient}``: the form the paper prints, over the invariants by
+        their index from 1, each coefficient a fraction.
+    vanishes_on_ebrs : bool
+        Whether the printed form is zero modulo :attr:`mod` on every elementary
+        band representation of the group.
+    ebr_failures : tuple
+        If nonempty, ``(column, value)`` of each elementary band
+        representation the printed form does not vanish on: the column the
+        index of an entry of ``SRSITables._ebrs``, the value a string such as
+        ``"1/2"``.
+    derived : dict or None
+        If not ``None``, the derived form, keyed as :attr:`theta`.
+    relation, source : str or None
+        As :class:`IndicatorCheck` holds them, ``None`` where no form is
+        derived.
+    derived_note : str
+        As :class:`IndicatorCheck` holds it.
     """
 
     name: str
@@ -317,7 +410,11 @@ class _SRSIIndicator:
 
     @property
     def coefficients(self) -> dict:
-        """The form :meth:`SRSITables.indicators_of` evaluates: the printed one, or the derived one where :attr:`relation` is ``"different"``."""
+        """The form :meth:`SRSITables.indicators_of` evaluates, keyed as :attr:`theta`.
+
+        It is :attr:`derived` where :attr:`relation` is ``"different"``, and the
+        printed :attr:`theta` otherwise.
+        """
         if self.relation == "different" and self.derived is not None:
             return dict(self.derived)
         return dict(self.theta)
@@ -325,32 +422,46 @@ class _SRSIIndicator:
 
 @dataclass(frozen=True)
 class IndicatorCheck:
-    """One symmetry indicator of the tables held against the group's elementary band representations and against irreptables.
+    """How one symmetry indicator of the tables was checked.
 
-    An entry of ``tables.numerical.indicators``.
+    The form the paper prints for the indicator, a linear combination of the
+    invariants, is evaluated on every elementary band representation of the
+    group.  An indicator vanishes on each of them, since each is an atomic
+    limit.  Where it can be, a second form in the invariants is derived and
+    compared with the printed one.  On every band set the derived form takes,
+    modulo the indicator's modulus, the value of the indicator of the same
+    name that the irreptables package ships.  Where irreptables ships none
+    and the symmetry-indicator group is cyclic, it takes instead the band
+    set's symmetry-indicator class, a single number modulo the order of that
+    cyclic group, read off the Smith normal form of the matrix of elementary
+    band representations.  An entry of ``tables.numerical.indicators``.
 
     Attributes
     ----------
     relation : str or None
-        The printed form against the derived one: ``"equal"``, ``"equivalent"``
-        (other coefficients, the same values on every band set modulo the
-        indicator's modulus) or ``"different"``; ``None`` where none is derived.
+        If not ``None``, how the printed form compares with the derived one.
+        ``"equal"``: the same coefficients.  ``"equivalent"``: other
+        coefficients, with the same value modulo the indicator's modulus on
+        every band set.  ``"different"``: a value that differs on some band
+        set.
     source : str or None
-        What the derived form was derived from, ``"irreptables:<name>"`` or
-        ``"smith"``.
+        If not ``None``, what the form is derived from:
+        ``"irreptables:<name>"``, the indicator of that name the irreptables
+        package ships, or ``"smith"``, the symmetry-indicator class read off
+        the Smith normal form.
     derived : str or None
-        The derived form in the invariants, written as ``tables.indicators``
-        writes the printed one.  Where :attr:`relation` is ``"different"`` it is
-        the form ``indicators_of`` evaluates.
+        If not ``None``, the derived form in the invariants, written as
+        ``tables.indicators`` writes the printed one.
     derived_note : str
         The derivation in a sentence, or why there is none.
     ebr_failures : tuple
-        ``(site irrep, Wyckoff position, value)`` of each elementary band
-        representation the printed form does not vanish on,
-        ``("A1", "1a", "1/2")``.
+        If nonempty, each elementary band representation the printed form
+        does not vanish on, as ``(site irrep, Wyckoff position, value)``:
+        ``("1Eg2Eg", "1a", "1/2")`` for ``z2,3`` of space group 147 without
+        spin-orbit coupling.
     vanishes_on_ebrs : bool
-        Whether the printed form is zero modulo its modulus on every elementary
-        band representation of the group, as an indicator is.
+        Whether the printed form is zero modulo its modulus on every
+        elementary band representation of the group.
     """
 
     relation: str | None
@@ -365,12 +476,13 @@ class IndicatorCheck:
 class SRSITablesNumerical:
     """How each symmetry indicator of the tables was checked.
 
-    ``tables.numerical``.
+    The ``numerical`` of an :class:`SRSITables`.
 
     Attributes
     ----------
     indicators : dict
-        ``{name: IndicatorCheck}`` for each symmetry indicator.
+        ``{name: IndicatorCheck}``: the check of each symmetry indicator, by
+        the paper's name.
     """
 
     indicators: dict
@@ -380,9 +492,68 @@ class SRSITablesNumerical:
 class ProvenanceCounts:
     """What the conversion of the paper's tables counted, for one valuedness.
 
-    ``tables.provenance.counts``.  Each field is a count over the 217 tabulated
-    groups of that valuedness, ``zn_rows``, ``si_moduli`` and
-    ``derived_indicator_rows`` by modulus or relation.
+    The ``counts`` of a :class:`Provenance`.  Each count runs over the 217
+    space groups the tables of that valuedness hold.
+
+    Attributes
+    ----------
+    groups : int
+        The number of space groups tabulated.
+    srsi_rows : int
+        The number of invariants.
+    zn_rows : dict
+        ``{modulus: count}``: the number of invariants valued modulo n, by n,
+        the modulus written as a string, ``{"2": 62}``.
+    terms : int
+        The number of terms in the invariants' formulas.
+    terms_on_ebr_columns : int
+        The number of terms on a site irrep that induces an elementary band
+        representation.
+    terms_at_maximal_wyckoff_without_an_ebr : int
+        The number of terms on a site irrep at a maximal Wyckoff position
+        whose band representation is a sum of others.
+    terms_at_nonmaximal_wyckoff : int
+        The number of terms on a site irrep at a non-maximal Wyckoff position.
+    alias_positions : int
+        The number of site irreps the paper and the irreptables package's list
+        of elementary band representations spell differently, counted at each
+        Wyckoff position where one occurs.
+    composite_positions : int
+        The number of site irreps at a maximal Wyckoff position whose band
+        representation is a sum of others, counted the same way.
+    si_groups : int
+        The number of space groups with a symmetry indicator.
+    si_expressions : int
+        The number of symmetry indicators.
+    si_moduli : dict
+        ``{modulus: count}``: the number of symmetry indicators, by modulus,
+        the modulus written as a string.
+    split_groups : int
+        The number of space groups with a splitting of an elementary band
+        representation.
+    splittings : int
+        The number of splittings.
+    splittings_srsi_mismatch, splittings_srsi_match : int
+        The number of splittings whose parts' invariants valued modulo n do
+        not add up to the whole's, and the number whose do.
+    ebr_columns : int
+        The number of elementary band representations.
+    si_on_ebr_checks : int
+        The number of evaluations of a symmetry indicator on an elementary
+        band representation.
+    si_expressions_not_vanishing_on_ebrs : int
+        The number of forms the paper prints for a symmetry indicator that do
+        not vanish on every elementary band representation of their group.
+    si_failing_groups : tuple of int
+        The space groups those forms belong to.
+    kernel_checks : int
+        The number of space groups in which the integer-valued invariants
+        were checked to vanish on every rational combination of elementary
+        band representations with a zero symmetry data vector.
+    derived_indicator_rows : dict
+        ``{relation: count}``: the number of symmetry indicators by how the
+        printed form compares with the derived one, ``"none"`` where no form
+        is derived.
     """
 
     groups: int
@@ -411,35 +582,45 @@ class ProvenanceCounts:
 
 @dataclass(frozen=True)
 class Provenance:
-    """Where the tables come from: the paper, and the versions of the tables they were converted against.
+    """The paper the tables come from, and what the conversion read and counted.
 
-    ``tables.provenance``.
+    The ``provenance`` of an :class:`SRSITables`, the same for every group of
+    one valuedness.
 
     Attributes
     ----------
     paper, doi : str
         The paper the tables are converted from, and its DOI.
     valuedness : str
-        ``"single"`` or ``"double"``.
+        ``"single"`` or ``"double"``: the single-valued or the double-valued
+        tables.
     converted : str
-        When the tables were converted.
+        The date the tables were converted, ``"YYYY-MM-DD"``.
     irrep_version, irreptables_version : str
-        The versions of ``irrep`` and ``irreptables`` the elementary band
-        representations were resolved against.
+        The versions of the irrep and irreptables packages whose elementary
+        band representations the conversion read.
     omitted_groups : tuple of int
         The thirteen space groups the tables leave out.
     omitted_reason : str
-        Why, in the words of the paper's caption.
+        Why they are left out, as the caption of the paper's tables states it.
     label_map : dict
-        ``{TeX spelling: spelling}``: the paper's site irreps as the package
-        spells them.
-    label_aliases, composite_site_irreps : tuple
-        The site irreps the paper and the list spell differently, and those
-        whose band representation is composite.
+        ``{TeX spelling: spelling}``: each site irrep of the paper, as the
+        package spells it, ``{"A_{1g}": "A1g"}``.
+    label_aliases : tuple of dict
+        If nonempty, each site irrep the paper and the irreptables package's
+        list of elementary band representations spell differently: its site
+        symmetry (``site``), the paper's spelling (``supplement``), the list's
+        (``ebr_label``), and the number of Wyckoff positions over all the
+        groups where it occurs (``positions``).
+    composite_site_irreps : tuple of dict
+        If nonempty, each site irrep at a maximal Wyckoff position whose band
+        representation is a sum of others, with its site symmetry, the
+        paper's spelling and its number of Wyckoff positions, keyed as in
+        :attr:`label_aliases`.
     counts : ProvenanceCounts
         What the conversion counted.
     notes : tuple of str
-        What the conversion says about the tables, a sentence each.
+        What the conversion says about the tables, a paragraph each.
     """
 
     paper: str
@@ -459,25 +640,28 @@ class Provenance:
 
 @dataclass(frozen=True)
 class SiteIrrep:
-    r"""A site irrep at a Wyckoff position: one coordinate of the site-symmetry vector ``p``.
+    r"""A site irrep at a Wyckoff position: one coordinate of the site-symmetry vector.
 
-    A site irrep at a maximal position induces an elementary band
-    representation, unless that band representation is a sum of others
-    (:math:`{}^1E{}^2E` at site symmetry :math:`\bar4`, ``E`` at
-    :math:`\bar4m2` and :math:`\bar42m`); one at a non-maximal position induces
-    a composite one.  An entry of ``tables.site_irreps``.
+    A site irrep at a maximal Wyckoff position induces an elementary band
+    representation, unless the band representation it induces is a sum of
+    others (:math:`{}^1E{}^2E` at site symmetry :math:`\bar4`, ``E`` at
+    :math:`\bar4m2` and :math:`\bar42m`).  One at a non-maximal position
+    induces a band representation equivalent to a sum of those induced at a
+    maximal position whose site-symmetry group contains its own.  An entry of
+    ``tables.site_irreps``.
 
     Attributes
     ----------
     irrep : str
-        The site irrep, as the list of elementary band representations spells
-        it where it names one, ``A`` where the paper writes ``A1`` at a ``222``
-        site, and as the paper spells it elsewhere.
+        The site irrep, spelled as the irreptables package's list of
+        elementary band representations spells it where the list has it, and
+        as the paper spells it elsewhere.  At a ``222``
+        site the list writes ``A`` where the paper writes ``A1``.
     wyckoff : str
-        The Wyckoff position in the setting the tables are written in, with its
-        multiplicity in the conventional cell, ``"4d"``.
+        The Wyckoff position in the setting the tables are written in, with
+        its multiplicity in the conventional cell, ``"4d"``.
     maximal : bool
-        Whether the position is maximal.
+        Whether the Wyckoff position is maximal.
     ebr : bool
         Whether the site irrep induces an elementary band representation.
     """
@@ -501,24 +685,25 @@ class SiteIrrep:
 
 @dataclass(frozen=True)
 class SplitEBR:
-    r"""One splitting of an elementary band representation into others, as the paper lists it.
+    r"""One splitting of an elementary band representation, as the paper lists it.
 
-    The paper lists the splittings the symmetry indicators allow, every part an
-    elementary band representation, and marks whether the invariants valued
-    modulo n of the parts add up to the whole's.  An entry of
-    ``tables.split_ebrs``; :meth:`summary` prints it.
+    The symmetry data vector of the whole is the sum of the parts', every
+    part an elementary band representation.  The paper marks whether the
+    invariants valued modulo n of the parts, each counted once, add up to the
+    whole's.  An entry of ``tables.split_ebrs``; :meth:`summary` prints it.
 
     Attributes
     ----------
     parent : SiteIrrep
-        The whole, the same entry as in ``tables.site_irreps``.
+        The site irrep that induces the whole.
     children : tuple of SiteIrrep
-        The parts, two or more.
+        The site irreps that induce the parts, two or more.
     label : str
-        The splitting as the paper writes it, ``"(-E)_c = (-E2)_a + (-E1)_a"``.
+        The splitting as the paper writes it: ``"(-E)_c = (-E2)_a + (-E1)_a"``
+        in space group 99 with spin-orbit coupling.
     srsi_mismatch : bool
-        The paper's mark: ``True`` where the parts' invariants valued modulo n
-        do not add up to the whole's.
+        The paper's mark: whether the parts' invariants valued modulo n do not
+        add up to the whole's.
     """
 
     parent: SiteIrrep
@@ -527,7 +712,10 @@ class SplitEBR:
     srsi_mismatch: bool
 
     def summary(self) -> str:
-        """The splitting, and whether the invariants of its parts add up to the whole's, a line each."""
+        """The splitting, and whether its parts' invariants add up, a line each.
+
+        Each line ends with the attribute that holds what it prints.
+        """
         return (f"{self.label}, a splitting the symmetry indicators allow, each term the "
                 "elementary band representation of a site irrep at a Wyckoff position"
                 "   (.label)\n"
@@ -541,19 +729,19 @@ class SplitEBR:
 
 @dataclass(frozen=True)
 class StablePair:
-    """Two site irreps at one maximal Wyckoff position that no stable real-space invariant distinguishes.
+    """Two site irreps at one Wyckoff position that no invariant distinguishes.
 
-    Their elementary band representations have the same symmetry data vector,
-    and they carry the same invariants, so nothing the package measures tells
-    them apart; the paper's example is ``B2`` and ``B3`` at ``12d`` of
-    ``I432``.  An entry of ``tables.stably_equivalent``; :meth:`summary` prints
-    it.
+    The position is maximal, and the elementary band representations the two
+    induce have the same symmetry data vector.  Atomic limits that differ
+    only by one of the two for the other are stably equivalent.  The paper's
+    example is ``B2`` and ``B3`` at ``12d`` of ``I432``.  An entry of
+    ``tables.stably_equivalent``; :meth:`summary` prints it.
 
     Attributes
     ----------
     irreps : tuple of str
-        The two site irreps, as the list of elementary band representations
-        spells them.
+        The two site irreps, as the irreptables package's list of elementary
+        band representations spells them.
     wyckoff : str
         The Wyckoff position, ``"12d"``.
     symmetry_data : dict
@@ -574,7 +762,10 @@ class StablePair:
     _columns: tuple = field(default=(), repr=False)
 
     def summary(self) -> str:
-        """The pair, then what both members share, a line each."""
+        """The pair, then the symmetry data vector and invariants both share.
+
+        Each line ends with the attributes that hold what it prints.
+        """
         return "\n".join([
             f"{_pair_text(self)}, which no stable real-space invariant distinguishes"
             "   (.irreps, .wyckoff)",
@@ -589,44 +780,55 @@ class StablePair:
 
 @dataclass(frozen=True)
 class SRSITables:
-    r"""The stable real-space invariants of one grey space group, as the paper tabulates them.
+    r"""The stable real-space invariants of one grey space group, as tabulated.
 
-    What :func:`srsi_tables` returns; :meth:`summary` prints the invariants, a
-    line each, and :meth:`formulas` each one's formula over the site irreps.
-    :meth:`theta` evaluates them on a site-symmetry vector ``p``, and
-    :meth:`indicators_of` evaluates the paper's symmetry indicators.
+    The record :func:`srsi_tables` returns.  The tables are those of Hwang et
+    al., Stable real-space invariants and topology beyond symmetry indicators,
+    Nat. Commun. 17, 8564 (2026).  Each invariant is a linear function of the
+    site-symmetry vector ``p``, the multiplicity of each site irrep at each
+    Wyckoff position.  :meth:`summary` prints the invariants and
+    :meth:`formulas` each one's formula.  :meth:`theta` evaluates them on a
+    site-symmetry vector, and :meth:`indicators_of` evaluates the paper's
+    symmetry indicators.
 
     Attributes
     ----------
     group : ..groups.GroupData
-        The group the tables were read for: the measured group handed to
-        :func:`srsi_tables`, or, from a space-group number, the grey group with
-        its name, number, valuedness and magnetic type, and no cell
-        (``periodic_dirs`` is ``None``).
+        The group the tables are of.  Where :func:`srsi_tables` is passed a
+        measured group, it is that group.  Where it is passed a space-group
+        number, it is the grey group of that number, with its name, number,
+        valuedness and magnetic type, and no cell: ``periodic_dirs`` is
+        ``None``.
     invariants : dict
-        ``{name: formula}``: each invariant, in the paper's order, as a sum of
-        terms ``c (irrep)_w``, ``c`` times the multiplicity of a site irrep at
-        Wyckoff position ``w``: ``tables.invariants["theta_4"]`` is
+        ``{name: formula}``: each invariant in the paper's order, as a sum of
+        terms ``c (irrep)_w``.  A term is ``c`` times the multiplicity of the
+        site irrep ``irrep`` at the Wyckoff position of letter ``w``.  In space
+        group 99 with spin-orbit coupling, ``invariants["theta_4"]`` is
         ``"1 (-E2)_b"``.
     indicators : dict
-        ``{name: form}``: each of the paper's symmetry indicators as a form in
-        the invariants, ``"-2 theta_1 + 2 theta_2 + 2 theta_5"``, as the paper
-        prints it.
+        If nonempty, ``{name: form}``: each of the paper's symmetry indicators
+        as the paper prints it, a linear combination of the invariants called
+        its form.  In space group 166 with spin-orbit coupling,
+        ``indicators["z4"]`` is
+        ``"-4 theta_1 + 4 theta_2 - 4 theta_3 + 4 theta_4"``.  Empty where the
+        group's symmetry-indicator group is trivial.
     moduli : dict
-        ``{name: modulus}``: each invariant's and each indicator's modulus,
-        ``None`` for an integer-valued invariant.
+        ``{name: modulus}``: the modulus of each invariant and each
+        indicator, ``None`` for an integer-valued invariant.
     site_irreps : tuple of SiteIrrep
-        Every site irrep at a Wyckoff position the formulas count, maximal or
+        Every site irrep the formulas count, at a maximal Wyckoff position or
         not: the coordinates of ``p``.
     split_ebrs : tuple of SplitEBR
-        The paper's splittings of an elementary band representation into
-        others.
+        If nonempty, each splitting the paper lists of an elementary band
+        representation into others, one SplitEBR each.
     stably_equivalent : tuple of StablePair
-        The site irreps at one maximal position that no invariant tells apart.
+        If nonempty, each pair of site irreps at one maximal Wyckoff position
+        that no invariant distinguishes.
     provenance : Provenance
-        Where the tables come from.
+        The paper the tables come from, and what the conversion read and
+        counted.
     numerical : SRSITablesNumerical
-        How each symmetry indicator was checked.
+        How each symmetry indicator of the tables was checked, by name.
     """
 
     group: Any = field(compare=False)
@@ -637,8 +839,8 @@ class SRSITables:
     split_ebrs: tuple
     provenance: Any = field(repr=False)
     numerical: Any = field(repr=False)
-    # the space-group number, the tables' label for the grey group and which
-    # of its tables; the invariants as rows; the formulas on the columns, the
+    # the space-group number, the BNS number of the grey group and which of
+    # its tables; the invariants as rows; the formulas on the columns, the
     # elementary band representations of the group's list as (irrep, letter);
     # the indicators as rows; the terms on site irreps that induce no
     # elementary band representation; each letter's multiplicity
@@ -660,12 +862,12 @@ class SRSITables:
 
     @property
     def _z_rows(self) -> tuple:
-        r"""Where the integer-valued invariants are in :attr:`_rows`."""
+        r"""The positions of the integer-valued invariants in :attr:`_rows`."""
         return tuple(i for i, row in enumerate(self._rows) if row.mod is None)
 
     @property
     def _zn_rows(self) -> dict:
-        r"""``{n: (row indices,)}``: where the invariants valued modulo n are in :attr:`_rows`, by modulus."""
+        r"""The positions of the invariants valued modulo n in :attr:`_rows`, ``{n: (i, ...)}`` by ascending n."""
         out: dict[int, list] = {}
         for i, row in enumerate(self._rows):
             if row.mod is not None:
@@ -674,65 +876,76 @@ class SRSITables:
 
     @property
     def stably_equivalent(self) -> tuple:
-        """The site irreps at one maximal Wyckoff position that no stable real-space invariant distinguishes."""
+        """The pairs of site irreps that no stable real-space invariant distinguishes."""
         return _stable_pairs(int(self._sg), bool(self._spinor))
 
     # -- the arithmetic ----------------------------------------------------
     def theta(self, p) -> Invariants:
-        r"""The stable real-space invariants of a site-symmetry vector ``p``.
+        r"""The stable real-space invariants of a site-symmetry vector.
+
+        Each invariant's formula, :attr:`invariants`, is evaluated on ``p``,
+        and the invariants valued modulo n are reduced modulo n.
 
         Parameters
         ----------
-        p : mapping or sum of term rows
-            ``{(site irrep, Wyckoff position): multiplicity}`` over any site
-            irreps of the group, at maximal positions or not, the position
-            written with its multiplicity, ``("-E", "2c")``, and the site irrep
-            spelled as the list of elementary band representations or as the
-            paper spells it; or a sum of term rows, each with ``multiplicity``,
-            ``irrep`` and ``wyckoff``, such as a candidate sum
-            :func:`..ebr.decompose` returns, an atomic realization or a Wyckoff
-            orbit's ``terms``.  Integer multiplicities for an atomic
-            configuration, rational ones for a band set with a nonzero
-            symmetry indicator.
+        p : mapping or sum of terms
+            The site-symmetry vector.  Pass ``{(site irrep, Wyckoff position):
+            multiplicity}``, the position written with its number of sites in
+            the conventional cell, ``("-E", "2c")``.  Or pass a sum of terms,
+            each with ``multiplicity``, ``irrep`` and ``wyckoff``: a candidate
+            sum :func:`..ebr.decompose` returns, an atomic realization
+            :func:`..srsi.atomic_realizations` returns, a localization of a
+            row :func:`..srsi.srsi_of_model` returns, or the terms of a row of
+            ``r.wyckoff_orbits``, with ``r`` what
+            :func:`..groups.realized_group` returns.  A site irrep may be at
+            any Wyckoff position of the tables, maximal or not, and spelled as
+            the irreptables package's list of elementary band representations
+            spells it or as the paper does.  The multiplicities are
+            integers for an atomic limit, and may be rational, as for the
+            site-symmetry vector :func:`..srsi.srsi_of_bands` evaluates for a
+            band set.
 
         Returns
         -------
         Invariants
-            ``out.theta_Z`` holds the integer-valued invariants by name, exact
-            fractions, whole numbers exactly where the symmetry indicator is
-            zero; ``out.theta_Zn`` the invariants valued modulo n.  These belong
-            to ``p``, not to its symmetry data vector: they are a band set's
-            only for a configuration that is known.
+            The integer-valued invariants as exact fractions, and the
+            invariants valued modulo n with their modulus.
+
+        Examples
+        --------
+        >>> tables = srsi_tables(99, spinor=True)              # doctest: +SKIP
+        >>> tables.theta({("-E", "2c"): 1})                    # doctest: +SKIP
+        Invariants(theta_1 to theta_3 = (1, 1, 0); theta_4, theta_5 = (0, 1) mod 2)
 
         Raises
         ------
         TypeError
-            ``p`` is neither a mapping nor a sum of term rows.
+            ``p`` is neither a mapping nor a sum of terms.
         ValueError
-            A position written without its multiplicity or with another one
-            than the tables give it, or a site irrep the tables do not carry
-            there; the message lists those they carry.
-
-        Examples
-        --------
-        >>> tables.theta({("-E", "2c"): 1})                    # doctest: +SKIP
-        Invariants(theta_1 to theta_3 = (1, 1, 0); theta_4, theta_5 = (0, 1) mod 2)
+            A key of ``p`` is not a (site irrep, Wyckoff position) pair.  A
+            position is not a Wyckoff position of the tables, or is written
+            without its number of sites or with a number other than the tables
+            give it.  The tables carry no such site irrep at that position.
+            The message says what to write.
         """
         return self._invariants(self._theta_of_sites("theta", p))
 
     def theta_unreduced(self, p) -> dict:
-        r"""Every invariant of ``p``, by name, those valued modulo n not reduced.
+        r"""Every invariant of a site-symmetry vector, none reduced modulo n.
+
+        Each invariant's formula is evaluated on ``p`` as :meth:`theta`
+        evaluates it.
 
         Parameters
         ----------
-        p : mapping or sum of term rows
-            As :meth:`theta` takes it.
+        p : mapping or sum of terms
+            The site-symmetry vector, as :meth:`theta` takes it.
 
         Returns
         -------
         dict
-            ``{name: value}`` for every invariant, in the paper's order, exact
-            fractions.
+            ``{name: value}``: every invariant, in the paper's order, as an
+            exact fraction.
 
         Raises
         ------
@@ -743,23 +956,28 @@ class SRSITables:
         return {row.name: value for row, value in zip(self._rows, raw)}
 
     def indicators_of(self, p) -> dict:
-        """The paper's symmetry indicators of ``p``, each modulo its own modulus.
+        """The paper's symmetry indicators of a site-symmetry vector.
 
-        Each form is the one ``tables.indicators`` prints, but for the four
-        forms of space groups 147, 162 and 163 without spin-orbit coupling that
-        do not vanish on their own group's elementary band representations,
-        where it is the derived one ``tables.numerical.indicators`` holds.
+        Each indicator's form in the invariants, :attr:`indicators`, is
+        evaluated on ``p`` and reduced modulo the indicator's modulus.  Four
+        printed forms, of space groups 147, 162 and 163 without spin-orbit
+        coupling, are nonzero on some elementary band representation of their
+        group.  For these the form evaluated is the derived one,
+        ``numerical.indicators[name].derived``, which is equal on every band
+        set to the indicator of the same name that the irreptables package
+        ships.
 
         Parameters
         ----------
-        p : mapping or sum of term rows
-            As :meth:`theta` takes it.
+        p : mapping or sum of terms
+            The site-symmetry vector, as :meth:`theta` takes it.
 
         Returns
         -------
         dict
-            ``{name: value}``: an integer modulo the indicator's modulus, or an
-            unreduced fraction where the value is not a whole number.
+            ``{name: value}``: each indicator's value, reduced modulo its
+            modulus where it is an integer and not reduced where it is not.
+            Empty where the group's symmetry-indicator group is trivial.
 
         Raises
         ------
@@ -769,7 +987,12 @@ class SRSITables:
         return self._indicators_of_raw(self._theta_of_sites("indicators_of", p))
 
     def _invariants(self, raw) -> Invariants:
-        """The :class:`Invariants` of the unreduced rows ``raw``."""
+        """The :class:`Invariants` of the unreduced values ``raw``.
+
+        ``raw`` holds every invariant's value as a fraction, one per entry of
+        :attr:`_rows`.  An invariant valued modulo n is reduced modulo n where
+        its value is an integer, and kept as it is otherwise.
+        """
         theta_z = {self._rows[i].name: raw[i] for i in self._z_rows}
         theta_zn = {}
         for i, row in enumerate(self._rows):
@@ -780,25 +1003,49 @@ class SRSITables:
         return Invariants(theta_Z=theta_z, theta_Zn=theta_zn)
 
     def _theta_columns(self, p) -> Invariants:
-        """:meth:`theta` on a ``p`` over the columns, the group's elementary band representations in the order of ``tables._ebrs``."""
+        """The :class:`Invariants` of a vector ``p`` over the elementary band representations.
+
+        ``p`` holds one multiplicity, an integer or a fraction, per entry of
+        :attr:`_ebrs`.  The invariants returned are those of the site-symmetry
+        vector with that multiplicity on the site irrep inducing each
+        elementary band representation, and zero on every other site irrep.
+        Raises ``ValueError`` where ``p`` has another length.
+        """
         return self._invariants(self._theta_of_columns(p))
 
     def _theta_unreduced_columns(self, p) -> tuple:
-        """Every invariant of a ``p`` over the columns, unreduced, one per row in the paper's order."""
+        """Every invariant of ``p``, taken as :meth:`_theta_columns` takes it, none reduced modulo n.
+
+        Returns one fraction per entry of :attr:`_rows`, in the paper's order.
+        """
         return self._theta_of_columns(p)
 
     def _indicators_of_columns(self, p) -> dict:
-        """:meth:`indicators_of` on a ``p`` over the columns."""
+        """The paper's symmetry indicators of ``p``, taken as :meth:`_theta_columns` takes it.
+
+        Returns ``{name: value}``, as :meth:`indicators_of` does.
+        """
         return self._indicators_of_raw(self._theta_of_columns(p))
 
     def _theta_of_columns(self, p) -> tuple:
-        """The unreduced rows of a ``p`` over the columns."""
+        """The unreduced invariants of ``p``, taken as :meth:`_theta_columns` takes it.
+
+        Returns one fraction per entry of :attr:`_rows`, none reduced modulo
+        n.
+        """
         vec = _as_fractions(p, len(self._ebrs))
         return tuple(sum((Fraction(c) * v for c, v in zip(row, vec)), Fraction(0))
                      for row in self._theta_on_columns)
 
     def _indicators_of_raw(self, raw) -> dict:
-        """:meth:`indicators_of`' arithmetic on the unreduced rows."""
+        """The paper's symmetry indicators of the unreduced invariants ``raw``.
+
+        ``raw`` holds every invariant's value as a fraction, one per entry of
+        :attr:`_rows`.  Each indicator's form,
+        :attr:`_SRSIIndicator.coefficients`, is evaluated on it and reduced
+        modulo the indicator's modulus where the value is an integer; a
+        fraction is kept as it is.  Returns ``{name: value}``.
+        """
         out = {}
         for form in self._indicator_rows:
             total = sum((c * raw[i - 1] for i, c in form.coefficients.items()),
@@ -809,7 +1056,13 @@ class SRSITables:
 
     # -- the full site-symmetry vector -------------------------------------
     def _site_lookup(self) -> dict:
-        """``{(spelling, letter): (paper's spelling, letter)}``: both spellings of a site irrep."""
+        """The paper's spelling of each site irrep, keyed by either spelling and letter.
+
+        Returns ``{(irrep, letter): (paper's spelling, letter)}``, ``letter``
+        the Wyckoff letter, with a key for the paper's spelling of each site
+        irrep of :attr:`site_irreps` and one for the spelling of the list of
+        elementary band representations.
+        """
         out = {}
         for site in self.site_irreps:
             out[(site._paper, site._letter)] = (site._paper, site._letter)
@@ -817,7 +1070,15 @@ class SRSITables:
         return out
 
     def _position(self, call, position) -> str:
-        """The letter of ``position``, written ``"1a"``; ``ValueError`` where it is not one of the tables' positions."""
+        """The Wyckoff letter of ``position``, a position of the tables.
+
+        ``position`` is written with its multiplicity in the conventional
+        cell, ``"2c"``.  ``call`` is the name of the public call, which opens
+        each message.  Returns the letter, ``"c"``.  Raises ``ValueError``
+        where ``position`` is a bare letter or no Wyckoff position, where no
+        site irrep of the tables sits at its letter, or where its
+        multiplicity is not the one the group gives that letter.
+        """
         position = str(position)
         letters = self._multiplicities
         match = _WYCKOFF.match(position)
@@ -825,41 +1086,52 @@ class SRSITables:
             if re.fullmatch(r"[a-zA-Z]", position):
                 written = (f"'{letters[position]}{position}'" if position in letters
                            else "such as '1a'")
-                raise ValueError(f"{call}(): the position {position!r} is written with its "
-                                 f"multiplicity, {written}")
-            raise ValueError(f"{call}(): {position!r} is no Wyckoff position; a position is "
-                             "written with its multiplicity, such as '1a'")
+                raise ValueError(f"{call}(): the position {position!r} is written without "
+                                 f"its multiplicity. Write it as its multiplicity and letter, "
+                                 f"{written}.")
+            raise ValueError(f"{call}(): {position!r} is not a Wyckoff position. Write a "
+                             "position as its multiplicity and letter, such as '1a'.")
         multiplicity, letter = int(match.group(1)), match.group(2)
         carried = sorted({site._letter for site in self.site_irreps})
         if letter not in carried:
             raise ValueError(
-                f"{call}(): #{self._number_str} has no Wyckoff position {position} in its "
-                "tables; they carry "
+                f"{call}(): the tables of #{self._number_str} have no Wyckoff position "
+                f"{position}. Write one of the positions they carry: "
                 + ", ".join(f"{letters.get(c, '')}{c}" for c in carried))
         if letters.get(letter) != multiplicity:
             raise ValueError(f"{call}(): #{self._number_str} has Wyckoff position "
-                             f"{letters.get(letter)}{letter}, not {position}")
+                             f"{letters.get(letter)}{letter}, not {position}. Write "
+                             f"{letters.get(letter)}{letter}.")
         return letter
 
     def _theta_of_sites(self, call, p) -> tuple:
-        """The unreduced rows of ``p``, a mapping keyed ``(site irrep, "1a")`` or a sum of term rows."""
+        """Every invariant of the site-symmetry vector ``p``, none reduced modulo n.
+
+        ``p`` is ``{(site irrep, Wyckoff position): multiplicity}`` or a sum of
+        terms, as :meth:`theta` takes it, each site irrep in either spelling;
+        multiplicities given twice for one site irrep are added.  ``call`` is
+        the name of the public call, which opens each message.  Returns one
+        fraction per entry of :attr:`_rows`.  Raises ``TypeError`` where ``p``
+        is neither, and ``ValueError`` on a key that is not a pair, on a
+        position :meth:`_position` raises on, or on a site irrep the tables do
+        not carry at that position.
+        """
         if isinstance(p, Mapping):
             items = list(p.items())
         elif _is_sum(p):
             items = [((t.irrep, t.wyckoff), t.multiplicity) for t in p]
         else:
             raise TypeError(
-                f"{call}(): p is a mapping {{(site irrep, Wyckoff position): multiplicity}}, "
-                "the position written '1a', or a sum of term rows; got a "
-                f"{type(p).__name__}")
+                f"{call}(): p is a {type(p).__name__}. Pass "
+                "{(site irrep, Wyckoff position): multiplicity} or a sum of terms.")
         lookup = self._site_lookup()
         vector: dict = {}
         for key, value in items:
             if not (isinstance(key, tuple) and len(key) == 2):
                 raise ValueError(
-                    f"{call}(): the site-symmetry vector is keyed by (site irrep, Wyckoff "
-                    "position) pairs, the position written '1b', or is a sum of term rows; "
-                    f"got {key!r}")
+                    f"{call}(): the key {key!r} of p is not a pair. Key each "
+                    "multiplicity by (site irrep, Wyckoff position), the position "
+                    "written as its multiplicity and letter, such as '1b'.")
             letter = self._position(call, key[1])
             resolved = lookup.get((str(key[0]), letter))
             if resolved is None:
@@ -867,26 +1139,37 @@ class SRSITables:
                                if site._letter == letter})
                 raise ValueError(
                     f"{call}(): #{self._number_str} ({_valuedness(self._spinor)}) has no "
-                    f"site irrep {str(key[0])!r} at {key[1]}; at {key[1]} the tables carry "
-                    f"{here}")
+                    f"site irrep {str(key[0])!r} at {key[1]}. Pass one the tables carry "
+                    f"there: {here}")
             vector[resolved] = vector.get(resolved, Fraction(0)) + Fraction(value)
         return self._raw_of(vector)
 
     def _theta_at(self, irreps, letter) -> Invariants:
-        """:meth:`theta` of ``{irrep: multiplicity}`` at one letter, the irreps in either spelling."""
+        """The invariants of site irreps at one Wyckoff position, as :meth:`theta` returns them.
+
+        ``irreps`` is ``{site irrep: multiplicity}``, each site irrep in either
+        spelling, and ``letter`` the position's Wyckoff letter alone, ``"c"``.
+        Returns the :class:`Invariants`.  Raises ``ValueError`` on a site irrep
+        the tables do not carry at that letter.
+        """
         lookup = self._site_lookup()
         vector: dict = {}
         for irrep, value in dict(irreps).items():
             resolved = lookup.get((str(irrep), str(letter)))
             if resolved is None:
                 raise ValueError(
-                    f"#{self._number_str} ({_valuedness(self._spinor)}) has no site irrep "
-                    f"{str(irrep)!r} at Wyckoff letter {str(letter)!r}")
+                    f"#{self._number_str} ({_valuedness(self._spinor)}): the tables carry "
+                    f"no site irrep {str(irrep)!r} at the Wyckoff letter {str(letter)!r}.")
             vector[resolved] = vector.get(resolved, Fraction(0)) + Fraction(value)
         return self._invariants(self._raw_of(vector))
 
     def _raw_of(self, vector) -> tuple:
-        """The unreduced rows of ``{(paper's spelling, letter): multiplicity}``."""
+        """Every invariant of a site-symmetry vector, none reduced modulo n.
+
+        ``vector`` is ``{(paper's spelling, letter): multiplicity}``, each
+        multiplicity a fraction; a site irrep it leaves out has multiplicity
+        zero.  Returns one fraction per entry of :attr:`_rows`.
+        """
         out = []
         for row in self._rows:
             total = Fraction(0)
@@ -900,21 +1183,33 @@ class SRSITables:
     # -- the basis of the atomic realizations: the maximal positions -------
     @property
     def _maximal_keys(self) -> tuple:
-        r"""Every maximal site irrep, with the bands one copy of it carries: the coordinates :func:`..srsi.atomic_realizations` lists configurations over.
+        r"""Every maximal site irrep, with the bands one copy of it carries.
 
-        The site irreps with an elementary band representation come first, in
-        the order of ``tables._ebrs``, then the maximal ones whose band
-        representation is a sum of others.
+        These are the coordinates over which :func:`..srsi.atomic_realizations`
+        lists configurations.  Returns one :class:`_MaximalKey` per maximal
+        site irrep: those that induce an elementary band representation, in
+        the order of :attr:`_ebrs`, then those whose band representation is a
+        sum of others, in the order of :attr:`site_irreps`.
         """
         return _maximal_basis(int(self._sg), bool(self._spinor))[0]
 
     @property
     def _band_count_form(self) -> tuple:
-        r"""The band count as a form in the integer-valued invariants: the ``a`` with ``a . theta_Z`` the number of bands, one entry per integer-valued invariant."""
+        r"""The band count as a linear form in the integer-valued invariants.
+
+        Returns ``a``, one fraction per integer-valued invariant in the order
+        of :attr:`_z_rows`, solved so that ``a . theta_Z`` is the number of
+        bands of each elementary band representation of the group.  Every
+        coefficient is an integer in the shipped tables.
+        """
         return _maximal_basis(int(self._sg), bool(self._spinor))[2]
 
     def summary(self) -> str:
-        """The invariants, a line each with its modulus, and what else the tables hold, a line each."""
+        """The invariants and what else the tables hold, a line each.
+
+        Each invariant's line gives its modulus.  Each line ends with the
+        attributes that hold what it prints.
+        """
         lines = [f"{_group(self.group)}: "
                  f"{_count(len(self.invariants), 'stable real-space invariant')}"
                  "   (.group, .invariants)",
@@ -948,10 +1243,12 @@ class SRSITables:
         return "\n".join(lines)
 
     def formulas(self) -> str:
-        r"""Every invariant's formula, a line each, as the paper tabulates them, under a line saying what a term is.
+        r"""Every invariant's formula, a line each, under a line saying what a term is.
 
-        ``theta_2 (Z2) = 1 (-E)_b``: the invariant and its modulus, then its
-        terms, each a site irrep at its Wyckoff letter times its multiplicity.
+        In space group 25 with spin-orbit coupling, ``theta_2 (Z2) = 1 (-E)_b``
+        is the invariant ``theta_2``, valued modulo 2, as one times the
+        multiplicity of the site irrep ``-E`` at the Wyckoff position of letter
+        ``b``.
         """
         heads = [f"{name} ({'Z' if self.moduli[name] is None else f'Z{self.moduli[name]}'})"
                  for name in self.invariants]
@@ -970,7 +1267,12 @@ class SRSITables:
 
 
 def _split(tables, invariants) -> tuple:
-    """``(theta_Z, {n: values})`` of :class:`Invariants`, each in the tables' order, the values valued modulo n grouped by modulus."""
+    """The values of ``invariants``, the integer-valued ones apart from the rest.
+
+    ``invariants`` is an :class:`Invariants` of ``tables``.  Returns
+    ``(theta_Z, {n: values})``: the integer-valued values, and the values
+    valued modulo n grouped by ascending n, each in the paper's order.
+    """
     theta_z = tuple(invariants.theta_Z.values())
     theta_zn = {n: tuple(invariants.theta_Zn[tables._rows[i].name].value for i in rows)
                 for n, rows in tables._zn_rows.items()}
@@ -982,17 +1284,20 @@ def _split(tables, invariants) -> tuple:
 # ---------------------------------------------------------------------------
 
 def srsi_status() -> dict[str, Any]:
-    """Whether the stable real-space invariant tables are installed, and where.
+    """Whether the tables of stable real-space invariants are installed, and where.
 
-    They ship with the package; an installation without them refuses
-    ``srsi_data`` on every call here.
+    The tables ship with the package.  Where they are missing, every call that
+    reads them refuses ``srsi_data``.
 
     Returns
     -------
     dict
-        ``{"data", "single", "double", "dir", "doi", "reason"}``: ``data`` is
-        ``True`` when both tables are in place, ``single`` and ``double`` are their
-        paths, and ``reason`` says what is missing.
+        ``data``: whether both tables are installed.  ``single`` and
+        ``double``: the paths of the single-valued and the double-valued
+        tables, ``None`` for one that is missing.  ``dir``: the directory they
+        are installed in.  ``doi``: the DOI of the paper they are converted
+        from.  ``reason``: ``None`` where both are installed, and otherwise
+        which are missing.
     """
     info: dict[str, Any] = {"data": False, "single": None, "double": None,
                             "dir": DATA_DIR, "doi": _DOI, "reason": None}
@@ -1005,9 +1310,8 @@ def srsi_status() -> dict[str, Any]:
             missing.append(os.path.basename(path))
     if missing:
         info["reason"] = (
-            f"the SRSI tables {missing} are not installed in {DATA_DIR}. They ship "
-            "with the package as its data, so this installation is missing them: "
-            "reinstall pythTQC")
+            f"the SRSI tables {missing} are not installed in {DATA_DIR}. "
+            "Reinstall pythTQC.")
     else:
         info["data"] = True
     return info
@@ -1028,25 +1332,37 @@ def _refuse_no_data(status) -> Refusal:
 def _as_fractions(p, n) -> tuple:
     values = list(p)
     if len(values) != n:
-        raise ValueError(f"the site-symmetry vector has {len(values)} entries against "
-                         f"{n} elementary band representations; it is indexed by the "
-                         "group's own list of elementary band representations")
+        raise ValueError(f"the vector over the elementary band representations has "
+                         f"{len(values)} entries, and the group lists {n}. Pass one "
+                         "multiplicity for each, in the group's order.")
     return tuple(Fraction(v) for v in values)
 
 
 def _lettered(entry: dict) -> dict:
-    """One term or site of the converted data, its Wyckoff letter under ``letter``."""
+    """A term or a site of the converted data, its Wyckoff letter keyed ``"letter"``.
+
+    ``entry`` is the mapping as the data holds it, the letter keyed
+    ``"wyckoff"``.  Returns a new mapping, ``entry`` left as it is.
+    """
     return {("letter" if key == "wyckoff" else key): value for key, value in entry.items()}
 
 
 def _tupled(value):
-    """A list of the converted data as an immutable sequence, anything else as it is."""
+    """One value of the converted data, a list made immutable.
+
+    Returns ``value`` as an immutable sequence where it is a list, and as it
+    is otherwise.
+    """
     return tuple(value) if isinstance(value, list) else value
 
 
 @functools.lru_cache(maxsize=2)
 def _provenance(valuedness: str) -> Provenance:
-    """The provenance block of one of the two documents, as its record."""
+    """The provenance block of one of the two converted documents, as a :class:`Provenance`.
+
+    ``valuedness`` is ``"single"`` or ``"double"``, the document of the
+    single-valued or the double-valued tables.
+    """
     block = dict(_document(valuedness)["provenance"])
     counts = ProvenanceCounts(**{key: _tupled(value)
                                  for key, value in dict(block.pop("counts")).items()})
@@ -1152,17 +1468,26 @@ def _build(record: dict, provenance: Provenance, group) -> SRSITables:
 
 
 def _table_of_number(sg: int, spinor: bool) -> SRSITables | Refusal:
-    """The tables of a space-group **number** -- :func:`srsi_tables`' second shape.
+    """The tables of the grey group of space-group number ``sg``.
 
-    Their group is the grey group of the number, with no cell.  Refuses
-    ``srsi_data`` (the converted files are not installed), ``srsi_scope``
-    (``sg`` outside 1..230) or ``srsi_table_absent`` (one of the thirteen groups
-    the tables omit, with the caption's reason).
+    ``spinor`` selects the double-valued tables.  Returns the
+    :class:`SRSITables`, whose group is the grey group of the number with no
+    cell, as :func:`srsi_tables` returns them for a number.
+
+    Refusals
+    --------
+    ``srsi_scope``
+        ``sg`` is outside 1 to 230.
+    ``srsi_data``
+        the converted tables are not installed.
+    ``srsi_table_absent``
+        ``sg`` is one of the thirteen space groups the tables leave out; the
+        reason carries the paper's own for leaving them out.
     """
     if not 1 <= int(sg) <= 230:
         return Refusal(
             "srsi_scope",
-            f"space group {sg} is not one of the 230; the SRSI tables run over those",
+            f"there is no space group {sg}. Pass a number from 1 to 230.",
             value=float(sg), context={"sg": int(sg)})
     status = srsi_status()
     if not status["data"]:
@@ -1174,9 +1499,8 @@ def _table_of_number(sg: int, spinor: bool) -> SRSITables | Refusal:
     if record is None:
         return Refusal(
             "srsi_table_absent",
-            f"the SRSI tables carry no row for space group {sg}: "
-            f"{provenance['omitted_reason']}. Its one stable real-space invariant is the "
-            "band count, which needs no table",
+            f"space group {sg} is not in the SRSI tables, which leave out "
+            f"{provenance['omitted_reason']}.",
             context={"sg": int(sg), "spinor": bool(spinor),
                      "omitted_groups": tuple(provenance["omitted_groups"]),
                      "doi": provenance["doi"]})
@@ -1187,78 +1511,80 @@ def _table_of_number(sg: int, spinor: bool) -> SRSITables | Refusal:
 
 
 def srsi_tables(group_or_number, *, spinor=None) -> SRSITables | Refusal:
-    """The stable real-space invariants of a grey space group, as the paper tabulates them.
+    """The stable real-space invariants of a grey space group, as tabulated.
 
-    From a measured group the tables come with the group, and every call that
-    reads a model's site irreps reads them in these tables; from a space-group
-    number with ``spinor=`` they need no model.
+    The tables are those of Hwang et al., Stable real-space invariants and
+    topology beyond symmetry indicators, Nat. Commun. 17, 8564 (2026).  They
+    are read for a group a model was measured to have, or for a space-group
+    number, which needs no model.
 
     Parameters
     ----------
     group_or_number : ..groups.GroupData or int
-        A grey group a model was measured to have, ``r.group``, or a
-        space-group number from 1 to 230.
+        The group.  Pass ``r.group`` of what :func:`..groups.realized_group`
+        returns, or a space-group number from 1 to 230.
     spinor : bool, optional
-        With a number, and only then: the tables with spin-orbit coupling
-        (``True``) or without.
+        Whether the double-valued tables, those with spin-orbit coupling, are
+        read.  Pass it with a space-group number, and only then.
 
     Returns
     -------
     SRSITables or Refusal
-        ``tables.summary()`` prints the invariants; ``tables.theta(p)`` evaluates
-        them on a configuration.  From a number, ``tables.group`` holds the grey
-        group's name, number and valuedness and no cell.  A ``Refusal`` in its
-        place is falsy.
-
-    Raises
-    ------
-    TypeError
-        Neither a group nor a number: what :func:`..groups.realized_group`
-        returns, or its representation, in place of its group.
-    ValueError
-        A number without ``spinor=``, or a group with it.
-
-    Refusals
-    --------
-    ``srsi_scope``
-        the group is not grey, or the number is outside 1 to 230.
-    ``srsi_table_absent``
-        one of the thirteen groups whose one invariant is the band count.
-    ``srsi_data``
-        the tables are not installed (:func:`srsi_status`).
-    ``srsi_ebr_basis``
-        the installed ``irreptables`` lists other elementary band representations
-        than the tables were converted against; ``context["installed"]`` holds its
-        list.
-    ``ebr_tables``, ``irrep_tables``, ``ebr_convention``
-        from :func:`..groups.ebr_data`.
+        The tables of the group.  A ``Refusal`` in its place is falsy.
 
     Examples
     --------
     >>> srsi_tables(25, spinor=True).moduli["theta_2"]     # doctest: +SKIP
     2
+
+    Refusals
+    --------
+    A refusal handed in as ``group_or_number`` is returned as it is.
+
+    ``srsi_scope``
+        the group is not grey, or the number is outside 1 to 230.
+    ``srsi_table_absent``
+        the group is one of the thirteen space groups the tables leave out.
+        In each, the general position is the only Wyckoff position, and it has
+        one site irrep.  The one invariant is the band count.
+    ``srsi_data``
+        the tables are not installed.  :func:`srsi_status` says which is
+        missing.
+    ``srsi_ebr_basis``
+        the installed irreptables package lists elementary band
+        representations of the measured group other than those the tables
+        were converted against.  ``context["installed"]`` holds its list.
+    ``ebr_tables`` / ``irrep_tables`` / ``ebr_convention``
+        the tables installed hold no elementary band representations of the
+        measured group that can be read in this package's convention.
+
+    Raises
+    ------
+    TypeError
+        ``group_or_number`` is neither a group nor a number: what
+        :func:`..groups.realized_group` returns, or its representation, in
+        place of its group.
+    ValueError
+        A number without ``spinor=``, or a group with it.
     """
     if isinstance(group_or_number, (int, np.integer)) and not isinstance(group_or_number,
                                                                           bool):
         if spinor is None:
             raise ValueError(
-                f"srsi_tables(): {int(group_or_number)} is a space-group number, and the "
-                "tables come in two valuednesses: pass spinor=True or spinor=False. "
-                "A measured group carries its own")
+                f"srsi_tables(): the space-group number {int(group_or_number)} is passed "
+                "without spinor=. Pass spinor=True for the double-valued tables or "
+                "spinor=False for the single-valued ones.")
         return _table_of_number(int(group_or_number), bool(spinor))
     group = group_or_number
     if not _spacegroup._is_number_group(group):
         _spacegroup._require_group("srsi_tables", group)
-    # The grammar check comes FIRST and stays a hard error: declaring the
-    # valuedness twice is a mistake in the call, not a fact about the crystal,
-    # and it is wrong whatever lattice the group is on.  The lattice gate is a
-    # physics verdict and follows.
+    # A group passed with spinor= raises before its lattice is checked: the
+    # valuedness given twice is a mistake in the call, whatever the lattice.
     if spinor is not None and not isinstance(group, Refusal):
         own = bool(getattr(group, "spinor", False))
         raise ValueError(
-            f"srsi_tables(): a group was given with spinor={spinor!r}. A group already "
-            f"declares its valuedness (spinor={own!r} here), and it decides which table "
-            "is read; pass spinor= only with a space-group number")
+            f"srsi_tables(): spinor={spinor!r} is passed with a group, which has "
+            f"spinor={own!r} of its own. Pass spinor= only with a space-group number.")
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
@@ -1268,10 +1594,8 @@ def srsi_tables(group_or_number, *, spinor=None) -> SRSITables | Refusal:
     if mtype != "II":
         return Refusal(
             "srsi_scope",
-            f"#{group.number_str} is a magnetic group of type {mtype}, and the shipped "
-            "SRSI tables are the time-reversal-symmetric (grey, type-II) ones. A group "
-            "is returned grey exactly where the Hamiltonian obeys time reversal, and "
-            "for a model that breaks it no SRSI tables exist",
+            f"#{group.number_str} is a magnetic group of type {mtype}, and the SRSI "
+            "tables are of grey (type-II) groups alone.",
             context={"number_str": str(group.number_str), "magnetic_type": mtype})
     table = _table_of_number(int(group._sg_number), bool(group.spinor))
     if not table:
@@ -1284,11 +1608,11 @@ def srsi_tables(group_or_number, *, spinor=None) -> SRSITables | Refusal:
     if installed != table._ebrs or str(group.number_str) != table._number_str:
         return Refusal(
             "srsi_ebr_basis",
-            f"the EBR list installed for #{group.number_str} is not the one the SRSI "
-            f"conversion resolved against (#{table._number_str}, {len(table._ebrs)} "
-            f"columns against {len(installed)}), so its stored column indices would "
-            "name the wrong EBRs. The tables were converted against irreptables "
-            f"{table.provenance.irreptables_version}: install that version",
+            f"the installed irreptables lists {len(installed)} elementary band "
+            f"representations for #{group.number_str}, other than the "
+            f"{len(table._ebrs)} of #{table._number_str} that the SRSI tables were "
+            "converted against. Install irreptables "
+            f"{table.provenance.irreptables_version}.",
             value=float(len(installed)), threshold=float(len(table._ebrs)),
             context={"number_str": str(group.number_str),
                      "converted_against": table._number_str,
@@ -1298,15 +1622,20 @@ def srsi_tables(group_or_number, *, spinor=None) -> SRSITables | Refusal:
 
 
 def _ebr_key(name, position) -> tuple:
-    """``("-E2", "b")`` from ``ebr_data``'s ``("-E2↑G(2)", "1b(4mm1',4mm)")``.
+    """The key of an elementary band representation: its site irrep and Wyckoff letter.
 
-    The same reduction the conversion keyed its column indices on: the label
-    before the induction arrow, and the Wyckoff letter of the position.
+    ``name`` and ``position`` are one entry of the list of elementary band
+    representations, ``("-E2↑G(2)", "1b(4mm1',4mm)")``.  Returns the site
+    irrep before the induction arrow and the letter of the position,
+    ``("-E2", "b")``, as :attr:`SRSITables._ebrs` holds each column.  Raises
+    ``ValueError`` where ``position`` is not written
+    ``<multiplicity><letter>(<site symmetries>)``.
     """
     match = _POSITION.match(str(position))
     if match is None:
-        raise ValueError(f"EBR position {position!r} is not "
-                         "'<multiplicity><letter>(<site symbols>)'")
+        raise ValueError(f"the position {position!r} in the list of elementary band "
+                         "representations is not written "
+                         "'<multiplicity><letter>(<site symmetries>)'.")
     return str(name).split("↑")[0], match.group(2)
 
 
@@ -1317,14 +1646,20 @@ def _gcd(a, b):
 
 
 def _rational_p(u, v, d, y) -> list:
-    r"""A rational ``p`` with :math:`\mathrm{BR}\cdot p = y`, from the Smith factors.
+    r"""A rational solution ``p`` of ``M p = y``, from the Smith factors of ``M``.
 
-    ``u M v = R`` with ``R`` diagonal, so ``M p = y`` is ``R z = u y`` in
-    ``z = v^{-1} p``: divide by the nonzero divisors, take zero on the kernel
-    directions, come back with ``p = v z``.  Exact over
-    :class:`~fractions.Fraction`.  The solution is not unique — two differ by an
-    element of :math:`\ker\mathrm{BR}` — and the :math:`\mathbb{Z}`-SRSIs are
-    the same on all of them, which is the conversion's kernel check.
+    ``M`` is the matrix of elementary band representations of a group, one
+    column each.  ``u``, ``v`` and ``d`` are its Smith factors, as
+    :func:`.._smith._smith_system` returns them: ``u M v`` is diagonal with
+    entries ``d``.  ``y`` is a vector over the rows of ``M``, a symmetry data
+    vector.  Writing ``p = v z``, the equation is ``d_i z_i = (u y)_i``; each
+    ``z_i`` is solved where ``d_i`` is nonzero and is zero elsewhere.
+    Returns ``p`` as a list of fractions, one per column of ``M``.  It solves
+    ``M p = y`` where ``y`` lies in the rational span of the columns, as a
+    symmetry data vector that satisfies the compatibility relations does.
+    Two solutions differ by a vector in the kernel of ``M``, and the
+    integer-valued invariants take the same values on both in the shipped
+    tables.
     """
     n_col = len(v)
     y_prime = [sum((Fraction(u[i][j]) * y[j] for j in range(len(y))), Fraction(0))
@@ -1336,19 +1671,32 @@ def _rational_p(u, v, d, y) -> list:
 
 
 def _no_bare_number(group_or_tables, call) -> None:
-    """Raise :class:`TypeError` on a bare space-group number, naming the loader."""
+    """Raise ``TypeError`` where ``group_or_tables`` is a bare space-group number.
+
+    ``call`` is the name of the public call, which opens the message.  The
+    message names :func:`srsi_tables` with ``spinor=`` as the call that
+    takes a number.
+    """
     if isinstance(group_or_tables, (int, np.integer)):
         n = int(group_or_tables)
         raise TypeError(
-            f"{call}() takes a measured GroupData or the SRSITables of one. A bare "
-            "space-group number carries no valuedness, so load the table first -- "
-            f"srsi_tables({n}, spinor=True) or srsi_tables({n}, spinor=False) -- and "
-            "pass that")
+            f"{call}(): {n} is a space-group number. Pass srsi_tables({n}, spinor=True) "
+            f"or srsi_tables({n}, spinor=False), or the group realized_group returns, "
+            "r.group.")
 
 
 @functools.lru_cache(maxsize=None)
 def _stable_pairs(sg: int, spinor: bool) -> tuple:
-    """The pairs of site irreps at one maximal position no invariant tells apart, in one system: ``tables.stably_equivalent``."""
+    """The pairs of site irreps that no stable real-space invariant distinguishes.
+
+    ``sg`` is a space-group number and ``spinor`` selects the double-valued
+    tables.  A pair is two site irreps at one maximal Wyckoff position whose
+    elementary band representations have the same symmetry data vector.
+    Returns one :class:`StablePair` per pair, ordered by Wyckoff letter, with
+    the invariants of the first site irrep of each; in the shipped tables
+    both carry the same.  Returns ``()`` where the tables or the
+    elementary band representations cannot be read.
+    """
     tables = _table_of_number(int(sg), bool(spinor))
     if not tables:                            # pragma: no cover - gated above
         return ()
@@ -1381,31 +1729,30 @@ def _stable_pairs(sg: int, spinor: bool) -> tuple:
 
 
 # ---------------------------------------------------------------------------
-# the two vocabularies: the paper's names, and irreptables' as the backend
+# the two vocabularies: the paper's names for the indicators, and irreptables'
 # ---------------------------------------------------------------------------
 #
-# The paper's vocabulary is canonical and `irreptables`' is the backend; what
-# follows is the conversion between them.  Both vocabularies follow Song et al.
-# 2018 and they differ only in how they are *spelled*; the three differences are
-# measured, not typed:
+# What follows converts between the paper's names for the symmetry indicators
+# and the names the irreptables package gives the same forms.  Both follow Song
+# et al. 2018 and differ only in spelling, in three ways:
 #
-#   1. the alphabet -- `irreptables` writes the Greek letters and a typographic
-#      prime, the supplement's TeX transliterates them (`z3m,pi` / `z3m,π`);
-#   2. the order of the qualifiers on one family -- the supplement writes the
-#      sign immediately after the stem, `irreptables` writes it last
-#      (`delta2+,pi` / `δ2,π+`, `z2,+` / `z2+`);
-#   3. one letter's case -- `\Theta_2` against `θ2`.
+#   1. the alphabet: the paper's supplement spells out the Greek letters that
+#      irreptables writes as glyphs, and writes a plain prime where
+#      irreptables writes a typographic one (`z3m,pi` and `z3m,π`);
+#   2. where the sign stands: the supplement writes it right after the stem,
+#      irreptables writes it last (`delta2+,pi` and `δ2,π+`, `z2,+` and `z2+`);
+#   3. the case of one letter: `\Theta_2` and `θ2`.
 #
-# The map is a **convention**, and it is gated by the measured agreement of the
-# two sides' VALUES on every name it pairs (`tests/test_vocabulary.py`, the
-# 7295-comparison sweep).  A pairing that failed that gate would be a bug in the
-# map and never a tolerance.
+# The map is a convention of spelling.  `tests/test_vocabulary.py` checks, in
+# every tabulated group, that the two names of every pair the map makes take
+# the same value on every elementary band representation, on random atomic
+# limits and on every generator of the symmetry-indicator group.
 
-#: ``irreptables``' glyphs, and the words the supplement's TeX transliterates
-#: them to.  Both cases of theta map to ``Theta``: the supplement writes
+#: ``irreptables``' glyphs, and what the supplement's TeX writes for each: a
+#: word for a Greek letter, a plain prime for the typographic one.  Both cases
+#: of theta map to ``Theta``: the supplement writes
 #: ``\Theta_2`` for the form ``irreptables`` spells ``θ2``, and neither
-#: vocabulary carries a second, lowercase one (measured over the shipped
-#: tables: 34 distinct names on each side).
+#: vocabulary has two names that differ only in the case of theta.
 _GREEK_TO_ASCII = {"π": "pi", "′": "'", "δ": "delta", "γ": "gamma", "ω": "omega",
                    "φ": "phi", "α": "alpha", "β": "beta", "η": "eta",
                    "θ": "Theta", "Θ": "Theta"}
@@ -1416,12 +1763,11 @@ _ASCII_TO_GREEK = {"pi": "π", "'": "′", "delta": "δ", "gamma": "γ",
                    "omega": "ω", "phi": "φ", "alpha": "α", "beta": "β",
                    "eta": "η", "Theta": "θ"}
 
-#: How a paper name and an ``irreptables`` name are related.  The first three
-#: are pairings and the last two are the honest "there is nothing to pair with"
-#: on that side.  ``"reordered"`` **subsumes** the transliteration where both
-#: apply: ``delta2+,pi`` -> ``δ2,π+`` moves the qualifier *and* changes the
-#: alphabet, ``z2,+`` -> ``z2+`` only moves the qualifier, and both are reported
-#: as ``"reordered"`` because the move is the difference worth naming.
+#: How a name of the paper and a name of ``irreptables`` are related.  The
+#: first three pair the two names; the last two mark a name with no
+#: counterpart on the other side.  ``"reordered"`` is reported wherever the
+#: sign moves, whether or not the alphabet changes too: ``delta2+,pi`` and
+#: ``δ2,π+``, ``z2,+`` and ``z2+``.
 NAME_RELATIONS = ("literal", "transliterated", "reordered", "paper_only",
                   "irreptables_only")
 
@@ -1441,7 +1787,14 @@ _TABLE_SIGN = re.compile(r"^([A-Za-z0-9]+?)(?:,(.+?))?([+-])$")
 
 
 def _spelling(name: str) -> tuple:
-    """``(irreptables spelling, relation)`` of one paper name, by the rules."""
+    """The ``irreptables`` spelling of one of the paper's indicator names.
+
+    ``name`` is spelled as the paper spells it.  Returns ``(spelling,
+    relation)``: ``relation`` is ``"reordered"`` where the sign moves,
+    ``"transliterated"`` where only the alphabet changes, and ``"literal"``
+    where nothing does.  The spelling follows from the rules of spelling
+    alone; whether ``irreptables`` ships it is not checked.
+    """
     match = _PAPER_SIGN.match(name)
     if match is not None:
         stem, sign, qualifier = match.groups()
@@ -1452,7 +1805,12 @@ def _spelling(name: str) -> tuple:
 
 
 def _unspelling(name: str) -> tuple:
-    """``(paper spelling, relation)`` of one ``irreptables`` name, by the rules."""
+    """The paper's spelling of one of the ``irreptables`` indicator names.
+
+    ``name`` is spelled as ``irreptables`` spells it.  Returns ``(spelling,
+    relation)``, the inverse of :func:`_spelling`.  Whether the paper has the
+    spelling is not checked.
+    """
     plain = _GREEK_RE.sub(lambda m: _GREEK_TO_ASCII[m.group(0)], name)
     match = _TABLE_SIGN.match(plain)
     if match is not None:
@@ -1464,16 +1822,18 @@ def _unspelling(name: str) -> tuple:
 
 @functools.lru_cache(maxsize=1)
 def indicator_vocabularies() -> tuple:
-    """The paper's names for the symmetry indicators of every tabulated group, and ``irreptables``'.
+    """The names of the symmetry indicators in the paper and in ``irreptables``.
+
+    Each is the set of names over every group the tables carry, with and
+    without spin-orbit coupling.
 
     Returns
     -------
     tuple of frozenset
         ``(paper names, irreptables names)``, 34 on each side with
-        ``irreptables`` 3.1.0.  Both are empty where the tables are not installed
-        (:func:`srsi_status`), and the second where ``irreptables``' indicator
-        tables cannot be read; :func:`to_irreptables_name` and
-        :func:`from_irreptables_name` then return ``None``.
+        ``irreptables`` 3.1.0.  Both are empty where the tables are not
+        installed (:func:`srsi_status`), and the second where the indicator
+        tables of ``irreptables`` cannot be read.
     """
     if not srsi_status()["data"]:
         return frozenset(), frozenset()
@@ -1520,19 +1880,22 @@ def to_irreptables_name(name) -> str | None:
 
 
 def from_irreptables_name(name) -> str | None:
-    """The paper's spelling of one of ``irreptables``' indicator names, the inverse of :func:`to_irreptables_name`.
+    """The paper's spelling of one of the ``irreptables`` indicator names.
 
-    ``"δ2,π+"`` is ``"delta2+,pi"``, and ``"θ2"`` is ``"Theta2"``.
+    It is the inverse of :func:`to_irreptables_name`: ``"δ2,π+"`` is
+    ``"delta2+,pi"``, and ``"θ2"`` is ``"Theta2"``.
 
     Parameters
     ----------
     name : str
-        One of ``irreptables``' names.
+        One of the ``irreptables`` names, as :func:`indicator_vocabularies`
+        lists them.
 
     Returns
     -------
     str or None
-        The spelling, or ``None`` where the paper has no such form.
+        The spelling, or ``None`` where ``name`` is not one of the
+        ``irreptables`` names or the paper has no such form.
     """
     name = str(name)
     paper, shipped = indicator_vocabularies()
@@ -1544,19 +1907,21 @@ def from_irreptables_name(name) -> str | None:
 
 @dataclass(frozen=True)
 class NamePair:
-    """One symmetry indicator of one group, named in the paper's vocabulary and in ``irreptables``'.
+    """One symmetry indicator of one group, named by the paper and by ``irreptables``.
 
     Attributes
     ----------
     paper, irreptables : str or None
-        The two spellings; one is ``None`` where the other vocabulary has no such
-        form.
+        The two spellings.  One is ``None`` where the other vocabulary has no
+        such form.
     relation : str
         How the two are related, one of :data:`NAME_RELATIONS`.
     mod : int or None
-        The modulus, the same on both sides of a pair.
+        The modulus, the same on both sides of a pair.  ``None`` for a name of
+        ``irreptables`` alone whose modulus is not an integer or disagrees
+        with the paper's.
     reason : str
-        Why there is no pair, and empty for one.
+        If nonempty, why the name has no pair.
     """
 
     paper: str | None
@@ -1571,10 +1936,10 @@ class NamePair:
 
 
 def name_correspondence(group_or_tables):
-    """The paper's names for one group's symmetry indicators, against ``irreptables``'.
+    """The names of one group's symmetry indicators in the paper and in ``irreptables``.
 
-    The two vocabularies differ in spelling alone: the two forms of a pair are
-    measured to take the same value on every band set.
+    The two vocabularies differ in spelling alone, and the two names of a pair
+    take the same value on every band set.
 
     Parameters
     ----------
@@ -1584,21 +1949,31 @@ def name_correspondence(group_or_tables):
     Returns
     -------
     tuple of NamePair or Refusal
-        One per form of either vocabulary, the paper's first.  A ``Refusal`` in
-        its place is falsy.
+        One per form of either vocabulary.  The paper's names come first.
+        Where the two moduli disagree, the name of ``irreptables`` with the
+        same spelling follows the paper's, unpaired.  The other names of
+        ``irreptables`` alone come last, in alphabetical order.  A
+        ``Refusal`` in its place is falsy.
+
+    Refusals
+    --------
+    A refusal handed in as ``group_or_tables`` is returned as it is.
+
+    ``irreptables_indicator_tables``
+        the indicator table of ``irreptables`` cannot be read for this group.
+    ``srsi_scope`` / ``srsi_table_absent`` / ``srsi_data`` / ``srsi_ebr_basis``
+        from :func:`srsi_tables`: the group has no tables that can be read.
+    ``ebr_tables`` / ``irrep_tables`` / ``ebr_convention``
+        from :func:`srsi_tables`: the tables installed hold no elementary band
+        representations of the group that can be read in this package's
+        convention.
 
     Raises
     ------
     TypeError
-        A bare space-group number, which carries no valuedness:
-        :func:`srsi_tables` takes it with ``spinor=``.
-
-    Refusals
-    --------
-    ``irreptables_indicator_tables``
-        ``irreptables``' indicator table cannot be read for this group.
-    ``srsi_data``, ``srsi_scope``, ``srsi_table_absent``, ``srsi_ebr_basis``
-        from :func:`srsi_tables`: the group has no tables.
+        A bare space-group number, which does not say whether the single- or
+        the double-valued tables are meant: :func:`srsi_tables` takes it with
+        ``spinor=``.  Or anything that is neither a group nor its tables.
     """
     _no_bare_number(group_or_tables, "name_correspondence")
     gate = _spacegroup._lattice_not_descended(group_or_tables)
@@ -1614,7 +1989,8 @@ def name_correspondence(group_or_tables):
         forms = dict(entry.get("indicators", {}))
     except Exception as exc:                   # pragma: no cover - table defect
         return Refusal("irreptables_indicator_tables",
-                       f"irreptables' indicator table could not be read: {exc}",
+                       f"the indicator table of irreptables cannot be read: {exc}. "
+                       "Check the irreptables installation.",
                        context={"number_str": tables._number_str})
     out, paired = [], set()
     for form in tables._indicator_rows:
@@ -1646,43 +2022,41 @@ def name_correspondence(group_or_tables):
 
 
 # ---------------------------------------------------------------------------
-# the canonical class: the paper's names, and the gate that lets them speak it
+# the class in the paper's named indicators, and the checks behind it
 # ---------------------------------------------------------------------------
 
 @functools.lru_cache(maxsize=None)
 def _canonical_gate(number_str: str, spinor: bool) -> dict:
-    r"""The two convention checks behind :attr:`..ebr.SymmetryIndicator.indicators`.
+    r"""The two checks on the paper's named indicators of one system.
 
-    Computed once per system and cached, because both are properties of the
-    *tables* and of nothing else.
+    :func:`_canonical_reading` reads them before it fills
+    :attr:`..ebr.SymmetryIndicator.indicators`, and raises where one fails.
+    ``number_str`` is the BNS number of the grey group, ``"99.164"``, and
+    ``spinor`` selects the double-valued tables.
 
-    **Every returned form is an indicator of this group.**  A linear form descends
-    to :math:`\{BS\}/\{AI\}` exactly when it vanishes modulo its own modulus on
-    every EBR column -- an EBR is an atomic limit -- and that is checked here on
-    the row :meth:`SRSITables.indicators_of` evaluates
-    (``_SRSIIndicator.coefficients``: the printed row, or the derived one
-    for the four rows of SGs 147, 162 and 163 without SOC where the printed one
-    is not an indicator).  Measured over all 434 tabulated systems: zero
-    failures.
-
-    **The paper's names determine the class.**  Speaking a class in a vocabulary
-    is only honest if the vocabulary can tell the classes apart, so every
-    element of :math:`\{BS\}/\{AI\}` is enumerated -- one representative per
-    class, :math:`y = \sum_i c_i\,u^{-1}e_{\text{slot}_i}` -- and the map
-    class -> canonical values is checked to be injective.  The values on a
-    general class are the generators' values combined modulo each form's own
-    modulus, which is exact because an indicator is a homomorphism
-    :math:`\{BS\}/\{AI\} \to \mathbb{Z}_n`; the test suite re-runs the whole
-    enumeration through the rational solve instead and gets the same 1355
-    values.  Measured over the 170 systems with an indicator group: 263
-    generators, 1355 classes, **injective in every one**.
+    The first check evaluates each named form,
+    :attr:`_SRSIIndicator.coefficients`, on every column of the matrix of
+    elementary band representations.  A form is an indicator of the group
+    where each value is an integer that vanishes modulo the form's modulus.
+    The second check reads the Smith normal form of that matrix, whose
+    diagonal entries above 1, ``d_i``, stand at the places ``slot_i``.  It
+    evaluates the forms on each generator of the symmetry-indicator group,
+    the column ``slot_i`` of ``u^{-1}`` for the Smith factor ``u``, through
+    :func:`_rational_p`.  Each class, ``sum_i c_i`` times the generators
+    with ``0 <= c_i < d_i``, takes the generators' values combined modulo
+    each form's modulus.  The check records each two classes that take the
+    same value of every form.
 
     Returns
     -------
     dict
-        The two measurements, keyed as :func:`canonical_determinism` returns
-        them.  ``available`` is ``False`` with a ``reason`` when the tables or
-        the EBR data are not available at all.
+        Keyed as :func:`canonical_determinism` returns it.  ``available`` is
+        ``False``, with ``gate`` and ``reason`` and no other key, where the
+        tables or the elementary band representations cannot be read.  No
+        class is enumerated where the symmetry-indicator group is trivial,
+        where the tables carry no named form, or where a form takes a value
+        on a generator that is not an integer: ``n_classes`` is then ``0``
+        and ``injective`` is ``True``.
     """
     tables = _table_of_number(int(str(number_str).split(".")[0]), bool(spinor))
     if not tables:
@@ -1741,39 +2115,74 @@ def _canonical_gate(number_str: str, spinor: bool) -> dict:
 
 
 def canonical_determinism(group_or_tables) -> dict | Refusal:
-    """Whether the paper's indicator names tell apart every class of a group's symmetry-indicator group.
+    """Whether the paper's named indicators tell every symmetry-indicator class apart.
 
-    What :attr:`..ebr.SymmetryIndicator.indicators` rests on: every form vanishes on
-    the group's elementary band representations, and no two classes share every
-    value.  Both hold in all 170 systems with an indicator group.
+    :func:`..ebr.symmetry_indicator` returns, as ``indicators``, a band set's
+    value of each of the paper's named symmetry indicators.  These values
+    name the band set's class, its element of the symmetry-indicator group,
+    where two properties of the tables hold.  First, each indicator's form,
+    the linear combination of the invariants :meth:`SRSITables.indicators_of`
+    evaluates, vanishes on every elementary band representation of the
+    group.  For the four printed forms, of space groups 147, 162 and 163
+    without spin-orbit coupling, that do not, the form checked is the derived
+    one.  Second, no two elements of the symmetry-indicator group take the
+    same value of every indicator.  The forms are evaluated on the
+    generators of the symmetry-indicator group, and every element is
+    enumerated from those values.  Both properties hold in all 170 tabulated
+    systems with a nontrivial symmetry-indicator group, a system being a grey
+    group with its single-valued or its double-valued tables.
 
     Parameters
     ----------
     group_or_tables : ..groups.GroupData or SRSITables
-        A measured grey group, or its tables.
+        The group.  Pass ``r.group`` of what :func:`..groups.realized_group`
+        returns, or the tables :func:`srsi_tables` returns.
 
     Returns
     -------
     dict or Refusal
-        ``available``, ``False`` with a ``gate`` and a ``reason`` where the tables
-        cannot be read; ``divisors`` and ``n_classes``, the indicator group and
-        its size; ``names`` and ``moduli``, the forms; ``injective``, whether the
-        names tell every class apart, and ``collisions``, any two they do not;
-        ``vanishes`` and ``ebr_failures``, whether every form vanishes on the
-        elementary band representations; ``generators``, each form's values on
-        the generators of the indicator group, and ``integral``, whether they are
-        integers.  A ``Refusal`` in its place is falsy.
+        ``available`` is ``True``, except where tables read for a
+        space-group number are handed in and the elementary band
+        representations of their group cannot be read.  There it is
+        ``False``, with ``gate`` and ``reason`` and no other key; with a
+        measured group, :func:`srsi_tables` refuses that case instead.
+        ``number_str`` and ``spinor`` name the system.  ``divisors`` are the
+        orders of the cyclic factors of the symmetry-indicator group, and
+        ``slots`` their places on the diagonal of the Smith normal form of
+        the matrix of elementary band representations.  ``names`` and
+        ``moduli`` are the names of the paper's indicators and their moduli.
+        ``vanishes`` says whether every form vanishes on every elementary
+        band representation.  ``ebr_failures`` holds ``(name, column,
+        value)`` where one does not, ``column`` being the elementary band
+        representation's column in the matrix of elementary band
+        representations.  ``generators`` holds each indicator's values on
+        each generator of the symmetry-indicator group.  ``integral`` says
+        whether all of them are integers, and ``fractional`` holds each
+        ``(name, value)`` that is not.  ``n_classes`` is the number of
+        elements enumerated, the order of the symmetry-indicator group, or
+        ``0`` where none is: a trivial group, no named indicator, or a value
+        on a generator that is not an integer.  ``injective`` says whether
+        no two elements take the same value of every indicator, and
+        ``collisions`` holds each two that do, with the values they share.  A
+        ``Refusal`` in its place is falsy.
+
+    Refusals
+    --------
+    A refusal handed in as ``group_or_tables`` is returned as it is.
+
+    ``srsi_scope`` / ``srsi_table_absent`` / ``srsi_data`` / ``srsi_ebr_basis``
+        from :func:`srsi_tables`: the group has no tables that can be read.
+    ``ebr_tables`` / ``irrep_tables`` / ``ebr_convention``
+        from :func:`srsi_tables`: the tables installed hold no elementary band
+        representations of the group that can be read in this package's
+        convention.
 
     Raises
     ------
     TypeError
-        A bare space-group number, which carries no valuedness:
-        :func:`srsi_tables` takes it with ``spinor=``.
-
-    Refusals
-    --------
-    ``srsi_data``, ``srsi_scope``, ``srsi_table_absent``, ``srsi_ebr_basis``
-        from :func:`srsi_tables`: the group has no tables.
+        A space-group number alone, which does not say whether the single- or
+        the double-valued tables are meant, or anything that is neither a
+        group nor its tables.
     """
     _no_bare_number(group_or_tables, "canonical_determinism")
     gate = _spacegroup._lattice_not_descended(group_or_tables)
@@ -1787,26 +2196,34 @@ def canonical_determinism(group_or_tables) -> dict | Refusal:
 
 
 def _canonical_reading(group, magnetic_type, u, v, d, y, divisors) -> tuple:
-    r"""``(canonical, note, tex)`` -- the class in the paper's names.
+    r"""The symmetry-indicator class of a set of bands, in the paper's named indicators.
 
-    What :func:`..ebr.symmetry_indicator` calls to fill
-    :attr:`..ebr.SymmetryIndicator.indicators`; ``tex`` is the names in LaTeX.  ``y`` is the returned symmetry data
-    vector over the full EBR basis and ``u``, ``v``, ``d`` are the Smith factors
-    it was read with, so the rational ``p`` here is the same one
-    :func:`..srsi.srsi_of_bands` solves for -- one arithmetic, two records.
+    :func:`..ebr.symmetry_indicator` calls it to fill
+    :attr:`..ebr.SymmetryIndicator.indicators`.  ``group`` is the measured
+    group and ``magnetic_type`` its magnetic type, ``"II"`` for a grey group.
+    ``y`` is the symmetry data vector over the rows of the group's matrix of
+    elementary band representations, and ``u``, ``v`` and ``d`` are the
+    Smith factors of that matrix, as :func:`_rational_p` takes them.
+    ``divisors`` are the orders of the cyclic factors of the indicator group.
+    The named forms are evaluated on the rational solution ``p`` of
+    :func:`_rational_p`, the one :func:`..srsi.srsi_of_bands` makes from the
+    same vector.
 
-    Three states raise :class:`~.refusal.InternalError` rather than returning a
-    ``None``, because each of them is this package failing to apply a convention
-    the tables fix outright:
+    Returns ``(indicators, note, tex)``: each form's value ``{name: value}``,
+    a sentence on how the values were read, and each name in TeX.
+    ``indicators`` is ``None`` and ``tex`` empty, with the reason in
+    ``note``, for a group that is not grey, where the tables are not
+    installed or refuse the group, and where the indicator group is trivial.
 
-    * a grey group with a nontrivial Smith form and **no** paper row (the
-      shipped tables cover exactly the 170 systems that have one -- measured, so
-      this cannot happen with the shipped data);
-    * a returned form that does not vanish on the group's own EBRs, so it is not
-      an indicator and its value is not a class;
-    * a group whose classes the paper's names do **not** separate: the
-      vocabulary cannot speak that class, and printing a number that two
-      different classes share would be worse than saying so.
+    Raises
+    ------
+    ..refusal.InternalError
+        The indicator group is nontrivial and the tables leave the group out
+        or carry no named form for it.  The checks of :func:`_canonical_gate`
+        cannot be read, or read other divisors.  Or they fail: a form does
+        not vanish on an elementary band representation, a form takes a value
+        that is not an integer on a generator, or two classes take the same
+        value of every form.
     """
 
     if magnetic_type != "II":
@@ -1824,12 +2241,9 @@ def _canonical_reading(group, magnetic_type, u, v, d, y, divisors) -> tuple:
     if not tables:
         if divisors and tables.gate == "srsi_table_absent":
             raise InternalError(
-                f"#{group.number_str}: the indicator group is {divisors} and the SRSI "
-                "tables carry no row for this space group, so its class cannot be "
-                "spoken in the paper's names at all. The shipped tables cover exactly "
-                "the 170 grey systems with a nontrivial Smith form -- measured, and "
-                "asserted in the test suite -- so a group reaching here is this package "
-                "applying the wrong table and not a property of the model.")
+                f"#{group.number_str}: the indicator group is {divisors}, and the SRSI "
+                "tables carry no row for this space group. Report it, with the model "
+                "and the call.")
         return None, ("the paper's named indicators are not returned here: "
                       f"{tables.reason}"), {}
     if not divisors:
@@ -1840,44 +2254,39 @@ def _canonical_reading(group, magnetic_type, u, v, d, y, divisors) -> tuple:
             "of them"), {}
     if not tables._indicator_rows:
         raise InternalError(
-            f"#{group.number_str}: the indicator group is {divisors} and the paper's "
-            "table for this system carries no indicator row, so the paper's named "
-            "indicators have no value for this class. The two lists were measured to "
-            "coincide exactly (170 systems), so this is a defect in the shipped data "
-            "or in this package's use of it.")
+            f"#{group.number_str}: the indicator group is {divisors}, and the paper's "
+            "table for this system carries no indicator row. Report it, with the model "
+            "and the call.")
     gate = _canonical_gate(tables._number_str, tables._spinor)
     if not gate["available"]:
         raise InternalError(
-            f"#{group.number_str}: the paper's forms could not be checked as indicators "
-            f"of this group that tell its classes apart ({gate['gate']}: "
-            f"{gate['reason']}), though the tables returned a record. "
-            "Two reads of the same tables disagreeing is arithmetic here failing.")
+            f"#{group.number_str}: the checks on the paper's forms cannot be made "
+            f"({gate['gate']}: {gate['reason']}), though srsi_tables returns the "
+            "tables. Report it, with the model and the call.")
     if tuple(gate["divisors"]) != tuple(divisors):
         raise InternalError(
-            f"#{group.number_str}: the indicator group read to check the paper's forms is "
-            f"{tuple(gate['divisors'])} against {tuple(divisors)} here, from the same "
-            "EBR matrix. The Smith form is a property of that matrix alone.")
+            f"#{group.number_str}: the indicator group is {tuple(gate['divisors'])} in "
+            f"the checks on the paper's forms and {tuple(divisors)} in the symmetry "
+            "indicator of the bands, both read from one EBR matrix. Report it, with "
+            "the model and the call.")
     if not gate["vanishes"]:
         broken = sorted({name for name, _column, _value in gate["ebr_failures"]})
         raise InternalError(
             f"#{group.number_str}: the paper's forms {broken} do not vanish on every "
-            "EBR column of this group, so they are not indicators of it and no value "
-            f"of them is a class: {gate['ebr_failures'][:4]}. The derived rows cover "
-            "the four known cases (SGs 147, 162, 163 without SOC); a fifth is a defect "
-            "to surface, not a number to return.")
+            f"EBR column of this group: {gate['ebr_failures'][:4]}. Report it, with the "
+            "model and the call.")
     if not gate["integral"]:
         raise InternalError(
-            f"#{group.number_str}: the paper's forms take non-integer values "
-            f"{gate['fractional'][:4]} on the generators of the indicator group, where "
-            "an indicator is a homomorphism onto Z_n and must be integral.")
+            f"#{group.number_str}: the paper's forms take values that are not integers "
+            f"on the generators of the indicator group: {gate['fractional'][:4]}. "
+            "Report it, with the model and the call.")
     if not gate["injective"]:
         raise InternalError(
-            f"#{group.number_str}: the paper's names do not determine the class -- "
+            f"#{group.number_str}: the paper's names do not determine the class. "
             f"{len(gate['collisions'])} of the {gate['n_classes']} elements of "
-            f"{divisors} share every canonical value with another "
-            f"({gate['collisions'][0][:2]}). The paper's named indicators cannot tell "
-            "this group's classes apart, which is a finding about the tables and not a "
-            "number to print.")
+            f"{divisors} take the same value of every named indicator as another "
+            f"element, such as {gate['collisions'][0][:2]}. Report it, with the model and the "
+            "call.")
     p = _rational_p(u, v, d, [Fraction(int(x)) for x in y])
     canonical = tables._indicators_of_columns(p)
     tex = {str(f.name): str(f.name_tex) for f in tables._indicator_rows}
@@ -1893,16 +2302,33 @@ def _canonical_reading(group, magnetic_type, u, v, d, y, divisors) -> tuple:
 
 @dataclass(frozen=True)
 class _MaximalKey:
-    """One maximal site irrep, with the bands one copy of it carries: a coordinate of the atomic realizations.
+    """One maximal site irrep, with the bands one copy of it carries.
 
-    ``irrep`` is the paper's spelling and ``letter`` the Wyckoff letter; ``dim``
-    the bands one copy carries, its elementary band representation's or, for a
-    site irrep whose band representation is a sum of others, the band-count
-    form's value on it; ``column`` and ``ebr_name`` the column and name in the
-    group's list, and ``ebr_label`` the list's spelling where it differs;
-    ``term`` the site irrep as a term of multiplicity one, as the list writes
-    its position and site groups.  The keys of a group are
+    A coordinate of the atomic realizations, an entry of
     ``tables._maximal_keys``.
+
+    Attributes
+    ----------
+    irrep : str
+        The site irrep, as the paper spells it.
+    letter : str
+        The letter of its Wyckoff position.
+    dim : int
+        The number of bands one copy carries: those of its elementary band
+        representation, or, where its band representation is a sum of
+        others, the value of ``tables._band_count_form`` on it.
+    ebr : bool
+        Whether it induces an elementary band representation.
+    column, ebr_name : int or None, str or None
+        The column and the name of that elementary band representation in
+        the irreptables package's list of elementary band representations,
+        ``None`` where there is none.
+    ebr_label : str or None
+        The list's spelling of the site irrep, ``None`` where it is the
+        paper's.
+    term : ..groups.Term
+        The site irrep as a term of multiplicity one, its position and site
+        symmetries as the list writes them.
     """
 
     irrep: str
@@ -1916,7 +2342,7 @@ class _MaximalKey:
 
     @property
     def label(self) -> str:
-        """``"(B2)_d"``, the paper's way of writing the key."""
+        """The site irrep and its Wyckoff letter as the paper writes them, ``"(B2)_d"``."""
         return f"({self.irrep})_{self.letter}"
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
@@ -1926,14 +2352,13 @@ class _MaximalKey:
 
 
 class _TableKey:
-    """The three fields :func:`.._tables._ebr_data` reads, from a table's own record.
+    """The three fields :func:`.._tables._ebr_data` reads, made from the tables alone.
 
-    The SRSI tables are keyed by a grey BNS number and a valuedness, which is
-    exactly what :func:`.._tables._ebr_data` needs to return the columns the
-    conversion resolved against -- so a table in hand can fetch its own EBR list
-    without a measured ``GroupData``, which is what
-    ``tables._maximal_keys`` and a sweep over all 230 space groups both
-    need.
+    ``number_str`` is the BNS number of the grey group, ``"99.164"``, and
+    ``spinor`` selects the double-valued tables; ``_magnetic`` is ``True``.
+    With it, the elementary band representations of the tables' own group
+    are read without a measured group, as ``tables._maximal_keys`` and
+    ``tables.stably_equivalent`` read them.
     """
 
     def __init__(self, number_str, spinor):
@@ -1943,20 +2368,27 @@ class _TableKey:
 
 
 def _ebr_dimension(name) -> int:
-    """``4`` from ``ebr_data``'s ``'-E2^G(4)'`` -- the EBR's own band count."""
+    """The number of bands an elementary band representation carries, from its name.
+
+    ``name`` is the name in the list of elementary band representations,
+    ``"-E1↑G(2)"``.  Returns the count in its closing parentheses, ``2``.
+    Raises ``ValueError`` where the name does not end in one.
+    """
     match = re.search(r"\((\d+)\)\s*$", str(name))
     if match is None:
-        raise ValueError(f"EBR name {name!r} does not end in its band count '(n)'")
+        raise ValueError(f"the name {name!r} in the list of elementary band "
+                         "representations does not end in its number of bands, '(n)'.")
     return int(match.group(1))
 
 
 def _solve_left(rows, rhs):
-    r"""The rational ``a`` with :math:`a\cdot\text{rows} = \text{rhs}`, or ``None``.
+    r"""The rational ``a`` with ``a . rows = rhs``, or ``None`` where there is none.
 
-    ``rows`` is a list of rows (here :math:`\Theta^{(0)}` over the EBR columns)
-    and ``rhs`` a vector over the same columns; the system is over-determined,
-    solved exactly over :class:`~fractions.Fraction`, and the solution is
-    **verified** on every column before it is returned.
+    ``rows`` is a list of rows over a set of columns, here the integer-valued
+    invariants on the elementary band representations, and ``rhs`` a vector
+    over the same columns.  The system is solved by elimination in exact
+    fractions, an unknown left free taken as zero.  Returns ``a``, one
+    fraction per row, once it is checked to solve every column.
     """
     n_unknown, n_eq = len(rows), len(rhs)
     augmented = [[Fraction(rows[i][j]) for i in range(n_unknown)] + [Fraction(rhs[j])]
@@ -1991,44 +2423,47 @@ def _solve_left(rows, rhs):
 
 @functools.lru_cache(maxsize=None)
 def _maximal_basis(sg: int, spinor: bool) -> tuple:
-    r"""``(keys, columns, band_form)`` for one system, computed once.
+    r"""The maximal site irreps of one system, their invariants, and the band count.
 
-    ``columns[j]`` is the **full** :math:`\Theta` column of ``keys[j]`` (every
-    row, in table order) as integers; ``band_form`` is the rational ``a`` with
-    :math:`a\cdot\Theta^{(0)} = \nu` on the EBR columns, :math:`\nu_j` being
-    that EBR's band count.
+    ``sg`` is a space-group number the tables carry, and ``spinor`` selects
+    the double-valued tables.  Returns ``(keys, columns, band_form)``:
+    ``keys`` as ``tables._maximal_keys`` returns them; ``columns[j]`` every
+    invariant of one copy of ``keys[j]``, none reduced modulo n, as integers
+    in the paper's order; ``band_form`` as ``tables._band_count_form``
+    returns it.
 
     Raises
     ------
+    ValueError
+        No table of ``sg`` is returned: ``sg`` is outside 1 to 230 or left
+        out, or the tables are not installed.
     ..refusal.InternalError
-        The installed EBR list is not the one the conversion resolved against
-        (:func:`srsi_tables` refuses ``srsi_ebr_basis`` for the same reason), or
-        the band count is not a :math:`\mathbb{Z}`-linear form in the
-        :math:`\mathbb{Z}`-SRSIs, or a composite key's band count comes out
-        non-integral or non-positive.  All three would mean the arithmetic here
-        cannot be applied to the shipped table at all, which is a bug to surface
-        rather than a verdict to hand back.
+        The installed list of elementary band representations cannot be read,
+        or is not the one the tables were converted against
+        (:func:`srsi_tables` refuses ``srsi_ebr_basis`` there).  The formulas
+        leave a column of the list out.  The band count is not a linear form
+        in the integer-valued invariants on the elementary band
+        representations.  Or a site irrep whose band representation is a sum
+        of others has an invariant that is not an integer, or a band count
+        that is not a positive integer.
     """
 
     tables = _table_of_number(int(sg), bool(spinor))
     if not tables:                            # pragma: no cover - gated above
-        raise ValueError(f"space group {sg} has no shipped SRSI table: {tables}")
+        raise ValueError(f"no SRSI table is returned for space group {sg}: {tables}")
     data = _tables._ebr_data(_TableKey(tables._number_str, spinor))
     if not data:                              # pragma: no cover - install-dependent
         raise InternalError(
-            f"#{tables._number_str}: the EBR list this table's columns index into "
-            f"cannot be returned ({data}), so the maximal-position basis cannot be "
-            "built.")
+            f"#{tables._number_str}: the list of elementary band representations the "
+            f"table's columns index cannot be read: {data}. Report it, with the model "
+            "and the call.")
     installed = tuple(_ebr_key(name, position) for name, position in data["ebrs"])
     if installed != tables._ebrs:              # pragma: no cover - install-dependent
         raise InternalError(
-            f"#{tables._number_str}: the installed EBR list is not the one the SRSI "
-            f"conversion resolved against ({len(installed)} columns against "
-            f"{len(tables._ebrs)}), so the stored column indices name the wrong EBRs "
-            "and the atomic realizations would be written in the wrong coordinates. "
-            "srsi_tables() refuses 'srsi_ebr_basis' for exactly this; the tables were "
-            "converted against irreptables "
-            f"{tables.provenance.irreptables_version}: install that version.")
+            f"#{tables._number_str}: the {len(installed)} elementary band "
+            "representations the installed irreptables lists differ from the "
+            f"{len(tables._ebrs)} that the SRSI tables were converted against. "
+            f"Install irreptables {tables.provenance.irreptables_version}.")
 
     by_column, composite = {}, []
     for key in tables.site_irreps:
@@ -2044,9 +2479,9 @@ def _maximal_basis(sg: int, spinor: bool) -> tuple:
         entry_at.setdefault(_ebr_key(name, position)[1], _tables._ebr_term(name, position))
     if set(by_column) != set(range(len(tables._ebrs))):
         raise InternalError(          # pragma: no cover - table-dependent
-            f"#{tables._number_str}: the table's rows touch {len(by_column)} of the "
-            f"{len(tables._ebrs)} EBR columns. Every column must appear, because the "
-            "band count is a Z-linear form in the Z-SRSIs and an EBR carries bands.")
+            f"#{tables._number_str}: the site irreps the table's formulas count induce "
+            f"{len(by_column)} of the {len(tables._ebrs)} elementary band representations "
+            "of the list. Report it, with the model and the call.")
 
     nu = [_ebr_dimension(name) for name, _position in data["ebrs"]]
     theta_zero = [[tables._theta_on_columns[i][j] for j in range(len(tables._ebrs))]
@@ -2054,11 +2489,9 @@ def _maximal_basis(sg: int, spinor: bool) -> tuple:
     band_form = _solve_left(theta_zero, nu)
     if band_form is None:
         raise InternalError(          # pragma: no cover - table-dependent
-            f"#{tables._number_str}: the band count is not a Z-linear form in the "
-            "Z-SRSIs on this group's EBR columns, though it is one in all 434 "
-            "tabulated systems as measured -- the band count is a stable real-space "
-            "invariant, so it has to be. Either the shipped Theta or the EBR band "
-            "counts are not what they are taken to be.")
+            f"#{tables._number_str}: on this group's EBR columns, the number of bands "
+            "is not a linear form in the ZSRSIs. Report it, with the model and the "
+            "call.")
 
     def alias(key):
         return key.irrep if key.irrep != key._paper else None
@@ -2076,16 +2509,17 @@ def _maximal_basis(sg: int, spinor: bool) -> tuple:
         raw = tables._raw_of({(key._paper, key._letter): Fraction(1)})
         if any(value.denominator != 1 for value in raw):
             raise InternalError(      # pragma: no cover - table-dependent
-                f"#{tables._number_str}: the Theta column of the composite site irrep "
-                f"({key._paper})_{key._letter} is not integral.")
+                f"#{tables._number_str}: the invariants of one copy of the site irrep "
+                f"({key._paper})_{key._letter}, whose band representation is a sum of "
+                "others, are not all integers. Report it, with the model and the call.")
         dim = sum((band_form[i] * raw[r] for i, r in enumerate(tables._z_rows)),
                   Fraction(0))
         if dim.denominator != 1 or dim <= 0:
             raise InternalError(      # pragma: no cover - table-dependent
-                f"#{tables._number_str}: the band-count form gives {dim} bands for the "
-                f"composite site irrep ({key._paper})_{key._letter}, which is not a "
-                "positive integer. A site irrep whose induced band representation is "
-                "composite still induces a definite number of bands.")
+                f"#{tables._number_str}: the band count the ZSRSIs give for the site irrep "
+                f"({key._paper})_{key._letter}, whose band representation is a sum of "
+                f"others, is {dim}, which is not a positive integer. Report it, with the "
+                "model and the call.")
         listed = entry_at[key._letter]
         keys.append(_MaximalKey(irrep=key._paper, letter=key._letter, dim=int(dim),
                                 ebr=False, column=None, ebr_name=None,

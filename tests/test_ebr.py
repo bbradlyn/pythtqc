@@ -1386,7 +1386,7 @@ def test_the_declared_slab_reaches_the_same_class_through_the_layer_route(monkey
     assert stopped.context["stack"]["stopped_at"] == "stack_presentation"
     assert stopped.context["stack"]["outcome"] == "stopped"
     # what was found, in its own words; where it stopped stays on the record
-    assert "did not supply them: the decoupled stack is not built for this layer: " \
+    assert "stopped: the stack is not built for this layer; " \
         "synthetic" in stopped.reason
     assert "stopped at" not in stopped.reason
 
@@ -1707,7 +1707,8 @@ def test_the_indicator_refuses_on_physics_and_raises_on_a_broken_convention(
         refusals={"T": Refusal("integer_multiplicity", "synthetic", value=0.5)})
     out = tqe.symmetry_indicator(holed)
     assert isinstance(out, Refusal) and out.gate == "incomplete_content"
-    assert "no class here" in out.reason and "`refusals`" in out.reason
+    assert "no little-group representations at ['T']" in out.reason \
+        and "`refusals`" in out.reason
     assert out.context["completion"] == "stable-rsi"
     assert "A5" not in out.reason, "the refusal names physics, not a build plan"
 

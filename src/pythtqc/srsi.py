@@ -1,37 +1,33 @@
-r"""Stable real-space invariants (SRSIs): the tables, their values on bands and models, and a no-go criterion for a gapped splitting.
-
-An SRSI is a linear form :math:`\theta = \Theta\cdot p` in the site-symmetry
-vector ``p``, how many times each site irrep occurs at each Wyckoff position,
-that no symmetric deformation of the Wannier functions changes: two atomic
-configurations share every SRSI exactly when they deform into each other once
-the same atomic orbitals are added to both.  The integer-valued ones,
-``theta_Z``, are a function of the symmetry data vector, fractional exactly
-when the symmetry indicator is nonzero.  Those valued modulo n, ``theta_Zn``,
-are not, and tell apart atomic limits with the same symmetry data vector.
-Every set of invariants is held by name, ``theta_1``, ``theta_2``, ...
+r"""Stable real-space invariants: the tables, and their values on bands and models.
 
 The tables are those of Hwang et al., *Stable real-space invariants and
 topology beyond symmetry indicators*, Nat. Commun. **17**, 8564 (2026),
 https://doi.org/10.1038/s41467-026-74844-w, for the grey space groups with
-spin-orbit coupling and without, shipped with the package; the thirteen groups
-whose one invariant is the band count have none.
+spin-orbit coupling and without.  They ship with the package.  They hold no
+entry for the thirteen space groups whose one invariant is the band count.
+A record holds the integer-valued stable real-space invariants (ZSRSIs) in
+``theta_Z`` and those valued modulo n in ``theta_Zn``, where it has them, each
+under its name in the tables, ``theta_1``, ``theta_2`` and so on.
 
-- :func:`srsi_tables`, the tables of one group, whose ``theta`` evaluates them
-  on a configuration in hand and whose ``stably_equivalent`` holds the pairs of
-  site irreps no invariant tells apart;
-- :func:`srsi_of_bands`, the integer-valued invariants of a band set, from its
-  symmetry data vector, and :func:`srsi_of_model`, both kinds, from a model's
-  orbitals, a row for each Wyckoff orbit;
-- :func:`splitting`, the paper's no-go criterion on a gapped splitting of a
-  model's bands, with :func:`nsit_criterion`, the criterion on invariants in
-  hand, and :func:`atomic_realizations`, every atomic insulator with given
-  invariants;
-- :func:`srsi_status`, whether the tables are installed, and :data:`GATES`,
-  every refusal the calls here return;
-- :func:`canonical_determinism`, whether the paper's named indicators tell
-  every class of the indicator group apart.
+- :func:`srsi_tables`: the tables of one group, an :class:`SRSITables`.  Its
+  ``theta`` evaluates them on a site-symmetry vector, and its
+  ``stably_equivalent`` holds the pairs of site irreps no invariant tells
+  apart.
+- :func:`srsi_of_bands`: the ZSRSIs of a band set, from its symmetry data
+  vector.
+- :func:`srsi_of_model`: every invariant of a model, from its orbitals, a row
+  for each Wyckoff orbit.
+- :func:`splitting`: the no-go criterion of Hwang et al. on a gapped splitting
+  of a model's bands.  :func:`nsit_criterion` applies the criterion to
+  invariants in hand, and :func:`atomic_realizations` returns every atomic
+  realization of given ZSRSIs.
+- :func:`srsi_status`: whether the tables are installed.  :data:`GATES` holds
+  the refusals the calls here measure, each with what it measures.
+- :func:`canonical_determinism`: whether the named indicators of Hwang et al.
+  tell apart every class of a group's symmetry-indicator group.
 
-``docs/guide/srsi.md`` reads them on models.
+The guide page "What do the stable real-space invariants say about these
+bands?" (``docs/guide/srsi.md``) reads them on models.
 """
 
 from __future__ import annotations
@@ -76,12 +72,12 @@ __all__ = ["SRSITables", "SRSITablesNumerical", "IndicatorCheck", "Provenance",
 
 
 def _fractional(theta_z) -> bool:
-    """Whether any of a mapping of invariants is not a whole number."""
+    """Whether any value of ``theta_z``, invariants by name, is not a whole number."""
     return any(Fraction(value).denominator != 1 for value in theta_z.values())
 
 
 def _fields(record, **override) -> dict:
-    """The fields a record is built from, by name, ``override`` replacing some."""
+    """The values ``record`` is built from, ``{name: value}``, those in ``override`` replaced."""
     out = {f.name: getattr(record, f.name) for f in fields(record) if f.init}
     out.update(override)
     return out
@@ -93,25 +89,30 @@ def _fields(record, **override) -> dict:
 
 @dataclass(frozen=True)
 class BandSRSIsNumerical:
-    """The rational site-symmetry vector the invariants of a band set were evaluated on.
+    """A rational sum of elementary band representations, for a band set.
 
-    ``b.numerical`` of what :func:`srsi_of_bands` returns; :meth:`summary`
-    prints it.
+    The sum has the symmetry data vector of the band set, and it is one of
+    many sums that do.  Held in :attr:`BandSRSIs.numerical`.  ``summary()``
+    prints the sum.
 
     Attributes
     ----------
     p : dict
-        ``{(site irrep, Wyckoff position): multiplicity}``: one rational
-        combination of elementary band representations with the band set's
-        symmetry data vector, of many, its nonzero entries in the order of the
-        list of elementary band representations, keyed as
-        :meth:`SRSITables.theta` takes them.
+        The sum, ``{(site irrep, Wyckoff position): multiplicity}``, each
+        elementary band representation written as the site irrep inducing it.
+        Its multiplicities are rational, and the zeros are dropped.  Its keys
+        are those :meth:`SRSITables.theta` takes, in the order of the group's
+        list of elementary band representations.
     """
 
     p: dict
 
     def summary(self) -> str:
-        """The combination, in the paper's form."""
+        """The sum on one line.
+
+        Each term is written ``m (irrep)_w``, with ``m`` the multiplicity and
+        ``w`` the Wyckoff letter.
+        """
         return ("one rational combination of elementary band representations with this "
                 "symmetry data vector, of many: "
                 + _signed((value, f"({irrep})_{wyckoff.lstrip('0123456789')}")
@@ -121,24 +122,26 @@ class BandSRSIsNumerical:
 
 @dataclass(frozen=True)
 class BandSRSIs:
-    r"""The integer-valued stable real-space invariants of a band set, read off its symmetry data vector.
+    r"""The integer-valued stable real-space invariants (ZSRSIs) of a band set.
 
-    What :func:`srsi_of_bands` returns; :meth:`summary` prints it, and :meth:`line`
-    puts it on one line.  It holds no invariants valued modulo n: those are no
-    function of the symmetry data vector.
+    The record :func:`srsi_of_bands` returns.  ``summary()`` prints the ZSRSIs,
+    whether they are fractional, and the symmetry-indicator class.
+    :meth:`line` prints the same on one line.  The record holds no stable
+    real-space invariants valued modulo n, which the symmetry data vector does
+    not fix.
 
     Attributes
     ----------
     theta_Z : dict
-        ``{name: value}``: the invariants, exact fractions, in the tables'
-        order; fractional exactly where the symmetry indicator is nonzero, the
-        band set stable topological.
-    indicator : ..ebr.SymmetryIndicator
+        The ZSRSIs, ``{name: value}``, as exact fractions in the order of the
+        tables.
+    indicator : .ebr.SymmetryIndicator
         The symmetry-indicator class of the same bands.
-    group : ..groups.GroupData
-        The group the bands were read in.
+    group : .groups.GroupData
+        The group the symmetry data vector was read in.
     numerical : BandSRSIsNumerical
-        The rational site-symmetry vector the invariants were evaluated on.
+        The rational sum of elementary band representations the ZSRSIs were
+        computed from.
     """
 
     theta_Z: dict
@@ -147,7 +150,7 @@ class BandSRSIs:
     numerical: Any = field(repr=False)
 
     def summary(self) -> str:
-        """The invariants, one per line, then whether they are fractional and the class, a line each."""
+        """The ZSRSIs, whether they are fractional, and the class, a line each."""
         lines = [f"{_group(self.group)}: the Z-valued stable real-space invariants of the "
                  "bands   (.group, .theta_Z)"]
         lines += [f"  {name:>9s} = {str(value):>8s}" for name, value in self.theta_Z.items()]
@@ -158,11 +161,14 @@ class BandSRSIs:
         return "\n".join(lines)
 
     def line(self) -> str:
-        """The record on one line, for a table of band sets: the invariants, whether they are fractional, and the class.
+        """The record on one line, for a table of band sets.
 
-        ``theta_1 to theta_8 = (-1/4, 0, 1/2, 1, 1/4, -1/2, -1/4, 1/4),
-        fractional; class (0, 1) in Z2 x Z4, of order 4``; a trivial indicator
-        group or a zero class is named.
+        The line holds the ZSRSIs, whether they are fractional, and the
+        symmetry-indicator class.  A trivial indicator group and a zero class
+        are named as such.  For the two lowest bands of Fu, Kane and Mele's
+        diamond with one bond detuned, ``theta_1 to theta_8 = (-1/4, 0, 1/2,
+        1, 1/4, -1/2, -1/4, 1/4), fractional; class (0, 1) in Z2 x Z4, of
+        order 4``.
         """
         out = (f"{_invariants_text(self.theta_Z)}, "
                + ("fractional" if _fractional(self.theta_Z) else "integral"))
@@ -181,53 +187,86 @@ class BandSRSIs:
 
 
 def srsi_of_bands(symmetry_data, realized=None) -> BandSRSIs | Refusal:
-    r"""The integer-valued stable real-space invariants of a band set, from its symmetry data vector.
+    r"""The integer-valued stable real-space invariants (ZSRSIs) of a band set.
 
-    They are the invariants of a rational site-symmetry vector ``p`` with the band
-    set's symmetry data vector, every such ``p`` giving the same ones, and they are
-    fractional exactly when the symmetry indicator is nonzero.  The invariants
-    valued modulo n are no function of the symmetry data vector, so none are
-    returned; :func:`srsi_of_model` reads them off a model's orbitals.
+    The ZSRSIs are fixed by the symmetry data vector of the bands.  They are
+    computed by writing the symmetry data vector as a rational sum of
+    elementary band representations and applying to it the linear map
+    :meth:`SRSITables.theta`.  The SRSIs valued modulo n are not fixed by the
+    symmetry data vector and are not returned; :func:`srsi_of_model` computes
+    them for a full model.
 
     Parameters
     ----------
-    symmetry_data : ..sewing.HSPTable or mapping
-        The table :func:`..sewing.hsp_table` returns, which must be complete,
-        or ``{corep: multiplicity}`` written out by hand, as
-        :func:`..ebr.symmetry_indicator` takes it.
-    realized : ..groups.RealizedGroup, optional
-        What :func:`..groups.realized_group` returned, ``r``, the measurement
-        the coreps came from, in a grey group with tables.  Pass it beside a
-        vector written out by hand, and with a table nothing.
+    symmetry_data : .sewing.HSPTable or mapping
+        The symmetry data vector.  Pass the table :func:`.sewing.hsp_table`
+        returns, or ``{corep: multiplicity}`` written out by hand.
+    realized : .groups.RealizedGroup, optional
+        What :func:`.groups.realized_group` returned for the model the
+        symmetry data vector was measured on.  Pass it with a vector written
+        out by hand, and nothing with a table.
 
     Returns
     -------
     BandSRSIs or Refusal
-        ``out.summary()`` prints the invariants, whether they are fractional, and
-        the symmetry-indicator class, and ``out.line()`` the same on one line;
-        ``out.theta_Z`` holds the invariants by name and ``out.indicator`` the
-        class.  A ``Refusal`` in its place is falsy.
+        The ZSRSIs of the band set by name, the symmetry-indicator class of
+        the same bands, and the rational sum of elementary band
+        representations the ZSRSIs were computed from.
+
+    Examples
+    --------
+    The six lowest bands of lin3g (:func:`.models.lin3g`):
+
+    >>> print(srsi_of_bands(hsp_table(r, bands=6)).line())        # doctest: +SKIP
+    theta_1 to theta_3 = (1, 1, 1), integral; trivial indicator group
 
     Refusals
     --------
     A refusal handed in as ``realized`` is returned as it is.
 
-    ``srsi_scope``, ``srsi_table_absent``, ``srsi_data``, ``srsi_ebr_basis``
-        from :func:`srsi_tables`: the group has no tables.
-    ``incomplete_content``, ``not_a_band_structure``, ``indicator_not_evaluable``
-        from :func:`..ebr.symmetry_indicator`, with the refusals of the
-        symmetry data vector it reads.
+    ``srsi_scope`` / ``srsi_table_absent``
+        the tables hold no stable real-space invariants of the group: it is
+        not grey, or it is one of the thirteen space groups whose one
+        invariant is the band count.
+    ``srsi_data`` / ``srsi_ebr_basis``
+        the tables of the stable real-space invariants are not installed, or
+        were converted against another list of elementary band
+        representations than the one installed.
+    ``incomplete_content``
+        the table holds no little-group representations at some high-symmetry
+        point, for example where the bands split a degenerate multiplet.
+    ``not_a_band_structure``
+        the vector fails the compatibility relations of the group.
+    ``indicator_not_evaluable``
+        the bands are a layer's, and some of their little-group
+        representations at ``k_z = 1/2`` could not be read.  For each of these,
+        no little-group representation in the layer's plane occurs as often as
+        it does in every elementary band representation.  For a table, their
+        measurement on the layer's decoupled stack stopped.  For a vector
+        written out by hand, the Wyckoff positions of the tables cannot be
+        read in the group's cell.
+    ``unknown_label``
+        the vector names a little-group representation that the group's
+        elementary band representations do not carry.
+    ``non_integer_multiplicity`` / ``negative_multiplicity``
+        an entry of the vector is not a nonnegative integer.
+    ``ebr_tables`` / ``irrep_tables`` / ``ebr_convention`` / ``tables_not_ready``
+        the tables installed hold no elementary band representations of this
+        group that can be read in the model's cell.
 
     Raises
     ------
     TypeError
-        A table with anything beside it, a vector written out by hand with
-        nothing beside it, a second argument that is not what
-        :func:`..groups.realized_group` returned, or a first that is neither a
-        table nor a mapping.
-    ..refusal.InternalError
-        The rational solve does not reproduce the symmetry data vector it was built
-        from: a defect to report.
+        A table with ``realized`` beside it, a vector written out by hand
+        without it, a ``realized`` that is not what
+        :func:`.groups.realized_group` returned, or a ``symmetry_data`` that is
+        neither a table nor a mapping.
+
+    See Also
+    --------
+    srsi_of_model : the stable real-space invariants of a model's orbitals,
+        those valued modulo n among them.
+    atomic_realizations : every atomic realization of given ZSRSIs.
     """
     source = _ebr._read("srsi_of_bands", symmetry_data, realized)
     if isinstance(source, Refusal):
@@ -236,18 +275,29 @@ def srsi_of_bands(symmetry_data, realized=None) -> BandSRSIs | Refusal:
 
 
 def _srsi_of_bands(symmetry_data, group, *, rep=None) -> BandSRSIs | Refusal:
-    """What :func:`srsi_of_bands` returns for a vector read in ``group``, with the site irreps and heights of ``rep`` where it is given; a table is read in what it carries."""
+    """What :func:`srsi_of_bands` returns, for a vector read in a group given directly.
+
+    ``symmetry_data`` is the table :func:`.sewing.hsp_table` returns, read in
+    the group and representation it carries, or ``{corep: multiplicity}``,
+    read in ``group``.  ``rep``, beside a vector, gives the site irreps and,
+    on a layer, the orbitals' heights.  Returns the :class:`BandSRSIs`, or the
+    refusal, as :func:`srsi_of_bands` does.
+    """
     return _band_srsis(_ebr._source_of(symmetry_data, group, rep), symmetry_data)
 
 
 def _band_srsis(source, symmetry_data) -> BandSRSIs | Refusal:
-    """What :func:`srsi_of_bands` returns for ``symmetry_data`` read in ``source``."""
+    """What :func:`srsi_of_bands` returns for ``symmetry_data`` read in ``source``.
+
+    ``source`` holds the group and the representation the symmetry data vector
+    is read in, as :func:`.ebr._read` or :func:`.ebr._source_of` gives it.
+    """
     group = source.group
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
-    tables = srsi_tables(group)          # a measured GroupData, not an SRSITables:
-    if not tables:                       # the momentum-space half needs the group
+    tables = srsi_tables(group)          # read from the measured group, which
+    if not tables:                       # the indicator below reads as well
         return tables
     si = _ebr._indicator_in(source, symmetry_data)
     if not si:
@@ -262,11 +312,9 @@ def _band_srsis(source, symmetry_data) -> BandSRSIs | Refusal:
              for i in range(n_row)]
     if check != [Fraction(int(x)) for x in si._y]:
         raise InternalError(
-            f"#{group.number_str}: the rational solve of BR.p = y does not reproduce "
-            "the symmetry data vector it was built from, though the compatibility relations "
-            "hold (symmetry_indicator checked them). The Smith factors and the EBR "
-            "matrix this package returns are not a decomposition of each other, which "
-            "is arithmetic here failing rather than a measurement about the model.")
+            f"#{group.number_str}: the rational sum of elementary band representations "
+            "found for the symmetry data vector does not reproduce it. "
+            "Report it, with the model and the call.")
     got = tables._theta_columns(p)
     named = {}
     for (name, position), value in zip(data["ebrs"], p):
@@ -283,25 +331,37 @@ def _band_srsis(source, symmetry_data) -> BandSRSIs | Refusal:
 
 @dataclass(frozen=True, eq=False, repr=False)
 class Localization(BandRepresentation):
-    """One decomposition of a Wyckoff orbit's symmetry data vector into elementary band representations at one position.
+    """One decomposition of a Wyckoff orbit's symmetry data vector at one position.
 
-    A sum of term rows, as :class:`..symmetry.BandRepresentation` is: iterating,
-    indexing and ``len()`` go over :attr:`terms`, and two sums are equal where
-    their terms are.  An entry of ``o.numerical.localizations``.
+    The decomposition is a sum of elementary band representations at one
+    Wyckoff position, each written as the site irrep inducing it.  Each row
+    :func:`srsi_of_model` returns holds its decompositions in
+    ``numerical.localizations``, and they all have the same stable real-space
+    invariants.  A localization is a sum of terms, as
+    :class:`.symmetry.BandRepresentation` is.  Iterating, indexing and
+    ``len()`` go over :attr:`terms`.  Two sums with the same terms compare
+    equal.
 
     Attributes
     ----------
-    terms : tuple of ..groups.Term
-        The elementary band representations, each a site irrep at
-        :attr:`wyckoff`; empty for a row whose site irreps induce a composite
-        band representation, whose site irreps ``o.numerical.composite``
-        holds.
+    terms : tuple of .groups.Term
+        If nonempty, the elementary band representations, each a site irrep
+        at :attr:`wyckoff` with its multiplicity.  Empty where the row's
+        stable real-space invariants are read from its own site irreps,
+        ``numerical.composite``, which induce a band representation that is
+        not elementary.
     label : str
-        The sum as the paper writes it, ``"1 (-E1g)_a + 1 (-E1u)_a"``.
+        The sum on one line, ``"1 (-E1g)_a + 1 (-E1u)_a"``.  Each term is
+        written ``m (irrep)_w``, with ``m`` the multiplicity and ``w`` the
+        Wyckoff letter.
     wyckoff : str
-        The position decomposed at, ``"3a"``.
-    theta_Z, theta_Zn : dict
-        Its invariants, by name; the same for every localization of a row.
+        The Wyckoff position of the terms, ``"3a"``.
+    theta_Z : dict
+        The integer-valued stable real-space invariants of the sum,
+        ``{name: value}``.
+    theta_Zn : dict
+        If nonempty, the stable real-space invariants valued modulo n of the
+        sum, ``{name: ModularValue}``.  Empty where the group has none.
     """
 
     wyckoff: str = field(default="", compare=False)
@@ -311,36 +371,45 @@ class Localization(BandRepresentation):
 
 @dataclass(frozen=True, repr=False)
 class WyckoffOrbitSRSIsNumerical(WyckoffOrbitNumerical):
-    """How a Wyckoff orbit's invariants were read: its symmetry data vector, and every decomposition of it.
+    """The decompositions behind one Wyckoff orbit's stable real-space invariants.
 
-    ``o.numerical`` of a row of ``mo.wyckoff_orbits``: what the row of
-    ``r.wyckoff_orbits`` holds there, and the fields below.
+    Held in ``WyckoffOrbitSRSIs.numerical``.  It holds every field of the
+    ``numerical`` of the same orbitals' row of the atomic-limit table
+    ``r.wyckoff_orbits``, with ``r`` what :func:`.groups.realized_group`
+    returned.  It also holds the fields below.
 
     Attributes
     ----------
     localizations : tuple of Localization
-        Every decomposition of the row's symmetry data vector into elementary
-        band representations at a position of ``o.slides_onto``; all give the
-        same invariants.
+        Every decomposition of :attr:`symmetry_data` into elementary band
+        representations at one Wyckoff position the orbitals can slide onto.
+        For a row with :attr:`composite`, one entry with no terms.
     chosen : Localization
-        The one returned, the first of :attr:`localizations`.
-    stably_equivalent : tuple of ..srsi.StablePair
-        The tables' pairs of site irreps no invariant tells apart that the
-        decompositions at one position use.
-    composite : tuple of ..groups.Term or None
-        The site irreps read off the representation at the row's own
-        position, for a row whose band representation is no sum the list of
-        elementary band representations carries; ``None`` otherwise.
+        The first of :attr:`localizations`.  The row's stable real-space
+        invariants are read from it.
+    stably_equivalent : tuple of StablePair
+        If nonempty, the pairs of site irreps that no stable real-space
+        invariant tells apart and whose two members are both used among the
+        localizations at a position that has several.
+    composite : tuple of .groups.Term or None
+        If not ``None``, the row's site irreps at its own position, which
+        induce a band representation that is not elementary but a sum of
+        elementary ones at other positions.  It is set where no sum of
+        elementary band representations at any one position the orbitals can
+        slide onto carries the row's symmetry data vector.  The row's stable
+        real-space invariants are read from these site irreps.
     agree : bool
-        Whether every localization gives the same invariants; localizations
-        that disagree raise :class:`~..refusal.InternalError`.
+        Whether every localization gives the same stable real-space
+        invariants, which holds in every record returned.
     symmetry_data : dict
-        ``{corep: multiplicity}``: the coreps the row's states carry, measured
-        at :attr:`kpoints`.
+        The symmetry data vector of the row's own orbitals,
+        ``{corep: multiplicity}``, measured at :attr:`kpoints`.
     kpoints : tuple of str
-        The high-symmetry points they were measured at.
+        The high-symmetry points at which :attr:`symmetry_data` was measured.
+        A point whose little group has no unitary operation besides the
+        identity is left out.
     n_free : int
-        The free parameters of the row's Wyckoff position.
+        The number of free coordinates of the row's Wyckoff position.
     """
 
     localizations: tuple = ()
@@ -357,19 +426,28 @@ class WyckoffOrbitSRSIsNumerical(WyckoffOrbitNumerical):
 class WyckoffOrbitSRSIs(WyckoffOrbit):
     """One Wyckoff orbit of a model's orbitals, with its stable real-space invariants.
 
-    A row of ``mo.wyckoff_orbits``: the row of ``r.wyckoff_orbits`` for the
-    same orbitals, its fields the same values, and the fields below.
+    A row of the ``wyckoff_orbits`` that :func:`srsi_of_model` returns.  It
+    holds every field of the same orbitals' row of the atomic-limit table
+    ``r.wyckoff_orbits``, with ``r`` what :func:`.groups.realized_group`
+    returned, and with the same values.  Among them are ``wyckoff``,
+    ``site_symmetry``, ``orbitals`` and ``terms``.  It also holds the fields
+    below.
 
     Attributes
     ----------
     theta_Z : dict
-        ``{name: value}``: the row's integer-valued invariants.
+        The row's integer-valued stable real-space invariants,
+        ``{name: value}``.
     theta_Zn : dict
-        ``{name: ModularValue}``: its invariants valued modulo n.
+        If nonempty, the row's stable real-space invariants valued modulo n,
+        ``{name: ModularValue}``.  Empty where the group has none.
     slides_onto : tuple of str
-        The positions the tables list elementary band representations at that
-        the orbitals can slide onto along their variety, ``("3a", "3b")``; the
-        row's own among them where the tables list one there.
+        The Wyckoff positions the orbitals can slide onto, and at which the
+        tables list elementary band representations, ``("3a", "3b")``.  The
+        orbitals slide over the points the free coordinates of their Wyckoff
+        position sweep, and so onto the positions of higher symmetry among
+        them.  The row's own position is among those returned where the
+        tables list one there.
     """
 
     theta_Z: dict = field(default_factory=dict)
@@ -378,30 +456,38 @@ class WyckoffOrbitSRSIs(WyckoffOrbit):
 
 
 def _slides(row) -> bool:
-    """Whether a row's invariants are read at a position its orbitals slide onto rather than at its own."""
+    """Whether ``row`` is read at positions its orbitals slide onto, not at its own.
+
+    ``row`` is a :class:`WyckoffOrbitSRSIs`.  True where it is not read through
+    composite site irreps and its own position is not in ``row.slides_onto``.
+    """
     return row.numerical.composite is None and row.wyckoff not in row.slides_onto
 
 
 @dataclass(frozen=True)
 class ModelSRSIs:
-    r"""A model's stable real-space invariants, read off its orbitals, a row for each Wyckoff orbit.
+    r"""The stable real-space invariants of a model, a row for each Wyckoff orbit.
 
-    What :func:`srsi_of_model` returns; :meth:`summary` prints it.  A model is an
-    atomic configuration: its invariants are whole numbers, and those valued
-    modulo n are its own.
+    The record :func:`srsi_of_model` returns.  ``summary()`` prints the
+    model's stable real-space invariants (SRSIs), then each Wyckoff orbit's.
+    The model's orbitals are an atomic configuration, so its integer-valued
+    SRSIs are integers.  Its SRSIs valued modulo n are returned too.
 
     Attributes
     ----------
     theta_Z : dict
-        ``{name: value}``: the integer-valued invariants, summed over the rows;
-        the same as :func:`srsi_of_bands` on all the model's bands.
+        The integer-valued SRSIs, ``{name: value}``, summed over the rows.
+        They equal those :func:`srsi_of_bands` returns for all the model's
+        bands.
     theta_Zn : dict
-        ``{name: ModularValue}``: the invariants valued modulo n, summed modulo
-        each n.
-    group : ..groups.GroupData
-        The group they were read in, ``r.group``.
+        If nonempty, the SRSIs valued modulo n, ``{name: ModularValue}``,
+        summed over the rows modulo each n.  Empty where the group has none.
+    group : .groups.GroupData
+        The group the SRSIs were read in, the one
+        :func:`.groups.realized_group` returned.
     wyckoff_orbits : tuple of WyckoffOrbitSRSIs
-        A row for each Wyckoff orbit, in the order of ``r.wyckoff_orbits``.
+        A row for each Wyckoff orbit, in the order of the rows of the
+        atomic-limit table that :func:`.groups.realized_group` returned.
     """
 
     theta_Z: dict
@@ -410,7 +496,7 @@ class ModelSRSIs:
     wyckoff_orbits: tuple = ()
 
     def summary(self) -> str:
-        """The invariants, then each Wyckoff orbit's, a line each."""
+        """The model's SRSIs, then each Wyckoff orbit's, a line each."""
         lines = [f"{_group(self.group)}: stable real-space invariants   (.group)",
                  f"  the whole model: {_invariants_text(self.theta_Z, self.theta_Zn)}"
                  + ("   (.theta_Z, .theta_Zn)" if self.theta_Zn else "   (.theta_Z)")]
@@ -438,22 +524,30 @@ class ModelSRSIs:
 
 
 def _unpack_realized(realized, call):
-    """``(model, group, assignment, rep)`` of what :func:`..groups.realized_group` returned.
+    """The model, group, orbital assignment and representation of ``realized``.
 
-    ``TypeError`` for anything else, ``call`` naming the call in its message.
+    ``realized`` is what :func:`.groups.realized_group` returned, and ``call``
+    the name of the call it was handed to.  Returns ``(model, group,
+    assignment, rep)``.  Raises ``TypeError``, its message opening on
+    ``call``, for anything else.
     """
     from ._realized import RealizedGroup
 
     if isinstance(realized, RealizedGroup):
         return (realized.model, realized.group, realized._assignment, realized.rep)
-    raise TypeError(f"{call}(): pass what realized_group returns, r, not a tuple of its "
-                    "parts" if isinstance(realized, (tuple, list)) else
-                    f"{call}(): pass what realized_group returns, r; got a "
-                    f"{type(realized).__name__}")
+    raise TypeError(f"{call}(): realized= is of type {type(realized).__name__}; pass "
+                    "what realized_group returns, whole." if isinstance(realized, (tuple, list))
+                    else f"{call}(): realized= is of type {type(realized).__name__}; pass "
+                    "what realized_group returns.")
 
 
 def _list_positions(data) -> dict:
-    """``{letter: "3a"}``: each letter the list of elementary band representations names, with its multiplicity."""
+    """The positions of the elementary band representations, by Wyckoff letter.
+
+    ``data`` is the group's list of elementary band representations, as
+    :func:`._tables._ebr_data` returns it.  Returns ``{letter: position}``,
+    each position with its multiplicity, ``{"a": "3a"}``.
+    """
     out = {}
     for _name, position in data["ebrs"]:
         match = _POSITION.match(str(position))
@@ -461,40 +555,34 @@ def _list_positions(data) -> dict:
     return out
 
 def _orbit_content(group, rep, rows):
-    r"""The symmetry content of one block of **states**, measured.
+    r"""The symmetry data vector of one block of states, measured.
 
-    ``rows`` are state indices (``orbital * nspin + spin``); the content is
-    :func:`_orbit_contents` of that one block.
-
-    Returns ``(counts, points, refusals)``; ``counts`` is ``None`` when the
-    group has no usable high-symmetry point list, and ``refusals`` is then the
-    refusal itself.
+    :func:`_orbit_contents` of ``group`` and ``rep`` for the one block
+    ``rows``, state indices ``orbital * nspin + spin``.  Returns its
+    ``(counts, points, refusals)``.
     """
     return _orbit_contents(group, rep, [rows])[0]
 
 def _orbit_contents(group, rep, blocks):
-    r"""The symmetry content of each block of **states**, measured.
+    r"""The symmetry data vector of each block of states, measured.
 
-    Each block is a list of state indices (``orbital * nspin + spin``).  At
-    every tabulated high-symmetry point with a non-trivial little group, the
-    character of a block under each unitary little-group operation is the trace
-    of that operation's **sewing operator** restricted to the block,
-    ``trace(rep.sewing_operator(ind, k)[rows, rows])``, and
-    :func:`..groups.identify_from_characters` turns those characters into corep
-    multiplicities against the group's own transported tables.  Each operator
-    is built once, and every block is read off it.
+    ``blocks`` holds lists of state indices, ``orbital * nspin + spin``, and
+    ``rep`` is the representation of ``group`` on the states.  At each
+    tabulated high-symmetry point whose little group has a unitary operation
+    besides the identity, a block's character under each unitary little-group
+    operation is the trace of that operation's sewing operator over the
+    block's rows.  :func:`._tables._identify_from_characters` turns the
+    characters into the multiplicities of the little-group representations.
+    The orbitals' centers are assumed to sit where the operations carry them,
+    to the tolerance of :func:`._matrices.bloch_operator`, which raises
+    ``ValueError`` otherwise.
 
-    ``sewing.characters`` and ``sewing.hsp_table`` are deliberately *not* used
-    here: they gate on the supplied states diagonalizing ``H(k)``, which is what
-    makes them honest about a band block — and a block of *orbitals* is not a
-    block of bands.  The gate stays where it is; this route computes the same
-    trace on a set of states whose meaning is already fixed.  The operators
-    check the orbitals' positions at their own tolerance
-    (:func:`..symmetry.bloch_operator`'s ``tol``), as every other use of them does.
-
-    Returns one ``(counts, points, refusals)`` per block; ``counts`` is ``None``
-    when the group has no usable high-symmetry point list, and ``refusals`` is
-    then the refusal itself.
+    Returns one ``(counts, points, refusals)`` per block: ``{corep:
+    multiplicity}`` over the points read; those points' names; and
+    ``{point: why}`` for each point not read, ``why`` a refusal, or a string
+    where the little group is trivial.  Where the group's high-symmetry
+    points cannot be read, ``counts`` and ``points`` are ``None`` and
+    ``refusals`` is that refusal.
     """
     blocks = [list(rows) for rows in blocks]
     points_map = _tables._high_symmetry_points(group)
@@ -534,21 +622,35 @@ def _orbit_contents(group, rep, blocks):
     return [(counts, tuple(points), refusals) for counts, points, refusals in read]
 
 def _solve_at_letter(data, counts, points, letter, bound, cap=64, bands=None):
-    """Nonnegative-integer decompositions of a block's content at one letter.
+    """The decompositions of a block's symmetry data vector at one Wyckoff letter.
 
-    :func:`_solve_at_letters` at that one letter.
+    :func:`_solve_at_letters` at the one ``letter``.  ``data``, ``counts``,
+    ``points``, ``bound``, ``cap`` and ``bands``, and what is returned, are
+    as it has them.
     """
     return _solve_at_letters(data, counts, points, (letter,), bound, cap, bands)
 
 def _solve_at_letters(data, counts, points, letters, bound, cap=64, bands=None):
-    """Nonnegative-integer decompositions of a block's content at some letters.
+    """The nonnegative-integer decompositions of a block's symmetry data vector.
 
-    The EBR matrix restricted twice: to the columns induced from ``letters``,
-    and to the rows at the k-points the content was identified at (a 2D model
-    in a 3D group has no out-of-plane rows to compare).  With ``bands``, the
-    block's band count is one more equation: the one a content read at no
-    point still fixes, in a group whose every little group is the identity
-    alone.  ``ebr._cpsat`` enumerates, and reports its own status.
+    ``data`` is the group's list of elementary band representations
+    (:func:`._tables._ebr_data`), ``counts`` the block's symmetry data vector,
+    ``{corep: multiplicity}``, and ``points`` the high-symmetry points it was
+    read at.  The matrix of elementary band representations is restricted to
+    the columns at the Wyckoff letters ``letters`` and to the rows at
+    ``points``, so that a layer's rows out of its plane are not compared.
+    With ``bands``, the block's number of bands is one more equation.  It is
+    the only one where no point is read, as in a group whose little groups
+    hold no unitary operation besides the identity.  Each multiplicity runs
+    from 0 to ``bound``.  The enumeration stops at ``cap`` decompositions, and
+    whether it stopped is not returned.
+
+    Returns ``(status, solutions, columns, keep)``: the solver's status, such
+    as ``"INFEASIBLE"``; the decompositions, each the multiplicities over
+    ``columns``, the fewest elementary band representations first; the
+    indices of those columns; and the indices of the rows kept.  The status is
+    ``"INFEASIBLE"``, with no decomposition, where no column is at
+    ``letters``, or no row is kept and ``bands`` is ``None``.
     """
     labels = list(data["labels_physics_convention"])
     keep = [i for i, label in enumerate(labels)
@@ -567,56 +669,86 @@ def _solve_at_letters(data, counts, points, letters, bound, cap=64, bands=None):
     return status, solutions, columns, keep
 
 def srsi_of_model(realized) -> "ModelSRSIs | Refusal":
-    """A model's stable real-space invariants, read off its orbitals, a row for each Wyckoff orbit.
+    """The stable real-space invariants of a model, a row for each Wyckoff orbit.
 
-    Each Wyckoff orbit's symmetry data vector is measured on its own orbitals
-    and decomposed into elementary band representations at its Wyckoff position
-    or, where the tables list none there, at a position its orbitals slide onto;
-    a row's invariants are that decomposition's, and the model's their sum.  A
-    model's orbitals are a known configuration, so both kinds are returned.
+    The symmetry data vector of each Wyckoff orbit is measured on its own
+    orbitals, from the trace of each little-group operation over them at each
+    high-symmetry point.  It is decomposed into elementary band
+    representations at each Wyckoff position that the orbitals can slide onto
+    by varying the free coordinates of their own, and at which the tables
+    list elementary band representations.  Their own position is among these
+    where the tables list one there.  A row of a spinless model whose
+    symmetry data vector has no such decomposition is given the stable
+    real-space invariants of its own site irreps, each identified with one
+    the tables list at its position, in ``SRSITables.site_irreps``.  The
+    stable real-space invariants (SRSIs) of a row are those of its
+    decompositions, all of which agree, and the model's are the sum over the
+    rows.  The orbitals are a known configuration, so the SRSIs valued modulo
+    n are returned with the integer-valued ones.
 
     Parameters
     ----------
-    realized : ..groups.RealizedGroup
-        What :func:`..groups.realized_group` returned, ``r``.
+    realized : .groups.RealizedGroup
+        What :func:`.groups.realized_group` returned for the model.
 
     Returns
     -------
     ModelSRSIs or Refusal
-        ``out.summary()`` prints the invariants and each row's; ``out.theta_Z``
-        and ``out.theta_Zn`` hold the model's, by name, and
-        ``out.wyckoff_orbits`` a row for each Wyckoff orbit, the row of
-        ``r.wyckoff_orbits`` with its invariants.  A ``Refusal`` in its place is
-        falsy.
+        The model's integer-valued SRSIs and its SRSIs valued modulo n, by
+        name, and a row for each row of ``realized.wyckoff_orbits`` with its
+        own SRSIs and its decompositions.
+
+    Examples
+    --------
+    lin3g (:func:`.models.lin3g`), with three Wyckoff orbits:
+
+    >>> print(srsi_of_model(r).summary())                     # doctest: +SKIP
+    P4mm1' #99.164, double-valued: stable real-space invariants   (.group)
+      the whole model: theta_1 to theta_3 = (2, 2, 0); theta_4, theta_5 = (0, 1) mod 2   (.theta_Z, .theta_Zn)
+      each Wyckoff orbit, its site irreps written m (irrep)_w, with theta_1 to theta_3 and theta_4, theta_5 mod 2   (.wyckoff_orbits)
+        1a (4mm1'): orbital 0, 1 (-E1)_a: (0, 1, 0); (0, 0) mod 2
+        1a (4mm1'): orbital 1, 1 (-E2)_a: (1, 0, 0); (0, 0) mod 2
+        2c (mm21'): orbitals 2-3, 1 (-E)_c: (1, 1, 0); (0, 1) mod 2
+
+    Refusals
+    --------
+    A refusal handed in as ``realized`` is returned as it is.
+
+    ``srsi_scope`` / ``srsi_table_absent``
+        the tables hold no SRSIs of the group: it is not grey, or it is one of
+        the thirteen space groups whose one invariant is the band count.
+    ``srsi_data`` / ``srsi_ebr_basis``
+        the tables of the SRSIs are not installed, or were converted against
+        another list of elementary band representations than the one
+        installed.
+    ``ebr_tables`` / ``irrep_tables`` / ``ebr_convention`` / ``tables_not_ready``
+        the tables installed hold no elementary band representations of this
+        group that can be read in the model's cell.
+    ``wyckoff_orbit_content_incomplete``
+        the symmetry data vector of a Wyckoff orbit could not be read at some
+        high-symmetry point.
+    ``wyckoff_orbit_not_localizable``
+        no sum of elementary band representations at any one position the
+        orbitals of a Wyckoff orbit can slide onto carries its symmetry data
+        vector.  The model is spinful, or one of the orbit's site irreps could
+        not be identified with a site irrep the tables list at its position.
+    ``wyckoff_setting`` / ``wyckoff_unresolved``
+        the Wyckoff position of a Wyckoff orbit read from its centers differs
+        from the one at which its symmetry data vector is a sum of elementary
+        band representations, or the positions could not be read in the
+        setting of the tables.
 
     Raises
     ------
     TypeError
-        ``realized`` is not what :func:`..groups.realized_group` returned.
-    ..refusal.InternalError
-        Two localizations of one Wyckoff orbit give different invariants: a
-        defect to report.
+        ``realized`` is not what :func:`.groups.realized_group` returned.
 
-    Refusals
+    See Also
     --------
-    ``srsi_scope``, ``srsi_table_absent``, ``srsi_data``, ``srsi_ebr_basis``
-        from :func:`srsi_tables`: the group has no tables.
-    ``wyckoff_orbit_content_incomplete``
-        a Wyckoff orbit's symmetry data vector could not be read at a
-        high-symmetry point.
-    ``wyckoff_orbit_not_localizable``
-        a Wyckoff orbit's symmetry data vector is a band representation of no
-        position its orbitals can slide onto.
-    ``wyckoff_setting``
-        the symmetry data vector decomposes at a position the geometry says the
-        orbitals are not at: the package disagreeing with itself, a case to
-        report.
-    ``tables_not_ready``, ``wyckoff_unresolved``, ``ebr_tables``
-        from :func:`..groups.wyckoff_sites_tables` and :func:`..groups.ebr_data`.
-
-    Examples
-    --------
-    >>> print(srsi_of_model(realized).summary())             # doctest: +SKIP
+    srsi_of_bands : the integer-valued SRSIs of a band set, from its symmetry
+        data vector.
+    nsit_criterion : the no-go criterion on a gapped splitting, from the SRSIs
+        of all the bands and of each side.
     """
     if isinstance(realized, Refusal):
         return realized
@@ -655,9 +787,10 @@ def srsi_of_model(realized) -> "ModelSRSIs | Refusal":
             name, why = sorted(hard.items())[0]
             return Refusal(
                 "wyckoff_orbit_content_incomplete",
-                f"the Wyckoff orbit of orbitals {list(orbitals)} at {row.wyckoff} could not "
-                f"be identified at {name} of #{group.number_str}: "
-                f"{getattr(why, 'reason', why)}. Its symmetry data vector is incomplete.",
+                f"the symmetry data vector of the Wyckoff orbit of orbitals {list(orbitals)} "
+                f"at {row.wyckoff} of #{group.number_str} could not be read at {name}. "
+                "The refusal there, in context['refusal'], says: "
+                f"{getattr(why, 'reason', why)}",
                 context={"orbit": index, "orbitals": orbitals, "kpname": name,
                          "refusal": why, "identified": points,
                          "refusals": tuple(sorted(refusals, key=_tables.point_order))})
@@ -667,10 +800,8 @@ def srsi_of_model(realized) -> "ModelSRSIs | Refusal":
         if len(letters) != 1:                     # pragma: no cover - guard
             raise InternalError(
                 f"#{group.number_str}: the sites of the Wyckoff orbit of orbitals "
-                f"{list(orbitals)} sit on different Wyckoff letters {sorted(letters)} in "
-                "the tables' reference cell, though they are one orbit of the group's own "
-                "action. The orbit structure and the reference-cell letters cannot both be "
-                "right.")
+                f"{list(orbitals)} are at different Wyckoff letters {sorted(letters)} in "
+                "the setting of the tables. Report it, with the model and the call.")
         here = geometry[0]
         where = f"{here.multiplicity}{here.letter}"
 
@@ -713,17 +844,16 @@ def srsi_of_model(realized) -> "ModelSRSIs | Refusal":
                     "wyckoff_orbit_not_localizable",
                     f"the Wyckoff orbit of orbitals {list(orbitals)} at {where} of "
                     f"#{group.number_str}: "
-                    + ("no position the tables list elementary band representations "
-                       "at lies on the closure of its variety, so there is nowhere "
-                       "to localize it at all"
+                    + ("the tables list elementary band representations at no position "
+                       "its orbitals can slide onto"
                        if not tried else
-                       f"its measured symmetry data vector {counts} is not a sum of the "
-                       "elementary band representations at "
+                       f"its symmetry data vector {counts} is not a sum of elementary band "
+                       "representations at any one position its orbitals can slide onto. "
+                       "Its orbitals can slide onto "
                        + _and([positions[letter] for letter in tried]))
-                    + ", and its site irreps are not among the composite ones the "
-                    "tables carry either. A Wyckoff orbit whose symmetry data vector is "
-                    "not a band representation of the position it sits on is a "
-                    "statement about the model.",
+                    + ". Its stable real-space invariants could not be read from its site "
+                    "irreps either. Check the positions of the orbitals and their site "
+                    "irreps.",
                     context={"orbit": index, "orbitals": orbitals,
                              "content": dict(counts), "letter": here.letter,
                              "closure": here.closure, "tried": tuple(tried),
@@ -743,15 +873,12 @@ def srsi_of_model(realized) -> "ModelSRSIs | Refusal":
                   for entry in localizations}
         if len(values) != 1:
             raise InternalError(
-                f"#{group.number_str}: the localizations of the Wyckoff orbit of orbitals "
-                f"{list(orbitals)} give {len(values)} different SRSIs ("
+                f"#{group.number_str}: the decompositions of the Wyckoff orbit of orbitals "
+                f"{list(orbitals)} give {len(values)} different sets of stable real-space "
+                "invariants ("
                 + str([(entry.wyckoff, tuple(str(v) for v in entry.theta_Z.values()))
                        for entry in localizations])
-                + "), though every one of them is the same block of orbitals moved "
-                "adiabatically within the variety it sits on. An SRSI that is not "
-                "invariant under a process the tables themselves list is a defect in "
-                "this package's arithmetic or in the shipped table, not a measurement "
-                "about the model.")
+                + "). Report it, with the model and the call.")
         chosen = localizations[0]
         used = {name.split("↑")[0] for name in same}
         stably = tuple(pair for pair in pairs
@@ -781,13 +908,15 @@ def srsi_of_model(realized) -> "ModelSRSIs | Refusal":
                       wyckoff_orbits=tuple(records))
 
 def _letters_that_do_fit(data, counts, points, bound) -> tuple:
-    """Which letters of the EBR list the block's content *does* decompose at, if any.
+    """The Wyckoff letters at which a block's symmetry data vector decomposes.
 
-    Run only when the geometry's own letters produced nothing, and only to make
-    the refusal sharper: "this content is not a band representation of anything"
-    and "this content is a band representation of a position the geometry says
-    the orbitals are not on" are different diagnoses, and the second one names a
-    setting problem.
+    ``data``, ``counts``, ``points`` and ``bound`` are as
+    :func:`_solve_at_letters` takes them.  Each letter of the list of
+    elementary band representations is tried alone for one decomposition.
+    Returns the letters that have one, in alphabetical order, or ``()``.
+    :func:`srsi_of_model` asks it of an orbit with no decomposition at the
+    letters on the closure of its own position, to tell ``wyckoff_setting``
+    from ``wyckoff_orbit_not_localizable``.
     """
     letters = sorted({_POSITION.match(str(position)).group(2)
                       for _name, position in data["ebrs"]})
@@ -795,62 +924,66 @@ def _letters_that_do_fit(data, counts, points, bound) -> tuple:
                  if _solve_at_letter(data, counts, points, letter, bound, cap=1)[1])
 
 def _route_disagreement(group, index, orbitals, here, elsewhere, counts, positions) -> Refusal:
-    """The one safety gate: geometry and the symmetry data vector name different positions."""
+    """The refusal where an orbit's geometry and its symmetry data vector disagree.
+
+    The refusal is ``wyckoff_setting``.  ``group`` is the group, ``index`` the
+    orbit's row in the atomic-limit table, ``orbitals`` its orbitals, and
+    ``here`` the Wyckoff position of its first site in the tables' setting,
+    as :func:`._tables._sites_in_tables_setting` gives it.  ``elsewhere``
+    holds the Wyckoff letters at which its symmetry data vector ``counts``
+    decomposes (:func:`_letters_that_do_fit`), and ``positions`` maps each
+    letter to its position (:func:`_list_positions`).  Returns the refusal,
+    which names the position of the centers and the positions the symmetry
+    data vector decomposes at.
+    """
     where = f"{here.multiplicity}{here.letter}"
     return Refusal(
         "wyckoff_setting",
-        f"the Wyckoff orbit of orbitals {list(orbitals)} of #{group.number_str} sits at "
-        f"{where} by geometry (carried into the tables' reference cell), and its measured "
-        "symmetry data vector decomposes at "
-        f"{_and([positions.get(letter, letter) for letter in elsewhere])} instead, not "
-        "at that position"
-        + (f", nor at {_and([positions.get(letter, letter) for letter in here.closure])}, "
-           "the positions with elementary band representations on the closure of its "
-           "variety"
-           if tuple(here.closure) != (here.letter,) else "")
-        + ". The two routes to a Wyckoff position disagree, so the setting the positions "
-        "are read in is not the one the tables are written in, and no invariant is "
-        "returned",
+        f"the Wyckoff orbit of orbitals {list(orbitals)} of #{group.number_str} is at "
+        f"{where} by its centers, read in the setting of the tables, and its symmetry data "
+        "vector is a sum of elementary band representations at "
+        f"{_and([positions.get(letter, letter) for letter in elsewhere])} instead"
+        + (f", and at none of "
+           f"{_and([positions.get(letter, letter) for letter in here.closure])}, "
+           "the positions its orbitals can slide onto"
+           if tuple(here.closure) != (here.letter,) else f", not at {where}")
+        + ". Report it, with the model and the call.",
         context={"orbit": index, "orbitals": orbitals,
                  "geometry_letter": here.letter, "content_letters": tuple(elsewhere),
                  "closure": here.closure, "reference": here.reference,
                  "content": dict(counts), "number_str": str(group.number_str)})
 
 def _band_representations(rep) -> tuple:
-    r"""The band representation each orbit of ``rep`` induces, in elementary band representations.
+    r"""The band representation each Wyckoff orbit of ``rep`` induces.
 
-    The orbit's block of states is read as :func:`srsi_of_model` reads it: its
-    symmetry content measured on the states (:func:`_orbit_contents`), and
-    decomposed at the positions its orbitals can be moved onto, one position at
-    a time, its own first -- induction in stages makes each such position's
-    decomposition the orbit's band representation.  Its alternatives are the
-    other sums of elementary band representations with the same symmetry
-    content and the same stable real-space invariants: the content and those
-    invariants do not distinguish them from it.  Where the group has no
-    tabulated invariants there are none.  A site irrep whose band
-    representation is a sum at other positions -- an irrep of a position the
-    tables list none at, or ``E`` at ``3c`` of ``P-43m`` -- is written as the
-    sum with its own invariants (:func:`_composite_localization`); without
-    those, at the first position on the closure of a variety through its site
-    that carries the content, the most special variety first, since a site
-    irrep induced from that variety's site group is moved along it; and
-    otherwise as the one sum its content has.  On a free-standing layer only
-    the layer's own band representations are read, those of the positions
-    within it (:func:`..ebr._layer_reading`).
-    What cannot be read is said in the orbit's ``note``: this reads a
-    representation already built, and nothing in it is a condition for building
-    one.
+    ``rep`` is a representation of the group on the orbitals, carrying the
+    site irreps of the atomic-limit table.  Each orbit's symmetry data vector
+    is measured on its states (:func:`_orbit_contents`) and decomposed at the
+    positions its orbitals can slide onto, its own first
+    (:func:`_sum_at_first`).  Where none carries it, a site irrep whose band
+    representation is not elementary is written as the sum, among those
+    carrying the symmetry data vector, whose stable real-space invariants
+    are those of its site irreps (:func:`_composite_localization`).  Without
+    those, the positions on the closure of each variety through the site are
+    tried, the most special variety first, and last the sum the vector has
+    where it has only one.  The alternatives are the other sums with the
+    same symmetry data vector and the same stable real-space invariants,
+    none where the group has no tabulated invariants.  On a free-standing
+    layer only the band representations of the positions within it are read
+    (:func:`.ebr._layer_reading`).  Nothing refuses: an orbit that cannot be
+    read has no terms, and its ``note`` says why.
 
     Returns
     -------
-    tuple of ..symmetry._OrbitBandRepresentation
-        One per Wyckoff orbit of orbitals, the orbit of one multiplet under the
-        group, in the order the orbits' first orbitals come in the model
-        (:func:`..symmetry._wyckoff_orbits_of`); empty where the tables do not
-        reach the cell, and where the
-        representation leaves some unitary operation of its group out — a
-        ``_build_rep`` handed a group larger than the one the Hamiltonian obeys
-        — since the tables are the whole group's.
+    tuple of .symmetry._OrbitBandRepresentation
+        One per Wyckoff orbit of orbitals, in the order of the orbits' first
+        orbitals (:func:`.symmetry._wyckoff_orbits_of`), each a sum of
+        elementary band representations.  Empty where ``rep`` carries no site
+        irreps, where the tables do not reach the cell, and where ``rep``
+        leaves out some unitary operation of its group, the tables being the
+        whole group's.  Where the orbitals' centers miss the operations by
+        more than the tolerance of the Bloch operators, every orbit has no
+        terms.
     """
 
     characters = getattr(rep, "_characters", None)
@@ -879,13 +1012,11 @@ def _band_representations(rep) -> tuple:
     nspin = int(getattr(model, "nspin", 1))
     blocks = [(orbit, orbitals, [o * nspin + s for o in orbitals for s in range(nspin)])
               for orbit, orbitals in _wyckoff_orbits_of(rep)]
-    # The operators check the orbitals' positions against the operations' action
-    # on them, at their own tolerance, as every other use of these operators
-    # does.  The centres a representation is built on are exact -- moved there
-    # under a declared precision, and within that tolerance wherever the
-    # hopping projection ran -- so the check reads rounding.  A representation
-    # built by hand on centres the operations miss by more reads no content
-    # here, as it reads none anywhere else, and each orbit says why.
+    # The Bloch operators check the orbitals' centers against the operations'
+    # action on them, to _BLOCH_TOL.  The centers of a representation the
+    # package builds sit at their symmetric positions to rounding.  A
+    # representation built by hand on centers that miss by more reads no
+    # symmetry data vector here, and each orbit's note says why.
 
     def where_of(orbit, orbitals):
         here = sites[int(orbit[0])]
@@ -917,9 +1048,10 @@ def _band_representations(rep) -> tuple:
                      "could not be identified"
                      + (f" at {name}" if name else "") + f": {getattr(why, 'reason', why)}"))
             continue
-        # THE ORBIT'S OWN SUM: its content decomposed at the positions its
-        # orbitals can be moved onto, one position at a time, its own first --
-        # srsi_of_model's localization, which needs no invariants
+        # the orbit's own sum: its symmetry data vector decomposed at the
+        # positions its orbitals can be moved onto, one at a time, its own
+        # first, as srsi_of_model localizes it; this needs no stable
+        # real-space invariants
         letters = [here.letter] if here.letter in here.closure else []
         letters += [letter for letter in here.closure if letter not in letters]
         named = frozenset(term for o in characters.orbitals if int(o.site) in set(orbit)
@@ -930,8 +1062,8 @@ def _band_representations(rep) -> tuple:
         # a site irrep whose band representation is a sum at other positions:
         # the sum with its own invariants, where the tables carry them, and
         # otherwise the one at the first position on the closure of a variety
-        # through its site, the most special first -- a site irrep induced from
-        # that variety's site group is moved along it
+        # through its site, the most special first, since a site irrep induced
+        # from that variety's site group is moved along it
         composite = None
         if own is None and tables is not None:
             composite = _composite_localization(tables, group, assignment, rep, orbit, here,
@@ -945,17 +1077,18 @@ def _band_representations(rep) -> tuple:
                     if letter not in letters + through and letter not in off_layer:
                         through.append(letter)
             own = _sum_at_first(data, counts, points, ebrs, len(rows), named, through)
-        # EVERY SUM WITH THIS CONTENT, over the layer's own band representations:
-        # those its invariants do not tell from the orbit's own sum are its
-        # alternatives, and a composite orbit's own sum is among them
+        # every sum with this symmetry data vector, over all the elementary band
+        # representations, or over a free-standing layer's own: those its
+        # invariants do not tell from the orbit's own sum are its alternatives,
+        # and a composite orbit's own sum is among them
         every = ()
         if tables is not None or own is None:
             restriction = _ebr.in_plane_restriction(group, kpoints=points,
                                                     require_exact=False, _layer=layer)
             if not isinstance(restriction, Refusal):
                 matrix, y, bound = _ebr._content_system(data, counts, restriction.retained)
-                # the band count, one more equation: all a content read at no
-                # point fixes, and each multiplicity's bound there
+                # the band count, one more equation, the only one where no
+                # point was read, and there each multiplicity's bound
                 matrix = np.vstack([matrix,
                                     [[_tables._bands_spanned(name) for name, _at in ebrs]]])
                 y = np.append(y, len(rows))
@@ -989,11 +1122,16 @@ def _band_representations(rep) -> tuple:
     return tuple(out)
 
 def _sum_at_first(data, counts, points, ebrs, bands, named, letters):
-    """A block's content as a sum at the first of ``letters`` that carries it, or ``None``.
+    """A block's symmetry data vector as a sum at the first of ``letters`` that carries it.
 
-    Returned as multiplicities over ``ebrs``; ``bands`` is the block's band
-    count.  Where two sums at that position carry the content, the one whose
-    site irreps are among ``named`` -- the orbit's own rows -- is taken.
+    ``data``, ``counts`` and ``points`` are as :func:`_solve_at_letters` takes
+    them, and ``ebrs`` holds the list's ``(name, position)`` pairs.
+    ``bands``, the block's number of bands, is the extra equation and each
+    multiplicity's bound.  ``letters`` are Wyckoff letters, in the order
+    tried.  Where several sums at that letter carry the vector, the first
+    whose site irreps are all in ``named``, those of the orbit's own rows, is
+    taken, and the first of all otherwise.  Returns the sum as the
+    multiplicities over ``ebrs``, or ``None`` where no letter carries it.
     """
     for letter in letters:
         _status, found, at, _rows = _solve_at_letter(data, counts, points, letter, bands,
@@ -1006,28 +1144,23 @@ def _sum_at_first(data, counts, points, ebrs, bands, named, letters):
     return None
 
 def _composite_localization(tables, group, assignment, rep, orbit, here, *, orbitals=None):
-    r"""The site irreps of an orbit whose induced band representation is composite.
+    r"""The site irreps of an orbit whose band representation is not elementary.
 
-    :math:`{}^1E{}^2E` at site symmetry :math:`\bar4` and ``E`` at :math:`\bar4m2` /
-    :math:`\bar42m` are genuine site-symmetry irreps whose induced band
-    representation is *not* elementary, so no EBR column carries them, the
-    momentum-space decomposition has no solution — **and no EBR entry names
-    them**, so the label the record carries at such a position is the site
-    point group's own.  Where that name is not the tables' key, what is matched
-    is the **content**: a row of the site's own character table is paired with
-    the maximal site irrep of the tables (``tables._maximal_keys``) whose band
-    count its induction reproduces, which is the one number a composite key and a computed row
-    share.  A row whose name is a key of the tables at that letter is taken by
-    its name.
-
-    ``orbitals``, where given, are the orbit's own, a Wyckoff orbit's: only
-    their multiplets at the orbit's first site are read, where every orbital
-    at that site is read otherwise.
-
-    Returns ``{"irreps": {irrep: multiplicity}, "site": n}`` or ``None`` — the
-    latter whenever anything is not measured cleanly, so :func:`srsi_of_model`
-    refuses rather than guessing.  All 39 composite positions are in the
-    single-valued table, so a spinful group takes this route not at all.
+    Some site irreps at a maximal position, such as ``E`` at ``3c`` of
+    ``P-43m``, induce a sum of elementary band representations at other
+    positions, so that no elementary band representation at their own
+    position carries them.  ``tables`` are the tables of the stable real-space
+    invariants of ``group``, and ``assignment`` and ``rep`` the orbitals'
+    assignment and the representation whose site irreps are read.  ``orbit``
+    holds the orbit's sites, and ``here`` the Wyckoff position of the first
+    in the tables' setting.  Each multiplet at that site, of ``orbitals``
+    alone where they are given, is matched to the tables' site irreps at its
+    letter by name, and otherwise to the one composite site irrep whose
+    number of bands its induction gives.  Returns ``{"irreps": {irrep:
+    multiplicity}, "site": site}``, ``site`` the index of the orbit's first
+    site.  Returns ``None`` where a multiplet is matched to none, where
+    ``rep`` carries no site irreps, and for double-valued tables, which hold
+    no composite site irrep.
     """
     characters = getattr(rep, "_characters", None)
     if characters is None or tables._spinor:
@@ -1057,7 +1190,7 @@ def _composite_localization(tables, group, assignment, rep, orbit, here, *, orbi
                 return None
             name = str(hit[0].irrep)
         # a multiplet of several copies of one irrep names it on every row, and
-        # holds as many copies as its orbitals are multiples of the irrep's
+        # holds as many copies as its orbitals divided by the irrep's dimension
         copies = max(1, len(entry.multiplet) // max(int(entry.dim), 1))
         labels[name] = labels.get(name, 0) + copies
     if not labels:
@@ -1070,24 +1203,34 @@ def _composite_localization(tables, group, assignment, rep, orbit, here, *, orbi
 
 @dataclass(frozen=True, eq=False, repr=False)
 class AtomicRealization(BandRepresentation):
-    r"""One atomic realization: a set of orbitals at maximal Wyckoff positions with a band set's symmetry data.
+    r"""One atomic realization: site irreps at maximal Wyckoff positions.
 
-    A sum of term rows, as :class:`..symmetry.BandRepresentation` is: iterating,
-    indexing and ``len()`` go over :attr:`terms`, and a realization and the same
-    sum from :func:`..ebr.decompose` are equal.  An entry of
-    ``rz.realizations``.
+    An atomic realization is a set of site irreps at maximal Wyckoff
+    positions, with nonnegative integer multiplicities, whose integer-valued
+    stable real-space invariants are those asked for.  Each entry of
+    :attr:`Realizations.realizations` is one.  A realization is a sum of
+    terms, as :class:`.symmetry.BandRepresentation` is.  Iterating, indexing
+    and ``len()`` go over :attr:`terms`.  Two sums with the same terms compare
+    equal, whichever call returned them, :func:`.ebr.decompose` among them.
 
     Attributes
     ----------
-    terms : tuple of ..groups.Term
-        The site irreps it holds, each at its maximal Wyckoff position.
+    terms : tuple of .groups.Term
+        The site irreps, each at its maximal Wyckoff position with its
+        multiplicity.
     label : str
-        The sum as the paper writes it, ``"1 (-E2)_b + 1 (-E)_c"``.
+        The sum on one line, ``"1 (-E2)_b + 1 (-E)_c"``.  Each term is
+        written ``m (irrep)_w``, with ``m`` the multiplicity and ``w`` the
+        Wyckoff letter.
     theta_Zn : dict
-        ``{name: ModularValue}``: its own invariants valued modulo n, which two
-        realizations of one symmetry data vector need not share.
-    stably_equivalent : tuple of ..srsi.StablePair
-        The site irreps it holds that no invariant tells apart from a partner.
+        If nonempty, the stable real-space invariants valued modulo n of the
+        realization, ``{name: ModularValue}``.  Empty where the group has
+        none.  Two realizations of one symmetry data vector can differ in
+        them.
+    stably_equivalent : tuple of StablePair
+        If nonempty, the pairs of site irreps that no stable real-space
+        invariant tells apart and of which the realization holds at least one
+        member.
     """
 
     theta_Zn: dict = field(default_factory=dict, compare=False)
@@ -1096,17 +1239,19 @@ class AtomicRealization(BandRepresentation):
 
 @dataclass(frozen=True)
 class RealizationsNumerical:
-    """How completely the atomic realizations were listed.
+    """The bound and the cap of an enumeration of atomic realizations.
 
-    ``rz.numerical`` of what :func:`atomic_realizations` returns.
+    Held in :attr:`Realizations.numerical`.
 
     Attributes
     ----------
     bound : int
-        The largest multiplicity of one site irrep the band count allows, which
-        makes the list complete; ``0`` where no enumeration ran.
+        The largest multiplicity of one site irrep searched: the most that the
+        band count allows, so that no realization is missed.  ``0`` where
+        nothing was enumerated.
     cap : int
-        The most realizations the list may hold.
+        The ``cap=`` of :func:`atomic_realizations`, the number of
+        realizations at which the enumeration stops and the call refuses.
     """
 
     bound: int
@@ -1115,25 +1260,30 @@ class RealizationsNumerical:
 
 @dataclass(frozen=True)
 class Realizations:
-    r"""Every atomic realization of a band set's symmetry data, or none.
+    r"""Every atomic realization of given integer-valued stable real-space invariants.
 
-    What :func:`atomic_realizations` returns; :meth:`summary` prints it.  The list
-    is complete, so an empty one says something: with whole-number invariants, a
-    fragile band set; with fractional ones, a stable topological one.  The
-    record is truthy either way.
+    The record :func:`atomic_realizations` returns, and each side of a
+    :class:`Splitting`.  ``summary()`` prints the integer-valued stable
+    real-space invariants (ZSRSIs), then every atomic realization with its
+    stable real-space invariants valued modulo n.  The list of realizations
+    is complete.  Where it is empty and the ZSRSIs are integers, no atomic
+    insulator has these ZSRSIs.  The symmetry data vector of a band set with
+    them is then an integer combination of elementary band representations
+    and no nonnegative one, as a fragile set's is.  The record is truthy even
+    where the list is empty.
 
     Attributes
     ----------
     realizations : tuple of AtomicRealization
-        Every one; empty where none exists, and where ``theta_Z`` is
-        fractional.
+        If nonempty, every atomic realization of :attr:`theta_Z`.  Empty where
+        :attr:`theta_Z` is fractional, and where no atomic insulator has it.
     theta_Z : dict
-        ``{name: value}``: the integer-valued invariants they reproduce, as
-        handed in.
-    group : ..groups.GroupData
+        The ZSRSIs the realizations have, ``{name: value}``, as exact
+        fractions.
+    group : .groups.GroupData
         The group of the tables, ``tables.group``.
     numerical : RealizationsNumerical
-        How completely they were listed.
+        The bound and the cap of the enumeration.
     """
 
     realizations: tuple
@@ -1143,7 +1293,7 @@ class Realizations:
     _status: str = field(default="", repr=False, compare=False)
 
     def summary(self) -> str:
-        """The band set, then every realization of it, a line each."""
+        """The ZSRSIs, then every realization, a line each."""
         head = (_count(len(self.realizations), "atomic realization") if self.realizations
                 else "no atomic realization")
         lines = [f"{_group(self.group)}: {head} with Z-valued stable real-space invariants "
@@ -1174,38 +1324,48 @@ class Realizations:
 
 @dataclass(frozen=True)
 class Splitting:
-    r"""Whether the two sides of a gapped splitting of bands can both be atomic insulators, by the paper's no-go criterion.
+    r"""The no-go test of a gapped splitting of bands.
 
-    What :func:`splitting` and :func:`nsit_criterion` return; :meth:`summary`
-    prints it.  The valence bands are the bands asked for, the conduction bands
-    the rest; the record is truthy.
+    The record :func:`splitting` and :func:`nsit_criterion` return.  It says
+    whether the splitting is non-symmetry-indicated topological (NSIT).  The
+    valence bands are one set of the splitting and the conduction bands the
+    other.  ``summary()`` prints whether the splitting is NSIT and why, then
+    the atomic realizations of each side.  The record is truthy even where
+    ``nsit`` is ``False``.
 
     Attributes
     ----------
     nsit : bool
-        Whether the splitting is non-symmetry-indicated topological (NSIT):
-        both sides have atomic realizations, and no realization of the valence
-        bands and of the conduction bands has invariants valued modulo n that
-        add up to the whole model's, so the two sides cannot both be atomic
-        insulators.  It is false where the valence bands' invariants are
-        fractional, where a side has no atomic realization, where the group has
-        no invariants valued modulo n, and where some pair adds up: in the
-        first two cases the symmetry data vector itself shows a side is not an
-        atomic insulator, and in the last two nothing more is seen.
-    valence, conduction : Realizations
-        Every atomic realization of each side, as :func:`atomic_realizations`
-        returns them; empty where that side's invariants are fractional.
+        Whether the splitting is NSIT.  It is ``True`` exactly where both
+        sides have atomic realizations, the group has stable real-space
+        invariants (SRSIs) valued modulo n, and no pair of a valence and a
+        conduction realization has SRSIs valued modulo n adding up to those
+        of all the bands.  The two sides of such a splitting cannot both be
+        atomic insulators.
+    valence : Realizations
+        Every atomic realization of the valence bands, as
+        :func:`atomic_realizations` returns them.  Its list of realizations
+        is empty where the valence bands' integer-valued SRSIs are
+        fractional, and where no atomic insulator has them.
+    conduction : Realizations
+        Every atomic realization of the conduction bands, as
+        :func:`atomic_realizations` returns them.  Its list of realizations
+        is empty where the conduction bands' integer-valued SRSIs are
+        fractional, and where no atomic insulator has them.
     theta_Z : dict
-        ``{name: value}``: the whole model's integer-valued invariants, the
-        sum of the two sides'.
+        The integer-valued SRSIs of all the bands, ``{name: value}``: the
+        valence bands' plus the conduction bands'.
     theta_Zn : dict
-        ``{name: ModularValue}``: the whole model's invariants valued modulo n.
+        If nonempty, the SRSIs valued modulo n of all the bands,
+        ``{name: ModularValue}``.  Empty where the group has none.
     consistent_pairs : tuple
-        Each pair ``(valence, conduction)`` of atomic realizations whose
-        invariants valued modulo n add up to the whole model's, modulo each n.
-    stably_equivalent : tuple of ..srsi.StablePair
-        The site irreps a realization holds that no invariant tells apart.
-    group : ..groups.GroupData
+        If nonempty, each pair ``(valence, conduction)`` of atomic
+        realizations whose SRSIs valued modulo n add up to those of all the
+        bands, modulo each n.
+    stably_equivalent : tuple of StablePair
+        If nonempty, the pairs of site irreps that no SRSI tells apart and of
+        which some realization of either side holds at least one member.
+    group : .groups.GroupData
         The group of the tables, ``tables.group``.
     """
 
@@ -1219,7 +1379,12 @@ class Splitting:
     group: Any = field(default=None, repr=False)
 
     def _why(self) -> tuple:
-        """The first line's clause, and the fields it rests on."""
+        """The clause of the summary's first line, and the fields it rests on.
+
+        Returns ``(clause, fields)``: whether the splitting is NSIT and why, in
+        words, and the fields that say so as the summary points at them,
+        ``"(.group, .nsit)"``.
+        """
         for side, got in (("valence", self.valence), ("conduction", self.conduction)):
             if _fractional(got.theta_Z):
                 return (f"not nsit, the {side} bands' invariants being fractional",
@@ -1244,7 +1409,7 @@ class Splitting:
                 "(.group, .nsit)")
 
     def summary(self) -> str:
-        """Whether the splitting is NSIT and why, then the two sides, their invariants and their realizations, a line each."""
+        """Whether the splitting is NSIT and why, then each side, a line each."""
         clause, pointers = self._why()
         lines = [f"{_group(self.group)}: {clause}   {pointers}"]
         lines.append(f"  Z-valued stable real-space invariants {_span(self.theta_Z)}: the "
@@ -1291,7 +1456,13 @@ class Splitting:
 
 
 def _theta_zn_of_keys(tables, p) -> dict:
-    """``{name: ModularValue}`` of an integer ``p`` over the maximal site irreps."""
+    """The invariants valued modulo n of site irreps at maximal Wyckoff positions.
+
+    ``tables`` are the tables of the group, and ``p`` holds an integer
+    multiplicity for each of the tables' maximal site irreps, in the order of
+    ``tables._maximal_keys``.  Returns ``{name: ModularValue}``, each value
+    reduced modulo its n.
+    """
     columns = _maximal_basis(int(tables._sg), bool(tables._spinor))[1]
     out = {}
     for r, row in enumerate(tables._rows):
@@ -1303,69 +1474,96 @@ def _theta_zn_of_keys(tables, p) -> dict:
 
 
 def _by_name(call, argument, tables, theta_z) -> dict:
-    """``{name: Fraction}`` of integer-valued invariants handed in by name, in the tables' order.
+    """Integer-valued invariants handed in by name, as exact fractions in the tables' order.
 
-    ``TypeError`` for anything but a mapping, ``ValueError`` for names that are
-    not exactly the tables' integer-valued invariants.
+    ``theta_z`` is what the call named ``call`` was handed as ``argument``,
+    which the messages name as written, ``"theta_Z="``, and ``tables`` the
+    tables whose integer-valued invariants it names, each once.  Returns
+    ``{name: Fraction}``.  Raises ``TypeError`` where ``theta_z`` is not a
+    mapping, and ``ValueError`` where its names are not the tables'
+    integer-valued invariants, each message opening on ``call``.
     """
     names = [tables._rows[i].name for i in tables._z_rows]
     if not isinstance(theta_z, Mapping):
-        raise TypeError(f"{call}(): {argument} is a mapping from each Z-valued invariant's "
-                        f"name to its value, such as b.theta_Z; got a "
-                        f"{type(theta_z).__name__}")
+        raise TypeError(f"{call}(): {argument} is of type {type(theta_z).__name__}; pass "
+                        "a mapping from each integer-valued invariant's name to its value, "
+                        "such as the theta_Z that srsi_of_bands or srsi_of_model returns.")
     if len(theta_z) != len(names) or set(theta_z) != set(names):
         raise ValueError(f"{call}(): {argument} holds "
                          f"{', '.join(str(k) for k in theta_z) or 'nothing'}; "
-                         f"#{tables._number_str} has the Z-valued invariants {_span(names)}")
+                         f"#{tables._number_str} has the integer-valued invariants "
+                         f"{_span(names)}; pass each of them once.")
     return {name: Fraction(theta_z[name]) for name in names}
 
 
 def atomic_realizations(tables, theta_Z, *, cap=256) -> "Realizations | Refusal":
-    r"""Every atomic insulator with a band set's symmetry data, each a set of orbitals at maximal Wyckoff positions.
+    r"""Every atomic realization of given integer-valued stable real-space invariants.
 
-    The configurations with nonnegative integer multiplicities over the maximal
-    site irreps whose integer-valued invariants are ``theta_Z``: the same
-    invariants are the same symmetry data.  Maximal positions are enough, since
-    an atomic insulator moves onto them with its invariants unchanged, and the
-    list is complete.  Fractional invariants have none: the band set carries a
-    nonzero symmetry indicator, and nothing is enumerated.
+    An atomic realization is a set of site irreps at maximal Wyckoff
+    positions, with nonnegative integer multiplicities.  Those returned are
+    every one whose integer-valued stable real-space invariants (ZSRSIs) are
+    ``theta_Z``.  They are found by enumerating the nonnegative integer
+    solutions of the linear equations that set the ZSRSIs to ``theta_Z`` and
+    the band count to the one ``theta_Z`` fixes.  Maximal positions suffice,
+    since an atomic insulator moves onto them with its stable real-space
+    invariants unchanged.  The list of realizations is complete.  All the
+    realizations returned have one symmetry data vector, since two with the
+    same ZSRSIs have the same one.  Each realization carries its own stable
+    real-space invariants valued modulo n.  Fractional ZSRSIs have no
+    realization.
 
     Parameters
     ----------
     tables : SRSITables
-        The group's tables, from :func:`srsi_tables`.
+        The tables of the group, what :func:`srsi_tables` returns.
     theta_Z : mapping
-        ``{name: value}``: the band set's integer-valued invariants, each once,
-        as ``b.theta_Z`` holds them.
+        The ZSRSIs, ``{name: value}``, with one entry for each of the tables'
+        integer-valued invariants.  Pass the ``theta_Z`` of what
+        :func:`srsi_of_bands` returns.
     cap : int, default 256
-        The most realizations to list; more is refused.
+        The number of realizations at which the enumeration stops.
 
     Returns
     -------
     Realizations or Refusal
-        ``out.summary()`` prints every realization with its own invariants
-        valued modulo n; ``out.realizations`` holds them.  The record is truthy,
-        and an empty list with whole-number ``theta_Z`` is a fragile band set.
-        A ``Refusal`` in its place is falsy.
+        Every atomic realization of ``theta_Z``, each with its stable
+        real-space invariants valued modulo n.  The list is empty where
+        ``theta_Z`` is fractional, and where no atomic insulator has these
+        ZSRSIs.  The record is truthy even where the list is empty.
+
+    Examples
+    --------
+    The six lowest bands of lin3g (:func:`.models.lin3g`), with three
+    realizations:
+
+    >>> b = srsi_of_bands(hsp_table(r, bands=6))                  # doctest: +SKIP
+    >>> print(atomic_realizations(srsi_tables(r.group), b.theta_Z).summary())  # doctest: +SKIP
+    P4mm1' #99.164, double-valued: 3 atomic realizations with Z-valued stable real-space invariants theta_1 to theta_3 = (1, 1, 1)   (.group, .realizations, .theta_Z)
+      each realization, with (theta_4, theta_5) mod 2   (.label, .theta_Zn of each)
+        1 (-E2)_b + 1 (-E)_c   (1, 1)
+        1 (-E1)_b + 2 (-E2)_b   (0, 0)
+        1 (-E1)_a + 1 (-E2)_a + 1 (-E2)_b   (1, 0)
+
+    Refusals
+    --------
+    ``srsi_realizations_truncated``
+        the enumeration reached ``cap`` realizations.  A ``cap=`` above their
+        number lists them all.
 
     Raises
     ------
     TypeError
         ``theta_Z`` is not a mapping.
     ValueError
-        ``theta_Z`` does not name each of the tables' integer-valued invariants
-        once.
+        ``theta_Z`` does not hold one entry for each of the tables'
+        integer-valued invariants.
 
-    Refusals
+    See Also
     --------
-    ``srsi_realizations_truncated``
-        more than ``cap`` realizations; a larger ``cap=`` lists them.
-
-    Examples
-    --------
-    >>> print(atomic_realizations(tables, b.theta_Z).summary())   # doctest: +SKIP
+    .ebr.decompose : the sums of elementary band representations that carry a
+        symmetry data vector.
     """
-    values = _by_name("atomic_realizations", "theta_Z", tables, theta_Z)
+    values = _by_name("atomic_realizations", "theta_Z=", tables, theta_Z)
     group = tables.group
     if _fractional(values):
         return Realizations(realizations=(), theta_Z=values, group=group,
@@ -1393,12 +1591,9 @@ def atomic_realizations(tables, theta_Z, *, cap=256) -> "Realizations | Refusal"
         return Refusal(
             "srsi_realizations_truncated",
             f"#{tables._number_str}: the enumeration of atomic realizations of "
-            f"{_invariants_text(values)} at {total} bands hit the cap of {cap} "
-            "realizations. A no-go is asserted only on a complete enumeration: with the "
-            "list cut, neither 'no pair adds up' nor 'none exists' holds. "
-            "atomic_realizations(tables, theta_Z, cap=...) with a larger cap= lists them, "
-            "theta_Z being context['theta_Z']; nsit_criterion and splitting list each "
-            "side at the default cap of 256.",
+            f"{_invariants_text(values)} at {total} bands reached the cap of {cap}. "
+            "atomic_realizations(tables, theta_Z, cap=...) with a cap above their number "
+            "lists them all, theta_Z being context['theta_Z'].",
             value=float(len(solutions)), threshold=float(cap),
             context={"number_str": str(tables._number_str), "cap": int(cap),
                      "n_bands": total, "bound": int(bound), "theta_Z": dict(values)})
@@ -1422,78 +1617,101 @@ def atomic_realizations(tables, theta_Z, *, cap=256) -> "Realizations | Refusal"
 
 
 def nsit_criterion(tables, theta_total, theta_Z_v, theta_Z_c) -> "Splitting | Refusal":
-    r"""The paper's no-go criterion on a gapped splitting whose invariants are in hand.
+    r"""The no-go test of a gapped splitting, from its invariants.
 
-    All the bands together are an atomic insulator.  If the two sides, the
-    valence and the conduction bands, are atomic insulators too, then the
-    invariants valued modulo n of some atomic realization of each add up to the
-    whole model's, modulo each n.  Every realization of each side is listed,
-    since one pair that does not add up proves nothing.  The splitting is NSIT
-    where both sides have realizations and no pair adds up; it is not where the
-    valence bands' invariants are fractional or a side has no realization at
-    all, which the symmetry data vector already shows, nor where the group has
-    no invariants valued modulo n or some pair adds up.
+    The record returned says whether the splitting is non-symmetry-indicated
+    topological (NSIT).  The criterion is that of Hwang et al., Nat. Commun.
+    17, 8564 (2026).  All the bands together are an atomic insulator, whose
+    stable real-space invariants (SRSIs) are ``theta_total``.  The valence
+    and the conduction bands split them, and their integer-valued SRSIs
+    (ZSRSIs) are ``theta_Z_v`` and ``theta_Z_c``.  Where both sides are
+    atomic insulators too, some atomic realization of each has SRSIs valued
+    modulo n that add up to those of all the bands, modulo each n.  One pair
+    that does not add up does not show the splitting topological, so every
+    pair of realizations of the two sides, enumerated with
+    :func:`atomic_realizations`, is tested.  A side whose ZSRSIs are
+    fractional has no realization.  The splitting is NSIT exactly where both
+    sides have realizations, the group has SRSIs valued modulo n, and no pair
+    adds up.
 
     Parameters
     ----------
     tables : SRSITables
-        The group's tables.
+        The tables of the group, what :func:`srsi_tables` returns.
     theta_total : Invariants or ModelSRSIs
-        The whole model's invariants, with ``theta_Z`` and ``theta_Zn`` by
-        name: what ``tables.theta`` returns for the model's orbitals, or what
+        The SRSIs of all the bands, as a record with the fields ``theta_Z``
+        and ``theta_Zn``, each keyed by the invariants' names.  Pass what
+        :meth:`SRSITables.theta` returns for the model's orbitals, or what
         :func:`srsi_of_model` returns.
     theta_Z_v, theta_Z_c : mapping
-        ``{name: value}``: the integer-valued invariants of the valence and of
-        the conduction bands, as ``b.theta_Z`` holds them.
+        The ZSRSIs of the valence and of the conduction bands,
+        ``{name: value}``.  Pass for each the ``theta_Z`` of what
+        :func:`srsi_of_bands` returns.
 
     Returns
     -------
     Splitting or Refusal
-        ``out.nsit`` holds whether the splitting is NSIT; ``out.summary()``
-        prints it, why, the realizations of each side and the pairs that add
-        up.  The record is truthy.  A ``Refusal`` in its place is falsy.
+        Whether the splitting is NSIT, every atomic realization of each side,
+        and the pairs whose SRSIs valued modulo n add up to those of all the
+        bands.  The record is truthy even where ``nsit`` is ``False``.
 
-    Raises
-    ------
-    TypeError
-        ``theta_total`` without ``theta_Z`` and ``theta_Zn``, or a side that is
-        not a mapping.
-    ValueError
-        Invariants that are not the tables' own, or two sides that do not add
-        up to the whole model's.
+    Examples
+    --------
+    lin3g (:func:`.models.lin3g`), its eight bands split into the lowest six
+    and the two above them:
+
+    >>> b = srsi_of_bands(hsp_table(r, bands=6))                  # doctest: +SKIP
+    >>> whole = srsi_of_model(r)                                  # doctest: +SKIP
+    >>> above = {name: whole.theta_Z[name] - value for name, value in b.theta_Z.items()}  # doctest: +SKIP
+    >>> nsit_criterion(srsi_tables(r.group), whole, b.theta_Z, above).nsit  # doctest: +SKIP
+    True
 
     Refusals
     --------
     ``srsi_realizations_truncated``
-        from :func:`atomic_realizations`, which lists each side at its default
-        cap: more realizations than the cap, which :func:`atomic_realizations`
-        with a larger ``cap=`` lists.
+        the enumeration of one side reached the default ``cap`` of
+        :func:`atomic_realizations`.
+
+    Raises
+    ------
+    TypeError
+        ``theta_total`` without ``theta_Z`` and ``theta_Zn``, or a side or
+        ``theta_total.theta_Z`` that is not a mapping.
+    ValueError
+        ``theta_total`` that does not hold one entry for each of the tables'
+        invariants, a side that does not hold one for each integer-valued
+        invariant, or ZSRSIs of the two sides that do not add up to those of
+        ``theta_total``.
+
+    See Also
+    --------
+    splitting : the same criterion on a model and its valence bands.
     """
     if not (hasattr(theta_total, "theta_Z") and hasattr(theta_total, "theta_Zn")):
-        raise TypeError("nsit_criterion(): theta_total holds the whole model's theta_Z and "
-                        "theta_Zn, as what tables.theta returns or what srsi_of_model "
-                        f"returns; got a {type(theta_total).__name__}")
+        raise TypeError("nsit_criterion(): theta_total= is of type "
+                        f"{type(theta_total).__name__}; "
+                        "pass what tables.theta or srsi_of_model returns.")
     theta_z_h = _by_name("nsit_criterion", "theta_total.theta_Z", tables,
                          theta_total.theta_Z)
-    values_v = _by_name("nsit_criterion", "theta_Z_v", tables, theta_Z_v)
-    values_c = _by_name("nsit_criterion", "theta_Z_c", tables, theta_Z_c)
+    values_v = _by_name("nsit_criterion", "theta_Z_v=", tables, theta_Z_v)
+    values_c = _by_name("nsit_criterion", "theta_Z_c=", tables, theta_Z_c)
     zn_names = [row.name for row in tables._rows if row.mod is not None]
     if (len(theta_total.theta_Zn) != len(zn_names)
             or set(theta_total.theta_Zn) != set(zn_names)):
         raise ValueError(
-            "nsit_criterion(): theta_total holds the invariants valued modulo n "
+            "nsit_criterion(): theta_total= holds the invariants valued modulo n "
             f"{', '.join(str(k) for k in theta_total.theta_Zn) or 'none'}, and "
-            f"#{tables._number_str} has {_span(zn_names) or 'none'}; hand in what "
-            "tables.theta returns")
+            f"#{tables._number_str} has {_span(zn_names) or 'none'}; pass what "
+            "tables.theta or srsi_of_model returns.")
     theta_zn_h = {name: getattr(theta_total.theta_Zn[name], "value",
                                 theta_total.theta_Zn[name]) for name in zn_names}
     added = {name: values_v[name] + values_c[name] for name in values_v}
     if added != theta_z_h:
         raise ValueError(
-            "nsit_criterion(): the valence bands' Z-valued invariants plus the conduction "
-            f"bands' are {_invariants_text(added)}, not the whole model's, "
-            f"{_values(theta_z_h.values())}. They are linear in p and the symmetry data "
-            "vectors add, so they add up for any splitting; what was handed in does not")
+            "nsit_criterion(): theta_Z_v= plus theta_Z_c= is "
+            f"{_invariants_text(added)}, and theta_total.theta_Z is "
+            f"{_values(theta_z_h.values())}; pass the integer-valued invariants of the "
+            "valence and of the conduction bands of the same model as theta_total=.")
 
     got_v = atomic_realizations(tables, values_v)
     if not got_v:
@@ -1529,58 +1747,98 @@ def nsit_criterion(tables, theta_total, theta_Z_v, theta_Z_c) -> "Splitting | Re
 
 
 def splitting(realized, *, bands=None) -> "Splitting | Refusal":
-    r"""Whether the bands asked for and the rest of a model's bands can both be atomic insulators.
+    r"""The no-go test of a gapped splitting of a model's bands.
 
-    The paper's no-go criterion on a gapped splitting of a model's bands: the
-    valence bands are the bands asked for, the conduction bands the rest.  The
-    whole model's invariants are read off its orbitals (:func:`srsi_of_model`),
-    the integer-valued ones of the valence bands off their symmetry data
-    vector (:func:`srsi_of_bands`), and those of the conduction bands are the
-    difference; :func:`nsit_criterion` decides.  The gap is taken as given.
+    The record returned says whether the splitting is non-symmetry-indicated
+    topological (NSIT).  The criterion is that of Hwang et al., Nat. Commun.
+    17, 8564 (2026), as :func:`nsit_criterion` applies it.  The valence bands
+    are the bands asked for and the conduction bands are the rest.  The
+    stable real-space invariants (SRSIs) of all the bands are read off the
+    model's orbitals with :func:`srsi_of_model`.  The integer-valued SRSIs of
+    the valence bands are read off their symmetry data vector with
+    :func:`srsi_of_bands`, and those of the conduction bands are the
+    difference.  The splitting is NSIT exactly where both sides have atomic
+    realizations, the group has SRSIs valued modulo n, and no pair of
+    realizations has SRSIs valued modulo n adding up to those of all the
+    bands.  The bands are read at the high-symmetry points alone, so a gap
+    between those points is taken as given.
 
     Parameters
     ----------
-    realized : ..groups.RealizedGroup
-        What :func:`..groups.realized_group` returned, ``r``.
+    realized : .groups.RealizedGroup
+        What :func:`.groups.realized_group` returned for the model.
     bands : int or sequence of int
-        The valence bands: an ``int`` is the lowest *n*, a sequence those bands.
-        Required.
+        The valence bands.  Pass an integer ``n`` for the lowest ``n`` bands,
+        or a sequence of band indices.  Required.
 
     Returns
     -------
     Splitting or Refusal
-        ``out.nsit`` holds whether the splitting is NSIT, which it is only
-        where both sides have atomic realizations and no pair of them adds up
-        to the whole model's invariants valued modulo n.  ``out.valence`` and
-        ``out.conduction`` hold each side's realizations, empty where its
-        invariants are fractional.  ``out.summary()`` prints it and what it
-        rests on.  The record is truthy.  A ``Refusal`` in its place is falsy.
+        Whether the splitting is NSIT, every atomic realization of each side,
+        and the pairs whose SRSIs valued modulo n add up to those of all the
+        bands.  The record is truthy even where ``nsit`` is ``False``.
+
+    Examples
+    --------
+    lin3g (:func:`.models.lin3g`), its six lowest bands against the two above
+    them:
+
+    >>> print(splitting(r, bands=6).summary())                    # doctest: +SKIP
+    P4mm1' #99.164, double-valued: nsit, no realization of the valence bands and of the conduction bands adding up to the whole model's invariants valued modulo n   (.group, .nsit)
+      Z-valued stable real-space invariants theta_1 to theta_3: the whole model (2, 2, 0) = valence (1, 1, 1) + conduction (1, 1, -1)   (.theta_Z, .valence.theta_Z, .conduction.theta_Z)
+      invariants valued modulo n of the whole model: theta_4, theta_5 = (0, 1) mod 2   (.theta_Zn)
+      atomic realizations of the valence bands, with (theta_4, theta_5) mod 2   (.valence.realizations)
+        1 (-E2)_b + 1 (-E)_c   (1, 1)
+        1 (-E1)_b + 2 (-E2)_b   (0, 0)
+        1 (-E1)_a + 1 (-E2)_a + 1 (-E2)_b   (1, 0)
+      atomic realizations of the conduction bands, with (theta_4, theta_5) mod 2   (.conduction.realizations)
+        1 (-E1)_b   (0, 0)
+      no pair of a valence and a conduction realization has invariants valued modulo n adding up to the whole model's   (.consistent_pairs)
+
+    Refusals
+    --------
+    A refusal handed in as ``realized`` is returned as it is.
+
+    ``srsi_scope`` / ``srsi_table_absent``
+        the tables hold no SRSIs of the group: it is not grey, or it is one of
+        the thirteen space groups whose one invariant is the band count.
+    ``srsi_data`` / ``srsi_ebr_basis``
+        the tables of the SRSIs are not installed, or were converted against
+        another list of elementary band representations than the one
+        installed.
+    ``ebr_tables`` / ``irrep_tables`` / ``ebr_convention`` / ``tables_not_ready``
+        the tables installed hold no elementary band representations of this
+        group that can be read in the model's cell.
+    ``wyckoff_orbit_content_incomplete`` / ``wyckoff_orbit_not_localizable`` /
+    ``wyckoff_setting`` / ``wyckoff_unresolved``
+        the SRSIs of the orbitals could not be read, as :func:`srsi_of_model`
+        says.
+    ``incomplete_content``
+        the valence bands could not be read at some high-symmetry point, for
+        example where they split a degenerate multiplet.
+    ``not_a_band_structure`` / ``indicator_not_evaluable``
+        the integer-valued SRSIs of the valence bands could not be read, as
+        :func:`srsi_of_bands` says.
+    ``srsi_realizations_truncated``
+        the enumeration of one side reached the default ``cap`` of
+        :func:`atomic_realizations`.
 
     Raises
     ------
     TypeError
         ``bands`` left out, or ``realized`` is not what
-        :func:`..groups.realized_group` returned.
+        :func:`.groups.realized_group` returned.
+    ValueError
+        ``bands`` outside the model's bands or naming none.
 
-    Refusals
+    See Also
     --------
-    ``srsi_scope``, ``srsi_table_absent``, ``srsi_data``, ``srsi_ebr_basis``
-        from :func:`srsi_tables`: the group has no tables.
-    ``wyckoff_orbit_content_incomplete``, ``wyckoff_orbit_not_localizable``, ``wyckoff_setting``
-        from :func:`srsi_of_model`, for the orbitals.
-    ``incomplete_content``, ``not_a_band_structure``, ...
-        from :func:`..sewing.hsp_table` and :func:`srsi_of_bands`, for the bands.
-    ``srsi_realizations_truncated``
-        from :func:`nsit_criterion`, which lists each side at the default cap of
-        :func:`atomic_realizations`.
-
-    Examples
-    --------
-    >>> print(splitting(realized, bands=6).summary())       # doctest: +SKIP
+    nsit_criterion : the same criterion on invariants in hand.
     """
 
     if bands is None:
-        raise TypeError("splitting(): pass bands=, the number of valence bands")
+        raise TypeError("splitting(): no bands= is passed; pass the valence bands, as "
+                        "their number or their indices.")
     if isinstance(realized, Refusal):
         return realized
     _model, group, _assignment, rep = _unpack_realized(realized, "splitting")

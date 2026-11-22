@@ -796,7 +796,7 @@ def test_srsi_tables_refuses_a_stale_ebr_basis_and_names_both_lists(
 
     out = tqr.srsi_tables(group)
     assert not out and out.gate == "srsi_ebr_basis", str(out)
-    assert "name the wrong EBRs" in out.reason
+    assert "that the SRSI tables were converted against" in out.reason
     assert f"irreptables {out.context['irreptables_version']}" in out.reason
     installed = _ebr_keys(_tables._ebr_data(group))
     assert tuple(out.context["installed"]) == installed
@@ -859,14 +859,15 @@ def test_a_mistake_in_p_raises_saying_what_to_pass():
     vector[-1] = 1
     for name in ("theta", "theta_unreduced", "indicators_of"):
         call = getattr(table, name)
-        with pytest.raises(TypeError, match=rf"^{name}\(\): p is a mapping .* or a sum "
-                                            "of term rows; got a list$"):
+        with pytest.raises(TypeError, match=rf"^{name}\(\): p is a list\. Pass .* or a "
+                                            r"sum of terms\.$"):
             call(vector)
         with pytest.raises(ValueError, match=rf"^{name}\(\): the position 'c' is written "
-                                             "with its multiplicity, '2c'$"):
+                                             r"without its multiplicity\. Write it as its "
+                                             r"multiplicity and letter, '2c'\.$"):
             call({("-E", "c"): 1})
         with pytest.raises(ValueError, match=rf"^{name}\(\): #99.164 has Wyckoff position "
-                                             "2c, not 1c$"):
+                                             r"2c, not 1c\. Write 2c\.$"):
             call({("-E", "1c"): 1})
     row = tqg.Term(1, "-E", "2c", "mm21'", "mm2")
     assert table.theta_unreduced([row]) == table.theta_unreduced({("-E", "2c"): 1}) == \
@@ -921,11 +922,11 @@ def test_srsi_tables_takes_a_number_or_a_group_and_serves_the_same_table(
         tqr.srsi_tables(lin3g_declared_cross_checked)
     assert tqr.srsi_tables(sg211.group) == sg211
 
-    with pytest.raises(ValueError, match="two valuednesses"):
+    with pytest.raises(ValueError, match="is passed without spinor="):
         tqr.srsi_tables(211)
-    with pytest.raises(ValueError, match="already declares its valuedness"):
+    with pytest.raises(ValueError, match="Pass spinor= only with a space-group number"):
         tqr.srsi_tables(group, spinor=True)
-    with pytest.raises(ValueError, match="already declares its valuedness"):
+    with pytest.raises(ValueError, match="Pass spinor= only with a space-group number"):
         tqr.srsi_tables(group, spinor=False)
     # the calls that take a table do not take a number: they name the loader
     for call in (lambda: tqr.canonical_determinism(211),
@@ -1331,13 +1332,14 @@ def test_theta_refuses_an_unknown_key_by_naming_the_known_ones():
     """A mistyped label is a grammar mistake, so it raises rather than refusing."""
     table = tqr.srsi_tables(25, spinor=True)
     with pytest.raises(ValueError, match=r"^theta\(\): #25.58 \(double-valued\) has no site "
-                                         r"irrep 'Q' at 1a; at 1a the tables carry \['-E'\]$"):
+                                         r"irrep 'Q' at 1a\. Pass one the tables carry "
+                                         r"there: \['-E'\]$"):
         table.theta({("Q", "1a"): 1})
-    with pytest.raises(ValueError, match=r"the tables carry \['-E'\]"):
+    with pytest.raises(ValueError, match=r"the tables carry there: \['-E'\]"):
         table.theta({("-E", "1a"): 1, ("Q", "1a"): 1})
-    with pytest.raises(ValueError, match="has no Wyckoff position 1z in its tables"):
+    with pytest.raises(ValueError, match="the tables of #25.58 have no Wyckoff position 1z"):
         table.theta({("-E", "1z"): 1})
-    with pytest.raises(ValueError, match="keyed by"):
+    with pytest.raises(ValueError, match="is not a pair"):
         table.theta({"-E": 1})
 
 

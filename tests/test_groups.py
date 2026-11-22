@@ -2375,8 +2375,8 @@ def test_the_realized_record_is_read_by_name_and_taken_whole(p41_substrate, call
         fn = getattr(tqr, call)
         kw = {} if call == "srsi_of_model" else {"bands": 2}
         parts = (r.model, r.group, r._assignment, r.rep)
-        with pytest.raises(TypeError, match=rf"{call}\(\): pass what realized_group "
-                                            r"returns, r, not a tuple of its parts"):
+        with pytest.raises(TypeError, match=rf"{call}\(\): realized= is of type tuple; "
+                                            r"pass what realized_group returns, whole"):
             fn(parts, **kw)
         assert fn(r, **kw) is not None
         return

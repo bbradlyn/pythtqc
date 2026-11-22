@@ -1,22 +1,54 @@
 # Which symmetry-indicator class do these bands occupy?
 
-A symmetry indicator asks of a band set's
-[symmetry data vector](labels.md#every-high-symmetry-point-at-once) a stronger
-question than [a decomposition](atomic-limits.md) does: which class it
-occupies in the group's band structures modulo its atomic limits. This chapter
-reads that class, what it rules out and what it does not, how a layer's class
-is completed and in which group it lives, and the names a class is spoken in.
-The models are
-lin3g, from `pythtqc.models`, the model of [labelling the bands](labels.md) and
-[atomic limits](atomic-limits.md), whose group has no indicator; and
-Kane–Mele, from `pythtb.models`, a layer whose free-standing group has one. How
-the class is computed from the elementary band representations is in
-[the primer](../background/tqc-primer.md#how-a-symmetry-indicator-is-computed);
-the three phases of Fu–Kane–Mele's
-distorted diamond, which a three-dimensional indicator tells apart, are in
-[the 3D tutorial](../start/tutorial-3d.md).
+## What a symmetry indicator is
+
+The integer vectors that satisfy a space group's compatibility relations,
+negative entries allowed, form a lattice, `{BS}`. The symmetry data vector of
+every set of bands separated from the rest at every `k` lies in it. The
+integer combinations of the symmetry data vectors of the group's elementary
+band representations (EBRs), negative multiplicities allowed, form a
+sublattice of the same rank, `{AI}`
+([What elementary band representations are](atomic-limits.md#what-elementary-band-representations-are)).
+The quotient `X_BS = {BS}/{AI}` is a finite abelian group fixed by the space
+group alone, its indicator group. The symmetry indicator of a set of bands is
+the class of its symmetry data vector in `X_BS`. The EBR matrix has the
+symmetry data vector of each EBR as a column. The elementary divisors of its
+Smith normal form above 1, `d1, d2, ...`, write `X_BS` as
+`Z_d1 x Z_d2 x ...`. A class is then one integer modulo each divisor.
+
+This package uses two facts about the indicator. First, the class of an atomic
+limit is zero, and classes add. So a set of bands with a nonzero class is not
+an atomic limit, and does not become one when atomic bands are added. Second,
+the symmetry data vector of a fragile set of bands is the difference of the
+symmetry data vectors of two atomic limits, so its class is zero. Where the
+class `symmetry_indicator` returns is zero, the bands may be an atomic limit,
+fragile, or stably topological.
+
+The definitions and proofs are in Po, Vishwanath and Watanabe,
+[*Symmetry-based indicators of band topology in the 230 space groups*, Nat. Commun. **8**, 50 (2017)](https://doi.org/10.1038/s41467-017-00133-2),
+and Kruthoff *et al.*,
+[*Topological classification of crystalline insulators through band structure combinatorics*, Phys. Rev. X **7**, 041069 (2017)](https://doi.org/10.1103/PhysRevX.7.041069).
+[How a symmetry indicator is computed](../background/tqc-primer.md#how-a-symmetry-indicator-is-computed),
+in [The topological quantum chemistry this package uses](../background/tqc-primer.md),
+gives a longer account.
 
 ## The call
+
+`symmetry_indicator` takes the table `hsp_table` returns for a set of bands. It
+returns the class of the table's symmetry data vector in the indicator group of
+the space group the table was read in. A symmetry data vector written out by
+hand, `{corep: multiplicity}`, is passed with what `realized_group` returned
+for the model, `r`: `symmetry_indicator(vector, r)`. A class can only be
+returned if the table holds the little-group representations at every
+high-symmetry point the model samples, which for a layer are the points in its
+plane. A table that refused at some point is refused with `incomplete_content`.
+
+The example is lin3g, from `pythtqc.models`, the spinful square layer of Lin
+*et al.*, [Nat. Commun. **15**, 550 (2024)](https://doi.org/10.1038/s41467-024-44762-w).
+[Could these bands be an atomic limit?](atomic-limits.md) decomposes it. It
+has two orbitals at Wyckoff position `1a` and two at `2c`. The example reads
+the class of its six lowest bands, in a group whose indicator group is
+trivial:
 
 ```python
 import pythtqc as tqc
@@ -36,45 +68,55 @@ print(si.numerical.reconstructed)
 
 ## How to read it
 
-The band structures the compatibility relations allow, modulo the atomic
-limits, form a finite abelian group fixed by the space group alone,
-`X_BS = {BS}/{AI} ≅ ⊕ᵢ ℤ_{dᵢ}`, with the `dᵢ` the elementary divisors above 1
-of the group's EBR matrix, whose columns are its EBRs' symmetry data vectors,
-brought to its Smith normal form; a band set's indicator is the class of its
-symmetry data vector there
-([how a symmetry indicator is computed](../background/tqc-primer.md#how-a-symmetry-indicator-is-computed)
-sets out the construction). `group` is the group the class lives in,
-`P4mm1'` (`99.164`), the one handed in. It has no divisor above 1: `divisors`
-is empty and `indicator_group` reads `trivial`, so there is no class to measure.
-Where there is a class, `values`
-holds it in Smith coordinates, one integer modulo each `dᵢ`, and `order` is its order in `X_BS`, `1` when it vanishes; unlike
-the components, the order does not depend on the choice of basis.
-
-`numerical.reconstructed` concerns the layer. Its group is the three-dimensional space
-group of its slab, whose EBR basis has rows at `A`, `R` and `Z`, at
-`k_z = ½`, where the layer's zone has no `k`. Each repeats a row in the plane,
-`-A6` taking `-M6`'s multiplicity in every band structure of the group, so its
-multiplicity is arithmetic: filled in, and named on the record.
+- `P4mm1' #99.164`: `si.group`, the space group the table was read in.
+- `trivial indicator group`: its indicator group. The EBR matrix of `P4mm1'`
+  has no elementary divisor above 1, so its indicator group is trivial, and
+  every set of bands has class zero.
+- `99.164`: `si.group.number_str`, the group's number.
+- `()` after `99.164`: `si.divisors`, the elementary divisors above 1, none
+  here.
+- `trivial`: `si.indicator_group`, the indicator group written as text,
+  `trivial` where it has no factor.
+- `()` after `trivial`: `si.values`, the class, one integer modulo each
+  divisor, empty here.
+- `1`: `si.order`, the order of the class: the fewest copies of the bands that
+  together have class zero, `1` for the zero class.
+- `{'-A6': '-M6', ...}`: `si.numerical.reconstructed`. lin3g is a layer, and
+  its class is read in the three-dimensional space group of its decoupled
+  stack ([The group the class belongs to](#the-group-the-class-belongs-to)).
+  A layer's `H(k)` has no `k_z`, so the coreps at `A`, `R` and `Z`, the points
+  at `k_z = 1/2`, are not measured. Each of them occurs in every EBR as often
+  as a measured corep, and takes that corep's multiplicity: `-A6` takes the
+  multiplicity of `-M6`, and `-Z6` that of `-GM6`. `GM` is the tables' name
+  for Γ.
 
 ## What a zero does not certify
 
-A **nonzero** class says no band set with this content is an atomic limit, nor
-any with atomic bands added to it, since an atomic limit's class is zero and
-classes add: that is what makes the indicator a stable invariant. A vector
-`decompose` finds not decomposable says the first half only, and a fragile content decomposes
-once suitable atomic bands are added. A **zero** class certifies nothing:
-fragile topology lives in the kernel, the zero class, by construction, since a
-fragile content is the difference of two atomic limits' contents. lin3g is the
-case, its group's one class zero and its bands 4 and 5 fragile all the same
-([what a decomposition cannot certify](atomic-limits.md#what-a-decomposition-cannot-certify)).
-The record carries no triviality certificate, because there is none to carry.
+Every set of lin3g's bands has class zero, as in every group with a trivial
+indicator group. Its bands 4 and 5 have class zero and are fragile
+([What a decomposition cannot certify](atomic-limits.md#what-a-decomposition-cannot-certify)).
+Stably topological sets of bands that the indicator does not detect have class
+zero too
+([What do the stable real-space invariants say about these bands?](srsi.md)).
+Nothing `symmetry_indicator` returns states that a set of bands is an atomic
+limit.
+
+A nonzero class and the absence of a decomposition say different things. Where
+`decompose` returns no decomposition, the bands are not an atomic limit, and
+may be fragile. Where the class is nonzero, they are stably topological.
 
 ## A layer whose group has an indicator
 
-Kane–Mele with intrinsic spin–orbit coupling and neither a staggered potential
-nor a Rashba term, free-standing: vacuum on both sides, so the horizontal
-mirror is a candidate symmetry ([a 2D model](layers.md)), and its orbitals
-declared `s`:
+`realized_group` reads a 2D model on a substrate by default, and free-standing
+with `environment="free-standing"`
+([Is my 2D model on a substrate or free-standing?](layers.md)). A free-standing
+layer has vacuum on both sides, so the horizontal mirror is a candidate
+symmetry.
+
+The example is Kane-Mele, from `pythtb.models`, with intrinsic spin-orbit
+coupling and neither a staggered potential nor a Rashba term, its orbitals
+declared `s`. Free-standing, its group is `P6/mmm1'`. The example reads the
+class of its two lowest bands:
 
 ```python
 km = kane_mele(0.0, -1.0, 0.3, 0.0)                # delta, t, soc, rashba
@@ -94,63 +136,101 @@ print(si_free.numerical.summary())
 #  the Smith normal form of the group's matrix of elementary band representations, computed again exactly, gives the same elementary divisors and the same order of the class   (.verification)
 ```
 
-The summary, line by line:
+- `class (1, 0) in Z6 x Z12, in P6/mmm1' #191.234`: the class,
+  `si_free.values`, `1` modulo 6 and `0` modulo 12, followed by its indicator
+  group and the space group it is read in. Each line of a summary ends with
+  the fields that hold it. `values` depends on the Smith normal form, and the
+  irreptables package ships the one used here. Another Smith normal form of
+  the same matrix can write the same class with other values. The order is
+  the same in every one.
+- `of order 6`: `si_free.order`. The line is printed where the order is above 1.
+- `the indicator group: Z6 x Z12`: `si_free.indicator_group`, and its
+  elementary divisors above 1, `si_free.divisors`, here `(6, 12)`.
+- `indicators: z2w,3 = 1, ...`: `si_free.indicators`, the class written as the
+  values of the named indicators of the paper that tabulates the stable
+  real-space invariants
+  ([The names a class is spoken in](#the-names-a-class-is-spoken-in)).
+- `the coreps at the high-symmetry points: -GM9 + -K8 + -M6`:
+  `si_free.symmetry_data`, the symmetry data vector at the points of the
+  layer's plane, the same as `t_free.symmetry_data`.
+- `the coreps at every point of the group's tables, A, H and L completed`, from
+  `si_free.numerical.summary()`: `si_free.numerical.completed_symmetry_data`,
+  the symmetry data vector with the coreps at `A`, `H` and `L`, the points at
+  `k_z = 1/2`, off the layer's plane.
+- `A, H and L, at k_z = 1/2 out of the layer's plane`:
+  `si_free.numerical.completion`, the measurement of those coreps on the
+  layer's decoupled stack
+  ([The group the class belongs to](#the-group-the-class-belongs-to)).
+- `the class of the layer's decoupled stack`:
+  `si_free.numerical.two_dimensional`
+  ([A layer's class is a three-dimensional class](#a-layers-class-is-a-three-dimensional-class)).
+- `the Smith normal form of the group's matrix of elementary band
+  representations, computed again exactly`: `si_free.numerical.verification`.
+  The Smith normal form of the EBR matrix, computed again in exact integers,
+  has the elementary divisors of the one the irreptables package ships, and
+  gives the class the same order.
 
-- `class (1, 0) in Z6 x Z12, in P6/mmm1' #191.234`: the class in Smith
-  coordinates, `values = (1, 0)`, its indicator group, `ℤ₆ × ℤ₁₂`, and the
-  group the class lives in. A nonzero class says no atomic limit has this
-  content, nor any with atomic bands added; the next line is its order.
-- `indicators`: the class in the paper's names
-  ([below](#the-names-a-class-is-spoken-in)). The Smith components and the
-  named forms are two coordinate systems on one class.
-- The coreps at the high-symmetry points: the symmetry data vector of the
-  layer's plane.
-
-`si_free.numerical.summary()` prints how the class was read:
-
-- The coreps at every point of the group's tables: the symmetry data vector,
-  now with rows at `A`, `H` and `L`, where the layer has no `k`: measured
-  ([below](#the-group-the-class-belongs-to)).
-- `A, H and L, at k_z = 1/2`: how those rows were obtained, on the layer repeated
-  with `c = 8` of vacuum between its copies, in the model's length units, which
-  nothing returned depends on, and read in the layer's own group
-  ([below](#the-group-the-class-belongs-to)).
-- `the class of the layer's decoupled stack`: how a layer's class reads
-  ([below](#a-layers-class-is-a-three-dimensional-class)).
-- The last line: the Smith form of the group's EBR matrix, recomputed in exact
-  integers on every call, agrees with the tables'; a disagreement raises
-  `InternalError`, the package disagreeing with itself, which should be reported.
-
-The labels, and with them the class a band set is called, rest on what the
-orbitals are declared to be, and `site_content` records how each site irrep is
-known ([saying what the orbitals are](orbitals.md)).
+Where the indicator group is nontrivial and an orbital's site irrep was
+assigned by the lowest-angular-momentum rule, the summary prints one more line,
+ending `(.site_content)`. A declaration of the orbitals can then change the
+class ([When to declare](orbitals.md#when-to-declare)).
 
 ## The group the class belongs to
 
-Where an out-of-plane row repeats an in-plane one, its multiplicity is
-arithmetic, as for lin3g. Where it does not, as for `P6/mmm1'`, the row is
-**measured** on a crystal that has it: the same layer repeated along its normal
-with no hopping between copies, each orbital at its own height, whose bands do
-not depend on `k_z`, so that the stack carries at `k_z = ½` the bands it
-carries at `k_z = 0`. A slab, a buckled layer or a bilayer, is stacked at its
-orbitals' heights, its period the slab's extent along the normal plus `c`. That
-decoupled stack obeys exactly what the layer obeys, since an operation of the
-stack, combined with a translation along the stacking, carries one copy onto
-itself, so its group is the layer's own: each operation is carried to the
-stack by its Cartesian action, with the layer's own matrix, and neither the
-group nor the matrices are measured again. `symmetry_indicator` builds the
-stack itself and records, in
-`numerical.completion.gates`, the measured number of every check that ties it to the
-layer
-([a layer's out-of-plane rows](../background/measurement.md#a-layers-out-of-plane-rows)
-sets out the construction and its checks); each is an identity, and one that
-fails raises `InternalError`, the package disagreeing with itself.
-`numerical.completion.outcome` reads `completed`.
+Unlike lin3g's, some little-group representations of `P6/mmm1'` at `A`, `H`
+and `L` pair with none in the plane. For each, no little-group representation
+in the plane occurs as often as it does in every EBR of the group, those of
+the positions off the layer included. They are measured on the layer's
+decoupled stack. The decoupled stack is the layer repeated along its normal
+with no hopping between copies, each orbital at its own height. Its bands do
+not depend on `k_z`, so at `k_z = 1/2` it carries the bands it carries at
+`k_z = 0`. It obeys exactly the operations the layer obeys, and its bands are
+labeled in the layer's own group with the layer's own representation matrices
+([A layer's out-of-plane rows](../background/measurement.md#a-layers-out-of-plane-rows)).
 
-A larger group is a question about the layer with vacuum on both sides, the
-free-standing one. On a substrate, the default for a 2D model, one side differs
-and there is no horizontal mirror to find, and the free-standing layer's group
-is the one `realized_group` measured beside the substrate's:
+`symmetry_indicator` builds the stack itself from the free-standing Kane-Mele
+layer's table. `si_free.numerical.completion` holds the measurement:
+
+```python
+comp = si_free.numerical.completion
+print(comp.outcome, comp.stack_period, comp.stack_extent)
+#  completed 8.0 0.0
+print([(f.kpoint, f.in_plane_kpoint) for f in comp.gates.fibers])
+#  [('A', 'GM'), ('H', 'K'), ('L', 'M')]
+```
+
+- `completed`: `comp.outcome`, which says that the coreps out of the plane were
+  measured on the stack.
+- `8.0`: `comp.stack_period`, the stack's period along the layer's normal, in
+  the model's units of length.
+- `0.0`: `comp.stack_extent`, the layer's extent along its normal, in the same
+  units. The difference of the two is the vacuum between the copies, 8 in the
+  model's units of length whatever the layer. The class does not depend on it.
+- `[('A', 'GM'), ('H', 'K'), ('L', 'M')]`: `comp.gates.fibers`, which pairs
+  each point at `k_z = 1/2` with the point in the plane at the same in-plane
+  `k`. At each pair the stack carries the same energies and characters.
+
+A vector written out by hand carries no model to build a stack from. It is
+read at the points of the plane, and at each point out of it where it names a
+little-group representation. Among the EBRs of the Wyckoff positions within
+the layer, each little-group representation out of the plane occurs as often
+as one in the plane. One the vector does not name takes that one's
+multiplicity, and no stack is needed. The example passes the free-standing
+Kane-Mele layer's symmetry data vector written out by hand, which holds the
+coreps of the plane alone:
+
+```python
+print(tqc.symmetry_indicator(t_free.symmetry_data, free).values)
+#  (1, 0)
+```
+
+- `(1, 0)`: the class `si_free.values` read from the table, read again without
+  the stack.
+
+On a substrate, the default for a 2D model, one side of the layer differs from
+the other, and the horizontal mirror is not an operation. The example reads the
+class of the same Kane-Mele layer on a substrate. It then decomposes the
+free-standing layer's two bands:
 
 ```python
 sub = tqc.realized_group(km, characters={0: "s"})  # on a substrate, the default
@@ -173,28 +253,44 @@ print(d_free.decomposable, d_free.certificate, sorted(d_free.numerical.restricti
 #  False proof ['1b', '2d', '3g']
 ```
 
-On a substrate the class lives in `#183.186`, `P6mm1'`, whose indicator group
-is trivial: there is no class for this layer there. Every
-row of its basis out of the plane repeats an in-plane one, so no stack is
-built and `numerical.completion` is `None`. The last line but one of
-`si_sub.numerical.summary()` names the
-free-standing layer's group, `P6/mmm1'` `#191.234`, as `realized_group`
-measured it in the other environment and found it to agree
-(`r.environment.cross_check.free_standing`), without using it; it is named where it is larger
-than the substrate's, and not at all where that environment was not measured
-(`cross_check=False`) or not compared, as for a declaration written in the
-substrate's site irreps. A decomposition of the free-standing presentation is
-read over the layer's own band representations, those of the Wyckoff positions
-within the layer: `1b`, `2d` and `3g` lie off the layer and are left out, and
-on the rest every row out of the plane repeats an in-plane one, so no stack is
-needed. It finds no atomic limit, with a proof, as the class `(1, 0)` says it
-must.
+- `P6mm1' SymmetryIndicator(P6mm1' #183.186, trivial indicator group)`: on a
+  substrate the group is `P6mm1'`, whose indicator group is trivial, so these
+  bands have class zero there.
+- `None`: `si_sub.numerical.completion`. Every corep of `P6mm1'` out of the
+  plane occurs in every EBR as often as one in the plane, so no stack is built.
+- `P6/mmm1' #191.234`: `sub.environment.cross_check.free_standing`, the
+  free-standing layer's group, which `realized_group` measured beside the
+  substrate's.
+- `the coreps at A, H and L are not measured`:
+  `si_sub.numerical.reconstructed`. The next line pairs each corep at `A`, `H`
+  and `L` with the measured corep whose multiplicity it takes.
+- `the free-standing layer's group, as realized_group measured it, is P6/mmm1'
+  #191.234`: `si_sub.numerical.free_standing_group`. It is named where the
+  free-standing group is larger than `si_sub.group`, and where the cross-check
+  of `realized_group` found the substrate group to be exactly the operations of
+  the free-standing group that preserve the layer's normal. Otherwise it is
+  `None`, as with `cross_check=False`. The class in that group is not read
+  here; `environment="free-standing"` asks for it.
+- `False proof ['1b', '2d', '3g']`: the free-standing layer's two bands have no
+  decomposition, `d_free.decomposable`, with a proof, `d_free.certificate`.
+  These bands' class is `(1, 0)`, and a symmetry data vector with a nonzero
+  class has no decomposition. `d_free.numerical.restriction.outside_layer`
+  names the positions of `P6/mmm1'` off the layer, `1b`, `2d` and `3g`, which
+  the decomposition of a free-standing layer leaves out
+  ([The call](atomic-limits.md#the-call)).
 
 ## A layer's class is a three-dimensional class
 
-A two-dimensional model's class is read in the three-dimensional space group of
-its slab, whose basis has rows at points out of the layer's plane, at
-`k_z = ½`:
+A layer's `H(k)` has no `k_z`, so its class is the class of its decoupled
+stack. The stack carries the same states at each point at `k_z = 1/2` as at
+the point of the plane with the same in-plane `k`, so its little-group
+representations there are fixed by those in the plane. Each component of the
+class, and each named indicator, is fixed by the layer's own symmetry data
+vector, even where its linear form reads only little-group representations out
+of the plane. Kane-Mele's two bands
+read `(1, 0)` on the stack, with `z2w,3 = 1` and `z4 = 2`.
+`si_free.numerical.two_dimensional` says which points lie out of the plane,
+and which coreps each named indicator reads:
 
 ```python
 print(si_free.numerical.two_dimensional.out_of_plane_kpoints)
@@ -203,26 +299,34 @@ print(si_free.numerical.two_dimensional.support)
 #  {'z2w,3': 'out-of-plane only', 'z4': 'mixed', 'z3m,pi': 'out-of-plane only', 'z3m,0': 'in-plane only', 'z6m,0': 'in-plane only', 'z6m,pi': 'out-of-plane only', 'z12': 'mixed'}
 ```
 
-The layer's `H(k)` has no `k_z`, so the class is the class of the layer's
-decoupled stack, the layer repeated along its normal with no hopping between
-copies, whose rows at `k_z = ½` repeat the in-plane ones. Every component is
-an invariant of that stack, fixed by the layer's own content, whether its form
-reads `A`, `H` and `L` alone, as `z2w,3` does, both planes, as `z4` does, or
-the plane alone, as `z6m,0` does: `support` records where each
-form's coefficients sit, and `two_dimensional.note` states the reading on
-the record. A topological invariant of the layer is one of the stack its
-copies make: Kane–Mele's two bands read `(1, 0)` there, with `z2w,3 = 1` and
-`z4 = 2`.
+- `('A', 'H', 'L')`: `out_of_plane_kpoints`, the points of the group's tables
+  out of the layer's plane, at `k_z = 1/2`.
+- `{'z2w,3': 'out-of-plane only', ...}`: `support`. For each named indicator,
+  keyed by the paper's name, it says whether the nonzero coefficients of the
+  indicator's linear form in the symmetry data vector lie on coreps in the
+  plane, out of it, or both. The linear forms are those of the irreptables
+  package ([The names a class is spoken in](#the-names-a-class-is-spoken-in)).
+  `z2w,3` reads coreps out of the plane alone, and its value, 1, is fixed by
+  the layer's coreps in the plane all the same. `z6m,0` reads coreps in the
+  plane alone, and `z4` both.
 
 ## The names a class is spoken in
 
-Two literatures name the indicators, and differently: `irreptables` ships
-linear forms in the momentum-space symmetry data vector, and the stable-RSI paper,
-Hwang *et al.*,
+A class is also written as the values of named indicators, each a linear form
+modulo an integer. Two sets of names exist. The irreptables package ships
+linear forms in the symmetry data vector. The paper that tabulates the stable
+real-space invariants (SRSIs), Hwang *et al.*,
 [*Stable real-space invariants and topology beyond symmetry indicators*, Nat. Commun. **17**, 8564 (2026)](https://doi.org/10.1038/s41467-026-74844-w),
-gives named forms in the real-space invariants
-([stable real-space invariants](srsi.md)). `indicators` is the class in the
-paper's names, the ones pythTQC returns:
+gives linear forms in the integer-valued SRSIs (ZSRSIs)
+([What do the stable real-space invariants say about these bands?](srsi.md)).
+The two sets name the same indicators, each in its own spelling. The two names
+of one indicator take the same value on every set of bands. Their linear forms
+are written in different variables, the symmetry data vector and the ZSRSIs.
+`si.indicators` is the class
+in the paper's names. It is computed by applying the paper's forms to the
+ZSRSIs of the symmetry data vector, the ZSRSIs `srsi_of_bands` returns. The
+example prints the free-standing Kane-Mele layer's indicators, and lin3g's,
+which are `None`:
 
 ```python
 print(si_free.indicators)
@@ -231,56 +335,76 @@ print(si.indicators, si.numerical.indicators_note)
 #  None the indicator group of #99.164 is trivial, so there is no class to read in the paper's named indicators; the paper's tables carry an indicator row for exactly the 170 grey systems that have one, and this is not one of them
 ```
 
-Where `indicators` is `None`, `numerical.indicators_note` says why, and two
-such cases are answers: a trivial indicator group, as lin3g's, has no class to
-read in the paper's names; and a unitary group, returned for a Hamiltonian that breaks time
-reversal, is outside the paper's tables, which are the time-reversal-symmetric
-ones. The Smith class is returned in both.
+- `{'z2w,3': 1, ...}`: `si_free.indicators`, each named indicator and its
+  value. The named values determine the class, as `values` does.
+- `None the indicator group of #99.164 is trivial, ...`: lin3g's
+  `si.indicators`, and `si.numerical.indicators_note`, which says why it is
+  `None`. It is `None` for a trivial indicator group, for which the paper names
+  no indicator. It is `None` for a group without time reversal, which the
+  paper's tables do not hold. It is `None` where the tables of stable
+  real-space invariants are not installed, or cannot be read for this group.
+  The class in `values` is returned in each case.
 
 ## When it refuses
 
-A refusal is a returned record, falsy, naming the check that stopped the call
-and what it measured ([when a call refuses](refusals.md)). A vector written by
-hand with two bands at Γ and `M` and four at `X` is no band structure. A
-layer's vector written out by hand in its plane, handed with the measurement
-its coreps came from, is completed on the layer's own band representations
-and gets its class:
+A refusal is a returned record. It is falsy, and names the check that stopped
+the call and what it measured
+([What does a refusal mean, and what do I do about it?](refusals.md)). The
+example hands in a vector written out by hand for lin3g, with two bands at Γ
+and at `M` and four at `X`, which is no band structure:
 
 ```python
 print(tqc.symmetry_indicator({"-GM6": 1, "-M6": 1, "-X5": 2}, r).gate)
 #  not_a_band_structure
-print(tqc.symmetry_indicator(t_free.symmetry_data, free).values)
-#  (1, 0)
 ```
 
+The checks `symmetry_indicator` meets:
+
 - [`not_a_band_structure`](../reference/refusals.md#not_a_band_structure): the
-  content fails the compatibility relations; the refusal names the offending
-  Smith coordinates.
-- [`incomplete_content`](../reference/refusals.md#incomplete_content): a table
-  with a point that did not resolve. The class of a vector with a point missing
-  is the class of a different vector, and there is no override.
+  symmetry data vector fails the group's compatibility relations.
+- [`incomplete_content`](../reference/refusals.md#incomplete_content): the table
+  refused at some high-symmetry point. The table's `refusals` names each such
+  point's refusal.
 - [`indicator_not_evaluable`](../reference/refusals.md#indicator_not_evaluable):
-  rows out of the plane that neither repeat an in-plane row nor were measured
-  on the stack: for a vector written out by hand whose rows out of the plane
-  cannot be read off the layer's own band representations, or because a check
-  of the stack did not complete, which `context["stack"]` names.
-- [`unknown_label`](../reference/refusals.md#unknown_label): a measured label
-  the EBR basis does not carry.
-- `magnetic_type_out_of_scope`: a magnetic group of type III or IV, which
-  `realized_group` never returns
-  ([what the package cannot do yet](../background/limits.md)).
-- [`ebr_tables`](../reference/refusals.md#ebr_tables),
-  [`irrep_tables`](../reference/refusals.md#irrep_tables),
-  [`ebr_convention`](../reference/refusals.md#ebr_convention): no EBR data for
-  the group.
+  a layer's little-group representations at `k_z = 1/2` that take the
+  multiplicity of none in its plane could not be read. For a table, their
+  measurement on the decoupled stack stopped, and `context["stack"]` says
+  where. For a vector written out by hand, the tables' Wyckoff positions could
+  not be read in the group's cell, and the reason names the table `hsp_table`
+  returns as what to pass.
+- [`unknown_label`](../reference/refusals.md#unknown_label): a little-group
+  representation that the group's EBRs do not hold.
+- [`negative_multiplicity`](../reference/refusals.md#negative_multiplicity),
+  [`non_integer_multiplicity`](../reference/refusals.md#non_integer_multiplicity):
+  a vector that is not a count of little-group representations.
+- [`tables_not_ready`](../reference/refusals.md#tables_not_ready): the group's
+  cell could not be matched to the setting the tables are written in, so no
+  table can be read for it.
+- [`ebr_tables`](../reference/refusals.md#ebr_tables): the installed tables
+  hold no EBRs for this group.
+- [`irrep_tables`](../reference/refusals.md#irrep_tables): the character tables
+  were not loaded, or hold no irrep table for this group.
+- [`ebr_convention`](../reference/refusals.md#ebr_convention): the tables' EBRs
+  of this group cannot be carried into the phase convention of the labels
+  returned.
 
-## Every field and argument
+## Where to go next
 
-The fields of [`SymmetryIndicator`](../reference/records.md#symmetryindicator),
-its `numerical.completion` and its `numerical.two_dimensional` among them, are in the records
-reference, and each call's arguments in its entry:
-[`symmetry_indicator`](../reference/functions.md#symmetry_indicator),
-[`stack_presentation`](../reference/functions.md#stack_presentation), which
-builds the decoupled stack on its own, and
-[`in_plane_restriction`](../reference/functions.md#in_plane_restriction). A
-layer's two environments are [a 2D model](layers.md).
+- [Returned records](../reference/records.md) lists every field of
+  [`SymmetryIndicator`](../reference/records.md#symmetryindicator), its
+  `numerical.completion` and `numerical.two_dimensional` among them.
+- [Functions](../reference/functions.md) gives the arguments of
+  [`symmetry_indicator`](../reference/functions.md#symmetry_indicator); of
+  [`stack_presentation`](../reference/functions.md#stack_presentation), which
+  returns a layer's decoupled stack as a pythtb model; and of
+  [`in_plane_restriction`](../reference/functions.md#in_plane_restriction),
+  which returns the little-group representations of a group's EBRs that a
+  layer measures.
+- `pythtqc.groups.indicator_group(r.group)` returns the elementary divisors of
+  the group's EBR matrix and, for a group with time reversal, the named forms
+  of the irreptables package, with no class.
+- [What do the stable real-space invariants say about these bands?](srsi.md)
+  reads the SRSIs of a set of bands and of a model, among them the SRSIs valued
+  modulo n, which the symmetry data vector does not fix.
+- [Fu-Kane-Mele: a 3D crystal, a distortion, the Z4 indicator](../start/tutorial-3d.md)
+  reads a nonzero class in three dimensions, in three phases of one crystal.

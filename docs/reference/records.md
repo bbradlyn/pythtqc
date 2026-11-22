@@ -1067,7 +1067,7 @@ site-symmetry vector `p`, how many times each site irrep occurs at each Wyckoff
 position, that no symmetric deformation of the Wannier functions changes: two
 atomic configurations share them exactly when they deform into each other once
 the same atomic orbitals are added to both. Some are `ℤ`-valued and some
-`ℤ_n`-valued ([what they are](../guide/srsi.md#what-a-real-space-invariant-is)),
+`ℤ_n`-valued ([what they are](../guide/srsi.md#what-the-stable-real-space-invariants-are)),
 and the tables are the stable-RSI paper's.
 
 ### `SRSITables`

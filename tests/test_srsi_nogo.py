@@ -577,17 +577,17 @@ def test_the_grammar_mistakes_are_value_errors_not_refusals(sg211):
     """
     theta_total = _column(sg211, 16)
     theta_z = theta_total.theta_Z
-    with pytest.raises(TypeError, match="theta_Z is a mapping from each Z-valued "
-                                        "invariant's name to its value"):
+    with pytest.raises(TypeError, match="theta_Z= is of type tuple; pass a mapping from "
+                                        "each integer-valued invariant's name to its value"):
         tqr.atomic_realizations(sg211, tuple(theta_z.values()))
-    with pytest.raises(ValueError, match="theta_Z holds theta_1, theta_2, theta_3; "
-                                         r"#211\.57 has the Z-valued invariants"):
+    with pytest.raises(ValueError, match="theta_Z= holds theta_1, theta_2, theta_3; "
+                                         r"#211\.57 has the integer-valued invariants"):
         tqr.atomic_realizations(sg211, {"theta_1": 0, "theta_2": 0, "theta_3": 0})
-    with pytest.raises(ValueError, match="not the whole model's"):
+    with pytest.raises(ValueError, match="theta_Z_v= plus theta_Z_c= is"):
         tqr.nsit_criterion(sg211, theta_total, theta_z, theta_z)
     zeros = {name: 0 for name in theta_z}
     wrong_moduli = replace(theta_total, theta_Zn={"theta_8": 0})
-    with pytest.raises(ValueError, match="theta_total holds the invariants valued modulo n "
+    with pytest.raises(ValueError, match="theta_total= holds the invariants valued modulo n "
                                          "theta_8, and #211.57 has"):
         tqr.nsit_criterion(sg211, wrong_moduli, theta_z, zeros)
 
@@ -870,8 +870,8 @@ def test_the_band_set_is_one_keyword_on_both_routes(lin3g_declared_cross_checked
     assert by_list.conduction.theta_Z == want.conduction.theta_Z
     assert by_list.summary() == want.summary(), "the same split, said the same way"
 
-    with pytest.raises(TypeError, match=r"^splitting\(\): pass bands=, the number of "
-                                        "valence bands$"):
+    with pytest.raises(TypeError, match=r"^splitting\(\): no bands= is passed; pass the "
+                                        r"valence bands, as their number or their indices\.$"):
         tqr.splitting(record)
 
     table = tqw.hsp_table(record, bands=[0, 1, 2, 3])
