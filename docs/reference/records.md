@@ -952,21 +952,27 @@ span, each with its height, which carry none of its orbitals and are left out.
 ## `RegularCompletion`
 
 The counting beside a decomposition: `regular_completion` gives the bands that
-would carry a band set up to whole copies of the regular band representation,
-`|U|` bands per copy for `|U|` unitary operations, counted one per coset of the
-lattice translations and, for a spinful model, the single-valued group's. Its
-`summary()` reads it part by part:
+would carry a band set up to whole copies of the regular band representation.
+One copy is the band representation induced from the general Wyckoff position.
+It has `|U|` bands, one for each unitary operation up to lattice translations,
+counted in the single-valued group for a spinful model. A spinful model in a
+group with time reversal has the Kramers pair at the general position, and
+`2|U|` bands a copy. The record's `summary()` reads it part by part:
 
 ```python
-rc = tqc.regular_completion(t, bands=12)
+rc = tqc.regular_completion(t, bands=24)
 print(rc.summary())
-#  one copy of the regular band representation, the one the regular representation of a site group induces: 12 bands at every k   (.copies, .bands_per_copy)
-#    the coreps the missing bands carry: 2x-GM7 + 2x-GM8 + -GM9 + 2x-K4 + 2x-K5 + 3x-K6 + 5x-M5   (.padding)
+#  one copy of the regular band representation, the one induced from the general position: 24 bands at every k   (.copies, .bands_per_copy)
+#    the coreps the missing bands carry: 4x-GM7 + 4x-GM8 + 3x-GM9 + 4x-K4 + 4x-K5 + 7x-K6 + 11x-M5   (.padding)
 #    the orbitals they would be, each the site irrep at its Wyckoff position (site symmetry)   (.decomposition.candidate_sums)
-#      -E2 at 1a (6mm1') + -E3 at 1a (6mm1') + -E at 3c (mm21')
-#      -E1 at 1a (6mm1') + 2x-E2 at 1a (6mm1') + 2x-E3 at 1a (6mm1')
+#      -E2 at 1a (6mm1') + -E3 at 1a (6mm1') + 3x-E at 3c (mm21')
+#      -E2 at 1a (6mm1') + -E3 at 1a (6mm1') + -1E2E at 2b (3m1') + 2x-E1 at 2b (3m1') + -E at 3c (mm21')
+#      -E1 at 1a (6mm1') + 2x-E2 at 1a (6mm1') + 2x-E3 at 1a (6mm1') + 2x-E at 3c (mm21')
+#      -E1 at 1a (6mm1') + 2x-E2 at 1a (6mm1') + 2x-E3 at 1a (6mm1') + -1E2E at 2b (3m1') + 2x-E1 at 2b (3m1')
+#      2x-E1 at 1a (6mm1') + 3x-E2 at 1a (6mm1') + 3x-E3 at 1a (6mm1') + -E at 3c (mm21')
+#      3x-E1 at 1a (6mm1') + 4x-E2 at 1a (6mm1') + 4x-E3 at 1a (6mm1')
 print(rc.decomposition.candidate_sums[0].label)
-#  -E2 at 1a (6mm1') + -E3 at 1a (6mm1') + -E at 3c (mm21')
+#  -E2 at 1a (6mm1') + -E3 at 1a (6mm1') + 3x-E at 3c (mm21')
 ```
 
 A `RegularCompletion` holds `copies` and `bands_per_copy`; `symmetry_data`, the
@@ -1278,7 +1284,7 @@ one:
 ```python
 refused = tqc.regular_completion(t, bands=3)
 print(refused)
-#  Refusal[not_a_regular_multiple]: 3 bands is not a multiple of 12, the number of bands of one regular band representation of P6mm1' #183.186. Pass a multiple of it to bands=, such as 12.  (measured 3, threshold 0)
+#  Refusal[not_a_regular_multiple]: 3 bands is not a multiple of 24, the number of bands in one copy of the regular band representation of P6mm1' #183.186. Pass a multiple of it to bands=, such as 24.  (measured 3, threshold 0)
 #      context: bands_per_copy, n_bands, number_str
 print(bool(refused), refused.gate, refused.value, refused.threshold, refused.context["number_str"])
 #  False not_a_regular_multiple 3.0 0.0 183.186
@@ -1291,8 +1297,8 @@ except tqc.RefusalError as error:
 
 The printout is `Refusal[gate]:`, the diagnosis in words, the number measured
 against the one the check demanded, and the names of the keys its `context`
-carries. Here one regular copy of `P6mm1'` is 12 bands, and 3 bands are no
-whole number of copies; the completion above, asked for 12, is defined.
+carries. Here one regular copy of `P6mm1'` is 24 bands, and 3 bands are no
+whole number of copies; the completion above, asked for 24, is defined.
 
 A refusal is one of four things: an honest verdict about the physics; a
 practical limit, a search or a memory budget that the same call runs past with a

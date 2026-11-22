@@ -1573,8 +1573,9 @@ def _magnetic_scope_refusal(group) -> Refusal | None:
 
     One gate, ``"magnetic_type_out_of_scope"``, shared by :func:`_group_of` —
     where it stops a type-III/IV group being built at all — and by
-    :func:`..ebr.symmetry_indicator`, which keeps its own check so that a group
-    reaching it by any other route is still refused.
+    :func:`..ebr.symmetry_indicator` and :func:`..ebr.regular_content`, which
+    keep their own check so that a group reaching them by any other route is
+    still refused.
     """
     mtype = _magnetic_type(group)
     if mtype in ("I", "II"):

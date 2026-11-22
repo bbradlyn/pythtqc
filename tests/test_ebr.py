@@ -33,7 +33,7 @@ from pythtqc import groups as tqg
 from pythtqc import sewing as tqw
 from pythtqc import srsi as tqr
 from pythtqc import symmetry as tqs
-from pythtqc.refusal import Refusal
+from pythtqc.refusal import MagneticScopeWarning, Refusal
 from pythtqc import _build
 from pythtqc import _layers
 from pythtqc import _measure
@@ -292,34 +292,71 @@ def test_lin3g_P2_and_Q2_sum_to_the_1a_pair_but_neither_half_is_one(
         assert _positions(got) == (("1b",),), "each half is a 1b EBR"
 
 
-def test_lin3g_regular_completion_to_eight_bands(lin3g_declared_cross_checked):
-    """The occupied six bands, completed to the model's own eight.
+def _general_position_bands(ops, lattice, spinful, zeeman=0.0):
+    """``s`` orbitals on the orbit of a generic point under ``ops``: the realized record and its band count."""
+    from pythtqc import models as tqcm
 
-    ``|U| = 8`` for ``P4mm``, so eight bands is exactly one regular copy, whose
-    content is ``{-GM6: 2, -GM7: 2, -M6: 2, -M7: 2, -X5: 4}`` — computed here
-    from the group's corep characters, never tabulated.  The padding comes out
-    ``{-GM7: 1, -M6: 1, -X5: 1}``, decomposing uniquely as ``-E1^G(2)@1b`` —
-    which is exactly the measured content of the conduction pair Q2, as it must
-    be for a model that *is* eight bands.
+    orbit = tqcm.orbit_of(ops, (0.137, 0.271, 0.413))
+    n = len(orbit)
+    seeds = ([(0, j, (0, 0, 0), -0.3 - 0.05 * j) for j in range(1, n)]
+             + [(0, 0, L, -0.2) for L in [(1, 0, 0), (0, 1, 0), (0, 0, 1)]]
+             + [(0, j, (1, 0, 0), -0.07 - 0.01 * j) for j in range(1, n)])
+    m = tqcm.atomic_model(lattice, ops, [orbit], [0.0] * n, seeds, spinful=spinful)
+    for i in range(n if zeeman else 0):
+        m.set_onsite([0.0, 0.0, 0.0, zeeman], ind_i=i, mode="add")
+    return tqg.realized_group(m, typat=[0] * n), n * (2 if spinful else 1)
+
+
+def test_lin3g_regular_completion_to_sixteen_bands(lin3g_declared_cross_checked):
+    """One regular copy is the bands of orbitals at the general position; lin3g's is sixteen bands.
+
+    Orbitals on the orbit of a generic point of ``I4_1`` carry a whole number
+    of copies of what ``regular_content`` returns, read by ``hsp_table`` and not
+    through its formula: one copy spinless in ``I4_11'``, one copy of eight
+    bands spinful, the Kramers pair at each of the four sites, and two copies
+    of four spinful in ``I4_1`` with a Zeeman field.  Completing all their
+    bands leaves nothing missing.
+
+    In ``P4mm1'``, ``|U| = 8``, a spinful copy is ``2|U| = 16`` bands, and its
+    content is ``{-GM6: 4, -GM7: 4, -M6: 4, -M7: 4, -X5: 8}``.  lin3g's six
+    lowest bands complete to it.
 
     And the anchor ``A = 3E1bar@1a + 2E2bar@1a + Ebar@2c``, measured: the
-    padding that carries a *single* ``E2bar^G(2)@1a`` up to 16 bands = **two**
-    regular copies of ``P4mm``.  It is quoted in both bases: as written above
+    padding that carries a *single* ``E2bar^G(2)@1a`` up to 16 bands, one
+    regular copy of ``P4mm1'``.  It is quoted in both bases: as written above
     (with ``2c``) and, since the ``2c`` row's content is a pair's at ``1a`` or
     at ``1b``, in the ``1a``/``1b`` basis as ``4E1bar@1a + 3E2bar@1a``.
     """
+    from pythtqc import models as tqcm
+
+    for spinful, zeeman, name, copies in ((False, 0.0, "I4_11'", 1), (True, 0.0, "I4_11'", 1),
+                                          (True, 0.4, "I4_1", 2)):
+        if zeeman:
+            with pytest.warns(MagneticScopeWarning):
+                r, n = _general_position_bands(tqcm.I41_PRIM_OPS, tqcm.I41_LATTICE,
+                                               spinful, zeeman)
+        else:
+            r, n = _general_position_bands(tqcm.I41_PRIM_OPS, tqcm.I41_LATTICE, spinful)
+        assert r and r.group.name == name and len(r.group._u_symmetries) == 4, str(r)
+        table = tqw.hsp_table(r, bands=n)
+        assert table.complete
+        one = tqe.regular_content(r.group)
+        assert table.symmetry_data == {k: copies * v for k, v in one.items()}, \
+            "the orbit's bands, read, are whole copies"
+        rc = tqe.regular_completion(table, bands=n)
+        assert rc and (rc.copies, rc.bands_per_copy) == (copies, n // copies), str(rc)
+        assert rc.regular == one and rc.padding == {}
+
     record = lin3g_declared_cross_checked
     model, group, rep = record.model, record.group, record.rep
     reg = tqe.regular_content(group)
-    assert reg == {"-GM6": 2, "-GM7": 2, "-M6": 2, "-M7": 2, "-X5": 4}
+    assert reg == {"-GM6": 4, "-GM7": 4, "-M6": 4, "-M7": 4, "-X5": 8}
 
-    rc = tqe.regular_completion(tqw.hsp_table(record, bands=P6), bands=8)
+    rc = tqe.regular_completion(tqw.hsp_table(record, bands=P6), bands=16)
     assert rc, str(rc)
-    assert (rc.copies, rc.bands_per_copy) == (1, 8)
-    assert rc.padding == {"-GM7": 1, "-M6": 1, "-X5": 1}
-    assert rc.padding == tqw.hsp_table(record, bands=list(Q2)).symmetry_data
-    assert [tuple(s) for s in rc.decomposition.candidate_sums] == [
-        (tqg.Term(1, "-E1", "1b", "4mm1'", "4mm"),)]
+    assert (rc.copies, rc.bands_per_copy) == (1, 16)
+    assert rc.regular == reg
+    assert rc.padding == {"-GM6": 2, "-GM7": 3, "-M6": 3, "-M7": 2, "-X5": 5}
 
     _, e2_1a = _row(group, "1a", "-E2")
     seed = _in_plane(group, e2_1a)
@@ -327,7 +364,7 @@ def test_lin3g_regular_completion_to_eight_bands(lin3g_declared_cross_checked):
 
     rc = tqe.regular_completion(seed, record, bands=16)
     assert rc, str(rc)
-    assert (rc.copies, rc.bands_per_copy) == (2, 8)
+    assert (rc.copies, rc.bands_per_copy) == (1, 16)
     assert {k: rc.copies * v for k, v in rc.regular.items()} == {
         "-GM6": 4, "-GM7": 4, "-M6": 4, "-M7": 4, "-X5": 8}
     assert rc.padding == {"-GM6": 3, "-GM7": 4, "-M6": 3, "-M7": 4, "-X5": 7}
@@ -536,18 +573,59 @@ def test_a_label_the_group_does_not_carry_is_refused(lin3g_declared_cross_checke
 
 def test_regular_completion_refuses_a_band_count_that_is_not_a_regular_multiple(
         lin3g_declared_cross_checked):
-    """One regular copy of ``P4mm`` is 8 bands; 6 is not a multiple of it."""
+    """One regular copy is induced from the general position; other counts are refused.
+
+    One copy of ``P4mm1'``, spinful, is 16 bands, so 6 and the model's own 8
+    are refused.  On a triclinic ``s`` orbital, ``|U| = 2``: one copy of the
+    spinful ``P-11'`` is 4 bands, the Kramers pair at the general position, and
+    its corep ``-GM2GM2``, one irrep taken twice, occurs once; the spinless
+    ``P-11'`` and the spinful ``P-1`` with time reversal broken by a Zeeman
+    field hold one state there, 2 bands.  ``regular_content`` agrees with the
+    completion in each.
+    """
     record = lin3g_declared_cross_checked
     model, group, rep = record.model, record.group, record.rep
-    out = tqe.regular_completion(tqw.hsp_table(record, bands=P6), bands=6)
-    assert isinstance(out, Refusal) and out.gate == "not_a_regular_multiple"
-    assert out.context["bands_per_copy"] == 8
+    for n in (6, 8):
+        out = tqe.regular_completion(tqw.hsp_table(record, bands=P6), bands=n)
+        assert isinstance(out, Refusal) and out.gate == "not_a_regular_multiple"
+        assert out.context["bands_per_copy"] == 16
 
     # ... and a band set that is not contained in the regular target propagates
     # the difference refusal rather than inventing negative padding
     too_much = {lab: 9 for lab in ("-GM6", "-GM7", "-M6", "-M7", "-X5")}
-    out2 = tqe.regular_completion(too_much, record, bands=8)
+    out2 = tqe.regular_completion(too_much, record, bands=16)
     assert isinstance(out2, Refusal) and out2.gate == "negative_multiplicity"
+
+    from pythtb import Lattice, TBModel
+
+    def triclinic(spinful, zeeman=0.0):
+        lat = Lattice([[1.0, 0.0, 0.0], [0.23, 1.17, 0.0], [0.31, 0.19, 1.41]],
+                      [[0, 0, 0]], periodic_dirs=[0, 1, 2])
+        m = TBModel(lat, spinful=spinful)
+        m.set_onsite([[0.3, 0.0, 0.0, zeeman]] if zeeman else [0.3])
+        for t, R in [(-1.0, [1, 0, 0]), (-0.7, [0, 1, 0]), (-0.45, [0, 0, 1]),
+                     (-0.2, [1, 1, 0]), (-0.13, [0, 1, 1]), (-0.08, [1, 0, 1])]:
+            m.set_hop(t, 0, 0, R)
+        return m
+
+    with pytest.warns(MagneticScopeWarning):
+        zeeman = tqg.realized_group(triclinic(True, 0.2))
+    for r, name, low, per_copy, other in (
+            (tqg.realized_group(triclinic(True)), "P-11'", 2, 4, "-AuAu at 1a (-11')"),
+            (tqg.realized_group(triclinic(False)), "P-11'", 1, 2, "Au at 1a (-11')"),
+            (zeeman, "P-1", 1, 2, "-Au at 1a (-1)")):
+        assert r and r.group.name == name and len(r.group._u_symmetries) == 2, str(r)
+        table = tqw.hsp_table(r, bands=low)
+        out = tqe.regular_completion(table, bands=per_copy // 2)
+        assert isinstance(out, Refusal) and out.gate == "not_a_regular_multiple"
+        assert out.context["bands_per_copy"] == per_copy
+        rc = tqe.regular_completion(table, bands=per_copy)
+        assert rc and (rc.copies, rc.bands_per_copy) == (1, per_copy), str(rc)
+        assert rc.regular == tqe.regular_content(r.group)
+        assert set(rc.regular.values()) == {1}, "every corep once, at every point"
+        assert len(rc.padding) == len(table.kpoints) and set(rc.padding.values()) == {1}
+        assert [s.label for s in rc.decomposition.candidate_sums] == [other], \
+            "the missing bands are the other parity's orbital at the same site"
 
 
 def test_content_of_takes_a_table_or_a_mapping_and_refuses_nonsense(

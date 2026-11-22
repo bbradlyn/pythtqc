@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- `regular_completion` and `regular_content` count one copy of the regular band
+  representation as the band representation induced from the general Wyckoff position:
+  `|U|` bands, and `2|U|`, the Kramers pair there, for a spinful model in a group with
+  time reversal, where they counted `|U|` bands in every case. A spinful `s` orbital on a
+  triclinic lattice, `P-11'`, was refused `regular_content_not_integral` at every number
+  of bands; one copy is 4 bands now, and its 2 bands complete to it with `-AuAu` at `1a`,
+  the Kramers pair of the other parity. `lin3g`'s
+  one copy is 16 bands, where it was 8. Spinless models and groups without time reversal
+  count as before.
 - `realized_group` refuses a model whose asymmetry is close to its tolerance,
   `rep_not_covariant`, naming the group, where it raised `InternalError`: the spinless
   `p_x, p_y` honeycomb with a relative noise of `3e-9` on every term, each operation of

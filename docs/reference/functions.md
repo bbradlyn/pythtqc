@@ -1046,15 +1046,15 @@ regular_completion(symmetry_data, realized=None, *, bands=None)
 
 The bands completing a band set to copies of the regular band representation.
 
-One copy of the regular band representation has `|U|` bands at every k,
-`|U|` the number of unitary operations of the group up to lattice
-translations.  For a spinful model these are the operations of the
-single-valued group.  The symmetry data vector of the missing bands is
-`n / |U|` times that of one copy, less that of the band set, where `n`
-is the number of bands in `bands`.  The vector of one copy is computed
-from the characters of the little-group coreps at each point.  The
-missing bands are then decomposed by [`decompose`](#decompose), read as a vector
-written out by hand.
+One copy of the regular band representation is the band representation
+induced from the general Wyckoff position, where it carries one state, or
+the Kramers pair for a spinful model in a group with time reversal.  So it
+has `n_1` bands at every k: `|U|`, or `2|U|` for the Kramers pair.
+`|U|` is the number of unitary operations up to lattice translations,
+counted in the single-valued group for a spinful model.  The symmetry data
+vector of the missing bands is `n / n_1` times that of one copy, less that of the band
+set, where `n` is the number of bands in `bands`.  It is decomposed by
+[`decompose`](#decompose).
 
 **Parameters**
 
@@ -1081,36 +1081,31 @@ A refusal handed in as `realized` is returned as it is.
 
 - **`incomplete_content`**: the table refused at some point.
 
-- **`not_a_regular_multiple`**: the number of bands is not a multiple of `|U|`.
+- **`not_a_regular_multiple`**: the number of bands is not a multiple of `n_1`.
 
-- **`negative_multiplicity`**: the band set carries some corep more times than the copies do, or an
-  entry of the vector is negative.
+- **`negative_multiplicity`**: the band set carries some little-group representation more times than
+  the copies do, or an entry of the vector is negative.
 
 - **`non_integer_multiplicity`**: an entry of the vector is not an integer.
 
 - **`not_a_band_structure`**: the vector of the missing bands fails the compatibility relations of
   the group.
 
-- **`unknown_label`**: the vector of one copy names a corep that the group's elementary band
-  representations do not carry.
+- **`unknown_label`**: the vector of one copy names a little-group representation that the
+  group's elementary band representations do not carry.
 
-- **`restriction_not_exact`**: a corep the model does not measure is matched by no measured corep that
-  occurs as often in every elementary band representation.
+- **`restriction_not_exact`**: a little-group representation the model does not measure is matched by
+  no measured one that occurs as often in every elementary band
+  representation.
 
-- **`regular_content_not_integral`**: the characters of the little-group coreps give one copy a multiplicity
-  that is not an integer, or other than `|U|` bands at a point.
+- **`regular_content_not_integral`**: the characters of the little-group representations give one copy a
+  multiplicity that is not an integer, or other than `n_1` bands at a
+  point.
 
-- **`ebr_tables`**: the tables installed hold no elementary band representations of this
-  group.
+- **`magnetic_type_out_of_scope`**: a magnetic group of type III or IV, which
+  [`realized_group`](#realized_group) never returns.
 
-- **`irrep_tables`**: the tables installed hold no irrep table of this group, or `irrep`
-  did not load its tables.
-
-- **`ebr_convention`**: the elementary band representations of this group cannot be carried
-  from the tables' convention into this package's.
-
-- **`tables_not_ready`**: the model's cell is not matched to the setting the tables are written
-  in.
+- **`ebr_tables` / `irrep_tables` / `ebr_convention` / `tables_not_ready`**: the installed tables cannot be read for this group in this cell.
 
 ### `ebr_rows`
 

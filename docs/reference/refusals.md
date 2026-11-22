@@ -379,23 +379,14 @@ as often as it in every elementary band representation of the group.
 #### `regular_content_not_integral`
 
 Returned by `regular_content` and `regular_completion`, when one copy of the regular band
-representation, as the calls count it, holds some little-group representation a number of
-times that is not an integer, or has other than `|U|` bands at some point.
+representation holds some little-group representation a number of times that is not an
+integer, or has a number of bands at some point other than one copy's.
 
-- **What it means.** It can come from the group itself. In a group with time reversal, a
-  corep can be one irrep taken twice, which time reversal does not let be split. For
-  example, `-GM2GM2` of the spinful group `P-11'` is one one-dimensional irrep taken twice,
-  and `P-11'` has coreps of the same kind at other points. Where one copy holds such an
-  irrep an odd number of times, as one copy of `P-11'` holds it once, the copy holds half an
-  odd number of the corep, and a copy symmetric under time reversal has `2|U|` bands. For
-  such a group `regular_completion` returns this refusal at every number of bands, and
-  `regular_content` always.
-- **Otherwise.** A multiplicity that is not half an odd integer, or a copy whose
-  multiplicities do not give `|U|` bands at every point, means the tables' characters and
-  the little group disagree. That is the package disagreeing with itself.
-- **What to do.** For a group with such a corep, no completion is returned
-  ([counting bands](../guide/atomic-limits.md#counting-bands)). Otherwise report it, with
-  the model and the call.
+- **What it means.** One copy is the band representation induced from the general Wyckoff
+  position, so its multiplicities are integers and it has the same number of bands at
+  every point. A copy that does not means the tables' characters and the little group
+  disagree. That is the package disagreeing with itself.
+- **What to do.** Report it, with the model and the call.
 
 ### Stable real-space invariants
 
@@ -747,10 +738,10 @@ than the regular copies.
   combination of band representations with coefficients of either sign is meaningful, and
   is what fragility means, but it is not a set of bands.
 - **What to do.** Pass nonnegative multiplicities. For `subtract`, pass second a set of
-  bands contained in the first. For `regular_completion`, pass a larger multiple of `|U|`
-  to `bands=`, or check that every little-group representation the symmetry data vector
-  names is one the regular copies hold: one they do not hold counts as a negative
-  multiplicity of the difference.
+  bands contained in the first. For `regular_completion`, pass a larger multiple of the
+  number of bands in one copy to `bands=`, or check that every little-group
+  representation the symmetry data vector names is one the regular copies hold: one they
+  do not hold counts as a negative multiplicity of the difference.
 
 #### `non_integer_multiplicity`
 
@@ -765,13 +756,17 @@ not an integer.
 #### `not_a_regular_multiple`
 
 Returned by `regular_completion`, when the number of bands passed to `bands=` is not a
-multiple of `|U|`.
+multiple of the number of bands in one copy of the regular band representation.
 
-- **What it means.** One copy of the regular band representation has `|U|` bands at every
-  k-point. `|U|` is the number of unitary operations of the group up to lattice
-  translations, counted in the single-valued group for a spinful model. Whole copies have
-  a multiple of `|U|` bands, and no completion to another number is defined.
-- **What to do.** Pass a multiple of `|U|` to `bands=`; the reason names the next one.
+- **What it means.** One copy of the regular band representation is the band
+  representation induced from the general Wyckoff position. It carries one state there,
+  or the Kramers pair for a spinful model in a group with time reversal. So one copy has
+  `|U|` bands at every k-point, or `2|U|` for the Kramers pair. `|U|` is the number of
+  unitary operations of the group up to lattice translations, counted in the single-valued
+  group for a spinful model. Whole copies have a multiple of that number of bands, and no
+  completion to another number is defined.
+- **What to do.** Pass a multiple of the number of bands in one copy to `bands=`; the
+  reason names the next one.
 
 #### `not_a_spinful_model`
 
@@ -920,7 +915,8 @@ or descends to the model's own lattice.
 
 ### `magnetic_type_out_of_scope`
 
-A magnetic group of type III or IV handed to `symmetry_indicator`. The package is validated
-for types I and II, and `realized_group` returns no other: a Hamiltonian that breaks time
-reversal is returned the unitary subgroup of its magnetic group
+A magnetic group of type III or IV handed to `symmetry_indicator`, `regular_content` or
+`regular_completion`. The package is validated for types I and II, and `realized_group`
+returns no other: a Hamiltonian that breaks time reversal is returned the unitary
+subgroup of its magnetic group
 ([the magnetic scope](../background/limits.md#magnetic-groups-of-types-i-and-ii-only)).

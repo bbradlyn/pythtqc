@@ -171,61 +171,56 @@ system that contains them, as a number or as band indices. The record returned
 holds `rc.padding`, the symmetry data vector the missing bands would carry if
 the larger system were whole copies of the regular band representation.
 
-One copy, as the call counts it, is induced from the regular representation of
-a site-symmetry group. It has `|U|` bands at every k-point. `|U|` is the number
-of unitary operations of the group up to lattice translations. For a spinful
-model they are counted in the single-valued group. In a group with time
-reversal, the copy is a band representation of the group only if it holds each
-corep a whole number of times.
+One copy is the band representation induced from the general Wyckoff position.
+It carries one state there, or the Kramers pair for a spinful model in a group
+with time reversal. So one copy has `|U|` bands at every k-point, or `2|U|` for
+the Kramers pair. `|U|` is the number of unitary operations of the group up to
+lattice translations. For a spinful model they are counted in the single-valued
+group.
 
 A set of bands completed to whole regular copies carries the symmetry data
 vector of an atomic limit. So where the padding has a decomposition, it names
 atomic orbitals whose bands, added to the set, give the symmetry data vector of
 an atomic limit.
 
-A completion can only be returned if the number of bands is a multiple of
-`|U|`. Any other number is refused with `not_a_regular_multiple`. A set of bands
-that carries more of a little-group representation than that many regular
-copies is refused with `negative_multiplicity`.
-
-A completion can also only be returned if one copy holds each little-group
-representation a whole number of times. A spinful group with time reversal can
-have a corep at Γ that is one one-dimensional irrep taken twice, such as
-`-GM2GM2` of `P-11'`. Such a corep is a Kramers pair that cannot be split, and
-one copy holds its irrep once. So one copy holds half of that corep, and a copy
-symmetric under time reversal has `2|U|` bands. For such a group the call is
-refused with `regular_content_not_integral` at every number of bands.
+A completion can only be returned if the number of bands is a multiple of the
+number in one copy. Any other number is refused with `not_a_regular_multiple`.
+A set of bands that carries more of a little-group representation than that
+many regular copies is refused with `negative_multiplicity`.
 
 lin3g's six lowest bands have a decomposition. Its group `P4mm1'` has
-`|U| = 8`, and the model has eight bands, one regular copy. The example
-completes the six bands to the eight:
+`|U| = 8`, and the model is spinful, so one regular copy has sixteen bands. The
+example completes the six bands to sixteen:
 
 ```python
 print(d.decomposable, len(t.bands))
 #  True 6
-rc = tqc.regular_completion(t, bands=8)
+rc = tqc.regular_completion(t, bands=16)
 print(rc.bands_per_copy, rc.regular)
-#  8 {'-GM6': 2, '-GM7': 2, '-M6': 2, '-M7': 2, '-X5': 4}
-print(tqc.format_coreps(rc.padding), [s.label for s in rc.decomposition.candidate_sums])
-#  -GM7 + -M6 + -X5 ["-E1 at 1b (4mm1')"]
-print(rc.padding == tqc.hsp_table(r, bands=[6, 7]).symmetry_data)
+#  16 {'-GM6': 4, '-GM7': 4, '-M6': 4, '-M7': 4, '-X5': 8}
+print(tqc.format_coreps(rc.padding), len(rc.decomposition.candidate_sums))
+#  2x-GM6 + 3x-GM7 + 3x-M6 + 2x-M7 + 5x-X5 6
+print(tqc.subtract(rc.padding, tqc.hsp_table(r, bands=[6, 7])) == tqc.hsp_table(r, bands=8).symmetry_data)
 #  True
-print(tqc.regular_completion(t, bands=6).gate)
+print(tqc.regular_completion(t, bands=8).gate)
 #  not_a_regular_multiple
 ```
 
 - `True 6`: whether the six bands have a decomposition, `d.decomposable`, and
   how many bands they hold, `len(t.bands)`.
-- `8`: `rc.bands_per_copy`, `|U|`, the eight operations of `4mm`.
-- `{'-GM6': 2, ...}`: `rc.regular`, the symmetry data vector of one regular
-  copy, computed from the group's corep characters.
-- `-GM7 + -M6 + -X5`: `rc.padding`, one regular copy less the symmetry data
-  vector of the six bands.
-- `["-E1 at 1b (4mm1')"]`: the decompositions of the padding,
-  `rc.decomposition`, the orbitals the missing bands would be.
+- `16`: `rc.bands_per_copy`, `2|U|`, twice the eight operations of `4mm`.
+- `{'-GM6': 4, ...}`: `rc.regular`, the symmetry data vector of one regular
+  copy, computed from the characters of the little-group representations at
+  each point.
+- `2x-GM6 + 3x-GM7 + ...`: `rc.padding`, one regular copy less the symmetry
+  data vector of the six bands.
+- `6`: the number of decompositions of the padding, `rc.decomposition`, each a
+  set of orbitals the missing bands would be.
 - `True`: the padding is the symmetry data vector of bands 6 and 7, the two
-  above the gap, since lin3g's eight bands are one regular copy.
-- `not_a_regular_multiple`: six bands are not a multiple of eight.
+  above the gap, and of the model's eight bands once more, since one regular
+  copy is lin3g's eight bands twice.
+- `not_a_regular_multiple`: eight bands, all of lin3g's, are not a multiple of
+  sixteen.
 
 ## What a decomposition cannot certify
 
@@ -351,12 +346,8 @@ checks these calls meet:
   a vector that is not a count of little-group representations, such as `a - b`
   where `b` is not contained in `a`.
 - [`not_a_regular_multiple`](../reference/refusals.md#not_a_regular_multiple):
-  a completion asked for at a number of bands that is not a multiple of `|U|`.
-- [`regular_content_not_integral`](../reference/refusals.md#regular_content_not_integral):
-  one copy of the regular band representation, as the call counts it, holds
-  some little-group representation a number of times that is not an integer,
-  as in a spinful group with time reversal with a corep at Γ that is one
-  one-dimensional irrep taken twice.
+  a completion asked for at a number of bands that is not a multiple of the
+  number in one copy.
 - [`tables_not_ready`](../reference/refusals.md#tables_not_ready): the group's
   cell could not be matched to the setting the tables are written in, so no
   table can be read for it.

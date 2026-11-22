@@ -492,7 +492,8 @@ class RegularCompletion:
         bands make.
     bands_per_copy : int
         The number of bands in one copy: the number of unitary operations of
-        the group up to lattice translations.  For a spinful model these are
+        the group up to lattice translations, or twice that for a spinful
+        model in a group with time reversal.  For a spinful model these are
         the operations of the single-valued group.
     padding : dict
         If nonempty, the symmetry data vector of the missing bands,
@@ -505,7 +506,7 @@ class RegularCompletion:
         The symmetry data vector of the band set handed in.
     regular : dict
         The symmetry data vector of one copy, computed from the characters of
-        the little-group coreps at each point.
+        the little-group representations at each point.
     """
 
     copies: int
@@ -519,8 +520,8 @@ class RegularCompletion:
     def summary(self) -> str:
         """The padding, a line for each part, with the attribute that holds it."""
         copies = "one copy" if self.copies == 1 else f"{self.copies} copies"
-        lines = [f"{copies} of the regular band representation, the one the regular "
-                 f"representation of a site group induces: {self.bands_per_copy} bands at every "
+        lines = [f"{copies} of the regular band representation, the one induced from the "
+                 f"general position: {self.bands_per_copy} bands at every "
                  f"k{'' if self.copies == 1 else ' each'}   (.copies, .bands_per_copy)"]
         if not self.padding:
             lines.append(f"  nothing is missing: the bands carry those {_kind(self._group)} already"
@@ -2858,15 +2859,20 @@ def subtract(symmetry_data_a, symmetry_data_b) -> dict | Refusal:
 
 
 def regular_content(group, *, kpoints=None) -> dict | Refusal:
-    r"""The symmetry data vector of one copy of the regular band representation of the group: ``|U|`` bands at every k.
+    r"""The symmetry data vector of one copy of the regular band representation.
 
-    The regular band representation is the one the regular representation of a
-    site group induces, ``|U|`` the number of unitary operations up to lattice
-    translations, the single-valued group's for a spinful model.  At ``k`` it is
-    ``|U|/|U_k|`` copies of the regular representation of the little group
-    ``U_k``, so a corep ``ρ`` occurs
+    One copy is the band representation induced from the general Wyckoff
+    position.  Its site-symmetry group is trivial, or holds time reversal alone
+    in a group with time reversal.  It carries one state, or the Kramers pair
+    for a spinful model in a group with time reversal.  So one copy has
+    ``n_1`` bands at every k: ``|U|``, or ``2|U|`` for the Kramers pair.
+    ``|U|`` is the number of unitary operations up to lattice translations.
+    For a spinful model they are counted in the single-valued group.  At
+    ``k`` one copy is ``n_1/|U_k|`` copies of the regular representation of
+    the little group ``U_k``, its double-valued part for a spinful model, so a
+    little-group representation ``ρ`` occurs
 
-    .. math:: m_\rho(k) = \frac{|U|\,\dim\rho}{\sum_{g \in U_k} |\chi_\rho(g)|^2}
+    .. math:: m_\rho(k) = \frac{n_1\,\dim\rho}{\sum_{g \in U_k} |\chi_\rho(g)|^2}
 
     times: a corep that time reversal makes of two irreps, or of one irrep
     twice, occurs half or a quarter as often as an irrep of its dimension.
@@ -2891,9 +2897,14 @@ def regular_content(group, *, kpoints=None) -> dict | Refusal:
 
     ``regular_content_not_integral``
         the tables' characters give a multiplicity that is no integer, or a
-        vector of other than ``|U|`` bands at a point.
-    ``tables_not_ready`` / ``out_of_plane``
-        no tables in this cell, or a point out of a layer's plane.
+        vector of other than ``n_1`` bands at a point.
+    ``magnetic_type_out_of_scope``
+        a magnetic group of type III or IV, which
+        :func:`.groups.realized_group` never returns.
+    ``out_of_plane``
+        a point out of a layer's plane.
+    ``tables_not_ready``
+        the installed tables cannot be read for this group in this cell.
 
     Raises
     ------
@@ -2914,6 +2925,10 @@ def _regular_content(group, kpoints=None, *, call="regular_content") -> dict | R
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate
+    # the count of one copy below is written for magnetic types I and II
+    out_of_scope = _spacegroup._magnetic_scope_refusal(group)
+    if out_of_scope is not None:
+        return out_of_scope
     hsp = _tables._points_in_table_order(group)
     if isinstance(hsp, Refusal):
         return hsp
@@ -2922,7 +2937,7 @@ def _regular_content(group, kpoints=None, *, call="regular_content") -> dict | R
         if name not in hsp and name not in hsp.out_of_plane:
             _tables._resolve_kpoint(call, group, name)
 
-    n_u = len(group._u_symmetries)
+    n_u, n_copy = len(group._u_symmetries), _bands_per_copy(group)
     out, bands = {}, {}
     for name in wanted:
         if name in hsp.out_of_plane:
@@ -2946,46 +2961,58 @@ def _regular_content(group, kpoints=None, *, call="regular_content") -> dict | R
         for label, char in table.items():
             dim = abs(complex(char[ident]))
             norm = sum(abs(complex(char[i])) ** 2 for i in lg.unitary)
-            m = n_u * dim / norm
+            m = n_copy * dim / norm
             if abs(m - round(m)) > _INT_TOL:
                 return Refusal(
                     "regular_content_not_integral",
                     f"the multiplicity of {label} at {name} in one copy of the regular band "
                     f"representation of {group.name} #{group.number_str} is {m:.6g}, which "
-                    "is not an integer.",
+                    "is not an integer. Report it, with the model and the call.",
                     value=float(m), threshold=float(_INT_TOL),
                     context={"kpname": name, "label": label, "n_unitary": n_u,
-                             "little_group": len(lg.unitary)})
+                             "bands_per_copy": n_copy, "little_group": len(lg.unitary)})
             out[label] = int(round(m))
             total += round(m) * dim
         bands[name] = total
     bands = {n: bands[n] for n in sorted(bands, key=_tables.point_order)}
-    off = {n: b for n, b in bands.items() if abs(b - n_u) > _INT_TOL}
+    off = {n: b for n, b in bands.items() if abs(b - n_copy) > _INT_TOL}
     if off:
         return Refusal(
             "regular_content_not_integral",
             f"one copy of the regular band representation of {group.name} "
-            f"#{group.number_str} has {n_u} bands, and the numbers of bands its "
+            f"#{group.number_str} has {n_copy} bands, and the numbers of bands its "
             f"multiplicities give at these points are {off}. Report it, with the model "
             "and the call.",
-            value=float(max(off.values())), threshold=float(n_u),
-            context={"bands": bands, "n_unitary": n_u})
+            value=float(max(off.values())), threshold=float(n_copy),
+            context={"bands": bands, "n_unitary": n_u, "bands_per_copy": n_copy})
     return _tables.ordered_content(out)
+
+
+def _bands_per_copy(group) -> int:
+    """The bands of one copy of the regular band representation of ``group``.
+
+    One state at the general position for each unitary operation up to lattice
+    translations; two, the Kramers pair, for a spinful grey group.  Written for
+    magnetic types I and II, where an antiunitary operation means time reversal
+    is in the group; ``_regular_content`` refuses the other two first.
+    """
+    n_u = len(group._u_symmetries)
+    return 2 * n_u if bool(group.spinor) and len(group._au_symmetries) else n_u
 
 
 def regular_completion(symmetry_data, realized=None, *,
                        bands=None) -> RegularCompletion | Refusal:
     """The bands completing a band set to copies of the regular band representation.
 
-    One copy of the regular band representation has ``|U|`` bands at every k,
-    ``|U|`` the number of unitary operations of the group up to lattice
-    translations.  For a spinful model these are the operations of the
-    single-valued group.  The symmetry data vector of the missing bands is
-    ``n / |U|`` times that of one copy, less that of the band set, where ``n``
-    is the number of bands in ``bands``.  The vector of one copy is computed
-    from the characters of the little-group coreps at each point.  The
-    missing bands are then decomposed by :func:`decompose`, read as a vector
-    written out by hand.
+    One copy of the regular band representation is the band representation
+    induced from the general Wyckoff position, where it carries one state, or
+    the Kramers pair for a spinful model in a group with time reversal.  So it
+    has ``n_1`` bands at every k: ``|U|``, or ``2|U|`` for the Kramers pair.
+    ``|U|`` is the number of unitary operations up to lattice translations,
+    counted in the single-valued group for a spinful model.  The symmetry data
+    vector of the missing bands is ``n / n_1`` times that of one copy, less that of the band
+    set, where ``n`` is the number of bands in ``bands``.  It is decomposed by
+    :func:`decompose`.
 
     Parameters
     ----------
@@ -3008,6 +3035,15 @@ def regular_completion(symmetry_data, realized=None, *,
         into elementary band representations.  The record also holds the
         number of copies and the symmetry data vector of one copy.
 
+    Examples
+    --------
+    The six lowest bands of lin3g, a spinful model of ``P4mm1'``, completed to
+    one copy, sixteen bands.
+
+    >>> rc = regular_completion(hsp_table(r, bands=6), bands=16)  # doctest: +SKIP
+    >>> rc.bands_per_copy, format_coreps(rc.padding)              # doctest: +SKIP
+    (16, '2x-GM6 + 3x-GM7 + 3x-M6 + 2x-M7 + 5x-X5')
+
     Refusals
     --------
     A refusal handed in as ``realized`` is returned as it is.
@@ -3015,36 +3051,31 @@ def regular_completion(symmetry_data, realized=None, *,
     ``incomplete_content``
         the table refused at some point.
     ``not_a_regular_multiple``
-        the number of bands is not a multiple of ``|U|``.
+        the number of bands is not a multiple of ``n_1``.
     ``negative_multiplicity``
-        the band set carries some corep more times than the copies do, or an
-        entry of the vector is negative.
+        the band set carries some little-group representation more times than
+        the copies do, or an entry of the vector is negative.
     ``non_integer_multiplicity``
         an entry of the vector is not an integer.
     ``not_a_band_structure``
         the vector of the missing bands fails the compatibility relations of
         the group.
     ``unknown_label``
-        the vector of one copy names a corep that the group's elementary band
-        representations do not carry.
+        the vector of one copy names a little-group representation that the
+        group's elementary band representations do not carry.
     ``restriction_not_exact``
-        a corep the model does not measure is matched by no measured corep that
-        occurs as often in every elementary band representation.
+        a little-group representation the model does not measure is matched by
+        no measured one that occurs as often in every elementary band
+        representation.
     ``regular_content_not_integral``
-        the characters of the little-group coreps give one copy a multiplicity
-        that is not an integer, or other than ``|U|`` bands at a point.
-    ``ebr_tables``
-        the tables installed hold no elementary band representations of this
-        group.
-    ``irrep_tables``
-        the tables installed hold no irrep table of this group, or ``irrep``
-        did not load its tables.
-    ``ebr_convention``
-        the elementary band representations of this group cannot be carried
-        from the tables' convention into this package's.
-    ``tables_not_ready``
-        the model's cell is not matched to the setting the tables are written
-        in.
+        the characters of the little-group representations give one copy a
+        multiplicity that is not an integer, or other than ``n_1`` bands at a
+        point.
+    ``magnetic_type_out_of_scope``
+        a magnetic group of type III or IV, which
+        :func:`.groups.realized_group` never returns.
+    ``ebr_tables`` / ``irrep_tables`` / ``ebr_convention`` / ``tables_not_ready``
+        the installed tables cannot be read for this group in this cell.
 
     Raises
     ------
@@ -3053,20 +3084,6 @@ def regular_completion(symmetry_data, realized=None, *,
         out by hand without it, a ``realized`` that is not what
         :func:`.groups.realized_group` returned, or a ``symmetry_data`` that is
         neither a table nor a mapping.
-    ..refusal.InternalError
-        A corep out of a layer's plane that is matched by no corep in the plane
-        occurring as often in every elementary band representation induced
-        from the Wyckoff positions within the layer.
-
-    Examples
-    --------
-    The six lowest bands of lin3g, completed to its eight bands, one copy.  The
-    symmetry data vector of the missing bands, ``-GM7 + -M6 + -X5``, is that
-    of the two bands above the gap, and decomposes as ``-E1`` at ``1b``.
-
-    >>> rc = regular_completion(hsp_table(r, bands=6), bands=8) # doctest: +SKIP
-    >>> [s.label for s in rc.decomposition.candidate_sums]         # doctest: +SKIP
-    ["-E1 at 1b (4mm1')"]
     """
     if bands is None:
         raise TypeError("regular_completion(): no bands= is passed; pass the bands of the "
@@ -3085,20 +3102,20 @@ def regular_completion(symmetry_data, realized=None, *,
     if isinstance(target_one, Refusal):
         return target_one
 
-    n_u = len(group._u_symmetries)
+    n_copy = _bands_per_copy(group)
     n_bands = len(_as_block(bands, None))
-    if n_bands % n_u:
+    if n_bands % n_copy:
         return Refusal(
             "not_a_regular_multiple",
-            f"{n_bands} bands is not a multiple of {n_u}, the number of bands of one "
-            f"regular band representation of {group.name} #{group.number_str}. Pass a "
-            "multiple of it "
-            f"to bands=, such as {n_u * (n_bands // n_u + 1)}.",
-            value=float(n_bands % n_u), threshold=0.0,
-            context={"n_bands": n_bands, "bands_per_copy": n_u,
+            f"{n_bands} bands is not a multiple of {n_copy}, the number of bands in one "
+            f"copy of the regular band representation of {group.name} "
+            f"#{group.number_str}. Pass a multiple of it to bands=, such as "
+            f"{n_copy * (n_bands // n_copy + 1)}.",
+            value=float(n_bands % n_copy), threshold=0.0,
+            context={"n_bands": n_bands, "bands_per_copy": n_copy,
                      "number_str": group.number_str})
 
-    copies = n_bands // n_u
+    copies = n_bands // n_copy
     target = {lab: copies * m for lab, m in target_one.items()}
     occ = content_of(symmetry_data)
     if isinstance(occ, Refusal):
@@ -3112,6 +3129,6 @@ def regular_completion(symmetry_data, realized=None, *,
     got = _decompose_in(replace(source, table=None), padding)
     if isinstance(got, Refusal):
         return got
-    return RegularCompletion(copies=copies, bands_per_copy=n_u, padding=padding,
+    return RegularCompletion(copies=copies, bands_per_copy=n_copy, padding=padding,
                              decomposition=got, symmetry_data=occ,
                              regular=dict(target_one), _group=group)
