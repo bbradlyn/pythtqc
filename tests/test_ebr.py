@@ -595,6 +595,11 @@ def test_regular_completion_refuses_a_band_count_that_is_not_a_regular_multiple(
     too_much = {lab: 9 for lab in ("-GM6", "-GM7", "-M6", "-M7", "-X5")}
     out2 = tqe.regular_completion(too_much, record, bands=16)
     assert isinstance(out2, Refusal) and out2.gate == "negative_multiplicity"
+    assert "Pass a larger multiple of 16 to bands=." in out2.reason
+    assert set(out2.context) == {"negative", "a", "b"}
+    assert out2.value == min(out2.context["negative"].values())
+    typo = tqe.regular_completion({"-GM6": 1, "-NOSUCH3": 1}, record, bands=16)
+    assert typo.gate == "negative_multiplicity" and "none of ['-NOSUCH3']" in typo.reason
 
     from pythtb import Lattice, TBModel
 
@@ -1847,6 +1852,10 @@ def test_a_call_handed_what_it_does_not_take_raises_saying_what_to_pass(
         tqe.subtract(table, tqw.hsp_table(p4232_descended, bands=2))
     assert "#99.164" in str(exc.value) and "#208.45" in str(exc.value), \
         "the message names both groups"
+    for args, name in (((["-GM6"], vector), "symmetry_data_a"),
+                       ((vector, ["-GM6"]), "symmetry_data_b")):
+        with pytest.raises(TypeError, match=rf"^subtract\(\): {name}= is of type list"):
+            tqe.subtract(*args)
     # a layer's table keeps the representation its stack is built from; a
     # crystal's holds no reference to the model
     assert table._rep is record.rep

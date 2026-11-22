@@ -733,15 +733,15 @@ than the regular copies.
 - **What it means.** A symmetry data vector counts the little-group representations of a
   set of bands, so none of its multiplicities is negative. A negative multiplicity in the
   difference `subtract` takes means that the second set of bands is not contained in the
-  first. `regular_completion` subtracts the set of bands from the regular copies, so there
-  it means the set has some little-group representation more times than the copies do. A
-  combination of band representations with coefficients of either sign is meaningful, and
-  is what fragility means, but it is not a set of bands.
+  first. From `regular_completion` it means the set of bands has some little-group
+  representations more times than the regular copies do, by the amounts the reason
+  prints. A combination of elementary band representations with coefficients of either
+  sign is meaningful: the symmetry data vector of a fragile set of bands is one. A vector
+  with a negative multiplicity is the symmetry data vector of no set of bands.
 - **What to do.** Pass nonnegative multiplicities. For `subtract`, pass second a set of
   bands contained in the first. For `regular_completion`, pass a larger multiple of the
-  number of bands in one copy to `bands=`, or check that every little-group
-  representation the symmetry data vector names is one the regular copies hold: one they
-  do not hold counts as a negative multiplicity of the difference.
+  number of bands in one copy to `bands=`; where the reason says the copies hold none of
+  some names, check those names in the symmetry data vector.
 
 #### `non_integer_multiplicity`
 

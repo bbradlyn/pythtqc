@@ -2823,6 +2823,12 @@ def subtract(symmetry_data_a, symmetry_data_b) -> dict | Refusal:
     decompose : the sums of elementary band representations that carry a
         symmetry data vector, such as the difference.
     """
+    for name, value in (("symmetry_data_a", symmetry_data_a),
+                        ("symmetry_data_b", symmetry_data_b)):
+        if not isinstance(value, (_sewing.HSPTable, Mapping)):
+            raise TypeError(f"subtract(): {name}= is of type {type(value).__name__}; pass "
+                            "the table hsp_table returns, or {corep: multiplicity} written "
+                            "out by hand.")
     own_a = symmetry_data_a.group if isinstance(symmetry_data_a, _sewing.HSPTable) else None
     own_b = symmetry_data_b.group if isinstance(symmetry_data_b, _sewing.HSPTable) else None
     if own_a is not None and own_b is not None and not _same_group(own_a, own_b):
@@ -3120,6 +3126,25 @@ def regular_completion(symmetry_data, realized=None, *,
     occ = content_of(symmetry_data)
     if isinstance(occ, Refusal):
         return occ
+
+    # more of a little-group representation than the copies hold, said in this call's terms
+    excess = {lab: occ.get(lab, 0) - target.get(lab, 0)
+              for lab in sorted(set(occ) | set(target), key=_tables.corep_order)
+              if occ.get(lab, 0) > target.get(lab, 0)}
+    if excess:
+        absent = [lab for lab in excess if not target_one.get(lab)]
+        steps = ([f"The copies hold none of {absent}: check those names."] if absent else [])
+        if len(absent) < len(excess):
+            steps.append(f"Pass a larger multiple of {n_copy} to bands=.")
+        return Refusal(
+            "negative_multiplicity",
+            "the set of bands holds more of some little-group representations than "
+            f"{'1 copy' if copies == 1 else f'{copies} copies'} of the regular band "
+            f"representation of {group.name} #{group.number_str} "
+            f"{'holds' if copies == 1 else 'hold'}, by {excess}. " + " ".join(steps),
+            value=float(-max(excess.values())), threshold=0.0,
+            context={"negative": {lab: -m for lab, m in excess.items()},
+                     "a": content_of(target), "b": occ})
 
     padding = subtract(target, occ)
     if isinstance(padding, Refusal):
