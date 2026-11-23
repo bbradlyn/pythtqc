@@ -164,9 +164,9 @@ def spin_basis(model, *, order="interleaved", pairs=None) -> SpinBasis:
 
     Examples
     --------
-    >>> from pythtb.models import kane_mele                         # doctest: +SKIP
-    >>> flat, _ = spinless_presentation(kane_mele(1.0, -1.0, 0.3, 0.25))   # doctest: +SKIP
-    >>> print(spin_basis(flat).summary())                            # doctest: +SKIP
+    >>> from pythtb.models import kane_mele
+    >>> flat, _ = spinless_presentation(kane_mele(1.0, -1.0, 0.3, 0.25))
+    >>> print(spin_basis(flat).summary())
     each pair one spinful orbital, its spin up and down along z   (.pairs)
       pair 0: orbital 0 up, orbital 1 down
       pair 1: orbital 2 up, orbital 3 down
@@ -299,9 +299,9 @@ def spinless_presentation(model, *, order="interleaved", pairs=None, params=None
 
     Examples
     --------
-    >>> from pythtb.models import kane_mele                         # doctest: +SKIP
-    >>> flat, sb = spinless_presentation(kane_mele(1.0, -1.0, 0.3, 0.25))  # doctest: +SKIP
-    >>> flat.norb, sb.pairs                                          # doctest: +SKIP
+    >>> from pythtb.models import kane_mele
+    >>> flat, sb = spinless_presentation(kane_mele(1.0, -1.0, 0.3, 0.25))
+    >>> flat.norb, sb.pairs
     (4, ((0, 1), (2, 3)))
 
     Refusals

@@ -600,13 +600,14 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
 
     Examples
     --------
-    The build ``realized_group`` made, made again with each site's orbitals
-    stated as one multiplet::
+    The build ``realized_group`` made for lin3g (:func:`.models.lin3g`), made
+    again with each site's orbitals stated as one multiplet:
 
-        r = tqc.realized_group(model, characters={0: "s"})
-        rep = _build_rep(r.model, r.group, r._assignment,
-                         validated=r.numerical.validated,
-                         multiplets=[[orbs] for orbs in r._assignment.site_orbitals])
+    >>> r = realized_group(models.lin3g())
+    >>> rep = _build_rep(r.model, r.group, r._assignment, validated=r.numerical.validated,
+    ...                  multiplets=[[orbs] for orbs in r._assignment.site_orbitals])
+    >>> print(rep.summary().splitlines()[0])
+    each operation's matrix on the 8 states, by index, each orbital's spin up then down along z   (.matrices)
 
     Refusals
     --------

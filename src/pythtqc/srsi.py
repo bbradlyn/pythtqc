@@ -217,7 +217,8 @@ def srsi_of_bands(symmetry_data, realized=None) -> BandSRSIs | Refusal:
     --------
     The six lowest bands of lin3g (:func:`.models.lin3g`):
 
-    >>> print(srsi_of_bands(hsp_table(r, bands=6)).line())        # doctest: +SKIP
+    >>> r = realized_group(models.lin3g())
+    >>> print(srsi_of_bands(hsp_table(r, bands=6)).line())
     theta_1 to theta_3 = (1, 1, 1), integral; trivial indicator group
 
     Refusals
@@ -702,7 +703,8 @@ def srsi_of_model(realized) -> "ModelSRSIs | Refusal":
     --------
     lin3g (:func:`.models.lin3g`), with three Wyckoff orbits:
 
-    >>> print(srsi_of_model(r).summary())                     # doctest: +SKIP
+    >>> r = realized_group(models.lin3g())
+    >>> print(srsi_of_model(r).summary())
     P4mm1' #99.164, double-valued: stable real-space invariants   (.group)
       the whole model: theta_1 to theta_3 = (2, 2, 0); theta_4, theta_5 = (0, 1) mod 2   (.theta_Z, .theta_Zn)
       each Wyckoff orbit, its site irreps written m (irrep)_w, with theta_1 to theta_3 and theta_4, theta_5 mod 2   (.wyckoff_orbits)
@@ -1536,8 +1538,9 @@ def atomic_realizations(tables, theta_Z, *, cap=256) -> "Realizations | Refusal"
     The six lowest bands of lin3g (:func:`.models.lin3g`), with three
     realizations:
 
-    >>> b = srsi_of_bands(hsp_table(r, bands=6))                  # doctest: +SKIP
-    >>> print(atomic_realizations(srsi_tables(r.group), b.theta_Z).summary())  # doctest: +SKIP
+    >>> r = realized_group(models.lin3g())
+    >>> b = srsi_of_bands(hsp_table(r, bands=6))
+    >>> print(atomic_realizations(srsi_tables(r.group), b.theta_Z).summary())
     P4mm1' #99.164, double-valued: 3 atomic realizations with Z-valued stable real-space invariants theta_1 to theta_3 = (1, 1, 1)   (.group, .realizations, .theta_Z)
       each realization, with (theta_4, theta_5) mod 2   (.label, .theta_Zn of each)
         1 (-E2)_b + 1 (-E)_c   (1, 1)
@@ -1666,10 +1669,11 @@ def nsit_criterion(tables, theta_total, theta_Z_v, theta_Z_c) -> "Splitting | Re
     lin3g (:func:`.models.lin3g`), its eight bands split into the lowest six
     and the two above them:
 
-    >>> b = srsi_of_bands(hsp_table(r, bands=6))                  # doctest: +SKIP
-    >>> whole = srsi_of_model(r)                                  # doctest: +SKIP
-    >>> above = {name: whole.theta_Z[name] - value for name, value in b.theta_Z.items()}  # doctest: +SKIP
-    >>> nsit_criterion(srsi_tables(r.group), whole, b.theta_Z, above).nsit  # doctest: +SKIP
+    >>> r = realized_group(models.lin3g())
+    >>> b = srsi_of_bands(hsp_table(r, bands=6))
+    >>> whole = srsi_of_model(r)
+    >>> above = {name: whole.theta_Z[name] - value for name, value in b.theta_Z.items()}
+    >>> nsit_criterion(srsi_tables(r.group), whole, b.theta_Z, above).nsit
     True
 
     Refusals
@@ -1796,7 +1800,8 @@ def splitting(realized, *, bands=None) -> "Splitting | Refusal":
     lin3g (:func:`.models.lin3g`), its six lowest bands against the two above
     them:
 
-    >>> print(splitting(r, bands=6).summary())                    # doctest: +SKIP
+    >>> r = realized_group(models.lin3g())
+    >>> print(splitting(r, bands=6).summary())
     P4mm1' #99.164, double-valued: nsit, no realization of the valence bands and of the conduction bands adding up to the whole model's invariants valued modulo n   (.group, .nsit)
       Z-valued stable real-space invariants theta_1 to theta_3: the whole model (2, 2, 0) = valence (1, 1, 1) + conduction (1, 1, -1)   (.theta_Z, .valence.theta_Z, .conduction.theta_Z)
       invariants valued modulo n of the whole model: theta_4, theta_5 = (0, 1) mod 2   (.theta_Zn)

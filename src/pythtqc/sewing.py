@@ -189,8 +189,8 @@ def two_tier_thresholds(hamiltonian, separation, *, flat=FLAT_ZERO,
     The thresholds at ``M`` of lin3g (:func:`..models.lin3g`), from ``H(k)``
     and its spectrum alone:
 
-    >>> H = r.model.hamiltonian(k_pts=[[0.5, 0.5]], flatten_spin_axis=True)[0]  # doctest: +SKIP
-    >>> two_tier_thresholds(H, multiplet_separation(np.linalg.eigvalsh(H)))    # doctest: +SKIP
+    >>> H = models.lin3g().hamiltonian(k_pts=[[0.5, 0.5]], flatten_spin_axis=True)[0]
+    >>> two_tier_thresholds(H, multiplet_separation(np.linalg.eigvalsh(H)))
     Thresholds(effective=8.3e-14, flat=1e-14, nf=8.3e-14, |H|=12.65, sep=0.2706)
     """
     H = np.asarray(hamiltonian)
@@ -1054,9 +1054,10 @@ def sewing_matrix(realized, operation=None, k=None, *, states=None, bands=None,
     The fourfold rotation on the lowest pair of bands of lin3g at ``M``
     (:func:`..models.lin3g`):
 
-    >>> c4 = operation_index(r.group, "{4+_001|0,0,0}")             # doctest: +SKIP
-    >>> sm = sewing_matrix(r, c4, "M", bands=2)                        # doctest: +SKIP
-    >>> np.sort(np.angle(sm.eigenvalues)) / np.pi                      # doctest: +SKIP
+    >>> r = realized_group(models.lin3g())
+    >>> c4 = operation_index(r.group, "{4+_001|0,0,0}")
+    >>> sm = sewing_matrix(r, c4, "M", bands=2)
+    >>> np.sort(np.angle(sm.eigenvalues)) / np.pi
     array([-0.75,  0.75])
 
     Refusals
@@ -1803,8 +1804,9 @@ def coreps_at(realized, k, *, states=None, bands=None, degeneracy_tol=None,
     --------
     The six lowest bands of lin3g (:func:`..models.lin3g`) at ``GM``:
 
-    >>> c = coreps_at(r, "GM", bands=6)                                # doctest: +SKIP
-    >>> print(c.summary())                                            # doctest: +SKIP
+    >>> r = realized_group(models.lin3g())
+    >>> c = coreps_at(r, "GM", bands=6)
+    >>> print(c.summary())
     bands 0-5 at GM (0, 0): 2x-GM6 + -GM7   (.bands, .kpoint, .k, .coreps)
       by degenerate multiplet, from the lowest   (.multiplets)
         bands 0-1 at -16.35: -GM6
@@ -2337,7 +2339,8 @@ def hsp_table(realized, *, states=None, bands=None, degeneracy_tol=None,
     --------
     The six lowest bands of lin3g (:func:`..models.lin3g`):
 
-    >>> print(hsp_table(r, bands=6).summary())                 # doctest: +SKIP
+    >>> r = realized_group(models.lin3g())
+    >>> print(hsp_table(r, bands=6).summary())
     bands 0-5   (.bands)
       their coreps at each high-symmetry point   (.symmetry_data)
         GM: 2x-GM6 + -GM7

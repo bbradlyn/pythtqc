@@ -16,6 +16,11 @@ Two pages are held to more than their code: ``docs/reference/functions.md``
 and ``docs/reference/records.md`` are written from the docstrings by
 ``scripts/build_reference.py``, and must be what that script writes now.
 
+The docstrings are held to their examples, with the functions' page: each ``>>>``
+example in a docstring of ``src/pythtqc`` runs as a doctest and must print what it
+shows.  An example runs with its module's own names, the package's public names and
+numpy as ``np``.
+
 And the pages together build as the documentation site, ``mkdocs build
 --strict`` by ``mkdocs.yml``: every page in its navigation, every link and
 anchor resolved.  ``mkdocs serve`` previews it.
@@ -61,8 +66,11 @@ build_reference = _load("tqc_build_reference", os.path.join("scripts", "build_re
 #: every user page, read off the tree, so a new page cannot slip in unrun
 PAGES = check_page.user_pages(ROOT)
 
+#: the functions' reference, with which the docstrings' examples are run
+FUNCTIONS = "docs/reference/functions.md"
+
 #: the pages written from the docstrings, each with the function that writes it
-WRITTEN = {"docs/reference/functions.md": build_reference.render,
+WRITTEN = {FUNCTIONS: build_reference.render,
            "docs/reference/records.md": build_reference.render_records}
 
 
@@ -81,6 +89,66 @@ def _reference_drift(page):
             f"`python scripts/build_reference.py` writes it\n" + "\n".join(diff[:120]) + more]
 
 
+def _docstring_examples():
+    """How the docstrings' examples fail, each run as a doctest; empty when all pass.
+
+    Every docstring of ``src/pythtqc`` with ``>>>`` lines, public or private, runs in
+    its module's namespace with numpy as ``np`` and the package's public names added.
+    The few examples that run on names they do not build are listed in ``supplied``,
+    from the object's dotted name to the function that builds those names.
+    """
+    import doctest
+    import pkgutil
+
+    import numpy
+
+    import pythtqc
+
+    def lin3g_fourfold_rotation():
+        """lin3g's fourfold rotation: its matrix, the operation, the group, the anchor."""
+        from pythtqc._matrices import RepAnchor
+        r = pythtqc.realized_group(pythtqc.models.lin3g())
+        group, matrices = r.group, r.rep.matrices
+        c4 = pythtqc.operation_index(group, "{4+_001|0,0,0}")
+        tr = pythtqc.operation_index(group, "{1|0,0,0}'")
+        return {"D": matrices[c4], "op": group._symmetries[c4 - 1], "group": group,
+                "anchor": RepAnchor(antiunitary=matrices[tr], rows=(0, 1), cols=(0, 1))}
+
+    def kane_mele_one_center_moved():
+        """Kane-Mele with the first center moved by 1e-8 along the first lattice vector."""
+        from pythtb import Lattice, TBModel
+        from pythtb.models import kane_mele
+        km = kane_mele(0.0, -1.0, 0.3, 0.25)
+        moved = TBModel(Lattice(km.lat_vecs, km.orb_vecs + [[1e-8, 0.0], [0.0, 0.0]],
+                                periodic_dirs=km.periodic_dirs), spinful=True)
+        moved.set_onsite(km.onsite, mode="set")
+        for h in km.hoppings:
+            moved.set_hop(h["amplitude"], h["from_orbital"], h["to_orbital"],
+                          h.get("lattice_vector", [0, 0]), mode="add")
+        return {"moved": moved}
+
+    supplied = {"pythtqc._matrices.normalize_rep": lin3g_fourfold_rotation,
+                "pythtqc.symmetrization._symmetrize_positions": kane_mele_one_center_moved}
+
+    public = {name: getattr(pythtqc, name) for name in pythtqc.__all__}
+    finder = doctest.DocTestFinder(exclude_empty=True)
+    problems, ran = [], 0
+    names = ["pythtqc"] + [f"pythtqc.{m.name}" for m in pkgutil.iter_modules(pythtqc.__path__)]
+    for module in map(importlib.import_module, names):
+        for test in finder.find(module, globs={**public, "np": numpy, **vars(module)}):
+            if test.name in supplied:
+                test.globs.update(supplied[test.name]())
+            out = []
+            result = doctest.DocTestRunner(verbose=False).run(test, out=out.append)
+            ran += result.attempted
+            if result.failed:
+                problems.append(f"the example in the docstring of {test.name} "
+                                f"prints otherwise\n" + "".join(out))
+    if not ran:
+        problems.append("no docstring example was found in src/pythtqc")
+    return problems
+
+
 @pytest.mark.parametrize("page", PAGES)
 def test_page_prints_what_it_shows(page):
     """One page's code, run as written, against the output lines under each statement."""
@@ -92,6 +160,8 @@ def test_page_prints_what_it_shows(page):
     problems = list(run.problems)
     if page in WRITTEN:
         problems += _reference_drift(page)
+    if page == FUNCTIONS:
+        problems += _docstring_examples()
     assert not problems, "\n\n".join(problems)
 
 

@@ -311,9 +311,9 @@ def stack_presentation(model, *, c=STACK_C, params=None):
     Kane-Mele without its Rashba term, repeated along its normal, is periodic
     in three directions:
 
-    >>> from pythtb.models import kane_mele                       # doctest: +SKIP
-    >>> st = stack_presentation(kane_mele(0.0, -1.0, 0.3, 0.0))   # doctest: +SKIP
-    >>> st.lattice.dim_k, tuple(st.periodic_dirs)                  # doctest: +SKIP
+    >>> from pythtb.models import kane_mele
+    >>> st = stack_presentation(kane_mele(0.0, -1.0, 0.3, 0.0))
+    >>> st.lattice.dim_k, tuple(st.periodic_dirs)
     (3, (0, 1, 2))
 
     Refusals

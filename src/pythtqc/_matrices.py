@@ -762,15 +762,16 @@ def normalize_rep(D, op, group, *, spinful=None, anchor=None, tol=1e-9,
 
     Examples
     --------
-    The fourfold rotation of lin3g (:func:`.models.lin3g`), its matrix ``D``
-    given the wrong phase ``-i``, with ``anchor`` holding the matrix of time
-    reversal and the reference block ``rows=(0, 1), cols=(0, 1)``.  The phase
-    is undone:
+    The fourfold rotation of lin3g (:func:`.models.lin3g`), with ``D`` its
+    matrix, ``op`` that operation and ``group`` the group of lin3g, and
+    ``anchor`` holding the matrix of time reversal and the reference block
+    ``rows=(0, 1), cols=(0, 1)``.  ``D`` is given the wrong phase ``-i``, and
+    the phase is undone:
 
-    >>> rec = normalize_rep(-1j * D, op, group, anchor=anchor)    # doctest: +SKIP
-    >>> abs(rec.factor - 1j) < 1e-12                              # doctest: +SKIP
+    >>> rec = normalize_rep(-1j * D, op, group, anchor=anchor)
+    >>> abs(rec.factor - 1j) < 1e-12
     True
-    >>> np.allclose(rec.matrix, D)                                # doctest: +SKIP
+    >>> np.allclose(rec.matrix, D)
     True
 
     Refusals

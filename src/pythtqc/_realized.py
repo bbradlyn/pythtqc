@@ -2154,10 +2154,10 @@ def realized_group(model, *, typat=None, environment=None, cross_check=True,
     Kane-Mele from pythtb's models, with its two sublattices declared atoms of
     different species and orbital 0 declared ``A1``:
 
-    >>> from pythtb.models import kane_mele                        # doctest: +SKIP
+    >>> from pythtb.models import kane_mele
     >>> r = realized_group(kane_mele(1.0, -1.0, 0.3, 0.25), typat=[0, 1],
-    ...                    characters={0: "A1"})                    # doctest: +SKIP
-    >>> print(r.summary())                                          # doctest: +SKIP
+    ...                    characters={0: "A1"})
+    >>> print(r.summary())
     P3m11' #156.50, on a substrate   (.group, .environment.kind)
       its operations, by index and Seitz symbol   (.operations)
       the orbitals, by Wyckoff orbit   (.wyckoff_orbits)

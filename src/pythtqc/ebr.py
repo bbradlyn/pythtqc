@@ -2044,9 +2044,12 @@ def decompose(symmetry_data, realized=None, *, allow_incomplete=False,
     --------
     The six lowest bands of lin3g (:func:`.models.lin3g`), with three sums:
 
-    >>> d = decompose(hsp_table(r, bands=6))                      # doctest: +SKIP
-    >>> [s.label for s in d.candidate_sums]                           # doctest: +SKIP
-    ["-E2 at 1b (4mm1') + -E at 2c (mm21')", ...]
+    >>> r = realized_group(models.lin3g())
+    >>> d = decompose(hsp_table(r, bands=6))
+    >>> for s in d.candidate_sums: print(s.label)
+    -E2 at 1b (4mm1') + -E at 2c (mm21')
+    -E1 at 1a (4mm1') + -E2 at 1a (4mm1') + -E2 at 1b (4mm1')
+    -E1 at 1b (4mm1') + 2x-E2 at 1b (4mm1')
 
     Refusals
     --------
@@ -2882,13 +2885,14 @@ def symmetry_indicator(symmetry_data, realized=None) -> SymmetryIndicator | Refu
     Examples
     --------
     The two lowest bands of Fu, Kane and Mele's diamond model, pythtb's
-    ``fu_kane_mele``, with the bond along ``[111]`` strengthened,
-    ``r = realized_group(fu_kane_mele(1.0, 0.125, [0.4, 0.0, 0.0, 0.0]),
-    characters={0: "s"})``, and their class as ``values`` and in the named
-    indicators:
+    ``fu_kane_mele``, with the bond along ``[111]`` strengthened, and their
+    class as ``values`` and in the named indicators:
 
-    >>> si = symmetry_indicator(hsp_table(r, bands=2))          # doctest: +SKIP
-    >>> si.indicator_group, si.values, si.indicators                # doctest: +SKIP
+    >>> from pythtb.models import fu_kane_mele
+    >>> r = realized_group(fu_kane_mele(1.0, 0.125, [0.4, 0.0, 0.0, 0.0]),
+    ...                    characters={0: "s"})
+    >>> si = symmetry_indicator(hsp_table(r, bands=2))
+    >>> si.indicator_group, si.values, si.indicators
     ('Z2 x Z4', (0, 1), {'z2w,1': 1, 'z2w,2': 1, 'z2w,3': 1, 'z4': 3})
 
     Refusals
@@ -3443,8 +3447,9 @@ def regular_completion(symmetry_data, realized=None, *,
     The six lowest bands of lin3g, a spinful model of ``P4mm1'``, completed to
     one copy, sixteen bands.
 
-    >>> rc = regular_completion(hsp_table(r, bands=6), bands=16)  # doctest: +SKIP
-    >>> rc.bands_per_copy, format_coreps(rc.padding)              # doctest: +SKIP
+    >>> r = realized_group(models.lin3g())
+    >>> rc = regular_completion(hsp_table(r, bands=6), bands=16)
+    >>> rc.bands_per_copy, format_coreps(rc.padding)
     (16, '2x-GM6 + 3x-GM7 + 3x-M6 + 2x-M7 + 5x-X5')
 
     Refusals

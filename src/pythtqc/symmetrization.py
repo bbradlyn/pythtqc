@@ -1793,10 +1793,11 @@ def _symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=Non
     Kane-Mele with one center moved by ``1e-8`` (``moved``), read in the group
     of the exact model:
 
-    >>> r = realized_group(kane_mele(0.0, -1.0, 0.3, 0.25), characters={0: "A1"})  # doctest: +SKIP
-    >>> fixed, rec = _symmetrize_positions(moved, r.group, r._assignment)  # doctest: +SKIP
-    >>> f"{rec['defect_before']:.1e} -> {rec['defect_after']:.1e}", rec["frame"]  # doctest: +SKIP
-    ('2.0e-08 -> 1.1e-16', 'model')
+    >>> from pythtb.models import kane_mele
+    >>> r = realized_group(kane_mele(0.0, -1.0, 0.3, 0.25), characters={0: "A1"})
+    >>> fixed, rec = _symmetrize_positions(moved, r.group, r._assignment)
+    >>> f"{rec['defect_before']:.1e}", rec["defect_after"] < 1e-14, rec["frame"]
+    ('2.0e-08', True, 'model')
     """
 
     model = _bloch.bound(model, params, call="_symmetrize_positions")

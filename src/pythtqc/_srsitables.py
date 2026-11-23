@@ -913,8 +913,8 @@ class SRSITables:
 
         Examples
         --------
-        >>> tables = srsi_tables(99, spinor=True)              # doctest: +SKIP
-        >>> tables.theta({("-E", "2c"): 1})                    # doctest: +SKIP
+        >>> tables = srsi_tables(99, spinor=True)
+        >>> tables.theta({("-E", "2c"): 1})
         Invariants(theta_1 to theta_3 = (1, 1, 0); theta_4, theta_5 = (0, 1) mod 2)
 
         Raises
@@ -1537,7 +1537,7 @@ def srsi_tables(group_or_number, *, spinor=None) -> SRSITables | Refusal:
 
     Examples
     --------
-    >>> srsi_tables(25, spinor=True).moduli["theta_2"]     # doctest: +SKIP
+    >>> srsi_tables(25, spinor=True).moduli["theta_2"]
     2
 
     Refusals

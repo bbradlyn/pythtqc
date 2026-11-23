@@ -269,9 +269,9 @@ def wyckoff_sites_tables(
     Fu, Kane and Mele's diamond model, pythtb's ``fu_kane_mele``, whose two
     orbitals lie on one orbit, ``8a`` in the setting of the tables:
 
-    >>> from pythtb.models import fu_kane_mele                        # doctest: +SKIP
-    >>> r = realized_group(fu_kane_mele(1.0, 0.125, [0, 0, 0, 0]))     # doctest: +SKIP
-    >>> [s.wyckoff for s in wyckoff_sites_tables(r.group)]             # doctest: +SKIP
+    >>> from pythtb.models import fu_kane_mele
+    >>> r = realized_group(fu_kane_mele(1.0, 0.125, [0, 0, 0, 0]))
+    >>> [s.wyckoff for s in wyckoff_sites_tables(r.group)]
     ['8a', '8a']
 
     Refusals
