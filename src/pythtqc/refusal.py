@@ -1,21 +1,17 @@
-"""What a call returns in place of a value it cannot measure, and what the package raises.
+"""Refusals, the errors the package raises, and the warning it issues.
 
-A :class:`Refusal` is a verdict about the physics: the check that stopped a
-call, and what it measured there.  It is returned, never raised, and it is
-falsy; some values are falsy too, an empty symmetry data vector or a
-splitting's ``consistent_pairs`` when there are none, so
-``isinstance(out, Refusal)`` is the test::
+* :class:`Refusal`: what a call returns in place of its record where it
+  cannot complete;
+* :class:`RefusalError`: a refusal raised as an exception, by
+  :meth:`Refusal.raise_`;
+* :class:`InternalError`: the error raised where the package disagrees with
+  itself;
+* :class:`MagneticScopeWarning`: the warning issued where time reversal is
+  measured broken.
 
-    r = tqc.realized_group(model)
-    if isinstance(r, tqc.Refusal):
-        print(r)          # the check, the diagnosis, the number measured
-
-:meth:`Refusal.raise_` raises one as a :class:`RefusalError` where a script
-wants an exception.  The package raises ``ValueError`` for a malformed
-argument, before anything is measured, and :class:`InternalError` where its
-own measurements disagree, a defect to report; it warns
-:class:`MagneticScopeWarning` where time reversal is measured broken.
-``docs/guide/refusals.md`` reads a refusal end to end.
+A malformed argument raises ``ValueError`` before anything is measured.
+``docs/guide/refusals.md`` shows how to read a refusal and what to do about
+it.
 """
 
 from __future__ import annotations
@@ -27,7 +23,15 @@ __all__ = ["Refusal", "RefusalError", "InternalError", "MagneticScopeWarning"]
 
 
 class RefusalError(RuntimeError):
-    """A :class:`Refusal` raised as an exception, by :meth:`Refusal.raise_`; the refusal is on ``.refusal``."""
+    """A :class:`Refusal` raised as an exception, by :meth:`Refusal.raise_`.
+
+    A ``RuntimeError`` whose message is the printed refusal.
+
+    Attributes
+    ----------
+    refusal : Refusal
+        The refusal raised.
+    """
 
     def __init__(self, refusal: "Refusal"):
         super().__init__(str(refusal))
@@ -35,47 +39,61 @@ class RefusalError(RuntimeError):
 
 
 class InternalError(RuntimeError):
-    """Raised where the package's own measurements, or its reading of the tables, disagree: a defect to report.
+    """The error raised where the package disagrees with itself.
 
-    The message says what disagreed.  Unusual physics is refused rather than
-    raised; this has nothing in the model to change.
+    Two measurements of one thing disagree, the tables the package reads
+    disagree with each other or with a measurement, or a step finds broken
+    what an earlier step guarantees.  The message says what disagreed.  It is
+    a defect in the package, not in the model.  Report it on the package's
+    repository, with the model and the call that raised it.
     """
 
 
 class MagneticScopeWarning(UserWarning):
-    """Time reversal is measured broken: the group returned is the unitary subgroup of the Hamiltonian's magnetic group.
+    """The warning issued where time reversal is measured broken.
 
-    Issued by :func:`..groups.realized_group`.  The labels, rows of elementary
-    band representations and indicators that follow are that group's; the
-    operations of the cell combined with time reversal that hold are on
-    :attr:`..groups.RealizedGroup.beyond_grey`, and none beyond the cell's own are
-    looked for.  ``warnings.simplefilter("ignore", pythtqc.MagneticScopeWarning)``
-    silences it.
+    :func:`..groups.realized_group` issues it.  The group returned is then the
+    unitary subgroup of the Hamiltonian's magnetic group.  The labels, the
+    elementary band representations and the symmetry indicators that later
+    calls return are that subgroup's.  The operations of the group of the
+    cell combined with time reversal that the Hamiltonian obeys are listed on
+    :attr:`..groups.RealizedGroup.beyond_grey`.  No operation combined with
+    time reversal is searched for outside the group of the cell.
+    ``warnings.simplefilter("ignore", pythtqc.MagneticScopeWarning)`` silences
+    it.
     """
 
 
 @dataclass(frozen=True)
 class Refusal:
-    """What a call returns where it cannot complete: the check that stopped it, and what it measured there.
+    """What a call returns in place of its record where it cannot complete.
 
-    ``print(r)`` reads it: the check, the diagnosis, the number measured against
-    the one demanded, and the keys of its context.  It is falsy, as some values
-    are, so ``isinstance(out, Refusal)`` is the test; it is frozen.
+    A refusal names the check that stopped the call and what the check
+    measured there.  It is returned, never raised.  Printed, a refusal shows
+    the check, the reason, the number measured and its threshold, and the
+    keys of ``context``.  A refusal is falsy, and so is the empty symmetry
+    data vector that :func:`..ebr.subtract` returns for two equal vectors.
+    ``isinstance(out, Refusal)`` tells a refusal from a returned value.
 
     Attributes
     ----------
     gate : str
-        The name of the check, ``"wyckoff_orbit"``: stable, and listed under
-        *Refusals* by every call that can return it.
+        The name of the check that stopped the call, such as
+        ``"multiplet_split"``.  The name does not change between versions.
+        Each call lists the checks it can stop at under *Refusals*, and
+        ``docs/reference/refusals.md`` has an entry under each name.
     reason : str
-        The diagnosis, naming the orbital, operation, point or group concerned.
-    value, threshold : float or None
-        The number measured and the number the check demanded; ``None`` for a
-        check with no number.
+        What the check found, in words, naming the orbital, operation, point
+        or group concerned.
+    value : float or None
+        If not None, the number the check measured.
+    threshold : float or None
+        If not None, the number the check compared ``value`` against.
     context : dict
-        What acting on it needs without measuring again: indices, labels,
-        multiplicities, and, once the group is identified, the group.  Each call
-        names the keys it puts here.
+        If nonempty, the data needed to act on the refusal without running
+        the call again, such as indices, labels and multiplicities.  A
+        refusal that :func:`..groups.realized_group` returns after
+        identifying the group holds the group as ``context["group"]``.
 
     Examples
     --------

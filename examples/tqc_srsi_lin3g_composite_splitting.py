@@ -1,20 +1,31 @@
-# Example of the SRSI no-go criterion applied to a composite band
-# representation, using pythTQC.
-# The model is the spinful fragile-plus-EBR model of Lin et al., Nat. Commun.
-# 15, 550 (2024), 10.1038/s41467-024-44762-w, SM Sec. 3G --
-# pythtqc.models.lin3g.  Four orbitals, eight bands, wallpaper group p4mm: two
-# orbitals at the cell origin carrying the paper's fragile quartet and two at
-# the edge centres carrying an s EBR, so the eight bands together are three
-# elementary band representations at two Wyckoff positions rather than the
-# single one whose splittings the paper's supplement tabulates.  The question
-# is what the criterion says about two different gaps of that one Hamiltonian.
+# Example of the no-go criterion of the stable real-space invariants (SRSIs) on
+# two gaps of one Hamiltonian, using pythTQC.
+# The model is the spinful model of Lin et al., Nat. Commun. 15, 550 (2024),
+# 10.1038/s41467-024-44762-w, supplementary section 3G, pythtqc.models.lin3g:
+# a square layer whose group is P4mm with time reversal, with four spinful
+# orbitals and eight bands. Two orbitals at the cell origin, declared s and
+# dx2-y2, carry four bands, of which bands 4 and 5 are a fragile pair. Two at
+# the edge centers carry the spinful s elementary band representation. The
+# orbitals induce a sum of three elementary band representations at two Wyckoff
+# positions, and the two gaps split that sum. Each splitting the paper's
+# supplement lists is of a single elementary band representation, so the
+# splittings at the two gaps are not among them.
+# An atomic realization of a set of bands is a set of site irreps at maximal
+# Wyckoff positions, with nonnegative multiplicities, that has its
+# integer-valued SRSIs, printed Z-valued. The no-go criterion calls a gapped
+# splitting of bands non-symmetry-indicated topological (nsit) where both sides
+# have atomic realizations and no pair of them has SRSIs valued modulo n adding
+# up to those of all the bands. The two sides then cannot both be atomic
+# limits, and no symmetry indicator shows it.
 # Run with python3, PythTB version 2.0 and pythTQC.
 
 # The calculations in this python file include
-# 1. the group, the two site orbits with their contents, the atomic limits of
-#    all eight bands, and the stable real-space invariants of the model
-# 2. bands 4 and 5: where the Z2-valued invariants of a band set can be read from
-# 3. splitting(r, bands=6): the six occupied bands against the two above them
+# 1. the group, the symmetry data vector of the orbitals at each of their two
+#    Wyckoff positions, the atomic limits of all eight bands, and the SRSIs of
+#    the model
+# 2. bands 4 and 5: where the SRSIs valued modulo 2 of a set of bands can be
+#    read from
+# 3. splitting(r, bands=6): the lowest six bands against the two above them
 # 4. splitting(r, bands=4): the same model, the gap two bands lower
 # 5. the two gaps, the eight bands along GM-X-M-GM, and the figure
 
@@ -36,8 +47,7 @@ from pythtqc import format_coreps as fmt
 from pythtqc.models import lin3g
 from pythtqc.utils import save_figure
 
-# The last line prints a dash, —, which a Windows console cannot print by
-# default, so the output is UTF-8.
+# The output is written as UTF-8, whatever the console's own encoding.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -52,10 +62,10 @@ OUTDIR = os.environ.get("TQC_EXAMPLE_FIGDIR") or os.path.join(
 NK_PATH = 61 if QUICK else 241              # band-path density: the figure only
 NK_MESH = 41                                # the gap mesh, fixed in both modes
 
-# orbitals 0 and 1 are one species, orbitals 2 and 3 another; the two orbitals
-# of the first carry different site irreps, which is a declaration (the hoppings
-# cannot measure what an orbital is; they measure which operations are
-# symmetries once the orbitals are stated).
+# Orbitals 0 and 1 are one species, and orbitals 2 and 3 another. The two
+# orbitals of the first species carry different site irreps, which characters=
+# declares. The hoppings decide which operations are symmetries of the crystal
+# so declared.
 TYPAT = [0, 0, 1, 1]
 DECLARE = ["s", "dx2-y2", "s", "s"]
 
@@ -63,8 +73,8 @@ PATH_LABELS = (r"$\Gamma$", "X", "M", r"$\Gamma$")
 
 os.makedirs(OUTDIR, exist_ok=True)
 
-print("Lin et al., Nat. Commun. 15, 550 (2024), SM Sec. 3G: eight bands from four")
-print("spinful orbitals, and the no-go criterion on two gaps of the one Hamiltonian.")
+print("Lin et al., Nat. Commun. 15, 550 (2024), supplementary section 3G: eight bands")
+print("from four spinful orbitals, and the no-go criterion on two gaps of one Hamiltonian.")
 print("Bands are counted from 0, as pythtb counts them.")
 
 
@@ -92,7 +102,7 @@ def moduli(theta_zn):
 
 def atomic_limits(d):
     """The atomic limits of a band set, as a label and a value: the one sum of elementary
-    band representations with this content, how many sums there are, or none."""
+    band representations with its symmetry data vector, how many sums there are, or none."""
     if not d.decomposable:
         return "atomic limits", "none"
     sums = [s.label for s in d.candidate_sums]
@@ -102,7 +112,7 @@ def atomic_limits(d):
 
 
 def reading(split):
-    """``nsit`` or ``not nsit``, the criterion's answer on a splitting."""
+    """``nsit`` or ``not nsit``, the criterion's verdict on a splitting."""
     return "nsit" if split.nsit else "not nsit"
 
 
@@ -119,9 +129,9 @@ def counts(terms):
     return out
 
 
-########### 1. the model, its two Wyckoff orbits and all eight bands ###########
+########### 1. the model, its orbitals, and all eight bands ###########
 
-print("\n1. the model, its two Wyckoff orbits and all eight bands")
+print("\n1. the model, its orbitals at two Wyckoff positions, and all eight bands")
 r = tqc.realized_group(lin3g(), typat=TYPAT, characters=DECLARE)
 model, group = r.model, r.group
 letters = []                       # each Wyckoff orbit's position, in the model's order
@@ -133,18 +143,20 @@ row("realized group", f"#{group.number_str} {group.name}, orbitals at Wyckoff "
 
 tables = tqc.srsi_tables(group)
 m_srsi = tqc.srsi_of_model(r)
-# the orbitals at each position: the Wyckoff orbits there, their contents added
+# the symmetry data vector of the orbitals at each position, summed over the
+# Wyckoff orbits there
 for here in letters:
     content = {}
     for orbit in m_srsi.wyckoff_orbits:
         if orbit.wyckoff == here:
             for corep, m in orbit.numerical.symmetry_data.items():
                 content[corep] = content.get(corep, 0) + m
-    row(f"the {here} orbit", fmt(content))
+    row(f"orbitals at {here}", fmt(content))
 
 t8 = tqc.hsp_table(r, bands=8)
 d8 = tqc.decompose(t8)
-# the orbitals' own sum: each Wyckoff orbit's elementary band representations
+# the sum the orbitals themselves give: each Wyckoff orbit's elementary band
+# representations
 own = counts(t for orbit in m_srsi.wyckoff_orbits for t in orbit.numerical.chosen)
 own_sum = next(s for s in d8.candidate_sums if counts(s) == own)
 words = own_sum.label.split(" + ")
@@ -157,20 +169,21 @@ row("the model's own", f"{'+'.join(positions(own_sum))}, {own_terms[0]}",
     f"+ {own_terms[1]}")
 row("srsi_of_model(r)", "the invariants of the model and of each Wyckoff orbit")
 print(textwrap.indent(m_srsi.summary(), "   "))
-print("   the two orbits have one content and different Z2-valued invariants; the eight")
-print("   bands are three elementary band representations at two Wyckoff positions, an")
-print("   atomic insulator, not the one whose splittings the supplement tabulates")
+print("   the orbitals at the two positions have the same symmetry data vector and different")
+print("   invariants valued modulo 2. The eight bands are the atomic limit of the orbitals,")
+print("   a sum of three elementary band representations. Each splitting the supplement lists\n"
+      "   is of a single one, so the splittings of these bands are not among them")
 
-########### 2. bands 4 and 5: where the Z2-valued invariants come from ###########
+########### 2. bands 4 and 5: where the SRSIs valued modulo 2 come from ###########
 
-print("\n2. bands 4 and 5: the Z2-valued invariants come from the orbitals, not the bands")
+print("\n2. bands 4 and 5: the symmetry data vector does not fix the invariants valued modulo 2")
 p2 = tqc.hsp_table(r, bands=[4, 5])
 d2 = tqc.decompose(p2)
 row("bands 4 and 5", fmt(p2.symmetry_data))
 row(*atomic_limits(d2))
 
 b2 = tqc.srsi_of_bands(p2)
-row("srsi_of_bands", f"Z-valued {values(b2.theta_Z.values())}, and no invariants valued modulo n")
+row("srsi_of_bands", f"Z-valued {values(b2.theta_Z.values())}; those valued modulo n are not returned")
 
 # the group's elementary band representations, in the order of its list
 EBRS = [(e.irrep, e.wyckoff) for e in tqc.ebr_data(group).ebrs]
@@ -187,36 +200,36 @@ def signed_sum(p):
     return " ".join(parts)
 
 
-# two vectors over the elementary band representations with this content: the
-# one atomic limit, and the rational vector the band route evaluates, one of
-# many with the same content
+# two sums of elementary band representations with the symmetry data vector of
+# bands 4 and 5: the one atomic limit, and the rational sum srsi_of_bands
+# evaluates, one of many
 column = tables.theta(d2.candidate_sums[0])
 solved = tables.theta(b2.numerical.p)
 row("the atomic limit", f"{signed_sum(counts(d2.candidate_sums[0]))}, "
     f"Z-valued {values(column.theta_Z.values())}, "
     f"{moduli(column.theta_Zn)}")
-row("a signed sum", f"{signed_sum(b2.numerical.p)}, Z-valued {values(solved.theta_Z.values())}, "
+row("a rational sum", f"{signed_sum(b2.numerical.p)}, Z-valued {values(solved.theta_Z.values())}, "
     f"{moduli(solved.theta_Zn)}")
-print("   the Z-valued invariants agree and the Z2-valued ones differ: the invariants valued")
-print("   modulo n are not functions of the symmetry data vector, so a band set has them only")
-print("   through a set of orbitals known to carry it, the model's own or an atomic limit")
+print("   the Z-valued invariants agree and those valued modulo 2 differ. The invariants")
+print("   valued modulo n are evaluated on a configuration of orbitals, the model's own or")
+print("   an atomic limit, and not on a symmetry data vector")
 
 ########### 3. the gap between bands 5 and 6 ###########
 
-print("\n3. splitting(r, bands=6): the six occupied bands against the two above them")
+print("\n3. splitting(r, bands=6): the lowest six bands against the two above them")
 six = tqc.splitting(r, bands=6)
 print(textwrap.indent(six.summary(), "   "))
-print("   bands 4 and 5 are among the six: what their atomic limit in section 2 could not")
-print("   show, the Z2-valued invariants of the two sides of this gap do")
+print("   bands 4 and 5 are among the six. Both sides of this gap have the symmetry data vector")
+print("   of an atomic limit. The criterion shows that they cannot both be atomic limits")
 
 ########### 4. the gap between bands 3 and 4 ###########
 
 print("\n4. splitting(r, bands=4): the same model, the gap two bands lower")
 four = tqc.splitting(r, bands=4)
 print(textwrap.indent(four.summary(), "   "))
-print("   the same Hamiltonian and the same eight bands, one gap lower: the criterion")
-print("   diagnoses the gap between bands 5 and 6, whose valence side holds bands 4 and 5,")
-print("   and not the gap between bands 3 and 4")
+print("   the criterion shows that the two sides of the gap between bands 5 and 6 cannot both")
+print("   be atomic limits. At the gap between bands 3 and 4, the SRSIs are consistent with")
+print("   both sides being atomic limits. The two valence sides differ by bands 4 and 5")
 
 ########### 5. the two gaps and the eight bands along GM-X-M-GM ###########
 
@@ -250,13 +263,13 @@ mid6 = 0.5 * (bands[:, 5].max() + bands[:, 6].min())
 ax.axhline(mid4, color="0.35", ls="--", lw=1.1)
 ax.axhline(mid6, color="0.35", ls=":", lw=1.1)
 ax.annotate(f"4-band gap ({gap4:.3f}):  {reading(four)}\n"
-            fr"$\theta_\mathbb{{Z}}[V]=({', '.join(str(v) for v in four.valence.theta_Z.values())})$",
+            f"valence bands, Z-valued ({', '.join(str(v) for v in four.valence.theta_Z.values())})",
             xy=(0.995, mid4), xycoords=("axes fraction", "data"),
             xytext=(0, 6), textcoords="offset points",
             ha="right", fontsize=9, color="0.15",
             bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="0.7", alpha=0.9))
 ax.annotate(f"6-band gap ({gap6:.3f}):  {reading(six)}\n"
-            fr"$\theta_\mathbb{{Z}}[V]=({', '.join(str(v) for v in six.valence.theta_Z.values())})$",
+            f"valence bands, Z-valued ({', '.join(str(v) for v in six.valence.theta_Z.values())})",
             xy=(0.995, mid6), xycoords=("axes fraction", "data"),
             xytext=(0, 6), textcoords="offset points",
             ha="right", fontsize=9, color="0.15",
@@ -267,13 +280,13 @@ ax.set_xlim(kd[0], kd[-1])
 ax.set_ylabel("$E$", fontsize=15)
 ax.set_title(f"lin3g in #{group.number_str} {group.name}: the eight bands are "
              f"{'+'.join(positions(own_sum))},\n"
-             fr"$\theta_\mathbb{{Z}}[H]=({', '.join(str(v) for v in m_srsi.theta_Z.values())})$, "
-             fr"$\theta_{{\mathbb{{Z}}_2}}[H]={mod_n(m_srsi.theta_Zn, 2)}$"
-             f" — the six-band gap {reading(six)}, the four-band gap {reading(four)}",
+             f"the model's SRSIs Z-valued ({', '.join(str(v) for v in m_srsi.theta_Z.values())}), "
+             f"mod 2 {mod_n(m_srsi.theta_Zn, 2)}"
+             f"; the six-band gap {reading(six)}, the four-band gap {reading(four)}",
              fontsize=9)
 fig.tight_layout(pad=0.6)
 # save_figure writes the PDF without its creation date, so a rerun gives the same file
 save_figure(fig, os.path.join(OUTDIR, "srsi_lin3g_composite_splitting.pdf"))
 plt.close(fig)
 
-print("\nDone — figure written to", OUTDIR)
+print("\nDone. The figure is written to", OUTDIR)

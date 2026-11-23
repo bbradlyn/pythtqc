@@ -30,11 +30,11 @@ bands 0-7 at X (0, 1/2, 0): 2xX1 + 2xX2   (.bands, .kpoint, .k, .coreps)
     bands 4-5 at 2.599: X1
     bands 6-7 at 2.762: X2
 
-3. the symmetry data vector of all 8 bands, and of the elementary band representation of E at 4a
+3. the symmetry data vector of all 8 bands, and of the elementary band representation (EBR) induced from E at 4a
 all 8 bands:     GM3 + GM4 + GM5 + M1M4 + M2M3 + 2xM5 + R1R2 + R3 + 2xX1 + 2xX2
 E at 4a (321'):  GM3 + GM4 + GM5 + M1M4 + M2M3 + 2xM5 + R1R2 + R3 + 2xX1 + 2xX2
 
-4. the auxiliary bands: the elementary band representation induced from A1 at either 4a or 4b
+4. the symmetry data vector of the auxiliary bands, that of the EBR induced from A1 at 4a or at 4b
 A1 at 4a (321'): GM1 + GM5 + M1M4 + M5 + R3 + X1 + X2
 A1 at 4b (321'): GM1 + GM5 + M1M4 + M5 + R3 + X1 + X2
 
@@ -49,4 +49,4 @@ P4_3321' #212.60, single-valued: stable real-space invariants   (.group)
 1 (E)_a - 1 (A1)_a: Invariants(theta_1 to theta_3 = (-1, 0, 1); theta_4 = (0) mod 2)
 1 (E)_a - 1 (A1)_b: Invariants(theta_1 to theta_3 = (-1, 0, 1); theta_4 = (1) mod 2)
 
-Done — figure written to <FIGDIR>
+Done. The figure is written to <FIGDIR>

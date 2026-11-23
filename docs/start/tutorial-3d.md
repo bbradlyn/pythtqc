@@ -1,25 +1,35 @@
-# Fu–Kane–Mele: a 3D crystal, a distortion, the ℤ₄ indicator
+# Fu-Kane-Mele: a 3D crystal, a distortion, the Z4 indicator
 
-This page is the second hour, after [the quick start](quickstart.md): one
-three-dimensional crystal from its space group to its symmetry-indicator class.
-It reads the group and the atomic-limit table of an undistorted crystal, finds
-that crystal a semimetal, lowers its symmetry with a bond distortion and reads
-what broke, and measures the ℤ₄ indicator of the three phases the distortion
-makes, against Fu and Kane's count of parities.
+This page shows how to read one three-dimensional crystal, from its space group
+to its symmetry-indicator class. The crystal is Fu, Kane and Mele's spin-orbit
+model on the diamond lattice, first undistorted and then with one bond
+distorted. `realized_group` measures which operations the Hamiltonian obeys
+and returns the group they form. `hsp_table` returns the little-group
+representations the bands carry at the high-symmetry points of that group.
+`symmetry_indicator` returns the symmetry-indicator class of the two lowest
+bands. `decompose` returns the decompositions of their symmetry data vector
+into elementary band representations. The page then compares the class with
+the inversion parities of Fu and Kane. Read
+[Quick start: Kane-Mele, end to end](quickstart.md) first.
 
-The model is Fu, Kane and Mele's spin–orbit model on the diamond lattice
-([Phys. Rev. Lett. 98, 106803 (2007)](https://doi.org/10.1103/PhysRevLett.98.106803)),
-from pythtb's own collection. `fu_kane_mele(t, soc, dt)` puts one orbital with
-spin on each of the two sites of the primitive cell, an `s` orbital in the
-paper — four bands, the lower two occupied — with a nearest-neighbour hopping
-`t`, a spin–orbit coupling `soc` between second neighbours, and `dt`, four
-offsets to the four nearest-neighbour bonds; the first is the bond inside the
-cell, which points along `[111]`. Energies are in units of `t`. The blocks run
-in order, as written, and the lines under a statement are what it prints. The
-whole page runs in about a minute, most of it the first call, which measures
-every operation of the diamond structure.
+The model is from pythtb's own collection: Fu, Kane and Mele,
+[*Topological insulators in three dimensions*, Phys. Rev. Lett. **98**, 106803 (2007)](https://doi.org/10.1103/PhysRevLett.98.106803).
+`fu_kane_mele(t, soc, dt)` puts one orbital with spin on each of the two sites
+of the primitive cell, an `s` orbital in the paper, so the model has four
+bands, the lower two filled at half filling. `t` is the nearest-neighbor
+hopping, and `soc` the spin-orbit coupling between second neighbors. `dt`
+holds four offsets added to `t` on the four nearest-neighbor bonds of each
+site. The first is for the bond inside the cell, which points along `[111]`.
+Energies are in units of `t`. The blocks run in order, and the lines under a
+statement are what it prints.
 
 ## The undistorted crystal
+
+`realized_group` takes the model, and with `characters=` the site irrep of any
+orbital the user declares. A pythtb orbital carries no symmetry character of
+its own. The hoppings fix how the orbitals transform relative to one another,
+and not what each one is. The example reads the undistorted crystal, every bond
+equal, with orbital 0 declared an `s` orbital:
 
 ```python
 import itertools
@@ -37,32 +47,36 @@ print(r.wyckoff_orbits.summary())
 #       8a         -43m1'       0-1    -E1    declaration       s/-
 ```
 
-`realized_group` measures which operations `H(k)` obeys and returns the group
-they form. `Fd-3m1'` is diamond's space group, `Fd-3m` (number 227), with time
-reversal adjoined: the trailing `1'` marks a **grey group**, and the irreducible
-objects of a group with antiunitary operations are **coreps**
-(co-representations), which is what every band label on this page is.
-`227.129` is the group's number among the magnetic space groups. Nothing more
-is printed: the Hamiltonian obeys every operation the orbital positions allow,
-and where it obeys fewer, the record names the group it descended from, as it
-does below. A three-dimensional model needs no preparation: its own positions
-are the cell the group is identified on.
-
-The table is the model's **atomic-limit table**, one row per Wyckoff orbit. Both
-orbitals sit at Wyckoff `8a`, the two atoms of the diamond structure, whose site
-symmetry is the tetrahedral group `-43m`, `-43m1'` with time reversal. A pythtb
-orbital carries no symmetry character of its own: the hoppings fix how the
-orbitals transform relative to one another, not what they are. So orbital 0 is
-`s` because `characters=` said so (`declared: s/-`, orbital 1 declared nothing),
-orbital 1 is fixed relative to it by the hoppings, and the row's site irreps
-rest on that declaration (`determined by: declaration`). The `label` column is
-the site irrep the orbitals carry with their spin, `-E1`, where the leading `-`
-marks a double-valued label. Every column is in
-[the records reference](../reference/records.md#the-atomic-limit-table).
+- `Fd-3m1' #227.129`: `r.group`, the group the Hamiltonian obeys. `Fd-3m` is
+  the space group of the diamond structure, number 227. The trailing `1'`
+  marks time reversal adjoined, and a space group with time reversal adjoined
+  is a grey group. `227.129` is its number in the Belov-Neronova-Smirnova
+  numbering of the magnetic space groups. The record prints a clause after the
+  group for each thing the call did or found beyond the group, such as
+  lowering the group the orbital positions allow. Here there is none.
+- `Wyckoff  site symmetry  orbitals ...`: `r.wyckoff_orbits`, the model's
+  atomic-limit table. It has one row for each Wyckoff orbit, the orbitals the
+  operations carry into one another.
+- `8a`: the orbit's Wyckoff position, multiplicity and letter, in the
+  conventional cell used by the irreptables package. Both orbitals sit there,
+  the two atoms of the diamond structure.
+- `-43m1'`: the site-symmetry group, the tetrahedral group `-43m` with time
+  reversal.
+- `0-1`: the orbitals on the orbit, by index.
+- `-E1`: the site irrep one site of the orbit carries. The leading `-` marks a
+  double-valued irrep, which a spinful orbital carries.
+- `declaration`: what the row's site irrep rests on. Orbital 0's is declared.
+  Orbital 1's is fixed relative to orbital 0 by the hoppings, so it rests on
+  the declaration too.
+- `s/-`: what `characters=` declared, one entry for each orbital. Orbital 1
+  has none, printed `-`.
 
 ## A semimetal at X
 
-Solve the model at the high-symmetry points of its group:
+`high_symmetry_points` returns the high-symmetry points of a group, in the
+model's reduced coordinates. `solve_at` returns the energies and states at one
+k-point. The example prints the four energies of the undistorted crystal at
+each point:
 
 ```python
 hsp = tqc.high_symmetry_points(r.group)                  # in the model's reduced coordinates
@@ -75,10 +89,31 @@ for name in sorted(hsp):
 #  X   +0.000 +0.000 +0.000 +0.000
 ```
 
+- `GM`: the irreptables package's name for Γ.
+- `-4.000 -4.000 +4.000 +4.000`: the four energies at Γ, lowest first.
+
 Every level is a Kramers pair, since the crystal has both inversion and time
-reversal, and at `X` all four bands meet at zero energy. The undistorted crystal
-is a semimetal: its two lower bands are not separated from the upper two, so at
-`X` there is no set of valence bands to label. The package says so:
+reversal. At `X` all four bands meet at zero energy. So the two lower bands are
+not separated from the upper two, and the undistorted crystal is a semimetal.
+
+In a group with antiunitary operations, such as time reversal, the bands at
+each k-point carry irreducible co-representations, coreps, of its little group.
+Every label of a band on this page is the name of a corep.
+
+`hsp_table` takes what `realized_group` returned and `bands=`, the set of bands
+to read. It can be given as an integer n for the lowest n bands, or as a
+sequence of band indices. It returns the coreps the set carries at each
+high-symmetry point. A point's coreps can only be returned if the set contains
+all the states in degenerate multiplets there. A point where the set cuts a
+multiplet is refused with `multiplet_split`, and the table holds that refusal
+for the point. A refusal is a returned record that names the check that
+refused and what it measured. `decompose` returns the decompositions of a
+table's symmetry data vector; the entries under the example define both.
+`symmetry_indicator` returns the class of the vector
+([Three phases, and the Z4 indicator](#three-phases-and-the-z4-indicator)).
+The example reads all four bands of the undistorted crystal and decomposes
+them. It then reads the two lowest bands alone and asks `symmetry_indicator`
+for their class:
 
 ```python
 all4 = tqc.hsp_table(r, bands=4)
@@ -97,34 +132,39 @@ print(bool(refused), refused.gate)
 #  False incomplete_content
 ```
 
-All four bands together are labelled at every high-symmetry point, and their
-content is one **elementary band representation** (EBR) — the bands one site
-irrep at one Wyckoff position induces, when they are no sum of others.
-`-E1 at 8a (-43m1')` reads: the site corep `-E1`, induced to the
-whole group in four bands, from Wyckoff `8a`, whose site group is `-43m1'`,
-with time reversal — the two spinful `s` orbitals
-themselves, as it must be
-([the conventions](../background/conventions.md#the-band-representation-key)
-spell out every part of this key).
+- `-GM6 + -GM9 + ... + -X5`: `all4.symmetry_data`, the symmetry data vector of
+  the four bands. It holds the corep multiplicities of the bands at every
+  high-symmetry point, and `format_coreps` writes it as a sum.
+- `["-E1 at 8a (-43m1')"]`: the `label` of each decomposition in
+  `decompose(all4).candidate_sums`, one here. A decomposition writes the
+  symmetry data vector as a sum of the symmetry data vectors of
+  elementary band representations (EBRs), with nonnegative integer
+  multiplicities. A site irrep at a Wyckoff position induces a band
+  representation. An EBR is one that is not a sum of others. A
+  decomposition's `label` names the site irrep that induces each EBR, its
+  Wyckoff position, and its site-symmetry group in parentheses. This one is
+  the site irrep `-E1` at `8a`, the model's own two orbitals.
+- `HSPTable(bands 0-1, 3 k-points measured, 1 refused)`: the table of the two
+  lowest bands, with the coreps at three points and a refusal at one.
+- `multiplet_split (0, 1, 2, 3)`: `pair.refusals["X"]`, the refusal at `X`.
+  Its `gate` names the check that refused the point. Its
+  `context["multiplet"]` names the bands of the degenerate multiplet, of which
+  the two lowest bands are half.
+- `False incomplete_content`: `symmetry_indicator(pair)` is a refusal, which is
+  falsy, from the check `incomplete_content`. The table holds no coreps at `X`.
 
-The two lowest bands alone resolve three points and refuse one. At `X` they are
-half of the fourfold multiplet `(0, 1, 2, 3)`, and a character read on part of a
-degenerate multiplet depends on the basis the diagonalization chose inside it,
-so the table refuses that point with the check `multiplet_split`. A **refusal**
-is a returned, falsy record that names the check that stopped the call and what
-it measured; `symmetry_indicator`, handed a table with a point missing, refuses
-`incomplete_content`, because the class of a vector with a point missing is the
-class of a different vector. Both are statements about the physics: the
-valence pair has no label at `X` because the crystal has no valence pair there.
-[When a call refuses](../guide/refusals.md) says how to read one, and the
-refusals reference has both checks,
+Both refusals here say that the crystal has no gap at `X`, so the two lowest
+bands carry no coreps of their own there.
+[What does a refusal mean, and what do I do about it?](../guide/refusals.md)
+says how to read one. [Refusals](../reference/refusals.md) holds both checks,
 [`multiplet_split`](../reference/refusals.md#multiplet_split) and
 [`incomplete_content`](../reference/refusals.md#incomplete_content).
 
 ## A distortion lowers the group
 
-Strengthen the `[111]` bond by `0.4`. No atom moves, so the orbital positions
-still allow all of `Fd-3m`; the Hamiltonian does not.
+The example strengthens the `[111]` bond of the Fu-Kane-Mele model by `0.4`.
+No orbital moves, so the orbital positions still allow all of `Fd-3m1'`.
+`rs.descent` holds what was broken, and `rs.operations` the operations kept:
 
 ```python
 strong = fu_kane_mele(1.0, 0.125, [0.4, 0.0, 0.0, 0.0])  # the [111] bond strengthened
@@ -136,7 +176,7 @@ print(d.cell_group.name, "->", d.subgroup.name, d.dropped_by,
       sorted({b.refuted_by for b in d.dropped}))
 #  Fd-3m1' -> R-3m1' {'hoppings': 72} ['no symmetry matrix']
 for op in rs.operations.values():
-    if not op.seitz.endswith("'"):                       # those without time reversal
+    if not op.seitz.endswith("'"):                       # a trailing ' marks time reversal
         print(f"{op.index:>2}  {op.seitz:<16}  {op.name}")
 #   1  {1|0,0,0}         E
 #   2  {3+_001|0,0,0}    C3([111])
@@ -155,51 +195,81 @@ for o in rs.wyckoff_orbits:
 #  (0, 1) 6c 3m -E1 declaration
 ```
 
-Read the record clause by clause. `R-3m1' #166.98` is the group returned: the
-rhombohedral grey group whose threefold axis is the strengthened bond.
-`descended from Fd-3m1' #227.129` is how it was reached: the positions offered
-diamond's group, the Hamiltonian broke 72 of its 96 coset representatives, and
-the 24 that hold were identified again as a group. Nothing downstream is ever
-read in a group the model does not have.
+- `R-3m1' #166.98`: `rs.group`, the group returned, the rhombohedral grey
+  group whose threefold axis is the strengthened bond.
+- `descended from Fd-3m1' #227.129`: the group the orbital positions allow,
+  which the Hamiltonian does not obey.
+- `72 of 96 coset representatives of the lattice translations broken`: the
+  Hamiltonian broke 72 of that group's 96 operations, counted one for each
+  coset of the lattice translations. The 24 that hold form `R-3m1'`.
+- `these are the single-valued group's, each standing for itself and its
+  negative in the double group`: the 96 and the 72 count operations of the
+  single-valued group. In this spinful model each stands for two elements of
+  the double group, the operation and its product with the rotation by 2π.
+- `Fd-3m1' -> R-3m1'`: `d.cell_group` and `d.subgroup`, the group before the
+  descent and the group after it.
+- `{'hoppings': 72}`: `d.dropped_by`, how many operations each cause dropped.
+  The hoppings dropped all 72.
+- `['no symmetry matrix']`: the `refuted_by` of the entries of `d.dropped`,
+  one entry for each operation dropped. For an operation `g = {R|t}`,
+  `"no symmetry matrix"` means that no matrix `X` satisfies
+  `X H(k) = H(Rk) X` at every `k` of the grid the measurement uses, and for
+  `g` combined with time reversal none satisfies `X H(k)* = H(−Rk) X`. That
+  proves the operation broken.
+  [The descent](../reference/records.md#the-descent), in
+  [Returned records](../reference/records.md), lists the other ways an
+  operation is refuted.
+- `1  {1|0,0,0}         E`: each operation kept without time reversal, its
+  `index`, its `seitz` and its `name`. The Seitz symbol `{R|t}` is written in
+  the conventional cell used by the irreptables package, whose `c` axis is
+  here the threefold. The name is read in the Cartesian axes in which the
+  pythtb Lattice is specified, the frame `characters=` is written in. Its axis
+  is written `x`, `y` or `z` where it lies along one of those axes, and
+  otherwise as a direction in the model's lattice vectors. So `C3([111])`
+  turns about the sum of the three lattice vectors, the strengthened bond. An
+  improper rotation is named after its rotoinversion: `S3([111])` is the
+  Seitz `-3+`, which Schoenflies notation calls `S6^5`
+  ([Operations: a Seitz symbol and a Cartesian name](../background/conventions.md#operations-a-seitz-symbol-and-a-cartesian-name)).
+- `(0, 1) 6c 3m -E1 declaration`: the one Wyckoff orbit's `orbitals`,
+  `wyckoff`, `unitary_site_symmetry`, `label` and `determined_by`.
+  `unitary_site_symmetry` is the site-symmetry group without time reversal,
+  and `label` is the site irrep.
 
-`rs.descent` is that measurement in full: the group before and after, the
-count by cause, and one entry per operation dropped, each named as below.
-Every operation here was refuted by `"no symmetry matrix"`: no matrix with the
-operation's action on `k` carries `H(k)` onto `H(Rk)`, which is a proof.
-[The records reference](../reference/records.md#the-descent) lists the other
-ways an operation is refuted, and
-[the group chapter](../guide/group.md#when-the-hamiltonian-has-less-symmetry-than-its-cell)
-works through a descent.
+The operations kept without time reversal are the twelve of the point group
+`-3m` about the bond, printed above. Each also holds combined with time
+reversal, 24 operations in all. Every later call on this model reads its bands
+in `R-3m1'`.
 
-The operations kept without time reversal are the point group `-3m` about the
-bond: the threefold about `[111]`, three twofolds perpendicular to
-it, the inversion `i` about the bond's centre, the two threefold
-rotoinversions (`S3` in the name column) and three mirrors containing the
-axis. Each row gives the Seitz symbol in the conventional setting the tables
-use, whose `c` axis is the threefold, and the name in the model's own frame,
-the one `characters=` is written in: `x`, `y`, `z` for a Cartesian axis, and
-otherwise the direction in lattice coordinates, so `C3([111])` turns about the
-sum of the three lattice vectors, the bond
-([the conventions](../background/conventions.md#operations-a-seitz-symbol-and-a-cartesian-name)
-read both names in full).
+In `Fd-3m1'` the orbitals were the orbit `8a`, whose site-symmetry group
+without time reversal is `-43m`. In `R-3m1'` they are the orbit `6c`, where it
+is `3m`, the threefold about the bond and the three mirrors that contain it.
+The site irrep is still `-E1`, now of `3m`, and the one declaration still
+fixes both orbitals.
+[When the Hamiltonian has less symmetry than its cell](../guide/group.md#when-the-hamiltonian-has-less-symmetry-than-its-cell),
+in [What group does my Hamiltonian have?](../guide/group.md), works through a
+descent.
 
-The orbitals move with the group. In `Fd-3m` they were the orbit `8a`, with
-site symmetry `-43m`; in `R-3m` they are `6c`, whose site symmetry is the
-threefold about the bond and the three mirrors that contain it, `3m`. The site
-corep is still `-E1`, now of `3m`, and the one declaration still fixes both orbitals.
+## Three phases, and the Z4 indicator
 
-## Three phases, and the ℤ₄ indicator
-
-The same bond weakened by `0.4` is a second phase, and the other three bonds cut
-to zero is a third: every atom keeps one nearest neighbour, its partner along
+The same bond weakened by `0.4` is a second phase. The other three bonds cut to
+zero is a third. There each atom keeps one nearest neighbor, its partner along
 `[111]`, and the dimers they form are coupled to one another only by the
-spin–orbit term. All three have the group `R-3m1'`. The **symmetry indicator**
-asks which class the valence bands' content occupies in the group's band
-structures modulo its atomic limits, `X_BS = {BS}/{AI}`, a finite abelian group
-fixed by the space group alone; a nonzero class rules out every atomic limit
-for every band set with that content. How the class is computed from the EBRs
-is in
-[the TQC primer](../background/tqc-primer.md#how-a-symmetry-indicator-is-computed).
+spin-orbit term. All three phases have the group `R-3m1'`.
+
+The integer vectors that satisfy a space group's compatibility relations,
+negative entries allowed, form a lattice, `{BS}`. The integer combinations of
+the symmetry data vectors of its EBRs form a sublattice, `{AI}`. The quotient
+`X_BS = {BS}/{AI}` is a finite abelian group fixed by the space group alone,
+its indicator group. The symmetry indicator of a set of bands is the class of
+its symmetry data vector in `X_BS`. The class of an atomic limit is zero, and
+classes add. So a set of bands with a nonzero class is not an atomic limit,
+and does not become one when atomic bands are added.
+[Which symmetry-indicator class do these bands occupy?](../guide/indicators.md)
+gives the definitions and the papers.
+
+`symmetry_indicator` takes the table `hsp_table` returns, and returns the class
+of its symmetry data vector. The example reads the class of the two lowest
+bands of each phase:
 
 ```python
 phases = {
@@ -214,8 +284,8 @@ indicators = {name: tqc.symmetry_indicator(tables[name])
               for name, rr in phases.items()}
 print(f"X_BS of #{rs.group.number_str} {rs.group.name}: {indicators['strong'].indicator_group}")
 #  X_BS of #166.98 R-3m1': Z2 x Z4
-print("phase   group   valence content              class   order  z4  z2w")
-#  phase   group   valence content              class   order  z4  z2w
+print("phase   group   symmetry data vector         class   order  z4  z2w")
+#  phase   group   symmetry data vector         class   order  z4  z2w
 for name, rr in phases.items():
     si = indicators[name]
     z2w = "".join(str(si.indicators[f"z2w,{i}"]) for i in (1, 2, 3))
@@ -226,33 +296,49 @@ for name, rr in phases.items():
 #  dimers  166.98  -GM9 + -F5F6 + -L5L6 + -T9   (0, 0)  1      0   000
 ```
 
-Each valence pair is now an isolated set, labelled at all four high-symmetry
-points of `R-3m1'`: `GM`, `T` on the threefold axis, and `F` and `L`. For this
-group `X_BS = ℤ₂ × ℤ₄`, and `class` is each phase's coordinates in it, in the
-Smith basis the computation uses; `order` is the order of that class, which no
-choice of basis changes. The last two columns speak the same class in named
-invariants ([the names a class is spoken in](../guide/indicators.md#the-names-a-class-is-spoken-in)):
-`z4`, the strong index, and `z2w`, the three weak ones,
-`z2w,1 z2w,2 z2w,3`. The strong phase has a class of order 4 with `z4 = 3`; the
-weak phase a class of order 2, `z4 = 0` and every weak index 1; the dimers
-the zero class. The contents differ only at `T` and `F`.
+- `Z2 x Z4`: `si.indicator_group`, the indicator group of `R-3m1'`. A class is
+  an integer modulo 2 and one modulo 4.
+- `-GM9 + -F5F6 + -L5L6 + -T8`: the symmetry data vector of the strong phase's
+  two lowest bands, at the four high-symmetry points of `R-3m1'`: Γ, `T` on the
+  threefold axis, `F` and `L`. Each phase's two lowest bands are separated
+  from the upper two at all four points.
+- `(0, 1)`: `si.values`, the class, `0` modulo 2 and `1` modulo 4. The EBR
+  matrix of the group has the symmetry data vector of each EBR as a column.
+  The values depend on the Smith normal form of that matrix, and the
+  irreptables package ships the one used here. Another Smith normal form can
+  write the same class with other values.
+- `4`: `si.order`, the order of the class, the fewest copies of the bands that
+  together have class zero. The order is the same in every Smith normal form.
+- `3` and `111`: `si.indicators`, the class written as the values of named
+  indicators. `z4` is the strong indicator. `z2w,1`, `z2w,2` and `z2w,3` are
+  the three weak indicators, printed together. The named values determine the
+  class, as `values` does
+  ([The names a class is spoken in](../guide/indicators.md#the-names-a-class-is-spoken-in)).
 
-In a crystal with inversion, Fu and Kane read the same invariants off parities
-([Phys. Rev. B 76, 045302 (2007)](https://doi.org/10.1103/PhysRevB.76.045302)).
-At each of the eight **time-reversal-invariant momenta** (TRIM), the momenta
-`k ≡ −k`, the occupied Kramers pair has one inversion parity `ξ = ±1`; the
-strong index is `(−1)^ν0 = ∏ ξ` over all eight, and the weak index `ν_i` is the
-same product over the four with `k_i = ½`. The parities are measured here from
-the model's own inversion, the one about the bond's centre, `{-1|0,0,0}` in the
-tables' setting: its **sewing matrix** at a TRIM, its matrix on the valence
-pair there, has the trace `2ξ`.
+The three symmetry data vectors differ only at `T` and `F`.
+
+In a crystal with inversion, Fu and Kane read the strong and weak indices off
+the inversion parities
+([*Topological insulators with inversion symmetry*, Phys. Rev. B **76**, 045302 (2007)](https://doi.org/10.1103/PhysRevB.76.045302)).
+The time-reversal-invariant momenta (TRIM) are the eight momenta `k` with
+`k ≡ −k` modulo a reciprocal lattice vector. At each, a Kramers pair has one
+inversion parity `ξ = ±1`. With one occupied pair, the strong index `ν0` is
+given by `(−1)^ν0 = ∏ ξ` over all eight TRIM. The weak index `νi` is given by
+the same product over the four TRIM with `k_i = 1/2`.
+
+The parities are those of the model's own inversion, about the bond's center,
+the operation `{-1|0,0,0}` in the conventional cell. `operation_index` returns
+the index of the operation a Seitz symbol names. `sewing_matrix` returns the
+matrix of an operation on a set of bands at a `k` the operation leaves
+invariant. On one Kramers pair, the inversion's sewing matrix has the trace
+`2ξ`. The example prints each phase's parities at the eight TRIM:
 
 ```python
 trim = [np.array(n) / 2 for n in itertools.product((0, 1), repeat=3)]   # the eight TRIM
 for name, rr in phases.items():
     inversion = tqc.operation_index(rr.group, "{-1|0,0,0}")
     parity = [round(np.trace(tqc.sewing_matrix(rr, inversion, k, bands=2).matrix).real / 2)
-              for k in trim]                             # +1 or -1 for the one Kramers pair
+              for k in trim]                             # the pair's inversion parity at each TRIM
     nu0 = int(np.prod(parity) < 0)
     weak = [int(np.prod([p for p, k in zip(parity, trim) if k[i] == 0.5]) < 0)
             for i in range(3)]
@@ -266,38 +352,58 @@ print(tables["strong"].note)
 #  another labeling the hoppings leave open keeps every site irrep and labels some energy multiplets of these bands differently; it keeps which bands are degenerate and the labels of all the model's bands together
 ```
 
-The eight momenta are listed in reduced coordinates as `itertools.product`
-orders them, from `(0, 0, 0)`, which is `GM`, to `(½, ½, ½)`, which is `T`; the
-three with two halves are the three `F` points, and the three with one half the
-three `L` points. The dimers, an atomic limit, are odd at every TRIM. The
-strong phase differs from them at `T` alone, one parity inverted: `(1;111)`, a
-strong topological insulator. The weak phase differs at `T` and the three `F`,
-four inverted: `ν0 = 0` with every weak index 1, `(0;111)`, a weak one. These
-are the indices Fu, Kane and Mele give for the two signs of the distortion,
-measured here from the hoppings alone. And `z4` is the number of odd pairs
-modulo 4 — 3, 0 and 0, the column above — so `ν0 = z4 mod 2`, and the weak
-indices are the `z2w` column.
+- `- - - - - - - +`: the parity at each TRIM, in the order `itertools.product`
+  gives them in reduced coordinates. The first is `(0, 0, 0)`, which is Γ, and
+  the last `(1/2, 1/2, 1/2)`, which is `T`. The three TRIM with two halves are
+  the three `F` points, and the three with one half the three `L` points.
+- `(1;111)`: `ν0` and the three weak indices, written `(ν0;ν1ν2ν3)` as Fu and
+  Kane write them.
+- `7 odd pairs, 7 mod 4 = 3`: the number of TRIM where the pair is odd, and
+  that number modulo 4.
+- `another labeling the hoppings leave open ...`: `tables["strong"].note`, a
+  sentence saying that the corep labels of these bands rest on a choice the
+  hoppings leave open. The last paragraph of this section reads it.
 
-Two choices stand behind these parities, and behind `z4`. They are taken about
-the bond's centre: about an inversion centre half a lattice vector away, the
-parities at four of the eight momenta flip, which can move the count by 2. And
-they are the parities of `s` orbitals. The last line, the note under the strong
-phase's table, says that its labels rest on a labelling the hoppings leave
-open: the site irreps leave two labellings of the representation
-open, and the one returned reads both orbitals as `s` functions, which the
-inversion carries onto each other with `+1`. The other differs from it by a
-sign on the inversion, the twofold rotations and the rotoinversions, a
-one-dimensional character the orbitals' site group `3m` cannot see, so it is
-open in every phase; in it every
-parity flips, `ν0` and the weak indices stay, and `z4` changes sign, the strong
-phase's seven odd pairs becoming one. A formula that counts even pairs against
-odd ones, `½ Σ (even − odd)`, carries that same sign: it gives the strong phase
-`½ (1 − 7) = −3`, that is `z4 = 1`.
+The dimers are odd at every TRIM. The strong phase differs
+from them at `T` alone, one parity inverted: `(1;111)`, a strong topological
+insulator. The weak phase differs at `T` and the three `F` points, four
+parities inverted: `(0;111)`, a weak topological insulator. These are the
+indices Fu, Kane and Mele give for the two signs of the distortion. In each
+phase `z4` is the number of odd pairs modulo 4: 3, 0 and 0. So
+`ν0 = z4 mod 2`, and the weak indices are the `z2w` column.
+
+Two choices fix these parities, and with them `z4`. First, the parities are
+taken about the bond's center. About an inversion center half a lattice vector
+away, the parities at four of the eight TRIM flip, which can change `z4` by 2.
+Second, they are the parities of `s` orbitals. The representation of the group
+on the orbitals is the set of matrices by which its operations act on them.
+The hoppings leave open two such representations, and both give the two
+orbitals the site irrep `-E1`. The note calls each a labeling.
+`tables["strong"].note` says that the corep labels of the two lowest bands
+differ between them. The labeling returned reads both orbitals as `s`
+functions, which the inversion carries onto each other with `+1`. The other
+differs from it by a sign on the inversion, the twofold rotations and the
+rotoinversions. That sign is a one-dimensional character of the group that is
+`+1` on the site-symmetry group `3m`, so the site irrep does not fix it. The
+tables of all three phases carry the same note. Under the other labeling every
+parity flips. `ν0` and the weak indices stay, and `z4` changes sign: the strong
+phase's seven odd pairs become one. Khalaf, Po, Vishwanath and Watanabe write
+the Z4 index as `(1/2) Σ (even − odd)` modulo 4, summed over the eight TRIM
+with each Kramers pair counted once
+([*Symmetry indicators and anomalous surface states of topological crystalline insulators*, Phys. Rev. X **8**, 031070 (2018)](https://doi.org/10.1103/PhysRevX.8.031070)).
+It is minus the number of odd pairs modulo 4, which is the `z4` of the other
+labeling. For the strong phase it is `(1/2)(1 − 7) = −3`, which is 1 modulo 4.
 
 ## What a decomposition says
 
-`decompose` asks the content a narrower question than the indicator: whether a
-sum of EBRs with nonnegative integer multiplicities reproduces this one vector.
+`decompose` takes the same table and returns every decomposition of its
+symmetry data vector, up to `cap=` of them, 200 by default. Where there is
+none, `certificate` says whether its absence is proved. `signed_combinations`
+holds the same search with negative multiplicities allowed.
+`wyckoff_sites_tables` returns the Wyckoff position of
+a point, given in the model's reduced coordinates. The example decomposes the
+two lowest bands of each phase, and finds the Wyckoff position of the center of
+the `[111]` bond:
 
 ```python
 for name, rr in phases.items():
@@ -316,44 +422,53 @@ print("the center of the [111] bond:", [s.wyckoff for s in center])
 #  the center of the [111] bond: ['3a']
 ```
 
-The strong phase is not decomposable, with the certificate `proof`: the multiplicities
-are bounded rigorously, the search is exhaustive, and no sum of EBRs has this
-content, so the valence pair is not an atomic limit. The signed combinations ask
-the same question with negative multiplicities allowed, and none lies within the
-bound, as a nonzero class requires: content in a nonzero class is no integer
-combination of EBRs at all. A fragile band set, by contrast, has an integer
-combination with a negative coefficient
-([when there is no decomposition](../guide/atomic-limits.md#when-there-is-no-decomposition)).
-The indicator says more than the decomposition does. Both say that no band set with
-this content is an atomic limit; the nonzero class says it of the content with
-any atomic bands added as well, since an atomic limit's class is zero and
-classes add, while no decomposition alone can give way to a decomposition once suitable
-atomic bands are added, as a fragile content's does. The weak phase is not decomposable
-either, and only its class, of order 2 where the strong phase has order 4,
-tells the two apart.
+- `not decomposable`: `dec.decomposable` is false. No decomposition was found.
+- `proof`: `dec.certificate`. No sum within the bound searched carries the
+  symmetry data vector, and no multiplicity can exceed that bound.
+- `0 signed`: the number of combinations in `dec.signed_combinations.sums`,
+  none within the bound. `signed_combinations` is `None` where a decomposition
+  exists, printed `-`.
+- `-E1u at 3a (-3m1')`: the dimers' one decomposition, the site irrep `-E1u`
+  at Wyckoff position `3a`, whose site-symmetry group is `-3m1'`.
+- `['3a']`: the Wyckoff position of the point `(1/8, 1/8, 1/8)` in the model's
+  reduced coordinates, the center of the bond the dimers keep.
 
-The dimers decompose, in one way: the valence pair has the content of the site
-corep `-E1u` induced from Wyckoff `3a`, and the last line shows that `3a` is
-the centre of the bond the dimers keep, `(⅛, ⅛, ⅛)` in the model's reduced
-coordinates. The `u` marks a corep odd under the inversion about that centre:
-the combination of each dimer's two `s` orbitals odd under the inversion that
-exchanges them, with its spin. Their class is zero, as an atomic limit's must
-be; a zero class on its own certifies nothing, since fragile topology lives in
-the indicator's kernel
-([what a zero does not certify](../guide/indicators.md#what-a-zero-does-not-certify)).
+The strong phase has no decomposition, with a proof, so its two lowest bands
+are not an atomic limit. No signed combination lies within the bound either. A
+symmetry data vector with a nonzero class is no integer combination of EBRs at
+all. The symmetry data vector of a fragile set of bands, by contrast, is an
+integer combination of EBRs only with some negative multiplicity
+([When there is no decomposition](../guide/atomic-limits.md#when-there-is-no-decomposition)).
+Where `decompose` returns no decomposition, the bands are not an atomic limit,
+and may be fragile. Where the class is nonzero, they are stably topological.
+`decompose` returns the same for the weak phase. Its class tells it from the
+strong phase: order 2, where the strong phase's has order 4.
+
+The dimers have one decomposition, the site irrep `-E1u` at the bond's center.
+The `u` marks a site irrep odd under the inversion about that center. It is
+the site irrep of the odd combination of each dimer's two `s` orbitals, with
+both spin states. Their class is zero, as an atomic limit's is. Fragile sets
+of bands, and stably topological sets the indicator does not detect, have
+class zero too
+([What a zero does not certify](../guide/indicators.md#what-a-zero-does-not-certify)).
 
 ## Where to go next
 
-- The same three phases carry stable real-space invariants:
-  [the SRSI chapter](../guide/srsi.md) starts from what a real-space invariant
-  is, and reads these phases' [from their bands](../guide/srsi.md#from-the-bands).
+- [What do the stable real-space invariants say about these bands?](../guide/srsi.md)
+  reads the same three phases
+  [from their bands](../guide/srsi.md#from-the-bands).
 - [What group does my Hamiltonian have?](../guide/group.md) takes the descent
-  further, and [labelling the bands](../guide/labels.md) the tables used here.
+  further.
+- [Which coreps do these bands carry?](../guide/labels.md) reads the tables
+  `hsp_table` returns.
 - [`examples/tqc_fkm_diamond.py`](../../examples/tqc_fkm_diamond.py) measures
-  the same phases and draws their bands with the valence labels at each
-  high-symmetry point ([the examples](../examples.md)).
-- Every call on this page, with its arguments and its refusals, is in the
-  reference: [`realized_group`](../reference/functions.md#realized_group),
+  the same phases and draws their bands, with the coreps of the two lowest
+  bands at each high-symmetry point ([The examples](../examples.md)).
+- [Returned records](../reference/records.md) lists every field of the records
+  this page prints.
+- [Functions](../reference/functions.md) gives the arguments and the refusals
+  of every call on this page:
+  [`realized_group`](../reference/functions.md#realized_group),
   [`high_symmetry_points`](../reference/functions.md#high_symmetry_points),
   [`solve_at`](../reference/functions.md#solve_at),
   [`hsp_table`](../reference/functions.md#hsp_table),

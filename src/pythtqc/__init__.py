@@ -1,43 +1,65 @@
 """Crystalline symmetry measured from a PythTB tight-binding model.
 
-From a model's own Hamiltonian, pythTQC measures:
+From a model's Hamiltonian, pythTQC measures:
 
-1. the space group it obeys, each orbital's Wyckoff position and site irrep,
-   and the model's representation of the group: ``realized_group(model)``;
-2. the coreps its bands carry at every high-symmetry point, their symmetry
-   data vector: ``hsp_table(r, bands=n)``;
-3. whether that vector could be an atomic limit: ``decompose``;
-4. its symmetry-indicator class and its stable real-space invariants:
-   ``symmetry_indicator``, ``srsi_of_bands``, ``srsi_of_model``, and whether a
-   gapped splitting of its bands can be two atomic insulators: ``splitting``.
+1. the space group the Hamiltonian obeys, the Wyckoff position and site irrep
+   of each orbital, and the representation of the group on the orbitals:
+   ``realized_group``;
+2. the little-group representations a set of bands carries at each
+   high-symmetry point, whose multiplicities form its symmetry data vector:
+   ``hsp_table``;
+3. whether that vector is consistent with an atomic limit: ``decompose``;
+4. its symmetry-indicator class: ``symmetry_indicator``;
+5. the integer-valued stable real-space invariants of a set of bands, from
+   its symmetry data vector: ``srsi_of_bands``;
+6. every stable real-space invariant of the model, those valued modulo n
+   included: ``srsi_of_model``;
+7. whether a gapped splitting of the model's bands is
+   non-symmetry-indicated topological: ``splitting``.
 
-A first call::
+A first call measures the group of pythtb's Kane-Mele model and the symmetry
+data vector of its two lowest bands::
 
     import pythtqc as tqc
     from pythtb.models import kane_mele
 
     r = tqc.realized_group(kane_mele(0.0, -1.0, 0.3, 0.0), characters={0: "s"})
-    print(r.summary())            # the group, and the orbitals by Wyckoff orbit
+    print(r.group.name)
+    #  P6mm1'
     print(tqc.hsp_table(r, bands=2).symmetry_data)
+    #  {'-GM9': 1, '-K6': 1, '-M5': 1}
 
-A call that cannot complete returns a ``Refusal`` in its place, which prints
-the check that stopped it and what it measured there.  A refusal is falsy, and
-so are some values, an empty symmetry data vector or a splitting's
-``consistent_pairs`` when there are none: ``isinstance(out, tqc.Refusal)`` is
-the test.  The package's own measurements disagreeing raise ``InternalError``.
+A name beginning with ``-`` names a double-valued little-group
+representation, in the naming of the irreptables package's tables.
 
-The space-group data is irrep's, from the package ``irreptables``;
-``tables_status()`` says whether it loaded.  The documentation is the
+A call that cannot complete returns a ``Refusal`` in place of its record.
+Printed, it shows the check that stopped the call and what the check
+measured.  A refusal is falsy, and so is the empty symmetry data vector that
+``subtract`` returns for two equal vectors.  ``isinstance(out, tqc.Refusal)``
+tells a refusal from a returned value.  Where the package disagrees with
+itself, it raises ``InternalError``.
+
+The space groups' operations, irreps, elementary band representations and
+symmetry indicators are read from the tables of the irreptables package.
+``tables_status()`` says whether they loaded.  The documentation is the
 repository's ``docs/`` folder, https://github.com/bbradlyn/pythtqc, starting
 at ``docs/README.md``.
 
-The modules: ``groups``, the space group and its tables; ``symmetry``, the
-model's representation of the group; ``sewing``, sewing matrices and band
-labels; ``ebr``, decompositions and symmetry indicators; ``srsi``, stable
-real-space invariants; ``symmetrization``, the record of a model made exactly
-symmetric under a declared precision; ``spin``, spinor bases and their spin operator; ``models``,
-reference crystals; ``refusal``, ``Refusal`` and ``InternalError``; ``utils``,
-figures for the examples.
+The modules:
+
+* ``groups``: the space group and its tables;
+* ``symmetry``: the model's representation of the group;
+* ``sewing``: sewing matrices and the little-group representations of bands;
+* ``ebr``: decompositions and symmetry indicators;
+* ``srsi``: stable real-space invariants;
+* ``symmetrization``: a Hamiltonian symmetric only within its declared
+  precision, made exactly symmetric;
+* ``spin``: the spin of a spin-orbit model imported as spinless, its two spin
+  states in the orbital index;
+* ``models``: crystals to measure on;
+* ``refusal``: refusals, the errors the package raises, and the warning it
+  issues;
+* ``utils``: figures for the examples.
 """
 
 from . import (ebr, groups, models, refusal, sewing, spin, srsi, symmetrization,

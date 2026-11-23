@@ -1,23 +1,26 @@
-# Example of the orbitals at the sites of one Wyckoff orbit as one another's
-# images, using pythTQC.
-# The model is a p pair at each of the three 3c sites of a simple cubic cell,
-# each pair perpendicular to its own site's fourfold axis: (p_y, p_z) at
-# (0, 1/2, 1/2), (p_x, p_z) at (1/2, 0, 1/2) and (p_x, p_y) at (1/2, 1/2, 0),
-# with random hoppings averaged over the operations of T_d.  It is
-# pythtqc.models' cubic_3c_perp_doublet().  An operation carrying one site onto
-# another carries its pair onto a pair of different functions, and the
-# question is what the atomic-limit table of such an orbit says, and what band
-# representation it induces.
+# Example of a Wyckoff orbit whose sites hold different pairs of orbitals, each
+# pair the image of the pair at another site, using pythTQC.
+# The model is pythtqc.models.cubic_3c_perp_doublet(): a p pair at each of the
+# three 3c sites of a simple cubic cell, each pair perpendicular to its own
+# site's axis.  A site's axis is the cube axis normal to the face at whose
+# center it sits.  The pairs are (p_y, p_z) at (0, 1/2, 1/2), (p_x, p_z) at
+# (1/2, 0, 1/2) and (p_x, p_y) at (1/2, 1/2, 0), with random hoppings averaged
+# over the operations of T_d.
+# An operation carrying one site onto another carries its pair onto a pair of
+# different functions.  The example prints the atomic-limit table of such an
+# orbit and the band representation it induces.
 # Run with python3, PythTB version 2.0 and pythTQC.
 
 # The calculations in this python file include
 # 1. the model: the three 3c sites, each with its own axis and its p pair
 # 2. the group the hoppings obey, and the operations they break
-# 3. the atomic-limit table: each site's E of its own -42m, its characters
-#    named in that site's own axes, the threefold that carries one site's
-#    characters onto the next's, and the band representation the orbit induces
+# 3. the atomic-limit table: the site irrep E of each site's own -42m, its
+#    characters under the operations of its site group, the threefold that
+#    carries each site and its operations onto the next, and the band
+#    representation the orbit induces
 # 4. the same model with every pair rotated inside itself by one angle
-# 5. the six bands as a sum of elementary band representations, and the figure
+# 5. the decomposition of the six bands into elementary band representations,
+#    and the figure
 
 # Author: the pythTQC examples
 
@@ -38,8 +41,7 @@ from pythtqc import format_coreps as fmt
 from pythtqc.models import cubic_3c_perp_doublet
 from pythtqc.utils import save_figure
 
-# The last line prints a dash, —, which a Windows console cannot print by
-# default, so the output is UTF-8.
+# Write the output as UTF-8, which a Windows console does not use by default.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -61,12 +63,12 @@ TICKS = (r"$\Gamma$", "X", "M", r"$\Gamma$", "R", "X")
 os.makedirs(OUTDIR, exist_ok=True)
 
 print("Six p orbitals at the three 3c sites of a simple cubic cell, a pair at each")
-print("site perpendicular to the site's own axis: the orbitals at the three sites")
-print("are one another's images.")
+print("site perpendicular to the site's own axis, so each site holds a different pair,")
+print("the image of the pair at another site.")
 
 
 def row(label, first, *rest):
-    """One line of the ledger, a label of at most 16 characters, then its continuation lines."""
+    """One printed row: a label of at most 16 characters, then its continuation lines."""
     print(f"   {label:<16} : {first}")
     for line in rest:
         print(f"{'':22}{line}")
@@ -78,14 +80,15 @@ def coords(site):
 
 
 def atomic_limits(d):
-    """The atomic limits of a band set, as a label and a value: the one sum of elementary
-    band representations with this content, how many sums there are, or none."""
+    """The decompositions of a band set into elementary band representations, as a label
+    and a value: the one sum whose symmetry data vector is the band set's, how many sums
+    there are, or none."""
     if not d.decomposable:
-        return "atomic limits", "none"
+        return "decompositions", "none"
     sums = [s.label for s in d.candidate_sums]
     if len(sums) == 1:
-        return "atomic limit", sums[0]
-    return "atomic limits", f"{len(sums)} sums of elementary band representations"
+        return "decomposition", sums[0]
+    return "decompositions", f"{len(sums)} sums of elementary band representations"
 
 
 def coreps_of(table, point):
@@ -100,8 +103,8 @@ def characters(table):
 
 
 def differing(table, other):
-    """Where another atomic-limit table differs: its rows, by Wyckoff orbit, the lines
-    under them, and the characters."""
+    """The parts of another atomic-limit table that differ from this one, as a phrase: the
+    rows, named by Wyckoff orbit, the lines printed under the rows, and the characters."""
     first, second = table.summary().splitlines(), other.summary().splitlines()
     rows = [o.wyckoff for i, o in enumerate(table)
             if i + 1 >= len(second) or first[i + 1] != second[i + 1]]
@@ -125,8 +128,8 @@ def same_characters(table, other):
 print("\n1. the model: a p pair at each 3c site, perpendicular to the site's own axis")
 model = cubic_3c_perp_doublet()
 
-# The three sites, read off the model in orbital order.  Each is the centre of a
-# cube face, and its own axis is the cube axis normal to that face: the
+# The three sites, read off the model in orbital order.  Each is the center of a
+# cube face, and its own axis is the cube axis normal to that face, along the
 # coordinate that vanishes.
 positions = np.asarray(model.orb_vecs, dtype=float)
 sites = list(dict.fromkeys(tuple(float(x) for x in p) for p in positions))
@@ -141,15 +144,16 @@ row("hoppings", f"{len(model.hoppings)}, random, to every orbital within one lat
 
 ########### 2. the group the hoppings obey ###########
 
-print("\n2. the group: what the point set allows, and what the hoppings obey")
+print("\n2. the group: what the lattice and the orbital positions allow, and what the "
+      "hoppings obey")
 r = tqc.realized_group(model)
 group = r.group
-allowed = r.descent.cell_group          # the group the cell's point set allows
-row("point set allows", f"#{allowed.number_str} {allowed.name}")
+allowed = r.descent.cell_group          # the group the lattice and the positions allow
+row("positions allow", f"#{allowed.number_str} {allowed.name}")
 row("realized group", f"#{group.number_str} {group.name}, orbitals at Wyckoff "
     f"{' and '.join(dict.fromkeys(o.wyckoff for o in r.wyckoff_orbits))}")
 
-# The descent names every operation the hoppings break.  The unitary ones are
+# r.descent names every operation the hoppings break.  The unitary ones are
 # counted here by kind, each kind shown by its first member: C4^-1(z) counts as
 # a C4, and "6 like C2([110])" is the six twofolds about the face diagonals.
 lost = [b.name for b in r.descent.dropped if not b.name.endswith("'")]
@@ -165,7 +169,7 @@ row("broken", ", ".join(census) + ",",
     "coset representatives",
     "of the lattice translations")
 
-# about each site's own axis: the fourfold rotation and the -4 rotoinversion
+# The fourfold rotation and the -4 rotoinversion about each site's own axis.
 c4_broken = [f"C4({a})" for a in axes if f"C4({a})" in lost]
 s4_kept = [f"S4({a})" for a in axes if f"S4({a})" in kept]
 row("each site's axis", f"{', '.join(c4_broken)} broken; {', '.join(s4_kept)} kept")
@@ -182,11 +186,12 @@ rec = r.wyckoff_orbits
 print(textwrap.indent(rec.summary(), "   "))
 orbit = rec[0]                         # the one Wyckoff orbit, 3c
 
-# Each site's characters under the operations of its own -42m, each named in the
-# frame of the site it fixes, which is a different frame at each site: the
-# twofold about the site's own axis is the one the threefold below carries from
-# site to site.  orbit.site_multiplets lists, site by site, the orbitals bound
-# together there, and orbit.numerical.positions each site's position.
+# The characters of each site's pair under the operations of its own -42m.  Each
+# operation is named as r.operations names it, in one Cartesian frame for every
+# site.  The twofold about the site's own axis, C2(x), C2(y) or C2(z), is the
+# one the threefold below carries from site to site.  orbit.site_multiplets
+# lists the orbitals at each site, and orbit.numerical.positions each site's
+# position.
 chars_of = {}
 for pair, site in zip(orbit.site_multiplets, orbit.numerical.positions):
     axis = axes[sites.index(tuple(float(x) for x in site))]
@@ -199,11 +204,10 @@ for pair, site in zip(orbit.site_multiplets, orbit.numerical.positions):
         f"{orbit.unitary_site_symmetry}")
 
 # The threefold along [111] carries each site onto the next, and each site's
-# own axis onto the next site's: its matrix sends each site's pair into the
-# pair at one other site, and its rotation part sends one cube axis to another.
+# own axis onto the next site's.
 c3 = tqc.operation_index(r.group, "{3+_111|0,0,0}")
 M3 = np.asarray(r.rep.matrices[c3])
-# an operation's rotation_cartesian is its rotation, a 3 x 3 matrix on Cartesian vectors
+# An operation's rotation_cartesian is its rotation, a 3 x 3 matrix on Cartesian vectors.
 R3 = np.asarray(r.operations[c3].rotation_cartesian, dtype=float)
 unit = {"x": np.eye(3)[0], "y": np.eye(3)[1], "z": np.eye(3)[2]}
 row(r.operations[c3].name, "carries each site onto the next, and its axis onto the next site's")
@@ -215,8 +219,10 @@ for pair, site in zip(orbit.site_multiplets, orbit.numerical.positions):
     turned = next(b for b, v in unit.items() if np.allclose(np.abs(R3 @ unit[axis]), v))
     row(coords(site), f"onto {coords(there)}, axis {axis} onto {turned}, C2({axis}) onto "
         f"C2({turned}), character {chars_of[axis][f'C2({axis})']:+.0f} at both")
-print("   each site's characters are the first site's, carried by the operations of the orbit,")
-print(f"   and each site carries the {orbit.label} of its own {orbit.unitary_site_symmetry}")
+print("   the threefold carries each site and its operations onto the next, with the same "
+      "characters")
+print(f"   each site has the site irrep {orbit.label} of its own "
+      f"{orbit.unitary_site_symmetry}")
 
 ########### 4. the same model in a rotated basis ###########
 
@@ -225,10 +231,11 @@ rotated = cubic_3c_perp_doublet(angle=THETA)
 r_rot = tqc.realized_group(rotated)
 rec_rot = r_rot.wyckoff_orbits
 row("realized group", f"#{r_rot.group.number_str} {r_rot.group.name}")
-# the rotated model's atomic-limit table, compared line for line with section 3's,
-# and every orbital's characters with section 3's
+# The rotated model's atomic-limit table, compared line for line with section
+# 3's, and every orbital's characters with section 3's.
 if rec_rot.summary() == rec.summary() and same_characters(rec, rec_rot):
-    row("wyckoff_orbits", "section 3's atomic-limit table, line for line, and its characters")
+    row("wyckoff_orbits", "the same table as section 3's, line for line, with the same "
+        "characters")
 else:
     row("wyckoff_orbits", "section 3's atomic-limit table but for " + differing(rec, rec_rot))
 
@@ -236,8 +243,8 @@ table = tqc.hsp_table(r, bands=6)          # the six bands, at every point
 table_rot = tqc.hsp_table(r_rot, bands=6)
 row("all 6 bands", fmt(table.symmetry_data))
 row("all 6, rotated", fmt(table_rot.symmetry_data))
-print("   the rotation is a change of orbital basis inside each pair, a choice of Wannier gauge,")
-print("   and a character is a trace, which no change of basis moves")
+print("   the rotation is a change of orbital basis inside each pair, a choice of Wannier gauge")
+print("   a character is a trace, and a change of basis leaves it unchanged")
 
 ########### 5. the six bands as elementary band representations ###########
 
@@ -245,7 +252,8 @@ print("\n5. the six bands as a sum of elementary band representations")
 d6 = tqc.decompose(table)
 row(*atomic_limits(d6))
 
-# the figure: the bands of both bases along one path, the content at each point
+# The figure: the bands in both bases along one path, and the corep
+# multiplicities at each point.
 hsp = tqc.high_symmetry_points(group)
 path = [hsp[point] for point in NODES]
 kv, kd, kn = model.k_path(path, NK_PATH, report=False)
@@ -253,9 +261,9 @@ bands = np.asarray(model.solve_ham(kv))
 bands_rot = np.asarray(rotated.solve_ham(kv))
 row("both bases", f"largest energy difference {np.abs(bands - bands_rot).max():.6f} along "
     f"{'-'.join(NODES)}, the figure's path")
-print(f"   {orbit.label} at {orbit.wyckoff} of {group.name} is one of the known exceptions to "
-      "an irrep at a maximal")
-print("   Wyckoff position inducing an elementary band representation")
+print(f"   {orbit.label} at {orbit.wyckoff} of {group.name} sits at a maximal Wyckoff position, "
+      "and the band")
+print("   representation it induces is the sum of two elementary ones printed above")
 
 fig, ax = plt.subplots(1, 1, figsize=(9.2, 6.4))
 for i in range(model.nstate):
@@ -286,4 +294,4 @@ fig.tight_layout(pad=0.6)
 save_figure(fig, os.path.join(OUTDIR, "3c_transported_orbitals.pdf"))
 plt.close(fig)
 
-print("\nDone — figure written to", OUTDIR)
+print("\nDone. The figure is written to", OUTDIR)

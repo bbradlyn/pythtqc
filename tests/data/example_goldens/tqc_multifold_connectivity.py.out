@@ -1,9 +1,9 @@
-Two four-band elementary band representations, and whether their bands can
-be separated: SG 199 (Flicker et al., PRB 98, 155145) and SG 208 (Cano et
-al., PRL 120, 266401).
+Two four-band elementary band representations, and whether their bands can be
+separated: space group 199 (Flicker et al., PRB 98, 155145) and space group 208
+(Cano et al., PRL 120, 266401).
 Bands are counted from 0, as pythtb counts them.
 
-1. SG 199: the group, and the levels of the four bands
+1. space group 199: the group, and the levels of the four bands
    realized group   : #199.13 I2_131', s orbitals at Wyckoff 8a, 4 bands
    GM               : GM4(3) at -1.000000, GM1(1) at +3.000000
    H                : H1(1) at -3.000000, H4(3) at +1.000000
@@ -12,34 +12,34 @@ Bands are counted from 0, as pythtb counts them.
    PA               : PA1(2) at -1.732051, PA3(2) at +1.732051
    GM4 and H4 are threefold: the spin-1 fermions
 
-2. SG 199: the four bands together, and the three inter-band gaps
+2. space group 199: the four bands together, and the three inter-band gaps
    all 4 bands      : GM1 + GM4 + H1 + H4 + 2xN1 + 2xN2 + P1 + P3 + PA1 + PA3
    atomic limit     : A1 at 8a (31')
    bands 0 and 1    : smallest direct gap 0.000000 over a 13x13x13 mesh
    bands 1 and 2    : smallest direct gap 0.000000
    bands 2 and 3    : smallest direct gap 0.000000
    every gap closes somewhere, so no subset of the four bands is isolated at any
-   filling: this elementary band representation is connected
+   filling. This elementary band representation is connected
 
-3. SG 208: the group, the crystal field the paper draws, and the levels
+3. space group 208: the group, the crystal field the paper adds, and the levels
    realized group   : #208.45 P4_2321', orbitals at Wyckoff 2a, 4 bands
-   crystal field    : 24 atoms that carry no orbital, the paper's own device
+   crystal field    : 24 atoms that carry no orbital, of the kind the paper adds
    GM               : GM3(2) at -0.861626, GM3(2) at +0.861626
    M                : M5(2) at -0.258199, M5(2) at +0.258199
    R                : R3(2) at -1.200000, R3(2) at +1.200000
    X                : X5(2) at -0.258199, X5(2) at +0.258199
 
-4. SG 208: the four bands together, and the three inter-band gaps
+4. space group 208: the four bands together, and the three inter-band gaps
    all 4 bands      : 2xGM3 + 2xM5 + 2xR3 + 2xX5
    atomic limit     : 1E2E at 2a (231')
    bands 0 and 1    : smallest direct gap 0.000000 over a 13x13x13 mesh
    bands 1 and 2    : smallest direct gap 0.256971
    bands 2 and 3    : smallest direct gap 0.000000
    half filling     : indirect gap 0.256971
-   the gap between bands 1 and 2 stays open, so this elementary band representation
-   splits at half filling into two isolated halves of two bands each
+   the gap between bands 1 and 2 stays open over the mesh. This elementary band
+   representation splits at half filling into isolated halves of two bands each
 
-5. SG 208: each half of the split on its own
+5. space group 208: each half of the split on its own
    bands 0 and 1    : GM3 + M5 + R3 + X5
    atomic limits    : none
    bands 2 and 3    : GM3 + M5 + R3 + X5
@@ -48,4 +48,4 @@ Bands are counted from 0, as pythtb counts them.
 
 6. the bands of both models, one panel each
 
-Done — figure written to <FIGDIR>
+Done. The figure is written to <FIGDIR>

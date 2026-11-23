@@ -1,11 +1,11 @@
-Lin et al., Nat. Commun. 15, 550 (2024), SM Sec. 3G: eight bands from four
-spinful orbitals, and the no-go criterion on two gaps of the one Hamiltonian.
+Lin et al., Nat. Commun. 15, 550 (2024), supplementary section 3G: eight bands
+from four spinful orbitals, and the no-go criterion on two gaps of one Hamiltonian.
 Bands are counted from 0, as pythtb counts them.
 
-1. the model, its two Wyckoff orbits and all eight bands
+1. the model, its orbitals at two Wyckoff positions, and all eight bands
    realized group   : #99.164 P4mm1', orbitals at Wyckoff 1a and 2c, 8 bands
-   the 1a orbit     : -GM6 + -GM7 + -M6 + -M7 + 2x-X5
-   the 2c orbit     : -GM6 + -GM7 + -M6 + -M7 + 2x-X5
+   orbitals at 1a   : -GM6 + -GM7 + -M6 + -M7 + 2x-X5
+   orbitals at 2c   : -GM6 + -GM7 + -M6 + -M7 + 2x-X5
    all 8 bands      : 2x-GM6 + 2x-GM7 + 2x-M6 + 2x-M7 + 4x-X5
    atomic limits    : 6 sums of elementary band representations, at
                       1a+1a+1a+1a, 1a+1a+1b+1b, 1a+1a+2c, 1b+1b+1b+1b, 1b+1b+2c, 2c+2c
@@ -18,21 +18,22 @@ Bands are counted from 0, as pythtb counts them.
        1a (4mm1'): orbital 0, 1 (-E1)_a: (0, 1, 0); (0, 0) mod 2
        1a (4mm1'): orbital 1, 1 (-E2)_a: (1, 0, 0); (0, 0) mod 2
        2c (mm21'): orbitals 2-3, 1 (-E)_c: (1, 1, 0); (0, 1) mod 2
-   the two orbits have one content and different Z2-valued invariants; the eight
-   bands are three elementary band representations at two Wyckoff positions, an
-   atomic insulator, not the one whose splittings the supplement tabulates
+   the orbitals at the two positions have the same symmetry data vector and different
+   invariants valued modulo 2. The eight bands are the atomic limit of the orbitals,
+   a sum of three elementary band representations. Each splitting the supplement lists
+   is of a single one, so the splittings of these bands are not among them
 
-2. bands 4 and 5: the Z2-valued invariants come from the orbitals, not the bands
+2. bands 4 and 5: the symmetry data vector does not fix the invariants valued modulo 2
    bands 4 and 5    : -GM6 + -M7 + -X5
    atomic limit     : -E2 at 1b (4mm1')
-   srsi_of_bands    : Z-valued (0, 0, 1), and no invariants valued modulo n
+   srsi_of_bands    : Z-valued (0, 0, 1); those valued modulo n are not returned
    the atomic limit : 1 (-E2)_b, Z-valued (0, 0, 1), mod 2 (1, 0)
-   a signed sum     : 1 (-E1)_a + 1 (-E2)_a - 1 (-E1)_b, Z-valued (0, 0, 1), mod 2 (0, 0)
-   the Z-valued invariants agree and the Z2-valued ones differ: the invariants valued
-   modulo n are not functions of the symmetry data vector, so a band set has them only
-   through a set of orbitals known to carry it, the model's own or an atomic limit
+   a rational sum   : 1 (-E1)_a + 1 (-E2)_a - 1 (-E1)_b, Z-valued (0, 0, 1), mod 2 (0, 0)
+   the Z-valued invariants agree and those valued modulo 2 differ. The invariants
+   valued modulo n are evaluated on a configuration of orbitals, the model's own or
+   an atomic limit, and not on a symmetry data vector
 
-3. splitting(r, bands=6): the six occupied bands against the two above them
+3. splitting(r, bands=6): the lowest six bands against the two above them
    P4mm1' #99.164, double-valued: nsit, no realization of the valence bands and of the conduction bands adding up to the whole model's invariants valued modulo n   (.group, .nsit)
      Z-valued stable real-space invariants theta_1 to theta_3: the whole model (2, 2, 0) = valence (1, 1, 1) + conduction (1, 1, -1)   (.theta_Z, .valence.theta_Z, .conduction.theta_Z)
      invariants valued modulo n of the whole model: theta_4, theta_5 = (0, 1) mod 2   (.theta_Zn)
@@ -43,8 +44,8 @@ Bands are counted from 0, as pythtb counts them.
      atomic realizations of the conduction bands, with (theta_4, theta_5) mod 2   (.conduction.realizations)
        1 (-E1)_b   (0, 0)
      no pair of a valence and a conduction realization has invariants valued modulo n adding up to the whole model's   (.consistent_pairs)
-   bands 4 and 5 are among the six: what their atomic limit in section 2 could not
-   show, the Z2-valued invariants of the two sides of this gap do
+   bands 4 and 5 are among the six. Both sides of this gap have the symmetry data vector
+   of an atomic limit. The criterion shows that they cannot both be atomic limits
 
 4. splitting(r, bands=4): the same model, the gap two bands lower
    P4mm1' #99.164, double-valued: not nsit, 2 pairs of a valence and a conduction realization adding up to the whole model's invariants valued modulo n   (.group, .nsit, .consistent_pairs)
@@ -61,13 +62,13 @@ Bands are counted from 0, as pythtb counts them.
      pairs of a valence and a conduction realization whose invariants valued modulo n add up to the whole model's   (.consistent_pairs)
        1 (-E)_c with 1 (-E1)_a + 1 (-E2)_a
        1 (-E1)_a + 1 (-E2)_a with 1 (-E)_c
-   the same Hamiltonian and the same eight bands, one gap lower: the criterion
-   diagnoses the gap between bands 5 and 6, whose valence side holds bands 4 and 5,
-   and not the gap between bands 3 and 4
+   the criterion shows that the two sides of the gap between bands 5 and 6 cannot both
+   be atomic limits. At the gap between bands 3 and 4, the SRSIs are consistent with
+   both sides being atomic limits. The two valence sides differ by bands 4 and 5
 
 5. the eight bands along GM-X-M-GM, with the two gaps marked
    bands 3 and 4    : gap 0.661624 over a 41x41 mesh
    bands 5 and 6    : gap 0.581572
    both gaps are open
 
-Done — figure written to <FIGDIR>
+Done. The figure is written to <FIGDIR>

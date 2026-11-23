@@ -1,31 +1,33 @@
-# Example of the stable real-space invariants (SRSIs) of a band set, read from
-# the bands and read from the orbitals, using pythTQC.
-# The model is Fu, Kane and Mele's spin-orbit model on the diamond lattice,
-# PRL 98, 106803 (2007): four bands, two occupied, with one of the four
-# nearest-neighbour bonds detuned along [111].  It is pythtb's own
-# pythtb.models.fu_kane_mele(t, soc, dt), the model examples/tqc_fkm_diamond.py
-# reads in momentum space.
-# An SRSI is a linear function of the site-symmetry vector -- how many orbitals
-# of each site irrep sit at each Wyckoff position -- that no adiabatic,
-# symmetry-preserving rearrangement of the orbitals can change.
+# Example of the stable real-space invariants (SRSIs) of a set of bands, read
+# from the bands and from the orbitals, using pythTQC.
+# The model is the spin-orbit model of Fu, Kane and Mele on the diamond
+# lattice, PRL 98, 106803 (2007), pythtb.models.fu_kane_mele(t, soc, dt): four
+# bands, two of them occupied. Its nearest-neighbor bond along [111] is
+# strengthened or weakened, or its other three bonds are cut.
+# examples/tqc_fkm_diamond.py reads the same model in momentum space.
+# The site-symmetry vector holds the multiplicity of each site irrep at each
+# Wyckoff position. An SRSI is a linear combination of its entries that no
+# smooth deformation preserving the symmetry changes.
 # The tables are those of Hwang et al., "Stable real-space invariants and
 # topology beyond symmetry indicators", Nat. Commun. 17, 8564 (2026),
-# 10.1038/s41467-026-74844-w, shipped as pythTQC package data.  The paper's
-# theorem: a band set's Z-valued invariants are fractional if and only if its
-# symmetry-indicator class is nonzero.
+# 10.1038/s41467-026-74844-w, shipped with pythTQC. The paper proves that the
+# integer-valued SRSIs of a set of bands, printed Z-valued, are fractional
+# exactly when its symmetry-indicator class is nonzero.
 # Run with python3, PythTB version 2.0 and pythTQC.
 
 # The calculations in this python file include
-# 1. delta_t = +0.4 on the [111] bond, from the bands: the group, the valence
-#    content, its Z-valued invariants, their common denominator and the
-#    indicator class
-# 2. the same phase from the orbitals: the orbit, its content, the two
-#    localizations on the closure of its position, and all four bands
+# 1. delta_t = +0.4 on the [111] bond, from the bands: the group, the symmetry
+#    data vector of the valence bands, their integer-valued SRSIs, the common
+#    denominator of these and the symmetry-indicator class
+# 2. the same phase from the orbitals: the Wyckoff orbit, its symmetry data
+#    vector, its decompositions at the two positions its orbitals slide onto,
+#    and all four bands
 # 3. delta_t = -0.4 and the decoupled dimers: the denominator against the order
 #    of the indicator class in all three phases
 # 4. splitting(r, bands=2): the no-go criterion on the gap above the valence
-#    bands, in each phase
-# 5. the bands along GM-T-F-L-GM, and the figure written out
+#    bands, whether the splitting is non-symmetry-indicated topological (nsit),
+#    in each phase
+# 5. the bands along GM-T-F-L-GM, and the figure
 
 # Author: the pythTQC examples
 
@@ -46,8 +48,7 @@ import pythtqc as tqc
 from pythtqc import format_coreps as fmt
 from pythtqc.utils import save_figure
 
-# Elementary band representations print as ρ↑G, the site irrep ρ induced to the
-# group; a Windows console cannot print ↑ by default, so the output is UTF-8.
+# The output is written as UTF-8, whatever the console's own encoding.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -60,9 +61,11 @@ OUTDIR = os.environ.get("TQC_EXAMPLE_FIGDIR") or os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "figures", "tqc_srsi_fkm_two_routes")
 NK_PATH = 61 if QUICK else 241              # band-path density: the figure only
 
-# fu_kane_mele(t, soc, dt): ``dt`` offsets the four nearest-neighbour bonds, in
-# the order R = [0,0,0], [-1,0,0], [0,-1,0], [0,0,-1].
-T = 1.0                    # the nearest-neighbour hopping
+# fu_kane_mele(t, soc, dt): dt offsets the hoppings of the four nearest-neighbor
+# bonds, written delta_t below. They are in the order of R, the cell of the
+# bond's far end: [0,0,0], [-1,0,0], [0,-1,0], [0,0,-1]. The first is the bond
+# along [111].
+T = 1.0                    # the nearest-neighbor hopping
 SOC = 0.125                # the spin-orbit strength
 
 # A pythtb orbital carries no symmetry character, so the s here is a declaration.
@@ -72,8 +75,8 @@ TICKS = (r"$\Gamma$", "T", "F", "L", r"$\Gamma$")   # the figure's path
 
 os.makedirs(OUTDIR, exist_ok=True)
 
-print("Fu-Kane-Mele on the diamond lattice, PRL 98, 106803 (2007): the valence bands'")
-print("stable real-space invariants, read from the bands and from the orbitals.")
+print("Fu-Kane-Mele on the diamond lattice, PRL 98, 106803 (2007): the stable real-space")
+print("invariants of its bands, read from the bands and from the orbitals.")
 
 
 def row(label, first, *rest):
@@ -94,7 +97,7 @@ def denominator(b):
 
 ########### 1. delta_t = +0.4 on the [111] bond, from the bands ###########
 
-print("\n1. delta_t = +0.4 on the [111] bond, read from the bands")
+print("\n1. delta_t = +0.4 on the [111] bond, the strong phase, read from the bands")
 m_strong = fu_kane_mele(T, SOC, [0.4, 0.0, 0.0, 0.0])        # one bond strengthened
 
 r_strong = tqc.realized_group(m_strong, characters=DECLARE)
@@ -103,37 +106,38 @@ row("realized group", f"#{g_strong.number_str} {g_strong.name}, s orbitals at Wy
     f"{r_strong.wyckoff_orbits[0].wyckoff}")
 
 t2_strong = tqc.hsp_table(r_strong, bands=2)               # the valence bands
-row("valence content", fmt(t2_strong.symmetry_data))
+row("valence bands", fmt(t2_strong.symmetry_data))
 
-# srsi_of_bands takes what decompose and symmetry_indicator take, the measured
-# symmetry data vector, and evaluates the invariants on a rational site-symmetry vector
-# that induces it.
+# srsi_of_bands takes the table hsp_table returns, as decompose and
+# symmetry_indicator do. It writes the symmetry data vector as a rational sum of
+# elementary band representations, and evaluates the SRSIs on that sum.
 b_strong = tqc.srsi_of_bands(t2_strong)
 si_strong = tqc.symmetry_indicator(t2_strong)
 row("srsi_of_bands", f"Z-valued {values(b_strong.theta_Z.values())}")
 row("denominator", denominator(b_strong))
 row("indicator class", f"{values(si_strong.values)} in {si_strong.indicator_group}, of order "
     f"{si_strong.order}")
-print("   the Z-valued invariants are fractional: no integer site-symmetry vector")
-print("   induces the valence content, so the valence bands are no atomic limit")
+print("   the Z-valued invariants are fractional, so no integer site-symmetry vector")
+print("   induces the symmetry data vector of the valence bands, which are not an atomic limit")
 
 ########### 2. the same phase, from the orbitals ###########
 
 print("\n2. the same phase, read from the orbitals")
 
-# srsi_of_model reads the invariants off the orbitals: for each Wyckoff orbit it
-# measures the content of the orbitals there, writes it as a sum of elementary
-# band representations at the positions it slides onto, and evaluates the
-# invariants on that sum.
+# srsi_of_model reads the SRSIs off the orbitals. For each Wyckoff orbit it
+# measures the symmetry data vector of the orbitals and writes it as a sum of
+# elementary band representations at each position its orbitals can slide onto
+# where the tables list some, its own among them. The SRSIs are evaluated on
+# each sum, and agree.
 m_srsi = tqc.srsi_of_model(r_strong)
 orbit = m_srsi.wyckoff_orbits[0]
 row("the orbit", f"orbitals {' and '.join(str(i) for i in orbit.orbitals)} at Wyckoff "
     f"{orbit.wyckoff}, not a maximal position")
-row("its content", fmt(orbit.numerical.symmetry_data))
+row("its orbitals", fmt(orbit.numerical.symmetry_data))
 
-# The orbit sits on a line that slides onto two positions with elementary band
-# representations, and its orbitals localize at each of them: one set of
-# orbitals moved two ways, with the same invariants.
+# The orbit's position 6c lies on the threefold axis through 3a and 3b, where
+# the tables list elementary band representations. The orbitals are moved onto
+# each, and their symmetry data vector is decomposed there.
 for loc in orbit.numerical.localizations:
     row(f"localized at {loc.wyckoff}", f"{loc.label},",
         f"Z-valued {values(loc.theta_Z.values())}")
@@ -142,12 +146,12 @@ t4_strong = tqc.hsp_table(r_strong, bands=4)
 b4_strong = tqc.srsi_of_bands(t4_strong)
 row("all 4 bands", f"Z-valued {values(b4_strong.theta_Z.values())}, read from the bands")
 row("the whole model", f"Z-valued {values(m_srsi.theta_Z.values())}, read from the orbitals")
-print("   all four bands together are the model's own orbitals, so the bands carry the")
-print("   orbitals' integers")
+print("   all four bands together have the symmetry data vector of the model's orbitals,")
+print("   so the two routes give the same integers")
 
 ########### 3. the other two phases, and the denominator ###########
 
-print("\n3. delta_t = -0.4, and three bonds cut: decoupled dimers along [111]")
+print("\n3. delta_t = -0.4, the weak phase, and three bonds cut, the dimers along [111]")
 m_weak = fu_kane_mele(T, SOC, [-0.4, 0.0, 0.0, 0.0])         # the same bond weakened
 
 r_weak = tqc.realized_group(m_weak, characters=DECLARE)
@@ -177,18 +181,23 @@ for phase, si, b in (("strong", si_strong, b_strong), ("weak", si_weak, b_weak),
                      ("dimers", si_dimers, b_dimers)):
     print(f"   {phase:<8} {values(si.values):<8} {si.order:<7} "
           f"{values(b.theta_Z.values()):<42} {denominator(b)}")
-print("   the denominator equals the order of the class in all three phases; the theorem")
-print("   of Hwang et al. is the equivalence behind it, a nonzero class if and only if a")
-print("   fractional Z-valued invariant")
+print("   the common denominator of the Z-valued invariants equals the order of the class")
+print("   in all three phases. Hwang et al. prove that the Z-valued invariants are")
+print("   fractional exactly when the class is nonzero")
 
 ########### 4. the no-go criterion on the gap above the valence bands ###########
 
 print("\n4. splitting(r, bands=2): the no-go criterion on the gap above the valence bands")
 
-# splitting() reads the invariants of all the bands off the orbitals, the Z-valued
-# and the Z_n-valued ones, the Z-valued invariants of the valence bands off the bands,
-# takes the conduction bands' as the difference, and asks whether the two sides can
-# both be atomic insulators.
+# splitting reads the SRSIs of all the bands, of both kinds, off the orbitals.
+# It reads the integer-valued SRSIs of the valence bands off their symmetry data
+# vector, and takes the conduction bands' as the difference. An atomic
+# realization of a side is a set of site irreps at maximal Wyckoff positions,
+# with nonnegative multiplicities, that has its integer-valued SRSIs. nsit,
+# non-symmetry-indicated topological, is true where both sides have atomic
+# realizations and no pair of them has SRSIs valued modulo n adding up to those
+# of all the bands. The two sides then cannot both be atomic limits, and no
+# symmetry indicator shows it.
 s_strong = tqc.splitting(r_strong, bands=2)
 s_weak = tqc.splitting(r_weak, bands=2)
 s_dimers = tqc.splitting(r_dimers, bands=2)
@@ -206,7 +215,7 @@ hsp = tqc.high_symmetry_points(g_strong)
 path = [hsp["GM"], hsp["T"], hsp["F"], hsp["L"], hsp["GM"]]
 fig, axes = plt.subplots(1, 3, figsize=(15.0, 5.0), sharey=False)
 
-# --- the strong phase ---
+# the strong phase
 kv, kd, kn = m_strong.k_path(path, NK_PATH, report=False)
 bands = np.asarray(m_strong.solve_ham(kv))
 for i in range(4):
@@ -219,11 +228,11 @@ axes[0].set_ylabel("$E$", fontsize=15)
 axes[0].set_title("strong: delta_t = +0.4\n"
                   f"#{g_strong.number_str} {g_strong.name}   class "
                   f"{si_strong.values} in {si_strong.indicator_group}\n"
-                  fr"$\theta_\mathbb{{Z}}[V] = "
-                  fr"({', '.join(str(v) for v in b_strong.theta_Z.values())})$, "
+                  "valence bands, Z-valued "
+                  f"({', '.join(str(v) for v in b_strong.theta_Z.values())}), "
                   f"denominator {denominator(b_strong)}", fontsize=9.5)
 
-# --- the weak phase ---
+# the weak phase
 kv, kd, kn = m_weak.k_path(path, NK_PATH, report=False)
 bands = np.asarray(m_weak.solve_ham(kv))
 for i in range(4):
@@ -235,11 +244,11 @@ axes[1].set_xticklabels(TICKS, fontsize=13)
 axes[1].set_title("weak: delta_t = -0.4\n"
                   f"#{g_weak.number_str} {g_weak.name}   class "
                   f"{si_weak.values} in {si_weak.indicator_group}\n"
-                  fr"$\theta_\mathbb{{Z}}[V] = "
-                  fr"({', '.join(str(v) for v in b_weak.theta_Z.values())})$, "
+                  "valence bands, Z-valued "
+                  f"({', '.join(str(v) for v in b_weak.theta_Z.values())}), "
                   f"denominator {denominator(b_weak)}", fontsize=9.5)
 
-# --- the dimers ---
+# the dimers
 kv, kd, kn = m_dimers.k_path(path, NK_PATH, report=False)
 bands = np.asarray(m_dimers.solve_ham(kv))
 for i in range(4):
@@ -251,11 +260,11 @@ axes[2].set_xticklabels(TICKS, fontsize=13)
 axes[2].set_title("dimers: three bonds cut\n"
                   f"#{g_dimers.number_str} {g_dimers.name}   class "
                   f"{si_dimers.values} in {si_dimers.indicator_group}\n"
-                  fr"$\theta_\mathbb{{Z}}[V] = "
-                  fr"({', '.join(str(v) for v in b_dimers.theta_Z.values())})$, "
+                  "valence bands, Z-valued "
+                  f"({', '.join(str(v) for v in b_dimers.theta_Z.values())}), "
                   f"denominator {denominator(b_dimers)}", fontsize=9.5)
 
-fig.suptitle("Fu-Kane-Mele on diamond, one bond detuned along [111]: the four bands "
+fig.suptitle("Fu-Kane-Mele on diamond in three phases: the four bands "
              "along GM-T-F-L-GM, the valence pair in blue, with its stable "
              "real-space invariants and the order of its indicator class.",
              fontsize=10)
@@ -264,4 +273,4 @@ fig.tight_layout(pad=0.5, rect=(0, 0, 1, 0.92))
 save_figure(fig, os.path.join(OUTDIR, "srsi_fkm_two_routes.pdf"))
 plt.close(fig)
 
-print("\nDone — figure written to", OUTDIR)
+print("\nDone. The figure is written to", OUTDIR)

@@ -1,4 +1,8 @@
-"""Figures for the examples, written so that a rerun writes the same file: :func:`save_figure`."""
+"""Figures for the examples, saved so that a rerun writes the same PDF.
+
+* :func:`save_figure`: a figure saved without the time stamp matplotlib
+  writes into a PDF or an SVG.
+"""
 
 import os
 
@@ -6,19 +10,25 @@ __all__ = ["save_figure"]
 
 
 def save_figure(fig, path, **savefig_kwargs):
-    """``fig.savefig(path)``, without the time stamp matplotlib writes into a PDF or an SVG.
+    """A figure saved without the time stamp matplotlib writes into a PDF or an SVG.
 
-    A rerun then writes the same bytes; the figure itself is unchanged.
+    The figure is written with ``fig.savefig(path)``.  A file whose name ends
+    in ``.pdf`` or ``.svg`` is written without the time stamp, and a file of
+    any other kind as matplotlib writes it.  A PDF written without the time
+    stamp has the same bytes on a rerun.  An SVG has the same bytes on a rerun
+    only where ``matplotlib.rcParams["svg.hashsalt"]`` is set, since
+    matplotlib otherwise gives its elements random ids.  With ``metadata=``
+    given, it is passed unchanged, and the time stamp is written unless it
+    sets ``"CreationDate"`` (PDF) or ``"Date"`` (SVG) to ``None``.
 
     Parameters
     ----------
     fig : matplotlib.figure.Figure
-        The figure.
+        The figure to save.
     path : str or os.PathLike
-        Where to write it.  A ``.pdf`` or ``.svg`` is written without its stamp,
-        any other as matplotlib writes it.
+        The file to write.
     **savefig_kwargs
-        Passed to ``Figure.savefig``; a ``metadata=`` of its own keeps its stamp.
+        Keyword arguments passed on to ``Figure.savefig``.
     """
     if "metadata" not in savefig_kwargs:
         suffix = os.path.splitext(os.fspath(path))[1].lower()

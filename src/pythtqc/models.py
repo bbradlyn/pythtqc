@@ -1,48 +1,53 @@
 """Tight-binding crystals to measure on, each chosen to make one question sharp.
 
-Every builder returns a freshly built PythTB v2.0 model; its docstring says what
-the model is, where it comes from, and what pythTQC measures on it.
+Every builder returns a new PythTB 2.0 model. Its docstring says what the
+crystal is, where it comes from, and what pythTQC measures on it. A group named
+is the one :func:`.groups.realized_group` returns.
 
-==============================  ===========================================================
-builder                         what it is
-==============================  ===========================================================
-:func:`i41_atomic`              3D **spinful** body-centred tetragonal, 12 bands, SG **80**
-                                (I4_1): ``s`` at 4a below a gap, ``s`` at the general 8b
-                                above.  At ``P``, a point that is not time-reversal
-                                invariant, its corep list is ``{-P3 (1), -P4P4 (2)}``,
-                                where the Bilbao Crystallographic Server's convention
-                                gives ``{-P3P3 (2), -P4 (1)}``.
-:func:`i41_soc`                 :func:`i41_atomic` with spin-orbit coupling, exactly
-                                I4_11'-symmetric.  ``soc="generic"`` splits the valence
-                                level at ``P`` into ``[1, 2, 1]``, the doublet ``-P4P4``;
-                                ``soc="axial"`` conserves ``s_z``.
-:func:`p62_atomic`              3D **spinful** hexagonal, 18 bands, SG **171** (P6_2):
-                                ``s`` at 3a below, ``s`` at the general 6c above.  At
-                                ``H`` its corep list is the server's own.
-:func:`i213_flicker2018`        3D **spinless** body-centred cubic, 4 bands, SG **199**
-                                (I2_1 3), Flicker *et al.*, PRB **98**, 155145 (2018),
-                                App. F.1: spin-1 fermions at ``GM`` and ``H``, and the
-                                8a elementary band representation **connected**.
-:func:`p4232_cano2018`          3D **spinless** cubic, 4 bands, SG **208** (P4_232),
-                                Cano *et al.*, PRL **120**, 266401 (2018): a
-                                **disconnected** elementary band representation, each
-                                two-band branch a nonnegative sum of none.
-:func:`cubic_3c_axis_p`         3D **spinless** simple cubic, 3 bands: one ``p`` at each
-                                ``3c`` site, along that site's own fourfold axis.
-                                ``Pm-3m1'`` (SG **221**), ``A2u`` at every site.
-:func:`cubic_3c_perp_doublet`   3D **spinless** simple cubic, 6 bands: the ``p`` pair
-                                perpendicular to each ``3c`` site's own axis.
-                                ``P-43m1'`` (SG **215**), ``E`` of ``-42m`` at every
-                                site, a **composite** band representation.
-:func:`lin3g`                   2D **spinful** square layer, 8 bands, wallpaper group
-                                **p4mm**: a fragile pair at ``1a`` above the ``s``
-                                elementary band representation at ``2c``, six bands
-                                occupied.  Lin et al., Nat. Commun. **15**, 550 (2024).
-==============================  ===========================================================
+:func:`i41_atomic`
+    A spinful body-centered tetragonal crystal of 12 bands in I4_11' (#80.30),
+    with ``s`` orbitals at 4a below a gap and at the general position 8b above.
+    At ``P``, which is not time-reversal invariant, the coreps of the little
+    group are ``-P3`` and ``-P4P4``. The table the irreptables package ships for
+    ``P`` is that of ``-P``: its ``-P4`` and ``-P3P3`` carry the complex
+    conjugate characters of ``-P3`` and ``-P4P4``.
+:func:`i41_soc`
+    :func:`i41_atomic` with spin-orbit coupling, in I4_11'. With
+    ``soc="generic"``, the four lowest bands at ``P`` split into the levels
+    ``-P3``, ``-P4P4`` and ``-P3``. With ``soc="axial"``, ``s_z`` is conserved.
+:func:`p62_atomic`
+    A spinful hexagonal crystal of 18 bands in P6_21' (#171.122), with ``s``
+    orbitals at 3a below a gap and at the general position 6c above. At ``H``
+    the coreps returned are those of the irreptables package's table for ``H``.
+:func:`i213_flicker2018`
+    A spinless body-centered cubic crystal of 4 bands in I2_131' (#199.13),
+    from Flicker et al., Phys. Rev. B 98, 155145 (2018), Appendix F.1. It has
+    spin-1 fermions at ``GM`` and ``H``. Its four bands carry the elementary
+    band representation of ``s`` orbitals at 8a. No gap separates them.
+:func:`p4232_cano2018`
+    A spinless simple cubic crystal of 4 bands in P4_2321' (#208.45), from Cano
+    et al., Phys. Rev. Lett. 120, 266401 (2018). Its four bands carry one
+    elementary band representation. A gap splits them into two halves. The
+    symmetry data vector of neither half is a sum of elementary band
+    representations.
+:func:`cubic_3c_axis_p`
+    A spinless simple cubic crystal of 3 bands in Pm-3m1' (#221.93), with one
+    ``p`` orbital at each 3c site along the site's fourfold axis. Every site
+    carries ``A2u``.
+:func:`cubic_3c_perp_doublet`
+    A spinless simple cubic crystal of 6 bands in P-43m1' (#215.71), with the
+    ``p`` pair perpendicular to each 3c site's axis. Every site carries ``E``
+    of ``-42m1'``, which induces a composite band representation.
+:func:`lin3g`
+    The spinful square layer of Lin et al., Nat. Commun. 15, 550 (2024), of 8
+    bands in P4mm1' (#99.164). Its four lowest bands carry the elementary band
+    representation of ``s`` orbitals at 2c. The two above them are a fragile
+    pair.
 
-:func:`orbit_of`, :func:`closed_bonds`, :func:`atomic_model`, :func:`spin_bonds`
-and :func:`primitive_ops` build a crystal symmetric under a group by
-construction, as the builders do.
+:func:`orbit_of`, :func:`closed_bonds`, :func:`atomic_model`,
+:func:`spin_bonds`, :func:`spinor_of`, :func:`cartesian_rotation` and
+:func:`primitive_ops` are the constructions the builders use. Together they
+build a crystal symmetric under a group by construction.
 """
 
 from __future__ import annotations
@@ -56,7 +61,7 @@ __all__ = [
     # the shared constructions: a crystal symmetric by construction
     "orbit_of", "closed_bonds", "atomic_model", "primitive_ops",
     "spin_bonds", "spinor_of", "cartesian_rotation", "PAULI",
-    # the eight builders of the table above
+    # the eight builders the module docstring lists
     "i41_atomic", "i41_soc", "p62_atomic",
     "i213_flicker2018", "p4232_cano2018",
     "cubic_3c_axis_p", "cubic_3c_perp_doublet",
@@ -65,39 +70,39 @@ __all__ = [
 
 
 # ---------------------------------------------------------------------------
-# 1.  the shared constructions
+# 1.  The shared constructions
 # ---------------------------------------------------------------------------
 #
-# :func:`orbit_of`, :func:`closed_bonds` and :func:`atomic_model` build a
-# spinless (or spin-doubled) atomic-limit model on Wyckoff orbits by closing a
-# handful of seed bonds under a group, so the model is exactly symmetric BY
-# CONSTRUCTION rather than by inspection -- the detector then has something to
-# confirm, not to discover.  :func:`spin_bonds` is the
-# matrix-valued (spin-orbit) counterpart, and :func:`primitive_ops` carries
-# ``{R|t}`` from a centred conventional cell into the primitive one that pythtb
-# is handed.
+# orbit_of, closed_bonds and atomic_model build a model of s orbitals on
+# Wyckoff orbits, spinless or with both spin states, by closing a few seed
+# hoppings under a group, so that the model obeys the group exactly by
+# construction. spin_bonds does the same for hoppings that depend on spin, and
+# primitive_ops carries {R|t} from a centered conventional cell to the
+# primitive cell a model is built on.
 
 def orbit_of(ops, seed, tol=1e-9):
-    """The orbit of ``seed`` under ``ops``: its distinct images modulo the lattice, in reduced coordinates.
+    """The orbit of a point under a set of operations, in reduced coordinates.
 
-    They come in the order the operations generate them, which fixes the orbital
-    order of the models here.
+    The orbit is the point's distinct images modulo the lattice, each brought
+    into ``[0, 1)``. They are listed in the order of the operations that first
+    reach them, which fixes the orbital order of the models here.
 
     Parameters
     ----------
     ops : sequence of (R, t)
-        Operations as :data:`I41_OPS` writes them: a flat nine-entry rotation on
-        reduced coordinates and a translation in the same basis.
+        The operations. Pass each as a pair: ``R`` the rotation on reduced
+        coordinates, a (3, 3) array or its nine entries row by row, and ``t``
+        the translation in reduced coordinates.
     seed : (3,) array_like
         The point, in reduced coordinates.
-    tol : float, optional
-        How close two images are, in reduced coordinates, to be one point.
-        Default ``1e-9``.
+    tol : float, default 1e-9
+        The distance in reduced coordinates within which two images are one
+        point.
 
     Returns
     -------
     (n, 3) numpy.ndarray
-        The orbit, in generation order.
+        The orbit, a point to a row.
     """
     out = []
     for R, t in ops:
@@ -109,31 +114,40 @@ def orbit_of(ops, seed, tol=1e-9):
 
 
 def closed_bonds(sites, ops, seeds, tol=1e-6):
-    """Every image of a few scalar seed hoppings under ``ops``: hoppings exactly symmetric under the group.
+    """Hoppings symmetric under a group: every image of a few seed hoppings.
 
-    An operation carries the bond ``(i, j, L)`` to ``(σ(i), σ(j), a_j + R L - a_i)``
-    with the seed's own amplitude, and a bond and its hermitian partner are
-    counted once.  :func:`spin_bonds` is the counterpart for spin-dependent
-    hoppings.
+    An operation ``{R|t}`` carries site ``i``, at ``q_i``, to site ``p(i)`` in
+    the cell ``s_i``, where ``R q_i + t = q_p(i) + s_i``. It carries the bond
+    ``(i, j, L)`` to ``(p(i), p(j), s_j + R L - s_i)``, with the seed's own
+    amplitude. A bond and its reverse are one hopping. A bond reached more than
+    once keeps the amplitude it is first given. :func:`spin_bonds` builds
+    hoppings that depend on spin.
 
     Parameters
     ----------
     sites : (nsite, 3) array_like
-        Every site, in reduced coordinates and orbital order; ``ops`` carries the
-        set onto itself.
+        Every site, in reduced coordinates and in orbital order.
     ops : sequence of (R, t)
-        The operations, as :data:`I41_OPS` writes them.
+        The operations, as :func:`orbit_of` takes them.
     seeds : sequence of (int, int, tuple, float)
-        ``(i, j, L, t)`` per seed, for ``t c_i(0)^dag c_j(L)``, ``L`` a lattice
-        vector in integer reduced components.
-    tol : float, optional
-        How close an image lands to a site, in reduced coordinates, to be it.
-        Default ``1e-6``.
+        The seed hoppings. Pass each as ``(i, j, L, amp)`` for the term
+        ``amp c_i(0)† c_j(L)``, ``L`` a lattice vector in integer reduced
+        components.
+    tol : float, default 1e-6
+        The distance in reduced coordinates within which an image of a site is
+        that site.
 
     Returns
     -------
     dict
-        ``{(i, j, L): amplitude}`` over every image.
+        ``{(i, j, L): amp}`` over every image, ``L`` a tuple of integers. Of a
+        bond and its reverse only one stands, since pythtb's ``set_hop`` adds
+        the reverse.
+
+    Raises
+    ------
+    AssertionError
+        An operation of ``ops`` carries a site to no site within ``tol``.
     """
     perm, shift = [], []
     for R, t in ops:
@@ -149,7 +163,10 @@ def closed_bonds(sites, ops, seeds, tol=1e-6):
                     s.append(np.rint(d).astype(int))
                     break
             else:                                        # pragma: no cover
-                raise AssertionError("the site set is not closed under the group")
+                raise AssertionError("closed_bonds(): an operation of ops= carries a "
+                                     "site onto none of the sites. Pass every site of "
+                                     "each Wyckoff orbit, at the coordinates orbit_of "
+                                     "returns.")
         perm.append(p)
         shift.append(s)
     out = {}
@@ -165,34 +182,37 @@ def closed_bonds(sites, ops, seeds, tol=1e-6):
 
 
 def atomic_model(lattice, ops, orbits, onsites, seeds, spinful=False):
-    """An ``s``-orbital crystal on ``orbits``, exactly symmetric under ``ops``.
+    """A crystal of one ``s`` orbital per site, symmetric under a group.
 
-    One orbital per site, the on-site energies given, and the seed hoppings closed
-    under ``ops`` by :func:`closed_bonds`.  ``spinful=True`` carries the same
-    spin-independent hoppings on both spin states: the band representation is the
-    spinless one times spin 1/2, induced from the double-valued site
-    representation, and every level is doubly degenerate.
+    The sites are those of the Wyckoff orbits given. Each orbital has its own
+    on-site energy. The hoppings are the seed hoppings closed under the
+    operations by :func:`closed_bonds`. An operation carries each hopping onto
+    its image with the same amplitude, as it does for ``s`` orbitals.
 
     Parameters
     ----------
     lattice : (3, 3) array_like
-        Lattice vectors as rows, in Cartesian components.
+        The lattice vectors as rows, in Cartesian components.
     ops : sequence of (R, t)
-        The operations, as :data:`I41_OPS` writes them.
+        The operations, as :func:`orbit_of` takes them.
     orbits : sequence of (n, 3) array_like
-        The Wyckoff orbits, in reduced coordinates, stacked in the order given:
-        the orbital order.
+        The Wyckoff orbits, in reduced coordinates. Their sites, stacked in the
+        order given, are the orbitals in order.
     onsites : sequence of float
-        One on-site energy per site.
+        The on-site energy of each orbital, in that order.
     seeds : sequence of (int, int, tuple, float)
-        Seed hoppings for :func:`closed_bonds`, indexed into the stacked sites.
-    spinful : bool, optional
-        Two spin states per orbital.  Default ``False``.
+        The seed hoppings, as :func:`closed_bonds` takes them, indexed into the
+        stacked sites.
+    spinful : bool, default False
+        Whether each orbital carries two spin states.
 
     Returns
     -------
     pythtb.TBModel
-        One orbital per site, obeying ``ops`` exactly.
+        A three-dimensional model of one orbital per site, symmetric under
+        ``ops``. With ``spinful=True``, both spin states have the same
+        hoppings. The band representation is then the spinless one times spin
+        1/2, and every level is at least twofold degenerate.
     """
     sites = np.vstack(list(orbits))
     lat = Lattice(np.asarray(lattice, dtype=float).tolist(), sites.tolist(),
@@ -204,30 +224,31 @@ def atomic_model(lattice, ops, orbits, onsites, seeds, spinful=False):
     return m
 
 
-#: ``(sigma_x, sigma_y, sigma_z)`` -- the spin matrices the SOC seeds are
-#: written in.  Spin is the **fast** state index in pythtb, so a ``2x2`` bond
-#: matrix here is the spin block of one orbital pair and nothing needs
-#: transposing.
+#: The Pauli matrices ``(sigma_x, sigma_y, sigma_z)``, in which the spin-orbit
+#: seeds are written. A (2, 2) hopping matrix of a spinful pythtb model acts on
+#: the spin of one pair of orbitals, so a seed written in them is passed as it
+#: stands.
 PAULI = (np.array([[0, 1], [1, 0]], dtype=complex),
          np.array([[0, -1j], [1j, 0]], dtype=complex),
          np.array([[1, 0], [0, -1]], dtype=complex))
 
 
 def cartesian_rotation(R_red, lattice):
-    """A rotation given on reduced coordinates, in Cartesian coordinates: ``latticeᵀ R lattice⁻ᵀ``.
+    """A rotation on reduced coordinates, written in Cartesian coordinates.
 
-    An operation's spin rotation is read off this matrix.
+    The matrix returned is ``lattice.T @ R_red @ inv(lattice.T)``.
 
     Parameters
     ----------
     R_red : (3, 3) array_like
-        The rotation on reduced coordinates; a flat nine entries is reshaped.
+        The rotation on reduced coordinates, or its nine entries row by row.
     lattice : (3, 3) array_like
-        Lattice vectors as rows, in Cartesian components.
+        The lattice vectors as rows, in Cartesian components.
 
     Returns
     -------
     (3, 3) numpy.ndarray
+        The rotation in Cartesian components.
     """
     lat = np.asarray(lattice, dtype=float)
     R = np.asarray(R_red, dtype=float).reshape(3, 3)
@@ -235,26 +256,35 @@ def cartesian_rotation(R_red, lattice):
 
 
 def spinor_of(R_cart, tol=1e-9):
-    """The SU(2) matrix ``exp(-i θ n·σ/2)`` of a proper Cartesian rotation.
+    """The SU(2) matrix of a proper rotation given in Cartesian coordinates.
 
-    The bonds built with it, ``S T S†``, are the same for either of its two lifts.
+    For a rotation by the angle θ in ``[0, π]`` about the unit axis ``n``, the
+    matrix returned is ``S = exp(-i θ n·σ/2)``. At ``θ = π``, ``cos(θ/2) = 0``,
+    and the sign of ``S`` is that of the unit vector along the axis taken for
+    ``n``, which is either one. A spin block carried as ``S T S†`` is the same
+    for either sign.
 
     Parameters
     ----------
     R_cart : (3, 3) array_like
-        A proper rotation, ``det = +1``; an improper one raises
-        :class:`AssertionError`.
-    tol : float, optional
-        Slack on ``det = +1`` and on the angles ``0`` and ``π``.  Default
-        ``1e-9``.
+        A proper rotation, in Cartesian components.
+    tol : float, default 1e-9
+        The tolerance on the determinant being 1, and on the angle being 0 or π.
 
     Returns
     -------
     (2, 2) numpy.ndarray of complex
+        The matrix ``S``.
+
+    Raises
+    ------
+    AssertionError
+        The determinant of ``R_cart`` differs from 1 by more than ``tol``.
     """
     Rc = np.asarray(R_cart, dtype=float)
     if abs(np.linalg.det(Rc) - 1.0) > tol:             # pragma: no cover - guard
-        raise AssertionError("spinor_of handles proper rotations only")
+        raise AssertionError("spinor_of(): R_cart= has a determinant other than 1. Pass a "
+                             "proper rotation; for an improper rotation R, pass -R.")
     theta = np.arccos(np.clip((np.trace(Rc) - 1.0) / 2.0, -1.0, 1.0))
     if abs(theta) < tol:
         return np.eye(2, dtype=complex)
@@ -269,37 +299,43 @@ def spinor_of(R_cart, tol=1e-9):
 
 
 def spin_bonds(sites, ops, lattice, seeds, tol=1e-6):
-    """Spin-dependent hoppings averaged over ``ops``: exactly symmetric under the group.
+    """The group average of a few seed hoppings that depend on spin.
 
-    An operation carries a seed's bond as :func:`closed_bonds` does and its
-    ``2x2`` spin block as ``T -> S T S†``, ``S`` the SU(2) lift of its proper part,
-    so that spin is even under inversion.  Different operations carry one seed onto
-    one bond with different blocks, so every image is added, one landing on the
-    reversed bond as its adjoint, and the sum is divided by the number of
-    operations: the group average.
+    The hoppings returned are symmetric under the group. Each operation carries
+    a seed's bond as :func:`closed_bonds` does, and its spin block ``T`` to
+    ``S T S†``. Here ``S`` is the matrix :func:`spinor_of` returns for the
+    operation's rotation in Cartesian coordinates. An improper rotation ``R``
+    is taken as its proper part ``-R``, since spin is even under inversion.
+    The images landing on one bond are added, an image landing on the reversed
+    bond as its adjoint. The sum is divided by the number of operations.
 
     Parameters
     ----------
     sites : (nsite, 3) array_like
-        Every site, in reduced coordinates and orbital order; ``ops`` carries the
-        set onto itself.
+        Every site, in reduced coordinates and in orbital order.
     ops : sequence of (R, t)
-        The operations, as :data:`I41_OPS` writes them.
+        The operations, as :func:`orbit_of` takes them.
     lattice : (3, 3) array_like
-        Lattice vectors as rows, in Cartesian components: the spin rotation is
-        read off an operation's Cartesian form.
+        The lattice vectors as rows, in Cartesian components.
     seeds : sequence of (int, int, tuple, ndarray)
-        ``(i, j, L, T)`` per seed, for ``c_i(0)† T c_j(L)``, ``T`` a ``2x2`` spin
-        matrix.  An on-site seed raises :class:`AssertionError`; it belongs to
-        ``set_onsite``.
-    tol : float, optional
-        How close an image lands to a site, in reduced coordinates, to be it.
-        Default ``1e-6``.
+        The seed hoppings. Pass each as ``(i, j, L, T)`` for the term
+        ``c_i(0)† T c_j(L)``, ``T`` a (2, 2) matrix on spin and ``L`` a lattice
+        vector in integer reduced components.
+    tol : float, default 1e-6
+        The distance in reduced coordinates within which an image of a site is
+        that site.
 
     Returns
     -------
     dict
-        ``{(i, j, L): (2, 2) ndarray}``, the group average.
+        ``{(i, j, L): T}`` over every image, each ``T`` a (2, 2) complex matrix.
+        Of a bond and its reverse only one stands.
+
+    Raises
+    ------
+    AssertionError
+        A seed is an on-site term, which pythtb's ``set_onsite`` takes instead,
+        or an operation of ``ops`` carries a site to no site within ``tol``.
     """
     sites = np.asarray(sites, dtype=float)
     perm, shift, spins = [], [], []
@@ -316,13 +352,15 @@ def spin_bonds(sites, ops, lattice, seeds, tol=1e-6):
                     s.append(np.rint(d).astype(int))
                     break
             else:                                        # pragma: no cover
-                raise AssertionError("the site set is not closed under the group")
+                raise AssertionError("spin_bonds(): an operation of ops= carries a site of "
+                                     "sites= onto none of the sites. Pass every site of each "
+                                     "Wyckoff orbit, at the coordinates orbit_of returns.")
         perm.append(p)
         shift.append(s)
-        # an improper operation acts on the spin as its proper part: the spin
-        # does not transform under inversion, S(I·R) = S(R) -- the convention
-        # the tables' lifts use, and the one that makes a spinful s orbital the
-        # gerade spinor at an inversion centre
+        # an improper operation acts on the spin as its proper part, since spin
+        # is even under inversion: S(I·R) = S(R), as in the tables of the
+        # irreptables package, so that a spinful s orbital at an inversion
+        # center is even
         Rc = cartesian_rotation(R, lattice)
         spins.append(spinor_of(np.sign(float(np.linalg.det(Rc))) * Rc))
     out = {}
@@ -336,7 +374,8 @@ def spin_bonds(sites, ops, lattice, seeds, tol=1e-6):
             T2 = S @ T @ S.conj().T
             key, rkey = (i2, j2, L2), (j2, i2, tuple(-x for x in L2))
             if key == rkey:                              # pragma: no cover - guard
-                raise AssertionError("spin_bonds does not take onsite seeds")
+                raise AssertionError("spin_bonds(): a seed of seeds= is an on-site term. Set "
+                                     "it with pythtb's set_onsite instead.")
             if rkey in out:
                 out[rkey] = out[rkey] + T2.conj().T
             elif key in out:
@@ -347,25 +386,36 @@ def spin_bonds(sites, ops, lattice, seeds, tol=1e-6):
 
 
 def primitive_ops(ops, centering_rows):
-    """Operations ``{R|t}`` of a centred conventional cell, written in its primitive cell.
+    """The operations of a centered conventional cell, in its primitive cell.
 
-    With ``x_conv = Mᵀ u``, ``x -> R x + t`` becomes ``u -> (M⁻ᵀ R Mᵀ) u + M⁻ᵀ t``.
-    A model is built on the primitive cell, a centred conventional cell being a
-    supercell, which :func:`..groups.realized_group` refuses.
+    With ``M`` the matrix ``centering_rows``, the point at reduced coordinates
+    ``u`` of the primitive cell is at ``M.T @ u`` in the conventional cell. The
+    operation ``x -> R @ x + t`` there is
+    ``u -> inv(M.T) @ R @ M.T @ u + inv(M.T) @ t`` in the primitive cell. A
+    model is built on the primitive cell, since
+    :func:`.groups.realized_group` refuses a Hamiltonian that obeys a pure
+    translation of its cell (``supercell``).
 
     Parameters
     ----------
     ops : sequence of (R, t)
-        The operations in the conventional cell, as :data:`I41_OPS` writes them.
+        The operations in the conventional cell, as :func:`orbit_of` takes them.
     centering_rows : (3, 3) array_like
-        The primitive lattice vectors in the conventional cell's reduced
-        coordinates, as rows: :data:`I41_CENTERING` for a body-centred cell.
+        The primitive lattice vectors as rows, in the conventional cell's
+        reduced coordinates. For a body-centered cell, they are
+        ``(-1/2, 1/2, 1/2)``, ``(1/2, -1/2, 1/2)`` and ``(1/2, 1/2, -1/2)``.
 
     Returns
     -------
     tuple of (tuple of int, tuple of float)
-        The operations in the primitive cell: rotations as flat nine-entry
-        integer tuples, translations in primitive reduced coordinates.
+        The operations in the primitive cell, each a pair: the rotation as its
+        nine integer entries row by row, and the translation in primitive
+        reduced coordinates.
+
+    Raises
+    ------
+    AssertionError
+        A rotation is not an integer matrix in the primitive cell.
     """
     mt = np.asarray(centering_rows, dtype=float).T
     inv = np.linalg.inv(mt)
@@ -373,42 +423,33 @@ def primitive_ops(ops, centering_rows):
     for R, t in ops:
         rp = inv @ np.asarray(R, dtype=float).reshape(3, 3) @ mt
         if np.abs(rp - np.rint(rp)).max() > 1e-9:      # pragma: no cover - guard
-            raise AssertionError("the centering rows do not span a sublattice")
+            raise AssertionError("primitive_ops(): a rotation of ops= is not an integer "
+                                 "matrix in the basis of the rows of centering_rows=. Pass "
+                                 "as centering_rows= the primitive lattice vectors of the "
+                                 "centered cell of ops=, in its reduced coordinates; for a "
+                                 "body-centered cell, the rows (-1/2, 1/2, 1/2), "
+                                 "(1/2, -1/2, 1/2) and (1/2, 1/2, -1/2).")
         out.append((tuple(np.rint(rp).astype(int).ravel()),
                     tuple(inv @ np.asarray(t, dtype=float))))
     return tuple(out)
 
 
 # ---------------------------------------------------------------------------
-# 2.  the re-gluing pair -- I4_1 (#80) and P6_2 (#171), **spinful**
+# 2.  Two spinful atomic insulators, in I4_1 (#80) and P6_2 (#171)
 # ---------------------------------------------------------------------------
 #
-# The fourth face of the convention artifact: at these two k-points the
-# time-reversal GLUING is convention-sensitive, so the physical corep list is a
-# different partition of the same unitary irreps than the tables'.  The pair
-# are the two SIDES of that face, and the contrast is the point of keeping both:
-#
-#   * P6_2's ``H`` is the EXCHANGE side.  The moved gluing produces a corep
-#     that is character-identical to one the tables carry, so the returned name
-#     follows the character back onto the tables' own label and the returned page
-#     IS the tables' page.  Nothing is left in `reglued_points`, and #171.122's
-#     transport is a no-op end to end.
-#   * I4_1's ``P`` is the IRREDUCIBLE side.  Conjugating the shipped rows there
-#     does not land on the shipped rows at all -- the tables' page tabulates the
-#     other star member -P -- so no relabelling exists and the returned basis
-#     carries names irreptables does not ship (`{-P3, -P4P4}` against the
-#     tables' `{-P3P3, -P4}`).  The irrep the BCS convention doubles is not the
-#     one the physical convention doubles, and `i41_soc` measures that on a real
-#     spectrum.
-#
-# Both models are spinful deep atomic limits with spin-independent hoppings, so their content is the
-# spinless induced character times the SU(2) trace and can be written down by
-# hand; the point of interest is I4_1's ``P`` (non-TRIM of a body-centred
-# lattice, pairing antiunitary ``C4·T``) and P6_2's ``H`` (non-TRIM of a
-# hexagonal lattice, pairing antiunitary a two-fold times ``T``).
+# Both are crystals of s orbitals whose hoppings do not depend on spin, so
+# their band representation is the spinless one times spin 1/2. Each has a
+# point that is not time-reversal invariant, where time reversal joins irreps
+# of the little group into coreps: P of the body-centered I4_1, joined by C4
+# times T, and H of the hexagonal P6_2, joined by a twofold rotation times T.
+# At H the coreps returned are those of the irreptables package's table. At P
+# they are -P3 and -P4P4, whose characters are the complex conjugates of the
+# table's -P4 and -P3P3. i41_soc shows the same on a spectrum with spin-orbit
+# coupling.
 
-#: ``{R|t}`` of I4_1 (#80) in the ITA / BCS **conventional** (body-centred)
-#: setting, in ``irreptables``' index order.
+#: ``{R|t}`` of I4_1 (#80) in the conventional body-centered cell of the
+#: International Tables, in the order of the irreptables package.
 I41_OPS = (
     ((1, 0, 0, 0, 1, 0, 0, 0, 1), (0.0, 0.0, 0.0)),          # 1  E
     ((-1, 0, 0, 0, -1, 0, 0, 0, 1), (0.0, 0.0, 0.0)),        # 2  2 0,0,z
@@ -416,8 +457,8 @@ I41_OPS = (
     ((0, 1, 0, -1, 0, 0, 0, 0, 1), (0.0, 0.5, 0.25)),        # 4  4-(0,0,1/4)
 )
 
-#: Primitive vectors of the body-centred cell, in conventional reduced
-#: coordinates (rows) -- the standard ``I`` setting.
+#: The primitive vectors of the body-centered cell as rows, in reduced
+#: coordinates of the conventional cell: the standard ``I`` setting.
 I41_CENTERING = np.array([[-0.5, 0.5, 0.5],
                           [0.5, -0.5, 0.5],
                           [0.5, 0.5, -0.5]])
@@ -425,10 +466,12 @@ I41_CENTERING = np.array([[-0.5, 0.5, 0.5],
 #: ``{R|t}`` of I4_1 on the primitive cell, which is what pythtb is handed.
 I41_PRIM_OPS = primitive_ops(I41_OPS, I41_CENTERING)
 
-#: Body-centred tetragonal, ``c/a = 1.6``; the primitive vectors in Cartesian.
+#: Body-centered tetragonal, ``c/a = 1.6``: the primitive vectors as rows, in
+#: Cartesian components.
 I41_LATTICE = I41_CENTERING @ np.diag([1.0, 1.0, 1.6])
 
-#: ``{R|t}`` of P6_2 (#171), primitive hexagonal, in ``irreptables``' order.
+#: ``{R|t}`` of P6_2 (#171), primitive hexagonal, in the order of the
+#: irreptables package.
 P62_OPS = (
     ((1, 0, 0, 0, 1, 0, 0, 0, 1), (0.0, 0.0, 0.0)),          # 1  E
     ((0, -1, 0, 1, -1, 0, 0, 0, 1), (0.0, 0.0, 2 / 3)),      # 2  3+(0,0,2/3)
@@ -443,35 +486,27 @@ P62_LATTICE = np.array([[1.0, 0.0, 0.0],
                         [-0.5, np.sqrt(3) / 2, 0.0],
                         [0.0, 0.0, 1.3]])
 
-#: 4a ``(0,0,z)`` and the general 8b of I4_1, generic free parameters.  ``4a``
-#: alone is far too symmetric for an ``s``-orbital model (spglib reads
-#: I4_1/amd, #141); the general orbit is what pins the group down to #80.
+#: The default parameters of :func:`i41_atomic`, with generic values for the 4a
+#: orbit ``(0, 0, z)`` and the general orbit 8b of I4_1. The 4a orbit alone is
+#: a point set of group I4_1/amd (#141); the general orbit lowers it to #80.
 I41_PARAMS = dict(z_a=0.13, seed_b=(0.21, 0.34, 0.07), delta=2.5,
                   t_a=0.09, t_b=0.05, t_ab=0.03)
 
-#: 3a ``(0,0,z)`` and the general 6c of P6_2, likewise (3a + 3b alone reads
-#: P6_222, #180).
+#: The default parameters of :func:`p62_atomic`, chosen likewise. The 3a orbit
+#: alone is a point set of group P6/mmm (#191); the general orbit 6c lowers it
+#: to #171.
 P62_PARAMS = dict(z_a=0.11, seed_c=(0.21, 0.34, 0.07), delta=2.5,
                   t_a=0.09, t_b=0.05, t_ab=0.03)
 
 
 def i41_sites(z_a=None, seed_b=None):
-    """``(orbit_4a, orbit_8b)`` of I4_1 in **primitive** reduced coordinates.
+    """The 4a and 8b orbits of I4_1, in reduced coordinates of the primitive cell.
 
-    Parameters
-    ----------
-    z_a : float, optional
-        The free ``(0, 0, z)`` parameter of the ``4a`` orbit, in conventional
-        reduced coordinates.  Default :data:`I41_PARAMS`'s ``z_a``.
-    seed_b : (3,) array_like, optional
-        A generic seed for the ``8b`` orbit, in conventional reduced
-        coordinates.  Default :data:`I41_PARAMS`'s ``seed_b``.
-
-    Returns
-    -------
-    ((n, 3) ndarray, (m, 3) ndarray)
-        The two orbits, in primitive reduced coordinates, in the order the
-        operations generate them.
+    ``z_a`` is the free parameter of the 4a orbit ``(0, 0, z)``, and ``seed_b``
+    a point of the 8b orbit, both in reduced coordinates of the conventional
+    cell; ``None`` takes the value in :data:`I41_PARAMS`. Returns the pair
+    ``(orbit_4a, orbit_8b)``, arrays of 2 and 4 points, a point to a row, each
+    in the order :func:`orbit_of` lists them.
     """
     z_a = I41_PARAMS["z_a"] if z_a is None else float(z_a)
     seed_b = I41_PARAMS["seed_b"] if seed_b is None else tuple(seed_b)
@@ -481,30 +516,45 @@ def i41_sites(z_a=None, seed_b=None):
 
 
 def i41_atomic(z_a=None, seed_b=None, delta=None, t_a=None, t_b=None, t_ab=None):
-    """A spinful atomic insulator in I4_1 (SG 80): ``s`` orbitals at 4a below a gap, at the general 8b above.
+    """A spinful atomic insulator in I4_11' (#80.30), ``s`` orbitals at 4a and 8b.
 
-    Six ``s`` orbitals in the primitive body-centred cell, two on the ``4a`` orbit
-    ``(0, 0, z)`` and four on a generic ``8b`` orbit, carried spinful: 12 bands, the
-    four occupied ones ``-1E2E↑G(4)@4a``, the group's only elementary band
-    representation.  At ``P``, a point that is not time-reversal invariant, time
-    reversal glues the irreps differently from the Bilbao Crystallographic
-    Server's convention: the corep list returned is ``{-P3 (1), -P4P4 (2)}``, where
-    the server's is ``{-P3P3 (2), -P4 (1)}``.
+    Six ``s`` orbitals stand in the primitive body-centered tetragonal cell, two
+    on the 4a orbit ``(0, 0, z)`` and four on a generic 8b orbit, each with two
+    spin states: 12 bands. The four lowest bands, below a gap, carry
+    ``-1E2E at 4a (21')``, the only double-valued elementary band
+    representation of the group. At ``P``, which is not time-reversal
+    invariant, they carry ``-P3`` twice and ``-P4P4`` once. These are the two
+    coreps of the little group at ``P``, as :func:`pythtqc.corep_table` returns
+    them: ``-P3``, with the characters (1, -i) on the identity and ``C2(z)``,
+    and ``-P4P4``, with (2, 2i). The table the irreptables package ships for
+    ``P``, that of the Bilbao Crystallographic Server, is the table of ``-P``:
+    its ``-P4`` and ``-P3P3`` carry the complex conjugate characters, (1, i)
+    and (2, -2i).
 
     Parameters
     ----------
-    z_a, seed_b : float and (3,) array_like, optional
-        The ``4a`` parameter and a generic ``8b`` seed, in conventional reduced
-        coordinates.  Default :data:`I41_PARAMS`.
-    delta, t_a, t_b, t_ab : float, optional
-        The on-site energies ``-delta`` at 4a and ``+delta`` at 8b, and the
-        hoppings within 4a, within 8b and between them.  Default
-        :data:`I41_PARAMS`.
+    z_a : float, default 0.13
+        The free parameter of the 4a orbit ``(0, 0, z)``, in conventional
+        reduced coordinates.
+    seed_b : (3,) array_like, default (0.21, 0.34, 0.07)
+        A point of the 8b orbit, in conventional reduced coordinates.
+    delta : float, default 2.5
+        Half the difference of the on-site energies, ``-delta`` at 4a and
+        ``+delta`` at 8b.
+    t_a : float, default 0.09
+        The hopping between the two 4a sites of the primitive cell, and on the
+        images of that bond.
+    t_b : float, default 0.05
+        The hopping between the first two 8b sites of the cell, in the order
+        :func:`orbit_of` lists them, and on the images of that bond.
+    t_ab : float, default 0.03
+        The hopping between the first 4a site and the first 8b site of the
+        cell, in that order, and on the images of that bond.
 
     Returns
     -------
     pythtb.TBModel
-        Spinful 3D model, 6 orbitals, 12 bands.
+        A spinful three-dimensional model of 6 orbitals and 12 bands.
     """
     p = dict(I41_PARAMS)
     for key, val in dict(z_a=z_a, seed_b=seed_b, delta=delta, t_a=t_a, t_b=t_b,
@@ -522,14 +572,13 @@ def i41_atomic(z_a=None, seed_b=None, delta=None, t_a=None, t_b=None, t_ab=None)
         spinful=True)
 
 
-#: The two SOC seed sets of :func:`i41_soc`, both on the ``t_a`` and ``t_ab``
-#: bonds of :func:`i41_atomic`.  ``"generic"`` seeds ``i b·σ`` with a generic
-#: ``b`` (plus a second, differently-oriented block) and leaves the commutant
-#: of ``{H(k)}`` at ``C·1``; ``"axial"`` seeds ``i σ_z`` on both, which
-#: **conserves** ``s_z`` and makes the commutant two-dimensional.  Both are
-#: exactly symmetric -- every operation of I4_11' validates on the default
-#: 8**3 mesh, at 1.5e-14 (generic) and 2.1e-14 (axial) -- so what separates
-#: them is the commutant dimension alone, which is the point.
+#: The two sets of spin-orbit seeds :func:`i41_soc` names, each a pair
+#: ``(T_a, T_ab)`` for the ``t_a`` and ``t_ab`` bonds of :func:`i41_atomic`.
+#: ``"generic"`` seeds ``i b·σ`` with a generic ``b`` and a second block of
+#: another orientation, so that only the multiples of the identity commute
+#: with ``H(k)`` at every ``k``. ``"axial"`` seeds ``i σ_z`` on both bonds,
+#: which conserves ``s_z``, so that the matrices commuting with ``H(k)`` at
+#: every ``k`` form a space of dimension two. Both obey I4_11' exactly.
 _I41_SOC_B = (0.31, -0.52, 0.44)
 I41_SOC_SEEDS = {
     "generic": (1j * (_I41_SOC_B[0] * PAULI[0] + _I41_SOC_B[1] * PAULI[1]
@@ -541,43 +590,56 @@ I41_SOC_SEEDS = {
 
 
 def i41_soc(soc="generic", lam=0.4, **kwargs):
-    """:func:`i41_atomic` with spin-orbit coupling, averaged over I4_1 so that it obeys I4_11' exactly.
+    """:func:`i41_atomic` with spin-orbit coupling, in I4_11' (#80.30).
 
-    The hoppings of :func:`i41_atomic` do not depend on spin, so all of SU(2)
-    commutes with its ``H(k)``; the spin-orbit bonds, on the ``t_a`` and ``t_ab``
-    hoppings, leave less.
+    The hoppings of :func:`i41_atomic` are kept. Spin-orbit hoppings are added
+    on its ``t_a`` and ``t_ab`` bonds, from the seeds ``lam * T_a`` and
+    ``lam * T_ab`` averaged over the operations of I4_1 by :func:`spin_bonds`.
+    The names ``soc`` takes give these seeds:
 
-    * ``soc="generic"``: ``i λ b·σ`` with a generic ``b``.  Nothing beyond the
-      crystal's symmetry is conserved, and the four valence states at ``P`` split
-      ``[1, 2, 1]``: two singlets ``-P3`` and a doublet whose characters are
-      ``-P4P4``'s, the corep list of :func:`i41_atomic` seen in a spectrum.
-    * ``soc="axial"``: ``i λ σ_z`` on both bonds, which every operation of I4_1
-      keeps, so ``s_z`` is conserved.
+    * ``"generic"``: ``T_a = i b·σ`` with ``b = (0.31, -0.52, 0.44)``, and
+      ``T_ab = i (0.7 b·σ + 0.2 σ_x)``. No spin component is conserved. At the
+      defaults, the four lowest bands at ``P`` split into three levels,
+      ``-P3``, ``-P4P4`` and ``-P3`` from the lowest.
+    * ``"axial"``: ``T_a = T_ab = i σ_z``, which every operation of I4_1 leaves
+      unchanged, so ``s_z`` is conserved.
 
     Parameters
     ----------
-    soc : str or sequence, optional
-        A key of :data:`I41_SOC_SEEDS`, or a pair ``(T_a, T_ab)`` of ``2x2`` spin
-        matrices without the factor ``lam``.  Default ``"generic"``.
-    lam : float, optional
-        The spin-orbit strength.  Default ``0.4``.
+    soc : {"generic", "axial"} or sequence, default "generic"
+        The spin-orbit seeds. Pass a name above, or a pair ``(T_a, T_ab)`` of
+        (2, 2) spin matrices without the factor ``lam``.
+    lam : float, default 0.4
+        The spin-orbit strength.
     **kwargs
-        The parameters :func:`i41_atomic` takes.
+        The parameters of :func:`i41_atomic`, by name: ``z_a``, ``seed_b``,
+        ``delta``, ``t_a``, ``t_b`` and ``t_ab``.
 
     Returns
     -------
     pythtb.TBModel
-        Spinful 3D model, 6 orbitals, 12 bands.
+        A spinful three-dimensional model of 6 orbitals and 12 bands.
+
+    Raises
+    ------
+    KeyError
+        ``soc`` is a name other than ``"generic"`` or ``"axial"``.
+    TypeError
+        A keyword is not one :func:`i41_atomic` takes.
+    ValueError
+        ``soc`` is a sequence of other than two matrices.
     """
     p = dict(I41_PARAMS)
     for key, val in kwargs.items():
         if key not in p:                                 # pragma: no cover - guard
-            raise TypeError(f"i41_soc got an unexpected keyword {key!r}")
+            raise TypeError(f"i41_soc(): {key}= is not a parameter of i41_soc. Pass soc=, "
+                            "lam=, or any of z_a=, seed_b=, delta=, t_a=, t_b= and t_ab=.")
         if val is not None:
             p[key] = val if key == "seed_b" else float(val)
     seeds = I41_SOC_SEEDS[soc] if isinstance(soc, str) else tuple(soc)
     if len(seeds) != 2:                                  # pragma: no cover - guard
-        raise ValueError("soc must name a key of I41_SOC_SEEDS or be a (T_a, T_ab) pair")
+        raise ValueError('i41_soc(): soc= is a sequence whose length is not two. Pass '
+                         '"generic", "axial", or a pair (T_a, T_ab) of (2, 2) spin matrices.')
 
     orbits = i41_sites(p["z_a"], p["seed_b"])
     sites = np.vstack(list(orbits))
@@ -608,22 +670,13 @@ def i41_soc(soc="generic", lam=0.4, **kwargs):
 
 
 def p62_sites(z_a=None, seed_c=None):
-    """``(orbit_3a, orbit_6c)`` of P6_2 in reduced coordinates.
+    """The 3a and 6c orbits of P6_2, in reduced coordinates.
 
-    Parameters
-    ----------
-    z_a : float, optional
-        The free ``(0, 0, z)`` parameter of the ``3a`` orbit, in reduced
-        coordinates.  Default :data:`P62_PARAMS`'s ``z_a``.
-    seed_c : (3,) array_like, optional
-        A generic seed for the ``6c`` orbit, in reduced coordinates.  Default
-        :data:`P62_PARAMS`'s ``seed_c``.
-
-    Returns
-    -------
-    ((n, 3) ndarray, (m, 3) ndarray)
-        The two orbits, in reduced coordinates, in the order the operations
-        generate them.
+    ``z_a`` is the free parameter of the 3a orbit ``(0, 0, z)``, and ``seed_c``
+    a point of the 6c orbit, both in reduced coordinates; ``None`` takes the
+    value in :data:`P62_PARAMS`. Returns the pair ``(orbit_3a, orbit_6c)``,
+    arrays of 3 and 6 points, a point to a row, each in the order
+    :func:`orbit_of` lists them.
     """
     z_a = P62_PARAMS["z_a"] if z_a is None else float(z_a)
     seed_c = P62_PARAMS["seed_c"] if seed_c is None else tuple(seed_c)
@@ -632,31 +685,45 @@ def p62_sites(z_a=None, seed_c=None):
 
 
 def p62_atomic(z_a=None, seed_c=None, delta=None, t_a=None, t_b=None, t_ab=None):
-    """A spinful atomic insulator in P6_2 (SG 171): ``s`` orbitals at 3a below a gap, at the general 6c above.
+    """A spinful atomic insulator in P6_21' (#171.122), ``s`` orbitals at 3a and 6c.
 
-    The hexagonal companion of :func:`i41_atomic`: nine ``s`` orbitals, three on
-    the ``3a`` orbit ``(0, 0, z)`` and six on a generic ``6c``, carried spinful, 18
-    bands, the lowest six ``-1E2E↑G(6)@3a``.  At ``H = (1/3, 1/3, 1/2)``, not
-    time-reversal invariant, the antiunitary operation that pairs the irreps is a
-    twofold rotation with time reversal, and the gluing differs from the Bilbao
-    Crystallographic Server's convention; the corep it makes is one the tables
-    carry, so the list returned there is the server's own,
-    ``{-H4 (1,-1,1), -H5H6 (2,1,-1)}``.
+    Nine ``s`` orbitals stand in the primitive hexagonal cell, three on the 3a
+    orbit ``(0, 0, z)`` and six on a generic 6c orbit, each with two spin
+    states: 18 bands. The six lowest bands, below a gap, carry the elementary
+    band representation ``-1E2E at 3a (21')``. At ``H = (1/3, 1/3, 1/2)``,
+    which is not time-reversal invariant, they carry ``-H4`` twice and
+    ``-H5H6`` twice. These are the two coreps of the little group at ``H``, as
+    :func:`pythtqc.corep_table` returns them: ``-H4``, with the characters
+    (1, -1, 1) on the identity, ``C3(z)`` and ``C3^-1(z)``, and ``-H5H6``, with
+    (2, 1, -1). They are the coreps of the irreptables package's table for
+    ``H``, character for character. ``-H5H6`` pairs two different irreps under
+    time reversal, where ``-P4P4`` of :func:`i41_atomic` pairs two copies of
+    one.
 
     Parameters
     ----------
-    z_a, seed_c : float and (3,) array_like, optional
-        The ``3a`` parameter and a generic ``6c`` seed, in reduced coordinates.
-        Default :data:`P62_PARAMS`.
-    delta, t_a, t_b, t_ab : float, optional
-        The on-site energies ``-delta`` at 3a and ``+delta`` at 6c, and the
-        hoppings within 3a, within 6c and between them.  Default
-        :data:`P62_PARAMS`.
+    z_a : float, default 0.11
+        The free parameter of the 3a orbit ``(0, 0, z)``, in reduced
+        coordinates.
+    seed_c : (3,) array_like, default (0.21, 0.34, 0.07)
+        A point of the 6c orbit, in reduced coordinates.
+    delta : float, default 2.5
+        Half the difference of the on-site energies, ``-delta`` at 3a and
+        ``+delta`` at 6c.
+    t_a : float, default 0.09
+        The hopping between the first two 3a sites of the cell, in the order
+        :func:`orbit_of` lists them, and on the images of that bond.
+    t_b : float, default 0.05
+        The hopping between the first two 6c sites of the cell, in that order,
+        and on the images of that bond.
+    t_ab : float, default 0.03
+        The hopping between the first 3a site and the first 6c site of the
+        cell, in that order, and on the images of that bond.
 
     Returns
     -------
     pythtb.TBModel
-        Spinful 3D model, 9 orbitals, 18 bands.
+        A spinful three-dimensional model of 9 orbitals and 18 bands.
     """
     p = dict(P62_PARAMS)
     for key, val in dict(z_a=z_a, seed_c=seed_c, delta=delta, t_a=t_a, t_b=t_b,
@@ -675,60 +742,40 @@ def p62_atomic(z_a=None, seed_c=None, delta=None, t_a=None, t_b=None, t_ab=None)
 
 
 # ---------------------------------------------------------------------------
-# 3.  I2_1 3 (SG 199) -- the CONNECTED multifold model
+# 3.  The connected multifold model of I2_13 (#199)
 # ---------------------------------------------------------------------------
 #
-# PROVENANCE.  Flicker, de Juan, Bradlyn, Morimoto, Vergniory & Grushin,
-# "Chiral Optical Response of Multifold Fermions", Phys. Rev. B **98**, 155145
-# (2018) = arXiv:1806.09642, **Appendix F.1** ("SGs 199 and 214"), transcribed
-# from the arXiv LaTeX source:
+# The model of Flicker, de Juan, Bradlyn, Morimoto, Vergniory and Grushin,
+# "Chiral Optical Response of Multifold Fermions", Phys. Rev. B 98, 155145
+# (2018), arXiv:1806.09642, Appendix F.1 ("SGs 199 and 214"), with a = 1:
 #
-# * Eq. (88)  R_1 = (a/2)(-x + y + z), R_2 = (a/2)(x - y + z),
-#             R_3 = (a/2)(x + y - z);  a = 1 throughout.
-# * Eq. (89)  G_199 = < {C_2x | 1/2 1/2 0}, {C_3,111 | 000}, translations >,
-#             translations written in **reduced** coordinates (Eq. (90)).
-# * Eq. (92)  the 8a orbit, reduced: q_1 = (u,u,u), q_2 = (1/2-u, 1/2, 0),
-#             q_3 = (0, 1/2-u, 1/2), q_4 = (1/2, 0, 1/2-u), multiplicity 4 in
-#             the primitive cell.  "-1/2 < u < 1/2" for SG 199; u = +-1/4
-#             promotes the group to SG 214, so this model uses a generic u.
-# * Eq. (93)  |q_1 - q_j|^2 = 1/4 - u + 2u^2, equal for all symmetry-related
-#             bonds (asserted in the test suite).
-# * Eq. (94)  the nearest-neighbour Hamiltonian, six bonds + h.c.
-# * Eqs. (95)-(98)  its Fourier transform, ``V^dag(u,k) H_0(k) V(u,k)``, which
-#             is pythtb's convention I on the nose (measured at 4.7e-16).
+# * Eq. (88), the primitive vectors R_1 = (a/2)(-x + y + z),
+#   R_2 = (a/2)(x - y + z) and R_3 = (a/2)(x + y - z).
+# * Eq. (89), the generators {C_2x | 1/2 1/2 0} and {C_3,111 | 000}, with the
+#   translations in reduced coordinates (Eq. (90)).
+# * Eq. (92), the four sites of 8a in the primitive cell, in reduced
+#   coordinates: q_1 = (u, u, u), q_2 = (1/2 - u, 1/2, 0),
+#   q_3 = (0, 1/2 - u, 1/2) and q_4 = (1/2, 0, 1/2 - u), for -1/2 < u < 1/2.
+#   At u = 1/4 the group is #214, so u is generic here.
+# * Eq. (93), |q_1 - q_j|^2 = 1/4 - u + 2u^2, the same for every bond the
+#   group relates.
+# * Eq. (94), the nearest-neighbor Hamiltonian, six bonds and their conjugates.
+# * Eqs. (95) to (98), its Fourier transform V†(u, k) H_0(k) V(u, k), which is
+#   pythtb's convention I.
 #
-# Spinless s orbitals: "By using s-orbitals as our basis functions, all
-# symmetries in the stabilizer group of the 8a position are represented
-# trivially."  The paper's Fig. 4(b) is this model's band structure and its
-# text states that SG 199 without spin-orbit coupling "realizes spin-1 fermions
-# at Gamma and H" -- measured here as the threefold GM4 at -t and H4 at +t.
-#
-# Why this model is worth having: it is pathological in three independent ways at
-# once, each of which stresses a different part of the machinery.
-#   (i)   the Bravais lattice is body-centred, so the conventional cubic cell is
-#         a supercell: `_group_of` returns it as the index-2 lattice supergroup
-#         (`lattice_index == 2`, the centring translation among the operations)
-#         and `realized_group` MUST refuse it (gate="supercell"), since this
-#         Hamiltonian obeys that translation exactly;
-#   (ii)  the group is nonsymmorphic (Hermann-Mauguin I2_1 3) and yet **not one
-#         of its rotations is intrinsically a screw** -- the body-centring
-#         translation absorbs every axial component, measured operation by
-#         operation in the test suite;
-#   (iii) the four sites of the single Wyckoff orbit permute *between unit
-#         cells*: under the group's unitary operations, one per coset of the
-#         lattice translations, 18 of the 48 images of the four sites lie in
-#         another cell, and the test suite checks that the symmetry matrices
-#         measured from the Hamiltonian alone, which assume nothing about how an
-#         operation acts on the orbitals, put their support exactly there -- so
-#         the permutation is a measurement, not a position-table lookup.
+# The orbitals are spinless s orbitals, on which every operation of the site
+# group of 8a acts trivially. The paper's Fig. 4(b) is this model's band
+# structure, with spin-1 fermions at GM and H: the threefold GM4 at -t and H4
+# at +t.
 
-#: Eq. (88) with ``a = 1``: the primitive body-centred cubic basis.
+#: Eq. (88) with ``a = 1``: the primitive body-centered cubic basis.
 I213_LATTICE = 0.5 * np.array([[-1.0, 1.0, 1.0],
                                 [1.0, -1.0, 1.0],
                                 [1.0, 1.0, -1.0]])
 
-#: The free Wyckoff-8a parameter.  Any ``u`` in ``(-1/2, 1/2) \\ {+-1/4}`` gives
-#: SG 199; ``u = +-1/4`` promotes the group to SG 214 (paper, App. F.1).
+#: The free parameter of the 8a orbit. Any ``u`` in ``(-1/2, 1/2)`` but
+#: ``1/4`` gives #199; at ``u = 1/4`` the group is #214. At ``u = -1/4`` the
+#: sites allow #214 and the hoppings keep #199.
 I213_U = 0.12
 
 #: Eq. (94) rewritten so every creation operator sits in cell 0, in pythtb's
@@ -744,18 +791,12 @@ I213_BONDS = (
 
 
 def i213_sites(u=I213_U):
-    """Eq. (92): the four 8a positions in reduced (primitive) coordinates.
+    """The 8a orbit of I2_13, in reduced coordinates of the primitive cell.
 
-    Parameters
-    ----------
-    u : float, optional
-        The free Wyckoff-8a parameter, in reduced coordinates.  Default
-        :data:`I213_U`; ``±1/4`` promotes the group to SG 214.
-
-    Returns
-    -------
-    (4, 3) numpy.ndarray
-        The orbit in primitive reduced coordinates, in the paper's order.
+    ``u`` is the free parameter of the orbit, whose first site is
+    ``(u, u, u)``. The four sites are those of Eq. (92) of Flicker et al.,
+    Phys. Rev. B 98, 155145 (2018), in its order. At ``u = 1/4`` the group is
+    I4_132 (#214). Returns a (4, 3) array, a site to a row.
     """
     u = float(u)
     return np.array([[u, u, u], [0.5 - u, 0.5, 0.0],
@@ -763,24 +804,17 @@ def i213_sites(u=I213_U):
 
 
 def i213_bloch_hamiltonian(k_cart, u=I213_U, t=1.0):
-    """The paper's Bloch Hamiltonian, Eqs. (96)-(98): ``H(k) = t V†(u,k) H_0(k) V(u,k)``.
+    """The Bloch Hamiltonian of :func:`i213_flicker2018`, as the paper writes it.
 
-    ``V = diag(e^{i k·q_i})`` places the orbitals, and ``H_0`` does not depend on
-    ``u``: the spectrum does not depend on where the orbitals sit.
-
-    Parameters
-    ----------
-    k_cart : (3,) array_like
-        ``k`` in Cartesian units with ``a = 1``;
-        ``numpy.linalg.solve(I213_LATTICE, 2*pi*k_red)`` converts a reduced one.
-    u : float, optional
-        The 8a parameter.  Default :data:`I213_U`.
-    t : float, optional
-        The nearest-neighbour hopping.  Default ``1.0``.
-
-    Returns
-    -------
-    (4, 4) numpy.ndarray of complex
+    The matrix returned is ``H(k) = t V†(u, k) H_0(k) V(u, k)``, Eqs. (96) to
+    (98) of Flicker et al., Phys. Rev. B 98, 155145 (2018), with
+    ``V = diag(exp(i k·q_j))`` for the sites ``q_j`` of :func:`i213_sites` in
+    Cartesian components. It equals the model's ``H(k)`` entry for entry. Only
+    ``V`` depends on ``u``, so the spectrum does not. ``k_cart`` is ``k`` in
+    Cartesian components, for a lattice constant of 1;
+    ``numpy.linalg.solve(I213_LATTICE, 2*pi*k_red)`` gives it from reduced
+    coordinates ``k_red``. ``u`` is the free parameter of the 8a orbit, and
+    ``t`` the nearest-neighbor hopping. Returns a (4, 4) complex array.
     """
     k = np.asarray(k_cart, dtype=float).reshape(-1)[:3]
     a, b, c = (float(k @ r) for r in I213_LATTICE)
@@ -795,25 +829,29 @@ def i213_bloch_hamiltonian(k_cart, u=I213_U, t=1.0):
 
 
 def i213_flicker2018(u=I213_U, t=1.0):
-    """The SG 199 (I2_1 3) model of Flicker et al., arXiv:1806.09642, App. F.1.
+    """The I2_13 model of Flicker et al., Phys. Rev. B 98, 155145 (2018).
 
-    Four spinless ``s`` orbitals at Wyckoff 8a of the primitive body-centred cubic
-    cell, with nearest-neighbour hopping.  The four bands are connected: the
-    threefold ``GM4`` is at the top of the spectrum at ``GM`` and its partner
-    ``H4`` at the bottom at ``H``, so no one- or three-band set can be isolated.
+    Four spinless ``s`` orbitals stand at Wyckoff position 8a, in the primitive
+    cell of the body-centered cubic lattice, ``a = 1``. They are joined by a
+    nearest-neighbor hopping ``t``. The model is that of the paper's Appendix
+    F.1 (arXiv:1806.09642). Its group is I2_131' (#199.13). For ``t > 0``, the
+    three lowest bands at ``GM`` carry the threefold ``GM4``. The three highest
+    at ``H`` carry the threefold ``H4``. These are the spin-1 fermions. No gap
+    separates any of the four bands from the others.
 
     Parameters
     ----------
-    u : float, optional
-        The 8a parameter; ``±1/4`` makes the group SG 214.  Default
-        :data:`I213_U`.
-    t : float, optional
-        The nearest-neighbour hopping, the energy scale.  Default ``1.0``.
+    u : float, default 0.12
+        The free parameter of the 8a orbit ``(u, u, u)``, in reduced
+        coordinates of the primitive cell.
+    t : float, default 1.0
+        The nearest-neighbor hopping, which sets the energy scale.
 
     Returns
     -------
     pythtb.TBModel
-        Spinless 3D model, 4 orbitals, 4 bands.
+        A spinless three-dimensional model of 4 orbitals and 4 bands. With
+        ``u=1/4``, the group returned is I4_1321' (#214.68).
     """
     lat = Lattice(I213_LATTICE.tolist(), i213_sites(u).tolist(),
                   periodic_dirs=[0, 1, 2])
@@ -824,16 +862,15 @@ def i213_flicker2018(u=I213_U, t=1.0):
 
 
 def i213_conventional(u=I213_U, t=1.0):
-    """The crystal of :func:`i213_flicker2018` in the conventional cubic cell: a supercell.
+    """The crystal of :func:`i213_flicker2018` on the conventional cubic cell.
 
-    Eight sites, and a Hamiltonian that obeys the centring translation
-    ``(1/2, 1/2, 1/2)`` exactly, so :func:`.groups.realized_group` refuses it
-    ``supercell``; its spectrum is the primitive cell's, folded.
-
-    Returns
-    -------
-    pythtb.TBModel
-        Spinless 3D model, 8 orbitals, 8 bands.
+    ``u`` and ``t`` are the free parameter of the 8a orbit and the
+    nearest-neighbor hopping, as :func:`i213_flicker2018` takes them. The cell,
+    of lattice constant 1, holds the four sites of the primitive cell and their
+    images under the centering translation ``(1/2, 1/2, 1/2)``. The Hamiltonian
+    obeys that translation, so :func:`.groups.realized_group` refuses it
+    ``supercell``. Returns a spinless three-dimensional model of 8 orbitals and
+    8 bands, whose spectrum is that of :func:`i213_flicker2018`, folded.
     """
     q = i213_sites(u)
     q_cart = q @ I213_LATTICE
@@ -856,16 +893,18 @@ def i213_conventional(u=I213_U, t=1.0):
 
 
 # ---------------------------------------------------------------------------
-# 4.  P4_232 (SG 208) -- the DISCONNECTED elementary band representation
+# 4.  The disconnected elementary band representation of P4_232 (#208)
 # ---------------------------------------------------------------------------
 #: Parameter values of Fig. 3a of arXiv:1711.11045.
 P4232_PARAMS = dict(t1=0.2, t2=0.3, t3=0.1, t4=0.08, t5=0.05, t6=0.02)
 
-#: The four nearest-neighbour vectors ``delta_{1,2,3,4}`` of the paper, in
-#: cartesian units of the cubic lattice constant a = 1.  They are the
-#: *tetrahedral* half of the eight body-diagonal half-vectors joining the two
-#: 2a sites; the paper draws exactly four of them in the inset to Fig. 3a, and
-#: picking four rather than all eight is what removes the inversion centre.
+#: The four nearest-neighbor vectors ``delta_{1,2,3,4}`` of the paper, in
+#: Cartesian components for a cubic lattice constant of 1. They are the
+#: tetrahedral half of the eight half body diagonals joining the two 2a sites,
+#: the four the paper draws in the inset to Fig. 3a. The ``t2`` term, which
+#: multiplies the sum of ``sin(k·delta_i)`` over these four, breaks the
+#: inversion through each site. With ``t3`` to ``t6`` zero, an inversion
+#: exchanging the two sites remains, and the group is Pn-3m1' (#224.111).
 P4232_NN_VECTORS = 0.5 * np.array(
     [[1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]], dtype=float
 )
@@ -877,7 +916,10 @@ _P4232_ORB = np.array([[0, 0, 0], [0, 0, 0], [0.5, 0.5, 0.5], [0.5, 0.5, 0.5]])
 
 
 def p4232_bloch_hamiltonian(k_cart, t1=None, t2=None, t3=None, t4=None, t5=None, t6=None):
-    r"""The paper's Bloch Hamiltonian, Eqs. (5)-(7): the ``H(k)`` of :func:`p4232_cano2018`.
+    r"""The Bloch Hamiltonian of :func:`p4232_cano2018`, as the paper writes it.
+
+    The matrix returned is :math:`H_\mathbf{k} + H^1_\mathbf{k}` of Eqs. (5) to
+    (7) of Cano et al., Phys. Rev. Lett. 120, 266401 (2018):
 
     .. math::
         H_\mathbf{k} = t_1 f_1 \tau_x\sigma_0 + t_2 f_2 \tau_y\sigma_0
@@ -887,26 +929,22 @@ def p4232_bloch_hamiltonian(k_cart, t1=None, t2=None, t3=None, t4=None, t5=None,
                        + t_5 \tau_0 (g_2\sigma_z - g_1\sigma_x)
                        + t_6 g_3 \tau_z\sigma_0
 
-    with :math:`f_1 = \sum_i \cos(\mathbf{k}\cdot\delta_i)`,
+    Here :math:`\tau` are the Pauli matrices on the two sites, and
+    :math:`\sigma` those on the orbitals ``d_z2`` and ``d_x2-y2`` of a site.
+    The :math:`\delta_i` are the four vectors of :data:`P4232_NN_VECTORS`, and
+    :math:`f_1 = \sum_i \cos(\mathbf{k}\cdot\delta_i)`,
     :math:`f_2 = \sum_i \sin(\mathbf{k}\cdot\delta_i)`,
     :math:`g_1 = \cos k_x - \cos k_y`,
     :math:`g_2 = (\cos k_x + \cos k_y - 2\cos k_z)/\sqrt3`, and
     :math:`g_3 = \cos 2k_x \cos k_y - \cos 2k_y \cos k_x + \text{perm.}`
-    (cyclic in :math:`k_x \to k_y \to k_z`).  Its phases carry the orbital
-    positions, as pythtb's do, so it is :func:`p4232_cano2018`'s ``H(k)`` matrix
-    for matrix.
-
-    Parameters
-    ----------
-    k_cart : (3,) array_like
-        ``k`` in Cartesian units with lattice constant ``a = 1``,
-        ``2*pi*k_reduced``.
-    t1, t2, t3, t4, t5, t6 : float, optional
-        Default :data:`P4232_PARAMS`.
-
-    Returns
-    -------
-    (4, 4) numpy.ndarray of complex
+    (cyclic in :math:`k_x \to k_y \to k_z`). The matrix's phases carry the
+    orbital positions, as pythtb's do, so it equals the model's ``H(k)`` entry
+    for entry. ``k_cart`` is ``k`` in Cartesian components for a lattice
+    constant of 1, which is ``2*pi*k_red`` for reduced coordinates ``k_red``.
+    ``t1``, ``t2``, ``t3``, ``t4``, ``t5`` and ``t6`` are the hoppings, as
+    :func:`p4232_cano2018` takes them; ``None`` takes the value in
+    :data:`P4232_PARAMS`. Returns a (4, 4) complex array, in the model's
+    orbital order.
     """
     p = dict(P4232_PARAMS)
     for name, val in zip(("t1", "t2", "t3", "t4", "t5", "t6"), (t1, t2, t3, t4, t5, t6)):
@@ -936,34 +974,60 @@ def p4232_bloch_hamiltonian(k_cart, t1=None, t2=None, t3=None, t4=None, t5=None,
 
 
 def p4232_cano2018(t1=None, t2=None, t3=None, t4=None, t5=None, t6=None):
-    """The spinless model of Cano et al., arXiv:1711.11045: a disconnected elementary band representation of P4_232 (SG 208).
+    """The spinless model of Cano et al., Phys. Rev. Lett. 120, 266401 (2018).
 
-    A simple cubic lattice, ``a = 1``, with the two Wyckoff 2a sites ``(0,0,0)`` and
-    ``(1/2,1/2,1/2)``, each carrying ``d_z2`` and ``d_x2-y2``, together one irrep of
-    the site group with time reversal; four bands.  The
-    paper's generators, ``{C_2x|0}``, ``{C_3,111|0}`` and
-    ``{C_2,110|1/2 1/2 1/2}``, and its 2a pair are those of SG 208.  The
-    paper's terms in real space:
-
-    * ``t1 f1 τ_x + t2 f2 τ_y``: hoppings between the two sites along all eight
-      body-diagonal half-vectors, ``(t1+t2)/2`` along ``-δ_i`` and
-      ``(t1-t2)/2`` along ``+δ_i``; ``t2 = 0`` restores inversion.
-    * ``t4 f1 τ_y σ_y``: the same eight bonds with the orbital matrix
-      ``-iσ_y``, amplitude ``t4/2``.
-    * ``t3`` and ``t5``: hoppings within one sublattice to the six nearest cells,
-      with ``σ_z`` and ``σ_x``.
-    * ``t6 g3 τ_z``: hoppings to the twelve ``(±2, ±1, 0)`` cells.
+    A simple cubic lattice, ``a = 1``, holds the two Wyckoff 2a sites
+    ``(0, 0, 0)`` and ``(1/2, 1/2, 1/2)``, each with a ``d_z2`` and a
+    ``d_x2-y2`` orbital: the model of arXiv:1711.11045. The paper's generators,
+    ``{C_2x|0}``, ``{C_3,111|0}`` and ``{C_2,110|1/2 1/2 1/2}``, are those of
+    P4_232, and the group measured is P4_2321' (#208.45). The four bands carry
+    the elementary band representation ``1E2E at 2a (231')``. At the defaults,
+    which are the values of the paper's Fig. 3a, a gap splits them into two
+    halves of two bands. The symmetry data vector of neither half is a sum of
+    elementary band representations.
 
     Parameters
     ----------
-    t1, t2, t3, t4, t5, t6 : float, optional
-        Default :data:`P4232_PARAMS`, the paper's Fig. 3a; ``t4 = t5 = t6 = 0``
-        is the paper's bare ``H_k``, gapped and doubly degenerate at every ``k``.
+    t1 : float, default 0.2
+        A hopping between like orbitals of the two sites, ``t1/2`` from the
+        site at the origin along each of the eight vectors
+        ``(±1/2, ±1/2, ±1/2)``.
+    t2 : float, default 0.3
+        A hopping between like orbitals of the two sites, ``-t2/2`` from the
+        site at the origin along each of ``(1/2, 1/2, 1/2)``,
+        ``(1/2, -1/2, -1/2)``, ``(-1/2, 1/2, -1/2)`` and ``(-1/2, -1/2, 1/2)``,
+        and ``+t2/2`` along each of their negatives.
+    t3 : float, default 0.1
+        A hopping from each site to its images in the six nearest cells, of
+        opposite sign on the two sites. Along x and y it joins like orbitals,
+        with opposite signs for ``d_z2`` and ``d_x2-y2`` and for x and y. Along
+        all three axes it joins ``d_z2`` to ``d_x2-y2``, along z with twice the
+        amplitude and the opposite sign.
+    t4 : float, default 0.08
+        The hopping between unlike orbitals of the two sites, along the same
+        eight vectors: ``-t4/2`` from ``d_z2`` at the origin to ``d_x2-y2``, and
+        ``+t4/2`` from ``d_x2-y2`` at the origin to ``d_z2``.
+    t5 : float, default 0.05
+        A hopping from each site to its images in the six nearest cells, the
+        same on the two sites. Along all three axes it joins like orbitals,
+        with opposite signs for ``d_z2`` and ``d_x2-y2``, along z with twice
+        the amplitude and the opposite sign. Along x and y it joins ``d_z2`` to
+        ``d_x2-y2``, with opposite signs for x and y.
+    t6 : float, default 0.02
+        A hopping between like orbitals of one site and its images in the 24
+        cells at ``(2, 1, 0)`` with every permutation and choice of signs, of
+        opposite sign on the two sites. At the site at the origin it is
+        ``t6/4`` where the 2 stands one component before the 1, cyclically, as
+        in ``(2, 1, 0)`` and ``(0, 2, 1)``, and ``-t6/4`` where it stands one
+        after, as in ``(1, 2, 0)`` and ``(2, 0, 1)``.
 
     Returns
     -------
     pythtb.TBModel
-        Spinless 3D model, 4 orbitals, 4 bands.
+        A spinless three-dimensional model of 4 orbitals and 4 bands. With
+        ``t2=0``, the hoppings obey inversion, and the group is Pm-3n1'
+        (#223.105). With ``t4=0``, ``t5=0`` and ``t6=0``, the model is the
+        paper's bare Hamiltonian, gapped and twofold degenerate at every ``k``.
     """
     p = dict(P4232_PARAMS)
     for name, val in zip(("t1", "t2", "t3", "t4", "t5", "t6"), (t1, t2, t3, t4, t5, t6)):
@@ -974,7 +1038,12 @@ def p4232_cano2018(t1=None, t2=None, t3=None, t4=None, t5=None, t6=None):
                 spinful=False)
 
     def bond(amp, i, j, d):
-        """set_hop with the *bond vector* d = r_j + R - r_i (pythtb convention I)."""
+        """Add the hopping ``amp`` from orbital ``i`` to orbital ``j`` along ``d``.
+
+        ``d = r_j + R - r_i`` is the bond vector, ``R`` the lattice vector
+        pythtb's ``set_hop`` takes; a zero ``amp`` adds nothing. Raises
+        ``AssertionError`` where ``d`` joins the orbitals by no lattice vector.
+        """
         if amp == 0.0:
             return
         R = np.asarray(d, float) - (_P4232_ORB[j] - _P4232_ORB[i])
@@ -983,15 +1052,21 @@ def p4232_cano2018(t1=None, t2=None, t3=None, t4=None, t5=None, t6=None):
         m.set_hop(amp, i, j, Ri.tolist(), mode="add")
 
     def cos_diag(coef, i, R):
-        """Add coef*cos(k.R) to H_ii."""
+        """Add ``coef * cos(k·R)`` to the entry ``(i, i)`` of H.
+
+        ``R`` is a lattice vector.
+        """
         bond(coef / 2.0, i, i, R)
 
     def cos_offdiag(coef, i, j, R):
-        """Add coef*cos(k.R) to H_ij and H_ji (a real, symmetric sigma_x-type term)."""
+        """Add ``coef * cos(k·R)`` to the entries ``(i, j)`` and ``(j, i)`` of H.
+
+        ``R`` is a lattice vector, and ``i`` and ``j`` are orbitals of one site.
+        """
         bond(coef / 2.0, i, j, R)
         bond(coef / 2.0, i, j, -np.asarray(R, float))
 
-    # --- inter-site terms: t1, t2 (sigma_0) and t4 (-i*sigma_y) ---------------
+    # Inter-site terms: t1 and t2 (sigma_0), and t4 (-i sigma_y).
     a_amp = (p["t1"] - p["t2"]) / 2.0
     b_amp = (p["t1"] + p["t2"]) / 2.0
     for d in P4232_NN_VECTORS:
@@ -1002,7 +1077,7 @@ def p4232_cano2018(t1=None, t2=None, t3=None, t4=None, t5=None, t6=None):
             bond(-p["t4"] / 2.0, 0, 3, dd)
             bond(+p["t4"] / 2.0, 1, 2, dd)
 
-    # --- intra-site terms: t3 (tau_z), t5 (tau_0), t6 (tau_z) ----------------
+    # Intra-site terms: t3 (tau_z), t5 (tau_0) and t6 (tau_z).
     ex, ey, ez = np.eye(3)
     r3 = np.sqrt(3.0)
     for site, tz in ((0, +1.0), (2, -1.0)):    # site A block at 0,1; site B at 2,3
@@ -1029,16 +1104,13 @@ def p4232_cano2018(t1=None, t2=None, t3=None, t4=None, t5=None, t6=None):
 
 
 def p4232_operations():
-    """The unitary operations of P4_232 (SG 208), one per coset of the lattice translations.
+    """The 24 operations of P4_232, one per coset of the lattice translations.
 
-    The closure of the paper's three generators, ``{C_2x|0}``, ``{C_3,111|0}``
-    and ``{C_2,110|1/2 1/2 1/2}``.
-
-    Returns
-    -------
-    list of (ndarray(3,3) int, ndarray(3,) float)
-        ``(rotation, translation)`` of each: an integer rotation on reduced
-        coordinates, and a translation in ``[0, 1)``.
+    They are the closure of the three generators of P4_232 (#208) that Cano et
+    al. give, ``{C_2x|0}``, ``{C_3,111|0}`` and ``{C_2,110|1/2 1/2 1/2}``, on
+    the simple cubic cell of :func:`p4232_cano2018`. Returns a list of pairs
+    ``(R, t)``, ``R`` an integer (3, 3) array on reduced coordinates and ``t``
+    the translation in reduced coordinates, in ``[0, 1)``.
     """
     gens = [
         (np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]]), np.zeros(3)),          # C_2x
@@ -1068,24 +1140,17 @@ def p4232_operations():
 
 
 def p4232_symmetry_cell(generic_site=(0.13, 0.27, 0.41)):
-    """A crystal whose space group is exactly P4_232 (SG 208): the 2a pair, decorated.
+    """A crystal of space group P4_232 (#208): the 2a pair, decorated.
 
-    The 2a pair alone is a body-centred cubic point set, of space group Im-3m
-    (SG 229).  The paper adds atoms that make "a crystal field with the symmetry
-    of P4_232" without giving them; these are the orbit of a generic point under
-    SG 208, the smallest orbit no larger cubic group carries onto itself.
-
-    Parameters
-    ----------
-    generic_site : (3,) array_like, optional
-        A point on no special position, in reduced coordinates.
-
-    Returns
-    -------
-    dict
-        ``{"real_lattice", "positions", "typat"}``, for spglib or
-        ``irrep.spacegroup.SpaceGroup.from_cell``: type 1 the 2a pair, type 2
-        the decoration.
+    The 2a pair of :func:`p4232_cano2018` alone is a body-centered cubic point
+    set, of space group Im-3m (#229). Cano et al. add atoms that give it a
+    crystal field of P4_232 symmetry, and do not give their positions. The
+    decoration here is the orbit of ``generic_site`` under P4_232, 24 points;
+    ``generic_site`` is a point on no special position, in reduced
+    coordinates. Returns the keywords ``real_lattice``, ``positions`` and
+    ``typat`` of ``irrep.spacegroup.SpaceGroup.from_cell``, with their values
+    for this cell. In ``typat``, type 1 is the 2a pair and type 2 the
+    decoration.
     """
     p = np.asarray(generic_site, dtype=float)
     orbit = []
@@ -1101,28 +1166,31 @@ def p4232_symmetry_cell(generic_site=(0.13, 0.27, 0.41)):
 
 
 # ---------------------------------------------------------------------------
-# 5.  lin3g (wallpaper p4mm) -- a fragile pair over an elementary band rep
+# 5.  lin3g (wallpaper group p4mm): a fragile pair above an elementary band
+#     representation
 # ---------------------------------------------------------------------------
 
 def lin3g():
-    """A spinful square layer, wallpaper group p4mm: a fragile pair above the ``s`` elementary band representation at 2c.
+    """The spinful square layer of Lin et al., Nat. Commun. 15, 550 (2024).
 
-    Two orbitals at ``1a`` ``(0, 0)`` carry a four-band quartet, and two at ``2c``,
-    ``(1/2, 0)`` and ``(0, 1/2)``, the spinful ``s`` elementary band
-    representation; half the quartet lies below the gap, so the six occupied bands
-    are the ``2c`` band representation and a fragile pair.  The model is Lin et
-    al., Nat. Commun. **15**, 550 (2024), SM Sec. 3G, SEq. (3.55) and (3.59)
+    The two orbitals at 1a, ``(0, 0)``, give four bands. The two orbitals at
+    2c, ``(1/2, 0)`` and ``(0, 1/2)``, are spinful ``s`` orbitals. The four
+    lowest bands carry their elementary band representation,
+    ``-E at 2c (mm21')``. Bands 4 and 5, counted from 0, are two of the four
+    bands of the 1a orbitals. They are a fragile pair with a gap above them.
+    The model is that of the paper's SM Sec. 3G, SEq. (3.55) and (3.59)
     (arXiv:2207.10099, (C55) and (C60)), with the values of the SFig. 7
     caption: ``t1 = 5.0``, ``t2 = 1.5``, ``vm = -1.5``, ``tPH = 0.1``,
     ``vs = 1.3``, ``vMz = 0.4``, ``vmu = 8.25 vm``, ``vC = 4.0`` and
-    ``vCS = 0.45 vC``.  The orbital positions alone have the mirror through
-    the layer, which the spin-orbit hoppings break, so the group is the
-    hoppings' to measure.
+    ``vCS = 0.45 vC``. :func:`.groups.realized_group` returns P4mm1'
+    (#99.164), a flat layer being read on a substrate by default. With
+    ``environment="free-standing"``, the orbital positions allow P4/mmm1'
+    (#123.340), and the hoppings lower it to P4mm1'.
 
     Returns
     -------
     pythtb.TBModel
-        Spinful 2D model, 4 orbitals, 8 bands.
+        A spinful two-dimensional model of 4 orbitals and 8 bands.
     """
     sx = np.array([0, 1, 0, 0])
     sy = np.array([0, 0, 1, 0])
@@ -1138,7 +1206,7 @@ def lin3g():
                   periodic_dirs=[0, 1])
     m = TBModel(lat, spinful=True)
 
-    # nearest-neighbour quartet hoppings (1a)
+    # nearest-neighbor quartet hoppings (1a)
     m.set_hop(t1 / 2, 0, 0, [1, 0], mode="add")
     m.set_hop(-t1 / 2, 1, 1, [1, 0], mode="add")
     m.set_hop(t1 / 2, 0, 0, [0, 1], mode="add")
@@ -1180,18 +1248,17 @@ def lin3g():
 
 
 # ---------------------------------------------------------------------------
-# 6.  the 3c orbit of a simple cubic cell -- sites that carry one another's
+# 6.  The 3c orbit of a simple cubic cell, whose sites carry one another's
 #     orbitals
 # ---------------------------------------------------------------------------
 #
-# The three 3c sites of a simple cubic cell -- (0,1/2,1/2), (1/2,0,1/2) and
-# (1/2,1/2,0), the centres of the cube's faces -- each carry a fourfold (or a
-# -4) axis, along a different Cartesian direction, and the cell's own
-# operations permute them.  So an operation carrying one site onto the next
-# carries p_x at the first onto p_y at the second: the functions at one site
-# are the image of those at another, not a copy of them.  Both models are
-# group averages of random seeds, so each obeys its group exactly, and both are
-# spinless.
+# The three 3c sites of a simple cubic cell, (0, 1/2, 1/2), (1/2, 0, 1/2) and
+# (1/2, 1/2, 0), are the centers of the cube's faces. Each has a fourfold or a
+# -4 axis along a different Cartesian direction, and the operations of the
+# cell permute them. So an operation carrying one site onto the next carries
+# p_x at the first onto p_y at the second: the functions at one site are the
+# image of those at another, not a copy of them. Both models are spinless
+# group averages of random seeds, so each obeys its group exactly.
 
 #: The three ``3c`` sites of a simple cubic cell; site ``s`` has its fourfold
 #: axis along the Cartesian direction ``s``.
@@ -1199,11 +1266,12 @@ _CUBIC_3C = np.array([[0.0, 0.5, 0.5], [0.5, 0.0, 0.5], [0.5, 0.5, 0.0]])
 
 
 def _cubic_rotations(proper_only=True):
-    """The signed permutation matrices of ``O`` (24) or of ``T_d`` (24).
+    """The 24 operations of ``O`` or of ``T_d``, as signed permutation matrices.
 
-    ``proper_only`` keeps the determinant ``+1`` matrices, which are the
-    rotations of ``O``; otherwise the ones with an even number of minus signs,
-    which are ``T_d``.
+    With ``proper_only=True`` they are the matrices of determinant 1, the
+    rotations of ``O``. With ``proper_only=False`` they are the ones with an
+    even number of minus signs, the operations of ``T_d``. Returns a list of
+    (3, 3) integer arrays, on Cartesian coordinates.
     """
     out = []
     for perm in itertools.permutations(range(3)):
@@ -1219,12 +1287,14 @@ def _cubic_rotations(proper_only=True):
 
 
 def _rotated_in_pairs(hops, n, angle):
-    """``hops`` written in a basis rotated by ``angle`` inside every pair of orbitals.
+    """The hoppings ``hops`` in a basis rotated inside each pair of orbitals.
 
-    The orbitals ``2s`` and ``2s + 1`` are one site's pair, and the new pair is
-    ``q = Vᵀ p`` with ``V`` one ``[[cos, -sin], [sin, cos]]`` per site, so
-    ``H'(R) = Vᵀ H(R) V`` at every lattice vector: a change of orbital basis
-    and nothing else.
+    ``hops`` maps ``(i, j, R)`` to a real hopping, among ``n`` orbitals of
+    which ``2s`` and ``2s + 1`` are the pair of site ``s``. The new pair is
+    ``q = V.T @ p``, with ``V = [[cos, -sin], [sin, cos]]`` of ``angle`` at
+    every site, so that ``H'(R) = V.T @ H(R) @ V`` at every lattice vector
+    ``R``. Returns the mapping from ``(i, j, R)`` to the hopping of ``H'``, for
+    every ``i`` and ``j`` at each ``R`` of ``hops``.
     """
     c, s = np.cos(angle), np.sin(angle)
     V = np.kron(np.eye(n // 2), np.array([[c, -s], [s, c]]))
@@ -1241,15 +1311,20 @@ def _rotated_in_pairs(hops, n, angle):
 
 
 def _cubic_3c_p_model(orbitals, ops, seed, angle=0.0):
-    """``p`` orbitals at the three ``3c`` sites, averaged over ``ops``.
+    """A spinless crystal of ``p`` orbitals on the 3c sites, obeying ``ops``.
 
-    ``orbitals`` is ``[(site, cartesian direction)]`` in model order.  Every
-    pair within one lattice constant gets a random real hopping, and the whole
-    set is averaged over ``ops`` with the orbitals carried as the vectors they
-    are (``g p_a = sum_j R[j, a] p_j`` at the image site), so the model obeys
-    ``ops`` exactly.  A nonzero ``angle`` then writes every site's pair in a
-    basis rotated inside the pair by that angle (:func:`_rotated_in_pairs`),
-    the same at every site; ``angle = 0`` leaves the hoppings untouched.
+    ``orbitals`` lists the orbitals in model order as pairs ``(s, a)``: the
+    site ``s``, a row of :data:`_CUBIC_3C`, and the Cartesian direction ``a``
+    of its ``p`` orbital. ``ops`` are operations that fix the origin, (3, 3)
+    integer matrices on Cartesian coordinates. Every two orbitals at most one
+    lattice constant apart, an orbital and itself included, get a random real
+    hopping, drawn by the generator seeded with ``seed``. The hoppings are
+    averaged over ``ops``, each ``R`` carrying ``p_a`` to ``sum_j R[j, a] p_j``
+    at the image site, so the model obeys ``ops`` exactly where they carry the
+    orbitals listed onto combinations of one another. A nonzero ``angle``
+    writes each site's pair in a basis rotated inside the pair by that angle
+    (:func:`_rotated_in_pairs`), for orbitals listed two to a site. Returns the
+    model, on the simple cubic cell of lattice constant 1.
     """
     pos = np.array([_CUBIC_3C[s] for s, _ in orbitals])
     index = {pair: o for o, pair in enumerate(orbitals)}
@@ -1303,60 +1378,66 @@ def _cubic_3c_p_model(orbitals, ops, seed, angle=0.0):
 
 
 def cubic_3c_axis_p(seed=11):
-    """One ``p`` orbital per ``3c`` site of a simple cubic cell, along that site's own fourfold axis.
+    """One ``p`` orbital per 3c site of a simple cubic cell, along the site's axis.
 
-    ``p_x`` at ``(0,1/2,1/2)``, ``p_y`` at ``(1/2,0,1/2)`` and ``p_z`` at ``(1/2,1/2,0)``, with a
-    random real hopping between every two orbitals within one lattice constant,
-    averaged over the rotations of ``O``, the orbitals carried as the vectors
-    they are.  An operation carrying one site onto another carries its ``p`` onto
-    a different ``p``.  Averaged over ``O`` alone, the hoppings obey the whole of
-    ``Pm-3m1'`` (#221.93), a ``p`` along the axis being odd under the inversion
-    that fixes its site, and every site carries the ``A2u`` of its ``4/mmm``: the
-    restriction of no one-dimensional representation of the whole group, which
-    the hoppings therefore tell from an ``s`` orbital.
+    The orbitals are ``p_x`` at ``(0, 1/2, 1/2)``, ``p_y`` at ``(1/2, 0, 1/2)``
+    and ``p_z`` at ``(1/2, 1/2, 0)``, each along its site's fourfold axis.
+    Every two orbitals at most one lattice constant apart are joined by a
+    random real hopping, averaged over the rotations of ``O``, under which the
+    three ``p`` orbitals transform as the components of a vector. An operation
+    carrying one site onto another carries its ``p`` onto a different ``p``.
+    Averaged over ``O`` alone, the hoppings obey the whole of Pm-3m1'
+    (#221.93). Every site carries ``A2u`` of its site group ``4/mmm1'``.
+    ``A2u`` is not the restriction to ``4/mmm1'`` of any one-dimensional
+    representation of Pm-3m1', so the hoppings rule out an ``s`` orbital. Of
+    the site irreps they leave, the lowest-angular-momentum rule assigns
+    ``A2u``.
 
     Parameters
     ----------
-    seed : int, optional
-        The seed of the random hoppings.  Default ``11``.
+    seed : int, default 11
+        The seed of the random generator that draws the hoppings.
 
     Returns
     -------
     pythtb.TBModel
-        Spinless 3D model, 3 orbitals, 3 bands.
+        A spinless three-dimensional model of 3 orbitals and 3 bands.
     """
     return _cubic_3c_p_model([(s, s) for s in range(3)],
                              _cubic_rotations(proper_only=True), seed)
 
 
 def cubic_3c_perp_doublet(angle=0.0, seed=7):
-    """The ``p`` pair perpendicular to each ``3c`` site's own axis, in a simple cubic cell: a composite band representation.
+    """The ``p`` pair perpendicular to each 3c site's axis, in a simple cubic cell.
 
-    ``(p_y, p_z)`` at ``(0,1/2,1/2)``, ``(p_x, p_z)`` at ``(1/2,0,1/2)`` and ``(p_x, p_y)``
-    at ``(1/2,1/2,0)``, with a random real hopping between every two orbitals within
-    one lattice constant, averaged over the operations of ``T_d``.  The three
-    sites allow ``Pm-3m1'``; the hoppings obey ``T_d`` and no more, and the
-    Hamiltonian obeys ``P-43m1'`` (#215.71), whose site group at ``3c`` is
-    ``-42m``, its ``-4`` axis along the site's own.  Each pair is the ``E`` of
-    that ``-42m``, carried by an operation onto a pair of different functions at
-    the image site.  ``E`` at ``3c`` induces a composite band representation,
-    ``T1 + T2`` at ``1b``, so the tables list no elementary band representation
-    for it.
+    The orbitals are ``(p_y, p_z)`` at ``(0, 1/2, 1/2)``, ``(p_x, p_z)`` at
+    ``(1/2, 0, 1/2)`` and ``(p_x, p_y)`` at ``(1/2, 1/2, 0)``. Every two
+    orbitals at most one lattice constant apart are joined by a random real
+    hopping, averaged over the operations of ``T_d``. The sites alone allow
+    Pm-3m1' (#221.93), and the hoppings lower it to P-43m1' (#215.71). Its site
+    group at 3c is ``-42m1'``, with the ``-4`` axis along the site's own. Each
+    pair carries ``E`` of that site group. An operation carrying one site onto
+    another carries its pair onto the pair at the image site, which is made of
+    different ``p`` orbitals. The band representation induced from ``E`` at 3c
+    is equivalent to ``T1 at 1b (-43m1') + T2 at 1b (-43m1')``. So
+    :func:`pythtqc.ebr_data` lists no elementary band representation induced
+    from ``E`` at 3c.
 
     Parameters
     ----------
-    angle : float, optional
-        A rotation of every site's pair within itself, ``q = Vᵀ p`` with
-        ``V = [[cos, -sin], [sin, cos]]``, in radians: a change of orbital basis,
-        which moves no group, site irrep or band content, and away from right
-        angles writes the pairs in no real-harmonic basis.  Default ``0.0``.
-    seed : int, optional
-        The seed of the random hoppings.  Default ``7``.
+    angle : float, default 0.0
+        An angle in radians. Each site's pair ``p`` is rotated within itself to
+        ``q = V.T @ p``, with ``V = [[cos, -sin], [sin, cos]]`` of the angle.
+    seed : int, default 7
+        The seed of the random generator that draws the hoppings.
 
     Returns
     -------
     pythtb.TBModel
-        Spinless 3D model, 6 orbitals, 6 bands.
+        A spinless three-dimensional model of 6 orbitals and 6 bands. With a
+        nonzero ``angle``, the orbital basis inside each pair is changed and
+        nothing else: the group, the site irreps and the symmetry data vector
+        are those at ``angle=0``.
     """
     return _cubic_3c_p_model([(s, a) for s in range(3) for a in range(3) if a != s],
                              _cubic_rotations(proper_only=False), seed, angle=angle)

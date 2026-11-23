@@ -1,6 +1,6 @@
 Six p orbitals at the three 3c sites of a simple cubic cell, a pair at each
-site perpendicular to the site's own axis: the orbitals at the three sites
-are one another's images.
+site perpendicular to the site's own axis, so each site holds a different pair,
+the image of the pair at another site.
 
 1. the model: a p pair at each 3c site, perpendicular to the site's own axis
    site              axis   orbitals
@@ -11,8 +11,8 @@ are one another's images.
    hoppings         : 66, random, to every orbital within one lattice constant,
                       averaged over the operations of T_d
 
-2. the group: what the point set allows, and what the hoppings obey
-   point set allows : #221.93 Pm-3m1'
+2. the group: what the lattice and the orbital positions allow, and what the hoppings obey
+   positions allow  : #221.93 Pm-3m1'
    realized group   : #215.71 P-43m1', orbitals at Wyckoff 3c
    broken           : i, 3 like m(z), 6 like C2([110]), 6 like C4(z), 8 like S3([111]),
                       each also with time reversal: 48 of the 96 coset representatives
@@ -32,21 +32,21 @@ are one another's images.
    (0, 0.5, 0.5)    : onto (0.5, 0, 0.5), axis x onto y, C2(x) onto C2(y), character -2 at both
    (0.5, 0, 0.5)    : onto (0.5, 0.5, 0), axis y onto z, C2(y) onto C2(z), character -2 at both
    (0.5, 0.5, 0)    : onto (0, 0.5, 0.5), axis z onto x, C2(z) onto C2(x), character -2 at both
-   each site's characters are the first site's, carried by the operations of the orbit,
-   and each site carries the E of its own -42m
+   the threefold carries each site and its operations onto the next, with the same characters
+   each site has the site irrep E of its own -42m
 
 4. the same model, every pair rotated inside itself by 0.37 rad
    realized group   : #215.71 P-43m1'
-   wyckoff_orbits   : section 3's atomic-limit table, line for line, and its characters
+   wyckoff_orbits   : the same table as section 3's, line for line, with the same characters
    all 6 bands      : GM4 + GM5 + M1 + M2 + 2xM5 + R4 + R5 + X1 + X2 + 2xX5
    all 6, rotated   : GM4 + GM5 + M1 + M2 + 2xM5 + R4 + R5 + X1 + X2 + 2xX5
-   the rotation is a change of orbital basis inside each pair, a choice of Wannier gauge,
-   and a character is a trace, which no change of basis moves
+   the rotation is a change of orbital basis inside each pair, a choice of Wannier gauge
+   a character is a trace, and a change of basis leaves it unchanged
 
 5. the six bands as a sum of elementary band representations
-   atomic limit     : T1 at 1b (-43m1') + T2 at 1b (-43m1')
+   decomposition    : T1 at 1b (-43m1') + T2 at 1b (-43m1')
    both bases       : largest energy difference 0.000000 along GM-X-M-GM-R-X, the figure's path
-   E at 3c of P-43m1' is one of the known exceptions to an irrep at a maximal
-   Wyckoff position inducing an elementary band representation
+   E at 3c of P-43m1' sits at a maximal Wyckoff position, and the band
+   representation it induces is the sum of two elementary ones printed above
 
-Done — figure written to <FIGDIR>
+Done. The figure is written to <FIGDIR>

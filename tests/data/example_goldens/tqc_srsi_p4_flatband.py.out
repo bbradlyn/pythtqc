@@ -1,5 +1,5 @@
-Hwang et al., Nat. Commun. 17, 8564 (2026), SM section 5A: two Kramers pairs
-at 2c of the square lattice, with the vertical mirrors broken in the hoppings.
+Hwang et al., Nat. Commun. 17, 8564 (2026), supplementary section 5A: two Kramers
+pairs at 2c of the square lattice, with the vertical mirrors broken in the hoppings.
 Bands are counted from 0, as pythtb counts them.
 
 1. the supplement's two Hamiltonians, typed as hoppings and checked
@@ -9,38 +9,38 @@ Bands are counted from 0, as pythtb counts them.
                       and 0.000000 at 500 random k
 
 2. the group the hoppings obey, and the chiral pattern that lowers it
-   as transcribed   : realized group #99.164 P4mm1', more than the P41' the paper
-                      analyses: the typed hoppings treat the two diagonals of the
-                      square lattice alike
+   as transcribed   : realized group #99.164 P4mm1', larger than the P41' the paper
+                      analyzes: the typed hoppings also obey the four vertical mirrors
+                      of the square lattice
    chiral pattern   : t_a = 0.03 along (1,1) and t_b = 0.0125 along (1,-1) on the
                       x site, the two swapped on the y site
-   with the pattern : realized group #75.2 P41', orbitals at Wyckoff 2c, where the
-                      paper puts its Kramers pairs, measured from the Hamiltonian with nothing declared
+   with the pattern : realized group #75.2 P41', with the orbitals at
+                      Wyckoff 2c as in the paper; nothing is declared
    bands 1 and 2    : over a 41x41 mesh, smallest direct gap 0.293412 as transcribed,
                       0.257674 with the pattern, and 0.257674 at its smallest along the
                       11-point ramp between them
-   the gap stays open along the ramp, so the two pairs of bands below are the
-   supplement's own, continued
+   the gap stays open at each point of the ramp, so the two sets of bands studied
+   next are the supplement's own, deformed without closing the gap
 
-3. srsi_of_model(realized): the stable real-space invariants, read off the orbitals
+3. srsi_of_model(realized): the stable real-space invariants (SRSIs), read off the orbitals
    P41' #75.2, double-valued: stable real-space invariants   (.group)
      the whole model: theta_1 to theta_3 = (1, 1, 0); theta_4, theta_5 = (0, 1) mod 2   (.theta_Z, .theta_Zn)
      each Wyckoff orbit, its site irreps written m (irrep)_w, with theta_1 to theta_3 and theta_4, theta_5 mod 2   (.wyckoff_orbits)
        2c (21'): orbitals 0-1, 1 (-1E2E)_c: (1, 1, 0); (0, 1) mod 2
 
-4. the spectrum, and what momentum space says about the two pairs
+4. the spectrum, and what momentum space says about the two sets of bands
    as transcribed   : bands 0 and 1 flat at zero, largest |E| 0.000000 over the
                       41x41 mesh; bands 2 and 3 from 0.293412 to 1.706588
-   with the pattern : bands 0 and 1 from -0.084751 to 0.085000, split at first order on
-                      the pattern's scale 2(t_a + t_b) = 0.085000; bands 2 and 3 from
-                      0.292688 to 1.707576, moved at second order
-   bands 1 and 2    : gap 0.207688 with the pattern
-   bands 0 and 1    : -GM5GM7 + -M5M7 + -X3X4, Z-valued (1, 0, 0)
-   atomic limit     : -1E22E2 at 1a (41')
-   bands 2 and 3    : -GM6GM8 + -M6M8 + -X3X4, Z-valued (0, 1, 0)
-   atomic limit     : -1E12E1 at 1a (41')
+   with the pattern : bands 0 and 1 from -0.084751 to 0.085000, a spread of first order
+                      in the pattern, on its scale 2(t_a + t_b) = 0.085000; bands 2 and 3
+                      from 0.292688 to 1.707576, moved at second order
+   bands 1 and 2    : indirect gap 0.207688 with the pattern
+   bands 0 and 1    : -GM5GM7 + -M5M7 + -X3X4, Z-valued SRSIs (1, 0, 0)
+   EBR sum          : -1E22E2 at 1a (41')
+   bands 2 and 3    : -GM6GM8 + -M6M8 + -X3X4, Z-valued SRSIs (0, 1, 0)
+   EBR sum          : -1E12E1 at 1a (41')
    indicator group  : trivial
-   nothing in momentum space objects to this splitting
+   each set's symmetry data vector is that of one EBR, an atomic limit
 
 5. splitting(realized, bands=2): bands 0 and 1 against bands 2 and 3
    P41' #75.2, double-valued: nsit, no realization of the valence bands and of the conduction bands adding up to the whole model's invariants valued modulo n   (.group, .nsit)
@@ -51,14 +51,14 @@ Bands are counted from 0, as pythtb counts them.
      atomic realizations of the conduction bands, with (theta_4, theta_5) mod 2   (.conduction.realizations)
        1 (-1E12E1)_a   (0, 0)
      no pair of a valence and a conduction realization has invariants valued modulo n adding up to the whole model's   (.consistent_pairs)
-   the realizations of the two pairs are their atomic limits in section 4
+   each set's one atomic realization induces the EBR section 4 prints for it
 
-6. the k_x-directed Wilson loop W of each pair, as a function of k_y
+6. the k_x-directed Wilson loop W of each set, as a function of k_y
    mesh             : 81 x 121, k_y from 0 to 1 inclusive
-   bands 0 and 1    : the two centers meet at k_y = 0.0, 0.25, 0.5, 0.75, 1.0,
+   bands 0 and 1    : the hybrid Wannier centers meet at k_y = 0.0, 0.25, 0.5, 0.75, 1.0,
                       where tr W / 2 = -1.0, 1.0, -1.0, 1.0, -1.0,
-                      and each branch winds by ±2
-   bands 2 and 3    : both centers at zero at every k_y, largest |phi / 2pi| 0.000000,
+                      and each center winds by ±2
+   bands 2 and 3    : both centers at zero at every k_y, largest |center| 0.000000,
                       and the loop does not wind
    only bands 0 and 1 wind: they carry the obstruction section 5 diagnoses
 
@@ -68,21 +68,21 @@ Bands are counted from 0, as pythtb counts them.
    degenerate pairs : bands 0 and 1, and bands 2 and 3, over the 41x41 mesh: largest
                       |E0 - E1| 0.000000 and |E2 - E3| 0.000000
    bands 1 and 2    : gap 4.040874
-   Z-valued         : all 4 bands (1, 1, 0), the valence bands (1, 0, 0)
+   Z-valued SRSIs   : all 4 bands (1, 1, 0), the valence bands (1, 0, 0)
    mod 2            : all 4 bands (0, 1)
-   splitting        : bands 0 and 1 against bands 2 and 3:
+   splitting        : bands 0 and 1 against bands 2 and 3 is
                       nsit
    consistent pairs : none: no valence and conduction realization have invariants
                       valued modulo n adding up to those of all 4 bands
-   bands 0 and 1    : the two centers meet at k_y = 0.0, 0.5, 1.0,
+   bands 0 and 1    : the hybrid Wannier centers meet at k_y = 0.0, 0.5, 1.0,
                       where tr W / 2 = 1.0, -1.0, 1.0,
-                      and each branch winds by ±1
-   bands 2 and 3    : the two centers meet at k_y = 0.0, 0.5, 1.0,
+                      and each center winds by ±1
+   bands 2 and 3    : the hybrid Wannier centers meet at k_y = 0.0, 0.5, 1.0,
                       where tr W / 2 = -1.0, 1.0, -1.0,
-                      and each branch winds by ±1
-   both pairs wind here, and in the flat-band model only bands 0 and 1 do: the
-   criterion diagnoses the splitting, not the side
+                      and each center winds by ±1
+   both sets wind here, and in the flat-band model only bands 0 and 1 do: the SRSIs
+   show that the two sets cannot both be atomic limits, not which set is not one
 
 8. the two spectra and the two Wilson loops, one panel each
 
-Done — figure written to <FIGDIR>
+Done. The figure is written to <FIGDIR>

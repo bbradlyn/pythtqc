@@ -1,20 +1,20 @@
-Kane-Mele on the honeycomb at delta = 0 and rashba = 0, PRL 95, 226801 (2005):
-one monolayer with four bands, two occupied, and an unbroken horizontal mirror,
-asked three ways.
+The Kane-Mele model on the honeycomb lattice, PRL 95, 226801 (2005), at delta = 0
+and rashba = 0: one monolayer with four bands, two occupied, and an unbroken mirror m(z),
+presented as a layer in the plane and as a periodic decoupled stack.
 Bands are counted from 0, as pythtb counts them.
 
 A. the layer in the plane, declared free-standing
    realized group   : #191.234 P6/mmm1', 4 bands, orbitals at Wyckoff 2c
    site irrep       : -E1, of the declared s orbital
    bands 0 and 1    : GM: -GM9   K: -K8   M: -M6
-   out of the plane : 11 coreps at k_z = 1/2, measured on the layer's own stack
+   at k_z = 1/2     : 11 coreps, their multiplicities measured on the layer's own stack
    indicator class  : (1, 0) in Z6 x Z12, order 6
    free-standing is a declaration: a flat model has no third coordinate, and a
    layer on a substrate has no mirror in z
 
 B. the same layer, with the physical p_z declared
    realized group   : #191.234 P6/mmm1', orbitals at Wyckoff 2c
-   site irrep       : -E2, of the declared p_z, odd under the mirror: m(z) = -1
+   site irrep       : -E2, of the declared p_z, with orbital character -1 under m(z)
    bands 0 and 1    : GM: -GM12   K: -K9   M: -M5
    indicator class  : (5, 0) in Z6 x Z12, order 6
    inversion        : r to -r, the product of the mirror m(z) and the rotation C2z,
@@ -25,8 +25,8 @@ B. the same layer, with the physical p_z declared
                       indicator group: trivial
    operations' R_zz : -1 and +1 at rashba = 0, only +1 at rashba = 0.25:
                       the mirror and every operation composed with it are gone
-   C2z acts on in-plane k as inversion does but is a rotation: the inversion, with
-   its parity eigenvalues, is the layer group's and needs the third direction
+   C2z acts on in-plane k as the inversion does, and is a rotation
+   the inversion and its parity eigenvalues belong to the layer group, not to a wallpaper group
 
 C. the layer as a periodic decoupled stack
    the stack        : 3 periodic directions and no vacuum, period c = 8
@@ -43,13 +43,13 @@ D. the three classes side by side
    the stack, p_z   : #191.234   Z6 x Z12          (5, 0)   6       1       2
    named indicators : of the p_z class, z2w,3 = 1, z4 = 2, z3m,pi = 2, z3m,0 = 2,
                       z6m,0 = 1, z6m,pi = 1, z12 = 2
-   out of the plane : z2w,3, z3m,pi and z6m,pi read only the coreps at k_z = 1/2,
-                      z4 and z12 those of both planes
+   multiplicities   : z2w,3, z3m,pi and z6m,pi depend only on those at k_z = 1/2,
+                      z4 and z12 on those at k_z = 0 and k_z = 1/2
    all 4 bands      : the band representation of the orbitals at 2c, an atomic limit
    indicator class  : (0, 0) in Z6 x Z12, order 1, every named indicator 0
-   the stack and the plane with p_z have one class, (5, 0); declaring s instead
-   moves it to (1, 0) and leaves its order, z2w,3 and z4 as they are
+   the stack and the plane with p_z have the same class, (5, 0)
+   declaring s in the plane instead gives (1, 0), with the same order, z2w,3 and z4
 
 E. the layer's bands, and the stack's at k_z = 0 and k_z = 1/2
 
-Done — figure written to <FIGDIR>
+Done. The figure is written to <FIGDIR>

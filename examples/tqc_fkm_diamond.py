@@ -1,20 +1,23 @@
 # Example of a bond distortion measured as a symmetry lowering, and of the
 # symmetry-indicator class of each phase, using pythTQC.
 # The model is Fu, Kane and Mele's spin-orbit model on the diamond lattice,
-# PRL 98, 106803 (2007): four bands, two occupied, with one of the four
-# nearest-neighbour bonds detuned along [111].  It is pythtb's own
-# pythtb.models.fu_kane_mele(t, soc, dt).
+# PRL 98, 106803 (2007): four bands, two occupied, with the nearest-neighbor
+# hoppings detuned so that the bond along [111] differs from the other three.
+# It is pythtb's own pythtb.models.fu_kane_mele(t, soc, dt).
 # Run with python3, PythTB version 2.0 and pythTQC.
 
 # The calculations in this python file include
 # 1. the undistorted crystal: the group, the bands at the high-symmetry points,
-#    and the content of all four bands with its atomic limits
-# 2. delta_t = +0.4 on the [111] bond: the group, the bands, the valence content
-#    and its atomic limits
-# 3. delta_t = -0.4 on the same bond: the same four measurements
-# 4. three bonds cut -- decoupled dimers along [111]: the same four measurements
-# 5. the coreps at the eight time-reversal-invariant momenta
-# 6. the symmetry-indicator class of the three phases in {BS}/{AI}
+#    and the symmetry data vector of all four bands with its atomic limits
+# 2. the strong phase, delta_t = +0.4 on the [111] bond: the group, the bands,
+#    the symmetry data vector of the valence bands and its atomic limits
+# 3. the weak phase, delta_t = -0.4 on the same bond: the same four measurements
+# 4. the dimers, three bonds cut, which leaves dimers along [111] coupled to one
+#    another only by the spin-orbit hopping: the same four measurements
+# 5. where the coreps of the valence bands change, at the eight
+#    time-reversal-invariant momenta
+# 6. the symmetry-indicator class of the three phases in the indicator group
+#    {BS}/{AI}
 # 7. the bands along GM-T-F-L-GM, and the figure written out
 
 # Author: the pythTQC examples
@@ -36,8 +39,7 @@ from pythtqc import format_coreps as fmt
 from pythtqc import solve_at
 from pythtqc.utils import save_figure
 
-# The last line prints a dash, —, which a Windows console cannot print by
-# default, so the output is UTF-8.
+# Write the output as UTF-8, which a Windows console does not use by default.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -50,12 +52,13 @@ OUTDIR = os.environ.get("TQC_EXAMPLE_FIGDIR") or os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "figures", "tqc_fkm_diamond")
 NK_PATH = 61 if QUICK else 241              # band-path density: the figure only
 
-# fu_kane_mele(t, soc, dt): ``dt`` offsets the four nearest-neighbour bonds, in
-# the order R = [0,0,0], [-1,0,0], [0,-1,0], [0,0,-1].
-T = 1.0                    # the nearest-neighbour hopping
+# fu_kane_mele(t, soc, dt): dt, written delta_t below, holds four numbers, one
+# added to the hopping on each nearest-neighbor bond, in the order
+# R = [0,0,0], [-1,0,0], [0,-1,0], [0,0,-1].  The first bond is along [111].
+T = 1.0                    # the nearest-neighbor hopping
 SOC = 0.125                # the spin-orbit strength
 
-# A pythtb orbital carries no symmetry character, so the s here is a declaration.
+# A pythtb orbital does not say whether it is s, p or d, so the s here is declared.
 DECLARE = {0: "s"}
 
 POINTS = ("GM", "T", "F", "L")               # the distorted phases' k-points
@@ -65,11 +68,12 @@ TICKS = (r"$\Gamma$", "T", "F", "L", r"$\Gamma$")
 os.makedirs(OUTDIR, exist_ok=True)
 
 print("Fu-Kane-Mele on the diamond lattice, PRL 98, 106803 (2007): four bands, two")
-print("occupied, one of the four nearest-neighbour bonds detuned along [111].")
+print("occupied, with the bond along [111] detuned from the other three.")
 
 
 def row(label, first, *rest):
-    """One line of the ledger, a label of at most 16 characters, then its continuation lines."""
+    """One line of the ledger: label, a heading of at most 16 characters, then first,
+    then each line of rest beneath it."""
     print(f"   {label:<16} : {first}")
     for line in rest:
         print(f"{'':22}{line}")
@@ -80,8 +84,9 @@ def values(entries):
 
 
 def atomic_limits(d):
-    """The atomic limits of a band set, as a label and a value: the one sum of elementary
-    band representations with this content, how many sums there are, or none."""
+    """The sums of elementary band representations whose symmetry data vector is that
+    of the bands decomposed in d, as a row's heading and its value: the one sum, how
+    many there are, or none."""
     if not d.decomposable:
         return "atomic limits", "none"
     sums = [s.label for s in d.candidate_sums]
@@ -115,20 +120,20 @@ for point in sorted(hsp):
     else:
         row(f"E at {point}", ", ".join(f"{x:+.6f}" for x in w) + f"   gap {gap:.6f}")
 
-table4 = tqc.hsp_table(r, bands=4)          # the content of all four bands
+table4 = tqc.hsp_table(r, bands=4)          # the coreps of all four bands
 d4 = tqc.decompose(table4)
 row("all 4 bands", fmt(table4.symmetry_data))
 row(*atomic_limits(d4))
 
-# ... and the same table asked for the valence bands alone
+# ... and the table of the valence bands alone
 table2 = tqc.hsp_table(r, bands=2)
-row("valence content", f"not defined at {', '.join(sorted(table2.refusals))}, where all "
-    "four bands meet")
+row("valence bands", f"refused at {', '.join(sorted(table2.refusals))}, where the two "
+    "bands cut the fourfold level")
 print("   the undistorted crystal is a semimetal")
 
-########### 2. delta_t = +0.4 on the [111] bond ###########
+########### 2. strong: delta_t = +0.4 on the [111] bond ###########
 
-print("\n2. delta_t = +0.4 on the [111] bond")
+print("\n2. strong: delta_t = +0.4 on the [111] bond")
 m_strong = fu_kane_mele(T, SOC, [0.4, 0.0, 0.0, 0.0])        # one bond strengthened
 
 r_strong = tqc.realized_group(m_strong, characters=DECLARE)
@@ -143,14 +148,14 @@ for point in POINTS:
     row(f"E at {point}", ", ".join(f"{x:+.6f}" for x in w) + f"   gap {w[2] - w[1]:.6f}")
 
 t2_strong = tqc.hsp_table(r_strong, bands=2)
-row("valence content", fmt(t2_strong.symmetry_data))
+row("valence bands", fmt(t2_strong.symmetry_data))
 
 dec_strong = tqc.decompose(t2_strong)
 row(*atomic_limits(dec_strong))
 
-########### 3. delta_t = -0.4 on the same bond ###########
+########### 3. weak: delta_t = -0.4 on the same bond ###########
 
-print("\n3. delta_t = -0.4 on the same bond")
+print("\n3. weak: delta_t = -0.4 on the same bond")
 m_weak = fu_kane_mele(T, SOC, [-0.4, 0.0, 0.0, 0.0])         # the same bond weakened
 
 r_weak = tqc.realized_group(m_weak, characters=DECLARE)
@@ -166,14 +171,15 @@ for point in POINTS:
 row("gaps GM/T/F/L", " / ".join(f"{g:.6f}" for g in gaps_weak))
 
 t2_weak = tqc.hsp_table(r_weak, bands=2)
-row("valence content", fmt(t2_weak.symmetry_data))
+row("valence bands", fmt(t2_weak.symmetry_data))
 
 dec_weak = tqc.decompose(t2_weak)
 row(*atomic_limits(dec_weak))
 
-########### 4. three bonds cut: decoupled dimers along [111] ###########
+########### 4. dimers: three bonds cut ###########
 
-print("\n4. three bonds cut: decoupled dimers along [111]")
+print("\n4. dimers: three bonds cut, which leaves dimers along [111] coupled"
+      "\n   to one another only by the spin-orbit hopping")
 m_dimers = fu_kane_mele(T, SOC, [0.0, -1.0, -1.0, -1.0])     # three bonds cut
 
 r_dimers = tqc.realized_group(m_dimers, characters=DECLARE)
@@ -189,18 +195,21 @@ for point in POINTS:
 row("gaps GM/T/F/L", " / ".join(f"{g:.6f}" for g in gaps_dimers))
 
 t2_dimers = tqc.hsp_table(r_dimers, bands=2)
-row("valence content", fmt(t2_dimers.symmetry_data))
+row("valence bands", fmt(t2_dimers.symmetry_data))
 
 dec_dimers = tqc.decompose(t2_dimers)
 row(*atomic_limits(dec_dimers))
-print("   the valence bands are the antibonding pair of each dimer's two s orbitals,")
-print(f"   centered at {min(t.wyckoff for t in dec_dimers.candidate_sums[0])} on the [111] axis")
+print("   the valence bands have the symmetry data vector of each dimer's two s"
+      "\n   orbitals in their combination odd under inversion,")
+print(f"   centered at "
+      f"{min(t.wyckoff for t in dec_dimers.candidate_sums[0])} on the [111] axis")
 
-########### 5. the coreps at the eight TRIM ###########
+########### 5. where the coreps change, at the eight TRIM ###########
 
-print("\n5. the coreps at the eight time-reversal-invariant momenta (TRIM)")
+print("\n5. where the coreps change among the eight time-reversal-invariant"
+      "\n   momenta (TRIM)")
 
-# The star of a point is the set of its distinct images under the group:
+# The orbit of a point is the set of its distinct images under the group:
 # an operation whose rotation on reduced coordinates is R carries the reduced k
 # to k R^-1, and an antiunitary one to -k R^-1.
 k_actions = []
@@ -216,7 +225,7 @@ for point in POINTS:
     stars[point] = len(orbit)
 n_trim = sum(stars.values())
 row("k-orbits", ", ".join(f"{p} ({stars[p]})" for p in POINTS)
-    + f", covering the cell's {n_trim} TRIM")
+    + f", covering the zone's {n_trim} TRIM")
 
 # the strong phase against the dimers, point by point, and then the weak one
 changed_strong = sorted(p for p in POINTS
@@ -231,14 +240,21 @@ n_weak = sum(stars[p] for p in changed_weak)
 row("weak vs dimers", f"the coreps change at {' and '.join(changed_weak)}, "
     f"{n_weak} of the {n_trim} TRIM")
 
-print(f"   #{g_strong.number_str} has inversion, so nu_0 is the parity product over "
-      "these eight points")
+print(f"   #{g_strong.number_str} has inversion, so (-1)^nu_0, with nu_0 the strong Z2 "
+      "index, is the\n   product over the eight TRIM of the parity of the valence "
+      "Kramers pair. Each\n   corep that differs from the dimers' has the opposite "
+      "parity. The dimers are\n   an atomic limit, with nu_0 = 0")
 
 ########### 6. the symmetry-indicator class in {BS}/{AI} ###########
 
-# The quotient {BS}/{AI} is fixed by the group alone, so a class is a property of
-# the content, one step beyond whether a sum of elementary band representations
-# carries it.
+# The indicator group {BS}/{AI} is fixed by the space group alone. The class of
+# each phase is the class of its symmetry data vector in it. The class of an
+# atomic limit is zero. Phases with no atomic limit can differ in class, as the
+# strong and weak ones do. z4 is the indicator whose value modulo 2 is nu_0, and
+# z2w,1 to z2w,3 are the weak indicators. order is the order of the class in
+# {BS}/{AI}. The Z2 indices are printed (nu_0;nu_1nu_2nu_3), as Fu, Kane and
+# Mele write them: the strong phase is a strong topological insulator, and the
+# weak phase a weak one.
 print("\n6. the symmetry-indicator class in {BS}/{AI}")
 si_strong = tqc.symmetry_indicator(t2_strong)
 si_weak = tqc.symmetry_indicator(t2_weak)
@@ -343,12 +359,12 @@ axes[2].set_title("dimers: three bonds cut\n"
                   f"#{g_dimers.number_str} {g_dimers.name}   class "
                   f"{si_dimers.values} in {si_dimers.indicator_group}", fontsize=10)
 
-fig.suptitle("Fu-Kane-Mele on diamond, one bond detuned along [111]: the four "
-             "bands along GM-T-F-L-GM, the valence pair in blue with its coreps "
-             "at each node.", fontsize=10)
+fig.suptitle("Fu-Kane-Mele on diamond, the [111] bond detuned from the other three: "
+             "the four bands along GM-T-F-L-GM, the valence pair in blue with its "
+             "coreps at each node.", fontsize=10)
 fig.tight_layout(pad=0.5, rect=(0, 0, 1, 0.93))
 # save_figure writes the PDF without its creation date, so a rerun gives the same file
 save_figure(fig, os.path.join(OUTDIR, "fkm_diamond_phases.pdf"))
 plt.close(fig)
 
-print("\nDone — figure written to", OUTDIR)
+print("\nDone. The figure is written to", OUTDIR)

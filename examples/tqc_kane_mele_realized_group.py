@@ -1,28 +1,34 @@
-# Example of a Wyckoff position that moves with the regime, and of a degeneracy
-# held by a conserved operator rather than by the little group, using pythTQC.
-# The model is Kane and Mele's honeycomb model, PRL 95, 226801 (2005): four
-# bands, two occupied, a staggered sublattice potential delta, an intrinsic
-# spin-orbit coupling and a Rashba term.  It is pythtb's own
-# pythtb.models.kane_mele(delta, t, soc, rashba).
+# Example of two bands whose decomposition into elementary band representations
+# changes Wyckoff position from the Z2-odd regime to the Z2-even one, and of a
+# degeneracy that a conserved operator protects and the little group does not,
+# using pythTQC.
+# The model is the Kane-Mele model on the honeycomb lattice, PRL 95, 226801
+# (2005), which is pythtb's own pythtb.models.kane_mele(delta, t, soc, rashba).
+# It has four bands, two of them occupied, a staggered sublattice potential
+# delta, an intrinsic spin-orbit coupling and a Rashba term.  With
+# rashba = 0.25, delta = 1.0 is in the Z2-odd regime and delta = 2.5 in the
+# Z2-even regime.
 # Run with python3, PythTB version 2.0 and pythTQC.
 
 # The calculations in this python file include
-# 1. delta = 1.0 with rashba on: the group, the content at GM, K and M of the
-#    two occupied bands and of the two above them, the atomic limits of each,
-#    and the symmetry-indicator group
-# 2. delta = 2.5 with rashba on: the group, the two contents and their atomic
-#    limits
+# 1. delta = 1.0, rashba = 0.25: the group, the corep multiplicities at GM, K
+#    and M of the two occupied bands and of the two above them, the
+#    decompositions of each into elementary band representations, and the
+#    symmetry-indicator group
+# 2. delta = 2.5, rashba = 0.25: the group, the corep multiplicities of both
+#    pairs of bands, and their decompositions
 # 3. delta = 0, rashba = 0: the same
 # 4. delta = 0, rashba = 0.25: the same, and the coreps at K level by level
-# 5. the conserved operators, read off H(k)
-# 6. what the lost operator does to the degeneracies at GM, K and M
-# 7. the deep atomic limit: delta = 50, the weight on each orbital and the
-#    Wyckoff position of the atomic limit
-# 8. the bands along GM-K-M-GM, one panel per regime, and the figure written out
+# 5. the operators that commute with H(k) on a 6 x 6 mesh of k
+# 6. what the loss of one such operator does to the degeneracies at GM, K and M
+# 7. the deep atomic limit, delta = 50: the weight of the occupied bands on each
+#    orbital, and the Wyckoff position of their decomposition
+# 8. the bands along GM-K-M-GM, one panel per parameter set, written to a figure
 
-# The layer group this script sets aside -- the horizontal mirror, the inversion
-# that comes with it, and the symmetry-indicator class of one monolayer -- is the
-# subject of examples/tqc_kane_mele_three_presentations.py.
+# The groups read here leave out the horizontal mirror.  The layer group, with
+# that mirror and the inversion it brings, is the subject of
+# examples/tqc_kane_mele_three_presentations.py, with the symmetry-indicator
+# class of one monolayer.
 
 # Author: the pythTQC examples
 
@@ -43,8 +49,7 @@ from pythtqc import format_coreps as fmt
 from pythtqc import solve_at
 from pythtqc.utils import save_figure
 
-# The last line prints a dash, —, which a Windows console cannot print by
-# default, so the output is UTF-8.
+# Write the output as UTF-8, which a Windows console does not use by default.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -58,18 +63,20 @@ OUTDIR = os.environ.get("TQC_EXAMPLE_FIGDIR") or os.path.join(
     "tqc_kane_mele_realized_group")
 NK_PATH = 61 if QUICK else 301             # band-path density: the figure only
 
-# kane_mele(delta, t, soc, rashba) — the canonical pythtb values with t = -1.  On
-# the bipartite honeycomb t -> -t is the sublattice gauge diag(1, -1), so it
-# changes neither the spectrum nor Z2.  The K-point gap closes at
-# delta = 3*sqrt(3)*soc = 1.559, so delta = 1.0 is Z2-odd and delta = 2.5 is even.
-T = -1.0                   # the nearest-neighbour hopping
+# kane_mele(delta, t, soc, rashba), with t = -1.  On the bipartite honeycomb
+# lattice t -> -t is the sublattice gauge diag(1, -1), with a spin rotation by
+# pi about z where the Rashba term is on, so it changes neither the spectrum
+# nor Z2.  Without the Rashba term the gap at K closes at
+# delta = 3*sqrt(3)*soc = 1.559.  With rashba = 0.25 it closes near
+# delta = 1.47.  So delta = 1.0 is Z2-odd and delta = 2.5 is Z2-even.
+T = -1.0                   # the nearest-neighbor hopping
 SOC = 0.3                  # the intrinsic (Kane-Mele) spin-orbit strength
 
-# A pythtb orbital carries no symmetry character, so the A1 here is a declaration.
+# A pythtb orbital has no stated site irrep, so the A1 here is declared.
 DECLARE = {0: "A1"}
 TYPAT = [0, 1]             # the two honeycomb sites declared inequivalent species
 
-POINTS = ("GM", "K", "M")                                   # the group's k-points
+POINTS = ("GM", "K", "M")                                   # the high-symmetry points
 PATH = [[0.0, 0.0], [1 / 3, 2 / 3], [0.5, 0.5], [0.0, 0.0]]     # GM - K - M - GM
 NODES = ("GM", "K", "M", "GM")
 TICKS = (r"$\Gamma$", "K", "M", r"$\Gamma$")
@@ -79,13 +86,13 @@ NK_MESH = 6                                # realized_group's default mesh
 
 os.makedirs(OUTDIR, exist_ok=True)
 
-print("Kane-Mele on the honeycomb, PRL 95, 226801 (2005): four bands, two occupied,")
-print("a staggered sublattice potential, spin-orbit coupling and a Rashba term.")
+print("The Kane-Mele model on the honeycomb lattice, PRL 95, 226801 (2005): four bands,")
+print("two occupied, a staggered sublattice potential, spin-orbit coupling and a Rashba term.")
 print("Bands are counted from 0, as pythtb counts them.")
 
 
 def row(label, first, *rest):
-    """One line of the ledger, a label of at most 16 characters, then its continuation lines."""
+    """One printed row: a label of at most 16 characters, then its continuation lines."""
     print(f"   {label:<16} : {first}")
     for line in rest:
         print(f"{'':22}{line}")
@@ -103,14 +110,15 @@ def coreps_of(table, point):
 
 
 def by_point(table):
-    """A band set's content at GM, K and M, each as format_coreps writes it."""
+    """The corep multiplicities of a band set at GM, K and M, as format_coreps writes them."""
     return "   ".join(f"{p}: {fmt(coreps_of(table, p))}" for p in POINTS)
 
 
 
 
 def signed_sum(d):
-    """The shortest sum with negative multiplicities that carries the content, in lines."""
+    """The shortest signed sum of elementary band representations with the bands' symmetry
+    data vector, as lines."""
     shortest = min(d.signed_combinations.sums, key=len)
     lines = []
     for t in sorted(shortest, key=lambda t: (t.multiplicity, t.irrep, t.wyckoff)):
@@ -126,14 +134,14 @@ def signed_sum(d):
 
 
 def limits(d, where=""):
-    """The atomic limits of a band set, or a signed sum where there are none."""
+    """The decompositions of a band set, or the shortest signed sum where there are none."""
     if not d.decomposable:
-        row("atomic limits", "none")
+        row("decompositions", "none")
         row("a signed sum", *signed_sum(d))
         return
     sums = [s.label for s in d.candidate_sums]
     sums[0] += f", {where}" if where else ""
-    row("atomic limit" if len(sums) == 1 else "atomic limits", *sums)
+    row("decomposition" if len(sums) == 1 else "decompositions", *sums)
 
 
 def indicator(si):
@@ -159,23 +167,23 @@ t_con1 = tqc.hsp_table(r1, bands=(2, 3))
 d_val1 = tqc.decompose(t_val1)
 d_con1 = tqc.decompose(t_con1)
 
-# whether an orbital sits at that position, read off the measured Wyckoff letters
+# Whether an orbital sits at the Wyckoff position of the first decomposition.
 seat1 = min(t.wyckoff for t in d_val1.candidate_sums[0])
 where1 = ("a site an orbital sits on" if seat1 in seats1
           else "a position no orbital sits on")
 row("bands 0 and 1", by_point(t_val1))
 limits(d_val1, where1)
 
-# no sum of elementary band representations carries the content of bands 2 and
-# 3; the signed combinations allow negative multiplicities, and the shortest of
-# them is printed
+# The symmetry data vector of bands 2 and 3 has no decomposition.  A signed sum
+# of elementary band representations allows negative multiplicities, and the
+# shortest one is printed.
 row("bands 2 and 3", by_point(t_con1))
 limits(d_con1)
 
 si_val1 = tqc.symmetry_indicator(t_val1)
 row(*indicator(si_val1))
-print("   the staggered potential makes the two honeycomb sites inequivalent, and no")
-print(f"   symmetry indicator tells bands 0 and 1 from an atomic limit at {seat1}")
+print("   the indicator group is trivial, so no symmetry indicator distinguishes")
+print(f"   bands 0 and 1 from an atomic limit at {seat1}")
 
 ########### 2. delta = 2.5, rashba = 0.25 ###########
 
@@ -201,8 +209,8 @@ limits(d_val2, where2)
 row("bands 2 and 3", by_point(t_con2))
 limits(d_con2)
 print(f"   the group is #{g2.number_str} in both regimes, and the Wyckoff position of "
-      "bands 0 and 1")
-print(f"   moves from {seat1} to {seat2}")
+      "the")
+print(f"   decomposition of bands 0 and 1 changes from {seat1} to {seat2}")
 
 ########### 3. delta = 0, rashba = 0 ###########
 
@@ -251,8 +259,8 @@ limits(d_val4)
 row("bands 2 and 3", by_point(t_con4))
 limits(d_con4)
 
-# the coreps at K level by level: multiplets groups the energies into degenerate
-# levels, and coreps_at names the corep of each whole level.
+# The coreps at K level by level.  multiplets groups the energies into
+# degenerate levels, and coreps_at names the corep of each whole level.
 hsp4 = tqc.high_symmetry_points(g4)
 states_k4 = solve_at(m4, hsp4["K"])
 energies_k4 = np.asarray(states_k4[0], dtype=float).reshape(-1)
@@ -271,10 +279,10 @@ print(f"\n5. the conserved operators, read off H(k) on a {NK_MESH}x{NK_MESH} mes
       "of in-plane k")
 
 # realized_group tests each operation g on H(k) over its 6 x 6 mesh, solving
-# X H(k) = H(gk) X at every k at once.  For the identity that is X H(k) = H(k) X,
-# whose solutions are the operators the Hamiltonian conserves, and
-# conserved.dim counts them beyond the identity; the call is told nothing
-# about spin.  The commutator with s_z says which operator it is.
+# X H(k) = H(gk) X at every k at once.  For the identity that is
+# X H(k) = H(k) X, whose solutions are the operators the Hamiltonian conserves.
+# conserved.dim counts them beyond the identity.  They are found from H alone,
+# and the commutator with s_z below says which operator it is.
 kx = np.arange(NK_MESH) / NK_MESH
 ks = np.stack(np.meshgrid(kx, kx, indexing="ij"), -1).reshape(-1, 2)
 sz = np.kron(np.eye(2), np.diag([1.0, -1.0]))       # s_z on the four basis states
@@ -283,7 +291,7 @@ h3 = np.asarray(m3.hamiltonian(k_pts=ks, flatten_spin_axis=True))
 comm3 = float(np.abs(sz @ h3 - h3 @ sz).max())
 h4 = np.asarray(m4.hamiltonian(k_pts=ks, flatten_spin_axis=True))
 comm4 = float(np.abs(sz @ h4 - h4 @ sz).max())
-row("delta, rashba", f"{'beyond the identity':<22}max |[s_z, H(k)]|")
+row("delta, rashba", f"{'operators beyond 1':<22}max |[s_z, H(k)]|")
 row("0, 0", f"{r3.conserved.dim:<22}{comm3:.6f}")
 row("0, 0.25", f"{r4.conserved.dim:<22}{comm4:.6f}")
 row("1.0, 0.25", f"{r1.conserved.dim:<22}not measured")
@@ -294,8 +302,8 @@ print("   conservation the Rashba term breaks")
 
 print("\n6. what the lost operator does to the degeneracies")
 
-# the dimensions of the levels at each point, from the bottom, without and with
-# the Rashba term
+# The dimensions of the levels at each point, from the bottom, without and with
+# the Rashba term.
 shapes = []
 for point in POINTS:
     e_off = np.asarray(solve_at(m3, hsp4[point])[0], dtype=float).reshape(-1)
@@ -309,12 +317,11 @@ row("rashba", f"{'0':<{width}}0.25")
 for point, off, on in shapes:
     row(f"levels at {point}", f"{off:<{width}}{on}")
 
-# the two levels bands 2 and 3 split into at K, character row by character row;
-# every character of either level here is real or purely imaginary.  The tables
-# attach these labels to -k, so an operation taking k to -k interchanges the two
-# names; the characters are what is measured.
+# The characters of the two levels bands 2 and 3 split into at K, one row for
+# each level.  Every character of either level here is real or purely
+# imaginary.
 (c_lo, e_lo, n_lo), (c_mid, e_mid, _n2), (c_hi, e_hi, _n3) = levels_k4
-# the characters of each level, on the unitary operations of the little group at K
+# The characters of each level, on the unitary operations of the little group at K.
 level_mid, level_hi = (tqc.characters(r4, hsp4["K"], states=states_k4,
                                       bands=list(multiplets_k4[i])).multiplets[0]
                        for i in (1, 2))
@@ -341,10 +348,10 @@ for rashba in RASHBA_SWEEP:
 row("bands 2 and 3", f"split at K by {listed(f'{s:.6f}' for _r, s in splits)}",
     f"at rashba = {listed(rashba for rashba, _s in splits)}")
 row("split / rashba", listed(f"{s / r:.6f}" for r, s in splits))
-print(f"   the {fmt(c_mid.coreps)} and {fmt(c_hi.coreps)} rows are complex conjugates, "
+print(f"   the {fmt(c_mid.coreps)} and {fmt(c_hi.coreps)} rows are complex conjugates: "
       "two distinct one-dimensional coreps")
-print(f"   that s_z holds together at rashba = 0, while {fmt(c_lo.coreps)}, of dimension "
-      f"{n_lo}, stays one level")
+print(f"   they are one level at rashba = 0, where s_z is conserved;\n   {fmt(c_lo.coreps)}, "
+      f"of dimension {n_lo}, is one level at rashba = 0 and 0.25")
 
 ########### 7. the deep atomic limit ###########
 
@@ -358,7 +365,8 @@ weight = weight / weight.sum()             # the weight of bands 0 and 1 per orb
 r_deep = tqc.realized_group(deep, typat=TYPAT, characters=DECLARE)
 t_deep = tqc.hsp_table(r_deep, bands=2)
 d_deep = tqc.decompose(t_deep)
-# the Wyckoff orbit each orbital belongs to, read off the rows of the atomic-limit table
+# The Wyckoff orbits of the orbitals with the most and the least weight, read
+# off r_deep.wyckoff_orbits.
 heavy = next(o for o in r_deep.wyckoff_orbits if int(np.argmax(weight)) in o.orbitals)
 light = next(o for o in r_deep.wyckoff_orbits if int(np.argmin(weight)) in o.orbitals)
 row("bands 0 and 1", by_point(t_deep))
@@ -366,11 +374,12 @@ limits(d_deep)
 row("orbital weight", f"{100 * weight.max():.2f} % on the orbital at Wyckoff "
     f"{heavy.wyckoff}, {100 * weight.min():.2f} % on the one at "
     f"{light.wyckoff}")
-print("   the atomic limit of bands 0 and 1 sits on the orbital that carries their weight")
+print("   the decomposition of bands 0 and 1 is at the position of the orbital with "
+      "their weight")
 
 ########### 8. the bands along GM-K-M-GM ###########
 
-print("\n8. the bands along GM-K-M-GM, one panel per regime")
+print("\n8. the bands along GM-K-M-GM, one panel per parameter set")
 fig, axes = plt.subplots(1, 4, figsize=(20.8, 5.6), sharey=False)
 
 # --- delta = 1.0, rashba = 0.25 ---
@@ -380,8 +389,8 @@ for i in range(4):
     axes[0].plot(kd, bands[:, i], lw=1.8, color="tab:blue" if i < 2 else "tab:red")
 for x in kn:
     axes[0].axvline(x, color="0.75", lw=0.7)
-# the valence pair is Kramers-degenerate at every one of these points, so one
-# offset below it clears both bands; the conduction labels go above
+# The coreps of the valence pair are written below the upper valence band, and
+# those of the conduction pair above the lower conduction band.
 for point, x in zip(NODES, kn):
     j = int(np.argmin(np.abs(kd - x)))
     axes[0].annotate(fmt(coreps_of(t_val1, point)), xy=(x, bands[j, 1]), xytext=(0, -16),
@@ -397,7 +406,7 @@ axes[0].set_ylim(bands.min() - 0.30 * (bands.max() - bands.min()),
                  bands.max() + 0.22 * (bands.max() - bands.min()))
 axes[0].set_ylabel("$E$", fontsize=16)
 axes[0].set_title(f"delta = 1.0, rashba = 0.25\n#{g1.number_str} {g1.name}\n"
-                  f"valence at {seat1}   |   conduction: no EBR sum", fontsize=9.5)
+                  f"valence at {seat1}   |   conduction: no decomposition", fontsize=9.5)
 
 # --- delta = 2.5, rashba = 0.25 ---
 kv, kd, kn = m2.k_path(PATH, NK_PATH, report=False)
@@ -444,7 +453,7 @@ axes[2].set_xlim(kd[0] - 0.07 * kd[-1], kd[-1] * 1.07)
 axes[2].set_ylim(bands.min() - 0.30 * (bands.max() - bands.min()),
                  bands.max() + 0.22 * (bands.max() - bands.min()))
 axes[2].set_title(f"delta = 0, rashba = 0\n#{g3.number_str} {g3.name}\n"
-                  f"valence at {seat3}   |   conduction: no EBR sum", fontsize=9.5)
+                  f"valence at {seat3}   |   conduction: no decomposition", fontsize=9.5)
 
 # --- delta = 0, rashba = 0.25: K resolved level by level ---
 kv, kd, kn = m4.k_path(PATH, NK_PATH, report=False)
@@ -481,12 +490,12 @@ axes[3].set_title(f"delta = 0, rashba = 0.25\n#{g4.number_str} {g4.name}\n"
                   f"{fmt(c_mid.coreps)} and {fmt(c_hi.coreps)} split at K",
                   fontsize=9.5)
 
-fig.suptitle("Kane-Mele on the honeycomb: the four bands along GM-K-M-GM, the valence "
-             "pair in blue and the conduction pair in red, with the measured coreps "
-             "at each node.", fontsize=10)
+fig.suptitle("The Kane-Mele model on the honeycomb lattice: the four bands along "
+             "GM-K-M-GM, the valence pair in blue and the conduction pair in red, with "
+             "the measured coreps at each high-symmetry point.", fontsize=10)
 fig.tight_layout(pad=0.5, rect=(0, 0, 1, 0.955))
 # save_figure writes the PDF without its creation date, so a rerun gives the same file
 save_figure(fig, os.path.join(OUTDIR, "km_bands_and_coreps.pdf"))
 plt.close(fig)
 
-print("\nDone — figure written to", OUTDIR)
+print("\nDone. The figure is written to", OUTDIR)

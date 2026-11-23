@@ -93,7 +93,7 @@ def _run(script, figdir):
 def _normalize(out, figdir):
     """The one machine-dependent string, replaced by a token.
 
-    Every script ends ``print("\\nDone — figure written to", OUTDIR)`` with
+    Every script ends ``print("\\nDone. The figure is written to", OUTDIR)`` with
     ``OUTDIR`` the directory this run handed it.  Replacing the directory rather
     than dropping the line keeps the rest of that line under exact comparison,
     and it degrades gracefully if a script ever prints the directory twice.

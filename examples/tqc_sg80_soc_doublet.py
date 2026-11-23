@@ -1,23 +1,28 @@
-# Example of labelling a degenerate level at a non-TRIM point using pythTQC.
-# I4_1 (SG 80) is body-centred, and P = (1/4, 1/4, 1/4) in primitive
-# coordinates is not a time-reversal-invariant momentum -- 2P is no reciprocal-
-# lattice vector -- so the antiunitary acting at P is the coset element
-# {C4|0,1/2,1/4}·T.  Both double-valued irreps of the unitary little group at P
-# are one-dimensional and complex conjugates of one another, so an enforced
-# twofold degeneracy there can only be the antiunitary's doing, and the
-# question is which of the two conjugate irreps it glues to itself.  The
-# observable that answers is the trace of the twofold rotation on the level.
+# Example of labeling a degenerate level at a point that is not a
+# time-reversal-invariant momentum, using pythTQC.
+# I4_1 (space group 80) is body-centered, and P = (1/4, 1/4, 1/4) in primitive
+# reduced coordinates is not a time-reversal-invariant momentum, since 2P is
+# not a reciprocal-lattice vector.  The antiunitary operations that fix P are
+# the fourfold screws combined with time reversal, C4(z)' and C4^-1(z)'.  The
+# two double-valued irreps of the unitary little group at P are
+# one-dimensional and complex conjugates of one another, so a twofold
+# degeneracy the symmetry enforces there is one of them doubled by an
+# antiunitary operation.  The trace of the twofold rotation on the level says
+# which one.
 # The models are pythtqc.models' i41_atomic(), i41_soc("generic") and
 # p62_atomic().
 # Run with python3, PythTB version 2.0 and pythTQC.
 
 # The calculations in this python file include
 # 1. the spinful atomic limit: the group, and the fourfold level at P
-# 2. the little group at P, and the same table read at the other star member -P
+# 2. the coreps at P, and the rows the irreptables package lists for P, which
+#    are the coreps at -P
 # 3. the spin-orbit model: the fourfold level at P split 1 + 2 + 1
-# 4. each of the three levels labelled from one diagonalization
-# 5. the four valence bands as an elementary band representation
-# 6. the control: P6_2 (#171) at H, where the gluing pairs two different irreps
+# 4. each of the three levels labeled from one diagonalization
+# 5. the symmetry data vector of the four valence bands, that of one elementary
+#    band representation
+# 6. the control: P6_2 (space group 171) at H, where an antiunitary operation
+#    pairs two different irreps
 # 7. the P-point levels against the spin-orbit strength, and the figure
 
 # Author: the pythTQC examples
@@ -53,26 +58,27 @@ OUTDIR = os.environ.get("TQC_EXAMPLE_FIGDIR") or os.path.join(
 LAM = 0.4                  # the spin-orbit strength every printed number is read at
 NLAM = 5 if QUICK else 41  # λ sweep points: the figure's resolution only
 
-# A pythtb orbital carries no symmetry character, so the s here is a declaration.
+# A pythtb orbital does not say whether it is s, p or d, so the s here is declared.
 DECLARE = {0: "s"}
 
 os.makedirs(OUTDIR, exist_ok=True)
 
-print("I4_1 (SG 80) at P = (1/4, 1/4, 1/4), which is not a time-reversal-invariant")
-print("momentum: time reversal glues one of the two conjugate coreps to itself, and")
-print("the trace of the twofold says which.")
+print("I4_1 (space group 80) at P = (1/4, 1/4, 1/4), not a time-reversal-invariant")
+print("momentum. A fourfold screw combined with time reversal doubles one of the two")
+print("conjugate irreps at P, and the trace of the twofold rotation says which.")
 print("Bands are counted from 0, as pythtb counts them.")
 
 
 def row(label, first, *rest):
-    """One line of the ledger, a label of at most 16 characters, then its continuation lines."""
+    """One line of the ledger: label, a heading of at most 16 characters, then first,
+    then each line of rest beneath it."""
     print(f"   {label:<16} : {first}")
     for line in rest:
         print(f"{'':22}{line}")
 
 
-# each character is printed the way a paper tabulates it -- 4, −i, 2i -- from its
-# real part r and imaginary part m; the characters themselves stay complex
+# Each character is printed as a paper tabulates it, 4, −i or 2i, from its real
+# part r and imaginary part m; the characters themselves stay complex
 def character(z):
     """One character, 4, −i or 2i, its minus sign written −."""
     r, m = round(z.real, 6) + 0.0, round(z.imag, 6) + 0.0
@@ -97,8 +103,9 @@ def band_names(indices):
 
 
 def atomic_limits(d):
-    """The atomic limits of a band set, as a label and a value: the one sum of elementary
-    band representations with this content, how many sums there are, or none."""
+    """The sums of elementary band representations whose symmetry data vector is that
+    of the bands decomposed in d, as a row's heading and its value: the one sum, how
+    many there are, or none."""
     if not d.decomposable:
         return "atomic limits", "none"
     sums = [s.label for s in d.candidate_sums]
@@ -119,13 +126,13 @@ row("realized group", f"#{group.number_str} {group.name}, s orbitals at Wyckoff 
     f"{atomic.nstate} bands")
 
 # the operation each character below belongs to, by index, with its name in the
-# model's own frame
+# Cartesian axes in which the pythtb Lattice is specified
 operations = r.operations
 
 hsp = tqc.high_symmetry_points(group)
 P = hsp["P"]
-row("P", f"({', '.join(str(x) for x in np.round(P, 4).tolist())}) in the primitive cell,",
-    "and 2P is no reciprocal-lattice vector")
+row("P", f"({', '.join(str(x) for x in np.round(P, 4).tolist())}) in primitive reduced "
+    "coordinates,", "and 2P is not a reciprocal-lattice vector")
 
 # solve_at(model, k) diagonalizes H(k) at one k and returns the energies and the
 # eigenvectors; every label below is read off that one diagonalization.
@@ -136,41 +143,43 @@ columns = tuple(table_P.multiplets[0].characters)    # the unitary operations at
 chi = np.array([[m.characters[i] for i in columns] for m in table_P.multiplets]).ravel()
 row("P valence levels", ", ".join(str(x) for x in np.round(w[:4], 6).tolist()))
 row(f"χ({', '.join(operations[i].name for i in columns)})", characters(chi))
-print("   one fourfold level: spin-independent hoppings commute with every spin")
-print("   operator, so this degeneracy is SU(2)'s and decides nothing here")
+print("   one fourfold level. The hoppings do not depend on spin, so all of SU(2)")
+print("   commutes with H. The level has both irreps and does not say which is doubled")
 
-########### 2. the little group at P, and the same table read at -P ###########
+########### 2. the coreps at P, and the rows listed for P ###########
 
-print("\n2. what the little group at P allows, and the same table read at -P")
+print("\n2. the coreps at P, and the rows the irreptables package lists for P")
 page = tqc.corep_table(group, P)
 ops = sorted(next(iter(page.values())))
-print(f"   the little group at P, χ({', '.join(operations[i].name for i in ops)}):")
+print(f"   the coreps at P, χ({', '.join(operations[i].name for i in ops)}):")
 for label in sorted(page):
     entry = page[label]
     print(f"      {label:<8} dim {int(round(abs(complex(entry[ops[0]])))):d}   "
           f"{characters(entry[i] for i in ops)}")
 
-# The tables' own rows at P, read from irreptables directly.  The tables are
-# written in the e^{+ik·t} translation convention, and since
-# e^{+ik·t} = e^{-i(-k)·t}, the table printed for P is the table at -P.
+# The rows the irreptables package lists for P, read from it directly.  Its
+# tables represent a lattice translation t by e^{+ik·t}, and the matrices
+# returned here by e^{-ik·t}.  Since e^{+ik·t} = e^{-i(-k)·t}, the rows listed
+# for P are the coreps at -P.
 from irreptables.irreps import IrrepTable
 
 table = IrrepTable(group.number_str, group.spinor, magnetic=group.magnetic_type == "II")
 shipped = {ir.name: {int(i): complex(c) for i, c in ir.characters.items()}
            for ir in table.irreps if ir.kpname == "P"}
-print(f"   the same table read at -P, the point it is printed for, "
+print(f"   the rows listed for P, which are the coreps at -P, "
       f"χ({', '.join(operations[i].name for i in ops)}):")
 for label in sorted(shipped):
     entry = shipped[label]
     print(f"      {label:<8} dim {int(round(abs(complex(entry[ops[0]])))):d}   "
           f"{characters(entry[i] for i in ops)}")
-print("   the two tables are entrywise conjugates: BCS's labels attach to -k, an")
-print("   operation taking P to -P interchanges conjugate labels, and the trace is the")
-print("   observable")
+print("   each row of one table is the complex conjugate of a row of the other. A label")
+print("   depends on whether the table is read at P or at -P. The trace of the twofold")
+print("   rotation on a level does not")
 
 ########### 3. the spin-orbit model: the split at P ###########
 
-print(f"\n3. i41_soc('generic', lam={LAM}): one group-averaged spin-orbit bond set")
+print(f"\n3. i41_soc('generic', lam={LAM}): spin-orbit hoppings averaged over "
+      "the group")
 soc = tqm.i41_soc("generic", lam=LAM)
 
 r_soc = tqc.realized_group(soc, characters=DECLARE)
@@ -185,7 +194,7 @@ row("P valence levels", ", ".join(str(x) for x in np.round(w[:4], 6).tolist()))
 row("degeneracies", f"{' + '.join(str(len(b)) for b in mult)}, level gaps "
     f"{w[1] - w[0]:.6f} and {w[3] - w[2]:.6f}")
 
-########### 4. each level labelled from one diagonalization ###########
+########### 4. each level labeled from one diagonalization ###########
 
 print("\n4. the three levels, each labeled from that one diagonalization")
 labels, chis = [], []
@@ -206,21 +215,21 @@ lg = tqc.little_group(g_soc, P_soc)
 singlet = min(shipped, key=lambda lab: abs(complex(shipped[lab][ops[0]])))
 twofold = operations[ops[-1]].name
 row("doubled corep", f"{label_mid}, trace {character(pair)} on {twofold}, two copies of "
-    f"{character(pair / 2)}")
-row("little group", f"{len(lg.unitary)} unitary elements at P, so no two-dimensional irrep")
-print(f"   the antiunitary glues the irrep with χ({twofold}) = {character(pair / 2)} to "
-      "itself, so the pair is")
-print(f"   symmetry-enforced; the -P table read at P makes it two copies of {singlet}, an")
-print("   accidental degeneracy")
+    f"the irrep with trace {character(pair / 2)}")
+row("little group", f"unitary part of {len(lg.unitary)} operations, with one-dimensional irreps")
+print(f"   an antiunitary operation doubles the irrep with χ({twofold}) = "
+      f"{character(pair / 2)}, so the pair is")
+print(f"   symmetry-enforced. It is not two copies of {singlet}, an accidental degeneracy, as")
+print("   the rows listed for P would make it if they were read as the coreps at P")
 
-########### 5. the four valence bands as an elementary band representation ###########
+########### 5. the symmetry data vector of the four valence bands ###########
 
-print("\n5. the four valence bands as an elementary band representation")
-table_soc = tqc.hsp_table(r_soc, bands=[0, 1, 2, 3])   # the content at every point
+print("\n5. the symmetry data vector of the four valence bands")
+table_soc = tqc.hsp_table(r_soc, bands=[0, 1, 2, 3])   # the coreps at every point
 d = tqc.decompose(table_soc)
-row("valence content", fmt(table_soc.symmetry_data))
+row("valence bands", fmt(table_soc.symmetry_data))
 row(*atomic_limits(d))
-print(f"   {label_mid} belongs to a labeling of the whole set, not a choice made at P")
+print(f"   with {label_mid} at P, the symmetry data vector is that of the atomic limit above")
 
 ########### 6. the control: P6_2 at H ###########
 
@@ -237,7 +246,7 @@ row("realized group", f"#{g62.number_str} {g62.name}, s orbitals at Wyckoff "
 H = tqc.high_symmetry_points(g62)["H"]
 page62 = tqc.corep_table(g62, H)
 ops62 = sorted(next(iter(page62.values())))
-print(f"   the little group at H, χ({', '.join(operations62[i].name for i in ops62)}):")
+print(f"   the coreps at H, χ({', '.join(operations62[i].name for i in ops62)}):")
 for label in sorted(page62):
     entry = page62[label]
     print(f"      {label:<8} dim {int(round(abs(complex(entry[ops62[0]])))):d}   "
@@ -246,7 +255,7 @@ for label in sorted(page62):
 cH = tqc.coreps_at(r62, H, states=solve_at(p62, H), bands=list(range(6)))
 row("lowest 6 bands", f"{fmt(cH.coreps)} at H")
 doubled62 = max(page62, key=lambda lab: abs(complex(page62[lab][ops62[0]])))
-print(f"   {doubled62} glues two different irreps; at P {label_mid} glues one to itself")
+print(f"   {doubled62} pairs two different irreps. At P, {label_mid} is one irrep doubled")
 
 ########### 7. the levels at P against the spin-orbit strength ###########
 
@@ -282,7 +291,7 @@ ax.set_ylim(levels.min() - 0.05 * (levels.max() - levels.min()),
             levels.max() + 0.16 * (levels.max() - levels.min()))
 ax.set_xlabel(r"spin-orbit strength $\lambda$", fontsize=15)
 ax.set_ylabel(r"$E$ at $P = (\frac{1}{4},\frac{1}{4},\frac{1}{4})$", fontsize=15)
-ax.set_title(f"#{g_soc.number_str} {g_soc.name} at the non-TRIM point $P$: "
+ax.set_title(f"#{g_soc.number_str} {g_soc.name} at $P$, not time-reversal invariant: "
              f"{[len(m.bands) for m in table_P.multiplets]} $\\to$ "
              f"{[len(b) for b in mult]},\n"
              f"and the trace of {operations[ops[-1]].name} says that {label_mid} is the "
@@ -293,4 +302,4 @@ fig.tight_layout(pad=0.4)
 save_figure(fig, os.path.join(OUTDIR, "sg80_P_levels_vs_lambda.pdf"))
 plt.close(fig)
 
-print("\nDone — figure written to", OUTDIR)
+print("\nDone. The figure is written to", OUTDIR)
