@@ -393,7 +393,7 @@ each about how the model is written.
   Where that alone is above the covariance check's tolerance `tol` and no
   precision is declared, the call refuses before anything is built, naming the
   cell's group as an upper bound; `precision=` is the fix
-  ([the centres first](../guide/numerical.md#the-centres-first-because-moving-them-is-a-gauge)).
+  ([the centers first](../guide/numerical.md#the-centers-first-moving-them-is-a-change-of-gauge)).
   A declared precision is believed, and it bounds each center. Centers within
   it are moved onto the positions the group puts them at, by the smallest move
   in Cartesian length and about the origin that fits them. A shift of all of
@@ -405,7 +405,7 @@ each about how the model is written.
   in which the bands are labelled. Centres noisier than the symmetry finder's
   own tolerance `symprec` are a less symmetric point set to it, and the group
   returned is that set's, as low as `P1`
-  ([centres noisier than symprec](../guide/numerical.md#centres-noisier-than-symprec)).
+  ([centers noisier than symprec](../guide/numerical.md#centers-noisier-than-symprec)).
 - **A supercell of its own primitive cell**, `supercell`. No point set can say
   whether a cell that repeats under a fractional translation is a supercell,
   since only the hoppings tell the copies apart, so the translation is read as

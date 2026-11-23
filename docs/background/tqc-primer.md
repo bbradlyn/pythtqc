@@ -23,7 +23,7 @@ group, and it says how the orbitals at that site transform. The letters belong
 to a setting, an origin and a choice of axes, and the same site can carry
 different letters in two descriptions of one crystal; the package files every
 site under the letter of the setting its tables are written in
-([which Wyckoff letter is a table key](../guide/srsi.md#which-wyckoff-letter-is-a-table-key)).
+([which Wyckoff letter is a table key](../guide/srsi.md#which-wyckoff-letter-the-tables-use)).
 The standard tables are those of the *International Tables for
 Crystallography*, Volume A, and of the Bilbao Crystallographic Server
 ([Aroyo *et al.*, Z. Kristallogr. **221**, 15 (2006)](https://doi.org/10.1524/zkri.2006.221.1.15)).
@@ -164,7 +164,7 @@ follow the naming of
 [Song, Zhang, Fang and Fang, Nat. Commun. **9**, 3530 (2018)](https://doi.org/10.1038/s41467-018-06010-w),
 which the tables of stable real-space invariants cite for their indicators with
 spin–orbit coupling and without
-([the names a class is spoken in](../guide/indicators.md#the-names-a-class-is-spoken-in)).
+([the names a class is spoken in](../guide/indicators.md#named-indicators)).
 
 ## Fragile topology
 

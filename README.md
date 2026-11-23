@@ -69,7 +69,7 @@ print(tqc.srsi_of_bands(t))
   has no `k_z` and does not reach them. The layer's class is the class of its
   decoupled stack, the layer repeated along its normal with no hopping between
   copies. The coreps at `A`, `H` and `L` are measured on that stack
-  ([The group the class belongs to](docs/guide/indicators.md#the-group-the-class-belongs-to)).
+  ([The group a class is read in](docs/guide/indicators.md#the-group-a-class-is-read-in)).
 - `theta_1 to theta_14 = (-1/6, ...)`: the ZSRSIs of the two bands, numbered
   as in Hwang *et al.* A real-space invariant is a combination of the
   site-irrep multiplicities of an atomic limit's Wannier functions that no

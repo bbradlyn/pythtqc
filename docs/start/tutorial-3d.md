@@ -313,7 +313,7 @@ for name, rr in phases.items():
   indicators. `z4` is the strong indicator. `z2w,1`, `z2w,2` and `z2w,3` are
   the three weak indicators, printed together. The named values determine the
   class, as `values` does
-  ([The names a class is spoken in](../guide/indicators.md#the-names-a-class-is-spoken-in)).
+  ([Named indicators](../guide/indicators.md#named-indicators)).
 
 The three symmetry data vectors differ only at `T` and `F`.
 

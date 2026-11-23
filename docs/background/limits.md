@@ -155,7 +155,7 @@ along another axis usually comes from a source written for `−z`, or from a
 Wannier90 spinor projection or a DFT calculation whose spin axis (VASP's
 `SAXIS`) is set along another direction. The conversion is made where the source
 is transcribed
-([A model written for the other axis](../guide/spin.md#a-model-written-for-the-other-axis)).
+([A model with its spin up along -z](../guide/spin.md#a-model-with-its-spin-up-along--z)).
 Kane-Mele, `kane_mele(1.0, -1.0, 0.3, 0.25)` with its two sites declared
 different atoms, `typat=[0, 1]`, is returned `P3m11'`. With every spin block
 conjugated by `i σ_x`, the same spectrum written for `−z`, it is returned

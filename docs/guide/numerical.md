@@ -142,7 +142,7 @@ The two exact operations of the noisy lin3g are the identity and time reversal,
 which a real rescaling of each hopping keeps. The other fourteen hold only
 within `tol`.
 
-## The centres first, because moving them is a gauge
+## The centers first: moving them is a change of gauge
 
 A fitted model's orbital centers are numbers too. A hopping from orbital `i` to
 orbital `j` in the cell `R` carries the Bloch phase
@@ -275,7 +275,7 @@ frame, `5e-9`, is beyond the declared `1e-9` as well, so it is not removed. The
 centers stay about the origin fitted to them, and `numerical.positions.frame`
 reads `"fitted"`.
 
-### Centres noisier than `symprec`
+### Centers noisier than `symprec`
 
 `positions_not_exactly_symmetric` is returned for centers close enough to the
 cell's operations for the symmetry finder to find them, and far enough off to
@@ -381,7 +381,7 @@ field of `numerical.symmetrization`, which
   those entries out. The field names their orbitals and says how large the
   largest of them was.
 
-## A broken operation is never symmetrized into
+## A broken operation is never imposed
 
 The example scales one hopping of lin3g by `1.01`, with the same precision
 declared. The operations the change touches are broken by far more than `tol`,

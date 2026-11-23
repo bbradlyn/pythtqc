@@ -126,7 +126,7 @@ print(d.numerical.restriction.copies)
 lin3g is measured on a substrate, `realized_group`'s default for a 2D model,
 where every position is kept
 ([Is my 2D model on a substrate or free-standing?](layers.md)).
-[The group the class belongs to](indicators.md#the-group-the-class-belongs-to)
+[The group a class is read in](indicators.md#the-group-a-class-is-read-in)
 prints `outside_layer` for a free-standing layer.
 
 ## Positions survive every labeling; labels may not

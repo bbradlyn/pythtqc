@@ -436,7 +436,7 @@ limit has the SRSIs valued modulo n of the configuration of its Wannier
 functions, and its symmetry data vector does not say which configuration that
 is.
 
-## Which Wyckoff letter is a table key
+## Which Wyckoff letter the tables use
 
 A Wyckoff letter names a position in one setting of a group, its conventional
 cell and its origin. `theta` reads a letter in the setting of the conventional

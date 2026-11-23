@@ -184,7 +184,7 @@ cell's group, `Fd-3m1'`, as an upper bound on what the Hamiltonian obeys
 ([`positions_not_exactly_symmetric`](../reference/refusals.md#positions_not_exactly_symmetric)).
 Centers that miss by more than the finder's tolerance hide the cell's
 operations instead, and the call returns a lower group, `P1` for silicon above
-([Centers noisier than `symprec`](../guide/numerical.md#centres-noisier-than-symprec)).
+([Centers noisier than `symprec`](../guide/numerical.md#centers-noisier-than-symprec)).
 With `precision=1e-4` the finder's tolerance is 3.8e-3 Å, and the centers are
 moved onto the positions its operations give.
 

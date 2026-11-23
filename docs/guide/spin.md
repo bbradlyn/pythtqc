@@ -138,7 +138,7 @@ for ind in (2, 5, 7):                           # C3(z), m(x), and time reversal
 - `E'`: time reversal. Its block is `iσ_y`, and it acts as that matrix times
   complex conjugation.
 
-## A model written for the other axis
+## A model with its spin up along -z
 
 A source whose spin up is the state along `−z` writes a rotation by `θ` about
 `z` as `e^{+iθσ_z/2}`. The supplement of the paper on the stable real-space

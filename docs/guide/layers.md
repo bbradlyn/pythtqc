@@ -108,7 +108,7 @@ The example is one layer of the Fu-Kane-Mele model of diamond, from
 `pythtb.models`, cut along its third lattice vector: a buckled honeycomb with
 spin-orbit coupling. The symmetry-indicator class of its two lowest bands is
 read on the decoupled stack, as a flat layer's is
-([The group the class belongs to](indicators.md#the-group-the-class-belongs-to)).
+([The group a class is read in](indicators.md#the-group-a-class-is-read-in)).
 The decoupled stack is the layer repeated along its normal with no hopping
 between copies, each orbital at its own height:
 
@@ -145,7 +145,7 @@ print(si, si.indicators)
   al., Nat. Commun. 17, 8564 (2026), the paper that tabulates the stable
   real-space invariants. `(1, 0)` and the paper's indicators are two sets of
   coordinates on one class, so their entries differ
-  ([The names a class is spoken in](indicators.md#the-names-a-class-is-spoken-in)).
+  ([Named indicators](indicators.md#named-indicators)).
 
 ## The horizontal mirror, and what breaks it
 

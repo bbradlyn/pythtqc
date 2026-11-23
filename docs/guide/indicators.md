@@ -83,7 +83,7 @@ print(si.numerical.reconstructed)
   together have class zero, `1` for the zero class.
 - `{'-A6': '-M6', ...}`: `si.numerical.reconstructed`. lin3g is a layer, and
   its class is read in the three-dimensional space group of its decoupled
-  stack ([The group the class belongs to](#the-group-the-class-belongs-to)).
+  stack ([The group a class is read in](#the-group-a-class-is-read-in)).
   A layer's `H(k)` has no `k_z`, so the coreps at `A`, `R` and `Z`, the points
   at `k_z = 1/2`, are not measured. Each of them occurs in every EBR as often
   as a measured corep, and takes that corep's multiplicity: `-A6` takes the
@@ -149,7 +149,7 @@ print(si_free.numerical.summary())
 - `indicators: z2w,3 = 1, ...`: `si_free.indicators`, the class written as the
   values of the named indicators of the paper that tabulates the stable
   real-space invariants
-  ([The names a class is spoken in](#the-names-a-class-is-spoken-in)).
+  ([Named indicators](#named-indicators)).
 - `the coreps at the high-symmetry points: -GM9 + -K8 + -M6`:
   `si_free.symmetry_data`, the symmetry data vector at the points of the
   layer's plane, the same as `t_free.symmetry_data`.
@@ -160,7 +160,7 @@ print(si_free.numerical.summary())
 - `A, H and L, at k_z = 1/2 out of the layer's plane`:
   `si_free.numerical.completion`, the measurement of those coreps on the
   layer's decoupled stack
-  ([The group the class belongs to](#the-group-the-class-belongs-to)).
+  ([The group a class is read in](#the-group-a-class-is-read-in)).
 - `the class of the layer's decoupled stack`:
   `si_free.numerical.two_dimensional`
   ([A layer's class is a three-dimensional class](#a-layers-class-is-a-three-dimensional-class)).
@@ -175,7 +175,7 @@ assigned by the lowest-angular-momentum rule, the summary prints one more line,
 ending `(.site_content)`. A declaration of the orbitals can then change the
 class ([When to declare](orbitals.md#when-to-declare)).
 
-## The group the class belongs to
+## The group a class is read in
 
 Unlike lin3g's, some little-group representations of `P6/mmm1'` at `A`, `H`
 and `L` pair with none in the plane. For each, no little-group representation
@@ -305,12 +305,12 @@ print(si_free.numerical.two_dimensional.support)
   keyed by the paper's name, it says whether the nonzero coefficients of the
   indicator's linear form in the symmetry data vector lie on coreps in the
   plane, out of it, or both. The linear forms are those of the irreptables
-  package ([The names a class is spoken in](#the-names-a-class-is-spoken-in)).
+  package ([Named indicators](#named-indicators)).
   `z2w,3` reads coreps out of the plane alone, and its value, 1, is fixed by
   the layer's coreps in the plane all the same. `z6m,0` reads coreps in the
   plane alone, and `z4` both.
 
-## The names a class is spoken in
+## Named indicators
 
 A class is also written as the values of named indicators, each a linear form
 modulo an integer. Two sets of names exist. The irreptables package ships

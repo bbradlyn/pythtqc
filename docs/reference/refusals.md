@@ -104,10 +104,10 @@ Returned by `realized_group`.
   centers alone: centers within it are moved onto the positions the group puts them at, a
   k-dependent gauge transformation that leaves the spectrum untouched. `value` and
   `context["position_defect"]` are `δ`
-  ([the centres first](../guide/numerical.md#the-centres-first-because-moving-them-is-a-gauge)).
+  ([the centers first](../guide/numerical.md#the-centers-first-moving-them-is-a-change-of-gauge)).
   Centers noisier than the symmetry finder's `symprec` are not refused this way: the
   finder reads them as a less symmetric set, and the group returned can be as low as `P1`
-  ([centres noisier than symprec](../guide/numerical.md#centres-noisier-than-symprec)).
+  ([centers noisier than symprec](../guide/numerical.md#centers-noisier-than-symprec)).
 
 #### `cell_group_not_realized`
 
@@ -212,7 +212,7 @@ Returned by `realized_group`.
 
 Returned by no public call: `realized_group` averages only over the operations it kept
 at the declared precision
-([a broken operation](../guide/numerical.md#a-broken-operation-is-never-symmetrized-into)).
+([a broken operation](../guide/numerical.md#a-broken-operation-is-never-imposed)).
 
 - **What it means.** A measurement handed to the projection of `H` onto its symmetric
   part lists an operation broken at the declared tolerance, and the projection is not

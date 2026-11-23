@@ -228,7 +228,7 @@ for rec in (free, pz):
 - `6`: the order of the class, the same in both.
 - `{'z2w,3': 1, 'z4': 2}`: the two indicators whose values are their own
   inverses, and so the same in both. The other indicators change
-  ([The names a class is spoken in](indicators.md#the-names-a-class-is-spoken-in)).
+  ([Named indicators](indicators.md#named-indicators)).
 
 A statement made in the order or in those two indicators holds for both
 readings. The class itself needs the orbitals stated. An orbital the hoppings

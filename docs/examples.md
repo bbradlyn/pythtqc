@@ -328,7 +328,7 @@ no-go criterion shows cannot both be atomic limits. It prints:
 
 The figure is the spectra and the Wilson loops. It illustrates
 [the no-go criterion](guide/srsi.md#the-no-go-criterion) and
-[a model written for the other axis](guide/spin.md#a-model-written-for-the-other-axis).
+[a model with its spin up along -z](guide/spin.md#a-model-with-its-spin-up-along--z).
 
 ### [`tqc_srsi_lin3g_composite_splitting.py`](../examples/tqc_srsi_lin3g_composite_splitting.py)
 
