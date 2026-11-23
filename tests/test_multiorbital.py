@@ -2817,6 +2817,9 @@ def test_a_site_s_operations_bind_its_orbitals_and_copies_of_one_irrep_are_one(c
     orbits = out.wyckoff_orbits
     assert sorted(a for o in orbits for a in o.orbitals) == [o.orbital for o in rows]
     summary = orbits.summary()
+    # a row's misfit is rounding, a spinful shell bound into one multiplet too,
+    # its blocks set against the sign the double group gives each product
+    assert max(o.numerical.residual for o in orbits) < 1e-12, case
     for o in orbits:
         own = o.numerical.named_by == "tables"
         assert o.numerical.named_by == ("tables" if own else "point group"

@@ -29,6 +29,7 @@ What each test is for, and the number that closes it:
   built to fail it.
 """
 
+import dataclasses
 import time
 
 import numpy as np
@@ -1199,6 +1200,32 @@ def test_bloch_operator_row_phases_follow_the_preimage(inline_rep):
                            np.array([0.2, 0.3]))
     with pytest.raises(ValueError, match="not a reciprocal lattice vector"):
         rep.bloch_operator(c4, np.array([0.2, 0.3]), k_out=np.array([0.1, 0.1]))
+    # an index the group does not hold: the error opens with the call made
+    k = np.array([0.5, 0.5])
+    for call, made in (("transform_k", lambda: rep.transform_k(9999, k)),
+                       ("in_little_group", lambda: rep.in_little_group(9999, k)),
+                       ("bloch_operator", lambda: rep.bloch_operator(9999, k)),
+                       ("sewing_operator", lambda: rep.sewing_operator(9999, k)),
+                       ("sewing_matrix",
+                        lambda: rep.sewing_operator(9999, k, _call="sewing_matrix"))):
+        with pytest.raises(KeyError, match=rf"^'{call}\(\): operation #9999 is not"):
+            made()
+    # a k with the wrong number of components: the error opens with the call made
+    for call, made in (("transform_k", lambda: rep.transform_k(c4, [0.5])),
+                       ("in_little_group", lambda: rep.in_little_group(c4, [0.5])),
+                       ("little_group", lambda: rep.little_group([0.5, 0.5, 0.0])),
+                       ("sewing_operator", lambda: rep.sewing_operator(c4, [0.5]))):
+        with pytest.raises(ValueError, match=rf"^{call}\(\): k has \d components?; pass 2,"):
+            made()
+    # two points to a call of one point: refused as two points, under the call made;
+    # transform_k takes a row for each point
+    two = np.array([[0.5, 0.5], [0.1, 0.2]])
+    assert rep.transform_k(c4, two).shape[0] == 2
+    for call, made in (("in_little_group", lambda: rep.in_little_group(c4, two)),
+                       ("little_group", lambda: rep.little_group(two)),
+                       ("sewing_operator", lambda: rep.sewing_operator(c4, two))):
+        with pytest.raises(ValueError, match=rf"^{call}\(\): k holds 2 points; pass one\."):
+            made()
 
 
 def test_embedding_phase_sign_is_pinned_at_third_lattice_vectors(km_odd):
@@ -1269,6 +1296,12 @@ def test_sewing_operators_commute_with_H_at_high_symmetry_points(lin3g_rep):
     assert ok
     assert G.dtype.kind == "i"
     assert np.abs(rep.transform_k(c4, np.array(k))[0] - np.array(k) - G).max() < 1e-12
+    # a k whose image misses it by 6e-9, inside the little group's 1e-8, is read as
+    # k: the sewing operator is returned, not the k_out error of bloch_operator
+    near = rep.sewing_operator(c4, np.array(k) + 3e-9)
+    assert np.abs(near - rep.sewing_operator(c4, k)).max() < 1e-6
+    # one point given as a row is one point: one matrix
+    assert rep.sewing_operator(c4, np.array([k])).shape == (model.nstate, model.nstate)
 
 
 def test_the_representation_commutes_with_H_at_k_points_the_build_never_saw(lin3g_rep):
@@ -1314,6 +1347,13 @@ def test_repr_smoke(lin3g_rep, lin3g_rep_enum, realized):
                                        "-E at 2c (mm21')"]
     assert sums[0].terms == (tqg.Term(1, "-E1", "1a", "4mm1'", "4mm"),)
     assert [len(s) for s in sums] == [1, 1, 1]
+    # an orbit of multiplets across two Wyckoff positions is the package's own
+    # defect, said with its orbitals and the positions
+    merged = dataclasses.replace(r.rep, _classes=np.zeros_like(np.asarray(r.rep._classes)))
+    with pytest.raises(InternalError, match=r"carries orbitals 0-3 onto one another, and "
+                                            r"their sites lie at 2 Wyckoff positions, "
+                                            r"1a \(4mm\), 2c \(mm2\)\."):
+        tqs._wyckoff_orbits_of(merged)
 
 
 # ---------------------------------------------------------------------------
@@ -1564,6 +1604,20 @@ def test_the_table_anchor_errors_rather_than_refusing(monkeypatch):
         _matrices._table_anchored((1.0 + 0j,), np.diag([-1j, -1j]), S,
                             op_ind=3, order=4, zeta=-1)
     assert "not a multiple of the operation's spin rotation S" in str(excinfo.value)
+
+    # 4.  the group's own arithmetic failing raises, the operation named by index:
+    # a group with no identity, and an operation whose powers never reach it
+    ident = _matrices._identity_position(group)
+    p = next(q for q in range(len(group._symmetries)) if q != ident)
+    stub = type("Stub", (), {"_symmetries": [group._symmetries[p]]})()
+    with pytest.raises(InternalError, match="none of the 1 operations of the group is the"):
+        _matrices._identity_position(stub)
+    prod, _, spf = group._get_product_table(get_diff=True)
+    stuck = np.array(prod).copy()
+    stuck[p, :] = p
+    with pytest.raises(InternalError, match=rf"^operation #{int(group._symmetries[p].ind)} "
+                                            "of the group has no finite order"):
+        _matrices._order_and_zeta(group, p, prod=stuck, spf=spf)
 
 
 # ---------------------------------------------------------------------------

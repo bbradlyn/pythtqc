@@ -471,7 +471,8 @@ def _name_by_invariants(group, assignment, site, table, row, *, context=None) ->
         raise InternalError(
             f"{group.name} #{group.number_str}: the band representation a site irrep at "
             f"{letter} induces has the invariants {sorted(found)} by its decompositions, "
-            f"and the integer-valued invariants {z_rational} by the Smith form. Report it.")
+            f"and the integer-valued invariants {z_rational} by the Smith form. Report it, "
+            "with the model and the call.")
     target = next(iter(found)) if found else None
     form = tables._band_count_form
     out = []

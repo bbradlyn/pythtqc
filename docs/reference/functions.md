@@ -671,8 +671,7 @@ then refuses `irrep_tables`.
   * `"reason"`: where the tables are not loaded, which cause it is
     and what to do.  It is `None` where they are loaded.
   * `"ortools"`: whether `ortools`, the integer solver
-    `decompose` needs, can be used.  It is `True` only where the
-    tables are loaded and `ortools` is installed.
+    `decompose` needs, is installed.
   * `"irrep_version"` and `"irreptables_version"`: the versions
     installed, `None` where a package is absent.
 
@@ -1702,7 +1701,8 @@ adds up.
 
 **Refusals**
 
-A refusal handed in as `tables` is returned as it is.
+A refusal handed in as `tables` or as `theta_total` is returned as it
+is.
 
 - **`srsi_realizations_truncated`**: the enumeration of one side found more realizations than the default
   `cap` of [`atomic_realizations`](#atomic_realizations).

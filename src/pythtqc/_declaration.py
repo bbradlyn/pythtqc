@@ -269,12 +269,13 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
 
     Returns
     -------
-    _CovariantSubgroup
+    _CovariantSubgroup or Refusal
         The subgroup, the subgroups that tie, and the operations of ``kept_u``
         left out.  Where ``kept_u`` is no group and holds several largest
         subgroups, only the operations the declaration breaks on their own are
-        left out.  The ``rep_search_too_large`` refusal :func:`_subgroup_read`
-        can return is not handled, and raises ``AttributeError``.
+        left out.  The refusal ``rep_search_too_large`` where the sectors have
+        more representations to weigh than ``search.max_candidates``
+        (:func:`_subgroup_read`).
     """
 
     def _carries_matrices(sub):
@@ -289,7 +290,7 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
 
     if search is not None and search.complete:
         got = _subgroup_read(group, kept_u, search)
-        if got is not None and _carries_matrices(got.subgroup):
+        if isinstance(got, Refusal) or (got is not None and _carries_matrices(got.subgroup)):
             return got
     parts = ([requirements] if isinstance(requirements, dict)
              else [dict(part) for part in requirements])
@@ -1104,8 +1105,7 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
     Returns
     -------
     _Verdict or Refusal
-        The verdict, or the refusal the multiplets' permutation or the block
-        enumeration made.
+        The verdict, or the refusal the block enumeration made.
     """
     anc = _anchor_read(model, group, assignment, spin, validated, layout, positions,
                        classes=classes, blocks=blocks, max_candidates=max_candidates)
@@ -1130,15 +1130,12 @@ def _anchor_read(model, group, assignment, spin, validated, layout, positions, *
     ``positions``, ``classes``, ``blocks`` and ``max_candidates`` are as for
     :func:`_verdicts_and_choices`.  The anchor is orbital 0's multiplet.  The
     blocks are built here where the multiplets were measured and none are
-    handed in.  Returns the :class:`_Anchor`, or the refusal that the
-    multiplets' permutation (:func:`.._multiplets._channel_perms`) or the
-    block enumeration (:func:`.._multiplets._multiplet_blocks`) made.
+    handed in.  Returns the :class:`_Anchor`, or the refusal that the block
+    enumeration (:func:`.._multiplets._multiplet_blocks`) made.
     """
     syms = group._symmetries
     positions = [p for p in positions if not bool(syms[p].time_reversal)]
     cperm = _channel_perms(model, assignment, syms, positions, layout, spin)
-    if isinstance(cperm, Refusal):
-        return cperm
     site_orbs = tuple(tuple(int(o) for o in orbs) for orbs in assignment.site_orbitals)
     site_layout = _multiplets_of(model, assignment, spin,
                              tuple((tuple(orbs),) for orbs in site_orbs))
@@ -1503,8 +1500,8 @@ def _scales_read(model, group, assignment, spin, validated, layout, anc, ops, pr
     # tells apart.
     reversal_image = None
     if reversal is not None:
-        got = _channel_perms(model, assignment, syms, [int(reversal)], layout, spin)
-        reversal_image = None if isinstance(got, Refusal) else got[int(reversal)]
+        reversal_image = _channel_perms(model, assignment, syms, [int(reversal)], layout,
+                                        spin)[int(reversal)]
     scales, roots, wider = {}, {}, []
     for i in sorted(spoken):
         lead = _lead_of([c for c in range(nchan) if part_of.get(int(classes[c])) == i], ref)
@@ -2219,11 +2216,15 @@ def _declared_site_contents(model, group, assignment, characters, *, spin=None):
     ------
     _sitechars.DeclarationError
         ``gate="unknown_label"`` where a declared word names nothing in its
-        site group, ``gate="site_group"`` where a site's character table
-        cannot be built.
+        site group.
     ValueError
         Where the declaration is malformed
         (:func:`.._grammar._declaration_grammar`).
+    InternalError
+        Where a site's character table cannot be made
+        (:func:`.._sitechars.site_group_table`).  Its one caller,
+        :func:`.._descent._declared_cell_reduction`, returns it as the
+        refusal ``site_group``.
     """
     entries, atom_of, _atom_orbs = _declaration_entries(
         characters, model, assignment, spin=spin)
@@ -2615,7 +2616,27 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
             for o in atom_orbs[atom_of[int(a)]]:
                 written.setdefault(int(o), spec)
 
-    decls, placed, parts = [], [], {}
+    decls, placed, parts, declared_with = [], [], {}, {}
+
+    def _bound(site, dim, named):
+        """The measured multiplets at ``site`` a message offers, and the others it names.
+
+        Returns ``(bound, own)``, each multiplet as its atoms: ``bound`` those
+        of ``dim`` atoms holding an atom of ``named`` and not declared whole,
+        ``own`` the other multiplets holding an atom of ``named``.
+        """
+        whole = {frozenset(int(o) for o in d["orbitals"]) for d in decls
+                 if int(d["site"]) == int(site)}
+        bound, own = [], []
+        for m in layout.by_site[site]:
+            ks = _atoms_named(tuple(int(o) for o in m))
+            if not set(ks) & set(named):
+                continue
+            if len(ks) == int(dim) and frozenset(int(o) for o in m) not in whole:
+                bound.append(ks)
+            else:
+                own.append(ks)
+        return tuple(bound), tuple(own)
 
     def _one(rec, members, ks):
         base = rec["base"]
@@ -2687,6 +2708,9 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
                "note": note, "base": base, "read_where": read_where,
                "reduced_where": reduced_where, "functions": functions, "joint": joint,
                "corep": corep, "mulliken": mulliken, "matrices": matrices}
+        # every atom of the site written with this word, which a message counts
+        said_with = declared_with.setdefault((site, _declared_character_key(cons)), [])
+        said_with.extend(k for k in keys if k not in said_with)
 
         if joint and dim != len(keys):
             n = len(keys)
@@ -2697,11 +2721,12 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
                     else f"is {dim}-dimensional")
             # the spelling to offer: separate words for a declaration of
             # dimension one, and otherwise what the site holds says what fits
+            bound, own = _bound(site, dim, keys)
             fix = ((". Write {" + ", ".join(f"{int(min(atom_orbs[k]))}: {label!r}" for k in keys)
                     + f"}} for {n} separate {label} {noun}s.")
                    if dim == 1 else
                    ". " + _multiplet_spelling(site, _site_atoms(atom_orbs, site), dim, spec,
-                                              table, paired=paired))
+                                              table, paired=paired, bound=bound, own=own))
             raise _sitechars.DeclarationError(
                 "ambiguous_multiplet",
                 f"{where}: {label!r} {wide}, and the key names "
@@ -2777,14 +2802,28 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
             noun = "Wannier function" if paired else "orbital"
             wide = (f"holds {dim} {noun}{'' if dim == 1 else 's'}" if paired or rec["corep"]
                     else f"is {dim}-dimensional")
+            left = len(keys) % dim
+            # every atom of the site written with the word, those a multiplet of
+            # its dimension took whole among them, is what the reason counts
+            said_with = declared_with[(site, _chi)]
+            if len(said_with) > len(keys) == left:
+                named = tuple(sorted(int(o) for k in said_with for o in atom_orbs[k]))
+                over = tuple(int(min(atom_orbs[k])) for k in keys)
+                count = (f"and {len(said_with)} {noun}s of site {site} are declared with it, "
+                         f"{noun}{'s' if len(over) > 1 else ''} "
+                         f"{over[0] if len(over) == 1 else over} left over. ")
+            else:
+                named = orbs
+                count = (f"and {left} {noun}{'s' if left > 1 else ''} of site {site} declared "
+                         f"with it {'is' if left == 1 else 'are'} left over. ")
+            bound, own = _bound(site, dim, keys)
             raise _sitechars.DeclarationError(
                 "ambiguous_multiplet",
-                f"orbital{'s' if len(orbs) > 1 else ''} "
-                f"{orbs if len(orbs) > 1 else orbs[0]}: {rec['label']!r} {wide}, "
-                f"and {len(keys) % dim} {noun}{'s' if len(keys) % dim > 1 else ''} of site "
-                f"{site} declared with it {'is' if len(keys) % dim == 1 else 'are'} left over. "
+                f"orbital{'s' if len(named) > 1 else ''} "
+                f"{named if len(named) > 1 else named[0]}: {rec['label']!r} {wide}, "
+                + count
                 + _multiplet_spelling(site, _site_atoms(atom_orbs, site), dim, rec["spec"],
-                                      table, paired=paired),
+                                      table, paired=paired, bound=bound, own=own),
                 {"orbitals": orbs, "site": site, "declared_irrep": rec["label"],
                  "dim": dim,
                  "multiplet": tuple(atom_orbs[k] for k in keys)})
@@ -2804,17 +2843,22 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
         here = [d for d in decls if int(d["site"]) == site]
         named = {int(o) for d in here for o in d["orbitals"]}
         touched = [m for m in measured[site] if set(m) & named]
-        if ({frozenset(d["orbitals"]) for d in here} != {frozenset(m) for m in touched}
-                or (any(d["corep"] for d in here) and len(measured[site]) > 1)):
+        context = {"site": site, "orbitals": tuple(sorted(named)),
+                   "multiplets": measured[site]}
+        bound = " and ".join(str(m) for m in measured[site])
+        if {frozenset(d["orbitals"]) for d in here} != {frozenset(m) for m in touched}:
             raise _sitechars.DeclarationError(
                 "ambiguous_multiplet",
                 f"site {site}: generator matrices are declared here, and the declarations "
                 f"at this site do not each name one whole multiplet the hoppings measure "
-                f"there, {' and '.join(str(m) for m in measured[site])}, or one of them is a "
-                "double-valued site irrep. Give each multiplet its own key, naming its "
-                "orbital factor where the model has spin.",
-                {"site": site, "orbitals": tuple(sorted(named)),
-                 "multiplets": measured[site]})
+                f"there, {bound}. Give each multiplet its own key.", context)
+        if any(d["corep"] for d in here) and len(measured[site]) > 1:
+            raise _sitechars.DeclarationError(
+                "ambiguous_multiplet",
+                f"site {site}: generator matrices are declared here, and a declaration at "
+                f"this site is a double-valued site irrep, where the hoppings measure "
+                f"several multiplets, {bound}. Give each multiplet its own key, naming its "
+                "orbital factor.", context)
     return decls
 
 
@@ -2841,19 +2885,51 @@ def _site_atoms(atom_orbs, site) -> tuple:
     return tuple(atom_orbs[k] for k in sorted(k for k in atom_orbs if int(k[0]) == int(site)))
 
 
-def _multiplet_spelling(site, atoms, dim, spec, table, *, paired) -> str:
+def _multiplet_spelling(site, atoms, dim, spec, table, *, paired, bound=(), own=()) -> str:
     """The spelling an ``ambiguous_multiplet`` message suggests, as a sentence.
 
     ``site`` is the site's index and ``atoms`` its atoms, each given by its
     orbitals (:func:`_site_atoms`): its orbitals, or with ``paired`` its
     declared spin pairs, each one Wannier function.  ``spec`` is the word
     declared, ``dim`` its dimension counted in atoms, and ``table`` the site's
-    character table.  Where ``dim > 1`` and the site holds at least ``dim``
-    atoms, the sentence offers the joint form on its first ``dim`` atoms, each
-    named by its lowest orbital.  Otherwise it says what the site holds and
-    lists the site irreps that fit it (:func:`.._sitechars.fitting_words`).
+    character table.  ``bound`` holds the multiplets of ``dim`` atoms the
+    hoppings measure at the site that hold an atom the declaration names and
+    are not declared whole, and ``own`` the other measured multiplets holding
+    an atom it names, each as the keys of its atoms.  Where ``bound`` holds
+    one, the sentence names them and offers the joint form on the first.
+    Otherwise, where the site holds fewer than ``dim`` atoms, it says what the
+    site holds and lists the site irreps that fit it
+    (:func:`.._sitechars.fitting_words`).  Otherwise it names each multiplet
+    of ``own`` with its width and lists the site irreps that fit that width.
+    Without ``own``, where ``dim > 1``, it offers the joint form on the
+    site's first ``dim`` atoms, each named by its lowest orbital.
     """
     n, dim = len(atoms), int(dim)
+    by_key = {(int(site), int(min(a))): a for a in atoms}
+    noun = "Wannier function" if paired else "orbital"
+    if bound and dim > 1:
+        spelled = [tuple(int(min(by_key[k])) for k in m) for m in bound]
+        held = [tuple(sorted(int(o) for k in m for o in by_key[k])) for m in bound]
+        many = len(spelled) > 1
+        return (f"The hoppings bind {' and '.join(str(m) for m in held)} as "
+                f"{'multiplets' if many else 'a multiplet'} of its dimension. "
+                f"{'Name each that holds it in its own key' if many else 'Name it in one key'}"
+                f", as {{{spelled[0]}: {spec!r}}}.")
+    if own and n >= dim:
+        out = []
+        for width in sorted({len(m) for m in own}):
+            these = [m for m in own if len(m) == width]
+            names = []
+            for m in these:
+                orbs = tuple(sorted(int(o) for k in m for o in by_key[k]))
+                names.append(f"orbital {orbs[0]}" if len(orbs) == 1 else f"orbitals {orbs}")
+            room = f"one {noun}" if width == 1 else f"{width} {noun}s"
+            words = _sitechars.fitting_words(table, width)
+            out.append(f"The hoppings measure {' and '.join(names)} as "
+                       f"{'a multiplet' if len(these) == 1 else 'multiplets'} of {room}. "
+                       f"Declare a word for {room} there"
+                       + (f", such as {', '.join(words)}" if words else "") + ".")
+        return " ".join(out)
     if n >= dim > 1:
         joint = tuple(int(min(a)) for a in atoms[:dim])
         return ("Name the orbitals that hold it together in one key, as "
@@ -3098,7 +3174,8 @@ def _name_the_mismatch(failed, measured, still_free, decls, site_tables, tol=1e-
     named in the orbital-factor spelling (:func:`_label_character`); for a
     declaration in double-valued site irreps it is read only where a
     character was measured.  Where declared matrices are not carried but
-    their irrep is, the lines say so.
+    their irrep is, the lines say so.  Where the measured and the declared
+    double-valued names are one, the lines name the two orbital factors.
 
     Returns ``(text, context)``: the lines, and for the refusal's context a
     mapping of ``measured_irrep``, ``relative_character`` and
@@ -3107,13 +3184,16 @@ def _name_the_mismatch(failed, measured, still_free, decls, site_tables, tol=1e-
     tab = site_tables.get(int(failed["site"]))
     theta = measured[tuple(failed["orbitals"])]
 
-    meas, rels = [], []
+    meas, rels, meas_orb = [], [], []
     for chi in (still_free or [None]):
         gauged = (dict(theta) if chi is None
                   else {ind: complex(chi.get(int(ind), 1.0)) * v for ind, v in theta.items()})
         lab = _label_character(tab, gauged)
         if lab and lab not in meas:
             meas.append(lab)
+        lab = _label_character(tab, gauged, orbital=True)
+        if lab and lab not in meas_orb:
+            meas_orb.append(lab)
         # a declaration in double-valued site irreps states nothing where the
         # spin-1/2 lift has zero trace, and nothing was measured there
         rel = {ind: complex(gauged.get(int(ind), 0.0)) / complex(want)
@@ -3142,11 +3222,21 @@ def _name_the_mismatch(failed, measured, still_free, decls, site_tables, tol=1e-
         lines.append(f"  declared {said}, {tuple(failed['orbitals'])}="
                      f"{_declared(failed)}")
     wanted = _declared(failed)
+    # with spin, two orbital factors can give one double-valued name
+    # (``A1`` and ``A2`` of ``3m`` both give ``-E1``): the line then names them
+    wanted_orb = ("" if failed.get("corep") else
+                  _label_character(tab, failed["constraints"], orbital=True))
     if failed.get("matrices") and measured_irrep and measured_irrep == wanted:
         # declared matrices whose traces the hoppings carry, in another basis
         lines.append(
             f"  measured: orbital(s) {tuple(failed['orbitals'])} carry {measured_irrep}, "
             "as declared, in another basis than the declared matrices.")
+    elif (measured_irrep and measured_irrep == wanted and wanted_orb and meas_orb
+          and wanted_orb not in meas_orb):
+        lines.append(
+            f"  measured: orbital(s) {tuple(failed['orbitals'])} carry the orbital factor "
+            f"{' or '.join(meas_orb)}, not the declared {wanted_orb}, both {wanted} with "
+            "spin" + (f"; relative character {rel_label}." if rel_label else "."))
     else:
         lines.append(
             f"  measured: orbital(s) {tuple(failed['orbitals'])} carry "
@@ -3410,25 +3500,24 @@ def _joint_holds(j, pick, inside, *, tol=CHARACTER):
                    for c, row in raw.items()}
         return _meets({}, _declared_needs(d, carried, j.lift_trace), tol=tol)
     table = j.table_of(tuple(int(g) for g in j.site_group if int(g) in inside))
-    if table is None:                     # pragma: no cover - a site group closes
-        return True
     return _holds_part(d, assigned, raw, {int(d["site"]): table}, j.lift_trace,
                        unread=True)
 
 
-def _multiplet_characters(D, syms, u_pos, cperm, layout, prod):
+def _multiplet_characters(D, syms, u_pos, cperm, layout, prod, spf):
     """Each multiplet's orbital character on ``D``, and the reading's defect.
 
     ``D``, ``syms``, ``cperm`` and ``layout`` are as for
     :func:`_measure_channel_characters`, which reads each multiplet, and
     ``u_pos`` is its ``kept_u``, the positions of the unitary operations
-    read; ``prod`` is the product table of ``syms``, by position.  Returns
+    read; ``prod`` is the product table of ``syms`` and ``spf`` its spin
+    signs, by position (``_get_product_table``).  Returns
     ``(raw, residual)``: ``raw[c]`` is multiplet ``c``'s character over the
     operations that fix it, ``{ind: value}``, and ``residual`` the largest
     defect of those readings.  On a measured multiplet the residual also
-    holds how far its blocks are from multiplying as the operations do; a
-    spinful model's blocks carry the spinor and so can differ from it by a
-    sign.
+    holds how far its blocks are from multiplying as the operations do, the
+    product of two blocks set against the block of the product times the
+    sign ``spf`` the spin-1/2 lifts carry in it, by position.
     """
     raw, worst = {}, 0.0
     chan_states = layout._chan_states
@@ -3445,9 +3534,11 @@ def _multiplet_characters(D, syms, u_pos, cperm, layout, prod):
             block = {ind: D[pos_of_ind[int(ind)]][np.ix_(st, st)] for ind in raw[c]}
             for a_ind, A in block.items():
                 for b_ind, B in block.items():
-                    ab = int(syms[int(prod[pos_of_ind[a_ind], pos_of_ind[b_ind]])].ind)
+                    pa, pb = pos_of_ind[a_ind], pos_of_ind[b_ind]
+                    ab = int(syms[int(prod[pa, pb])].ind)
                     if ab in block:
-                        worst = max(worst, float(np.abs(A @ B - block[ab]).max()))
+                        worst = max(worst, float(np.abs(
+                            A @ B - int(spf[pa, pb]) * block[ab]).max()))
     return raw, worst
 
 

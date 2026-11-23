@@ -600,13 +600,14 @@ def test_the_grammar_mistakes_are_value_errors_not_refusals(sg211):
     with pytest.raises(ValueError, match="theta_total= holds the invariants valued modulo n "
                                          "theta_8, and #211.57 has"):
         tqr.nsit_criterion(sg211, wrong_moduli, theta_z, zeros)
-    # a refusal handed in as the tables is returned as it is
+    # a refusal handed in as the tables, or as theta_total, is returned as it is
     absent = tqr.srsi_tables(1, spinor=True)
     assert absent.gate == "srsi_table_absent"
     assert absent.reason.endswith("for which the unique SRSI is determined by the number "
                                   "of bands.") and "caption" not in absent.reason
     assert tqr.atomic_realizations(absent, theta_z) is absent
     assert tqr.nsit_criterion(absent, theta_total, theta_z, zeros) is absent
+    assert tqr.nsit_criterion(sg211, absent, theta_z, zeros) is absent
 
 
 # ---------------------------------------------------------------------------

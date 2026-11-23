@@ -81,6 +81,7 @@ from pythtqc import _build
 from pythtqc import _declaration
 from pythtqc import _measure
 from pythtqc import _multiplets
+from pythtqc import _sectors
 from pythtqc import _spacegroup
 from pythtqc import _tables
 
@@ -956,6 +957,19 @@ def test_the_measured_blocks_enumeration_is_capped_and_says_so():
     assert "fourfold pseudospin" in out.reason and "46 representations" in out.reason
     assert "`characters=`" in out.reason
 
+    # the declaration's own search past the ceiling is the refusal both callers
+    # of the covariant subgroup return: a search that is complete and whose
+    # every reading weighs too many representations, as `met` does past it
+    class _TooManySearch:
+        complete, max_candidates = True, 16
+
+        def met(self, sub):
+            raise _sectors._TooMany(46, (0, 1, 2, 3), 4)
+
+    kept_u = [int(s.ind) for s in group._symmetries if not s.time_reversal]
+    capped = _declaration._covariant_subgroup(group, kept_u, {}, search=_TooManySearch())
+    assert isinstance(capped, Refusal) and capped.gate == "rep_search_too_large", capped
+
 
 # ---------------------------------------------------------------------------
 # 6.  the record carries the declaration across every re-identification
@@ -980,6 +994,9 @@ def test_several_maximal_readings_of_a_declaration_name_the_first_by_the_tie_rul
                           characters=["s", "A2"])
     assert not wide and wide.gate == "declaration_breaks_group", str(wide)
     assert wide.context["relative_character"] == "A2"
+    # A1 and A2 both give -E1 with spin, so the line names the orbital factors
+    assert ("measured: orbital(s) (1,) carry the orbital factor A1, not the declared A2, "
+            "both -E1 with spin; relative character A2.") in wide.reason
     assert "several subgroups the declaration is covariant on are maximal" in wide.reason
     assert len(wide.context["tied"]) == 2
     assert set(wide.context["tied"][0]) <= set(wide.context["subgroup"])
@@ -1562,8 +1579,9 @@ def test_a_joint_shorthand_of_the_wrong_dimension_suggests_a_valid_spelling():
                 "multiplet of 2 Wannier functions. Declare a word for one Wannier "
                 "function, such as A1, A2, -E1.") in out.reason, out.reason
         assert "{0: 'E'}" not in out.reason and "{(0, 1): 'E'}" not in out.reason
-    # ... and where the site holds two, the joint form names one orbital of each:
-    # one site of a square lattice carrying two spinor Wannier functions
+    # ... and where the site holds two, each its own multiplet, the step is a word
+    # for the one declared, never a key with the pair nothing declared: one site
+    # of a square lattice carrying two spinor Wannier functions
     one = TBModel(Lattice([[1.0, 0.0], [0.0, 1.0]], [[0.0, 0.0], [0.0, 0.0]],
                           periodic_dirs=[0, 1]), spinful=True)
     one.set_onsite([0.3, -0.3], mode="add")
@@ -1574,9 +1592,54 @@ def test_a_joint_shorthand_of_the_wrong_dimension_suggests_a_valid_spelling():
         one.set_hop(0.2, 1, 0, R, mode="add")
     two = tqsp.spinless_presentation(one)[0]
     pair = tqg.realized_group(two, spin="interleaved", characters={0: "E"})
-    assert not pair and "as {(0, 2): 'E'}" in pair.reason, str(pair)
-    assert tqg.realized_group(two, spin="interleaved", cross_check=False,
-                              characters={(0, 2): "E"}), "the offered spelling is accepted"
+    assert not pair and ("The hoppings measure orbitals (0, 1) as a multiplet of one "
+                         "Wannier function. Declare a word for one Wannier function there, "
+                         "such as A1,") in pair.reason, str(pair)
+    assert "(2, 3)" not in pair.reason and "{(0, 2)" not in pair.reason
+    kept = tqg.realized_group(two, spin="interleaved", cross_check=False, characters={0: "A1"})
+    assert kept and kept.group.name == "P4mm1'", "the offered step is accepted, the group kept"
+
+    # an s orbital beside a (p_x, p_y) pair the hoppings bind: E written on all
+    # three is counted on all three, and the step is a word for the s orbital,
+    # never a key across it; the pair declared whole is not offered again, so
+    # following the step leaves the reason, and the step it gives is accepted
+    spd = TBModel(Lattice([[1.0, 0.0], [0.0, 1.0]], [[0.0, 0.0]] * 3,
+                          periodic_dirs=[0, 1]), spinful=False)
+    spd.set_onsite([0.5, -0.3, -0.3])
+    for o, tx, ty in ((0, -1.0, -1.0), (1, 1.0, -0.4), (2, -0.4, 1.0)):
+        spd.set_hop(tx, o, o, [1, 0])
+        spd.set_hop(ty, o, o, [0, 1])
+    step = ("orbital 0 left over. The hoppings measure orbital 0 as a multiplet of one "
+            "orbital. Declare a word for one orbital there, such as A1, A2, B1, B2.")
+    for words in ({0: "E", 1: "E", 2: "E"}, {0: "E", (1, 2): "E"}):
+        three = tqg.realized_group(spd, characters=words)
+        assert not three and three.gate == "ambiguous_multiplet", str(three)
+        assert ("orbitals (0, 1, 2): 'E' is 2-dimensional, and 3 orbitals of site 0 are "
+                "declared with it, " + step) in three.reason, three.reason
+    assert tqg.realized_group(spd, cross_check=False, characters={0: "A1", (1, 2): "E"})
+    # a key naming the s orbital with the pair is offered the pair alone
+    joint = tqg.realized_group(spd, characters={(0, 1, 2): "E"})
+    assert not joint and "Name it in one key, as {(1, 2): 'E'}." in joint.reason, str(joint)
+    # generator matrices at a site read whole, each condition in its own words
+    cut = tqg.realized_group(spd, characters={0: {"C4(z)": [[1]], "m(x)": [[1]]},
+                                              1: "A1", 2: "B1"})
+    assert not cut and cut.gate == "ambiguous_multiplet", str(cut)
+    assert cut.reason.endswith("do not each name one whole multiplet the hoppings measure "
+                               "there, (0,) and (1, 2). Give each multiplet its own key."), \
+        cut.reason
+    spinful = TBModel(Lattice([[1.0, 0.0], [0.0, 1.0]], [[0.0, 0.0]] * 2,
+                              periodic_dirs=[0, 1]), spinful=True)
+    spinful.set_onsite([0.4, -0.4])
+    for R in ([1, 0], [0, 1]):
+        spinful.set_hop(-1.0 * np.eye(2), 0, 0, R)
+        spinful.set_hop(-0.3 * np.eye(2), 1, 1, R)
+    spinor = tqg.realized_group(spinful, characters={0: "-E1",
+                                                     1: {"C4(z)": [[1]], "m(x)": [[1]]}})
+    assert not spinor and spinor.gate == "ambiguous_multiplet", str(spinor)
+    assert spinor.reason.endswith(
+        "a declaration at this site is a double-valued site irrep, where the hoppings "
+        "measure several multiplets, (0,) and (1,). Give each multiplet its own key, naming "
+        "its orbital factor."), spinor.reason
 
 
 # ---------------------------------------------------------------------------

@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+- In `r.wyckoff_orbits`, `numerical.residual` sets the product of two blocks of a
+  multiplet of several orbitals with spin against the block of the product times the
+  sign the double group gives it. Such a multiplet read `2.0` with its site irreps
+  right, and now reads at rounding: the `p` shell of a `3m` site with spin-orbit
+  coupling, which read `2.0`, reads `4e-15`.
+- The refusal `ambiguous_multiplet` counts every orbital of a site declared with one
+  word and names the multiplet each leftover orbital is: `{0: 'E', 1: 'E', 2: 'E'}` on
+  an `s` orbital beside a bound `(p_x, p_y)` pair says that 3 orbitals are declared with
+  `E`, orbital 0 left over, a multiplet of one orbital, and asks for a word for one
+  orbital there, such as `A1`, where it offered a key across the `s` orbital. A key that
+  names a bound multiplet with other orbitals, `{(0, 1, 2): 'E'}`, is offered the
+  multiplet alone, `{(1, 2): 'E'}`. Generator matrices at a site whose declarations
+  name no whole multiplet, and those beside a double-valued site irrep at a site of
+  several multiplets, each have their own reason.
+- The refusal `unknown_label` for a generator character whose key matches operations
+  of two classes names the classes, `2m(x), 2m([110])`, where it printed their
+  positions in a list.
+- `tables_status()` reports `'ortools'` `True` wherever `ortools` is installed, where it
+  reported `False` while the character tables were not loaded.
+- `SpaceGroupRep.sewing_operator` returns the operator wherever the operation carries `k`
+  to `k` plus a reciprocal lattice vector within the little group's tolerance, `1e-8`
+  by default, where for a miss above `1e-9` it raised an error of `bloch_operator()`
+  naming `k_out`, which it does not take. The operator carries `H(k)` onto the
+  Hamiltonian at the image folded back by that vector, and `tol=` no longer bears on
+  `k`. One point given as a row of shape `(1, dim)` returns one matrix of shape
+  `(nstate, nstate)`, as a flat `k` does, where it returned `(1, nstate, nstate)`.
+- The `KeyError` for an operation index that `r.rep` does not hold opens with the name
+  of the method called on `r.rep`: `transform_k():`, `in_little_group():`,
+  `bloch_operator():` or `sewing_operator():`. The `ValueError` of `r.rep.covariance`
+  for a model edited since it was measured opens `covariance():`.
+- `transform_k`, `in_little_group`, `little_group` and `sewing_operator` of `r.rep`,
+  given a `k` with the wrong number of components, raise a `ValueError` that opens with
+  the call and says how many to pass, where numpy raised an error naming no call.
+- `SpinBasis.summary()` heads its pairs "each pair one spinful orbital", where it said
+  "each pair one Wannier function".
 - `atomic_realizations` and `decompose` list every solution when there are exactly
   `cap` of them, where they marked the list cut at the cap. `atomic_realizations` with
   `cap=4` returns the four realizations of `(B3)_12d`'s invariants in `I4321'`, where it
@@ -10,7 +45,20 @@
   that there are more solutions than the cap, and the refusal's `value` is `cap + 1`.
   Both calls raise a `ValueError` for a `cap` below 1, which asks for no solution.
 - `atomic_realizations` and `nsit_criterion` return a refusal handed in as `tables`, such
-  as `srsi_tables(1, spinor=True)`, where they raised `AttributeError`.
+  as `srsi_tables(1, spinor=True)`, where they raised `AttributeError`. `nsit_criterion`
+  returns a refusal handed in as `theta_total`, where it raised `TypeError`.
+- The refusals `not_a_band_structure`, `indicator_not_evaluable`, `restriction_not_exact`
+  and `unknown_label` of `decompose` and `symmetry_indicator` carry the group in
+  `context["group"]`, and `not_a_band_structure` names it, `R-3m1' #166.98`, where it
+  gave the number alone. `restriction_not_exact` lists the little-group representations
+  by point and in ascending order at each, `-A7` before `-A10`, in its reason and in
+  `context["missing"]`, where both had the tables' order.
+- `models.i41_soc` raises a `ValueError` that opens `i41_soc():` for a name of `soc=`
+  other than `"generic"` or `"axial"`, where it raised a bare `KeyError`, and for a `soc=`
+  that is not a pair of (2, 2) matrices, where one (2, 2) matrix was read as two seeds
+  and returned a model. `models.atomic_model` handed orbits that an operation does not
+  carry onto themselves raises an `AssertionError` that opens `atomic_model():`, where it
+  opened `closed_bonds():`.
 - `splitting` with `bands=` outside the model's bands, or naming none, raises a
   `ValueError` that opens `splitting():`, where the message named no call or
   `hsp_table()`. It raises before the group's tables are read, where a group whose

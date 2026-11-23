@@ -494,6 +494,14 @@ def test_unknown_label_names_the_site_group_and_prints_the_frame(lin3g_undeclare
     junk = rebuild(lin3g_undeclared, characters={0: {"C6": 1.0}})
     assert not junk and junk.gate == "unknown_label"
     assert "names no operation" in junk.reason
+    # a character's key matching mirrors of two classes names the classes
+    split = rebuild(lin3g_undeclared, characters={0: {"m": 1.0}})
+    assert not split and split.gate == "unknown_label", str(split)
+    assert "more than one conjugacy class (2m(x), 2m([110]))." in split.reason
+    # a site group that does not close is the package's own defect, named by
+    # its operations: E and C4(z) alone are no group
+    with pytest.raises(tqc_sitechars.InternalError, match=re.escape("#1 E, #3 C4(z) of P4mm1'")):
+        tqc_sitechars.site_group_table(lin3g_undeclared.group, (1, 3))
 
     # generator matrices the site group cannot read: a fourfold whose fourth
     # power is not one, a matrix that is not unitary, and a key naming four mirrors
@@ -525,6 +533,8 @@ def test_a_hoppings_forbidden_declaration_names_what_was_measured(lin3g_undeclar
     """
     out = rebuild(lin3g_undeclared, characters={0: "s", 1: "s"})
     assert not out and out.gate == "declaration_breaks_group"
+    assert ("The representation was asked for on P4mm1' #99.164, which it cannot lower."
+            in out.reason)
     assert out.context["orbitals"] == (1,), "the second declaration is the one that fails"
     assert out.context["subgroup"] == (1, 2, 5, 6, 9, 10, 13, 14)
 
@@ -587,7 +597,10 @@ def test_the_flat_list_refuses_when_it_cannot_group_a_multiplet(lin3g_undeclared
     """
     out = rebuild(lin3g_undeclared, characters=["E", None, None, None])
     assert not out and out.gate == "ambiguous_multiplet"
-    assert "in one key" in out.reason and "2-dimensional" in out.reason
+    # orbital 0 is a multiplet of its own: the step is a word for one orbital,
+    # not the key over both orbitals that the next test finds lowers the group
+    assert ("The hoppings measure orbital 0 as a multiplet of one orbital. Declare a word "
+            "for one orbital there") in out.reason and "2-dimensional" in out.reason
     assert out.context["dim"] == 2 and out.context["orbitals"] == (0,)
 
     with pytest.raises(ValueError, match=re.escape("the key (0, 2) names orbitals of "
@@ -1735,11 +1748,27 @@ def test_every_ebr_column_at_a_fixture_position_comes_from_its_computed_rows(key
                 f"{key}: site {site} ({letter}) row {table.labels[row]} induces "
                 f"{content}, which is no sum of the columns {sorted(columns)}")
             used.update(parts)
+            # the search that names a row by these columns finds this sum at GM
+            # within its ceilings, which raise where reached
+            at_gm = {name: {lab: m for lab, m in col.items()
+                            if tqe.kpoint_of_label(lab) == "GM"}
+                     for name, col in columns.items()}
+            found = _naming._entry_combinations(
+                at_gm, {lab: m for lab, m in content.items()
+                        if tqe.kpoint_of_label(lab) == "GM"})
+            assert any(sorted(f) == sorted(parts) for f in found), (key, site, row)
         assert used == set(columns), (
             f"{key}: site {site} ({letter}) leaves {sorted(set(columns) - used)} "
             "unaccounted for")
         checked += 1
     assert seen, f"{key}: no site of this fixture was examined"
+    # a ceiling reached is the package's own defect: room for a fifth copy of
+    # one entry, and three combinations matching where the cap is two
+    with pytest.raises(tqc_sitechars.InternalError, match="more than 4 copies of -E1"):
+        _naming._entry_combinations({"-E1": {"-GM6": 1}}, {"-GM6": 5})
+    with pytest.raises(tqc_sitechars.InternalError, match="at least 2 combinations"):
+        _naming._entry_combinations({n: {"-GM6": 1} for n in ("-E1", "-E2", "-E3")},
+                                    {"-GM6": 1}, cap=2)
 
 
 #: The 28 positions whose names the tables of the invariants give otherwise than

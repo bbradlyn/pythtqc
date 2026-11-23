@@ -127,7 +127,7 @@ class SpinBasis:
 
         The heading names the attribute ``pairs`` that holds them.
         """
-        lines = ["each pair one Wannier function, its spin up and down along z   (.pairs)"]
+        lines = ["each pair one spinful orbital, its spin up and down along z   (.pairs)"]
         lines += [f"  pair {c}: orbital {int(up)} up, orbital {int(dn)} down"
                   for c, (up, dn) in enumerate(self.pairs)]
         return "\n".join(lines)
@@ -167,7 +167,7 @@ def spin_basis(model, *, order="interleaved", pairs=None) -> SpinBasis:
     >>> from pythtb.models import kane_mele                         # doctest: +SKIP
     >>> flat, _ = spinless_presentation(kane_mele(1.0, -1.0, 0.3, 0.25))   # doctest: +SKIP
     >>> print(spin_basis(flat).summary())                            # doctest: +SKIP
-    each pair one Wannier function, its spin up and down along z   (.pairs)
+    each pair one spinful orbital, its spin up and down along z   (.pairs)
       pair 0: orbital 0 up, orbital 1 down
       pair 1: orbital 2 up, orbital 3 down
 

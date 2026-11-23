@@ -70,8 +70,7 @@ Bands are counted from 0, as pythtb counts them.
    bands 1 and 2    : gap 4.040874
    Z-valued SRSIs   : all 4 bands (1, 1, 0), the valence bands (1, 0, 0)
    mod 2            : all 4 bands (0, 1)
-   splitting        : bands 0 and 1 against bands 2 and 3 is
-                      nsit
+   splitting        : bands 0 and 1 against bands 2 and 3 is nsit
    consistent pairs : none: no valence and conduction realization have invariants
                       valued modulo n adding up to those of all 4 bands
    bands 0 and 1    : the hybrid Wannier centers meet at k_y = 0.0, 0.5, 1.0,

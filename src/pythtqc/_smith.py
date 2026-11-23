@@ -212,21 +212,23 @@ def _filled_content(counts, restriction, labels):
     return [int(filled.get(label, 0)) for label in labels], reconstructed
 
 
-def _compatibility(data, number_str, y):
+def _compatibility(data, group, y):
     """The symmetry data vector in Smith coordinates, checked against the compatibility relations.
 
-    ``data`` and ``number_str`` are as :func:`_smith_system` takes them.
-    ``y`` is the symmetry data vector on every row of the EBR matrix, as
-    :func:`_filled_content` returns it.  With ``u`` and ``d`` as
+    ``data`` is as :func:`_smith_system` takes it.  ``group`` is the group;
+    :func:`_smith_system` takes its ``number_str``.  ``y`` is the symmetry
+    data vector on every row of the EBR matrix, as :func:`_filled_content`
+    returns it.  With ``u`` and ``d`` as
     :func:`_smith_system` returns them, the coordinates of ``y' = u y`` where
     ``d`` is zero vanish for every band structure of the group: they are its
     compatibility relations.
     Returns ``(smith, y_prime, refusal)``: ``smith``, the
     ``(u, v, d, matrix)`` of :func:`_smith_system`; ``y_prime``, ``y'`` as a
     list; ``refusal``, ``not_a_band_structure`` naming each of those
-    coordinates that does not vanish, as ``(index, value)``, or ``None``
-    where all do.
+    coordinates that does not vanish, as ``(index, value)``, with the group
+    named and carried in ``context["group"]``, or ``None`` where all do.
     """
+    number_str = str(group.number_str)
     u, v, d, matrix = _smith_system(data, number_str)
     y_prime = [sum(u[i][j] * y[j] for j in range(len(y))) for i in range(len(u))]
     off = [(i, y_prime[i]) for i in range(len(y_prime)) if d[i] == 0 and y_prime[i]]
@@ -234,7 +236,8 @@ def _compatibility(data, number_str, y):
         return (u, v, d, matrix), y_prime, None
     return (u, v, d, matrix), y_prime, Refusal(
         "not_a_band_structure",
-        f"the symmetry data vector violates #{number_str}'s compatibility relations: "
+        f"the symmetry data vector violates {group.name} #{number_str}'s compatibility "
+        "relations: "
         f"{len(off)} of its Smith coordinates that vanish for every band structure, "
         f"{[(i, int(v2)) for i, v2 in off]} as (index, value), are nonzero. Check "
         "that a gap separates the bands counted from the others at every k-point and "
@@ -242,7 +245,7 @@ def _compatibility(data, number_str, y):
         value=float(max(abs(int(v2)) for _i, v2 in off)), threshold=0.0,
         context={"violations": tuple((int(i), int(v2)) for i, v2 in off),
                  "y_prime": tuple(int(x) for x in y_prime),
-                 "number_str": str(number_str)})
+                 "group": group, "number_str": number_str})
 
 
 def _structure(divisors) -> str:

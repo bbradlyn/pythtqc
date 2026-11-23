@@ -471,8 +471,8 @@ row("bands 1 and 2", f"gap {energies_z2[:, 2].min() - energies_z2[:, 1].max():.6
 row("Z-valued SRSIs", f"all 4 bands {values(z2_srsi.theta_Z.values())}, the valence bands "
     f"{values(split_z2.valence.theta_Z.values())}")
 row(f"mod {modulus}", f"all 4 bands {values(mod_n(z2_srsi.theta_Zn, modulus))}")
-row("splitting", "bands 0 and 1 against bands 2 and 3 is",
-    "nsit" if split_z2.nsit else "not nsit")
+row("splitting", "bands 0 and 1 against bands 2 and 3 is "
+    + ("nsit" if split_z2.nsit else "not nsit"))
 if split_z2.consistent_pairs:
     row("consistent pairs", f"{len(split_z2.consistent_pairs)}, each a valence and a conduction "
         "realization whose", "invariants valued modulo n add up to those of all 4 bands")

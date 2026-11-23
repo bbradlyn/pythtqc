@@ -62,6 +62,19 @@ def test_builders_are_deterministic_and_independent():
     assert not np.allclose(a.hamiltonian(k, flatten_spin_axis=True),
                            b.hamiltonian(k, flatten_spin_axis=True))
 
+    # a builder handed what it does not take says so, naming the call its user made
+    with pytest.raises(ValueError, match=r"^i41_soc\(\): soc='axil' is not a name"):
+        tqm.i41_soc(soc="axil")
+    with pytest.raises(ValueError, match=r"^i41_soc\(\): soc= is not a pair"):
+        tqm.i41_soc(soc=tqm.PAULI[2])                   # one matrix, not two
+    for not_a_pair in (3, None):
+        with pytest.raises(ValueError, match=r"^i41_soc\(\): soc= is not a pair"):
+            tqm.i41_soc(soc=not_a_pair)
+    ops = [(np.eye(3), np.zeros(3)), (-np.eye(3), np.zeros(3))]
+    with pytest.raises(AssertionError, match=r"^atomic_model\(\): an operation"):
+        tqm.atomic_model(np.eye(3), ops, [np.array([[0.1, 0.2, 0.3]])], [0.0],
+                         [(0, 0, (1, 0, 0), 1.0)])     # the inversion image is missing
+
 
 # ---------------------------------------------------------------------------
 # lin3g

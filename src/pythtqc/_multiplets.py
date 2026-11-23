@@ -1046,8 +1046,6 @@ def _multiplet_blocks(model, group, assignment, spin, validated, layout, positio
     tol, zero = noise_floor(tol, eps), noise_floor(ZERO, eps)
     u_pos = [p for p in kept if not syms[p].time_reversal]
     cperm = _channel_perms(model, assignment, syms, kept, layout, spin)
-    if isinstance(cperm, Refusal):
-        return cperm
     classes, ncls = _channel_classes(cperm, u_pos, layout._nchan)
     ones = [c for c in range(int(layout._nchan)) if layout._chan_kind[c] == "tables"]
     if ref_chan is None:
@@ -1265,8 +1263,6 @@ def _ansatz_defects(model, group, assignment, validated, positions, *,
     syms = group._symmetries
     positions = list(positions)
     cperm = _channel_perms(model, assignment, syms, positions, layout, spin)
-    if isinstance(cperm, Refusal):
-        return cperm
     chan_states, su2 = layout._chan_states, layout._spinful
     ref_chan = int(np.asarray(layout._chan_of, dtype=int)[0])
     # the multiplet orbits of the operations under test, as _build_rep forms them:

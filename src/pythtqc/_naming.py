@@ -102,10 +102,11 @@ class _SiteTableOf:
 
     ``site`` is a site of ``assignment``, the orbitals' assignment to ``group``.
     Called with the ``.ind`` of a subgroup's unitary operations, it returns the
-    table of the site group's operations among them, or ``None`` where they do
-    not close into a group.  With ``corep=False`` the table is a plain character
-    table under point-group names (:func:`_site_group_table`), which is all a
-    decomposition reads.  With ``corep=True``, for a declaration written in the
+    table of the site group's operations among them, which close into a group
+    since both sets do.  A set that does not close raises ``InternalError``
+    (:func:`.._sitechars.site_group_table`).  With ``corep=False`` the table is
+    a plain character table under point-group names (:func:`_site_group_table`),
+    which is all a decomposition reads.  With ``corep=True``, for a declaration written in the
     names of double-valued site irreps, the table is named as
     :func:`_site_tables` names it, with the antiunitary partner of each kept
     operation merging complex-conjugate pairs.
@@ -125,17 +126,14 @@ class _SiteTableOf:
         key = frozenset(int(i) for i in indices)
         if key not in self._built:
             own = [int(i) for i in self.assignment.site_group[self.site]]
-            try:
-                if self.corep:
-                    partners = _primed_partners(self.group, own)
-                    primed = {partners[i] for i in key if i in partners}
-                    self._built[key] = _site_tables(self.group, self.assignment, set(key),
-                                                    primed, [self.site])[self.site]
-                else:
-                    self._built[key] = _site_group_table(
-                        self.group, tuple(i for i in own if i in key))
-            except _sitechars.DeclarationError:   # pragma: no cover - a site group closes
-                self._built[key] = None
+            if self.corep:
+                partners = _primed_partners(self.group, own)
+                primed = {partners[i] for i in key if i in partners}
+                self._built[key] = _site_tables(self.group, self.assignment, set(key),
+                                                primed, [self.site])[self.site]
+            else:
+                self._built[key] = _site_group_table(
+                    self.group, tuple(i for i in own if i in key))
         return self._built[key]
 
 
@@ -602,10 +600,12 @@ def _site_irrep_labels(group, assignment, site, table) -> tuple:
 # matched against the EBR entries at the position.
 
 #: Largest multiplicity of one EBR entry a site representation is searched for,
-#: and the most matching combinations kept before the search gives up.  Both are
-#: far above anything a site group of order <= 48 can produce: a row of
-#: dimension ``d`` times the lift induces ``2d`` times the position's
-#: multiplicity bands, and an entry carries at least two of them.
+#: and the most matching combinations the search holds.  A row of dimension
+#: ``d``, times the lift on a double group, induces ``2d`` times the position's
+#: multiplicity bands, and every combination matching it at a point carries as
+#: many.  Over every group's EBR entries at every letter, no combination holds
+#: more than 4 copies of one entry, and no point is matched by more than 58
+#: combinations, so reaching either ceiling is a defect of the package.
 _MAX_ENTRY_MULTIPLICITY = 4
 
 _MAX_COMBINATIONS = 64
@@ -620,6 +620,11 @@ def _entry_combinations(contents, target, *, cap=_MAX_COMBINATIONS):
     ``cap`` multisets found.  Returns a list of the multisets, each in the order
     of ``contents`` with its repeats written out, empty where none sums to
     ``target``.
+
+    Raises
+    ------
+    InternalError
+        Where the search reaches either ceiling, which no group's entries do.
     """
     names = list(contents)
     labels = sorted({lab for c in contents.values() for lab in c} | set(target))
@@ -643,7 +648,17 @@ def _entry_combinations(contents, target, *, cap=_MAX_COMBINATIONS):
             left = tuple(a - b for a, b in zip(left, here))
             if any(x < 0 for x in left):
                 break
+        else:
+            raise InternalError(
+                f"the EBR entries that match what a site irrep induces at one point "
+                f"hold room for more than {_MAX_ENTRY_MULTIPLICITY} copies of "
+                f"{names[i]}. Report it, with the model and the call.")
     walk(0, want, [])
+    if len(out) >= cap:
+        raise InternalError(
+            f"at least {cap} combinations of the EBR entries "
+            f"{', '.join(names)} match what a site irrep induces at one point. "
+            "Report it, with the model and the call.")
     return out
 
 

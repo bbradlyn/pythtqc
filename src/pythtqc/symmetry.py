@@ -131,11 +131,8 @@ class _OrbitalRow:
         every row.  On a multiplet of one orbital or one declared spinor pair,
         the misfit is how far its block misses its character times its spin
         factor; on a measured multiplet of several, how far its blocks miss
-        multiplying as its site group does.  A large one says the site irreps
-        are not to be trusted, except on a measured multiplet of several
-        orbitals with spin: its blocks multiply with the sign the double group
-        gives each product, and miss by as much as ``2`` with the site irreps
-        right.
+        multiplying as its site group does, its double group with spin.  A
+        large one says the site irreps are not to be trusted.
     """
 
     orbital: int
@@ -621,36 +618,6 @@ def _not_distinguished(orbit) -> str:
                   + " or of " + words[-1])
     return f", not distinguished by the stable real-space invariants from {joined}"
 
-def _content_by_position(table, states_per_orbital) -> list:
-    """The orbitals at each Wyckoff position and the site irreps one site holds.
-
-    ``table`` is the per-orbital table.  ``states_per_orbital`` is ``2`` on
-    a model whose orbitals carry their own spin, where a row's ``dim`` counts
-    states and its ``multiplet`` orbitals, and ``1`` otherwise.  The site
-    irreps are read at the position's lowest-indexed site, each multiplet
-    there once, a multiplet of identical copies of one irrep counting that
-    irrep once per copy.  Returns a line per position, ``"2b (3m): orbitals
-    0-1, A1"`` for graphene.
-    """
-    by_position = {}
-    for row in table.orbitals:
-        by_position.setdefault((row.wyckoff, row.site_symmetry), []).append(row)
-    lines = []
-    for (wyckoff, site_symmetry), rows in by_position.items():
-        first = min(int(row.site) for row in rows)
-        counts, seen = {}, set()
-        for row in rows:
-            if int(row.site) != first or tuple(row.multiplet) in seen:
-                continue
-            seen.add(tuple(row.multiplet))
-            copies = max(1, len(row.multiplet) * int(states_per_orbital) // max(1, int(row.dim)))
-            for n, name in _content_terms(row.irrep or "unnamed"):
-                counts[name] = counts.get(name, 0) + n * copies
-        content = " + ".join(f"{n}x{name}" if n > 1 else name for name, n in counts.items())
-        lines.append(f"{wyckoff or '?'} ({site_symmetry}): "
-                     f"{_orbitals_named(row.orbital for row in rows)}, {content}")
-    return lines
-
 # --------------------------------------------------------------------------
 # a sum of site irreps, and the rows by Wyckoff orbit
 # --------------------------------------------------------------------------
@@ -797,12 +764,9 @@ class WyckoffOrbitNumerical:
         a multiplet, or on one declared spinor pair, the misfit is how far its
         block misses that product.  On a multiplet of several orbitals it
         is how far its blocks miss multiplying as the site-symmetry group
-        does.  Each misfit is the largest modulus of an entry of a difference
-        of unitary blocks, and one that is not small against ``1`` says the
-        site irreps are not to be trusted.  The one exception is a multiplet
-        of several orbitals with spin: its blocks multiply with the sign the
-        double group gives each product, and miss by as much as ``2`` with the
-        site irreps right.
+        does, its double group with spin.  Each misfit is the largest modulus
+        of an entry of a difference of unitary blocks, and one that is not
+        small against ``1`` says the site irreps are not to be trusted.
     characters : dict
         For each orbital, its orbital factor's character on every operation of
         its site-symmetry group, by index.  It is single-valued, with spin or
@@ -1263,9 +1227,21 @@ def _wyckoff_orbits_of(rep) -> tuple:
         sites = {int(layout._chan_site[k]) for k in chans}
         coarse = {int(orbit_of_site[s]) for s in sites}
         if len(coarse) != 1:
+            def position(orbit):
+                first = min(int(s) for s in assignment.orbits[orbit])
+                row = next((o for o in getattr(rep._characters, "orbitals", ())
+                            if int(o.site) == first), None)
+                letter = (getattr(row, "wyckoff", "") or (
+                    assignment.wyckoff_tables[first]
+                    if first < len(assignment.wyckoff_tables) else "") or "?")
+                symmetry = (assignment.site_symmetry[first]
+                            if first < len(assignment.site_symmetry) else "") or "?"
+                return f"{letter} ({symmetry})"
             raise InternalError(
-                f"the orbit of multiplets {c} spans the orbits of sites {sorted(coarse)}. "
-                "Report it, with the model and the call.")
+                f"the group carries {_orbitals_named(orbitals)} onto one another, and "
+                f"their sites lie at {len(coarse)} Wyckoff positions, "
+                + ", ".join(position(o) for o in sorted(coarse))
+                + ". Report it, with the model and the call.")
         ordered = tuple(int(s) for s in assignment.orbits[coarse.pop()] if int(s) in sites)
         out.append((ordered, orbitals))
     return tuple(sorted(out, key=lambda w: min(w[1])))
@@ -1624,28 +1600,62 @@ class SpaceGroupRep:
     def __contains__(self, ind) -> bool:
         return int(ind) in self.matrices
 
-    def _operation(self, ind):
+    def _operation(self, ind, *, call=None):
         """The ``irrep`` operation of index ``ind``.
 
-        Raises ``KeyError`` where the representation does not hold it.
+        ``call`` is the name of the public call its user made, which the
+        error opens with; ``None`` opens it with nothing.  Raises ``KeyError``
+        where the representation does not hold it.
         """
         for op in self._operations:
             if int(op.ind) == int(ind):
                 return op
-        raise KeyError(f"operation #{ind} is not an operation of the group. "
-                       "Pass an index that r.operations lists.")
+        raise KeyError(f"{call + '(): ' if call else ''}operation #{ind} is not an "
+                       "operation of the group. Pass an index that r.operations lists.")
 
-    def _check_unedited(self, bloch) -> None:
+    def _check_unedited(self, bloch, *, call=None) -> None:
         """Raise ``ValueError`` where the model was edited after it was measured.
 
         ``bloch`` is the model's Bloch sum (:func:`.._bloch.evaluator`), which
-        carries the hash of the model it was summed from.  Nothing is checked
-        where ``_model_key`` is ``None``.
+        carries the hash of the model it was summed from.  ``call`` is the
+        name of the public call its user made, which the error opens with;
+        ``None`` opens it with nothing.  Nothing is checked where
+        ``_model_key`` is ``None``.
         """
         if self._model_key is not None and bloch.key != self._model_key:
             raise ValueError(
-                "the model has been edited since realized_group measured it. Call "
-                "realized_group on the edited model, and pass what it returns.")
+                f"{call + '(): ' if call else ''}the model has been edited since "
+                "realized_group measured it. Call realized_group on the edited model, "
+                "and pass what it returns.")
+
+    def _image(self, call, ind, k):
+        """The image of the k-points ``k`` under the operation of index ``ind``.
+
+        ``k`` is reduced coordinates, one point or a row for each; ``call``
+        is the name of the public call its user made, for the error of an
+        index the representation does not hold.  Returns a row for each point.
+        """
+        k = self._components(call, k)
+        return self._group._k_action_of(self._operation(ind, call=call))(k)
+
+    def _components(self, call, k, *, one=False):
+        """``k`` as an array with a row for each point, checked for its length.
+
+        ``call`` is the name of the public call its user made, and ``one``
+        whether that call takes one point.  Raises ``ValueError`` where ``one``
+        is set and ``k`` holds several points, and where a point does not have
+        one component for each periodic direction of the model.
+        """
+        k = np.atleast_2d(np.asarray(k, dtype=float))
+        if one and (k.ndim != 2 or k.shape[0] != 1):
+            raise ValueError(f"{call}(): k holds {int(np.prod(k.shape[:-1]))} points; pass "
+                             "one.")
+        dim = int(self._group._dim_k)
+        n = int(k.shape[-1])
+        if n != dim:
+            raise ValueError(f"{call}(): k has {n} component{'' if n == 1 else 's'}; pass "
+                             f"{dim}, one for each periodic direction.")
+        return k
 
     @cached_property
     def _scale(self) -> float:
@@ -1703,13 +1713,13 @@ class SpaceGroupRep:
         KeyError
             ``ind`` is not an operation of the representation.
         ValueError
-            ``k`` is a name the group does not tabulate.
+            ``k`` is a name the group does not tabulate, or does not have one
+            component for each periodic direction.
         """
         k = self._kpoint("transform_k", k)
         if isinstance(k, Refusal):
             return k
-        k = np.atleast_2d(np.asarray(k, dtype=float))
-        return self._group._k_action_of(self._operation(ind))(k)
+        return self._image("transform_k", ind, k)
 
     def in_little_group(self, ind, k, *, _atol=1e-8):
         """Whether an operation fixes ``k``, and the reciprocal lattice vector ``gk − k``.
@@ -1734,7 +1744,9 @@ class SpaceGroupRep:
         tuple or Refusal
             ``(member, G)``.  ``member`` is whether ``gk − k`` is a vector of
             integers.  ``G`` is ``gk − k`` rounded to integers, the reciprocal
-            lattice vector :meth:`sewing_operator` folds the image back by.
+            lattice vector :meth:`sewing_operator` folds the image back by:
+            ``Rk − k`` for an operation ``{R|t}``, and ``−Rk − k`` for one
+            combined with time reversal.
 
         Refusals
         --------
@@ -1751,13 +1763,14 @@ class SpaceGroupRep:
         KeyError
             ``ind`` is not an operation of the representation.
         ValueError
-            ``k`` is a name the group does not tabulate.
+            ``k`` is a name the group does not tabulate, holds several points,
+            or does not have one component for each periodic direction.
         """
         k = self._kpoint("in_little_group", k)
         if isinstance(k, Refusal):
             return k
-        k = np.asarray(k, dtype=float).reshape(-1)
-        kp = self.transform_k(ind, k)[0]
+        k = self._components("in_little_group", k, one=True)[0]
+        kp = self._image("in_little_group", ind, k)[0]
         G = kp - k
         return bool(np.abs(G - np.rint(G)).max() <= _atol), np.rint(G).astype(int)
 
@@ -1794,7 +1807,8 @@ class SpaceGroupRep:
         Raises
         ------
         ValueError
-            ``k`` is a name the group does not tabulate.
+            ``k`` is a name the group does not tabulate, holds several points,
+            or does not have one component for each periodic direction.
 
         See Also
         --------
@@ -1804,6 +1818,7 @@ class SpaceGroupRep:
         k = self._kpoint("little_group", k)
         if isinstance(k, Refusal):
             return k
+        k = self._components("little_group", k, one=True)[0]
         return tuple(ind for ind in self._indices
                      if self.in_little_group(ind, k, _atol=_atol)[0])
 
@@ -1873,18 +1888,23 @@ class SpaceGroupRep:
             if isinstance(k_out, Refusal):
                 return k_out
         return bloch_operator(self._model, self._group, self._assignment,
-                              self._operation(ind), self.matrices[int(ind)], k,
-                              k_out=k_out, **kwargs)
+                              self._operation(ind, call="bloch_operator"),
+                              self.matrices[int(ind)], k, k_out=k_out, **kwargs)
 
-    def sewing_operator(self, ind, k, *, _atol=1e-8, **kwargs):
+    def sewing_operator(self, ind, k, *, _atol=1e-8, _call="sewing_operator", **kwargs):
         """The Bloch operator of an operation that fixes ``k``, folded back to ``k``.
 
-        It is :meth:`bloch_operator` with ``k_out = k``, and so carries the
-        Hamiltonian at ``k`` onto itself: ``U H(k) U† = H(k)``, with ``H(k)*``
-        in place of ``H(k)`` for an operation combined with time reversal.
-        For the eigenvectors ``V`` of a set of bands at ``k``, ``V† U V`` is
-        the sewing matrix of that set, with ``V*`` in place of the last ``V``
-        for an operation combined with time reversal.
+        It is :meth:`bloch_operator` with ``k_out = gk − G``: the image ``gk``
+        folded back by ``G``, the reciprocal lattice vector nearest
+        ``gk − k``.  It carries the Hamiltonian at ``k`` onto the Hamiltonian
+        at that point, ``U H(k) U† = H(gk − G)``, with ``H(k)*`` in place of ``H(k)``
+        for an operation combined with time reversal.  ``gk − G`` is ``k``
+        where the operation fixes ``k`` exactly, and lies within ``_atol`` of
+        it otherwise.  For the eigenvectors ``V`` of a set of bands at ``k``,
+        ``V† U V`` is the sewing matrix of that set, with ``V*`` in place of
+        the last ``V`` for an operation combined with time reversal.  Where
+        the operation fixes ``k`` only within ``_atol``, it is so up to the
+        change of ``H`` over that distance in ``k``, and not exactly.
 
         Parameters
         ----------
@@ -1896,9 +1916,14 @@ class SpaceGroupRep:
         _atol : float, default 1e-8
             How far each component of ``gk − k`` may miss an integer, in
             reduced coordinates, ``gk`` being the image :meth:`transform_k`
-            returns.
+            returns.  It alone decides whether the operation fixes ``k``.
+        _call : str, default "sewing_operator"
+            The name of the public call its user made, which an error opens
+            with.
         **kwargs
-            ``tol`` and ``check``, passed to :func:`bloch_operator`.
+            ``tol`` and ``check``, passed to :func:`bloch_operator`.  They
+            govern the images of the orbitals and the entries of the matrix
+            read as zero, not whether the operation fixes ``k``.
 
         Returns
         -------
@@ -1924,30 +1949,33 @@ class SpaceGroupRep:
         KeyError
             ``ind`` is not an operation of the representation.
         ValueError
-            ``k`` is a name the group does not tabulate.
+            ``k`` is a name the group does not tabulate, holds several points,
+            or does not have one component for each periodic direction.
 
         See Also
         --------
         ..sewing.sewing_matrix : the sewing matrix of a set of bands, with its
             eigenvalues.
         """
-        k = self._kpoint("sewing_operator", k)
+        k = self._kpoint(_call, k)
         if isinstance(k, Refusal):
             return k
-        ok, G = self.in_little_group(ind, k, _atol=_atol)
-        if not ok:
-            kp = self.transform_k(ind, np.asarray(k, dtype=float).reshape(-1))[0]
+        k = self._components(_call, k, one=True)[0]
+        kp = self._image(_call, ind, k)[0]
+        G = np.rint(kp - k)
+        miss = float(np.abs(kp - k - G).max())
+        if not miss <= _atol:
             return Refusal(
                 "little_group",
-                f"operation #{ind} carries k = {np.round(np.asarray(k, float), 6).tolist()} "
+                f"operation #{ind} carries k = {np.round(k, 6).tolist()} "
                 f"to {np.round(kp, 6).tolist()}, which is not k up to a reciprocal lattice "
                 "vector. Pass an operation of the little group of k, which little_group "
                 "lists.",
-                value=float(np.abs(kp - np.asarray(k, float).reshape(-1)
-                                   - np.rint(kp - np.asarray(k, float).reshape(-1))).max()),
-                threshold=_atol, context={"operation_ind": int(ind), "k": np.asarray(k, float)})
-        return self.bloch_operator(ind, k, k_out=np.asarray(k, dtype=float).reshape(-1),
-                                   **kwargs)
+                value=miss, threshold=_atol, context={"operation_ind": int(ind), "k": k})
+        # the image is k plus G within _atol: the Hamiltonian is read at the
+        # image folded back by G, which bloch_operator then finds a reciprocal
+        # lattice vector from the image to rounding
+        return self.bloch_operator(ind, k, k_out=kp - G, **kwargs)
 
     def covariance(self, kpoints=None):
         """Each operation's covariance residual, measured again, in the units of H.
@@ -1977,7 +2005,7 @@ class SpaceGroupRep:
         kpoints = (self._battery if kpoints is None
                    else np.atleast_2d(np.asarray(kpoints, float)))
         bloch = _bloch.evaluator(self._model)
-        self._check_unedited(bloch)
+        self._check_unedited(bloch, call="covariance")
         H = np.asarray(bloch(kpoints))
         out = {}
         for ind in self._indices:

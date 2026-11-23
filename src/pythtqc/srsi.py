@@ -1674,7 +1674,8 @@ def nsit_criterion(tables, theta_total, theta_Z_v, theta_Z_c) -> "Splitting | Re
 
     Refusals
     --------
-    A refusal handed in as ``tables`` is returned as it is.
+    A refusal handed in as ``tables`` or as ``theta_total`` is returned as it
+    is.
 
     ``srsi_realizations_truncated``
         the enumeration of one side found more realizations than the default
@@ -1697,6 +1698,8 @@ def nsit_criterion(tables, theta_total, theta_Z_v, theta_Z_c) -> "Splitting | Re
     """
     if isinstance(tables, Refusal):
         return tables
+    if isinstance(theta_total, Refusal):
+        return theta_total
     if not (hasattr(theta_total, "theta_Z") and hasattr(theta_total, "theta_Zn")):
         raise TypeError("nsit_criterion(): theta_total= is of type "
                         f"{type(theta_total).__name__}; "

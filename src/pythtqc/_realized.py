@@ -5153,39 +5153,18 @@ def _quote_position_defect(refusal, positions, symmetrization) -> Refusal:
                                 positions=positions))
 
 
-def _tensor_structure_entry(record) -> dict:
-    """What a refusal says of an operation its tensor structure refuted.
-
-    ``record`` is the operation's entry among the refuted.  Returns its
-    ``note``; the condition of its own form that failed (``own_form``), where
-    that was read; and the dimensionless ``residual`` the verdict rests on,
-    how far the matrix of that form nearest the operation's solution space
-    misses it, over that matrix's own size.
-    """
-    return {"note": record.get("note"),
-            **({"own_form": record["own_form"]} if record.get("own_form") else {}),
-            "residual": float(record.get("scaled", float("nan")))}
-
-
 #: Each cause the refusal cell_group_not_realized counts, as its reason says it.
 _BROKEN_BY_WORDS = {"no symmetry matrix": "with no symmetry matrix",
                     "covariance": "for a covariance residual above the tolerance",
-                    "out of plane": "for turning the layer's plane out of itself",
-                    "tensor structure": "by tensor structure",
-                    "projective class": _DROPPED_BY_WORDS["projective class"],
-                    "centers": _DROPPED_BY_WORDS["centers"]}
+                    "out of plane": "for turning the layer's plane out of itself"}
 
 
-def _cell_group_not_realized(group, validated, refuted=None) -> Refusal:
+def _cell_group_not_realized(group, validated) -> Refusal:
     """The refusal cell_group_not_realized: operations the cell allows and H breaks.
 
     It is returned where operations combined with time reversal are broken
     after ``H`` was projected onto its symmetric part.  The broken operations
-    are counted by cause, first the detector's verdicts by their
-    ``refuted_by``.  The operations in ``refuted`` follow, ``"projective
-    class"`` and ``"centers"`` under their own names and every other under
-    ``"tensor structure"``.  The detector's verdict on an operation the
-    centers refute is not counted.
+    are counted by cause, the detector's verdicts by their ``refuted_by``.
 
     Parameters
     ----------
@@ -5193,41 +5172,19 @@ def _cell_group_not_realized(group, validated, refuted=None) -> Refusal:
         The group the cell allows.
     validated : ValidatedGroup
         The detector's verdict on each operation of ``group``.
-    refuted : dict or None, default None
-        The operations the detector kept and a later verdict refuted, keyed
-        by index: by their tensor structure (:func:`.._measure._own_form_read`,
-        :func:`.._descent._ansatz_refuted`), the states' projective class
-        (:func:`.._descent._projective_class_refuted`), or the centers
-        (:func:`_centers_carried`).  The one call passes none.
 
     Returns
     -------
     Refusal
         ``cell_group_not_realized``, the group carried in
-        ``context["group"]``, with the counts, ``validated`` and each
-        tensor-structure entry (:func:`_tensor_structure_entry`) in its
+        ``context["group"]``, with the counts and ``validated`` in its
         context.
     """
-    refuted = dict(refuted or {})
-    classed = {i for i, r in refuted.items()
-               if isinstance(r, dict) and r.get("refuted_by") == "projective class"}
-    centered = {i for i, r in refuted.items()
-               if isinstance(r, dict) and r.get("refuted_by") == "centers"}
-    structural = {i: r for i, r in refuted.items() if i not in classed | centered}
-    lifted = sum(1 for r in structural.values()
-                 if isinstance(r, dict) and bool(r.get("spin_lift")))
     reasons = {}
     for d in validated.discrepancies:
-        if int(d.index) not in centered:
-            reasons[d.refuted_by] = reasons.get(d.refuted_by, 0) + 1
-    if structural:
-        reasons["tensor structure"] = len(structural)
-    if classed:
-        reasons["projective class"] = len(classed)
-    if centered:
-        reasons["centers"] = len(centered)
-    n_broken = len(set(validated.broken) | set(refuted))
-    n_obeyed = len(set(validated._indices) - set(refuted))
+        reasons[d.refuted_by] = reasons.get(d.refuted_by, 0) + 1
+    n_broken = len(set(validated.broken))
+    n_obeyed = len(set(validated._indices))
     proven = reasons.get("no symmetry matrix", 0)
     counts = [f"{n} {_BROKEN_BY_WORDS.get(why, why)}" for why, n in reasons.items()]
     by = (", ".join(counts[:-1]) + " and " + counts[-1]) if len(counts) > 1 else \
@@ -5263,34 +5220,6 @@ def _cell_group_not_realized(group, validated, refuted=None) -> Refusal:
                "with no symmetry matrix is broken: no matrix carries H(k) onto "
                "H(gk).")
            if proven else "")
-        + (the(len(structural), "broken by tensor structure have matrices that carry "
-                                "H(k) onto its image under them, and none of them has "
-                                "the form O(g) (x) S(g) of a representation of the "
-                                "operation.",
-               "broken by tensor structure has matrices that carry H(k) onto its "
-               "image under it, and none of them has the form O(g) (x) S(g) of a "
-               "representation of the operation.")
-           + ((" For it" if len(structural) == 1 else
-               " For every one of them" if lifted == len(structural) else
-               f" For {lifted} of them")
-              + " the hoppings carry the operation's action on k only through a spin "
-              "factor other than its own lift S(g)." if lifted else "")
-           if structural else "")
-        + (the(len(classed), "broken by the projective class of the states are "
-                             "obeyed by the hoppings, and their matrices carry the "
-                             "sign of spin one-half: two commuting operations have "
-                             "anticommuting matrices. Declare `spin=` to read these "
-                             "states in the double group.",
-               "broken by the projective class of the states is obeyed by the "
-               "hoppings, and its matrix carries the sign of spin one-half: two "
-               "commuting operations have anticommuting matrices. Declare `spin=` to "
-               "read these states in the double group.")
-           if classed else "")
-        + (the(len(centered), "broken by the centers would move an orbital center "
-                             "farther than the tolerance declared for the centers.",
-               "broken by the centers would move an orbital center farther than the "
-               "tolerance declared for the centers.")
-           if centered else "")
         + lattice
         + " "
         "Read each operation's measurement and residual in `context['validated']`.",
@@ -5298,11 +5227,5 @@ def _cell_group_not_realized(group, validated, refuted=None) -> Refusal:
         context={"group": group, "validated": validated,
                  "number_str": group.number_str, "size": int(group._size),
                  "n_obeyed": int(n_obeyed),
-                 "broken": tuple(validated.broken) + tuple(
-                     i for i in sorted(refuted) if i not in set(validated.broken)),
-                 "tensor_structure_refuted": tuple(sorted(structural)),
-                 "tensor_structure": {int(i): _tensor_structure_entry(r)
-                                      for i, r in structural.items()},
-                 "refuted_by": reasons,
-                 **({"projective_class": {i: refuted[i] for i in sorted(classed)}}
-                    if classed else {})})
+                 "broken": tuple(validated.broken),
+                 "refuted_by": reasons})

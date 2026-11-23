@@ -496,6 +496,7 @@ def test_the_basis_reads_back_what_it_declared():
     assert [spin[a] for a in range(4)] == [-1, 1, -1, 1]
     assert list(sb._interleaved_index) == [1, 2, 3, 0]
     assert "pair 0: orbital 1 up, orbital 2 down" in sb.summary()
+    assert sb.summary().startswith("each pair one spinful orbital, its spin up and down")
 
 
 # ---------------------------------------------------------------------------
@@ -1429,13 +1430,15 @@ def test_a_wrong_basis_size_is_a_grammar_error(km_flat):
     other = tqsp.spin_basis(
         tqsp.spinless_presentation(tqc_models.lin3g())[0], order="interleaved")
     assert other._norb == 8 != int(flat.norb)
-    with pytest.raises(ValueError, match="8 orbitals, and the model has 4"):
+    with pytest.raises(ValueError, match=r"^_build_rep\(\): .*8 orbitals, and the model has 4"):
         _build._build_rep(flat, group, assignment, validated=validated, spin=other)
-    with pytest.raises(ValueError, match="pass a SpinBasis"):
+    with pytest.raises(ValueError, match=r"^_build_rep\(\): .*pass a SpinBasis"):
         _build._build_rep(flat, group, assignment, validated=validated, spin=17)
+    with pytest.raises(ValueError, match=r"^realized_group\(\): .*pass a SpinBasis"):
+        tqg.realized_group(flat, spin=17)
 
     # the native spinful model, in the group of the same cell
-    with pytest.raises(ValueError, match="spin= is passed with a spinful model"):
+    with pytest.raises(ValueError, match=r"^_build_rep\(\): spin= is passed with a spinful"):
         _build._build_rep(km, group, _tables._assign_orbitals(km, group), spin="interleaved")
     with pytest.raises(ValueError, match="spinor=False"):
         tqg.realized_group(km, spin="interleaved", spinor=False)

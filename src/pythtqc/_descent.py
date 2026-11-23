@@ -21,7 +21,7 @@ from ._tolerance import (
     ASSEMBLED, CHARACTER, EXACT, HEADROOM, IN_SPACE, IN_SPAN, SINGULAR, SNAP, ZERO,
     _CLASS_MARGIN, _EIGEN_WINDOW_CEIL, _EXACT_CLOSURE, _IN_BLOCKS,
     _TIME_REVERSAL_SQUARE_MARGIN, eigen_window, noise_floor)
-from ._text import _DOUBLE_GROUP, _PER_COSET, _fmt_char, _joined
+from ._text import _DOUBLE_GROUP, _PER_COSET, _fmt_char, _listed
 from ._spacegroup import (
     GroupData, _CosetView, _group_of, _magnetic_type, _pad_cell, _primitive_lattice)
 from ._seitz import _record_name
@@ -3466,7 +3466,7 @@ def _descent_clauses(counts) -> tuple:
         if d_proj:
             kept_as.append("on which these states carry a single-valued representation")
         lowered = (f"the largest group of its {'unitary ' if d_tr else ''}operations "
-                   + _joined(kept_as) + (", the first by the tie rule" if d_tie else ""))
+                   + _listed(kept_as) + (", the first by the tie rule" if d_tie else ""))
     return split, lowered
 
 

@@ -113,7 +113,12 @@ def orbit_of(ops, seed, tol=1e-9):
     return np.array(out)
 
 
-def closed_bonds(sites, ops, seeds, tol=1e-6):
+#: How far, in reduced coordinates, an operation's image of a site may sit from
+#: a site and be that site, where a builder closes a set of bonds.
+_SITE_TOL = 1e-6
+
+
+def closed_bonds(sites, ops, seeds, tol=_SITE_TOL):
     """Hoppings symmetric under a group: every image of a few seed hoppings.
 
     An operation ``{R|t}`` carries site ``i``, at ``q_i``, to site ``p(i)`` in
@@ -149,6 +154,11 @@ def closed_bonds(sites, ops, seeds, tol=1e-6):
     AssertionError
         An operation of ``ops`` carries a site to no site within ``tol``.
     """
+    return _closed_bonds(sites, ops, seeds, tol, "closed_bonds")
+
+
+def _closed_bonds(sites, ops, seeds, tol, call):
+    """:func:`closed_bonds`, its error opening with ``call``, the call its user made."""
     perm, shift = [], []
     for R, t in ops:
         R = np.asarray(R, dtype=float).reshape(3, 3)
@@ -162,8 +172,8 @@ def closed_bonds(sites, ops, seeds, tol=1e-6):
                     p.append(j)
                     s.append(np.rint(d).astype(int))
                     break
-            else:                                        # pragma: no cover
-                raise AssertionError("closed_bonds(): an operation of ops= carries a "
+            else:
+                raise AssertionError(f"{call}(): an operation of ops= carries a "
                                      "site onto none of the sites. Pass every site of "
                                      "each Wyckoff orbit, at the coordinates orbit_of "
                                      "returns.")
@@ -219,7 +229,8 @@ def atomic_model(lattice, ops, orbits, onsites, seeds, spinful=False):
                   periodic_dirs=[0, 1, 2])
     m = TBModel(lat, spinful=spinful)
     m.set_onsite(list(onsites))
-    for (i, j, L), amp in closed_bonds(sites, ops, seeds).items():
+    for (i, j, L), amp in _closed_bonds(sites, ops, seeds, _SITE_TOL,
+                                        "atomic_model").items():
         m.set_hop(float(amp), i, j, list(L), mode="add")
     return m
 
@@ -622,12 +633,11 @@ def i41_soc(soc="generic", lam=0.4, **kwargs):
 
     Raises
     ------
-    KeyError
-        ``soc`` is a name other than ``"generic"`` or ``"axial"``.
     TypeError
         A keyword is not one :func:`i41_atomic` takes.
     ValueError
-        ``soc`` is a sequence of other than two matrices.
+        ``soc`` is a name other than ``"generic"`` or ``"axial"``, or is not a
+        pair of (2, 2) matrices.
     """
     p = dict(I41_PARAMS)
     for key, val in kwargs.items():
@@ -636,18 +646,29 @@ def i41_soc(soc="generic", lam=0.4, **kwargs):
                             "lam=, or any of z_a=, seed_b=, delta=, t_a=, t_b= and t_ab=.")
         if val is not None:
             p[key] = val if key == "seed_b" else float(val)
-    seeds = I41_SOC_SEEDS[soc] if isinstance(soc, str) else tuple(soc)
-    if len(seeds) != 2:                                  # pragma: no cover - guard
-        raise ValueError('i41_soc(): soc= is a sequence whose length is not two. Pass '
-                         '"generic", "axial", or a pair (T_a, T_ab) of (2, 2) spin matrices.')
+    if isinstance(soc, str):
+        if soc not in I41_SOC_SEEDS:
+            raise ValueError(f'i41_soc(): soc={soc!r} is not a name of a set of seeds. Pass '
+                             '"generic", "axial", or a pair (T_a, T_ab) of (2, 2) spin '
+                             'matrices.')
+        seeds = I41_SOC_SEEDS[soc]
+    else:
+        try:
+            seeds = tuple(soc)
+        except TypeError:                                # not a sequence at all
+            seeds = ()
+        if len(seeds) != 2 or any(np.shape(T) != (2, 2) for T in seeds):
+            raise ValueError('i41_soc(): soc= is not a pair of (2, 2) matrices. Pass '
+                             '"generic", "axial", or a pair (T_a, T_ab) of (2, 2) spin '
+                             'matrices.')
 
     orbits = i41_sites(p["z_a"], p["seed_b"])
     sites = np.vstack(list(orbits))
     n_a = len(orbits[0])
-    scalar = closed_bonds(sites, I41_PRIM_OPS,
-                          [(0, 1, (0, 0, 0), p["t_a"]),
-                           (n_a, n_a + 1, (0, 0, 0), p["t_b"]),
-                           (0, n_a, (0, 0, 0), p["t_ab"])])
+    scalar = _closed_bonds(sites, I41_PRIM_OPS,
+                           [(0, 1, (0, 0, 0), p["t_a"]),
+                            (n_a, n_a + 1, (0, 0, 0), p["t_b"]),
+                            (0, n_a, (0, 0, 0), p["t_ab"])], _SITE_TOL, "i41_soc")
     spin = spin_bonds(sites, I41_PRIM_OPS, I41_LATTICE,
                       [(0, 1, (0, 0, 0), float(lam) * np.asarray(seeds[0], dtype=complex)),
                        (0, n_a, (0, 0, 0), float(lam) * np.asarray(seeds[1], dtype=complex))])

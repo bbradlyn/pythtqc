@@ -54,16 +54,16 @@ __all__ = ["RepAnchor", "NormalizedRep", "normalize_rep", "bloch_operator",
 def _identity_position(group) -> int:
     """The position of the identity among the operations of ``group``.
 
-    A position is an index into ``group._symmetries``.  Raises ``ValueError``
-    where ``group`` holds no identity.
+    A position is an index into ``group._symmetries``.  Raises
+    ``InternalError`` where ``group`` holds no identity.
     """
     eye = np.eye(3, dtype=int)
     for p, sym in enumerate(group._symmetries):
         if (not sym.time_reversal and np.all(np.asarray(sym.rotation, dtype=int) == eye)
                 and np.allclose(np.asarray(sym.translation) % 1.0, 0.0, atol=1e-8)):
             return p
-    raise ValueError("the group holds no identity operation. Report it, with the model and "
-                     "the call.")
+    raise InternalError(f"none of the {len(group._symmetries)} operations of the group is "
+                        "the identity. Report it, with the model and the call.")
 
 
 def _order_and_zeta(group, p, prod=None, spf=None):
@@ -80,7 +80,8 @@ def _order_and_zeta(group, p, prod=None, spf=None):
     ``p`` a position in ``group._symmetries``.  ``prod`` and ``spf`` are its
     multiplication table and spinor factors by position
     (``GroupData._get_product_table``), computed where either is ``None``.
-    Returns ``(n, zeta)``, two integers.
+    Returns ``(n, zeta)``, two integers.  Raises ``InternalError`` where no
+    power of the operation up to the order of the group is the identity.
     """
     if prod is None or spf is None:
         prod, _, spf = group._get_product_table(get_diff=True)
@@ -92,9 +93,9 @@ def _order_and_zeta(group, p, prod=None, spf=None):
         q = int(prod[p, q])
         n += 1
         if n > limit:  # pragma: no cover - impossible for a genuine group
-            raise ValueError(f"the operation at position {p} of the group has no finite "
-                             "order in its multiplication table. Report it, with the model "
-                             "and the call.")
+            raise InternalError(
+                f"operation #{group._symmetries[p].ind} of the group has no finite order "
+                "in its multiplication table. Report it, with the model and the call.")
     return int(n), int(zeta)
 
 
@@ -1325,8 +1326,9 @@ def bloch_operator(model, group, assignment, op, D, k, *, k_out=None, tol=1e-9,
     squeeze = (k_arr.ndim == 1)
     k_arr = np.atleast_2d(k_arr)
     if k_arr.shape[1] != group._dim_k:
-        raise ValueError(f"bloch_operator(): k has {k_arr.shape[1]} components; pass "
-                         f"{group._dim_k}, one for each periodic direction.")
+        n = int(k_arr.shape[1])
+        raise ValueError(f"bloch_operator(): k has {n} component{'' if n == 1 else 's'}; "
+                         f"pass {group._dim_k}, one for each periodic direction.")
 
     k3 = group._k_to_3d(k_arr)
     kp3 = np.asarray(op.transform_k(k3), dtype=float)
@@ -1622,16 +1624,17 @@ def _channel_permutation(assignment, p, model, layout):
     return out
 
 
-def _resolve_spin(spin, model):
+def _resolve_spin(spin, model, *, call="realized_group"):
     """The spinor basis ``spin=`` declares, or ``None``.
 
     ``spin`` is a :class:`..spin.SpinBasis`; a string, passed to
     :func:`..spin.spin_basis` as ``order`` (``"interleaved"`` or
     ``"blocked"``); a mapping of :func:`..spin.spin_basis` keyword arguments;
     or ``None``, which is returned as it is.  ``model`` is the model it is
-    declared for.  Raises ``ValueError`` where ``model`` is natively spinful,
-    where a :class:`..spin.SpinBasis` was written for a model with another
-    number of orbitals, or where ``spin`` is of none of those kinds.
+    declared for, and ``call`` the name of the call its user made, which the
+    errors open with.  Raises ``ValueError`` where ``model`` is natively
+    spinful, where a :class:`..spin.SpinBasis` was written for a model with
+    another number of orbitals, or where ``spin`` is of none of those kinds.
     :func:`..spin.spin_basis` raises its own for a string or a mapping it
     cannot read.
     """
@@ -1640,12 +1643,11 @@ def _resolve_spin(spin, model):
         return None
     if int(model.nspin) == 2:
         raise ValueError(
-            "realized_group(): spin= is passed with a spinful model (nspin=2). Drop "
-            "spin=.")
+            f"{call}(): spin= is passed with a spinful model (nspin=2). Drop spin=.")
     if isinstance(spin, SpinBasis):
         if int(spin._norb) != int(model.norb):
             raise ValueError(
-                f"realized_group(): spin= is the SpinBasis of a model with "
+                f"{call}(): spin= is the SpinBasis of a model with "
                 f"{int(spin._norb)} orbitals, and the model has {int(model.norb)}. Pass "
                 f"the SpinBasis spin_basis returns for this model.")
         return spin
@@ -1654,7 +1656,7 @@ def _resolve_spin(spin, model):
     if isinstance(spin, dict):
         return spin_basis(model, **spin)
     raise ValueError(
-        f"realized_group(): spin= is of type {type(spin).__name__}; pass a SpinBasis, "
+        f"{call}(): spin= is of type {type(spin).__name__}; pass a SpinBasis, "
         f"\"interleaved\" or \"blocked\", or the arguments of spin_basis written as "
         f"{{\"pairs\": ...}}.")
 

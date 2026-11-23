@@ -286,6 +286,7 @@ def test_tables_tripwire_refuses_on_the_dummy_fallback(monkeypatch):
     st = G.tables_status()
     assert st["tables"] is False and "holds no character tables" in st["reason"]
     assert "irreptables" in st["reason"]
+    assert st["ortools"] is True, "ortools is installed, whether or not the tables load"
 
     r = _spacegroup._group_of(square())
     assert not r and isinstance(r, Refusal)
@@ -651,6 +652,10 @@ def test_default_typat_treats_same_content_sites_as_one_species():
     labeled = _spacegroup._group_of(square_two_orbitals(0.0), include_TR=False, typat=[0, 1])
     assert labeled and labeled._sg_number == 123
     assert labeled._lattice_index == 1
+    # realized_group checks the length of a user's typat= first, so labels of
+    # another length reaching the sites are the package's own defect
+    with pytest.raises(InternalError, match="read with 1 species label for 2 points"):
+        _spacegroup._group_of(square_two_orbitals(0.0), include_TR=False, typat=[0])
 
 
 def test_orbital_off_every_wyckoff_orbit_refuses():

@@ -577,6 +577,7 @@ def test_a_label_the_group_does_not_carry_is_refused(lin3g_declared_cross_checke
     out = tqe.decompose({"-GM6": 1, "-NOSUCH3": 2}, lin3g_declared_cross_checked)
     assert isinstance(out, Refusal) and out.gate == "unknown_label"
     assert out.context["unknown"] == ("-NOSUCH3",)
+    assert out.context["group"] is lin3g_declared_cross_checked.group
 
 
 def test_regular_completion_refuses_a_band_count_that_is_not_a_regular_multiple(
@@ -1005,7 +1006,12 @@ def test_a_layers_vector_written_in_its_plane_is_completed_on_its_own_band_repre
     assert list(rows["-E1", "2c"]) == [
         "-GM9", "-GM11", "-A9", "-A11", "-H7", "-H8", "-K7", "-K8", "-L5", "-L6", "-M5", "-M6"]
     # the same rows make the restriction of the whole basis refuse
-    assert tqe.in_plane_restriction(group).gate == "restriction_not_exact"
+    whole = tqe.in_plane_restriction(group)
+    assert whole.gate == "restriction_not_exact"
+    # listed by point and, at each, by ascending number, as every content is
+    assert "['-A7', '-A8', '-A9', '-A10', '-A11', '-A12', '-H8'" in whole.reason, whole.reason
+    assert str(list(whole.context["missing"])) in whole.reason, "one refusal, one order"
+    assert whole.context["group"] is group
 
     assert len(rows) == 22
     for (irrep, wyckoff), row in rows.items():
@@ -1403,6 +1409,7 @@ def test_the_declared_slab_reaches_the_same_class_through_the_layer_route(monkey
         with pytest.raises(InternalError, match="the decoupled stack is not the layer"):
             tqe.symmetry_indicator(content)
     assert isinstance(stopped, Refusal) and stopped.gate == "indicator_not_evaluable"
+    assert stopped.context["group"] is content.group
     assert stopped.context["stack"]["stopped_at"] == "stack_presentation"
     assert stopped.context["stack"]["outcome"] == "stopped"
     # a stack never built has no period and no extent
@@ -1767,9 +1774,13 @@ def test_the_indicator_refuses_on_physics_and_raises_on_a_broken_convention(
     told = tqe.decompose({"-GM9": 1}, fkm_strong)
     assert isinstance(told, Refusal) and told.gate == "not_a_band_structure"
     assert told.context["violations"] == out.context["violations"]
+    # the group is known, so the refusal names it and carries it
+    assert told.context["group"] is group and out.context["group"] is group
+    assert f"violates {group.name} #{group.number_str}'s compatibility" in out.reason
 
     out = tqe.symmetry_indicator({"-NOSUCH3": 1}, fkm_strong)
     assert isinstance(out, Refusal) and out.gate == "unknown_label"
+    assert out.context["group"] is group
 
     # The magnetic scope gate is applied at the CONSTRUCTOR (groups._group_of,
     # tests/test_groups.py), so an out-of-scope group cannot reach here by

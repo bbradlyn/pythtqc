@@ -727,7 +727,7 @@ def _represented_operations(model, group, assignment, *, validated, multiplets, 
     # Double-valued tables are read as the orbitals carrying the spin-1/2 lift.
     # A spinless model carries it only where `spin=` declares a spinor basis;
     # without one, the build is refused here, before any matrix is built.
-    spin = _resolve_spin(spin, model)
+    spin = _resolve_spin(spin, model, call="_build_rep")
     # The declarations, read as grammar before anything is measured: a malformed
     # `characters=` or `multiplets=` raises here.
     _declaration_grammar(norb, characters=characters, multiplets=multiplets, spin=spin,
@@ -934,8 +934,6 @@ def _multiplet_layout(model, group, assignment, ops, *, multiplets, characters,
                                           for o in d.get("block", d["orbitals"])}))
 
     cperm = _channel_perms(model, assignment, syms, kept, layout, spin)
-    if isinstance(cperm, Refusal):
-        return cperm
     classes, ncls = _channel_classes(cperm, u_pos, nchan)
     # The anchor the representation is written against before any labeling is
     # chosen: orbital 0's multiplet, whichever orbital the lowest-angular-momentum
@@ -1099,8 +1097,8 @@ def _measurement_read(model, group, assignment, ops, mul, *, internal_tol, max_c
                 group, assignment, decls, verdict,
                 standing=[int(syms[p].ind) for p in kept], subgroup=sub.subgroup,
                 broken=sub.broken, readings=sub.candidates,
-                not_lowered=("The representation was asked for on this group, which it "
-                             "cannot lower."),
+                not_lowered=(f"The representation was asked for on {group.name} "
+                             f"#{group.number_str}, which it cannot lower."),
                 site_tables=site_tables, admissible=admissible)
 
     # 4c. The coupled parts of the crystal, as the measurement read them.
@@ -1637,7 +1635,7 @@ def _returned_representation(model, group, assignment, ops, mul, meas, bat, acc,
     # chosen (:func:`_atomic_limit_table`), nothing measured again.
     limits = None
     if site_tables:
-        raw, worst = _multiplet_characters(D, syms, u_pos, cperm, layout, prod)
+        raw, worst = _multiplet_characters(D, syms, u_pos, cperm, layout, prod, spf)
         measured_at = {}
         for r in verdict.rows:
             measured_at.setdefault(tuple(int(o) for o in r.orbitals), set()).add(

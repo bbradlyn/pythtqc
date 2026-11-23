@@ -826,6 +826,8 @@ def test_hsp_table_shape(lin3g_undeclared):
     for name, call in calls.items():
         with pytest.raises(ValueError, match="edited since realized_group measured it"):
             call()
+    with pytest.raises(ValueError, match=r"^covariance\(\): the model has been edited"):
+        r.rep.covariance()
     crystal.set_hop(-0.2, 0, 0, [0, 0, 1], mode="set")
     for name, call in calls.items():
         again = call()

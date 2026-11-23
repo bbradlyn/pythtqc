@@ -271,7 +271,7 @@ interleaved presentation read above, reads the blocked presentation with
 
 ```python
 print(r.spin.summary())
-#  each pair one Wannier function, its spin up and down along z   (.pairs)
+#  each pair one spinful orbital, its spin up and down along z   (.pairs)
 #    pair 0: orbital 0 up, orbital 1 down
 #    pair 1: orbital 2 up, orbital 3 down
 blocked, _ = tqc.spinless_presentation(km, order="blocked")
@@ -279,7 +279,7 @@ rb = tqc.realized_group(blocked, typat=[0, 1, 0, 1], spin="blocked", characters=
 print(rb.group.number_str, tqc.hsp_table(rb, bands=2).symmetry_data)
 #  156.50 {'-GM6': 1, '-K5': 1, '-K6': 1, '-M3M4': 1}
 print(tqc.spin_basis(flat, pairs=[(0, 1), (2, 3)]).summary())
-#  each pair one Wannier function, its spin up and down along z   (.pairs)
+#  each pair one spinful orbital, its spin up and down along z   (.pairs)
 #    pair 0: orbital 0 up, orbital 1 down
 #    pair 1: orbital 2 up, orbital 3 down
 ```

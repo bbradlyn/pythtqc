@@ -31,7 +31,7 @@ from .refusal import InternalError, Refusal
 from ._tolerance import (
     DEFAULT_FINDER, WYCKOFF_REFERENCE_TOL, _EXACT_CLOSURE, _LATTICE_TOL,
     _SAME_TRANSLATION)
-from ._text import _affine_text, _index_ranges, _lattice_vectors, _point_text
+from ._text import _index_ranges, _lattice_vectors, _point_text
 
 __all__ = ["tables_status", "GroupData", "LittleGroup", "SiteReference",
            "CorepIdentification", "KGrid", "Term"]
@@ -82,14 +82,18 @@ def tables_status() -> dict[str, Any]:
         - ``"reason"``: where the tables are not loaded, which cause it is
           and what to do.  It is ``None`` where they are loaded.
         - ``"ortools"``: whether ``ortools``, the integer solver
-          ``decompose`` needs, can be used.  It is ``True`` only where the
-          tables are loaded and ``ortools`` is installed.
+          ``decompose`` needs, is installed.
         - ``"irrep_version"`` and ``"irreptables_version"``: the versions
           installed, ``None`` where a package is absent.
     """
     info: dict[str, Any] = {"tables": False, "ortools": False,
                             "irrep_version": None, "irreptables_version": None,
                             "reason": None}
+    try:
+        from ortools.sat.python import cp_model  # noqa: F401
+        info["ortools"] = True
+    except ImportError:
+        info["ortools"] = False
     try:
         import irrep
         from irrep import spacegroup_irreps as _sgi
@@ -115,18 +119,13 @@ def tables_status() -> dict[str, Any]:
         return info
     _set_irreptables_version(info)
     info["tables"] = True
-    try:
-        from ortools.sat.python import cp_model  # noqa: F401
-        info["ortools"] = True
-    except ImportError:
-        info["ortools"] = False
     return info
 
 
 def _refuse_no_tables(status: dict[str, Any]) -> Refusal:
     return Refusal(
         gate="irrep_tables",
-        reason=status["reason"] or "irrep holds no character tables.",
+        reason=status["reason"],
         context={k: v for k, v in status.items() if k != "reason"},
     )
 
@@ -1179,13 +1178,17 @@ def _sites_and_typat(positions, typat, symprec, lattice):
 
     Raises
     ------
-    ValueError
-        ``typat`` does not have one entry per point.
+    InternalError
+        ``typat`` does not have one entry per point.  Every call checks the
+        ``typat=`` its user passed before any point is grouped.
     """
     n = positions.shape[0]
     labels = [0] * n if typat is None else list(typat)
     if len(labels) != n:
-        raise ValueError(f"typat must have one entry per orbital ({n}), got {len(labels)}")
+        raise InternalError(
+            f"the sites were read with {len(labels)} species "
+            f"label{'' if len(labels) == 1 else 's'} for {n} points. Report it, with the "
+            "model and the call.")
 
     site_pos: list[np.ndarray] = []
     site_orbs: list[list[int]] = []
@@ -1498,8 +1501,8 @@ class _CosetView:
 def _magnetic_scope_refusal(group) -> Refusal | None:
     """The package's magnetic scope statement, or ``None`` when in scope.
 
-    One gate, ``"magnetic_type_out_of_scope"``, shared by :func:`_group_of` —
-    where it stops a type-III/IV group being built at all — and by
+    One gate, ``"magnetic_type_out_of_scope"``, shared by :func:`_group_of`,
+    where it stops a type-III or type-IV group from being built at all, and by
     :func:`..ebr.symmetry_indicator` and :func:`..ebr.regular_content`, which
     keep their own check so that a group reaching them by any other route is
     still refused.

@@ -939,8 +939,8 @@ class SectorSearch:
         compared where the operation's spin lift has zero trace.  A
         declaration of part of the site holds where the character contains it
         on the site group ``H`` leaves (:func:`.._naming._contained`).  Where
-        that site group carries no table, or the character is not read on
-        every class of it, ``True`` is returned.
+        the character is not read on every class of that site group, ``True``
+        is returned.
         """
         item = self.items[i]
         ops = [h for h in H if h in content]
@@ -955,8 +955,6 @@ class SectorSearch:
             return True
         # part of what the site holds: contained in it, on the site group H leaves
         table = item["table_of"](tuple(int(self.syms[h].ind) for h in ops))
-        if table is None:
-            return True
         held, want, asked = [], [], []
         for cls in table.classes:
             h = self.pos_of[int(cls[0])]

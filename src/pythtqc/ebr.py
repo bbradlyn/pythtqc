@@ -1728,14 +1728,15 @@ def _restriction(group, points=None, *, require_exact=True, layer=None) -> Restr
                 "every one of the layer's own elementary band representations as often as "
                 "one in the plane. Report it, with the model and the call.")
     if missing and require_exact:
+        listed = sorted(missing, key=_tables.corep_order)
         return Refusal(
             "restriction_not_exact",
-            f"the little-group representations {missing} are at points not measured, and "
+            f"the little-group representations {listed} are at points not measured, and "
             "none of them occurs in every elementary band representation of "
             f"{group.name} #{group.number_str} as often as a measured one.",
             value=float(len(missing)), threshold=0.0,
-            context={"missing": tuple(missing), "retained": tuple(labels[j] for j in keep),
-                     "points": points, "number_str": group.number_str})
+            context={"missing": tuple(listed), "retained": tuple(labels[j] for j in keep),
+                     "points": points, "group": group, "number_str": group.number_str})
 
     return Restriction(
         kpoints=points,
@@ -2147,7 +2148,8 @@ def _decompose_in(source, symmetry_data, *, allow_incomplete=False,
             f"representations of {group.name} #{group.number_str}. Pass a symmetry "
             "data vector read in this group.",
             value=float(len(unknown)), threshold=0.0,
-            context={"unknown": tuple(unknown), "basis": tuple(labels_all)})
+            context={"unknown": tuple(unknown), "basis": tuple(labels_all),
+                     "group": group})
 
     # Only the measured rows enter the equations.  A point that refused loses
     # its rows of the matrix too, since keeping them would force the
@@ -2175,7 +2177,7 @@ def _decompose_in(source, symmetry_data, *, allow_incomplete=False,
     # completed on the rows left out, which an exact restriction determines.
     if restriction.exact:
         y_all, _sources = _filled_content(counts, restriction, labels_all)
-        _smith, _y_prime, wrong = _compatibility(data, group.number_str, y_all)
+        _smith, _y_prime, wrong = _compatibility(data, group, y_all)
         if wrong is not None:
             return wrong
 
@@ -3014,7 +3016,7 @@ def _indicator_in(source, symmetry_data) -> SymmetryIndicator | Refusal:
             f"representations of {group.name} #{group.number_str}. Pass a symmetry "
             "data vector read in this group.",
             value=float(len(unknown)), threshold=0.0,
-            context={"unknown": tuple(unknown), "basis": labels})
+            context={"unknown": tuple(unknown), "basis": labels, "group": group})
 
     points = (tuple(table.multiplets) if table is not None
               else _named_points(group, counts))
@@ -3074,14 +3076,15 @@ def _indicator_in(source, symmetry_data) -> SymmetryIndicator | Refusal:
             context={"orphans": tuple(restriction.orphans),
                      "points": tuple(restriction.kpoints),
                      "retained": tuple(restriction.retained),
-                     "number_str": group.number_str, "completion": "stable-rsi",
+                     "group": group, "number_str": group.number_str,
+                     "completion": "stable-rsi",
                      "stack": completion})
 
     # Every row left out repeats a measured one, and one the vector does not
     # name takes that one's multiplicity.  The compatibility relations are read
     # on the vector so completed.
     y, reconstructed = _filled_content(counts, restriction, labels)
-    (u, v, d, matrix), y_prime, wrong = _compatibility(data, group.number_str, y)
+    (u, v, d, matrix), y_prime, wrong = _compatibility(data, group, y)
     if wrong is not None:
         return wrong
 

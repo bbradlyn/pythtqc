@@ -27,13 +27,10 @@ def _fmt_char(z) -> str:
 #: The unit a count of operations is in: one operation per coset of the lattice
 #: translations.  With spin, the operations are the single-valued group's, each
 #: standing for itself and its negative in the double group, as
-#: :data:`_SINGLE_VALUED` says.  The unit is said once in a printout, wherever
+#: :data:`_DOUBLE_GROUP` says.  The unit is said once in a printout, wherever
 #: the count is the information; where the group's symbol fixes the count, no
 #: count is printed.
 _COSETS = "one per coset of the lattice translations"
-
-_SINGLE_VALUED = ("the single-valued group's, each standing for itself and its negative "
-                  "in the double group")
 
 
 def _counted_as(spinful) -> str:
@@ -42,7 +39,7 @@ def _counted_as(spinful) -> str:
     ``spinful`` is true for a double group, and the words then add that each
     operation listed stands for itself and its negative in it.
     """
-    return _COSETS + (f", {_SINGLE_VALUED}" if spinful else "")
+    return _COSETS + (f", {_DOUBLE_GROUP}" if spinful else "")
 
 
 def _index_ranges(indices) -> str:
@@ -202,23 +199,16 @@ def _listed(items) -> str:
     return ", ".join(items[:-1]) + " and " + items[-1]
 
 
-#: The largest denominator a k-point's reduced coordinate is written with as a
-#: fraction.  The tables' k-points are halves and thirds in their conventional
-#: cell, and a centered lattice's primitive cell brings quarters; 24 holds these
-#: with room to spare.
-_DENOMINATOR = 24
-
-
 def _k_text(k) -> str:
     """A k-point in reduced coordinates, ``(1/3, 2/3)``.
 
     ``k`` holds its components.  Each is written as a fraction of denominator
-    at most :data:`_DENOMINATOR` where it is one within :data:`_LATTICE_TOL`,
-    and to four significant figures otherwise.
+    at most :data:`_SEITZ_DENOMINATOR` where it is one within
+    :data:`_LATTICE_TOL`, and to four significant figures otherwise.
     """
     out = []
     for x in np.asarray(k, dtype=float).reshape(-1) + 0.0:
-        value = Fraction(float(x)).limit_denominator(_DENOMINATOR)
+        value = Fraction(float(x)).limit_denominator(_SEITZ_DENOMINATOR)
         out.append(f"{float(x):.4g}" if abs(float(value) - x) > _LATTICE_TOL
                    else str(value.numerator) if value.denominator == 1
                    else f"{value.numerator}/{value.denominator}")
@@ -274,7 +264,8 @@ def _times(n) -> str:
 #: The unit of :data:`_COSETS`, in the words the records' summaries print.
 _PER_COSET = "coset representatives of the lattice translations"
 
-#: The words of :data:`_SINGLE_VALUED`, as the records' summaries print them.
+#: With spin, what the operations counted are: each stands for itself and its
+#: negative in the double group.
 _DOUBLE_GROUP = ("the single-valued group's, each standing for itself and its negative "
                  "in the double group")
 
@@ -300,36 +291,6 @@ def _point_text(v) -> str:
     """
     return "(" + ", ".join(_coordinate_text(x)
                            for x in np.asarray(v, dtype=float).reshape(-1)) + ")"
-
-
-def _affine_text(jacobian, offset) -> str:
-    """A Wyckoff position's coordinates as its map writes them, ``(x, -x, 1/2)``.
-
-    The map is ``A·(x, y, z) + b`` in reduced coordinates, ``jacobian`` its
-    matrix ``A`` and ``offset`` its vector ``b``.  Each row of ``A`` with its
-    entry of ``b`` gives one coordinate, its coefficients and constant read as
-    fractions of denominator at most :data:`_SEITZ_DENOMINATOR`.
-    """
-    out = []
-    for row, b in zip(np.asarray(jacobian, dtype=float), np.asarray(offset, dtype=float)):
-        terms = []
-        for coefficient, symbol in zip(row, "xyz"):
-            c = Fraction(float(coefficient)).limit_denominator(_SEITZ_DENOMINATOR)
-            if c == 0:
-                continue
-            size = abs(c)
-            body = (symbol if size == 1 else f"{size.numerator}{symbol}"
-                    if size.denominator == 1 else
-                    f"{'' if size.numerator == 1 else size.numerator}{symbol}/{size.denominator}")
-            terms.append(("-" if c < 0 else "+", body))
-        constant = Fraction(float(b)).limit_denominator(_SEITZ_DENOMINATOR)
-        if constant != 0 or not terms:
-            terms.append(("-" if constant < 0 else "+", _coordinate_text(abs(constant))))
-        text = ("-" if terms[0][0] == "-" else "") + terms[0][1]
-        for sign, body in terms[1:]:
-            text += f" {sign} {body}"
-        out.append(text)
-    return "(" + ", ".join(out) + ")"
 
 
 def _lattice_vectors(dirs) -> str:
@@ -358,19 +319,11 @@ def _names_text(names, shown=6) -> str:
 
 
 #: Largest denominator a conventional-setting translation is written with, and a
-#: point's reduced coordinate as :func:`_coordinate_text` writes it.  The
-#: translations in the irreptables package's tables are halves, thirds, quarters
-#: and sixths, and a translation that snaps to nothing at this denominator within
-#: :data:`_LATTICE_TOL` is arithmetic failing rather than a fraction.  A point's
-#: coordinate that snaps to nothing is written as a decimal.
+#: point's or a k-point's reduced coordinate as :func:`_coordinate_text` and
+#: :func:`_k_text` write it.  The translations in the irreptables package's
+#: tables are halves, thirds, quarters and sixths, and a translation that snaps
+#: to nothing at this denominator within :data:`_LATTICE_TOL` is arithmetic
+#: failing rather than a fraction.  The tables' k-points are halves and thirds
+#: in their conventional cell, and a centered lattice's primitive cell brings
+#: quarters.  A coordinate that snaps to nothing is written as a decimal.
 _SEITZ_DENOMINATOR = 24
-
-
-def _joined(parts) -> str:
-    """Clauses joined as a sentence lists them: ``a``, ``a and b``, ``a, b and c``.
-
-    ``parts`` holds at least one string.  :func:`_listed` writes the same for
-    any items, none included.
-    """
-    parts = list(parts)
-    return parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]

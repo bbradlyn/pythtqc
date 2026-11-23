@@ -29,6 +29,7 @@ from typing import Any
 import numpy as np
 
 from ._tolerance import ASSEMBLED, CHARACTER, ZERO
+from .refusal import InternalError
 
 # --------------------------------------------------------------------------
 # the declaration error, which the build and realized_group return as a Refusal
@@ -38,14 +39,20 @@ from ._tolerance import ASSEMBLED, CHARACTER, ZERO
 class DeclarationError(ValueError):
     """A ``characters=`` declaration its site cannot read.
 
-    Raised for a word that names no site irrep there (``unknown_label``), a
+    Raised for a word that names no site irrep there (``unknown_label``), or a
     declaration that does not say which orbitals hold a multiplet
-    (``ambiguous_multiplet``), or a site whose character table cannot be built
-    (``site_group``).  ``gate`` is that name, ``message`` the reason and
-    ``context`` what was measured.  It never leaves the package:
+    (``ambiguous_multiplet``).  ``gate`` is that name, ``message`` the reason
+    and ``context`` what was measured.  It never leaves the package:
     :func:`.._build._build_rep` and :func:`..groups.realized_group` return the
-    three as a :class:`..refusal.Refusal`.  A declaration outside the grammar
-    raises ``ValueError`` before any site is read
+    two as a :class:`..refusal.Refusal`.  A site's character table that cannot
+    be made raises ``InternalError`` (:func:`site_group_table`), not this.
+    Where the site tables are read for a declaration, by the build and twice
+    by the descent, every other exception of that read, that ``InternalError``
+    included, is returned as the refusal ``site_group``.  The build with
+    nothing declared keeps it as a note and goes on, and
+    :func:`.._declaration._declaration_breaks` then writes its refusal without
+    the site irreps' names; elsewhere it is raised.  A declaration outside the
+    grammar raises ``ValueError`` before any site is read
     (:func:`.._grammar._declaration_grammar`).
     """
 
@@ -660,32 +667,32 @@ def site_group_table(group, indices, antiunitary=(), seed=101) -> SiteGroupTable
 
     Raises
     ------
-    DeclarationError
-        ``gate="site_group"`` where the operations are not closed under the
-        product table, or where the table's deviation from orthogonality
+    InternalError
+        Where the operations are not closed under the product table, or where
+        the table's deviation from orthogonality
         (:attr:`SiteGroupTable.orthogonality`) exceeds ``1e-6`` times the
         site group's order.
     """
     prod, _, _ = group._get_product_table(get_diff=True)
     pos_of = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     positions = [pos_of[int(i)] for i in indices]
+    lattice = np.asarray(group._lattice, dtype=float)
+    # both checks are the package's own on itself, and name the operations
+    named = ", ".join(f"#{int(group._symmetries[p].ind)} "
+                      f"{operation_name(group._symmetries[p], lattice)}" for p in positions)
     T = _local_table(prod, positions)
     if T is None:
-        raise DeclarationError(
-            "site_group",
-            f"the site-symmetry operations {tuple(int(i) for i in indices)} are not closed "
-            "under the group's product. Report it, with the model and the call.",
-            {"indices": tuple(int(i) for i in indices)})
+        raise InternalError(
+            f"the site-symmetry operations {named} of {group.name} are not closed under "
+            "the group's product. Report it, with the model and the call.")
     cls_local, cls_of_local, e_local, chars, defect = _character_table(T, seed=seed)
     if defect > 1e-6 * max(1, len(positions)):
-        raise DeclarationError(
-            "site_group",
-            f"the character table computed for the site group departs from orthogonality "
-            f"by {defect:.3g}. Report it, with the model and the call.",
-            {"indices": tuple(int(i) for i in indices), "orthogonality": defect})
+        raise InternalError(
+            f"the character table computed for the site group of the operations {named} "
+            f"of {group.name} departs from orthogonality by {defect:.3g}. Report it, with "
+            "the model and the call.")
     chars, merged = _merge_conjugate_pairs(chars) if antiunitary else (chars, (False,) * len(chars))
 
-    lattice = np.asarray(group._lattice, dtype=float)
     ind_of = [int(group._symmetries[p].ind) for p in positions]
     classes = tuple(tuple(ind_of[g] for g in c) for c in cls_local)
     class_of = {ind_of[g]: cls_of_local[g] for g in range(len(positions))}
@@ -2146,7 +2153,8 @@ def _resolve_generator_dict(table, spec, where, group=None):
             raise DeclarationError(
                 "unknown_label",
                 f"{where}: the key {key!r} matches operations in more than one conjugacy "
-                f"class ({sorted(cls)}). Name one operation listed in the frame below."
+                f"class ({', '.join(table.class_names[c] for c in sorted(cls))}). Name one "
+                "operation listed in the frame below."
                 f"\n  frame: {generator_frame(table)}",
                 {"key": key, "matched": inds})
         c = cls.pop()
