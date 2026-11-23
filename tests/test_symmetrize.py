@@ -774,7 +774,7 @@ def test_symmetrize_refuses_an_operation_that_is_broken_rather_than_near(lin3g):
         "C4(z)", "C4^-1(z)", "m([110])", "m([1-10])",
         "C4(z)'", "C4^-1(z)'", "m([110])'", "m([1-10])'"}
     assert got.threshold == 1e-6 and not np.isfinite(got.value)
-    assert "impose a symmetry this Hamiltonian does not have" in got.reason
+    assert "are broken at the declared tolerance" in got.reason
 
 
 @pytest.mark.slow
@@ -939,13 +939,13 @@ def test_the_grammar_gates_are_ValueErrors(lin3g):
         _symmetrize(m3, group, asg, val, tol=0.0)
     with pytest.raises(ValueError, match="too coarse"):
         _symmetrize(m3, group, asg, val, tol=tol, k_grid=5)
-    with pytest.raises(ValueError, match="max_bytes must be a positive"):
+    with pytest.raises(ValueError, match="max_bytes=0 is not a positive"):
         _symmetrize(m3, group, asg, val, tol=tol, max_bytes=0)
-    with pytest.raises(ValueError, match="max_bytes must be a positive"):
+    with pytest.raises(ValueError, match="max_bytes=-1.0 is not a positive"):
         tqg.realized_group(m3, typat=[0, 0, 1, 1], max_bytes=-1.0)
-    with pytest.raises(ValueError, match="max_candidates must be a positive"):
+    with pytest.raises(ValueError, match="max_candidates='many' is not a positive"):
         _symmetrize(m3, group, asg, val, tol=tol, max_candidates="many")
-    with pytest.raises(ValueError, match="max_candidates must be a positive"):
+    with pytest.raises(ValueError, match="max_candidates=0 is not a positive"):
         tqg.realized_group(m3, typat=[0, 0, 1, 1], max_candidates=0)
     tight = _symmetrize(m3, group, asg, val, tol=tol, max_bytes=1e5)
     assert not tight and tight.gate == "projection_too_large"

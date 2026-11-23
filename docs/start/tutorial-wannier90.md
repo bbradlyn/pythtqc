@@ -448,7 +448,7 @@ r = tqc.realized_group(model, spin="interleaved", precision=1e-4)
   inside the orbital index, declared with `spin=`.
 - [Returned records](../reference/records.md#every-field) lists every field of
   `numerical.precision`, `numerical.positions` and `numerical.symmetrization`.
-- [Which coreps do these bands carry?](../guide/labels.md),
+- [Which little-group representations do these bands carry?](../guide/labels.md),
   [Could these bands be an atomic limit?](../guide/atomic-limits.md) and
   [Which symmetry-indicator class do these bands occupy?](../guide/indicators.md)
   go further with the calls of

@@ -1,28 +1,27 @@
-r"""What a measurement of crystalline symmetry judges noise against, resolved once.
+r"""The tolerances a measurement of crystalline symmetry judges noise against.
 
-A model built from exact numbers is symmetric to rounding, and every judgement
-made about it -- whether an operation holds, whether two orbitals form one
-multiplet, whether a centre sits where the operations put it -- has an exact
-default.  A model computed from a calculation is symmetric only to the precision
-of its own numbers, and one declaration, ``precision=``, says what that is.  Each
-judgement then reads a tolerance derived from it, in the units of what it
-compares: a centre's in reduced coordinates, the covariance gate's in the units
-of ``H``, a matrix read off ``H`` relative to its own scale, and the symmetry
-finder's in the model's length units.  :class:`Tolerances` holds them, resolved
-once where a model enters :func:`..groups.realized_group` and handed whole to
-every step that judges noise.
+A model built from exact numbers is symmetric to rounding, and every judgment
+made about it has an exact default: whether an operation holds, whether two
+orbitals form one multiplet, whether a center sits where the operations put
+it.  A model computed from a calculation is symmetric only to the precision of
+its own numbers, which ``precision=`` declares.  Each judgment then reads a
+tolerance derived from it, in the units of what it compares: a center's in
+reduced coordinates, the covariance gate's in the units of ``H``, a matrix
+read off ``H`` relative to its own scale, and the symmetry finder's in the
+model's length units.  :class:`Tolerances` holds them, resolved once where a
+model enters :func:`..groups.realized_group` and handed to every step that
+judges noise.
 
-Every number a judgement compares against is one of three kinds, and each is
-named here.  A judgement of the **noise** the model's own data carries -- a
-centre, a hopping, a matrix or a character read off ``H`` -- reads the
-record: its exact default where nothing is declared, and what the declaration
-derives where that is larger (:meth:`Tolerances.noise`), so that a declaration
-only ever loosens one and a model built from exact numbers is measured against
-its exact defaults.  A judgement of **exact arithmetic** on exact objects --
-integer rotations, rational translations, the tables' own printed numbers, a
-discrete value read with a fixed share of its spacing -- and one of
-**rounding** read no declaration, and their numbers are fixed below, each with
-what it was measured against.
+Every number a judgment compares against is one of three kinds, each named
+here.  A judgment of the noise the model's own data carries, in a center, a
+hopping, or a matrix or a character read off ``H``, reads
+:class:`Tolerances`: its exact default where nothing is declared, and the
+value the declaration derives where that is larger
+(:meth:`Tolerances.noise`).  A judgment of exact arithmetic on exact objects
+(integer rotations, rational translations, the tables' printed numbers, a
+discrete value read with a fixed share of its spacing) and a judgment of
+rounding read no declaration.  Their numbers are fixed below, each with what
+it was measured against.
 """
 
 from __future__ import annotations
@@ -54,31 +53,31 @@ DEFAULT_FINDER = 1e-5
 HEADROOM = 10.0
 
 #: How far a computed value may exceed a bound and still meet it: a few ulp of a
-#: number of order one.  A centre's move is a difference of reduced coordinates
+#: number of order one.  A center's move is a difference of reduced coordinates
 #: carried through a group average, and the rounding of that arithmetic is not a
-#: displacement -- a centre moved by exactly the declared precision measures
+#: displacement: a center moved by exactly the declared precision measures
 #: ``1.0000000272e-8`` against ``1e-8``.  The allowance is absolute, because the
 #: rounding is that of the coordinates and not of the bound.
 ROUNDING = 8.0 * float(np.finfo(float).eps)
 
 
 def within(value, bound) -> bool:
-    r"""Whether a computed value meets a bound: ``value ≤ bound + 8·eps``.
+    r"""Whether ``value`` meets ``bound`` within rounding: ``value ≤ bound + 8·eps``.
 
-    The rounding allowance is absolute (:data:`ROUNDING`): a move of a centre is
-    computed from coordinates of order one, whatever the bound it is held to.
+    The allowance, :data:`ROUNDING`, is absolute, since a center's move is
+    computed from coordinates of order one whatever the bound it is held to.
     """
     return float(value) <= float(bound) + ROUNDING
 
 
 def noise_floor(exact, matrix) -> float:
-    r"""One threshold that measures noise: its exact default, or ``matrix`` where larger.
+    r"""One threshold that measures noise: ``exact``, or ``matrix`` where larger.
 
+    ``exact`` is the threshold's default for a model built from exact numbers.
     ``matrix`` is how far a matrix read off ``H`` may miss its exact form,
-    relative to its own scale (:attr:`Tolerances.matrix`).  A declaration only
-    ever loosens such a threshold, and with nothing declared (``matrix`` ``0``
-    or ``None``) every one of them is its exact default.  A margin that reads a
-    discrete value -- a sign, a root of unity -- is no such threshold.
+    relative to its own scale (:attr:`Tolerances.matrix`); ``0`` or ``None``
+    declares nothing, and ``exact`` is returned.  A margin that reads a discrete
+    value, such as a sign or a root of unity, is no such threshold.
     """
     return float(exact) if not matrix else max(float(exact), float(matrix))
 
@@ -86,22 +85,15 @@ def noise_floor(exact, matrix) -> float:
 def finder_distance(precision, cell, symprec) -> float:
     r"""The distance the symmetry finder is run at on ``cell``, in the model's length units.
 
-    ``symprec`` as asked, or ``10 · p · L`` where that is larger, ``L`` the
-    longest of the cell's periodic lattice vectors.  It is arithmetic on the
-    declaration itself -- a reduced noise of ``p`` is a Cartesian ``p · L`` -- and a
-    finder asked to work below its own noise reports a group that is not there, or
-    fails to report the one that is.  Only ever upward: a ``symprec`` asked
-    deliberately is the floor.  ``position_tol`` and ``symprec`` keep their
-    meanings, and neither is computed from the other.
-
-    ``L`` is measured over the periodic directions alone.  A layer has no
-    coordinate along its vacuum direction -- the slab presentation invents it, and
-    every position there is exactly zero by construction -- so a declared
-    position noise cannot apply to it, and reading ``L`` off the vacuum would raise
-    the finder for every layer at a fitted model's precision for no physical
-    reason.  The periodic lattice vectors of every cell built for one model are
-    the model's own, so the distance is one number for the whole measurement.
-    ``precision`` ``None`` declares nothing, and ``symprec`` stands as asked.
+    ``precision`` is the declared relative precision ``p`` of the model's
+    numbers, ``None`` where none is declared.  ``cell`` is a pythtb model, whose
+    lattice vectors and periodic directions are read.  ``symprec`` is the
+    distance asked.  Returns ``10·p·L`` where ``p·L`` exceeds ``symprec``, ``L``
+    the length of the longest periodic lattice vector of ``cell``, and
+    ``symprec`` otherwise, or where ``precision`` is ``None``: a reduced noise
+    ``p`` is a Cartesian ``p·L``.  Every cell built for one model shares its
+    periodic lattice vectors, and ``L`` is read over the periodic directions
+    alone, so the distance is one number for every such cell.
     """
     if precision is None:
         return symprec
@@ -128,19 +120,19 @@ def finder_distance(precision, cell, symprec) -> float:
 #: form only within the declared precision.
 _IN_BLOCKS = 1e-8
 
-#: How far a matrix may sit from the tensor form a conserved pseudospin gives it
-#: -- ``1 ⊗ C`` for a conserved operator, ``B ⊗ C`` for a member of a solution
-#: space -- and still be read in it, relative to its scale.
+#: How far a matrix may sit from the tensor form a conserved pseudospin gives it,
+#: ``1 ⊗ C`` for a conserved operator and ``B ⊗ C`` for a member of a solution
+#: space, and still be read in it, relative to its scale.
 _FACTOR_TOL = 1e-8
 
 #: The gate on the **scaled** tensor-structure defect of one operation: the
 #: fraction of the member of the detector's solution space closest to
 #: tensor-structure form that no ``O(g) ⊗ S(g)`` can carry.  It is
-#: dimensionless and lives in ``[0, 1]`` — 0 when the tensor structure is
-#: realizable and 1 when its component vanishes outright — and this is the
-#: same ``1e-6`` the read-off discards a generator at (``|lambda| < 1e-6`` on
-#: the reference-class block, and the phase snap, :data:`SNAP`).
-#: Measured margins: 1.3e-15 for every realizable operation of Kane–Mele's
+#: dimensionless and lies in ``[0, 1]``, 0 when the tensor structure is
+#: realizable and 1 when its component vanishes outright.  It is the same
+#: ``1e-6`` the read-off discards a generator at (``|lambda| < 1e-6`` on the
+#: reference-class block, and the phase snap, :data:`SNAP`).
+#: Measured margins: 1.3e-15 for every realizable operation of Kane-Mele's
 #: slab, against 0.5 or 1.0 for the 24 the Rashba term breaks.
 ANSATZ_GATE = 1e-6
 
@@ -164,9 +156,9 @@ ZERO = 1e-9
 #: matrix is nonsingular on every block it fills.
 SINGULAR = 1e-8
 
-#: How far a matrix assembled from measured blocks may miss an exact relation
-#: -- unitarity, or a product the multiplication table fixes -- and still
-#: satisfy it, relative to its own scale.
+#: How far a matrix assembled from measured blocks may miss an exact relation,
+#: unitarity or a product the multiplication table fixes, and still satisfy
+#: it, relative to its own scale.
 ASSEMBLED = 1e-8
 
 #: How far the scalars a solution space pins may spread across its members and
@@ -174,8 +166,8 @@ ASSEMBLED = 1e-8
 #: hoppings leave the scalar open.
 SPREAD = 1e-7
 
-#: How far a measured phase may sit from a discrete one -- a sign, a quarter
-#: turn, a root of unity -- and be read as it, and how small a measured ratio
+#: How far a measured phase may sit from a discrete one (a sign, a quarter
+#: turn, a root of unity) and be read as it, and how small a measured ratio
 #: has to be to be read as vanishing.
 SNAP = 1e-6
 
@@ -183,8 +175,8 @@ SNAP = 1e-6
 #: to be, relative to the spread of its spectrum, to be one cluster.
 CLUSTER = 1e-6
 
-#: How far a character read off measured blocks may sit from a value -- another
-#: character, or the integer a multiplicity is -- and be read as it.
+#: How far a character read off measured blocks may sit from a value, another
+#: character or the integer a multiplicity is, and be read as it.
 CHARACTER = 1e-6
 
 # --------------------------------------------------------------------------
@@ -194,29 +186,29 @@ CHARACTER = 1e-6
 #: Cut that declares the constraint operator ``X H(k) - H(Rk) X`` **vacuous**:
 #: identically zero, so that every ``X`` solves it.  Measured *absolutely*,
 #: against ``max |H|`` over the grid, because a vanishing operator has no scale
-#: of its own — the relative nullspace cut has nothing to be relative to, and
+#: of its own.  The relative nullspace cut has nothing to be relative to, and
 #: reading its own rounding noise as a scale would make ``dim == 0`` a false
 #: proof on a one-band model.
 #:
 #: The value is set by the two populations it must separate, and both were
 #: measured.  *Generous enough*: a constraint that is zero up to entrywise
-#: rounding reads ``s_max / max|H| <= 2.7e-16`` — one-orbital cubic and
-#: tetragonal, every operation — which is more than six decades below this cut.
-#: *Strict enough*: a genuinely broken one-band operation reads
-#: ``s_max / max|H| = 2.0`` — the anisotropic square's four ``C4``-type
-#: operations — nine decades above it.  Both bounds are scale-covariant: the
+#: rounding reads ``s_max / max|H| <= 2.7e-16`` on every operation of the
+#: one-orbital cubic and tetragonal models, more than six decades below this
+#: cut.  *Strict enough*: a genuinely broken one-band operation reads
+#: ``s_max / max|H| = 2.0`` on the anisotropic square's four ``C4``-type
+#: operations, nine decades above it.  Both bounds are scale-covariant: the
 #: rounding noise in ``H`` and the singular values of the constraint are alike
 #: proportional to ``max |H|``, so neither moves when the Hamiltonian is
 #: rescaled.  A declared cut larger than it is read instead.
 #:
 #: Nothing is *accepted* on the strength of this number.  Declaring vacuity
-#: hands back the full matrix space with ``1`` returned first, and the identity's
-#: own covariance residual — remeasured from ``H``, never from the SVD — is
-#: exactly the breaking the cut let through.  A residual gate refuses it on
-#: that number, as it refuses any other.
+#: hands back the full matrix space with ``1`` returned first, and the
+#: identity's own covariance residual, measured again from ``H`` and never from
+#: the SVD, is exactly the breaking the cut let through.  A residual gate
+#: refuses it on that number, as it refuses any other.
 _VACUOUS_CUT = 1e-9
 
-#: Floor and ceiling of the eigen route's **matching window** ``δ`` — the
+#: Floor and ceiling of the eigen route's **matching window** ``δ``: the
 #: relative eigenvalue distance ``|E'_a − E_b| / max|H − μ·1|`` inside which a
 #: pair of eigenvectors contributes an outer product to the stage-0 basis, ``μ``
 #: the mean on-site energy, so that a constant shift of ``H`` moves no window.
@@ -226,23 +218,26 @@ _VACUOUS_CUT = 1e-9
 #: window ``δ`` represents it only to ``ρ/δ`` and a raised tolerance without a
 #: wider window would still read ``dim == 0``.
 #:
-#: The floor is measured: at ``δ = 1e-3`` the dropped cross terms of an *exact*
-#: symmetry are ``eps/δ = 2e-13`` relative — five decades under the default cut
-#: — and the dim-1 residual floors read 8.3e-15 (Kane–Mele), 2.3e-14 (lin3g),
-#: 9.2e-15 (Fu–Kane–Mele) and 2.7e-14 (``i41_soc``, against 4.8e-15 for the
-#: stacked route).  Narrower windows lose that accuracy (``i41_soc`` 3.5e-13 at
-#: ``1e-4``, 2.6e-11 at ``1e-6``); wider ones buy nothing on an exact symmetry
-#: and cost basis size (6.3e-14 at ``1e-1``, ``m = 6n`` against ``m ≤ 3n``).
+#: The floor is measured.  At ``δ = 1e-3`` the dropped cross terms of an
+#: *exact* symmetry are ``eps/δ = 2e-13`` relative, five decades under the
+#: default cut, and the dim-1 residual floors read 8.3e-15 (Kane-Mele), 2.3e-14
+#: (lin3g), 9.2e-15 (Fu-Kane-Mele) and 2.7e-14 (``i41_soc``, against 4.8e-15
+#: for the stacked route).  Narrower windows lose that accuracy (``i41_soc``
+#: 3.5e-13 at ``1e-4``, 2.6e-11 at ``1e-6``); wider ones buy nothing on an
+#: exact symmetry and cost basis size (6.3e-14 at ``1e-1``, ``m = 6n`` against
+#: ``m ≤ 3n``).
 _EIGEN_WINDOW_FLOOR = 1e-3
 _EIGEN_WINDOW_CEIL = 0.3
 
 
 def eigen_window(relative) -> float:
-    r"""The matching window a tolerance asks for: ``clip(10·sqrt(relative), 1e-3, 0.3)``.
+    r"""The detector's matching window for a tolerance.
 
-    ``relative`` is the tolerance read relative to the Hamiltonian's magnitude:
-    ``tol / max|H|``, and a ``tol`` declared without a precision itself, which
-    is that reading for a model whose magnitude is one.
+    ``relative`` is the tolerance relative to the Hamiltonian's magnitude,
+    ``tol / max|H|``; a ``tol`` declared without a precision is passed as it
+    stands, the relative reading for a model whose magnitude is one.  Returns
+    ``clip(10·sqrt(relative), 1e-3, 0.3)``, a window relative to
+    ``max|H − μ·1|``, ``μ`` the mean on-site energy.
     """
     return float(min(max(10.0 * np.sqrt(float(relative)), _EIGEN_WINDOW_FLOOR),
                      _EIGEN_WINDOW_CEIL))
@@ -275,7 +270,7 @@ _LATTICE_TOL = 1e-4
 _SU2_TOL = 1e-3
 
 #: Tolerance on "this tabulated character-table number is an integer".  The
-#: tabulated characters carry ~1e-5 of rounding (they are printed decimals —
+#: tabulated characters carry ~1e-5 of rounding (they are printed decimals:
 #: ``irreptables``' ``sqrt(2)`` is 1.414214), and the quantities tested here are
 #: integers a whole unit apart, so this is loose enough to pass a real table and
 #: three orders tighter than the gap it is guarding.  Measured worst defect on
@@ -286,7 +281,7 @@ _INT_TOL = 1e-3
 #: apart and still be one operation: an orthogonal matrix, or an SU(2) one.
 _TABLE_MATRIX_TOL = 1e-3
 
-#: Gate on the measured agreement between two presentations of one layer — the
+#: Gate on the measured agreement between two presentations of one layer: the
 #: band-block characters at the operations and k-points they share, the stack
 #: route's ``"characters"`` check.  The quantity is a trace of unitaries on a
 #: handful of bands, so its scale is ``O(1)`` and machine precision is
@@ -310,13 +305,13 @@ _KGRID_KTOL = 1e-8
 #: fresh solve.
 MESH_TOL = 1e-9
 
-#: Fractional-coordinate gate for "this point is on that variety".  Reference
-#: -cell positions are exact rationals for a typed model and the change to the
-#: reference cell, ``refUC^-1 (x - shiftUC)``, is exact linear algebra, so the
-#: measured residual is ~1e-16 there; the gate is loose enough for a numerical
-#: (wannier90) cell, whose centres carry a Wannierization's noise, and far
-#: tighter than the gap between two distinct Wyckoff varieties (1/8 in the
-#: diamond, 1/6 in ``P3_121``).
+#: Fractional-coordinate gate for "this point is on that variety".  Positions
+#: in the reference cell are exact rationals for a typed model and the change to
+#: the reference cell, ``refUC^-1 (x - shiftUC)``, is exact linear algebra, so
+#: the measured residual is ~1e-16 there; the gate is loose enough for a
+#: numerical (Wannier90) cell, whose centers carry a Wannierization's noise,
+#: and far tighter than the gap between two distinct Wyckoff varieties (1/8 in
+#: the diamond, 1/6 in ``P3_121``).
 WYCKOFF_REFERENCE_TOL = 1e-4
 
 #: How far a point of a Wyckoff position, once placed on its variety in the
@@ -327,9 +322,9 @@ WYCKOFF_REFERENCE_TOL = 1e-4
 _ON_VARIETY = 1e-7
 
 #: How far a phase read off the states' matrices may sit from the root of unity
-#: it reads as.  The phases the class verdict compares -- the ratio of two
-#: commuting operations' matrices taken in the two orders, and the relations a
-#: rephasing has to close -- are roots of unity of order at most twelve on a
+#: it reads as.  The phases the class verdict compares, the ratio of two
+#: commuting operations' matrices taken in the two orders and the relations a
+#: rephasing has to close, are roots of unity of order at most twelve on a
 #: crystallographic point group, never nearer one another than half a unit, and
 #: a model's own noise sits decades below.
 _CLASS_MARGIN = 0.25
@@ -367,8 +362,8 @@ EXACT_TOL = 5e-14
 #: A cell whose operations carry non-dyadic rationals cannot close to exactly
 #: ``0.0`` in binary floating point: the lifted ``3x3x3`` Fu-Kane-Mele supercell's
 #: 2592 operations, whose pure translations are exact thirds, measure
-#: ``4.4e-16``.  A genuinely **numerical** cell is five decades away from that —
-#: the displaced Kane-Mele cell measures ``2.0e-8`` — so the two are never
+#: ``4.4e-16``.  A genuinely **numerical** cell is more than seven decades above
+#: that: the displaced Kane-Mele cell measures ``2.0e-8``.  So the two are never
 #: confused.  This is the scale for rotations of order one.  In a cell's own
 #: reduced coordinates the closure of its operations is compared with it times the
 #: largest row sum of their ``|R|`` (:func:`.._spacegroup._closure_gate`): the
@@ -411,11 +406,11 @@ _RANGE_RELATIVE = 1e-10
 #: How far a presentation may differ from the model it presents, relative to
 #: ``max|H|``, where the two evaluate the phases ``e^{2πi k·τ}`` differently.  A
 #: slab that moved its orbitals, carried back through that move, evaluates them
-#: at the moved centres; the spinless presentation of a spinful model evaluates
+#: at the moved centers; the spinless presentation of a spinful model evaluates
 #: one for each of its ``2N`` orbitals where the model evaluates ``N`` and
 #: repeats each for the spin, in a matrix product whose rounding can depend on
 #: its shape.  Measured below 5e-16 on slabs moved by up to four cells and at
-#: 5.2e-17 on a twelve-state spin–orbit model; the gate is more than four
+#: 5.2e-17 on a twelve-state spin-orbit model; the gate is more than four
 #: decades above both.  A presentation that moves no orbital and evaluates the
 #: same phases is held to bit identity instead.
 _PRESENTATION_RELATIVE = 1e-11
@@ -449,12 +444,12 @@ STATES_AT_K_GATE = 1e-8
 
 @dataclass(frozen=True)
 class Tolerances:
-    r"""What one realization judges noise against, each in the units of what it compares.
+    r"""What one call judges noise against, each in the units of what it compares.
 
-    Resolved once from the declaration (:meth:`declared`) and handed whole to
-    every step that judges noise.  With nothing declared every reading of a
-    matrix keeps its exact default, and the gate is ``1e-8`` of the
-    Hamiltonian's own magnitude.
+    Resolved once from the declaration (:meth:`declared`) and handed to every
+    step that judges noise.  With nothing declared every reading of a matrix
+    keeps its exact default, and the gate is ``1e-8`` of the Hamiltonian's own
+    magnitude.
 
     Attributes
     ----------
@@ -462,30 +457,35 @@ class Tolerances:
         The declared relative precision of the model's numbers, ``p``; ``None``
         where nothing was declared.
     scale : float or None
-        ``max|H|``, the largest entry of ``H(k)`` about the mean on-site energy,
-        measured where the record is resolved for a model, ``None`` otherwise.
+        ``max|H|``, the largest entry of ``H(k)`` about the mean on-site energy;
+        ``None`` where it was not measured.
     energy : float
-        How far ``U H(k) U†`` may miss ``H(Rk)`` and the operation still be
-        obeyed: the covariance gate, in the units of ``H``.  ``10 · p · max|H|``
-        under a precision, a declared ``tol`` as given, ``1e-8 · max|H|``
-        otherwise.
+        The covariance gate, in the units of ``H``: how far ``U H(k) U†`` may
+        miss ``H(Rk)`` and the operation still be obeyed.  ``10·p·max|H|``
+        under a precision, a declared ``tol`` as given, and ``1e-8·max|H|``
+        with nothing declared, or ``1e-8`` where ``max|H|`` is zero or was not
+        measured.
     cut : float or None
-        The detector's nullspace cut, relative and dimensionless: ``energy /
-        max|H|``, ``10 · p`` under a precision and ``1e-8`` with nothing
-        declared, a declared ``cut`` as given, and ``None`` where it follows a
-        declared ``tol`` (:func:`.._detector._find_intertwiners`).
+        The detector's nullspace cut, relative and dimensionless:
+        ``energy / max|H|``, which is ``10·p`` under a precision and ``1e-8``
+        with nothing declared; a declared ``cut`` as given; ``None`` where a
+        ``tol`` is declared without one (:func:`.._detector._find_intertwiners`
+        then reads the ``tol``).
     window : float or None
-        The detector's matching window, relative: ``clip(10·sqrt(cut), 1e-3,
-        0.3)``, a declared ``window`` as given, and ``None`` where it follows a
-        declared ``tol``.
+        The detector's matching window, relative.  ``clip(10·sqrt(cut), 1e-3,
+        0.3)`` under a precision.  With neither a precision nor a ``tol``
+        declared, the window of the default cut ``1e-8``, which is ``1e-3``,
+        whatever ``cut`` is declared.  A declared ``window`` as given.
+        ``None`` where a ``tol`` is declared without one, or where ``max|H|``
+        is zero or was not measured.
     floor : float or None
         The covariance, in the units of ``H``, below which the detector's
         nullspace keeps a candidate at a point whatever the relative cut says:
         ``energy``, the gate itself, so that the cut never discards what the
-        gate would keep; ``None`` where it is the cut read in the units of
-        ``H``, as a declared ``cut`` or ``tol`` is.
+        gate would keep.  ``None`` where a ``cut`` or a ``tol`` is declared
+        without a precision, and the detector reads the cut in its place.
     center : float or None
-        How far a centre may sit from where the operations put it, in reduced
+        How far a center may sit from where the operations put it, in reduced
         coordinates: ``p`` under a precision, a declared ``position_tol`` as
         given, ``None`` where nothing declares it.
     matrix : float
@@ -494,11 +494,11 @@ class Tolerances:
         declared, and ``0.0`` otherwise, so that every such reading keeps its
         exact default.
     finder : float
-        The symmetry finder's distance, in the model's length units: ``symprec``,
-        raised where a declared precision would defeat it
-        (:func:`finder_distance`).
+        The symmetry finder's distance, in the model's length units:
+        ``symprec``, raised where the declared precision, read as a length,
+        exceeds it (:func:`finder_distance`).
     finder_floor : float
-        ``symprec`` as asked, below which the finder is never run.
+        ``symprec`` as asked; :attr:`finder` is never below it.
     """
 
     precision: float | None = None
@@ -517,37 +517,20 @@ class Tolerances:
                  position_tol=None, symprec=DEFAULT_FINDER, scale_of=None) -> Tolerances:
         r"""The tolerances one call's declaration resolves into.
 
-        ``precision`` is the one number the others follow from.  The centres'
-        tolerance is ``p`` itself, in reduced coordinates, where a relative
-        precision is already absolute; the covariance gate is in the units of
-        ``H``, where it is not, so it is ``10 · p · max|H|`` with ``max|H|``
-        measured, which is the whole reason a declaration should not have to be
-        resolved by hand.  The detector's cut and window are relative, so they
-        are read against the same ``max|H|``: the cut is ``10 · p``, the window
-        ``clip(10·sqrt(cut), 1e-3, 0.3)``, and the floor below which the
-        nullspace keeps a candidate whatever the cut says is the gate itself.
-        The finder's distance follows the model's lattice
-        (:func:`finder_distance`).  Without a precision, a declared ``tol``,
-        ``cut``, ``window`` and ``position_tol`` stand as given.  Where
-        neither ``precision`` nor ``tol`` is declared, the gate is ``1e-8 ·
-        max|H|``, relative as a precision's is, so that the same model in other
-        units is read the same, and the cut and window not declared are read
-        against the same ``max|H|``: the cut ``1e-8`` and the floor the gate
-        itself.
-
-        Every judgement of a matrix read off ``H`` -- whether orbitals form one
-        multiplet, whether a member sits in a measured space, which scalar a
-        space pins, which sign a transported phase is -- reads a threshold that
-        measures noise, and the declared gate is what noise means there too:
-        ``energy / max|H|``, relative, because a block is unitary -- ``10 · p``
-        under a precision.  Where nothing is declared it is ``0.0``, and every
-        such threshold keeps its exact default.
-
-        ``scale_of`` measures ``max|H|``; without it, and for a Hamiltonian
-        that vanishes, a gate not declared is ``1e-8`` in the units of ``H``.
-        The grammar of the declaration -- a positive number, and not two that
-        say the same thing -- is checked where the call starts, before anything
-        is resolved.
+        ``model`` is the pythtb model, whose lattice sets the finder's distance
+        (:func:`finder_distance`).  ``precision`` is the declared relative
+        precision ``p`` of its numbers, from which every other tolerance
+        follows.  ``tol``, ``cut``, ``window`` and ``position_tol`` are the
+        tolerances declared one by one, without a precision: ``tol`` in the
+        units of ``H``, ``cut`` and ``window`` relative to ``max|H|``, and
+        ``position_tol`` in reduced coordinates.  ``symprec`` is the finder's
+        distance asked, in the model's length units.  ``scale_of`` is
+        a callable of no argument that measures ``max|H|`` about the mean
+        on-site energy.  It is called wherever it is given, and must be given
+        where a precision or a ``tol`` is declared.  Returns the
+        :class:`Tolerances`, each field derived as its entry there says.  The
+        grammar of the declaration, a positive number and not a precision beside
+        a tolerance it derives, is checked where the call starts, before this.
         """
         declared_tol = tol is not None
         scale = None
@@ -586,22 +569,20 @@ class Tolerances:
                    finder_floor=symprec)
 
     def noise(self, exact) -> float:
-        r"""One threshold that measures noise: its exact default, or ``matrix`` where larger.
+        r"""One threshold that measures noise: ``exact``, or :attr:`matrix` where larger.
 
-        A declaration only ever loosens such a threshold, and with nothing
-        declared every one of them is its exact default (:func:`noise_floor`).
+        ``exact`` is the threshold's default for a model built from exact
+        numbers, relative to the scale of what it reads (:func:`noise_floor`).
         """
         return noise_floor(exact, self.matrix)
 
     def returned(self) -> dict | None:
-        r"""What a declared precision derived, as :attr:`.._realized.RealizedGroupNumerical.precision` holds it.
+        r"""What a declared precision derived, the fields of ``r.numerical.precision``.
 
-        Returns
-        -------
-        dict or None
-            ``precision``, ``max_h``, ``tol``, ``position_tol``, ``cut``,
-            ``window``, ``symprec`` and ``symprec_raised``; ``None`` where no
-            precision was declared.
+        Returns a mapping of ``precision``, ``max_h``, ``tol``,
+        ``position_tol``, ``cut``, ``window``, ``symprec`` and
+        ``symprec_raised``, from which :class:`.._realized.Precision` is built;
+        ``None`` where no precision was declared.
         """
         if self.precision is None:
             return None

@@ -21,7 +21,7 @@ code prints.
    → [How do I say what my orbitals are?](guide/orbitals.md), and for a
    spinful model [How does pythTQC read the spin of my model?](guide/spin.md)
 3. **The bands.** `hsp_table` reads the corep content of a band set at every
-   high-symmetry point. → [Which coreps do these bands carry?](guide/labels.md)
+   high-symmetry point. → [Which little-group representations do these bands carry?](guide/labels.md)
 4. **What the content says.** `decompose` asks whether it could be an atomic limit,
    `symmetry_indicator` which class it occupies, and `srsi_of_bands` and
    `srsi_of_model` what it carries in real space.
@@ -31,7 +31,7 @@ code prints.
 
 A model fitted to a calculation, such as a `wannier90` import, takes the same
 path with one declaration more:
-[How do I measure a numerical or wannier90 model?](guide/numerical.md) A call
+[How do I measure a numerical or Wannier90 model?](guide/numerical.md) A call
 that cannot complete returns a refusal, which says why:
 [What does a refusal mean, and what do I do about it?](guide/refusals.md)
 
@@ -53,11 +53,11 @@ that cannot complete returns a refusal, which says why:
 - [Is my 2D model on a substrate or free-standing?](guide/layers.md)
 - [How do I say what my orbitals are?](guide/orbitals.md)
 - [How does pythTQC read the spin of my model?](guide/spin.md)
-- [Which coreps do these bands carry?](guide/labels.md)
+- [Which little-group representations do these bands carry?](guide/labels.md)
 - [Could these bands be an atomic limit?](guide/atomic-limits.md)
 - [Which symmetry-indicator class do these bands occupy?](guide/indicators.md)
 - [What do the stable real-space invariants say about these bands?](guide/srsi.md)
-- [How do I measure a numerical or wannier90 model?](guide/numerical.md)
+- [How do I measure a numerical or Wannier90 model?](guide/numerical.md)
 - [What does a refusal mean, and what do I do about it?](guide/refusals.md)
 
 **The full account.**

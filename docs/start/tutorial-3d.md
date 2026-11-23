@@ -459,8 +459,8 @@ class zero too
   [from their bands](../guide/srsi.md#from-the-bands).
 - [What group does my Hamiltonian have?](../guide/group.md) takes the descent
   further.
-- [Which coreps do these bands carry?](../guide/labels.md) reads the tables
-  `hsp_table` returns.
+- [Which little-group representations do these bands carry?](../guide/labels.md)
+  reads the tables `hsp_table` returns.
 - [`examples/tqc_fkm_diamond.py`](../../examples/tqc_fkm_diamond.py) measures
   the same phases and draws their bands, with the coreps of the two lowest
   bands at each high-symmetry point ([The examples](../examples.md)).

@@ -70,9 +70,10 @@ print(r.wyckoff_orbits.summary())
 - `{'-GM6': 1, '-K5': 1, '-K6': 1, '-M3M4': 1}`: the corep multiplicities of
   the two lowest bands at each high-symmetry point, their symmetry data vector,
   `hsp_table(r, bands=2).symmetry_data`
-  ([Which coreps do these bands carry?](labels.md)). The leading `-` marks a
-  double-valued corep, and `GM` is the tables' name for Γ. The presentation and
-  the native model have the same symmetry data vector.
+  ([Which little-group representations do these bands carry?](labels.md)).
+  The leading `-` marks a double-valued corep, and `GM` is the tables' name
+  for Γ. The presentation and the native model have the same symmetry data
+  vector.
 - `1c 3m1' 0-1 -E1 declaration A1`: the row of the atomic-limit table for
   orbitals 0 and 1, pair 0, at Wyckoff position `1c`, whose site-symmetry group
   is `3m1'`. Its site irrep is `-E1`, which is `A1` of `3m` times the spinor. It

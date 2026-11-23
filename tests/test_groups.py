@@ -664,7 +664,7 @@ def test_orbital_off_every_wyckoff_orbit_refuses():
     assert not r and isinstance(r, Refusal)
     assert r.gate == "wyckoff_orbit"
     assert r.value == pytest.approx(0.12, abs=1e-9)       # 2 * 0.06, the C4-image mismatch
-    assert "modeling bug" in r.reason
+    assert "from the nearest orbital of their kind" in r.reason
     assert set(r.context) >= {"site", "orbitals", "operation_ind", "position"}
 
 
@@ -679,7 +679,7 @@ def test_a_model_and_a_group_built_on_another_lattice_raise():
     """
     g = _spacegroup._group_of(graphene(0.0, -1.0), include_TR=False)
     assert g and g._sg_number == 191
-    with pytest.raises(ValueError, match="the group was built for another cell"):
+    with pytest.raises(ValueError, match="Pass the group of the model's own cell"):
         _tables._assign_orbitals(square(), g)
 
 
@@ -1013,7 +1013,7 @@ def test_corep_table_is_keyed_by_our_operation_indices():
 def test_identify_raises_on_a_wrongly_shaped_character_table():
     m = graphene(0.0, -1.0)
     g = _spacegroup._group_of(m, include_TR=False)
-    with pytest.raises(ValueError, match="one column per unitary"):
+    with pytest.raises(ValueError, match="Pass one column for each"):
         G.identify_from_characters(g, np.zeros(2), np.ones((1, 3)))
 
 
@@ -1379,7 +1379,7 @@ def test_decompose_ebrs_refuses_a_vector_that_misses_one_of_the_groups_points():
     assert (out.value, out.threshold) == (1.0, 0.0)
     assert out.context["missing_points"] == ("R",)
     assert out.context["points"] == ("GM", "M", "R", "X")
-    assert "confident wrong answer" in out.reason and "decompose" in out.reason
+    assert "Pass multiplicities at every point" in out.reason and "decompose" in out.reason
 
     # a label outside the basis is not incompleteness: every point is still
     # carried, and the stray label comes back in `unused`
@@ -2398,8 +2398,9 @@ def test_the_realized_record_is_read_by_name_and_taken_whole(p41_substrate, call
     fn = getattr(tqc, call)
     args = {"hsp_table": (), "coreps_at": (k,), "characters": (k,),
             "sewing_matrix": (1, k)}[call]
-    with pytest.raises(TypeError, match=rf"{call}\(\): pass what realized_group returns, "
-                                        r"as in .*, not r\.rep"):
+    with pytest.raises(TypeError, match=rf"{call}\(\): the first argument is a SpaceGroupRep, "
+                                        r"such as r\.rep\. Pass what realized_group returns, "
+                                        r"as in "):
         fn(r.rep, *args, bands=2)
     refusal = Refusal("tables_not_ready", "a refusal handed in")
     assert fn(refusal, *args, bands=2) is refusal

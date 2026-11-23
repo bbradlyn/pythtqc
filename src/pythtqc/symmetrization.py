@@ -1,13 +1,27 @@
 r"""A model symmetric only to its declared precision, made exactly symmetric.
 
-A Hamiltonian fitted to a calculation, such as a ``wannier90`` import, obeys its
-group only to the precision of its own numbers.
-``realized_group(model, precision=...)`` moves its orbital centers onto the
-positions the group carries and projects its hoppings onto their
-group-invariant part, which moves ``H`` by no more than the declared
-tolerance; :class:`Symmetrization` is the record of the projection, returned
-on ``r.numerical.symmetrization``.  An operation obeyed to rounding, :data:`EXACT_GATE`,
-is exact, and one obeyed only within the declared tolerance is near.
+A Hamiltonian fitted to a calculation, such as a Wannier90 import, obeys its
+group only to the precision of its own numbers, which ``precision=``
+declares.  With ``precision=`` or ``position_tol=`` declared,
+:func:`.groups.realized_group` moves the orbital centers onto symmetric
+positions.  Wherever an operation is near, and in the other cases
+:class:`Symmetrization` names, it projects ``H`` onto its symmetric part, at
+the tolerance a precision derives or at the default one where none is
+declared.  The projection averages ``H`` over the operations of the group on
+a grid of k-points.  The average is written back as a hopping list by an
+inverse Fourier transform.  It moves each entry of ``H(k)`` by at most
+``Symmetrization.tol``, the tolerance on each operation's covariance
+residual.  An operation obeyed to the rounding of the model's own arithmetic
+is exact, and one obeyed within ``tol`` and not to rounding is near.
+
+- :class:`Symmetrization`: how far ``H`` was moved and why, the record
+  returned on ``r.numerical.symmetrization``.  Its parts are
+  :class:`SymmetrizationChecks`, :class:`SymmetrizationVerification`,
+  :class:`SymmetrizationSiteMultiplets`, :class:`SymmetrizationParts`,
+  :class:`SymmetrizationCopies` and :class:`SymmetrizationShares`.
+- :data:`EXACT_GATE`, ``5e-14``: the least the boundary between exact and
+  near can be, relative to the largest entry of ``H(k)``.  The boundary is
+  larger where the rounding of the model's own arithmetic is.
 """
 
 from __future__ import annotations
@@ -53,42 +67,21 @@ _INTERNAL_GATE = float(_default_of(_build_rep, "internal_tol"))
 # --------------------------------------------------------------------------
 
 def _classify_operations(validated, tol, *, exact_gate=EXACT_GATE, anchored=None) -> dict:
-    """Each operation's class against a declared tolerance: ``"exact"``, ``"near"`` or ``"broken"``.
+    """Each operation's class against a declared tolerance: exact, near or broken.
 
-    Exact is obeyed to rounding, ``exact_gate``; near is obeyed within ``tol``
-    and not to rounding, which licenses the projection (:func:`_symmetrize`);
-    broken is beyond ``tol``, and nothing is symmetrized into it.
-
-    Parameters
-    ----------
-    validated : ..groups.ValidatedGroup
-        The operations a call measured to hold, ``r.numerical.validated``, measured at
-        ``tol``.
-    tol : float
-        The declared tolerance, in the units of ``H``: the one ``validated``
-        was measured at.
-    exact_gate : float, optional
-        Rounding, in the units of ``H``: the covariance of the model's own
-        representation, which :func:`..symmetry.covariance_gate` gives and
-        :func:`_symmetrize` passes.  Default :data:`EXACT_GATE`, ``5e-14``, the
-        least it is.
-    anchored : dict, optional
-        ``{ind: residual}``, each operation's covariance in the representation
-        the projection is built with, ``rep.numerical.residuals``.  An operation it
-        holds is exact or near by that covariance, its own matrix's, and not by
-        the measured residual, whose floor is the measurement's own rounding; a
-        basis turned inside a site by less than ``tol`` makes it near.  An
-        operation is broken by its measured residual, as without it.
-
-    Returns
-    -------
-    dict
-        ``{ind: class}`` for each operation ``validated`` kept.
-
-    Examples
-    --------
-    >>> _classify_operations(r.numerical.validated, 1e-6)            # doctest: +SKIP
-    {1: 'exact', 2: 'near', 5: 'near', ...}
+    An operation is exact where it is obeyed to rounding, near where it is
+    obeyed within ``tol`` and not to rounding, and broken beyond ``tol``.
+    ``validated`` is the :class:`.._measure.ValidatedGroup` of the operations a
+    call measured to hold at ``tol``, an energy in the units of ``H``.
+    ``exact_gate`` is the rounding at or below which an operation is exact, in
+    the units of ``H``: the covariance gate of the model's own representation
+    (:func:`.._build._exact_gate`), :data:`EXACT_GATE` by default.
+    ``anchored`` maps an operation's index to its covariance residual in the
+    representation the projection is built with; where it holds an operation,
+    that residual decides exact or near in place of the measured one.  An
+    operation is broken where either residual exceeds ``tol``.  Returns a
+    mapping from each operation's index in ``validated`` to ``"exact"``,
+    ``"near"`` or ``"broken"``.
     """
     tol = float(tol)
     out = {}
@@ -101,14 +94,24 @@ def _classify_operations(validated, tol, *, exact_gate=EXACT_GATE, anchored=None
     return out
 
 def _named(sets) -> str:
-    """Sets of orbitals in words: ``"orbitals 0-3"``, ``"orbitals 0-1 and 4-5"``."""
+    """Sets of orbitals in words, as ``"orbitals 0-3"`` or ``"orbitals 0-1 and 4-5"``.
+
+    ``sets`` is a sequence of sequences of orbital indices.  Returns the words.
+    """
     sets = [tuple(int(o) for o in s) for s in sets]
     if len(sets) == 1:
         return _orbitals_named(sets[0])
     return "orbitals " + " and ".join(_index_ranges(s) for s in sets)
 
 def _residual_read(validated, anchored, ind, *, missing):
-    """The residual one operation is classified exact or near at: its own matrix's where anchored holds it, the detector's otherwise."""
+    """The residual one operation is classified exact or near by, in the units of ``H``.
+
+    ``validated`` is the measurement of the operations, and ``anchored`` maps
+    an operation's index to its residual in the representation the projection
+    is built with, or is ``None``.  Returns ``anchored``'s residual for the
+    operation ``ind`` where it holds one, the measured one otherwise, and
+    ``missing`` where neither holds it.
+    """
     if anchored and int(ind) in anchored:
         return float(anchored[int(ind)])
     return float(validated.residuals.get(int(ind), missing))
@@ -119,25 +122,37 @@ def _residual_read(validated, anchored, ind, *, missing):
 
 @dataclass(frozen=True)
 class SymmetrizationVerification:
-    """The operations measured again on the model returned, at the tolerance a model of exact numbers is measured at.
+    """The operations of the group measured again on the symmetrized model.
+
+    They are measured at ``1e-8`` times ``Symmetrization.scale``; ``1e-8`` is
+    the relative tolerance a model built from exact numbers is measured at.
 
     Attributes
     ----------
     tol : float
-        The tolerance, in the units of ``H``.
+        The tolerance on each operation's covariance residual, in the units of
+        ``H``: ``1e-8`` times ``Symmetrization.scale``.
     nk : int
-        The ``k``-points per periodic direction.
-    n_kept, n_operations : int
-        How many operations held, of how many measured.
+        The number of k-points along each periodic direction of the grid the
+        operations are measured on, the same as in the measurement before the
+        projection.
+    n_kept : int
+        How many operations held.
+    n_operations : int
+        How many operations were measured.
     worst_residual : float
-        The largest residual of an operation that held.
+        The largest covariance residual of an operation that held, in the
+        units of ``H``.
     near_kept : bool
-        Whether every operation obeyed only within the declared tolerance held.
+        Whether every operation that was near before the projection held.
     broken : tuple of int
-        The operations measured broken, by index.
+        The operations measured broken, whose covariance residual exceeds
+        ``tol``, by their index in ``r.operations``.
     note : str
-        Where an operation obeyed only within the declared tolerance did not
-        hold, the measurement that says whether the projection worked.
+        If nonempty, a sentence saying that an operation near before the
+        projection did not hold.  It quotes
+        ``Symmetrization.checks.covariance_residue``, the measurement that says
+        whether the projection worked.
     """
 
     tol: float
@@ -152,17 +167,25 @@ class SymmetrizationVerification:
 
 @dataclass(frozen=True)
 class SymmetrizationSiteMultiplets:
-    """Multiplets each site's orbitals form that hold only within the declared precision, as an orbital frame turned by less than it leaves them.
+    """Site multiplets that hold only within the declared precision.
+
+    A site multiplet is a set of orbitals at one site that the Hamiltonian
+    binds into one carrier of a site irrep.  The orbitals' frame can be turned
+    inside the site by a small angle.  The symmetry matrices measured on the
+    Hamiltonian then mix the multiplets by an amount of the size of that
+    angle.  The projection makes the multiplets exact.
 
     Attributes
     ----------
     mixing : float
-        How far the Hamiltonian's own symmetry matrices mix them, relative to
-        their size.
+        How far the symmetry matrices measured on ``H`` mix the multiplets,
+        relative to the size of the matrices.
     exact : float
-        The ``1e-8`` a model of exact numbers holds them to.
+        The largest mixing at which the multiplets count as exact, ``1e-8``.
     declared : float
-        The declared tolerance relative to ``max|H|``.
+        ``Symmetrization.tol`` relative to ``max|H|``, the tolerance the
+        multiplets were measured at: ten times the precision where one is
+        declared.
     """
 
     mixing: float
@@ -172,27 +195,45 @@ class SymmetrizationSiteMultiplets:
 
 @dataclass(frozen=True)
 class SymmetrizationChecks:
-    """The hopping list returned, measured.
+    """The measurements on the hopping list the projection returns.
+
+    They measure how closely the hopping list reproduces the group average of
+    ``H``.
 
     Attributes
     ----------
     hermiticity : float
-        How far it misses being Hermitian.
-    drop_threshold, drop_gap : float
-        The size below which a hopping was dropped, and the gap above it.
-    n_dropped, n_hoppings : int
-        How many hoppings were dropped, and how many are returned.
+        How far the coefficients ``t(R)`` of the transform miss
+        ``t(−R) = t(R)†``, in the units of ``H``.
+    drop_threshold : float
+        The norm below which a coefficient of the transform was dropped as
+        rounding, in the units of ``H``; ``0.0`` where none was.
+    drop_gap : float
+        Where a coefficient was dropped, the smallest norm kept over the
+        largest norm dropped.  Coefficients are dropped only where this ratio
+        exceeds ten.  Where none was dropped, it holds another ratio or
+        ``inf``, and is no gap.
+    n_dropped : int
+        How many nonzero coefficients of the transform were dropped.
+    n_hoppings : int
+        How many hopping terms the model returned holds, each conjugate pair
+        counted once and the on-site terms not counted.
     outside_box : float
-        Its largest coefficient beyond the range the group carries the
-        hoppings to, relative to the largest hopping, against ``range_gate``.
+        The largest coefficient of the transform at a lattice vector outside
+        the box that bounds the group's images of the model's hoppings,
+        relative to the largest coefficient.
     range_gate : float
-        The most that coefficient may be.
+        The largest ``outside_box`` the projection accepts, ``1e-10``.
     k_identity : float
-        How far it misses the group average at random ``k``.
+        How far the model returned misses the average of ``H``, at 16 random
+        k-points off the grid, in the units of ``H``.
     covariance_residue : float
-        Its covariance against the matrices the average was taken with.
-    per_pass : tuple
-        Each averaging pass's covariance and how far ``H`` moved.
+        The covariance residual of the model returned, with the matrices of the
+        representation the average is taken with, at the 16 random k-points
+        ``k_identity`` is measured at, in the units of ``H``.
+    per_pass : tuple of float
+        How far each averaging pass moved ``H`` on the grid, in the units of
+        ``H``.
     """
 
     hermiticity: Any = None
@@ -209,18 +250,24 @@ class SymmetrizationChecks:
 
 @dataclass(frozen=True)
 class SymmetrizationCopies:
-    """Identical copies of a part of the crystal coupled, or told apart, only below the declared precision, which the projection made exact copies.
+    """Identical copies coupled or told apart only below the declared precision.
+
+    Identical copies of a set of orbitals form a pseudospin the Hamiltonian
+    conserves within the declared precision.  The projection makes them exact
+    copies.
 
     Attributes
     ----------
     orbitals : tuple of tuple of int
-        The orbitals of each set.
+        The orbitals of each set of copies.
     copies : tuple of int
-        The number of copies of each set.
+        The number of copies in each set.
     off : float
-        The largest entry of ``H(k)`` outside exact copies.
+        The largest entry of ``H(k)`` by which the copies miss being exact
+        copies, in the units of ``H``.
     exact : float
-        The rounding it is above.
+        The largest covariance residual at which an operation counts as exact,
+        in the units of ``H``.  ``off`` is above it.
     """
 
     orbitals: tuple
@@ -231,16 +278,24 @@ class SymmetrizationCopies:
 
 @dataclass(frozen=True)
 class SymmetrizationParts:
-    """Parts of the crystal coupled only below the declared precision, which the projection leaves out.
+    """Parts of the crystal coupled to one another only below the declared precision.
+
+    A part of the crystal is a set of orbitals the hoppings connect, directly
+    or through others.  A coupling between parts that lies below the declared
+    precision counts as absent.  ``H`` then fixes the matrices of the
+    operations on each part only up to a one-dimensional character, chosen for
+    each part separately.  The projection leaves the coupling out, so the
+    model returned holds the parts exactly apart.
 
     Attributes
     ----------
     orbitals : tuple of tuple of int
-        Each part's orbitals.
+        The orbitals of each part.
     coupling : float
-        The largest entry of ``H(k)`` between two of them.
+        The largest entry of ``H(k)`` between two parts, in the units of ``H``.
     exact : float
-        The rounding it is above.
+        The largest covariance residual at which an operation counts as exact,
+        in the units of ``H``.  ``coupling`` is above it.
     """
 
     orbitals: tuple
@@ -250,21 +305,30 @@ class SymmetrizationParts:
 
 @dataclass(frozen=True)
 class SymmetrizationShares:
-    """States that split multiplets between them coupled only below the declared precision, which the projection leaves out.
+    """Sectors that split site multiplets, coupled only below the declared precision.
 
-    The bonding and antibonding states of two lattices joined on site, or a
-    square's ``(p_x, p_y)`` pair.
+    The matrices that commute with ``H(k)`` at every k and act within sites
+    split the states into sectors, read at the declared precision.  Where the
+    states of one site multiplet lie in several sectors, each orbit of sectors
+    under the group carries a representation of its own, induced from the
+    stabilizer of one of its sectors.  Two such cases are the bonding and the
+    antibonding state of two identical lattices coupled on site, and a
+    square's ``p_x, p_y`` pair that nothing couples.  Where ``H`` couples such
+    sectors only below the declared precision, the projection leaves that
+    coupling out.
 
     Attributes
     ----------
     orbitals : tuple of tuple of int
-        The orbitals of each set.
+        The orbitals of each set of sectors.
     sectors : tuple of int
-        How many sectors split each set.
+        The number of sectors in each set.
     coupling : float
-        The largest entry of ``H(k)`` between them.
+        The largest entry of ``H(k)`` that couples a sector to anything outside
+        it, in the units of ``H``.
     exact : float
-        The rounding it is above.
+        The largest covariance residual at which an operation counts as exact,
+        in the units of ``H``.  ``coupling`` is above it.
     """
 
     orbitals: tuple
@@ -275,47 +339,86 @@ class SymmetrizationShares:
 
 @dataclass(frozen=True)
 class Symmetrization:
-    """How far a near-symmetric model was moved onto its symmetric part, and why.
+    """How far a Hamiltonian was moved onto its symmetric part, and why.
 
-    ``r.numerical.symmetrization`` of what ``realized_group(model,
-    precision=...)`` returns where it projects the Hamiltonian, ``r.model``
-    being then the model it made.  ``rec.summary()`` prints it.
+    The record :func:`..groups.realized_group` returns on
+    ``r.numerical.symmetrization`` where it projects ``H`` onto its symmetric
+    part; that field is ``None`` where it does not.  An operation's covariance
+    residual is how far its matrix misses carrying ``H(k)`` onto ``H`` at the
+    image of k: the largest entry of ``U H(k) U† − H(gk)`` over k, in the
+    units of ``H``.  ``H`` is averaged over the operations of the group, those
+    combined with time reversal included, on a grid of k-points.  The average
+    is taken with a representation of the group on the orbitals that is built
+    from ``H`` for the projection and made an exact representation of the
+    group.  The average is written back as a hopping list by an inverse
+    Fourier transform.
+
+    The projection runs where an operation is near, obeyed within ``tol`` and
+    not to rounding.  It runs as well in four cases where something holds
+    only within the declared precision, each with an attribute of its own:
+    the site multiplets (``site_multiplets``), the separation of parts of the
+    crystal (``parts``), identical copies (``copies``), and the separation of
+    sectors that split site multiplets (``shares``).  Below the declared
+    precision means too small for the measurement of the operations, made at
+    ``tol``, to see: it reads the orbitals such a coupling joins as uncoupled,
+    and copies that differ by so little as identical.  ``r.model`` is then the
+    symmetrized model, and ``r.numerical.source`` the model passed to
+    ``realized_group``.  ``summary()`` returns the record as text, a line for
+    each finding, ending with the attribute that holds it where there is one.
 
     Attributes
     ----------
     defect : float
-        How far the model moved, ``max_k |H_sym(k) − H(k)|`` in the units of
-        ``H``, never more than ``tol``.
+        How far ``H`` moved: the largest change of an entry of ``H(k)`` over
+        the grid, in the units of ``H``.  It is at most ``tol``.
     scale : float
-        ``max_k |H(k) − μ|``, ``μ`` the mean on-site energy per state: the size
-        of ``H``, which a constant shift does not move.
+        The size of ``H``: the largest entry of ``H(k) − μ`` over the grid,
+        ``μ`` the mean on-site energy per state, in the units of ``H``.
     tol : float
-        The tolerance on each operation's covariance residual, ``10 ×
-        precision × max|H|``, in the units of ``H``.
-    exact, near : tuple of int
-        The operations obeyed to rounding, and those obeyed within ``tol`` and
-        not to rounding, by index.
+        The tolerance on each operation's covariance residual, in the units of
+        ``H``: ``10`` times the precision times ``max|H|`` where a precision is
+        declared, and ``1e-8`` times ``max|H|`` otherwise.  ``max|H|`` is the
+        largest entry of ``H(k) − μ`` on fixed random k-points, or the largest
+        hopping or on-site energy less ``μ`` where that is larger: the number
+        ``r.numerical.precision.max_h`` holds where a precision is declared.
+        It is not ``scale``, which is read on the grid.
+    near : tuple of int
+        The operations obeyed within ``tol`` and not to rounding, by their
+        index in ``r.operations``.
+    exact : tuple of int
+        The operations obeyed to rounding, by their index in ``r.operations``.
     residuals : dict
-        The residual each operation was read at, by index.
+        The covariance residual of each operation, by its index in
+        ``r.operations``, in the units of ``H``.  For an operation the
+        representation the average is taken with holds, it is the residual of
+        the operation's own matrix there.  For any other, it is the residual
+        of the best matrix the measurement of the operations found on ``H``.
     passes : int
-        How many averaging passes ran: one is exact, and another runs only
-        while the covariance left is above rounding and ``H`` still moves.
-    verification : SymmetrizationVerification or None
-        The operations measured again on the model returned.
+        The number of averaging passes, at most three.  One pass is the
+        projection.  A further pass runs only while the covariance residual of
+        the averaged model is above rounding and the last pass moved ``H`` by
+        more than rounding.
     site_multiplets : SymmetrizationSiteMultiplets or None
-        Where the multiplets each site's orbitals form hold only within the
-        declared precision.
-    checks : SymmetrizationChecks
-        The hopping list returned, measured.
-    copies : SymmetrizationCopies or None
-        Where identical copies of a part of the crystal are copies only within
-        the declared precision.
+        If not ``None``, the site multiplets that hold only within the
+        declared precision, which the projection made exact.
     parts : SymmetrizationParts or None
-        Where parts of the crystal are coupled only below the declared
-        precision.
+        If not ``None``, the parts of the crystal coupled to one another only
+        below the declared precision, a coupling the projection left out.
+    copies : SymmetrizationCopies or None
+        If not ``None``, the identical copies that ``H`` coupled or told apart
+        only below the declared precision, which the projection made exact
+        copies.
     shares : SymmetrizationShares or None
-        Where states that split multiplets between them are coupled only below
-        the declared precision.
+        If not ``None``, the sectors splitting site multiplets that ``H``
+        coupled only below the declared precision, a coupling the projection
+        left out.
+    checks : SymmetrizationChecks
+        The measurements of how closely the hopping list returned reproduces
+        the group average of ``H``.
+    verification : SymmetrizationVerification
+        The operations of the group measured again on the model returned, at
+        ``1e-8`` times ``scale``; ``1e-8`` is the relative tolerance a model
+        built from exact numbers is measured at.
     """
 
     tol: float
@@ -357,16 +460,23 @@ class Symmetrization:
 
     @property
     def near(self) -> tuple:
-        """The operations obeyed within ``tol`` and not to rounding, by index."""
+        """The operations obeyed within ``tol`` and not to rounding.
+
+        Each is given by its index in ``r.operations``.
+        """
         return tuple(sorted(i for i, c in self._classes.items() if c == "near"))
 
     @property
     def exact(self) -> tuple:
-        """The operations obeyed to rounding, by index."""
+        """The operations obeyed to rounding, by their index in ``r.operations``."""
         return tuple(sorted(i for i, c in self._classes.items() if c == "exact"))
 
     def summary(self) -> str:
-        """How far H moved and why, and what was measured on the model returned, a line each."""
+        """The record as text: how far ``H`` moved and why, a line for each finding.
+
+        Each line ends with the attribute that holds what it reads, where
+        there is one.
+        """
         relative = self._relative
         lines = [f"H moved by {self.defect:.3g}, {relative:.3g} of its size"
                  + (f", in {self.passes} passes" if self.passes > 1 else "")
@@ -442,19 +552,20 @@ class Symmetrization:
 # --------------------------------------------------------------------------
 
 def _range_box(model, syms, per):
-    r"""``(R_max, R_box)`` — the model's own hopping range, and the group's reach.
+    r"""The hoppings' range, and the box the group carries them to, in lattice vectors.
 
-    ``R_max`` is read off the hopping list.  ``R_box`` bounds where the
-    *symmetrized* model can have hoppings: a term at displacement
-    ``d = R + τ_j − τ_i`` is carried by ``g = {A|t}`` to ``A d``, and its
-    lattice index is that minus the image orbitals' own positions, so
+    ``model`` is the pythtb model, ``syms`` the operations averaged over and
+    ``per`` the periodic directions.  Returns ``(R_max, R_box)``, integer
+    arrays over ``per``: ``R_max`` the largest ``|R_a|`` of the hopping list
+    along each periodic direction, and ``R_box`` a bound on those of the
+    symmetrized model.  A term at displacement ``d = R + τ_j − τ_i`` is
+    carried by ``{A|t}`` to ``A d``, so
 
-    .. math:: |R'_a| \le \max_{d,g} |(A d)_a| + \max_{ij}|τ_{i,a} − τ_{j,a}|.
+    .. math:: |R'_a| \le \max_{d,g} |(A d)_a| + \max_{ij}|τ_{i,a} − τ_{j,a}|,
 
-    The bound is taken over the **actual** displacements rather than by summing
-    ``|A|`` over the range, which for a rotation mixing directions is far
-    looser; and it is a bound, not a derivation of the action — what the
-    symmetrized model does outside it is *measured* (``checks["outside_box"]``).
+    the maximum taken over the displacements the model holds.  What the
+    symmetrized model holds outside the box is measured
+    (``checks.outside_box``).
     """
     dim_r = int(model.lattice.dim_r)
     orb = np.asarray(model.orb_vecs, dtype=float)
@@ -474,17 +585,17 @@ def _range_box(model, syms, per):
     return R_max[list(per)].astype(int), np.maximum(R_box[list(per)], 0)
 
 def _divisions(group, syms, R_box):
-    r"""``(box, divisions)`` — the reach each periodic direction is read to, and the grid's divisions along it.
+    r"""The reach each periodic direction is read to, and the grid's divisions along it.
 
-    A Γ-centred grid is carried onto itself by an operation whose k-action is an
-    integer matrix wherever any two directions that action mixes are divided
-    alike, and only then.  So the directions fall into the sets the operations'
-    k-actions connect, and each is read to the widest reach in its set: ``box``
-    is that reach along each direction, and ``divisions = 2·(box + 1) + 1``,
-    twice it and a shell more, the shell where an aliased transform would show.
-    A group whose operations mix every direction, a cubic one, has one count,
-    the widest reach's; a tetragonal one divides its fourfold axis apart from
-    the plane.
+    ``group`` is the :class:`.._spacegroup.GroupData` whose action on k is
+    read, ``syms`` the operations averaged over, and ``R_box`` the box of
+    :func:`_range_box`.  The periodic directions fall into the sets the
+    operations' actions on k connect, and each is read to the widest reach in
+    its set.  Returns ``(box, divisions)``, integer arrays over the periodic
+    directions, with ``divisions = 2·(box + 1) + 1``: twice the reach and a
+    shell more, the shell where an aliased transform would show.  A grid
+    starting at ``k = 0`` and so divided is carried onto itself by every
+    operation.
     """
     R_box = np.asarray(R_box, dtype=int)
     dim_k = int(R_box.size)
@@ -507,7 +618,11 @@ def _divisions(group, syms, R_box):
     return box, 2 * (box + 1) + 1
 
 def _grid(divisions):
-    """The Γ-centred grid with ``divisions`` along the periodic directions, as integer multiples and reduced k."""
+    """The grid starting at ``k = 0`` with ``divisions`` along each periodic direction.
+
+    Returns ``(m, k)``: the points as integer multiples, of shape ``(N, d)``,
+    and as reduced k, ``m / divisions``.
+    """
     counts = [int(c) for c in divisions]
     m = np.stack(np.meshgrid(*[np.arange(c) for c in counts], indexing="ij"),
                  axis=-1).reshape(-1, len(counts))
@@ -521,17 +636,17 @@ def _grid(divisions):
 #: Hamiltonians, ``16 · n_points · n_states²`` bytes.  The Hamiltonian and its
 #: group average are held together while the average is taken; the
 #: Hamiltonian is let go before the transform, which runs in place on the
-#: average; the grid is let go before the hopping list is written; and
-#: everything else -- each operation's Bloch operators and products, the
-#: Fourier phases, the block norms -- is streamed over slices of the grid in
-#: the working space the budget leaves (:data:`_POINT_MATRICES`).  Measured with
-#: ``tracemalloc`` over a whole call at the least budget that runs it, on
-#: models with dense hoppings in the shape of a wannier90 import, where the
-#: grid dominates: 2.02 grids on 96 spinless states and on 48 spinful orbitals
-#: (a ``9³`` grid, one grid 107.5 MB), 2.03 on 48 states (``9³``) and on 32
-#: states reaching two cells (``11³``), against 8.0 grids before the streaming.
-#: The symmetrized model the pass writes is about the size of the model handed
-#: in, which is not in the count: writing it reached 0.2 to 1.55 grids on these.
+#: average; the grid is let go before the hopping list is written.  Everything
+#: else (each operation's Bloch operators and products, the Fourier phases,
+#: the block norms) is streamed over slices of the grid in the working space
+#: the budget leaves (:data:`_POINT_MATRICES`).  Measured with ``tracemalloc``
+#: over a whole call at the least budget that runs it, on models with dense
+#: hoppings in the shape of a Wannier90 import, where the grid dominates: 2.02
+#: grids on 96 spinless states and on 48 spinful orbitals (a ``9³`` grid, one
+#: grid 107.5 MB), 2.03 on 48 states (``9³``) and on 32 states reaching two
+#: cells (``11³``).  The symmetrized model the pass writes is about the size of
+#: the model handed in, which is not in the count: writing it reached 0.2 to
+#: 1.55 grids on these.
 _PROJECTION_GRIDS = 2.1
 
 #: The working space one k-point of that streamed arithmetic takes, as a count
@@ -543,11 +658,11 @@ _PROJECTION_GRIDS = 2.1
 _POINT_MATRICES = 6.0
 
 def _memory_budget(max_bytes) -> float:
-    """``max_bytes`` read as a number of bytes; anything else is a malformed call.
+    """``max_bytes`` read as a number of bytes.
 
-    Read before anything is measured -- by :func:`_symmetrize` beside ``tol``,
-    and by :func:`..groups.realized_group` before the cell is identified -- so
-    that a budget that is not a number of bytes never reaches a verdict.
+    Returns it as a float.  Raises ``ValueError`` where it is not a positive,
+    finite number.  :func:`_symmetrized` and :func:`..groups.realized_group`
+    read it before anything is measured.
     """
     try:
         budget = float(max_bytes)
@@ -555,57 +670,54 @@ def _memory_budget(max_bytes) -> float:
         budget = float("nan")
     if not (budget > 0.0 and np.isfinite(budget)):
         raise ValueError(
-            f"max_bytes must be a positive, finite number of bytes, got {max_bytes!r}. It "
-            "is the memory the hopping projection may take at its peak -- the Hamiltonian "
-            "and its group average on the transform grid, held together, and the "
-            "arithmetic streamed beside them -- and the most that measuring the symmetry "
-            "matrices may take at one k-point on a spectrum with exactly degenerate "
-            "levels.")
+            f"realized_group(): max_bytes={max_bytes!r} is not a positive, finite number "
+            "of bytes. Pass a number of bytes, such as the default 1e9.")
     return budget
 
 def _search_ceiling(max_candidates) -> int:
-    """``max_candidates`` read as a whole number of candidates; anything else is a malformed call.
+    """``max_candidates`` read as a whole number of candidates.
 
-    Read before anything is measured -- by :func:`_symmetrize` and by
-    :func:`..groups.realized_group` -- so that a ceiling that is not a count
-    never reaches a search.
+    Returns it as an int.  Raises ``ValueError`` where it is not a positive
+    whole number; a bool is not one.  :func:`_symmetrized` and
+    :func:`..groups.realized_group` read it before anything is measured.
     """
     if (isinstance(max_candidates, (bool, np.bool_))
             or not isinstance(max_candidates, (int, np.integer)) or int(max_candidates) < 1):
         raise ValueError(
-            f"max_candidates must be a positive whole number, got {max_candidates!r}. It "
-            "is the largest search for a representation's discrete choices, where the "
-            "measurement does not fix them, that is run rather than refused "
-            "`rep_search_too_large`.")
+            f"realized_group(): max_candidates={max_candidates!r} is not a positive whole "
+            "number. Pass a whole number of candidates, such as the default 2**20.")
     return int(max_candidates)
 
 def _slice_points(work, point_bytes, n_points) -> int:
-    """How many grid points one slice of the streamed arithmetic takes within ``work`` bytes."""
+    """How many grid points one slice of the streamed arithmetic takes.
+
+    ``work`` is the working space and ``point_bytes`` what one point takes, in
+    bytes; ``n_points`` is the number of points of the grid.  Returns
+    ``work // point_bytes``, at least one and at most ``n_points``.
+    """
     return int(min(int(n_points), max(1, int(float(work) // float(point_bytes)))))
 
 def _projection_too_large(n_bytes, budget, *, divisions, least, n_states, R_max, R_box):
-    r"""The projection whose transform grid the memory budget does not hold.
+    r"""The refusal ``projection_too_large``, for a grid the memory budget does not hold.
 
-    A limit on memory, not a statement about the model: the grid is set by the
-    model's own hopping range and a coarser one would alias the transform back
-    to a hopping list, so the projection is refused rather than run on one, with
-    the least peak it runs at and the budget that runs it.
+    ``n_bytes`` is the peak the projection needs and ``budget`` the
+    ``max_bytes`` asked, in bytes.  ``divisions`` is the transform grid,
+    ``least`` the coarsest grid that does not alias, ``n_states`` the number of
+    states, and ``R_max`` and ``R_box`` the arrays of :func:`_range_box`.
+    Returns the refusal, its reason naming the ``max_bytes`` that runs it.
     """
     runs = _budget_that_runs(n_bytes)
     counts = [int(c) for c in divisions]
     n_points = int(np.prod(counts))
     return Refusal(
         "projection_too_large",
-        f"the hopping projection needs {_size(n_bytes)} at its peak against max_bytes = "
-        f"{_size(budget)}, to hold the Hamiltonian and its group average together on a "
-        f"transform grid of {' x '.join(str(c) for c in counts)} = {n_points} points at "
-        f"{int(n_states)} states, with the rest of its arithmetic streamed beside them. "
-        "The hoppings, carried by the group, reach "
-        f"R_box = {R_box.tolist()} cells along the periodic directions, and a grid coarser "
-        f"than {[int(c) for c in least]} divisions along them -- twice the reach and a "
-        "shell more, alike along directions the group's operations mix -- would alias the "
-        "transform back to a hopping list, so the projection is not run on one. This is a "
-        "limit on memory, not a statement about the model: "
+        f"the projection of H onto its symmetric part needs {_size(n_bytes)} at its peak, "
+        f"more than the {_size(budget)} that max_bytes= allows, on a grid of "
+        f"{' x '.join(str(c) for c in counts)} = {n_points} k-points at "
+        f"{int(n_states)} states. The symmetrized hoppings can reach "
+        f"{R_box.tolist()} cells along the periodic directions, which, read alike along "
+        f"directions the operations mix, takes a grid of at least "
+        f"{[int(c) for c in least]} divisions. "
         f"`realized_group(..., max_bytes={runs})` runs it.",
         value=float(n_bytes), threshold=float(budget),
         context={"n_bytes": float(n_bytes), "max_bytes": float(budget),
@@ -618,64 +730,29 @@ def _projection_too_large(n_bytes, budget, *, divisions, least, n_states, R_max,
 # --------------------------------------------------------------------------
 
 def _provisional_rep(model, group, assignment, validated, *, tol, scale, build_kw):
-    r"""The exact ``D(g)``, from a provisional :func:`.._build._build_rep`.
+    r"""The representation a projection averages with, from a provisional build.
 
-    Two tolerances move for this pass and nothing else does.
+    :func:`.._build._build_rep` is run with two gates loosened: its covariance
+    gate to ``tol``, and its internal-factor gate to ``tol / scale``, or ten
+    times the worst measured residual over ``scale`` where that is larger,
+    never below the build's own default.  Its matrices are assembled from
+    discrete signs, so where every multiplet is one orbital they carry none of
+    the model's noise.  A wider multiplet's block is the model's own, and the
+    build returns the exact representation nearest those blocks.
 
-    * **The covariance gate** moves to the declared ``tol``.  It must:
-      on a near-symmetric model *no* candidate closes the exact gate, and the
-      candidate this pass wants is precisely the one whose covariance is the
-      model's own defect.
-    * **The read-off's internal gate** moves to the declared tolerance,
-      expressed relative to ``max|H|`` -- taken about the mean on-site energy,
-      which no residual sees -- or to ten times the worst residual so
-      expressed where that is larger.  The read-off measures the discrete
-      signs of the tensor structure on the detector's solution space, and on a
-      near-symmetric operation that space is only an ``O(r)`` intertwiner, so
-      its blocks miss ``χ(g)·S(g)`` by ``O(r/|H|)`` — measured 3.0e-7 on the
-      1e-7-jittered lin3g — and the read would defer to an enumeration that is
-      exponential in the number of multiplet orbits.  A multiplet wider than
-      one orbital carries the model's own block for every operation, and the
-      gate then compares those noisy blocks with the products of the
-      generators' along the group's words: they agree to the model's noise
-      carried through a word, which the declared precision bounds and the
-      residual alone does not -- measured, on a spinor pair read spinless at
-      ``6c`` of ``R-3m`` jittered at ``1e-5``, ``1.6e-4`` to ``1.7e-4``
-      against ``10·r/max|H|`` of ``1.4e-4`` to ``1.5e-4``.  So the *read* is
-      allowed to be as accurate as the model was declared to be, and no
-      further.
-
-    Neither loosening touches the candidate the pass returns.  ``D`` is
-    assembled from **discrete** signs, snapped to ``phases``, through the same
-    ``_assemble``/``_propagate`` path as any build, so where every multiplet is
-    one-dimensional it carries none of the model's noise: measured identical to
-    ``0.0`` against the *clean* model's representation on the jittered lin3g.
-    A wider multiplet's block is the model's own and carries its noise, and
-    the build then returns the exact representation nearest those blocks
-    (``composition`` below says how far they were).  The internal-factor and
-    product-table gates read machine zero on what comes back, which is why only
-    the covariance gate had to move.
-
-    **The orientation branches, when both survive.**  A group whose generators
-    are all involutions with Hermitian representatives — inversion and a
-    two-fold axis, which is most of what a real crystal offers — builds the
-    *same* unitary matrices on both orientation branches, differing only by a
-    phase per generator.  :func:`.._build._build_rep` settles that tie itself,
-    by convention and with ``_branch_tie`` on the record, so the ordinary route
-    through here never has a branch to decide and ``branch_ambiguity`` is
-    ``None``.  What can still arrive is the tie the search never *asked* —
-    ``rep_search_too_large``, the read-off having deferred for some other reason
-    and the enumeration being too big to run, which is the wannier90-scale case
-    — and ``rep_not_unique`` where the two survivors are genuinely different
-    physics.  For *this* pass that ambiguity is decidable by measurement rather
-    than by convention, because ``U H U†`` is blind to ``D → λ D``: the two
-    branches are built separately and the phase-fitted difference
-    ``min_λ ‖D₂(g) − λ D₁(g)‖`` is measured on
-    every operation.  At machine level they are the same representation as far
-    as any average can tell, the ``g`` branch is taken, and the number is on the
-    record (``branch_ambiguity``).  Above it the original refusal is returned
-    unchanged — a genuine second representation *would* give a different
-    projection, and nothing here is in a position to choose between them.
+    ``model``, ``group``, ``assignment`` and ``validated`` are the model, its
+    group, the orbitals' assignment to its sites and the measurement of the
+    operations at ``tol``, an energy in the units of ``H``.  ``scale`` is
+    ``max|H|`` about the mean on-site energy.  ``build_kw`` holds the build's
+    other keywords; an ``internal_tol`` there stands as given.  Where the build
+    returns ``rep_not_unique`` or ``rep_search_too_large``, both orientation
+    branches are built, and ``orientation_branch=1`` is taken where they agree,
+    up to a phase per operation, to the build's own internal gate.  Returns
+    ``(rep, record)``: the representation, or the build's first refusal, and a
+    mapping of ``tol``, ``composition`` (how far the blocks were from
+    composing), ``branch_ambiguity`` (``None`` where no branch was built) and
+    ``covariance`` (the largest covariance residual of the matrices), empty
+    beside a refusal.
     """
     kept = [int(i) for i in validated._indices]
     worst = max((float(validated.residuals.get(i, 0.0)) for i in kept), default=0.0)
@@ -716,11 +793,13 @@ def _provisional_rep(model, group, assignment, validated, *, tol, scale, build_k
                  "covariance": float(max(rep.numerical.residuals.values(), default=0.0))}
 
 def _projection_operators(model, group, assignment, validated, *, tol, build_kw):
-    r"""``(rep, record)`` -- the representation a projection of this model is built with.
+    r"""The representation a projection of this model is built with, and its record.
 
-    :func:`_provisional_rep` at the scale the projection reads, ``max|H|`` about
-    the mean on-site energy on a fixed probe of eight k-points.  Whether an
-    operation is exact or near is read on its matrices' covariance
+    ``model``, ``group``, ``assignment``, ``validated``, ``tol`` and
+    ``build_kw`` are as :func:`_provisional_rep` takes them.  Its ``scale`` is
+    read here: ``max|H|`` about the mean on-site energy, on eight fixed random
+    k-points.  Returns what :func:`_provisional_rep` returns.  Whether an
+    operation is exact or near is read on these matrices' covariance
     (:func:`_classify_operations`), and the average is taken with them
     (:func:`_symmetrized`).
     """
@@ -731,18 +810,14 @@ def _projection_operators(model, group, assignment, validated, *, tol, build_kw)
                             build_kw=build_kw)
 
 def _exact_representation(group, D):
-    r"""``D``, keyed by operation, made an exact representation of the group.
+    r"""``D`` made an exact representation of ``group``.
 
-    The group average is a projection only when its matrices compose by the
-    group's table: then ``Σ_g U(g) H U(g)†`` is carried onto itself by every
-    operation, and pulling the average back at any ``k`` gives the same matrix
-    as pushing it forward on a grid.  Matrices read off a near-symmetric
-    model's own multiplet blocks carry its noise and compose only to it, and
-    averaged with them ``H`` is moved by that noise onto no symmetric
-    Hamiltonian at all.  So the average is taken with the exact representation
-    nearest them (:func:`.._matrices._nearest_representation`), which leaves
-    matrices that already compose to rounding exactly as they are, and moves
-    the others by the composition defect they had and no more.
+    ``D`` maps each operation's index to its matrix on the states.  Returns the
+    same mapping, with the exact representation nearest ``D``
+    (:func:`.._matrices._nearest_representation`): each matrix moves by the
+    composition defect it had and no more.  Returns ``D`` itself where no
+    nearest representation is found.  The group average is a projection only
+    with matrices that compose by the group's table.
     """
     position = {int(s.ind): p for p, s in enumerate(group._symmetries)}
     prod = group._get_product_table(get_diff=False)
@@ -754,14 +829,17 @@ def _exact_representation(group, D):
 
 def _with_centers(model, orb, *, check=True, n_check=_bloch.CHECK_K,
                   seed=_bloch.CHECK_SEED):
-    r"""The model with its orbital centres at ``orb``, its spectrum measured unchanged.
+    r"""The model with its orbital centers at ``orb``, its spectrum measured unchanged.
 
-    The same lattice, on-site terms and hopping table, row for row, with the
-    centres replaced: in convention I that is the k-dependent gauge
-    transformation ``Λ(k) = diag(e^{−2πi k·Δ})``, which cannot move an
-    eigenvalue, and ``check`` measures that it did not, over ``n_check`` random
-    ``k``.  Returns ``(model, residual)``, the residual ``0.0`` where nothing
-    was measured; a spectrum that moved raises :class:`..refusal.InternalError`.
+    ``orb`` holds the new centers in reduced coordinates, a row per orbital.
+    The lattice, on-site terms and hopping table are ``model``'s, row for row.
+    In pythtb's convention I the move is the k-dependent gauge transformation
+    ``diag(e^{−2πi k·Δ})``, ``Δ`` the move of each center, which leaves every
+    eigenvalue where it was.  With ``check``, the two spectra are compared at
+    ``n_check`` random ``k`` drawn from ``seed``.  Returns
+    ``(model, residual)``, the largest change of an eigenvalue, ``0.0`` where
+    nothing was measured.  Raises :class:`..refusal.InternalError` where an
+    eigenvalue moved by more than ``1e-9`` of the largest one.
     """
     from pythtb import Lattice, TBModel
 
@@ -786,12 +864,10 @@ def _with_centers(model, orb, *, check=True, n_check=_bloch.CHECK_K,
             worst = float(np.abs(orb - np.asarray(model.orb_vecs, dtype=float)).max(
                 initial=0.0))
             raise InternalError(
-                f"moving the centers, by at most {worst:.3g} (reduced), changed the "
-                f"spectrum: max_k |E_new - E_old| = {resid:.3g} on a scale of "
-                f"{scale:.3g}, over {n_check} random k. In convention I that move is the "
-                "k-dependent gauge transformation Lambda(k) = diag(e^{-2 pi i k.Delta}), "
-                "which cannot change an eigenvalue, so this is the package disagreeing "
-                "with itself, not a property of the model.")
+                f"moving the orbital centers by at most {worst:.3g}, in reduced coordinates, "
+                f"changed the spectrum:max_k |E_new - E_old| = {resid:.3g} on a scale of "
+                f"{scale:.3g}, over {n_check} random k. Report it, with the model and the "
+                "call.")
     return out, resid
 
 # --------------------------------------------------------------------------
@@ -799,10 +875,12 @@ def _with_centers(model, orb, *, check=True, n_check=_bloch.CHECK_K,
 # --------------------------------------------------------------------------
 
 def _same_part(parts, model):
-    r"""``[a, b]``, true where states ``a`` and ``b`` lie in one of ``parts``.
+    r"""Which pairs of states lie in one coupled part.
 
     ``parts`` holds each coupled part's orbitals, together every orbital of
-    ``model``; ``None`` where there are fewer than two.
+    ``model``.  Returns a boolean array over pairs of states, true where states
+    ``a`` and ``b`` lie in one part; ``None`` where ``parts`` holds fewer than
+    two.  Raises :class:`..refusal.InternalError` where a state lies in none.
     """
     if not parts or len(parts) < 2:
         return None
@@ -813,16 +891,18 @@ def _same_part(parts, model):
             part_of[int(o) * nspin:(int(o) + 1) * nspin] = i
     if (part_of < 0).any():
         raise InternalError(
-            f"realized_group(): the coupled parts handed in leave states "
-            f"{np.flatnonzero(part_of < 0).tolist()} in none of them; the parts of a crystal "
-            "cover every orbital.")
+            f"the coupled parts of the crystal leave states "
+            f"{np.flatnonzero(part_of < 0).tolist()} in none of them. Report it, with the "
+            "model and the call.")
     return part_of[:, None] == part_of[None, :]
 
 def _parts_coupling(model, parts) -> float:
-    r"""The largest entry of ``H(k)`` between two of the coupled parts ``parts`` holds.
+    r"""The largest entry of ``H(k)`` between two coupled parts, in the units of ``H``.
 
-    Read on the fixed probe of eight k the projection's scale is read on
-    (:func:`_projection_operators`); ``0.0`` where there are fewer than two parts.
+    ``model`` is the model and ``parts`` as :func:`_same_part` takes it.  The
+    entries are read on the eight k-points the projection's scale is read on
+    (:func:`_projection_operators`).  Returns ``0.0`` where there are fewer
+    than two parts.
     """
     same = _same_part(parts, model)
     if same is None:
@@ -834,16 +914,14 @@ def _parts_coupling(model, parts) -> float:
 def _as_held(X, held):
     r"""``X`` with what the sectors read at the declared precision keep apart held apart.
 
-    ``held`` is :func:`.._labeling._held_sets`'s: ``"copies"``, each set of
-    identical copies' basis in the states, copy-major, with its number of
-    copies, the states one copy holds and its orbitals; and ``"shares"``,
-    each set of sectors splitting multiplets between orbits no operation
-    exchanges, with each sector's basis.  What ``X`` holds between a set and
-    anything else, between two copies or between two such sectors is left
-    out, and each copy carries the copies' mean: the part of ``X`` that
-    commutes with every matrix the sectors conserve.  Every operation carries
-    a set's copies onto its copies and each such sector onto one of its set's,
-    so this and the group average commute.
+    ``X`` is a matrix on the states, or a stack of them.  ``held`` is the
+    mapping :func:`.._labeling._held_sets` returns: ``"copies"``, each set of
+    identical copies as ``(basis, copies, dim, orbitals)``, and ``"shares"``,
+    each set of sectors splitting multiplets as ``(bases, orbitals)``.
+    Returns ``X`` with every entry between a set and the rest, between two
+    copies or between two sectors of a set left out, and each copy carrying
+    the copies' mean.  This is the part of ``X`` that commutes with every
+    matrix the sectors conserve, and it commutes with the group average.
     """
     X = np.asarray(X, dtype=complex)
     copies = tuple(held.get("copies") or ())
@@ -863,10 +941,13 @@ def _as_held(X, held):
     return out
 
 def _held_off(model, held) -> dict:
-    r"""``{"copies", "shares"}`` -- the largest entry of ``H(k)`` each kind ``held`` holds leaves out.
+    r"""The largest entry of ``H(k)`` each kind in ``held`` leaves out.
 
-    Read on the probe :func:`_parts_coupling` reads, each kind on its own;
-    ``0.0`` where there is none of it.
+    ``model`` is the model whose ``H(k)`` is read, and ``held`` as
+    :func:`_as_held` takes it, or ``None``.  Each kind is read on its own, on
+    the k-points :func:`_parts_coupling` reads.  Returns
+    ``{"copies": ..., "shares": ...}`` in the units of ``H``, ``0.0`` for a
+    kind ``held`` does not hold.
     """
     out = {"copies": 0.0, "shares": 0.0}
     if not held:
@@ -881,33 +962,27 @@ def _held_off(model, held) -> dict:
 
 def _average_on_grid(model, group, assignment, ops, D, kpts, divisions, *,
                      bloch_tol, work, apart=None, held=None):
-    r"""``(H_sym, moved, scale)`` on the transform grid — the group average.
+    r"""The group average of ``H`` on the transform grid.
 
-    For every operation and every grid point, ``U(g;k)`` is
-    :func:`..symmetry.bloch_operator` at the **folded** image ``k_out ≡ gk``
-    (mod a reciprocal-lattice vector), which is again a grid point because the
-    grid is Γ-centred, divided alike along any two directions an operation's
-    k-action mixes (:func:`_divisions`), and the k-action is an integer matrix
-    there.  The contribution ``U H(k) U†`` —
-    with ``H(k)*`` for an antiunitary operation, exactly as the covariance
-    identity takes it — is accumulated at that image, so every accumulator slot
-    receives one term per operation and the sum over the group is the average.
+    For every operation and grid point, ``U(g;k) H(k) U(g;k)†``, with ``H(k)*``
+    for an operation combined with time reversal, is added at the image point
+    ``gk``, folded back onto the grid, which :func:`_divisions` makes a grid
+    point.  ``H`` is evaluated once, and each operation permutes the grid.
 
-    Pushing forward rather than pulling back is what makes this cheap: ``H`` is
-    evaluated **once** on the grid and every operation is a permutation of it.
-    ``H`` and the accumulator are the two grids held here; ``H`` is evaluated,
-    and each operation's operators and products are formed, over slices of the
-    grid within ``work`` bytes, and a slice is the whole grid wherever that
-    fits.  ``moved`` is ``max_k |H_sym(k) − H(k)|`` and ``scale`` is
-    ``max_k |H(k)|`` over the grid, both read before ``H`` is let go.
-
-    ``apart`` (:func:`_same_part`) is the coupled parts of the crystal the
-    verdict read, where it read several: what ``H`` holds between two of them
-    lies below the declared precision, where a coupling counts as absent, and
-    the average leaves it out.  Every operation carries each part onto itself,
-    so leaving it out and averaging commute exactly.  ``held`` is what the
-    sectors read at the declared precision keep apart, held apart the same
-    way (:func:`_as_held`).
+    ``model``, ``group`` and ``assignment`` are the model, its group and the
+    orbitals' assignment to its sites.  ``ops`` maps each operation's index to
+    the operation, and ``D`` maps it to the operation's matrix on the
+    orbitals.  ``kpts`` is the grid in reduced k and ``divisions`` its
+    divisions.  ``bloch_tol`` is the tolerance
+    :func:`..symmetry.bloch_operator` holds the centers to.  ``work`` is the
+    working space in bytes, over whose slices of the grid ``H``, the operators
+    and their products are formed.  ``apart`` (:func:`_same_part`), where
+    given, leaves out what ``H`` holds between the coupled parts, and ``held``
+    (:func:`_as_held`), where given, holds apart what the sectors keep apart;
+    both commute with the average.  Returns ``(H_sym, moved, scale)``: the
+    average on the grid, ``max_k |H_sym(k) − H(k)|`` and ``max_k |H(k)|``, in
+    the units of ``H``.  Raises ``ValueError`` where an operation does not
+    carry the grid onto itself.
     """
     n_points = int(kpts.shape[0])
     counts = tuple(int(c) for c in divisions)
@@ -920,12 +995,9 @@ def _average_on_grid(model, group, assignment, ops, D, kpts, divisions, *,
         mm = np.rint(kp * n)
         if np.abs(kp * n - mm).max() > 1e-7:      # pragma: no cover - guarded by design
             raise ValueError(
-                f"_symmetrize(): operation #{ind} does not carry the "
-                f"{' x '.join(str(c) for c in counts)} grid onto itself, so the average "
-                "would not be over one grid. This cannot happen with the divisions "
-                "the projection derives, alike along every pair of directions an operation "
-                "mixes, and says the grid was overridden with one the group does not "
-                "preserve.")
+                f"realized_group(): operation #{ind} does not carry the "
+                f"{' x '.join(str(c) for c in counts)} grid of k-points onto itself. "
+                "Report it, with the model and the call.")
         mm = mm.astype(int) % np.asarray(counts, dtype=int)
         idx = np.ravel_multi_index(tuple(mm.T), counts)
         k_out = mm / n
@@ -951,22 +1023,16 @@ def _average_on_grid(model, group, assignment, ops, D, kpts, divisions, *,
 
 def _average_at(model, group, assignment, ops, D, k, *, bloch_tol, apart=None,
                 held=None):
-    r"""``(H_sym, residue)`` at arbitrary k — the average **pulled back**.
+    r"""The group average of ``H`` at any k, and the covariance there.
 
-    ``(g P H)(k) = U(g;k)† H(gk) U(g;k)`` (conjugated for an antiunitary
-    operation) is the covariance identity solved for ``H(k)``, so it equals
-    ``H(k)`` exactly when the operation holds and differs by the covariance
-    residual when it does not.  Averaged over the group it is the same
-    ``H_sym`` the grid push-forward gives — the two differ by relabelling
-    ``g -> g^-1``, and the projective phase cancels in the conjugation — with no
-    grid needed, which is what makes it the instrument for the off-grid identity
-    check.
-
-    ``residue`` is ``max_g max_k |U H(k) U† − H(gk)|``: the covariance of *this*
-    model against *these* operators, which is what says whether another pass is
-    needed.  ``apart`` leaves out what lies between the coupled parts, and
-    ``held`` holds what the sectors keep apart apart, as
-    :func:`_average_on_grid` does.
+    At each point the average over the operations of
+    ``U(g;k)† H(gk) U(g;k)``, conjugated for an operation combined with time
+    reversal, is the ``H_sym`` :func:`_average_on_grid` gives, with no grid.
+    ``model``, ``group``, ``assignment``, ``ops``, ``D``, ``bloch_tol``,
+    ``apart`` and ``held`` are as :func:`_average_on_grid` takes them, and
+    ``k`` holds the points in reduced k.  Returns ``(H_sym, residue)``: the
+    average at ``k``, and ``max_g max_k |U H(k) U† − H(gk)|``, the covariance
+    of the model against these operators, in the units of ``H``.
     """
     k = np.atleast_2d(np.asarray(k, dtype=float))
     evaluate = _bloch.evaluator(model)
@@ -991,27 +1057,23 @@ def _average_at(model, group, assignment, ops, D, k, *, bloch_tol, apart=None,
     return acc, residue
 
 def _inverse_transform(Hsym, model, kpts, divisions, per, *, work):
-    r"""``(t, R)`` — the hopping coefficients, exactly, in place of ``H_sym``.
+    r"""The hopping coefficients of ``Hsym``, by an exact inverse Fourier transform.
 
-    In pythtb's convention I ``H_ij(k) = Σ_R t_ij(R) e^{2πi k·(R + τ_j − τ_i)}``
-    is a *finite* Fourier series, so on a Γ-centred grid of ``N = Π_a n_a``
-    points, ``n_a > 2·R_max,a`` divisions along each periodic direction, the
-    inverse
+    In pythtb's convention I, ``H_ij(k) = Σ_R t_ij(R) e^{2πi k·(R + τ_j − τ_i)}``
+    is a finite Fourier series.  On a grid of ``N = Π_a n_a`` points starting
+    at ``k = 0``, with ``n_a > 2·R_max,a`` divisions along each periodic
+    direction, the inverse
 
     .. math:: t_{ij}(R) = \frac{1}{N}\sum_k H_{ij}(k)\,
               e^{-2\pi i\,k\cdot(R + \tau_j - \tau_i)}
 
-    is exact — no aliasing, no window, no fit.  ``τ`` is the model's **own**
-    ``orb_vecs``, not the slab cell's wrapped copy, because it is the model's
-    own that pythtb built ``H(k)`` with.
-
-    The transform overwrites ``H_sym``: the phases multiply it in place, over
-    slices of the grid within ``work`` bytes, and the Fourier transform writes
-    its output over its input, so the coefficients take no grid beside it.
-
-    Returns ``t`` of shape ``(N, nstate, nstate)``, sharing ``H_sym``'s
-    memory, and the folded integer vectors ``R`` of shape ``(N, d)``, each
-    component in ``[-(n_a-1)/2, (n_a-1)/2]``.
+    is exact.  ``Hsym`` is the average on the grid ``kpts`` of ``divisions``,
+    and is overwritten.  ``τ`` is ``model``'s own ``orb_vecs`` along the
+    periodic directions ``per``, which pythtb built ``H(k)`` with.  The phases
+    are applied over slices of the grid within ``work`` bytes.  Returns
+    ``(t, R)``: ``t`` of shape ``(N, nstate, nstate)``, sharing ``Hsym``'s
+    memory, and the integer lattice vectors ``R`` of shape ``(N, d)``, each
+    component folded into ``[-n_a/2, n_a/2)``.
     """
     counts = tuple(int(c) for c in divisions)
     dim_k = len(counts)
@@ -1039,14 +1101,20 @@ def _inverse_transform(Hsym, model, kpts, divisions, per, *, work):
     return Hsym, R
 
 def _blocks(t, norb, nspin):
-    """``t`` reshaped to ``(R, i, j, spin, spin)`` — the spin block is the unit."""
+    """The coefficients ``t`` arranged by spin block.
+
+    ``t`` has shape ``(N, norb·nspin, norb·nspin)``, spin the fast index, for
+    ``norb`` orbitals of ``nspin`` spin states each.  Returns it with shape
+    ``(N, norb, norb, nspin, nspin)``.
+    """
     return np.transpose(t.reshape(t.shape[0], norb, nspin, norb, nspin), (0, 1, 3, 2, 4))
 
 def _block_norms(t, norb, nspin, step):
-    """``‖t_ij(R)‖_F`` per ``(R, i, j)`` — the spin block is the unit, not the entry.
+    """The Frobenius norm of each spin block ``t_ij(R)``.
 
-    Taken ``step`` lattice vectors at a time, so the arithmetic holds one slice
-    of the coefficients beside them rather than two copies of all of them.
+    ``t``, ``norb`` and ``nspin`` are as :func:`_blocks` takes them, read
+    ``step`` lattice vectors at a time.  Returns an array of shape
+    ``(N, norb, norb)``.
     """
     out = np.empty((t.shape[0], int(norb), int(norb)))
     for lo in range(0, t.shape[0], int(step)):
@@ -1062,27 +1130,17 @@ _HALF_DECADE_ZERO = 650
 _HALF_DECADES = 1300
 
 def _drop_threshold(norms, relative=_DROP_RELATIVE, *, step=None):
-    r"""A drop threshold that never splits a symmetry orbit.
+    r"""The norm below which rebuilt coefficients are dropped, never splitting an orbit.
 
-    Dropping rebuilt coefficients by amplitude alone can break a symmetry: a
-    truncation **breaks** it whenever two partners of one orbit straddle the
-    threshold.  Partners of an orbit carry the same block norm — that is what
-    makes them partners — so an orbit-safe threshold is one with a *gap* under
-    it.  This walks the block norms upward from zero, never above
-    ``relative·max‖t‖``, and cuts at the last one followed by a factor-of-ten
-    jump; where no such gap exists it drops **nothing**, because keeping a
-    rounding-level coefficient costs one hopping term and dropping half an
-    orbit costs the symmetry.
-
-    Returns ``(threshold, gap)`` — the gap being the measured ratio across the
-    cut, and ``inf`` when nothing was dropped.
-
-    The walk is read off the least and the greatest norm in each half-decade of
-    magnitude, streamed ``step`` lattice vectors at a time, so no copy of the
-    norms is made: two norms in one half-decade are less than a factor of ten
-    apart, so a jump can only open between the greatest norm of one half-decade
-    and the least of the next one occupied, and the cut and the gap are the
-    ones the walk over every norm finds.
+    Partners of one orbit carry the same block norm, so a cut with a gap under
+    it splits none.  The block norms are walked upward from zero, never above
+    ``relative`` times the largest, and the cut is at the last one followed by
+    a jump of more than a factor of ten.  ``norms`` is the array of
+    :func:`_block_norms`, read ``step`` lattice vectors at a time, all at once
+    where ``step`` is ``None``.  Returns ``(threshold, gap)``: the cut and the
+    ratio across it.  Where there is no such jump the threshold is ``0.0`` and
+    nothing is dropped; the gap is then the least norm above the bound over
+    the least nonzero one below it, and ``inf`` where none lies below it.
     """
     top = float(norms.max(initial=0.0))
     if not top > 0.0:
@@ -1111,16 +1169,17 @@ def _drop_threshold(norms, relative=_DROP_RELATIVE, *, step=None):
     return 0.0, float(edge / float(least[occupied[0]]))
 
 def _kept_terms(t, R, model, per, keep, step):
-    """The terms of ``t(R)`` a pythtb model is written from, read off the grid.
+    """The terms a pythtb model is written from, read off the coefficients.
 
-    Only the canonical half of each conjugate pair is kept — pythtb adds the
-    other — with the ``R = 0`` diagonal as the on-site terms.  The
-    anti-Hermitian part dropped in doing so is *measured*, not assumed away,
-    ``step`` lattice vectors at a time.  ``keep`` says which ``(R, i, j)``
-    blocks survive :func:`_drop_threshold`'s cut.  Every array returned is a
-    copy, so the grid can be let go before the model is written.
-
-    Returns ``(onsite, amplitudes, i, j, R, hermiticity)``.
+    ``t`` and ``R`` are as :func:`_inverse_transform` returns them, for
+    ``model`` with periodic directions ``per``.  ``keep`` is a boolean array
+    over ``(R, i, j)``, true for a block above :func:`_drop_threshold`'s cut.
+    Of each conjugate pair only the half pythtb does not add itself is kept,
+    with the ``R = 0`` diagonal as the on-site terms.  ``step`` lattice vectors
+    are read at a time.  Returns ``(onsite, amplitudes, i, j, R, hermiticity)``,
+    every array a copy: ``R`` the full lattice vectors of ``model``, and
+    ``hermiticity`` the largest entry of ``t_ij(R) − t_ji(−R)†``, spin blocks
+    taken whole, in the units of ``H``.
     """
     dim_r = int(model.lattice.dim_r)
     norb, nspin = int(model.norb), int(model.nspin)
@@ -1142,9 +1201,9 @@ def _kept_terms(t, R, model, per, keep, step):
 
     # The kept coefficients, in one pass and in (R, i, j) order.  Of each
     # conjugate pair only the half whose R has its first nonzero component
-    # positive is written, the upper triangle at R = 0 -- pythtb adds the other
-    # half -- and every (R, i, j) is one coefficient of the transform, so no term
-    # is written twice.
+    # positive is written, and the upper triangle at R = 0; pythtb adds the
+    # other half.  Every (R, i, j) is one coefficient of the transform, so no
+    # term is written twice.
     Rint = np.asarray(R, dtype=int)
     nonzero = Rint != 0
     at_zero = ~nonzero.any(axis=1)
@@ -1159,7 +1218,12 @@ def _kept_terms(t, R, model, per, keep, step):
     return ons, amps, ii, jj, Rfull, herm
 
 def _to_model(model, ons, amps, ii, jj, Rfull):
-    """A pythtb model on ``model``'s own lattice, from the terms :func:`_kept_terms` read."""
+    """A pythtb model on ``model``'s lattice and centers, from its terms.
+
+    ``ons`` are the on-site terms, and ``amps``, ``ii``, ``jj`` and ``Rfull``
+    each hopping's amplitude, orbitals and lattice vector, as
+    :func:`_kept_terms` returns them.  Returns the model.
+    """
     from pythtb import Lattice, TBModel
 
     out = TBModel(Lattice(np.asarray(model.lat_vecs, dtype=float),
@@ -1178,15 +1242,16 @@ def _symmetrize(model, group, assignment, validated, *, tol, k_grid=None, params
                 max_passes=3, verify=True, verify_nk=None, verify_tol=None,
                 max_bytes=1e9, characters=None, site_multiplets=None, spin=None,
                 max_candidates=2 ** 20):
-    r"""The model nearest a near-symmetric one that obeys its group exactly, and how far it moved.
+    r"""A near-symmetric model made exactly symmetric, and how far it moved.
 
     ``H`` is averaged over the group's operations, those combined with time
-    reversal among them where the group has any, as ``U(g;k) H(k) U(g;k)†`` at
-    every point of a grid, and comes back to a hopping list exactly.  The
-    average moves ``H`` by about the residuals of the operations obeyed only
-    within ``tol``, which the declaration already calls noise.
-    :func:`..groups.realized_group` runs it itself where a declared precision
-    calls for it.
+    reversal among them, as ``U(g;k) H(k) U(g;k)†`` on a grid of k-points, and
+    the average is written back as a hopping list by an exact inverse Fourier
+    transform.  The average moves ``H`` by about the residuals of the
+    operations obeyed only within ``tol``.  :func:`..groups.realized_group`
+    runs the same pass itself, :func:`_symmetrized`, wherever an operation is
+    near, or a site multiplet, a coupling of parts of the crystal, or a set of
+    identical copies or of sectors holds only within the declared precision.
 
     Parameters
     ----------
@@ -1194,56 +1259,44 @@ def _symmetrize(model, group, assignment, validated, *, tol, k_grid=None, params
         The model the operations were measured on, ``r.model``: for a layer,
         its slab presentation.
     group, assignment, validated : GroupData, OrbitalAssignment, ValidatedGroup
-        ``r.group``, ``r._assignment`` and ``r.numerical.validated`` of a call measured at
-        ``tol``.
+        ``r.group``, ``r._assignment`` and ``r.numerical.validated`` of a call
+        measured at ``tol``.
     tol : float
-        The declared tolerance, in the units of ``H``, the one ``validated`` was
-        measured at; for numbers good to a relative ``ε``, about
-        ``10·ε·max|H|``.  Required.
-    characters, site_multiplets, spin : optional
-        The declarations, as :func:`..groups.realized_group` takes them.  The
-        average does not depend on ``characters=``, which the representation it
-        is taken with carries.
-    k_grid : int, optional
-        Divisions of the grid in every periodic direction.  Default: the
-        smallest grid on which the hopping list comes back exactly, set by the
-        hoppings' range; a coarser one raises.
-    max_passes : int, optional
-        The most averaging passes.  Default 3: one is exact, and another runs
-        only while ``H`` still moves.
-    verify, verify_nk, verify_tol : optional
-        Measure the operations again on the model returned (default ``True``),
-        on a mesh of ``verify_nk`` divisions (default: the one ``validated``
-        used), at ``verify_tol`` (default ``1e-8`` times ``max|H|``).
-    max_bytes : float, optional
-        The memory the average may take at its peak, in bytes.  Default ``1e9``.
-    max_candidates : int, optional
-        The largest search for the representation's discrete choices that is
-        run.  Default ``2**20``.
-    params : dict, optional
+        The declared tolerance, in the units of ``H``, the one ``validated``
+        was measured at; for numbers good to a relative ``ε``, about
+        ``10·ε·max|H|``.
+    k_grid : int, default None
+        The divisions of the grid along every periodic direction.  ``None``
+        takes ``2·(box + 1) + 1`` along each, ``box`` the reach the group
+        carries the hoppings to (:func:`_divisions`).
+    params : dict, default None
         The scalar value of each parameter of the model, keyed by name:
         ``{"lam": 0.3}``.
+    max_passes : int, default 3
+        The most averaging passes.  A further pass runs only while the
+        covariance residual of the averaged model is above rounding and the
+        last pass moved ``H`` by more than rounding.
+    verify : bool, default True
+        Whether the operations are measured again on the model returned.
+    verify_nk : int, default None
+        The divisions of the mesh they are measured on; ``None`` is the mesh
+        ``validated`` was measured on.
+    verify_tol : float, default None
+        The tolerance they are measured at, in the units of ``H``; ``None`` is
+        ``1e-8·max|H|``.
+    max_bytes : float, default 1e9
+        The memory the average may take at its peak, in bytes.
+    characters, site_multiplets, spin : default None
+        The declarations, as :func:`..groups.realized_group` takes them.
+    max_candidates : int, default 2**20
+        The largest search for the representation's discrete choices that is
+        run.
 
     Returns
     -------
     (pythtb.TBModel, Symmetrization) or Refusal
         The symmetrized model, its parameters evaluated at ``params``, and the
-        record of the average: ``rec.summary()``;
-        ``rec.defect``, how far ``H`` moved, in its units; ``rec.near``, the
-        operations obeyed only within ``tol``; ``rec.verification``, the
-        operations measured again on the model returned.  A ``Refusal`` in its
-        place is falsy and names what stopped the call.
-
-    Raises
-    ------
-    ValueError
-        A malformed argument, before anything is measured, among them a name
-        in ``params`` that is not a parameter of the model, a parameter given no
-        value, or a value that is not a number; or a ``k_grid`` too coarse for
-        the hoppings' range.
-    ..refusal.InternalError
-        The hopping list returned misses the average, which it reproduces
-        exactly: a defect to report.
+        record of the average.
 
     Refusals
     --------
@@ -1252,17 +1305,30 @@ def _symmetrize(model, group, assignment, validated, *, tol, k_grid=None, params
     ``symmetrize_defect_exceeds_tol``
         the average moved ``H`` further than ``tol``.
     ``symmetrize_range_not_closed``
-        the average reaches beyond the hoppings' range on the grid; a larger
-        ``k_grid`` runs it.
+        the symmetrized hoppings reach beyond the box the group carries the
+        hoppings to.
     ``positions_not_exactly_symmetric``
         the orbital centers miss the operations, by more than the operators
-        carry them or by enough to keep H from being made exactly symmetric;
-        :func:`_symmetrize_positions`, or a declared precision, moves them first.
+        carry them or by enough to keep ``H`` from being made exactly
+        symmetric; :func:`_symmetrize_positions`, or a declared precision,
+        moves them first.
     ``projection_too_large`` / ``detector_too_large``
         past ``max_bytes``; the reason gives the value that runs it.
 
     A refusal of the representation's own build, ``rep_not_unique`` among them,
     is returned as it is.
+
+    Raises
+    ------
+    ValueError
+        A malformed argument, before anything is measured: a name in
+        ``params`` that is not a parameter of the model, a parameter given no
+        value or a value that is not a number, a ``tol``, ``max_bytes`` or
+        ``max_candidates`` that is not positive, or a malformed declaration.
+        Then, a ``k_grid`` coarser than the default grid along some direction.
+    ..refusal.InternalError
+        The hopping list returned misses the average, which it reproduces
+        exactly.
     """
     model = _bloch.bound(model, params)
     return _symmetrized(model, group, assignment, validated, tol=tol, k_grid=k_grid,
@@ -1275,23 +1341,31 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
                  max_passes=3, verify=True, verify_nk=None, verify_tol=None,
                  max_bytes=1e9, _parts=None, _held=None, _centers_declared=False,
                  _operators=None, **build_kw):
-    """The pass :func:`_symmetrize` runs, every keyword of its provisional build passed by name.
+    """The pass :func:`_symmetrize` runs, on a model whose parameters are bound.
 
-    :func:`..groups.realized_group` calls it on its own records, handing in the
-    parts of the crystal and the identical copies it read apart (``_parts``,
-    ``_held``), whether a tolerance for the centers was declared
-    (``_centers_declared``), and whatever the build it will make is asked for.
-    It hands in the operators as well, ``_operators``: the exact gate, the
-    provisional build and its record (:func:`_projection_operators`), and the
-    classes read on them, which the pass reads as they are rather than measuring
-    them again.
+    ``model``, ``group``, ``assignment``, ``validated``, ``tol``, ``k_grid``,
+    ``max_passes``, ``verify``, ``verify_nk``, ``verify_tol`` and ``max_bytes``
+    are as :func:`_symmetrize` takes them.  ``build_kw`` holds the provisional
+    build's keywords by name, such as ``characters``, ``multiplets``,
+    ``spin`` and ``max_candidates``.  :func:`..groups.realized_group` calls it
+    on its own records and hands in the rest.  ``_parts`` is
+    ``{"orbitals", "coupling"}``, the coupled parts of the crystal and the
+    largest entry of ``H`` between them.  ``_held`` is ``{"sets", "off"}``,
+    what the sectors keep apart (:func:`.._labeling._held_sets`) and what
+    :func:`_held_off` measured it leaves out.  ``_centers_declared`` says
+    whether ``precision=`` or ``position_tol=`` was declared; where it was, a
+    failed check is never refused as the centers' miss,
+    ``positions_not_exactly_symmetric``, and its own verdict stands.
+    ``_operators`` is ``(exact_gate, (rep, record), classes)``, the exact
+    gate, the provisional build of :func:`_projection_operators` and the
+    classes read on it, used as they are.  Returns and refuses as
+    :func:`_symmetrize` does, and raises as it does, ``params`` aside.
     """
 
     tol = float(tol)
     if not np.isfinite(tol) or tol <= 0.0:
-        raise ValueError(f"_symmetrize(): tol must be a positive number, got {tol!r}. It is "
-                         "the declared tolerance the operations were measured at, in the "
-                         "units of H.")
+        raise ValueError(f"_symmetrize(): tol={tol!r} is not a positive number. Pass the "
+                         "tolerance the operations were measured at, in the units of H.")
     budget = _memory_budget(max_bytes)
     if "max_candidates" in build_kw:
         build_kw["max_candidates"] = _search_ceiling(build_kw["max_candidates"])
@@ -1305,8 +1379,8 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
     dim_k = int(group._dim_k)
     syms_by_ind = {int(s.ind): s for s in group._symmetries}
 
-    # ---- 1. the classification, and the one thing that is refused ----------
-    # against the exact gate of THIS model and operation set, measured once: the
+    # ---- 1. the classification, and what is refused before anything is built
+    # against the exact gate of this model and operation set, measured once: the
     # detection record carries neither the number of states nor max|H|
     if _operators is not None:
         exact_gate, handed, classes = _operators
@@ -1318,25 +1392,21 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
         worst = max(float(validated.residuals.get(i, np.inf)) for i in broken)
         return Refusal(
             "symmetrize_broken_operation",
-            f"{len(broken)} of the {len(classes)} operations handed in, "
-            f"{_counted_as(group.spinor)}, are broken at the "
-            f"declared tolerance: {broken} reach covariance residual {worst:.3g} against "
-            f"tol = {tol:.3g}. Symmetrizing over them would impose a symmetry this "
-            "Hamiltonian does not have -- the projection moves H by O(residual), which is "
-            "declared noise only while the residual is inside the declared tolerance. "
-            "Either the tolerance is too tight for a defect that is merely numerical "
-            "(raise it, reading it against max|H|), or the operations are genuinely broken "
-            "and the cell is the wrong one (`typat=`, `decorations=`).",
+            f"{len(broken)} of the {len(classes)} operations handed in are broken at the "
+            "declared tolerance. The operations are counted "
+            f"{_counted_as(group.spinor)}. Operations {broken} reach a covariance residual "
+            f"of {worst:.3g} against tol={tol:.3g}. Pass a validated record that lists only "
+            "the operations holding at tol, or a larger tol where the defect is numerical.",
             value=float(worst), threshold=tol,
             context={"broken": tuple(broken), "classes": classes, "tol": tol,
                      "exact_gate": exact_gate})
-    # ... and the centres, which the operators are built on.  The average is
-    # taken with Bloch operators that carry each centre onto its image, checked
-    # to `bloch_operator`'s own tolerance; on centres the operations miss, the
+    # ... and the centers, which the operators are built on.  The average is
+    # taken with Bloch operators that carry each center onto its image, checked
+    # to `bloch_operator`'s own tolerance; on centers the operations miss, the
     # operators do not compose as the group does, and the "average" is no
     # projection: it writes each hopping onto a lattice vector that is not one
     # and moves what was exact.  A projection of the hoppings cannot reach a
-    # defect in the centres at all, so such centres are refused here, with the
+    # defect in the centers at all, so such centers are refused here, with the
     # route that moves them.
     pos_defect = float(_position_defect(model, group, assignment,
                                         {int(i): syms_by_ind[int(i)]
@@ -1344,14 +1414,10 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
     if pos_defect > _BLOCH_TOL:
         return Refusal(
             "positions_not_exactly_symmetric",
-            f"the orbital centers miss the operations handed in by {pos_defect:.3g} "
-            f"(reduced), against the {_BLOCH_TOL:.0e} to which the operators of the "
-            "projection carry each center onto its image. Averaged with operators that "
-            "miss the centers, the Hamiltonian is not projected onto its symmetric part: "
-            "each hopping is carried to a lattice vector that is not one, and no "
-            "projection of the hoppings reaches a defect in the centers. Declare this "
-            "model's precision, `realized_group(..., precision=)`, which moves centers "
-            "within it onto the group's own positions before anything is projected.",
+            f"the orbital centers miss the operations handed in by {pos_defect:.3g}, in "
+            f"reduced coordinates, against the {_BLOCH_TOL:.0e} the projection allows. "
+            "Declare the model's precision with `precision=`, or a tolerance for the "
+            "centers alone with `position_tol=`.",
             value=pos_defect, threshold=_BLOCH_TOL,
             context={"position_defect": pos_defect, "bloch_tol": _BLOCH_TOL})
 
@@ -1382,7 +1448,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
     D = _exact_representation(group, {int(i): np.asarray(rep.matrices[int(i)])
                                       for i in indices})
     bloch_tol = _BLOCH_TOL
-    # THE PARTS OF THE CRYSTAL READ APART, where several were: what H holds
+    # The parts of the crystal read apart, where several were: what H holds
     # between them is below the declared precision, and the average leaves it out;
     # and what the sectors read at that precision keep apart, held apart
     apart = _same_part((_parts or {}).get("orbitals"), model)
@@ -1392,20 +1458,16 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
     prov["n_operations"] = len(ops)
     prov["position_defect"] = pos_defect
     prov["bloch_tol"] = float(bloch_tol)
-    # What every refusal below says when the CENTRES carry a defect of their own
+    # What every refusal below says when the centers carry a defect of their own
     # above rounding, though within the operators' own tolerance: a projection
     # of the hoppings reaches nothing in them.  `EXACT_GATE` is the exact
     # pipeline's own rounding scale, used only to decide whether there is a
-    # number worth quoting -- it gates nothing (the defect is reduced-coordinate,
-    # and this number is in the units of H).
+    # number worth quoting.  It gates nothing: the defect is in reduced
+    # coordinates, and this number is in the units of H.
     pos_note = ("" if pos_defect <= EXACT_GATE else (
-        f" This model's own centers miss the group's action by {pos_defect:.3g} "
-        "(reduced), and in convention I that alone costs H(k) a covariance residual "
-        "of order 2*pi*delta*max|H| whatever the hoppings do. A projection of the "
-        "hoppings cannot remove that. Declare this model's precision, "
-        "`realized_group(..., precision=)`, which moves the centers onto the group's "
-        "own positions before anything is projected, a k-dependent gauge that leaves "
-        "the spectrum untouched."))
+        f" The orbital centers miss the group's operations by {pos_defect:.3g}, in "
+        "reduced coordinates. Declare the model's precision with `precision=`, or a "
+        "tolerance for the centers alone with `position_tol=`, before reporting it."))
 
     # ---- 3. the transform grid --------------------------------------------
     # one division count per periodic direction, twice the reach the group
@@ -1419,16 +1481,15 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
         divisions = (int(k_grid),) * dim_k
         if int(k_grid) < int(need.max()):
             raise ValueError(
-                f"_symmetrize(): k_grid = {int(k_grid)} is too coarse for this model. Its "
-                f"hoppings reach R_max = {R_max.tolist()} and the group action carries "
-                f"them out to R_box = {R_box.tolist()}, so the inverse transform aliases "
-                f"below {[int(c) for c in need]} divisions along the periodic directions "
-                "-- twice the reach and the shell the aliasing check is measured on, alike "
-                "along directions the group's operations mix -- and k_grid sets one count "
-                f"in every direction, at least {int(need.max())}.")
+                f"_symmetrize(): k_grid={int(k_grid)} is too coarse for this model. Its "
+                f"hoppings reach {R_max.tolist()} cells along the periodic directions and "
+                f"its symmetrized hoppings can reach {R_box.tolist()}, which, read alike "
+                f"along directions the operations mix, takes a grid of at least "
+                f"{[int(c) for c in need]} divisions. Pass k_grid of at least "
+                f"{int(need.max())}, or leave it out.")
     # What the projection holds at its peak, against the memory it may take: the
     # Hamiltonian and its group average on the grid, and one k-point of the
-    # arithmetic streamed beside them -- every model it evaluates carries at
+    # arithmetic streamed beside them, since every model it evaluates carries at
     # most the grid's own lattice vectors.  What the budget leaves beyond the
     # grids is the working space the streamed steps are sliced to.  A coarser
     # grid would alias, so a grid past the budget is a limit on memory, and it is
@@ -1466,10 +1527,10 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
         biggest = float(norms.max(initial=0.0))
         out_box = (float(norms.max(axis=(1, 2), initial=0.0)[outside].max(initial=0.0))
                    / max(biggest, 1e-300))
-        # For the representation's operators the range box is a *bound* on where
+        # For the representation's operators the range box is a bound on where
         # the symmetrized model can have hoppings, so anything outside it is
         # rounding and the gate is at rounding (measured 1e-17..1e-16 on every
-        # model built from exact numbers).  The centres are carried by the
+        # model built from exact numbers).  The centers are carried by the
         # operations to their own tolerance, checked above, so nothing carries a
         # hopping to a lattice vector that is not one.
         gate = _RANGE_RELATIVE
@@ -1485,13 +1546,13 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
                 return own
             return Refusal(
                 "symmetrize_range_not_closed",
-                f"the symmetrized Hamiltonian has weight outside its own range box: the "
-                f"largest rebuilt coefficient beyond |R_a| = {box.tolist()} along the "
-                f"periodic directions is {out_box:.3g} of max|t|, against {gate:.3g}. The "
-                f"inverse transform on a {' x '.join(str(c) for c in divisions)} grid is "
-                "exact only while the hoppings fit inside that box, so this says the box "
-                "is wrong and the transform aliased -- the hopping list would not be the "
-                "symmetrized Hamiltonian. Report it with the model and the call." + pos_note,
+                f"the symmetrized Hamiltonian has terms beyond the {box.tolist()} cells "
+                "along the periodic directions that the group carries its hoppings to: the "
+                f"largest of them is {out_box:.3g} times the largest term of the "
+                "symmetrized Hamiltonian, against "
+                f"{gate:.3g}, on a "
+                f"{' x '.join(str(c) for c in divisions)} grid of k-points. Report it, with "
+                "the model and the call." + pos_note,
                 value=out_box, threshold=float(gate),
                 context={"R_max": R_max.tolist(), "R_box": R_box.tolist(),
                          "k_grid": tuple(divisions), "pass": int(passes),
@@ -1510,8 +1571,8 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
         del ons, amps, ii, jj, Rfull
         checks["outside_box"] = out_box
         checks["range_gate"] = float(gate)
-        # the identity that says the hopping list IS H_sym, measured OFF the
-        # grid the transform was taken on -- on the grid it holds by construction
+        # the identity that says the hopping list is H_sym, measured off the
+        # grid the transform was taken on, where it holds by construction
         target, _ = _average_at(current, group, assignment, ops, D, k_random,
                                 bloch_tol=bloch_tol,
                                 apart=apart, held=held_apart)
@@ -1519,7 +1580,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
         checks["k_identity"] = float(np.abs(Hnew - target).max())
         if checks["k_identity"] > gate * (scale if scale > 0.0 else 1.0):
             # The transform is exact by theorem once the range box is closed, and
-            # the box has been measured closed at the same relative size -- so
+            # the box has been measured closed at the same relative size.  So
             # this is the rebuild's own arithmetic going wrong, not a statement
             # about the model, and it raises, unless the centers' miss accounts
             # for it: then the average is no finite sum of hoppings to rebuild.
@@ -1532,13 +1593,12 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
             if own is not None:
                 return own
             raise InternalError(
-                f"realized_group(): the rebuilt hopping list does not reproduce the symmetrized "
-                f"Hamiltonian off the transform grid: max_k |H_new(k) - H_sym(k)| = "
+                f"the hopping list written for the symmetrized Hamiltonian differs from it "
+                f"at k-points off the transform grid: max_k |H_new(k) - H_sym(k)| = "
                 f"{checks['k_identity']:.3g} on {k_random.shape[0]} random k, against "
-                f"{gate * (scale if scale > 0.0 else 1.0):.3g}, while the largest coefficient outside the "
-                f"range box is {out_box:.3g} relative (so the transform did not alias). "
-                "The inverse transform is exact under those conditions; this is a defect "
-                "in the rebuild, not a measurement.")
+                f"{gate * (scale if scale > 0.0 else 1.0):.3g}. Beyond the cells the group "
+                f"carries hoppings to, no term exceeds {out_box:.3g} times the largest. "
+                "Report it, with the model and the call.")
         _, residue = _average_at(out, group, assignment, ops, D, k_random,
                                  bloch_tol=bloch_tol, apart=apart, held=held_apart)
         checks["covariance_residue"] = float(residue)
@@ -1546,7 +1606,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
         current = out
         # Two ways to be done, and both are measurements: the model is symmetric
         # under the operators it was built with, or the model stopped moving.
-        # The second matters where the first cannot be reached at all -- a
+        # The second matters where the first cannot be reached at all: a
         # position defect leaves an O(delta) residue no number of passes
         # touches, and iterating a fixed point only costs arithmetic.
         if residue <= floor or per_pass[-1] <= floor:
@@ -1572,13 +1632,11 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
         return Refusal(
             "symmetrize_defect_exceeds_tol",
             f"the group average moved H by {defect:.3g} ({defect / max(scale, 1e-300):.3g} "
-            f"relative), which is more than the declared tol = {tol:.3g}. Over operations "
-            f"measured near-symmetric the defect is O(their residual), so a defect this "
-            "large is a statement about the operators, not about the model: the "
-            "representation the average was taken with is not the symmetry these residuals "
-            "were measured for. Check the declared tolerance against the covariance "
-            "the representation the average was taken with reaches, "
-            f"{prov.get('covariance', float('nan')):.3g}."
+            f"relative), more than the declared tol = {tol:.3g}. The representation the "
+            f"average was taken with carries H(k) onto itself to within "
+            f"{prov.get('covariance', float('nan')):.3g}. Where that is close to tol, the "
+            "tolerance is too tight: declare a larger precision. Where it is far below "
+            "tol, report it, with the model and the call."
             + pos_note,
             value=defect, threshold=tol,
             context={"classes": classes, "operators": prov, "passes": int(passes),
@@ -1625,8 +1683,9 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
                 f"built with measures {checks.get('covariance_residue', float('nan')):.3g}, "
                 "the measurement that says whether the projection worked.")
 
-    # WHY, where no operation says it: multiplets measured within the declared
-    # tolerance only, as the multiplet measurement handed in records it
+    # Why the projection ran, where no operation says it: multiplets measured
+    # within the declared tolerance only, as the multiplet measurement handed in
+    # records it
     layout = build_kw.get("multiplets")
     held = ({"mixing": float(layout._mixing), "exact": float(_IN_BLOCKS),
              "declared": float(layout._tol or 0.0)}
@@ -1668,73 +1727,52 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
     return current, record
 
 # --------------------------------------------------------------------------
-# the other half of the model: the orbital centres
+# the other half of the model: the orbital centers
 # --------------------------------------------------------------------------
 
 def _symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=None):
-    r"""The model with its orbital centres moved onto the nearest positions its group carries, every band where it was.
+    r"""The model with its orbital centers moved onto its group's nearest positions.
 
-    Centres that miss the group's own action by ``δ``, in reduced coordinates,
-    cost ``H(k)`` a covariance residual of order ``2π·δ·max|H|`` whatever the
-    hoppings do, and a projection of the hoppings cannot remove it.  Moving a
-    centre is a ``k``-dependent gauge transformation, so the spectrum is
-    untouched, and the call measures that it is.  The centres are fitted about
-    their own origin, a shift of all of them together being no displacement,
-    and a common shift within ``max_move`` is then removed, so that they come
-    back in the model's own frame.  ``realized_group(model, precision=...)``
-    makes the same move before the cell's setting is read, and returns its
-    record on ``.numerical.positions``.
+    The centers are fitted about their own origin, a shift of all of them
+    together being no displacement, and a common shift within ``max_move`` is
+    then removed, so that they come back in the model's own frame.  The move
+    is a k-dependent gauge transformation, and the spectrum is measured
+    unchanged.  :func:`..groups.realized_group` makes the same move, with
+    ``precision=`` or ``position_tol=`` declared, before the cell's setting is
+    read.
 
-    Parameters
-    ----------
-    model : pythtb.TBModel
-        The model whose centres are moved.
-    group, assignment : GroupData, OrbitalAssignment
-        ``r.group`` and ``r._assignment`` of a call on this model.  A group read
-        off the noisy centres themselves is written about an origin their noise
-        placed: identify the moved model again before reading it in a group.
-    max_move : float, optional
-        How far a centre may move and still be the same orbital, in reduced
-        coordinates, a shift of all of them together not counted; and how far
-        that shift may reach and still be removed.  Default ``1e-5``.
-    params : dict, optional
-        The scalar value of each parameter of the model, keyed by name:
-        ``{"lam": 0.3}``.
+    ``model`` is the pythtb model whose centers are moved, and ``group`` and
+    ``assignment`` are ``r.group`` and ``r._assignment`` of a call on it.  A
+    group read off the noisy centers themselves is written about an origin
+    their noise placed, so the moved model is identified again before it is
+    read in a group.  ``max_move`` is how far a center may move and still be
+    the same orbital, in reduced coordinates, a shift of all of them together
+    not counted, and how far that shift may reach and still be removed.
+    ``params`` holds the scalar value of each parameter of the model, keyed by
+    name: ``{"lam": 0.3}``.
 
-    Returns
-    -------
-    (pythtb.TBModel, dict) or Refusal
-        The model with its centres moved and its parameters evaluated at
-        ``params``, and the record of the move:
-        ``defect_before`` and ``defect_after``, how far the centres miss the
-        group's action before and after, in reduced coordinates;
-        ``max_move``, the largest move of one centre; ``offset``, the shift of
-        them all together, each centre returned being the one handed in plus
-        its own move plus ``offset``; ``frame``, ``"model"`` where they are
-        written in the model's own frame and ``"fitted"`` where they stay about
-        the origin fitted to them; ``spectrum_residual``, how far the spectrum
-        moved over ``n_check`` random ``k``, ``0`` where no centre moved; and
-        ``n_moved``.  A ``Refusal`` in its place is falsy.
-
-    Raises
-    ------
-    ValueError
-        A name in ``params`` that is not a parameter of the model, a parameter
-        given no value, or a value that is not a number.
-    ..refusal.InternalError
-        The spectrum moved, or the group's operations miss the positions moved
-        onto them, neither of which the move can do: a defect to report.
-
-    Refusals
-    --------
-    ``positions_not_nearly_symmetric``
-        a centre would have to move further than ``max_move``: the positions
-        are a different set of centres, and the group they carry is the one to
-        identify.
+    Returns ``(model, record)``: the model with its centers moved and its
+    parameters evaluated at ``params``, and the record of the move.  The
+    record holds ``defect_before`` and ``defect_after``, how far the centers
+    miss the group's action before and after, in reduced coordinates;
+    ``max_move``, the largest move of one center; ``offset``, the shift of
+    them all together, each center returned being the one handed in plus its
+    own move plus ``offset``; ``frame``, ``"model"`` where they are written in
+    the model's own frame and ``"fitted"`` where they stay about the origin
+    fitted to them; ``spectrum_residual``, how far the spectrum moved over
+    ``n_check`` random ``k``, ``0`` where no center moved; and ``n_moved``.
+    Returns the refusal ``positions_not_nearly_symmetric`` where a center
+    would have to move farther than ``max_move``: the positions are a
+    different set of centers, and the group they carry is the one to
+    identify.  Raises ``ValueError`` for a name in ``params`` that is not a
+    parameter of the model, a parameter given no value, or a value that is
+    not a number.  Raises :class:`..refusal.InternalError` where the spectrum
+    moved, or the group's operations miss the positions moved onto them,
+    neither of which the move can do.
 
     Examples
     --------
-    Kane–Mele with one centre moved by ``1e-8`` (``moved``), read in the group
+    Kane-Mele with one center moved by ``1e-8`` (``moved``), read in the group
     of the exact model:
 
     >>> r = realized_group(kane_mele(0.0, -1.0, 0.3, 0.25), characters={0: "A1"})  # doctest: +SKIP
@@ -1755,9 +1793,8 @@ def _symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=Non
     if not closure <= _EXACT_CLOSURE:          # pragma: no cover - an assignment is an action
         raise InternalError(
             f"the unitary operations of {group.name} #{group.number_str} do not carry "
-            f"the positions projected onto them, missing by {closure:.3g}: the assignment "
-            "is the action of a group on the sites by construction, so this is arithmetic "
-            "in this package failing, not a measurement about the model.")
+            f"the positions projected onto them, missing by {closure:.3g}. Report it, with "
+            "the model and the call.")
     raw = np.asarray(model.orb_vecs, dtype=float)
     dim_r = int(model.lattice.dim_r)
     moves = _centers._moves_of(frame, x)
@@ -1766,12 +1803,11 @@ def _symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=Non
     if not within(worst, max_move):
         return Refusal(
             "positions_not_nearly_symmetric",
-            f"an orbital center would have to move {worst:.3g} (reduced) onto the nearest "
-            f"positions the group carries, against max_move = {float(max_move):.3g}. That "
-            "is a different set of centers, beyond a numerical defect: moving them would "
-            "substitute a crystal the model does not have. Identify the group the "
-            "positions carry (`typat=`, `decorations=`), or raise `max_move` where that "
-            "displacement is meant.",
+            f"an orbital center would have to move {worst:.3g}, in reduced coordinates, "
+            "onto the nearest "
+            f"positions the group carries, against max_move={float(max_move):.3g}. Read "
+            "the group these centers carry with `realized_group`, or pass a larger "
+            "max_move where that move is meant.",
             value=worst, threshold=float(max_move),
             context={"defect_before": float(before),
                      "n_moved": int(np.count_nonzero(np.abs(moves).max(axis=1) > 0.0))})

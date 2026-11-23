@@ -23,7 +23,7 @@ out = tqc.coreps_at(r, gamma, bands=1)                # the lowest band alone, a
 print(isinstance(out, tqc.Refusal), bool(out))
 #  True False
 print(out)
-#  Refusal[multiplet_split]: the bands [0] cut through the degenerate multiplet [0, 1] at k = [0.0, 0.0] (energies [-3.162277660168, -3.162277660168], spread 0 at tolerance 2.96873e-08): on part of a degenerate multiplet the characters depend on the basis chosen inside the multiplet. Ask for every band of the multiplet, or end the bands at a gap.  (measured 0, threshold 2.96873e-08)
+#  Refusal[multiplet_split]: the bands [0] cut the degenerate multiplet [0, 1] at k = [0.0, 0.0] (energies [-3.162277660168, -3.162277660168], spread 0, degeneracy_tol 2.96873e-08). Ask for every band of the multiplet, or end the bands at a gap.  (measured 0, threshold 2.96873e-08)
 #      context: bands, energies, k, multiplet
 ```
 

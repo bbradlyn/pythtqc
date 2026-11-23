@@ -1,6 +1,11 @@
-"""The labelling the Hamiltonian leaves open, chosen once by the lowest-angular-
-momentum rule: what each coupled part of the crystal carries, the keys read
-first to last, and the atomic-limit table read off the choice.
+"""The labeling the hoppings leave open, chosen once by the lowest-angular-momentum rule.
+
+A labeling is one one-dimensional character on each coupled part of the
+crystal, or a representation on a part that is an orbit of sectors built by
+induction.  It is chosen by keys read first to last and put into the
+representation, off which the atomic-limit table is read.  The parts
+and identical copies that the sectors read at a declared precision keep apart
+are found as well.
 """
 
 from __future__ import annotations
@@ -28,9 +33,9 @@ from .sewing import DEGENERACY_TOL, _as_columns, multiplets
 from ._measure import _max_hamiltonian
 
 
-#: What each key of the labelling reads, in the order :func:`_labeling` asks
-#: them: the site content at the lowest angular momentum (orbits read together
-#: read one by one, and identical copies copy by copy, first; then at the lead's
+#: What each key of the labeling reads, in the order :func:`_labeling` asks
+#: them: the site irreps at the lowest angular momentum (orbits read together
+#: one by one, and identical copies copy by copy, first; then at the lead's
 #: site, over the crystal, on the lead's row), the letter the orbitals read as,
 #: the band labels, and last the group's order of operations, on which no label
 #: rests.
@@ -39,7 +44,13 @@ _KEY_NAMES = ("content", "content", "content", "content", "content", "orbitals",
 
 
 class _LazyW:
-    """A candidate's matrices on its states, built the first time one is read."""
+    """A candidate's matrices on its states, built the first time one is read.
+
+    ``cand`` is a representation of an orbit built by induction
+    (:class:`.._sectors._InducedCandidate` or :class:`.._sectors._SharedCandidate`).
+    Its ``"W"`` entry, ``{position: matrix}``, is read only when a matrix is
+    asked for.
+    """
 
     def __init__(self, cand):
         self._cand = cand
@@ -67,12 +78,16 @@ class _LazyW:
 
 
 class _LazyOption(dict):
-    """A labelling of an orbit built by induction, its matrices built only where a key asks for them.
+    """One option of an orbit built by induction, its matrices built only where a key reads them.
 
-    ``"W"`` is the candidate's own matrices on the orbit's states, built the
-    first time one is read, and ``"D"`` the representation with them put in --
-    built each time it is asked for, so that what a key reads off it is kept
-    and the matrices are not.
+    ``base`` is the representation ``D`` as ``{position: matrix}``, ``cand`` a
+    representation of the orbit (as :class:`_LazyW` takes it), and ``states``
+    the orbit's states.  ``fields`` are the option's entries ``chi``,
+    ``contents``, ``character``, ``k``, ``parts`` and ``key`` that
+    :func:`_labeling` reads.  ``"W"`` is the candidate's matrices on
+    ``states``, built the first time one is read.  ``"D"`` is ``base`` with
+    them put in, built anew each time it is read, so that what a key reads off
+    it is kept and the matrices are not.
     """
 
     def __init__(self, base, cand, states, **fields):
@@ -99,21 +114,25 @@ class _LazyOption(dict):
 
 @dataclass(frozen=True)
 class _PseudospinChoice:
-    """What the chooser took for one conserved pseudospin, and what it chose among.
+    """The representation chosen for one conserved pseudospin, and what it was chosen among.
 
     Attributes
     ----------
-    record : _OrbitRecord
+    record : .._sectors._OrbitRecord
         The orbit of sectors the pseudospin's copies lie on.
     content : dict
-        The site content returned at the orbit's lead multiplet.
+        The character the orbit's lead multiplet carries under the
+        representation chosen, ``{ind: chi(g)}`` over its site group.
     contents : tuple of dict
-        Every content the representations of its copies give there, in the
-        order the key ranks them.
+        Every distinct character the representations of the copies give the
+        lead multiplet, ranked by the site irreps at the lowest angular
+        momentum, copy by copy and then at the lead's site, over the crystal
+        and on the lead's row, and last by the group's order of operations.
     declared : bool
-        Whether a declaration speaks for its copies.
+        Whether a declaration is made on the copies' part, alone or with
+        other parts.
     open : int
-        How many site irreps the representations a declaration leaves give there.
+        How many distinct site irreps the candidates give the lead multiplet.
     """
 
     record: object
@@ -125,22 +144,35 @@ class _PseudospinChoice:
 
 @dataclass(frozen=True)
 class _LabelingChoice:
-    """The labelling the chooser took, one per coupled part, and what it rests on.
+    """The labeling chosen, one choice per coupled part, and what it rests on.
 
     Attributes
     ----------
     of_chan : dict
-        The character chosen for each multiplet's part, ``{multiplet: {ind: value}}``.
+        The character chosen for each multiplet's part,
+        ``{multiplet: {ind: value}}``; empty on an orbit built by induction.
     swaps : tuple
-        The representations chosen on orbits built by induction, ``(states, matrices)``.
+        The representations chosen on orbits built by induction, each as
+        ``(states, {position: matrix})``, in the convention of the matrices
+        returned (:func:`_in_tables_gauge`).
     raw : dict
-        What each multiplet holds under the labelling, ``{multiplet: {ind: character}}``.
-    chosen : list
-        The character chosen for each part.
+        Each multiplet's character before its part's character multiplies
+        it; on an orbit built by induction, its character under the
+        representation chosen.  ``{multiplet: {ind: character}}``.
+    chosen : list of dict
+        The character chosen for each part; empty on an orbit built by
+        induction.
     candidates : list
-        Every option each part had, with where it came from.
+        Each part's candidates, each as ``(chi, characters)``: its character,
+        and every multiplet's character before it multiplies them.  On an
+        orbit built by induction ``chi`` is empty and the characters are the
+        representation's own.
     labeled : tuple of dict
-        The parts whose other options label a band differently, and those labels.
+        One entry for each part some of whose other candidates give every
+        multiplet the site irrep the chosen one gives and label some band
+        differently, as ``{"part", "chosen", "others"}``: the band labels under
+        the candidate chosen, and for each such other the name of the key
+        that set it aside with its band labels (:meth:`_BandKey.reading`).
     parts : list
         The multiplets of each part.
     part_states : list
@@ -148,10 +180,13 @@ class _LabelingChoice:
     spaces : tuple of _PseudospinChoice
         What was chosen for each conserved pseudospin.
     lift_trace : dict
-        The trace of each operation's spin-1/2 lift, by index.
+        The trace of each unitary operation's spin-1/2 lift, by index; ``1``
+        on states read without spin.
     matrices_carried : dict
-        Whether each declaration of generator matrices is carried, keyed by the
-        declaration.
+        Whether the labeling gives the declared orbitals their declared
+        generator matrices, keyed by ``id`` of each such declaration made on
+        one part alone and not on part of a multiplet.  A declaration absent
+        from it counts as carried.
     """
 
     of_chan: dict
@@ -168,14 +203,16 @@ class _LabelingChoice:
 
 
 def _choose(options, keys):
-    r"""``(kept, fate)`` -- the option the keys keep, first key first.
+    r"""The option a list of keys keeps, the first key first.
 
-    Each key scores the options still tied, and only those with its lowest
-    score go on to the next; the first of the last ones left is kept.  A key
-    with a ``batch`` attribute scores the tied options together, one score
-    each.  ``fate[i]`` is the position in ``keys`` of the key that set option
-    ``i`` aside, ``None`` for the one kept, and ``len(keys)`` for one no key set
-    apart from it.
+    ``options`` are the candidates and ``keys`` the functions that score them,
+    in order.  Each key scores the options still tied, and only those with its
+    lowest score go on to the next; the first of those left at the end is
+    kept.  A key with a ``batch`` method scores the tied options together, one
+    score each.  Returns ``(kept, fate)``: ``kept`` the position of the option
+    kept, and ``fate[i]`` the position in ``keys`` of the key that set option
+    ``i`` aside, ``None`` for the one kept, and ``len(keys)`` for one no key
+    told apart from it.
     """
     left = list(range(len(options)))
     fate = [None] * len(options)
@@ -196,15 +233,19 @@ def _choose(options, keys):
 
 
 def _band_fibers(model, group, D, syms):
-    r"""The energy multiplets at the high-symmetry points, solved once.
+    r"""The energy multiplets of ``H`` at the high-symmetry points.
 
-    ``H`` is solved once at every high-symmetry point the tables list, in their
-    order, and each point's eigenvectors are grouped into energy multiplets,
-    lowest first.  A point whose little group is the identity alone, or holds
-    an operation ``D`` does not carry, is left out.
-
-    Returns one ``(point, k, little group, multiplets, V)`` per point; empty
-    where the tables do not reach the cell.
+    ``model`` is the model and ``group`` its group, ``D`` the representation
+    as ``{position: matrix}`` and ``syms`` the group's operations, in the
+    group's order.  ``H`` is solved at every high-symmetry point the
+    irreptables package lists for the group, in its order.  Each point's
+    eigenvectors are grouped into energy multiplets, lowest first, two
+    energies degenerate within ``DEGENERACY_TOL`` times ``max|H|``.  A point
+    is left out where the identity is the only unitary operation of its little
+    group, or where ``D`` does not represent one of them.  Returns one
+    ``(name, k, little group, multiplets, V)`` per point, ``V`` the
+    eigenvectors as columns; ``()`` for the group of a supercell or where the
+    tables are not set up for the cell.
     """
 
     if _spacegroup._lattice_not_descended(group) is not None or not group._tables_ready:
@@ -239,13 +280,19 @@ def _band_fibers(model, group, D, syms):
 def _band_share(model, group, assignment, D, syms, fibers, states):
     r"""One coupled part's share of every energy multiplet's character.
 
-    Per point of ``fibers`` (:func:`_band_fibers`), ``chars[row, column]``: the
-    trace, over the multiplet's eigenvectors restricted to the part's
-    ``states``, of the Bloch operator of ``D`` there (:func:`bloch_operator`),
-    one column per unitary operation of the little group.  ``D`` carries each
-    part onto itself, so a multiplet's character is the sum of its parts'
-    shares, and a character ``chi`` on the part multiplies its share by
-    ``chi(g)``.  ``None`` at a point where the operator's own checks fail.
+    ``model``, ``group`` and ``assignment`` are the model, its group and the
+    orbitals' assignment to its sites; ``D`` is the representation as
+    ``{position: matrix}`` and ``syms`` the group's operations.  ``fibers`` is
+    what :func:`_band_fibers` returns, and ``states`` the part's states.  At
+    each point the share is an array ``chars``, one row per energy multiplet
+    and one column per unitary operation of the little group.
+    ``chars[row, column]`` is the trace of the Bloch operator of ``D``
+    (:func:`bloch_operator`) over the multiplet's eigenvectors restricted to
+    ``states``.  ``D`` carries each part onto itself, so a multiplet's
+    character is the sum of its parts' shares, and a character ``chi`` on the
+    part multiplies its share by ``chi(g)``.  Returns one array per point of
+    ``fibers``, ``None`` at a point where an operation's Bloch operator fails
+    its own checks.
     """
     pos_of = {int(s.ind): p for p, s in enumerate(syms)}
     st = np.asarray(states, dtype=int)
@@ -268,18 +315,21 @@ def _band_share(model, group, assignment, D, syms, fibers, states):
 
 
 class _BandKey:
-    r"""The band labels a candidate gives, comparable in the tables' order.
+    r"""The band labels a candidate gives, as a key that orders the candidates.
 
-    For every high-symmetry point in the tables' order and every energy
-    multiplet from the lowest up, the corep content the representation gives
-    it once the part carries the candidate and every other part the one
-    ``held`` holds it at, as the multiplicity of each of the point's coreps in
-    the tables' own order.  Candidates compare at the first place their labels
-    differ, the one whose content comes first in the tables' order of that
-    point's coreps first.  A point where the labels cannot be read is left out
-    for every candidate alike.  ``share(q, option)`` is part ``q``'s share of
-    the characters under one of its options (:func:`_band_share`), measured
-    the first time any part asks.
+    ``group`` is the group.  ``fibers()`` returns what :func:`_band_fibers`
+    returns.  ``share(q, option)`` is part ``q``'s share of the characters
+    under one of its options (:func:`_band_share`).  ``held(q)`` is the
+    candidate part ``q`` is held at, ``None`` before part ``q`` is chosen,
+    when its share is read on ``D`` as built.  ``part`` is
+    the part being chosen and ``n_parts`` the number of parts.  A candidate's
+    key holds, at every high-symmetry point in the irreptables package's order
+    and every energy multiplet from the lowest up, the multiplicity of each of
+    the point's little-group representations, in the tables' own order, once
+    ``part`` carries the candidate and every other part its held one.
+    Candidates compare at the first place their labels differ, the one with
+    the higher multiplicity there coming first.  A point where the labels
+    cannot be read is left out for every candidate alike.
     """
 
     def __init__(self, group, fibers, share, held, part, n_parts):
@@ -307,7 +357,11 @@ class _BandKey:
                      for row in found.labels)
 
     def batch(self, options):
-        """One comparable key per candidate: its labels, point by point."""
+        """One key for each of ``options``: its band labels, point by point.
+
+        A point is left out where the labels of any of ``options`` cannot be
+        read there.
+        """
         keys = [[] for _o in options]
         for i in range(len(self.fibers())):
             got = [self._labels(i, o) for o in options]
@@ -318,10 +372,12 @@ class _BandKey:
         return [tuple(k) for k in keys]
 
     def reading(self, option) -> dict:
-        """``{point: ((bands, {corep: m}), ...)}`` -- the labels one candidate gives every energy multiplet.
+        """The band labels ``option`` gives every energy multiplet, the other parts held.
 
-        Each multiplet is the band indices it holds, from the lowest up, with
-        its corep content; a point whose labels cannot be read is left out.
+        Returns ``{point: ((bands, {label: m}), ...)}``: each multiplet's band
+        indices, from the lowest up, with the multiplicity of each little-group
+        representation it carries.  A point whose labels cannot be read is
+        left out.
         """
 
         out = {}
@@ -347,9 +403,13 @@ class _BandKey:
 def _coupled_parts(classes, unpinned, parts):
     """The coupled parts of the crystal as sets of multiplet orbits, the anchor's first.
 
-    ``parts`` is the measurement's, the anchor's own part first; an orbit the
-    hoppings leave free of the anchor and that no part names is a part of its
-    own.
+    ``classes`` gives the orbit of each multiplet, ``unpinned`` the orbits the
+    hoppings leave free of the anchor, orbital 0's multiplet, and ``parts``
+    the measurement's coupled parts, the anchor's first.  The anchor's part is
+    every orbit not in ``unpinned``.  Each later part of ``parts`` keeps its
+    orbits that are in ``unpinned``, and an orbit of ``unpinned`` that no part
+    names is a part of its own.  Returns a list of frozensets of orbits, none
+    empty.
     """
     nclass = int(np.max(classes)) + 1 if len(classes) else 0
     unpinned = frozenset(int(c) for c in (unpinned or ()))
@@ -365,15 +425,17 @@ def _coupled_parts(classes, unpinned, parts):
 
 
 def _parts_apart(verdict, layout, sectors):
-    """The orbitals of each part of the crystal a verdict read apart and the sectors keep apart.
+    """The orbitals of each part of the crystal a verdict reads apart and the sectors keep apart.
 
-    ``verdict`` is :func:`.._declaration._verdicts_and_choices`'s, on the multiplets ``layout``
-    holds, and ``sectors`` the reading of the conserved matrices at the
-    declared precision (:func:`.._sectors.read_sectors`).  A part the verdict
-    leaves free of the others can still be coupled to them, its ratio carried
-    by the blocks a wider multiplet reads off the Hamiltonian, so parts are
-    held apart only where no sector joins them: the finest partition both
-    coarsen into.  ``None`` where that is one part, or nothing was read.
+    ``verdict`` is what :func:`.._declaration._verdicts_and_choices` returns,
+    on the multiplets ``layout`` holds.  ``sectors`` is the reading of the
+    conserved matrices at the declared precision
+    (:func:`.._sectors.read_sectors`).  A part the verdict leaves free of the
+    others can still be coupled to them, so parts are held apart only where no
+    sector joins them.  Returns the finest partition of the orbitals that
+    holds each part and each sector within one block, each block's orbitals in
+    ascending order; ``None`` where that is one block, the verdict reads fewer
+    than two parts, or nothing was read.
     """
     if not verdict or verdict.classes is None or sectors is None:
         return None
@@ -407,32 +469,38 @@ def _parts_apart(verdict, layout, sectors):
 
 
 def _held_sets(sectors, layout, model, group, assignment, spin, validated):
-    """What the sectors read at the declared precision keep apart that a representation is read on.
+    """The identical copies and the shares the sectors read at the declared precision keep apart.
 
     ``sectors`` is the reading of the conserved matrices at the declared
     precision (:func:`.._sectors.read_sectors`), and ``layout`` the multiplets
-    held together by them (:func:`.._sectors.carried_reading`).  Returns
-    ``{"copies", "shares"}``, or ``None`` where no precision was declared or
-    there is neither:
+    the representation is written on.  ``model``, ``group``, ``assignment``,
+    ``spin`` and ``validated`` are the model, its group, the orbitals'
+    assignment to its sites, the declared spinor basis and the measurement of
+    the operations, read to find the orbits of the sectors.  Returns
+    ``{"copies", "shares"}``; ``None`` where no precision was declared, where
+    a conserved matrix reaches between two multiplets
+    (:func:`.._sectors.carried_reading`), or where there is neither:
 
     * ``copies``: every sector of several identical copies, each copy lying
-      along orbitals of its own within that precision, as ``(basis, copies,
-      dim, orbitals)`` -- its basis in the states, copy-major and held exactly
-      along those orbitals (:func:`.._sectors.aligned`), its number of copies,
-      the states one copy holds and the orbitals it lies on; on states that
-      carry a spin each copy's states are its orbital factor's times the spin;
+      along orbitals of its own within the precision, as ``(basis, copies,
+      dim, orbitals)``.  These are its basis in the states, copy-major and
+      held exactly along those orbitals (:func:`.._sectors.aligned`); its
+      number of copies; the number of states one copy holds; and the orbitals
+      it lies on.  On states that carry a spin each copy's states are its
+      orbital factor's times the spin.
     * ``shares``, on states read without spin: every set of sectors of one
-      copy that one multiplet holds together -- of orbits no operation of the
-      group exchanges, the bonding and the antibonding state two orbitals
-      make or orbitals nothing couples stated as one multiplet, or of one
-      orbit, the square's ``p_x, p_y`` pair nothing couples -- as ``(bases,
-      orbitals)``, each sector's basis held to its own share of every site,
-      within the multiplets that hold it (:func:`.._sectors.held_shares`).
+      copy that one multiplet holds together, as ``(bases, orbitals)``, each
+      sector's basis held to its own share of every site within the
+      multiplets that hold it (:func:`.._sectors.held_shares`).  Each such
+      set is several orbits of sectors that no operation carries into one
+      another, such as the bonding and the antibonding state two orbitals
+      make or orbitals nothing couples stated as one multiplet, or one orbit,
+      such as the square's ``p_x, p_y`` pair that nothing couples.
 
-    What the Hamiltonian holds between such sectors, between copies or
-    between them and the rest, and what tells one copy from another, lies
-    below that precision, where it counts as absent; and the representations
-    are read on them as exact (:func:`.._sectors.induced_orbits`).
+    What ``H`` holds between such sectors, between copies or between them and
+    the rest, and what tells one copy from another, lies below the precision,
+    where it counts as absent; the representations are read on them as exact
+    (:func:`.._sectors.induced_orbits`).
     """
 
     if sectors is None or sectors.tol is None:
@@ -481,19 +549,23 @@ def _held_sets(sectors, layout, model, group, assignment, spin, validated):
 
 
 def _tables_target(group, table, rotations, content, orbitals, words):
-    r"""``{ind: matrix}`` -- the tables' matrices of a multiplet's content, along its orbitals; or ``None``.
+    r"""The matrices of a multiplet's site irreps on their functions, laid along its orbitals.
 
-    ``content`` is ``{ind: chi(g)}`` over the site group ``table`` is the
-    table of, and ``rotations`` each operation's Cartesian matrix.  Where every
-    orbital was declared a function (``words``, ``{orbital: word}``) and those
-    functions carry the content, each orbital is its own function; otherwise
-    the content's irreps are laid along the orbitals in order, the lowest
-    angular momentum first and then the table's own order, each on the
-    functions the tables write it on (:func:`.._sitechars.irrep_functions`):
-    ``(p_x, p_y)`` for ``E`` at a ``4mm`` site.  A matrix is the operation's
-    action on those functions, ``(g·f)(r) = f(R⁻¹ r)``.  ``None`` where the
-    content is no character of the site group, or an irrep in it has no such
-    functions.
+    ``group`` is the group and ``table`` the character table of the
+    multiplet's site group; ``rotations`` maps each operation's index to its
+    Cartesian rotation matrix.  ``content`` is the multiplet's character
+    ``{ind: chi(g)}`` over the site group, and ``orbitals`` its orbitals in
+    order.  Where every orbital was declared a function (``words``,
+    ``{orbital: word}``) and those functions carry ``content``, each orbital
+    is its own function.  Otherwise the site irreps are laid along the
+    orbitals in order, the lowest angular momentum first and then the table's
+    own order, each on its lowest-angular-momentum real harmonics
+    (:func:`.._sitechars.irrep_functions`): ``(p_x, p_y)`` for ``E`` at a
+    ``4mm`` site.  A matrix is the operation's action on those functions,
+    :math:`(g f)(r) = f(R^{-1} r)`.  Returns ``{ind: matrix}`` over the site group;
+    ``None`` where ``content`` is no character of the site group, an irrep in
+    it has no such functions, its irreps do not fill the orbitals, or the
+    matrices do not carry ``content``.
     """
     if table is None or any(int(cls[0]) not in content for cls in table.classes):
         return None
@@ -502,7 +574,7 @@ def _tables_target(group, table, rotations, content, orbitals, words):
     shells = {}
 
     def _on(funcs):
-        """``{ind: matrix}`` -- every operation on the functions ``[(degree, column)]``."""
+        """Each operation's matrix ``{ind: matrix}`` on ``funcs``, ``[(degree, column)]``."""
         out = {}
         for ind in indices:
             M = np.zeros((len(funcs), len(funcs)), dtype=complex)
@@ -561,22 +633,31 @@ def _tables_target(group, table, rotations, content, orbitals, words):
 
 def _in_tables_gauge(rec, winner, *, group, layout, syms, u_pos, cperm, site_tables,
                      rotations, words):
-    r"""The matrices of the representation chosen for an orbit built by induction, in the tables' own.
+    r"""An orbit's chosen representation, in the tables' convention.
 
-    Which of the representations conjugate under what ``H`` conserves on the
-    orbit -- a unitary on identical copies, a phase on each of several sectors
-    one multiplet holds -- is no measurement, so it is fixed by the convention
-    every matrix returned is written in: on the orbit's lead multiplet, the
-    tables' matrices of the content it carries, laid along its orbitals in
-    order (:func:`_tables_target`), wherever what ``H`` conserves reaches them
-    (:func:`.._sectors.tables_gauge`) -- the copies and the sectors ordered as
-    their orbitals.  Where it does not, the orbitals of the multiplet each
-    holding a share of several irreps, the representation stays as it was
-    induced, each sector the image of the first.  On states that carry a spin
-    the tables' matrices are those of the orbital content times each
-    operation's own lift on the spin.  ``rec`` is the orbit's record
-    and ``winner`` the candidate chosen; the matrices are returned unchanged
-    where the orbit holds one sector of one copy, which leaves nothing open.
+    What ``H`` conserves on the orbit, a unitary on identical copies or a
+    phase on each of several sectors one multiplet holds, conjugates the
+    representation chosen into others that no measurement tells apart.  The
+    one returned has, on the orbit's lead multiplet, the matrices of its site
+    irreps laid along its orbitals in order (:func:`_tables_target`), wherever
+    what ``H`` conserves reaches them (:func:`.._sectors.tables_gauge`), the
+    copies and the sectors ordered as their orbitals.  On states that carry a
+    spin those matrices are the orbital ones times each operation's own lift
+    on the spin.  Where what ``H`` conserves does not reach them, the
+    orbitals of the multiplet each holding a share of several irreps, the
+    representation stays as it was induced, each sector the image of the
+    first.
+
+    ``rec`` is the orbit's :class:`.._sectors._OrbitRecord` and ``winner`` the
+    candidate chosen.  ``group`` is the group, ``syms`` its operations and
+    ``u_pos`` the positions of the unitary ones represented; ``layout`` holds
+    the multiplets and ``cperm`` where each operation carries each multiplet.
+    ``site_tables`` gives each site's character table, ``rotations`` each
+    operation's Cartesian rotation matrix by index, and ``words`` each
+    declared orbital's function.  Returns ``{position: matrix}`` on the
+    orbit's states: ``winner``'s own matrices where the orbit holds one sector
+    of one copy, which leaves nothing open, or where the site irreps have no
+    such matrices.
     """
 
     W = winner["W"]
@@ -616,63 +697,105 @@ def _in_tables_gauge(rec, winner, *, group, layout, syms, u_pos, cperm, site_tab
 def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_pos,
                cperm, classes, parts, ref_chan, site_tables, measured_at,
                multiplicity=()):
-    r"""The labelling returned: what each coupled part of the crystal carries, chosen once.
+    r"""The labeling returned: what each coupled part of the crystal carries, chosen once.
 
     The hoppings fix the representation ``D`` only up to one one-dimensional
-    character per coupled part of the crystal -- the multiplets they connect,
-    directly or through others (``parts``) -- and, on a part that is an orbit
-    of sectors built by induction -- identical copies, a conserved pseudospin,
-    or uncoupled orbitals a symmetry exchanges that those characters do not
-    carry -- up to the representation induced on it (``multiplicity``,
-    :func:`.._multiplets._induced_blocks`).  A part's **candidates** are its characters in
-    ``pool``, or the representations induced on it, under which every
-    declaration made on it holds
-    (:func:`_meets`, :func:`_holds_part`); where none meets them all, those met
-    at the operations the measurement read each declaration at
-    (``measured_at``).  Declared generator matrices are read as matrices: a
-    candidate holds them where its own matrices on the declared orbitals are
-    the declared ones; where none does, the characters alone choose, and the
-    rows say the matrices are not carried.  A content declared over several parts
-    is one requirement on all of them, so a part is chosen only where the
-    parts still to be chosen can complete it, each among its own candidates.
+    character on each coupled part of the crystal.  On a part that is an
+    orbit of sectors built by induction (identical copies, a conserved
+    pseudospin, or uncoupled orbitals a symmetry exchanges) they fix it only
+    up to the representation induced on it.  A part's candidates are those of
+    its options under which every declaration made on it holds
+    (:func:`_meets`, :func:`_holds_part`), at every operation or else, for a
+    declaration not made on part of a multiplet, at the operations the
+    measurement read it at.  A candidate holds declared generator matrices
+    where its own matrices on the declared orbitals are the declared ones.  A declaration over several parts is one requirement on all
+    of them, so a candidate is kept only where the parts still to be chosen
+    can complete it.  Where no option meets all this, the declarations shared
+    with other parts are set aside.  Where none meets even the part's own,
+    declared matrices are read through their traces alone, and the shared
+    declarations are kept where some option still meets them.  Where none
+    meets those, every option is a candidate.  The atomic-limit table says
+    which declarations are not carried.
 
-    **One key** then chooses among each part's candidates, the same for every
-    part, its lead multiplet the reference orbital's where the part holds it and
-    its first otherwise (:func:`_lead_of`).  Every step scores the orbital
-    factor, the spin-1/2 lift divided out:
+    One list of keys then chooses among each part's candidates
+    (:func:`_choose`).  The first two read the orbital factor, with the
+    spin-1/2 lift divided out:
 
-    1. the part's content at its lead's site at the lowest angular momentum
-       (:func:`_content_shells`), then over the crystal, then on the lead's
-       own row;
-    2. the letter the orbitals read as: each orbit's frame character -- over
-       its sites, the trace of the block carrying each multiplet to its image,
-       orbital by orbital -- averaged over the point group's classes, divided
-       by the orbit's site count and read on the point group's own table at
-       the lowest angular momentum, the lead's orbit first and then the part's
-       orbits together;
-    3. the band labels: at the high-symmetry points in the tables' order, and
-       from the lowest energy multiplet up, the candidate whose content comes
-       first in the tables' order of the point's coreps (:class:`_BandKey`),
+    1. the site irreps at the lowest angular momentum
+       (:func:`_content_shells`): orbits read together one by one and
+       identical copies copy by copy first, then at the lead multiplet's
+       site, over the crystal, and on the lead's own row;
+    2. the point-group representation the orbitals read as
+       (:func:`_frame_key`);
+    3. the band labels (:class:`_BandKey`), those of the bands themselves,
        measured only where the keys before leave more than one;
     4. the group's own order of operations relative to ``D``
-       (:func:`_distance_from_trivial`), or for the copies of a pseudospin the
-       representation whose character is nearest the trivial one: where it
-       decides, no band label rests on it.
+       (:func:`_distance_from_trivial`), or on an orbit built by induction
+       the representation whose character is nearest the trivial one; no
+       band label rests on this key.
 
-    Returns the :class:`_LabelingChoice`: the character every multiplet is
-    assembled with; the representation chosen on each orbit built
-    by induction, as matrices on the orbit's states; every multiplet's
-    character under the labelling's representation before its characters are
-    multiplied in; per part the character chosen, and for each candidate its
-    character with what the multiplets carry before it multiplies them
-    (``None`` for a pseudospin's copies, which carry the chosen one's); per part
-    whose candidates include one giving every multiplet the site corep the
-    chosen one gives it and labelling some band differently, the band labels
-    of every energy multiplet under the one chosen and under each such, with
-    the key that set it aside; the parts' multiplets and states; and each
-    pseudospin's content returned and every content its candidates give, in
-    the key's order; and, keyed by each declaration of generator matrices,
-    whether the labelling returned gives its orbitals those matrices.
+    Parameters
+    ----------
+    D : dict
+        The representation as built, ``{position: matrix}``, before any
+        labeling.
+    raw : dict
+        Each multiplet's character on ``D``, ``{multiplet: {ind: chi(g)}}``
+        (:func:`.._declaration._multiplet_characters`).
+    decls : list of dict
+        The declarations read on the multiplets, each with its
+        ``"channels"`` (multiplets) and ``"orbitals"``, and its
+        ``"content"``, ``"matrices"`` or ``"partial"`` where it has one.
+    pool : list of dict
+        The one-dimensional characters a part is chosen among,
+        ``{ind: value}``.
+    model : pythtb.TBModel
+        The model.
+    group : ..groups.GroupData
+        Its group.
+    assignment : ..groups.OrbitalAssignment
+        The orbitals' Wyckoff orbits, with each operation's permutation of
+        the sites.
+    layout : .._matrices.SiteMultiplets
+        The multiplets.
+    syms : list
+        The group's operations, in the group's order.
+    u_pos : list of int
+        The positions in ``syms`` of the unitary operations represented.
+    cperm : dict
+        Where each operation carries each multiplet,
+        ``cperm[position][multiplet]``.
+    classes : ndarray of int
+        The orbit each multiplet belongs to.
+    parts : list of frozenset
+        The orbits of each coupled part, the anchor's first
+        (:func:`_coupled_parts`).
+    ref_chan : int
+        The reference orbital's multiplet.  A part's lead multiplet is
+        ``ref_chan`` where the part holds it and its first multiplet
+        otherwise (:func:`_lead_of`).
+    site_tables : dict
+        The character table of each site's site group, by site.
+    measured_at : dict
+        The operations at which the measurement read each declaration,
+        ``{orbitals: {ind}}``.
+    multiplicity : sequence of .._sectors._OrbitRecord, default ()
+        The orbits of sectors built by induction
+        (:func:`.._multiplets._induced_blocks`).  A part that is one of them
+        is chosen among the representations induced on it.
+
+    Returns
+    -------
+    _LabelingChoice
+        The character each multiplet's part carries, the representation
+        chosen on each orbit built by induction, and what the choice rests
+        on.
+
+    Raises
+    ------
+    ..refusal.InternalError
+        No option of the reference orbital's part carries its declarations,
+        which the verdict rules out.
     """
     chan_states, su2 = layout._chan_states, layout._spinful
     nchan = len(chan_states)
@@ -693,17 +816,21 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
              for o, w in d["content"].words}
 
     def _options(chans):
-        """A part's options: its characters, or the representations induced on it."""
+        """The options of the part on the multiplets ``chans``, and its orbit's record.
+
+        The options are the characters in ``pool``, or the representations
+        induced on the part where it is an orbit built by induction.  Returns
+        ``(options, record)``, the record ``None`` for characters.
+        """
         rec = spaces.get(tuple(sorted(chans)))
         if rec is None:
-            # A COUPLED PART'S CHARACTERS.  The representations the hoppings
-            # leave on a part whose sectors lie on whole multiplets are the
-            # group's one-dimensional characters times ``D`` -- the same
-            # mathematics as the representation induced on that orbit of one
-            # copy, Ind(chi|K (x) w) = chi (x) Ind(w) -- so they are offered as
-            # characters on the matrices the search settled: built by induction
-            # instead they come back in another gauge, and a content declared on
-            # such a part is not carried.
+            # The representations the hoppings leave on a coupled part whose
+            # sectors lie on whole multiplets are the group's one-dimensional
+            # characters times ``D``, as induction from that orbit of one copy
+            # gives them, Ind(chi|K (x) w) = chi (x) Ind(w).
+            # So they are offered as characters on the matrices the search
+            # settled.  Built by induction they would come in another gauge, in
+            # which a declaration made on such a part is not carried.
             return [{"chi": chi, "W": None} for chi in pool], None
         st = rec.states
         # each a representation induced on the orbit, its matrices built where
@@ -717,7 +844,7 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
         return opt["contents"] if opt["W"] is not None else raw
 
     def _content(chans, opt):
-        """``{ind: chi(g)}`` -- what a set of multiplets carries under one candidate."""
+        """The character ``{ind: chi(g)}`` the multiplets ``chans`` carry under ``opt``."""
         out, src, chi = {}, _source(opt), opt["chi"]
         for c in chans:
             for ind, v in src[int(c)].items():
@@ -735,8 +862,8 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
         return _distance_from_trivial({ind: complex(opt["chi"].get(ind, 1.0))
                                        for ind in unitary})
 
-    # THE LETTER THE ORBITALS READ AS: an orbit's frame character, read on the
-    # representation as built, on the point group's own single-valued table
+    # The letter the orbitals read as: an orbit's frame character, read on the
+    # representation as built, on the point group's own single-valued table.
     tables = {}
 
     def _point():
@@ -749,12 +876,15 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
     lift_of = {int(p): _lift_of(syms[p], su2) for p in u_pos}
 
     def _frames(chans, M):
-        """``{orbit: (phi, n_sites, width)}`` -- the frame character of each orbit of a part.
+        """The frame character of each orbit of the multiplets ``chans``, on the matrices ``M``.
 
-        ``phi(g)`` sums, over the orbit's sites, the trace of the orbital factor
-        of ``M(g)``'s block carrying the site's multiplets to their images:
-        orbital ``k`` of a multiplet read against orbital ``k`` of its image,
-        the spin-1/2 lift divided out atom by atom.
+        ``M`` is a representation as ``{position: matrix}``.  ``phi(g)`` sums,
+        over the orbit's sites, the trace of the orbital factor of ``M(g)``'s
+        block carrying the site's multiplets to their images: orbital ``k`` of
+        a multiplet read against orbital ``k`` of its image, the spin-1/2 lift
+        divided out atom by atom.  Returns ``{orbit: (phi, n_sites, width)}``,
+        ``n_sites`` the orbit's sites among ``chans`` and ``width`` its
+        orbitals per site.
         """
         by_orbit = {}
         for c in chans:
@@ -777,15 +907,18 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
         return out
 
     def _letter(frame, chi):
-        """``(single shell, per orbital)`` of the letter one orbit reads as under ``chi``.
+        """The letter one orbit's orbitals read as under the character ``chi``, as a score.
 
-        The frame character times ``chi``, averaged over each class of the point
-        group and divided by the orbit's site count, decomposed on the point
-        group's own table with its multiplicities rounded: the point-group
-        representation the orbitals are written as, at the angular momentum
-        :func:`_content_shells` reads it at.  A rounding that is no
-        representation -- a negative multiplicity, or not the orbit's width --
-        scores as no character of the table does, and so ties.
+        ``frame`` is the orbit's ``(phi, n_sites, width)`` from :func:`_frames`.
+        The frame character times ``chi``, averaged over each class of the
+        point group and divided by the orbit's site count, is decomposed on
+        the point group's own table with its multiplicities rounded: the
+        point-group representation the orbitals are written as.  Returns its
+        ``(single shell, per orbital)`` score from :func:`_content_shells`.  A
+        rounding that is no representation, with a negative multiplicity or a
+        dimension other than ``width``, is scored after every character of
+        the table, so such options tie with one another and come after the
+        rest.
         """
         phi, m, width = frame
         point = _point()
@@ -800,7 +933,13 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
         return _content_shells(point, content, rotations, shells=shells, lowest=lowest)
 
     def _frame_key(chans, lead_orbit):
-        """The letter of the lead's orbit, then the letters summed over the part's orbits."""
+        """The key of the letters: that of ``lead_orbit``, then their sum over the part's orbits.
+
+        ``chans`` are the part's multiplets.  The frame characters are read on
+        each option's own matrices where it is built by induction, and on ``D``
+        for every character option.  Returns the key, a function of one
+        option.
+        """
         frames = {}
 
         def key(opt):
@@ -811,9 +950,9 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
             return (scores[lead_orbit], tuple(sum(s) for s in zip(*scores.values())))
         return key
 
-    # THE BAND LABELS, measured once and only where the keys before them tie:
+    # The band labels, measured once and only where the keys before them tie:
     # every part's share of every energy multiplet's character at the
-    # high-symmetry points (:func:`_band_fibers`, :func:`_band_share`)
+    # high-symmetry points (:func:`_band_fibers`, :func:`_band_share`).
     measured = {}
 
     def _fibers():
@@ -845,7 +984,7 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
     held_at = []
 
     def _held(q):
-        """The candidate part ``q`` is held at while another is chosen: its own, once chosen."""
+        """The candidate part ``q`` is held at while a later part is chosen; ``None`` before."""
         return held_at[q] if q < len(held_at) else None
 
     def _site_irrep(theta, chi):
@@ -857,8 +996,8 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
                                  * lift_trace.get(int(ind), 1.0))), 6))
             for ind, v in theta.items()))
 
-    # WHAT EACH PART MAY BE, before any is chosen: its options, and among them
-    # those every declaration made on it alone holds under
+    # What each part may be, before any is chosen: its options, and the
+    # declarations made on it alone.
     part_of_chan = {int(c): q for q, chans in enumerate(chans_of) for c in chans}
     options_of, records = [], []
     for chans in chans_of:
@@ -869,7 +1008,7 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
                 if d["channels"] and all(int(c) in set(chans) for c in d["channels"])]
                for chans in chans_of]
     # ... and the declarations a part shares with others, one requirement on all
-    # of them, read on the parts' options together
+    # of them.
     spanned = {id(d): sorted({part_of_chan[int(c)] for c in d["channels"]}) for d in decls
                if d["channels"] and len({part_of_chan[int(c)] for c in d["channels"]}) > 1}
     shared = [d for d in decls if id(d) in spanned]
@@ -879,11 +1018,13 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
     pos_of_ind = {int(syms[p].ind): int(p) for p in u_pos}
 
     def _matrix_needs(d, opt):
-        """``{ind: value}`` -- what declared generator matrices ask of their part's character, on one option's matrices.
+        """What the generator matrices declared in ``d`` ask of the part's character under ``opt``.
 
-        Per declared operation, the scalar carrying the orbital factor of the
-        option's block on the declaration's atoms onto the declared matrix, or
-        ``None`` where no scalar does.
+        For each declared operation the option represents, the value is the
+        scalar carrying the orbital factor of the option's block on the
+        declared orbitals onto the declared matrix, ``None`` where no scalar
+        does within ``CHARACTER`` times the larger of 1 and the declared
+        matrix's largest entry.  Returns ``{ind: value}``.
         """
         key = (id(d), "matrices", opt["key"] if opt["W"] is not None else 0)
         if key not in needs:
@@ -904,10 +1045,13 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
         return needs[key]
 
     def _ok(q, opt, measured_only=False, matrices=True):
-        """Whether every declaration made on part ``q`` alone holds under one of its options.
+        """Whether every declaration made on part ``q`` alone holds under the option ``opt``.
 
-        ``matrices`` false reads declared generator matrices through their
-        traces alone, as every other declaration is read.
+        With ``measured_only=True``, each declaration not made on part of a
+        multiplet is read only at the operations the measurement read it at.
+        With ``matrices=False``,
+        declared generator matrices are read through their traces alone, as
+        every other declaration is read.
         """
         src = _source(opt)
         for d in mine_of[q]:
@@ -929,7 +1073,12 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
         return True
 
     def _together(d, pick, measured_only=False):
-        """Whether a declaration spanning several parts holds, each part at its option in ``pick``."""
+        """Whether the declaration ``d`` over several parts holds under the options ``pick``.
+
+        ``pick`` maps each part's index to its option.  With
+        ``measured_only=True``, ``d`` is read only at the operations the
+        measurement read it at, unless it is made on part of a multiplet.
+        """
         def assigned(c):
             return pick[part_of_chan[int(c)]]["chi"]
         src = {int(c): _source(pick[part_of_chan[int(c)]])[int(c)] for c in d["channels"]}
@@ -944,14 +1093,28 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
     own_of = {}
 
     def _own(q):
-        """Part ``q``'s options under which its own declarations hold."""
+        """Part ``q``'s options under which its own declarations hold.
+
+        Those that hold at every operation; where none does, those that hold
+        with each declaration not made on part of a multiplet read only at the
+        operations the measurement read it at; where none does, every option.
+        """
         if q not in own_of:
             own_of[q] = ([o for o in options_of[q] if _ok(q, o)]
                          or [o for o in options_of[q] if _ok(q, o, True)] or options_of[q])
         return own_of[q]
 
     def _completes(q, opt, measured_only=False):
-        """Whether ``opt`` for part ``q`` leaves the parts after it a way to meet what they share."""
+        """Whether ``opt`` for part ``q`` leaves the later parts a way to meet what they share.
+
+        Every declaration made over several parts, the last of them ``q`` or a
+        later one, is read with each part before ``q`` at the option already
+        chosen, ``q`` at ``opt``, and each later part at one of its own options
+        (:func:`_own`).  It is true where some choice of the later parts' options
+        meets all of them.  With ``measured_only=True``, each declaration not
+        made on part of a multiplet is read only at the operations the
+        measurement read it at.
+        """
         live = [d for d in shared if spanned[id(d)][-1] >= q]
         if not live:
             return True
@@ -974,11 +1137,11 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
         if not cands:
             cands = [o for o in options if _ok(i, o, True) and _completes(i, o, True)]
         if not cands:
-            # what the parts share is said on the rows where no labelling carries it
+            # what the parts share is said on the rows where no labeling carries it
             cands = ([o for o in options if _ok(i, o)]
                      or [o for o in options if _ok(i, o, True)])
         if not cands:
-            # ... and so are declared matrices no labelling gives the orbitals:
+            # ... and so are declared matrices no labeling gives the orbitals:
             # their traces choose
             cands = ([o for o in options
                       if _ok(i, o, matrices=False) and _completes(i, o)]
@@ -989,11 +1152,10 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
         if not cands:
             if int(ref_chan) in chans:     # pragma: no cover - the verdict rules it out
                 raise InternalError(
-                    "the declared orbital content was found covariant on this group, and no "
-                    "labeling of the crystal carries every declared multiplet in its declared "
-                    "irrep on the built matrices. The verdict and the build are two readings of "
-                    "one measurement and have to agree; the two disagreeing is a defect in this "
-                    "package, not a tolerance to loosen.")
+                    "the hoppings were found covariant under this group with the declared site "
+                    "irreps, and no choice the hoppings leave open gives the declarations made "
+                    "on the reference orbital's part of the crystal alone what they declare. "
+                    "Report it, with the model and the call.")
             cands = list(options)
         lead = _lead_of(chans, ref_chan)
         here = int(layout._chan_site[lead])
@@ -1001,11 +1163,16 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
         for c in chans:
             at.setdefault(int(layout._chan_site[c]), []).append(int(c))
         def _copy_by_copy(o, at=at, here=here):
-            """Identical copies read copy by copy: each holding one content, at the lowest angular momentum.
+            """The key reading identical copies copy by copy, at the lowest angular momentum.
 
-            A representation that puts the same content on every copy of every
-            multiplet -- ``k`` copies of one content -- comes first, ordered by
-            what one copy holds at the lead's site; any other after them.
+            ``o`` is an option, ``at`` maps each site of the part to its
+            multiplets, and ``here`` is the lead multiplet's site.  An option of
+            ``k`` copies whose every multiplet carries ``k`` copies of one
+            character (each site irrep's multiplicity a multiple of ``k``,
+            :func:`_one_copy`) comes first, scored by what one copy carries at
+            ``here`` (:func:`_content_shells`).  An option where some multiplet
+            is not comes after.  Every option of fewer than two copies scores
+            alike.
             """
             k = int(o.get("k") or 0)
             if k < 2:
@@ -1022,12 +1189,16 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
             return (0, _shells(site_tables.get(here), one))
 
         def _part_by_part(o, at=at, here=here):
-            """Orbits read together read one by one, each at the lowest angular momentum.
+            """The key reading orbits read together one by one, at the lowest angular momentum.
 
-            Orbits of sectors whose multiplets hold shares of one another's are
-            each a choice of their own (:class:`.._sectors.SharedOrbits`), so
-            each is read on its own share of the lead's site, in turn; any
-            other option reads alike here.
+            ``o`` is an option, ``at`` maps each site of the part to its
+            multiplets, and ``here`` is the lead multiplet's site.  Orbits of
+            sectors that hold shares of the same multiplets are each a choice
+            of their own (:class:`.._sectors.SharedOrbits`), and an option over
+            them gives each orbit's share of each multiplet as ``o["parts"]``.
+            The key lists each orbit's score at ``here``
+            (:func:`_content_shells`), in the orbits' order.  Every other
+            option scores ``()``.
             """
             parts = o.get("parts")
             if not parts:
@@ -1060,10 +1231,10 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
         for d in mine_of[i]:
             if d.get("matrices") and not d.get("partial"):
                 matrices_carried[id(d)] = _meets(winner["chi"], _matrix_needs(d, winner))
-        # THE LABELLINGS THE SITE IRREPS LEAVE OPEN: every candidate the
+        # The labelings the site irreps leave open: every candidate the
         # Hamiltonian and the declarations leave that gives each multiplet of
         # the part the site irrep the one kept gives it, with the key that set
-        # it aside -- the chooser's own decision, whatever freedom it was
+        # it aside.  This is read off the chooser's own decision.
         want = [_site_irrep(_source(winner)[c], winner["chi"]) for c in chans]
         open_of.append((cands, [(j, names[min(int(fate[j]), len(names) - 1)])
                                 for j, o in enumerate(cands)
@@ -1074,7 +1245,7 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
             chosen.append(winner["chi"])
             candidates.append([(o["chi"], _source(o)) for o in cands])
         else:
-            # A PSEUDOSPIN'S COPIES, or uncoupled orbitals a symmetry
+            # A pseudospin's copies, or uncoupled orbitals a symmetry
             # exchanges: the representation chosen is assembled whole
             for c in chans:
                 raw_after[int(c)] = dict(winner["contents"][c])
@@ -1085,7 +1256,8 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
                                            words=words)))
             chosen.append({})
             # what each multiplet holds under the representations the
-            # declarations leave, the rows' own reading of how they are known
+            # declarations leave, which the atomic-limit table reads for how
+            # each row's site irrep is known
             candidates.append([({}, o["contents"]) for o in cands])
             if int(rec.dim) > 1:
                 # a pseudospin's own record; an orbit of one copy holds none
@@ -1102,8 +1274,8 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
                     record=rec, content=dict(winner["contents"][lead_c]),
                     contents=tuple(ranked), declared=declared,
                     open=len({_site_irrep(o["contents"][lead_c], {}) for o in cands})))
-    # ... AND THE BAND LABELS EACH OF THEM GIVES, read by the chooser's own band
-    # key with every other part at the labelling kept: those that label a band
+    # ... and the band labels each of them gives, read by the chooser's own band
+    # key with every other part at the labeling kept: those that label a band
     # differently are the choice the band labels rest on
     labeled = []
     for i, (cands, ties) in enumerate(open_of):
@@ -1115,7 +1287,7 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
                        ((name, reader.reading(cands[j])) for j, name in ties) if got != mine)
         if others:
             labeled.append({"part": i, "chosen": mine, "others": others})
-    # the matrices built for representations no labelling returns are not kept
+    # the matrices built for representations no labeling returns are not kept
     winners = {id(getattr(w, "_cand", None)) for w in (o["W"] for o in held_at
                                                        if o["W"] is not None)}
     for rec in records:
@@ -1134,13 +1306,16 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
 
 
 def _assembled(D, choice, syms, layout):
-    r"""``{position: matrix}`` -- the representation with the labelling in it.
+    r"""The representation with the labeling in it, ``{position: matrix}``.
 
-    The representation each pseudospin's copies carry, as chosen, on its
-    orbit's states; then every multiplet's columns -- its block, carrying it to
-    its image -- times the value its coupled part's character takes on the
-    operation: a character per part, since the operations carry each part onto
-    itself, and one crystal-wide character multiplies the whole matrix.
+    ``D`` is the representation as built, ``{position: matrix}``, ``choice``
+    the :class:`_LabelingChoice`, ``syms`` the group's operations in the
+    group's order, and ``layout`` the multiplets.  Each orbit built by
+    induction takes the representation chosen on it, on its states
+    (``choice.swaps``).  Then every multiplet's columns, its block carrying it
+    to its image, are multiplied by the value its coupled part's character
+    takes on the operation.  The operations carry each part onto itself, so a
+    character per part gives a representation.
     """
     out = {}
     for p, M in D.items():
@@ -1164,24 +1339,70 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
                         ref_chan):
     r"""The atomic-limit table of the representation returned, read off it and nothing else.
 
-    Every character here was measured before the labelling was chosen
-    (:func:`.._declaration._multiplet_characters`), and the labelling itself is
-    :func:`_labeling`'s; this writes them down.  A row's site irrep is what
-    its multiplet carries under the labelling returned, named from the
-    tables (:func:`_named_content`).  How it is known
+    Every character here was measured before the labeling was chosen
+    (:func:`.._declaration._multiplet_characters`), and the labeling is
+    :func:`_labeling`'s; nothing is measured again.  The table has a row per
+    orbital.  A row's site irrep is what its multiplet carries under the
+    labeling returned, named from the site's character table
+    (:func:`_named_content`).  How it is known
     (:attr:`_OrbitalRow.determined_by`) is ``"declaration"`` for a declared
-    row the returned matrices carry, ``"declaration not carried"`` for one they
-    do not -- a declaration the measurement could not read, such as a content
-    declared on part of what a multiplet holds, which no labelling of these
-    blocks carries together with the rest -- and otherwise read off the
-    candidates of the row's coupled part: one site irrep across all of them is
-    ``"hamiltonian"``, several ``"lowest-l"``.
+    row the returned matrices carry and ``"declaration not carried"`` for one
+    they do not, its note saying what was declared.  Otherwise it is read off
+    the candidates of the row's coupled part: ``"hamiltonian"`` where they
+    all give it one site irrep, ``"lowest-l"`` where they give several.  The
+    two orbitals of a declared spinor pair carry the pair's one character,
+    each flagged as spin up or down in its note.
 
-    Characters live on **multiplets** (``layout._chan_of[a]`` is orbital
-    ``a``'s, and ``layout._chan_orbs[c]`` its orbitals); the record is still one
-    row per model orbital, so a declared spinor pair's two orbitals report the
-    one character of the pair, each flagged ``up``/``down`` in the note and in
-    :meth:`_OrbitalTable.summary`.
+    Parameters
+    ----------
+    raw : dict
+        Each multiplet's character before its part's character multiplies
+        it, ``{multiplet: {ind: chi(g)}}`` (``choice.raw``).
+    worst : float
+        The worst defect of the multiplets' characters as
+        :func:`.._declaration._multiplet_characters` read them, returned as
+        the residual.
+    decls : list of dict
+        The declarations read on the multiplets.
+    choice : _LabelingChoice
+        The labeling chosen.
+    group : ..groups.GroupData
+        The group.
+    assignment : ..groups.OrbitalAssignment
+        The orbitals' sites and their Wyckoff orbits.
+    model : pythtb.TBModel
+        The model, whose number of orbitals is read.
+    layout : .._matrices.SiteMultiplets
+        The multiplets.
+    syms : list
+        The group's operations, in the group's order.
+    kept : list of int
+        The positions in ``syms`` of the operations represented, named in the
+        table's ``frame``.
+    checks : sequence
+        The verdict's rows of measured against declared characters, returned
+        as the table's ``checks``.
+    pool : list of dict
+        The one-dimensional characters a part is chosen among.  A declaration
+        not carried is said to fail together with the others where some
+        character of the pool carries it alone.
+    site_tables : dict
+        The character table of each site's site group, by site.
+    ident : int
+        The position of the identity in ``syms``.
+    note : str, default ""
+        Not read.
+    spin : ..spin.SpinBasis or None, default None
+        The declared spinor pairs, flagged on their rows.
+    ref_chan : int
+        Not read.
+
+    Returns
+    -------
+    ..symmetry._OrbitalTable
+        The rows, with each declaration as read and what it is returned as,
+        and the labelings that keep every site irrep and label some band
+        otherwise.
     """
     chan_of, chan_orbs = layout._chan_of, layout._chan_orbs
     lattice = np.asarray(group._lattice, dtype=float)
@@ -1204,12 +1425,12 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
                                  * lift_trace.get(int(ind), 1.0))), 6))
             for ind, v in theta.items()))
 
-    # WHETHER EACH DECLARATION IS CARRIED by the matrices returned.  Where the
-    # verdict stage measured a declaration this is so by construction; where it
-    # could not -- a content declared on part of what a multiplet holds, a
+    # Whether each declaration is carried by the matrices returned.  Where the
+    # verdict stage measured a declaration this is so by construction.  Where
+    # it could not (site irreps declared on part of what a multiplet holds, a
     # block the hoppings leave free of the scale it was read against, blocks
-    # too noisy to settle -- a declaration no labelling of these blocks
-    # carries is said on its rows, never returned as though it held.
+    # too noisy to settle), a declaration no labeling of these blocks carries
+    # is said on its rows, never returned as though it held.
     carried = {}
     for d in decls:
         if d.get("partial"):
@@ -1220,7 +1441,7 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
             carried[id(d)] = _meets({}, _declared_needs(d, final, lift_trace))
         if d.get("matrices"):
             # ... and declared matrices on the matrices returned, which the
-            # labelling read as it chose (:func:`_labeling`)
+            # labeling read as it chose (:func:`_labeling`)
             carried[id(d)] = (carried[id(d)]
                               and choice.matrices_carried.get(id(d), True))
 
@@ -1228,10 +1449,10 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
     for d in decls:
         for a in d["orbitals"]:
             decl_of[int(a)] = d
-    # WHAT EACH DECLARATION IS RETURNED AS: what the multiplets it was read on
-    # carry together under the labelling returned -- its own multiplet's site
-    # irrep, or for a content read over several of a site's multiplets their
-    # sum (`_declared_blocks`), which no one row names
+    # What each declaration is returned as: what the multiplets it was read on
+    # carry together under the labeling returned.  That is its own multiplet's
+    # site irrep, or for a declaration read over several of a site's
+    # multiplets their sum (`_declared_blocks`), which no one row names.
     returned = {}
     for d in decls:
         a0 = int(d["orbitals"][0])
@@ -1257,12 +1478,12 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
         tab = site_tables[s]
         ch = int(chan_of[int(a)])
         d = decl_of.get(a)
-        # the declaration written for THIS orbital, which a content declared
+        # the declaration written for this orbital, which a declaration made
         # over several multiplets holds among its parts
         part = d if d is None or not d.get("groups") else next(
             g for g in d["groups"] if int(a) in {int(o) for o in g["orbitals"]})
-        # EVERY ROW IS ITS OWN MEASURED MULTIPLET'S, whatever the spelling: a
-        # content declared over several of a site's multiplets is read against
+        # Every row is its own measured multiplet's, whatever the spelling: a
+        # declaration made over several of a site's multiplets is read against
         # what they carry together, and stays the row's `declared_irrep`, while
         # each row names what its own multiplet carries
         if d is not None and d.get("block") is None:
@@ -1272,19 +1493,19 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
         theta = (dict(final[int(ch)]) if layout._chan_kind[ch] == "measured"
                  else {ind: sum(final[int(c)].get(int(ind), 0.0) for c in chans)
                        for ind in tab.indices if int(ind) in final[ch]})
-        # A multiplet holding several copies of one site irrep -- copies written
-        # in a basis rotated from site to site, which no orbital subset splits --
-        # is an isotypic component, and every vector of it carries that irrep:
-        # each of its rows is the irrep, with the irrep's own characters and
+        # A multiplet holding several copies of one site irrep, copies written
+        # in a basis rotated from site to site, which no orbital subset splits,
+        # is an isotypic component, and every vector of it carries that irrep: each
+        # of its rows is the irrep, with the irrep's own characters and
         # dimension, and the site holds as many copies as the rows say.  A
         # multiplet the site's own operations glue across different irreps
         # keeps its sum.
         theta = _copies_of_one_irrep(tab, theta)[0]
         # The returned label is what the orbitals carry in the site group of the
-        # group that is RETURNED, read off the multiplet's character and nothing
-        # else, and named for the site irrep the STATES carry -- the orbital
-        # character times the operations' own lift, the double-valued site corep
-        # where the states carry spin.
+        # group returned, read off the multiplet's character and nothing else.
+        # It names the site irrep the states carry: the orbital character times
+        # the operations' own lift, a double-valued site irrep where the states
+        # carry spin.
         label, named_by = _named_content(tab, theta)
         note_a = "" if part is None else part["note"]
         if d is not None:
@@ -1317,11 +1538,9 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
         written = dict(getattr(content, "written", ()) or ())
         if (named_by == "unnamed") == bool(label):    # pragma: no cover - a defect guard
             raise InternalError(
-                f"the site table of site {s} names orbital {int(a)} {label!r}, "
-                f"named by {named_by!r}. A label the tables gave is a label and says "
-                "where it comes from; only a row nothing named may be blank, and it "
-                "reads `named_by = \"unnamed\"`. The two disagreeing is a defect in "
-                "this package, not a tolerance to loosen.")
+                f"at site {s}, the atomic-limit table gives orbital {int(a)} the label "
+                f"{label!r} with named_by {named_by!r}. A label is blank exactly where "
+                "named_by is 'unnamed'. Report it, with the model and the call.")
         here = wyckoff.get(s)
         rows.append(_OrbitalRow(
             orbital=int(a), site=s,
@@ -1366,11 +1585,13 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
 
 
 def _wyckoff_sites(group, assignment):
-    """``{site: SiteReference}`` — each site's Wyckoff position in the tables' setting.
+    """Each site's Wyckoff position in the conventional cell of the irreptables package.
 
-    Multiplicity and letter, as :func:`..groups.wyckoff_sites_tables` reads
-    them; a site is absent where the tables do not reach the cell, which is the
-    same condition under which the assignment carries no letter for it.
+    ``group`` is the group and ``assignment`` the orbitals' assignment to its
+    sites.  Returns, for each site, its :class:`.._spacegroup._SiteReading`
+    as :func:`.._tables._sites_in_tables_setting` gives it, with its
+    multiplicity and letter.  Returns ``{}`` where the assignment carries no
+    Wyckoff letter in that setting, or where that call refuses.
     """
 
     if not tuple(getattr(assignment, "wyckoff_tables", ()) or ()):
@@ -1382,16 +1603,14 @@ def _wyckoff_sites(group, assignment):
 
 
 def _declared_functions(decls) -> dict:
-    """``{orbital: word}`` — the orbital function each orbital was declared to be.
+    """The orbital function each orbital was declared to be, ``{orbital: word}``.
 
-    The word ``characters=`` was given, spelled as ``characters=`` spells it,
-    on every orbital a function word was written for, whatever the dimension of
-    the multiplet it names: a shorthand (``"px"``), or a shell (``"p"``) on
-    every orbital it was written on.  An orbital declared by its irrep, a sum
-    of irreps or generator characters, or not declared at all, has none: which
-    function a Wannier function is inside its site is a choice of basis the
-    Hamiltonian does not measure, and its site irrep is what says what it
-    carries.
+    ``decls`` are the declarations read on the multiplets.  An orbital's word
+    is the orbital function written for it in ``characters=`` (``px``,
+    ``dxy``), in its canonical spelling (``"p_x"`` is ``"px"``), or a shell
+    (``"p"``) on every orbital it was written on.  An orbital declared by its
+    irrep, a sum of irreps or generator characters, or not declared at all,
+    has none.
     """
     out = {}
     for d in decls:

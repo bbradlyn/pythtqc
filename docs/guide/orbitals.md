@@ -180,8 +180,8 @@ The example is Kane-Mele with no stagger and no Rashba term. It is read on a
 substrate, free-standing, and free-standing with its orbitals declared `p_z`.
 Each line prints the group, the rows, and the symmetry data vector of the two
 lowest bands, which `hsp_table` returns
-([Which coreps do these bands carry?](labels.md)). `GM` is the tables' name for
-Γ.
+([Which little-group representations do these bands carry?](labels.md)). `GM`
+is the tables' name for Γ.
 
 ```python
 km0 = kane_mele(0.0, -1.0, 0.3, 0.0)            # delta = 0, rashba = 0
@@ -411,7 +411,7 @@ print(tqc.hsp_table(bare, bands=1).note)
 - `another labeling the hoppings leave open ...`: the note of the lowest band's
   table. Another labeling keeps `E` and gives the band another corep at some
   point, so the band's coreps rest on a choice
-  ([Which coreps do these bands carry?](labels.md)).
+  ([Which little-group representations do these bands carry?](labels.md)).
 
 Words and generator characters are read through characters, which are the same
 in every basis, so they leave this choice open. Generator matrices make it. They

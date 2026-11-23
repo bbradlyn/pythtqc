@@ -72,11 +72,13 @@ three-dimensional cell, with vacuum along its normal
 
 Every later call takes `r` whole. It holds the model measured, `r.model`, and
 the matrix of each operation on the orbitals, `r.rep`, through which every band
-label is read ([Which coreps do these bands carry?](labels.md)). For a layer,
-`r.model` is its slab, with the same `H(k)`. `r.descent`, `r.time_reversal`,
-`r.beyond_grey` and `r.conserved` are read below. The declared precision and
-the centers moved onto symmetric positions, under `r.numerical`, are read in
-[How do I measure a numerical or wannier90 model?](numerical.md).
+label is read
+([Which little-group representations do these bands carry?](labels.md)). For
+a layer, `r.model` is its slab, with the same `H(k)`. `r.descent`,
+`r.time_reversal`, `r.beyond_grey` and `r.conserved` are read below. The
+declared precision and the centers moved onto symmetric positions, under
+`r.numerical`, are read in
+[How do I measure a numerical or Wannier90 model?](numerical.md).
 [Returned records](../reference/records.md) lists every field.
 
 ## When the Hamiltonian has less symmetry than its cell
@@ -428,7 +430,7 @@ both about how the model is written:
   part, is held to. With `precision=`, or `position_tol=` for the centers
   alone, centers within the declared tolerance are moved onto symmetric
   positions
-  ([How do I measure a numerical or wannier90 model?](numerical.md)).
+  ([How do I measure a numerical or Wannier90 model?](numerical.md)).
 
 A model periodic in fewer than two directions, a chain such as pythtb's `ssh` or
 a molecule, is outside the package's scope. It is refused with

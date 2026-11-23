@@ -229,12 +229,12 @@ def test_coreps_at_raises_on_a_representation_short_of_its_little_group(lin3g_sl
     assert tqw.coreps_at(r, [0, 0, 0.5], bands=6).gate == "out_of_plane"
     assert (tqw.coreps_at(r, [0, 0, 0], bands=6).coreps
             == tqw.coreps_at(r, "GM", bands=6).coreps)
-    with pytest.raises(TypeError, match="pass what realized_group returns"):
+    with pytest.raises(TypeError, match="Pass what realized_group returns"):
         tqw.coreps_at(r.rep, "GM", bands=6)
     for call in (lambda: tqw.coreps_at(r, "GM", bands=[]), lambda: tqw.hsp_table(r, bands=[]),
                  lambda: tqw.characters(r, "GM", bands=[]),
                  lambda: tqw.sewing_matrix(r, 1, "GM", bands=[])):
-        with pytest.raises(ValueError, match=r"\(\): bands= names no band"):
+        with pytest.raises(ValueError, match=r"\(\): bands= is empty"):
             call()
 
 

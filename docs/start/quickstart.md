@@ -196,8 +196,9 @@ is one.
   printed here.
 - [How do I say what my orbitals are?](../guide/orbitals.md) gives the forms a
   declaration takes.
-- [Which coreps do these bands carry?](../guide/labels.md) reads the coreps of a
-  set of bands, and says when a label rests on a choice the hoppings leave open.
+- [Which little-group representations do these bands carry?](../guide/labels.md)
+  reads the coreps of a set of bands, and says when a label rests on a choice
+  the hoppings leave open.
 - [Could these bands be an atomic limit?](../guide/atomic-limits.md) gives what
   a decomposition can and cannot say.
 - [Fu-Kane-Mele: a 3D crystal, a distortion, the Z4 indicator](tutorial-3d.md)

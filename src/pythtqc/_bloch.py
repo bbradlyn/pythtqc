@@ -8,29 +8,21 @@ phase per lattice vector and one per orbital:
           + \text{h.c.}\Big] \Lambda(k) + \text{on-site terms},
           \qquad \Lambda(k) = \operatorname{diag}(e^{2\pi i\,k\cdot\tau_j}).
 
-pythtb's ``TBModel.hamiltonian`` gathers the hoppings into those blocks on every
-evaluation.  On a wannier90 import -- several hundred thousand hoppings over a
-few dozen lattice vectors -- the gathering costs about a second each time,
-however few k-points are asked for.  The blocks depend on nothing but the
-model, so they are gathered once and kept, and every later ``H(k)`` is a
-product of phases with blocks.  After the gathering the arithmetic is pythtb's
-own, step for step, so for the same k-points ``H(k)`` is bit for bit the array
+The blocks depend on nothing but the model, so they are gathered once, from
+the four arrays pythtb stores the hoppings in, and kept.  Every later ``H(k)``
+is a product of phases with blocks, in pythtb's own arithmetic step for step,
+so for the same k-points ``H(k)`` is bit for bit the array
 ``model.hamiltonian(k_pts=k, flatten_spin_axis=True)`` returns.  A model with no
 periodic direction is evaluated by pythtb itself.
 
-A parameterized model, the values of its parameters given at the call, is
-evaluated at those values once, where it enters (:func:`bound`), and every step
-after sees that numeric model.
+A parameterized model is evaluated at the values of its parameters once, where
+it enters (:func:`bound`), and every step after sees that numeric model.
 
-The blocks are kept by the model's **content** -- the lattice, the orbital
-centres, the on-site terms and the hopping arrays, hashed together.  Two models
-with the same content share one set of blocks, and a model changed in any way
-between two evaluations has a different content, so a kept set of blocks is
-never out of date.  What is kept is bounded in bytes.
-
-The hopping list is read here as pythtb stores it, four arrays, rather than as
-``model.hoppings``, which builds one record per hopping and takes seconds on a
-wannier90 import.
+The blocks are kept under a hash of the model as it stands: the lattice, the
+orbital centers, the on-site terms and the hopping arrays.  Two models with the
+same hash share one set of blocks, and a model changed in any way between two
+evaluations has another hash, so a kept set of blocks is never out of date.
+What is kept is bounded in bytes (:data:`_KEEP_BYTES`).
 """
 
 from __future__ import annotations
@@ -44,7 +36,7 @@ import numpy as np
 from pythtb import TBModel
 
 #: How many bytes of lattice-vector blocks the process keeps, over every model,
-#: the least recently used going first.  A wannier90 import of 96 orbitals whose
+#: the least recently used going first.  A Wannier90 import of 96 orbitals whose
 #: hoppings reach 79 lattice vectors holds 79 x 96 x 96 complex numbers, 11.7 MB,
 #: so the model, its presentations and its symmetrized copies fit with room to
 #: spare.  A set of blocks larger than this is built, used and not kept.
@@ -53,16 +45,12 @@ _KEEP_BYTES = 256e6
 #: Bytes charged per k-point of one evaluation, as a multiple of the 16 bytes of
 #: each complex number the Bloch sum holds for that point: one phase per lattice
 #: vector, one per orbital, and the ``nstate x nstate`` matrix.  The multiple is
-#: measured with ``tracemalloc``, the returned array included, over 64 and 256
-#: k-points: a peak of 2.97 to 2.99 times the numbers counted on 96 spinless and
-#: on 48 spinful orbitals with 79 lattice vectors, where the sum holds three
-#: matrices at once, and 2.34 on 4 orbitals with 900 lattice vectors, where the
-#: phase rows and their real temporaries dominate.
+#: measured with ``tracemalloc``, the returned array included.
 _POINT_FACTOR = 3.0
 
 #: The k-points every presentation this package builds is measured on against
-#: the model it presents -- a layer's slab and decoupled stack, the spinless
-#: presentation of a spinful model, the model with its centres moved: this
+#: the model it presents (a layer's slab and decoupled stack, the spinless
+#: presentation of a spinful model, the model with its centers moved): this
 #: many random ``k``, drawn from this seed.  A presentation changes nothing in
 #: exact arithmetic, so a difference is the package disagreeing with itself.
 CHECK_K = 8
@@ -70,7 +58,12 @@ CHECK_SEED = 1729
 
 
 def point_bytes(n_R: int, norb: int, nstate: int) -> float:
-    """What one k-point of an evaluation holds, in bytes, charged at :data:`_POINT_FACTOR`."""
+    """The bytes one k-point of an evaluation holds, charged at :data:`_POINT_FACTOR`.
+
+    ``n_R`` is the number of lattice vectors, ``norb`` of orbitals and
+    ``nstate`` of states.  Returns ``_POINT_FACTOR`` times 16 bytes for each of
+    the ``n_R + norb + nstate**2`` complex numbers the Bloch sum holds there.
+    """
     return _POINT_FACTOR * 16.0 * (int(n_R) + int(norb) + int(nstate) ** 2)
 
 
@@ -79,16 +72,13 @@ def point_bytes(n_R: int, norb: int, nstate: int) -> float:
 # --------------------------------------------------------------------------
 
 def hopping_arrays(model):
-    """The model's hopping list as the four arrays pythtb stores it in.
+    """The hopping list of ``model`` as the four arrays pythtb stores it in.
 
-    Returns
-    -------
-    (amplitudes, i, j, R) : ndarray
-        ``amplitudes`` of shape ``(n,)``, or ``(n, 2, 2)`` for a spinful model;
-        ``i`` and ``j`` the two orbitals of each term ``t_ij(R)``; ``R`` of
-        shape ``(n, dim_r)``, integer.  Read-only views of the model's own
-        storage, in the order ``model.hoppings`` lists them and with the same
-        numbers.
+    Returns ``(amplitudes, i, j, R)``: ``amplitudes`` of shape ``(n,)``, or
+    ``(n, 2, 2)`` for a spinful model; ``i`` and ``j`` the two orbitals of each
+    term ``t_ij(R)``; ``R`` the integer lattice vectors, of shape
+    ``(n, dim_r)``.  Each is a read-only view of the model's own storage, in
+    the order ``model.hoppings`` lists the terms and with the same numbers.
     """
     out = []
     for arr in model._hoptable.components():
@@ -99,10 +89,14 @@ def hopping_arrays(model):
 
 
 def _digest(model, amplitudes, i, j, R, site) -> str:
-    """The content hash of one Hamiltonian: its geometry, on-site terms and hoppings.
+    """The hash of one Hamiltonian: its geometry, on-site terms and hoppings.
 
-    Every array is hashed with its type and shape, so two contents can agree
-    only number for number.
+    ``model`` gives the spin, the periodic directions, the lattice vectors and
+    the orbital centers; ``amplitudes``, ``i``, ``j`` and ``R`` are the hopping
+    arrays (:func:`hopping_arrays`), and ``site`` the on-site terms.  Each
+    array is cast to a fixed type and hashed with its type and shape, so two
+    Hamiltonians share a hash only number for number.  Returns the hash as a
+    hexadecimal string.
     """
     lattice = model.lattice
     h = hashlib.blake2b(digest_size=16)
@@ -118,10 +112,10 @@ def _digest(model, amplitudes, i, j, R, site) -> str:
 
 
 def model_key(model) -> str:
-    """The content hash of the model as it stands: lattice, centres, on-site terms, hoppings.
+    """The hash of ``model`` as it stands: lattice, centers, on-site terms, hoppings.
 
-    Two models with the same key have the same ``H(k)`` at every ``k``.  It is
-    also the key the model's blocks are kept under.
+    Two models with the same hash have the same ``H(k)`` at every ``k``.  It is
+    also the hash the model's blocks are kept under.
     """
     return _digest(model, *hopping_arrays(model), model.onsite)
 
@@ -129,8 +123,9 @@ def model_key(model) -> str:
 def bound(model, params=None):
     """The model with the values of its parameters in place; the model itself where it has none.
 
-    The names are checked as ``TBModel.hamiltonian`` checks them, with the same
-    error, and each value is a number, before anything is evaluated.
+    ``params`` maps each parameter's name to its value.  The names are checked
+    as ``TBModel.hamiltonian`` checks them, with the same error, and each value
+    is checked to be a number, before anything is evaluated.
 
     Raises
     ------
@@ -150,11 +145,12 @@ def bound(model, params=None):
             except ValueError:                  # values of different lengths
                 dims = None
             arg = name if name.isidentifier() else "m"
-            hint = {1: " Each value of a parameter is one call.",
-                    2: (" A term that acts on spin is written as a function of its parameter "
-                        f"that returns the 2x2 block: set_hop(lambda {arg}: {arg} * sz, ...).")
+            hint = {1: " Pass one number, and make a call for each value.",
+                    2: (" Where the parameter enters a term that acts on spin, write that "
+                        "term as a function of the parameter that returns the 2x2 block, "
+                        f"such as lambda {arg}: {arg} * sz.")
                     }.get(dims, "")
-            raise ValueError(f"Parameter '{name}' must be a scalar.{hint}")
+            raise ValueError(f"params= gives '{name}' a value that is not a number.{hint}")
     if not model._has_parameterized_terms():
         return model
     return model.with_parameters(params)
@@ -171,10 +167,12 @@ _phases = TBModel._phases_from_reduced_dot_products
 class _BlochSum:
     """``H(k)`` of one model, from blocks built once.
 
-    Called with k-points in any form ``TBModel.hamiltonian`` takes, it returns
-    the ``(Nk, nstate, nstate)`` array that call returns with
-    ``flatten_spin_axis=True``, bit for bit.  ``key`` is the content hash it
-    was built from.
+    ``model`` gives the lattice and the spin.  ``arrays`` is
+    ``(amplitudes, i, j, R, site)``, the hoppings and on-site terms as
+    ``model._evaluate_params({})`` returns them.  ``key`` is the hash they were
+    built from, kept as ``.key``.  Called with k-points in any form
+    ``TBModel.hamiltonian`` takes, the sum returns the ``(Nk, nstate, nstate)``
+    array that call returns with ``flatten_spin_axis=True``, bit for bit.
     """
 
     def __init__(self, model, arrays, key=None):
@@ -244,29 +242,20 @@ class _BlochSum:
     def phase_rounding(self, k_pts, rotation=None) -> float:
         r"""The rounding ``H`` carries from its Bloch phases, at ``k`` or at its image ``k W``.
 
-        Each phase ``e^{2\pi i x}`` is taken of a reduced dot product
-        ``x = q\cdot R`` or ``q\cdot\tau``, which rounds at ``ε`` times the sum
-        of its terms' sizes, ``|q|\cdot|R|``.  At the image ``q = k W`` of an
-        operation whose integer matrix ``W`` has large entries, as on a strongly
-        skewed lattice basis, the terms are large and cancel to a phase of
-        order one, so the phase rounds at ``2\pi ε\,(|k||W|)\cdot|R|``, and
-        ``H`` at ``2\pi ε`` times each hopping's size weighted by that sum.
-        The bound on an entry is summed along its row, which bounds
-        ``|D\,δH\,D^\dagger|`` for any unitary ``D``.
-
-        Parameters
-        ----------
-        k_pts : array of shape (n, dim_k)
-            The reduced k-points ``k``.
-        rotation : array of shape (dim_k, dim_k), optional
-            ``W``, the operation's action on reduced k as rows,
-            ``k \mapsto k W``.  Omitted, ``H(k)`` itself is estimated.
-
-        Returns
-        -------
-        float
-            The largest such rounding over ``k_pts``, in the units of ``H``;
-            ``0.0`` for a model with no hoppings.
+        ``k_pts``, of shape ``(n, dim_k)``, are the reduced k-points ``k``.
+        ``rotation``, of shape ``(dim_k, dim_k)``, is ``W``, an operation's
+        action on reduced k as rows, ``k \mapsto k W``.  Where it is omitted,
+        ``H(k)`` itself is estimated.  Each phase ``e^{2\pi i x}`` is taken of a
+        reduced dot product ``x = q\cdot R`` or ``q\cdot\tau``, which rounds at
+        ``ε`` times the sum of its terms' sizes.  At ``q = k W`` that sum is at
+        most ``(|k||W|)\cdot|R|``, large where ``W`` has large entries, as on a
+        strongly skewed lattice basis, while the terms cancel to an ``x`` of
+        order one.  An entry of ``H`` rounds at ``2\pi ε`` times each
+        hopping's size weighted by those sums for its lattice vector and its
+        two orbitals' centers.  The bound is summed along the entry's row,
+        which bounds ``|D\,δH\,D^\dagger|`` for any unitary ``D``.  Returns
+        the largest such rounding over ``k_pts``, in the units of ``H``;
+        ``0.0`` for a model with no hoppings.
         """
         if not self.n_hops:
             return 0.0
@@ -285,8 +274,8 @@ class _BlochSum:
         s_R = a @ R_abs.T                             # (n, n_R): |q|.|R|
         s_tau = a @ tau.T                             # (n, M): |q|.|tau|
         bound = (s_R @ rows                           # the lattice vectors' phases
-                 + s_tau * whole.sum(axis=-1)[None, :]  # the row's own centre
-                 + s_tau @ whole.T)                   # each column's centre
+                 + s_tau * whole.sum(axis=-1)[None, :]  # the row's own center
+                 + s_tau @ whole.T)                   # each column's center
         return float(2.0 * np.pi * np.finfo(float).eps * bound.max())
 
 
@@ -295,7 +284,11 @@ _kept_bytes = 0
 
 
 def _keep(key, bloch) -> None:
-    """Keep one set of blocks, dropping the least recently used past :data:`_KEEP_BYTES`."""
+    """Keep one set of blocks, dropping the least recently used past :data:`_KEEP_BYTES`.
+
+    ``bloch`` is the :class:`_BlochSum` and ``key`` its hash.  A set larger
+    than :data:`_KEEP_BYTES` alone is not kept.
+    """
     global _kept_bytes
     if bloch.nbytes > _KEEP_BYTES:
         return
@@ -307,12 +300,12 @@ def _keep(key, bloch) -> None:
 
 
 def evaluator(model):
-    """The Bloch sum of ``model``, a model with a periodic direction, built once per content.
+    """The Bloch sum of ``model``, a model with a periodic direction, built once per hash.
 
     The blocks are gathered from the arrays pythtb itself sums, and kept under
-    their content; a later request for the same content, from this model or any
-    other, finds them.  The sum returned carries that content hash as ``key``,
-    which is :func:`model_key`.
+    their hash; a later request for the same hash, from this model or any
+    other, finds them.  The sum returned carries that hash as ``key``, which is
+    :func:`model_key`.
     """
     arrays = model._evaluate_params({})
     key = _digest(model, *arrays)
@@ -328,9 +321,10 @@ def evaluator(model):
 def hamiltonian(model, k_pts, bloch=None) -> np.ndarray:
     """``model.hamiltonian(k_pts=k_pts, flatten_spin_axis=True)``, bit for bit.
 
-    The k-points are checked as pythtb checks them, so a request pythtb stops
-    stops here with the same error.  ``bloch``, where it is given, is what
-    :func:`evaluator` returns for the model, and ``H(k)`` is summed by it.
+    ``k_pts`` are checked as pythtb checks them, so a request pythtb rejects
+    raises the same error here.  ``bloch``, where it is given, is what
+    :func:`evaluator` returns for ``model``, and ``H(k)`` is summed by it.  A
+    model with no periodic direction is evaluated by pythtb itself.
     """
     if int(model.lattice.dim_k) == 0:
         return model.hamiltonian(k_pts=k_pts, flatten_spin_axis=True)
@@ -343,18 +337,19 @@ def hamiltonian(model, k_pts, bloch=None) -> np.ndarray:
 
 
 def onsite(model) -> np.ndarray:
-    """The on-site terms: ``(norb,)``, or ``(norb, 2, 2)`` spinful."""
+    """The on-site terms of ``model``: shape ``(norb,)``, or ``(norb, 2, 2)`` spinful."""
     return np.asarray(model._evaluate_params({})[4], dtype=complex)
 
 
 def onsite_mean(model) -> float:
-    r"""The mean on-site energy per state: the energy zero of the model's own numbers.
+    r"""The mean on-site energy per state of ``model``, in the units of ``H``.
 
     ``tr H(k)`` averages over the Brillouin zone to the trace of the on-site
-    terms, so this is what a constant shift ``H → H + c·1`` moves by exactly
-    ``c`` -- a wannier90 import's on-site energies carry the energy zero of the
-    calculation it came from.  The diagonal on-site entries are summed exactly,
-    so on-site energies that cancel read ``0.0``, not a rounding of it.
+    terms, so a constant shift ``H → H + c·1`` moves this by exactly ``c``.  It
+    is the mean energy of the bands over the Brillouin zone, the shift about
+    which the magnitude ``max|H − shift·1|`` is read (:func:`magnitude`).  The
+    diagonal on-site entries are summed exactly, so on-site energies that
+    cancel read ``0.0``, not a rounding of it.
     """
     site = onsite(model)
     diagonal = site if site.ndim == 1 else np.diagonal(site, axis1=-2, axis2=-1)
@@ -362,7 +357,12 @@ def onsite_mean(model) -> float:
 
 
 def magnitude(H, shift=0.0) -> float:
-    """``max|H − shift·1|`` over one matrix or a stack of them; ``max|H|`` exactly at ``shift = 0``."""
+    """The largest modulus of an entry of ``H − shift·1``, ``max|H − shift·1|``.
+
+    ``H`` is one matrix or a stack of them, and ``shift`` an energy in the
+    units of ``H``.  At ``shift = 0`` it is ``max|H|`` exactly; an empty ``H``
+    gives ``0.0``.
+    """
     H = np.asarray(H)
     if H.size == 0:
         return 0.0
@@ -379,7 +379,8 @@ def solve(model, k_pts, bloch=None):
 
     pythtb's diagonalization of the same ``H(k)``: the same Hermiticity check,
     ``numpy.linalg.eigh`` on the same matrices, eigenvectors as rows, and a
-    single k-point's axis dropped.  ``bloch`` is as in :func:`hamiltonian`.
+    single k-point's axis dropped.  ``model``, ``k_pts`` and ``bloch`` are as
+    in :func:`hamiltonian`.  Returns ``(evals, evecs)``.
     """
     ham = hamiltonian(model, k_pts, bloch)
     if not np.allclose(ham, ham.swapaxes(-1, -2).conj()):

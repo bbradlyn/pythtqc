@@ -387,12 +387,12 @@ are known, to compare such an import against.
 
 ## Group data in this cell's coordinates
 
-- [`high_symmetry_points`](#high_symmetry_points) — The tabulated high-symmetry points, in the model's own reduced coordinates.
+- [`high_symmetry_points`](#high_symmetry_points) — The tabulated high-symmetry points, in the model's reduced coordinates.
 - [`little_group`](#little_group) — The operations that leave `k` invariant up to a reciprocal lattice vector.
-- [`corep_table`](#corep_table) — The character table of the little group at a high-symmetry point: each corep's character on each unitary operation.
-- [`wyckoff_sites_tables`](#wyckoff_sites_tables) — The Wyckoff position of each site in the tables' setting, the one every table is read with.
-- [`k_grid`](#k_grid) — A Γ-centred mesh that respects the group, with the high-symmetry points it holds.
-- [`ebr_data`](#ebr_data) — Every elementary band representation of the group: the bands each site irrep at each Wyckoff position induces.
+- [`corep_table`](#corep_table) — The character table of the little group at a high-symmetry point.
+- [`wyckoff_sites_tables`](#wyckoff_sites_tables) — The Wyckoff position of each site, in the setting of the tables.
+- [`k_grid`](#k_grid) — A mesh through `GM` that the group carries onto itself.
+- [`ebr_data`](#ebr_data) — The elementary band representations of the group, and their matrix.
 - [`tables_status`](#tables_status) — The state of `irrep`'s character tables and of `ortools`.
 
 ### `high_symmetry_points`
@@ -401,33 +401,34 @@ are known, to compare such an import against.
 high_symmetry_points(group)
 ```
 
-The tabulated high-symmetry points, in the model's own reduced coordinates.
+The tabulated high-symmetry points, in the model's reduced coordinates.
 
-The points a symmetry data vector is read at.  The tables write them in their
-conventional cell, generally as other numbers: graphene's `K` is
-`(1/3, 1/3, 0)` there and `(1/3, 2/3)` in pythtb's honeycomb cell.
-Without time reversal a point and its partner `−k` are two points
-wherever no operation carries one onto the other, `KA` beside `K`, and
-both are returned, the partner's irreps the complex conjugates of the
-point's.  The points are listed Γ first, then alphabetically by name, a
-partner right after its point.
+The points are those of the tables of the irreptables package, carried
+from the conventional cell the tables are written in into the model's
+cell.  Graphene's `K` is `(1/3, 1/3, 0)` in the tables and
+`(1/3, 2/3)` in pythtb's honeycomb cell.  In a group without time
+reversal, a point `k` and its partner `-k` are inequivalent where no
+operation carries one onto the other, as `K` and `KA` are, and both
+are returned.  The points are listed `GM` first, then alphabetically by
+name, each partner right after its point.
 
 **Parameters**
 
-- **`group`** (`GroupData`): The group, `r.group` of what `realized_group` returns.
+- **`group`** (`GroupData`): The group.  Pass `r.group` of what [`realized_group`](#realized_group)
+  returns.
 
 **Returns**
 
-- `HighSymmetryPoints or Refusal`: `{name: k}`, each `k` with `dim_k` components; its
+- `HighSymmetryPoints or Refusal`: `{name: k}`, each `k` with `dim_k` reduced coordinates.  Its
   `out_of_plane` names the tabulated points out of a layer's plane.
-  `summary()` prints it.  A `Refusal` in its place is falsy.
+  A `Refusal` in its place is falsy.
 
 **Refusals**
 
 A refusal handed in as `group` is returned as it is.
 
-- **`tables_not_ready`**: The group has no transformation to the tables' conventional cell, to
-  carry their points into the model's coordinates.
+- **`tables_not_ready`**: the model's cell could not be matched to the setting the tables are
+  written in.
 
 ### `little_group`
 
@@ -437,36 +438,36 @@ little_group(group, k)
 
 The operations that leave `k` invariant up to a reciprocal lattice vector.
 
-The group a band's corep at `k` is a corep of: only these operations act
-within the states there.
+The unitary operations are listed apart from those combined with time
+reversal.  A character vector at `k` has an entry for each unitary
+operation, in the order listed.
 
 **Parameters**
 
-- **`group`** (`GroupData`): The group, `r.group` of what `realized_group` returns.
+- **`group`** (`GroupData`): The group.  Pass `r.group` of what [`realized_group`](#realized_group)
+  returns.
 
-- **`k`** (`str or array, shape (dim_k,)`): The point: a tabulated name, `"X"`, one of those
-  [`high_symmetry_points`](#high_symmetry_points) returns, or its coordinates in the
-  model's reduced coordinates.  A layer takes a point of its
-  three-dimensional cell too, where it lies in the plane.
+- **`k`** (`str or array, shape (dim_k,)`): The point.  Pass its name in the tables, `"X"`, one of those
+  [`high_symmetry_points`](#high_symmetry_points) returns, or its reduced coordinates.  A
+  layer also takes the three reduced coordinates of a point of its
+  plane in its three-dimensional cell.
 
 **Returns**
 
-- `LittleGroup or Refusal`: Its operations, the indices of its unitary operations in index order,
-  the columns a character vector at `k` is written in, and those of
-  its operations combined with time reversal, which carry no
-  characters; `summary()` prints it.  A `Refusal` in its place is
-  falsy.
+- `LittleGroup or Refusal`: The little group: its operations by index, unitary and combined with
+  time reversal; the reciprocal lattice vector each unitary one moves
+  `k` by; and the name of `k` in the tables where it has one.
+  `summary()` prints it.  A `Refusal` in its place is falsy.
 
 **Refusals**
 
 A refusal handed in as `group` is returned as it is.
 
-- **`out_of_plane`**: A point with a component along a layer's vacuum, a direction its zone
-  does not have, or the name of a tabulated point out of the layer's
-  plane.
+- **`out_of_plane`**: `k` has a component out of a layer's plane, or names a tabulated
+  point out of the plane.
 
-- **`tables_not_ready`**: `k` is a name, and the group has no transformation to the tables'
-  conventional cell to carry the tabulated points into the model's.
+- **`tables_not_ready`**: `k` is a name, and the model's cell could not be matched to the
+  setting the tables are written in.
 
 ### `corep_table`
 
@@ -474,40 +475,48 @@ A refusal handed in as `group` is returned as it is.
 corep_table(group, k)
 ```
 
-The character table of the little group at a high-symmetry point: each corep's character on each unitary operation.
+The character table of the little group at a high-symmetry point.
 
-The table measured characters are read against, in the package's
-convention for a lattice translation, so characters measured on the model
-compare with it directly; the points where that convention moves a label,
-or changes how time reversal glues the irreps, are named in
-`ebr_data(group).convention`.  Operations combined with time reversal
-carry no characters.
+The table holds the character of each little-group representation at
+`k` on each unitary operation of the little group.  The characters are
+those of the tables of the irreptables package, carried onto the
+operations of the model's cell.  They are in the convention where a
+lattice translation `t` acts as `e^{-ik·t}`, the one
+[`characters`](#characters) measures in.  At a partner point `-k` whose
+characters the tables do not list, they are the complex conjugates of
+those at `k`.  `ebr_data(group).convention` names the points at which
+the labels and characters returned differ from the tables'.
 
 **Parameters**
 
-- **`group`** (`GroupData`): The group, `r.group` of what `realized_group` returns.
+- **`group`** (`GroupData`): The group.  Pass `r.group` of what [`realized_group`](#realized_group)
+  returns.
 
-- **`k`** (`str or array, shape (dim_k,)`): A tabulated point: its name, `"X"`, or its coordinates in the
-  model's reduced coordinates, as [`high_symmetry_points`](#high_symmetry_points) gives
-  them.
+- **`k`** (`str or array, shape (dim_k,)`): The point.  Pass its name in the tables, `"X"`, or its reduced
+  coordinates, as [`high_symmetry_points`](#high_symmetry_points) returns them.  A layer
+  also takes the three reduced coordinates of a point of its plane in
+  its three-dimensional cell.
 
 **Returns**
 
-- `dict or Refusal`: `{corep: {index: character}}`, one entry per corep of the little
-  group, its character on each unitary operation by index.  A
-  `Refusal` in its place is falsy.
+- `dict or Refusal`: `{label: {index: character}}`, an entry for each little-group
+  representation at `k`, with its character on each unitary operation
+  of the little group, keyed by the operation's index.  A `Refusal` in
+  its place is falsy.
 
 **Refusals**
 
 A refusal handed in as `group` is returned as it is.
 
-- **`tables_not_ready`**: The group has no transformation to the tables' conventional cell.
+- **`tables_not_ready`**: the model's cell could not be matched to the setting the tables are
+  written in.
 
-- **`out_of_plane`**: `k` has a component along a layer's vacuum, or names a tabulated
-  point out of the layer's plane.
+- **`out_of_plane`**: `k` has a component out of a layer's plane, or names a tabulated
+  point out of the plane.
 
-- **`kpoint_not_tabulated`**: `k` is no tabulated point in the model's coordinates, or not the
-  tabulated member of its star; the refusal lists the tabulated points.
+- **`kpoint_not_tabulated`**: `k` is no tabulated point in the model's cell, or is a member of a
+  tabulated point's star other than the one tabulated.  The reason
+  lists the tabulated points.
 
 ### `wyckoff_sites_tables`
 
@@ -515,46 +524,53 @@ A refusal handed in as `group` is returned as it is.
 wyckoff_sites_tables(group, positions=None, *, position_tol=0.0001)
 ```
 
-The Wyckoff position of each site in the tables' setting, the one every table is read with.
+The Wyckoff position of each site, in the setting of the tables.
 
-A letter is a table key, and settings disagree about it: the Fu–Kane–Mele
-diamond's orbit is `8a` here and `8b` in spglib's setting, and a site
-irrep at two positions can carry the same content at every k-point and
-different real-space invariants.  The orbitals' own positions are the rows'
-`wyckoff` of `r.wyckoff_orbits`.
+The setting is the one the elementary band representations of
+[`ebr_data`](#ebr_data) are listed in, from the tables of the irreptables
+package.  Two settings can give one orbit different letters: the
+Fu-Kane-Mele diamond's orbit is `8a` here and `8b` in spglib's
+setting.  Two positions can give atomic limits with the same symmetry
+data vector and different stable real-space invariants, so a site's
+letter is read in this setting.  Each point is given the Wyckoff position
+with the fewest free parameters on which it lies within `position_tol`,
+and of those the one of smallest multiplicity.  For the model's orbitals,
+`r.wyckoff_orbits` holds the same positions.
 
 **Parameters**
 
-- **`group`** (`GroupData`): The group, `r.group` of what `realized_group` returns.  A grey
-  group's positions are those of its unitary subgroup.
+- **`group`** (`GroupData`): The group.  Pass `r.group` of what [`realized_group`](#realized_group)
+  returns.
 
-- **`positions`** (`array, shape (n, 3), optional`): Points in reduced coordinates of the group's three-dimensional cell.
-  Default: the points the group was found on, the model's sites and any
-  species added to its cell.
+- **`positions`** (`array, shape (n, 3), optional`): The points, in reduced coordinates of the group's three-dimensional
+  cell.  Leave it out for the sites the group was found on: the
+  model's orbital sites, and those of the species added with the
+  `decorations` of [`realized_group`](#realized_group).
 
-- **`position_tol`** (`float, default 1e-4`): How far a point may sit from a position and lie on it, in reduced
-  coordinates of the tables' conventional cell.
+- **`position_tol`** (`float, default 1e-4`): The largest distance at which a point is read as lying on a Wyckoff
+  position, in reduced coordinates of the conventional cell of the
+  tables.
 
 **Returns**
 
-- `tuple of SiteReference or Refusal`: One per point: its Wyckoff position, `"8a"`, its free parameters,
-  and the positions an orbital confined there can be moved to.  A
-  `Refusal` in its place is falsy.
+- `tuple of SiteReference or Refusal`: One for each point: its Wyckoff position, `"8a"`; its number of
+  free parameters; and the positions with elementary band
+  representations in the tables that lie on the point, line or plane
+  those parameters sweep out, `("3a", "3b")` for the line `6c` of
+  `R-3m`.  A `Refusal` in its place is falsy.
 
 **Refusals**
 
 A refusal handed in as `group` is returned as it is.
 
-- **`tables_not_ready`**: The group has no transformation to the tables' conventional cell.
+- **`wyckoff_setting`**: the list of Wyckoff positions of the pyxtal package is not written in
+  the setting of the tables.
 
-- **`wyckoff_setting`**: `pyxtal`'s list of the group's positions is not written in the
-  tables' setting, so no position would be read in it.
+- **`wyckoff_unresolved`**: a point lies on no Wyckoff position within `position_tol`.  The
+  reason names the nearest and its distance.
 
-- **`wyckoff_unresolved`**: A point lies on no position within `position_tol`; the refusal names
-  the nearest and its distance.
-
-- **`ebr_tables`, `irrep_tables`, `ebr_convention`**: From [`ebr_data`](#ebr_data), whose positions the sites are checked
-  against.
+- **`ebr_tables` / `irrep_tables` / `ebr_convention` / `tables_not_ready`**: the tables installed hold no elementary band representations of this
+  group that can be read in the model's cell.
 
 ### `k_grid`
 
@@ -562,37 +578,40 @@ A refusal handed in as `group` is returned as it is.
 k_grid(group, n, *, allow_asymmetric=False)
 ```
 
-A Γ-centred mesh that respects the group, with the high-symmetry points it holds.
+A mesh through `GM` that the group carries onto itself.
 
-A mesh holds only the high-symmetry points it happens to contain: `Γ`
-always, and the zone boundary only with an even number of divisions.  A
-label read off a mesh at a point it misses is no label, so `contains`
-names the points it holds, and [`high_symmetry_points`](#high_symmetry_points) gives every
-tabulated point's coordinates.  The mesh is pythtb's own, `k` in
-`[0, 1)`, periodic in the gauge a `WFArray` reads.
+The mesh is a `pythtb.Mesh`, with `k` in `[0, 1)` along each
+periodic direction.  It can be handed to a `pythtb.WFArray` as it is.
+It holds a tabulated high-symmetry point only where the number of
+divisions fits the point's coordinates: `X` at `1/2` needs an even
+number.
 
 **Parameters**
 
-- **`group`** (`GroupData`): The group, `r.group` of what `realized_group` returns.
+- **`group`** (`GroupData`): The group.  Pass `r.group` of what [`realized_group`](#realized_group)
+  returns.
 
-- **`n`** (`int or sequence of int`): The divisions along each periodic direction, or one number for all.
+- **`n`** (`int or sequence of int`): The number of divisions along each periodic direction, or one number
+  for all of them.
 
-- **`allow_asymmetric`** (`bool, default False`): Whether a mesh the group does not carry onto itself is returned.
-  With `allow_asymmetric=True`, it is returned with no irreducible
-  points.
+- **`allow_asymmetric`** (`bool, default False`): Whether a mesh the group does not carry onto itself is returned or
+  refused.  With `allow_asymmetric=True`, it is returned, with no
+  irreducible points.
 
 **Returns**
 
-- `KGrid or Refusal`: The mesh, ready for a `pythtb.WFArray`, with the tabulated points it
-  holds; `summary()` prints it.  A `Refusal` in its place is falsy.
+- `KGrid or Refusal`: The mesh, its irreducible points, and which tabulated high-symmetry
+  points it holds.  `summary()` prints it.  With
+  `allow_asymmetric=True`, a mesh the group does not carry onto
+  itself is returned with no irreducible points.  A `Refusal` in its
+  place is falsy.
 
 **Refusals**
 
 A refusal handed in as `group` is returned as it is.
 
-- **`asymmetric_grid`**: The group does not carry the mesh onto itself, so a sum over it would
-  weigh points unlike their partners; `allow_asymmetric=True` returns
-  it all the same.
+- **`asymmetric_grid`**: the group does not carry the mesh onto itself.  With
+  `allow_asymmetric=True`, the call does not refuse.
 
 ### `ebr_data`
 
@@ -600,40 +619,36 @@ A refusal handed in as `group` is returned as it is.
 ebr_data(group)
 ```
 
-Every elementary band representation of the group: the bands each site irrep at each Wyckoff position induces.
+The elementary band representations of the group, and their matrix.
 
-The atomic limits the group has, and the columns a symmetry data vector is
-decomposed over; [`decompose`](#decompose) and
-[`symmetry_indicator`](#symmetry_indicator) read them, a layer's restricted to the
-points of its plane.  The rows are in the package's convention for a
-lattice translation, `e^{-ik·t}`, where the tables' own pages write
-`e^{+ik·t}`: away from the time-reversal-invariant momenta a row pairs
-labels with Wyckoff positions otherwise than the Bilbao Crystallographic
-Server's page does, and `convention` says where.
+Each elementary band representation is the band representation one site
+irrep induces from its Wyckoff position.  Its column holds the
+multiplicity of each little-group representation at every high-symmetry
+point of the group, those out of a layer's plane included.  The columns
+are read from the tables of the Bilbao Crystallographic Server, which the
+irreptables package ships, and carried into the package's convention for
+a lattice translation `t`, `e^{-ik·t}`, where the server writes
+`e^{+ik·t}`.  The label the server prints at `k` is the label
+returned at `-k`.  `convention` lists the points at which a label is
+renamed or its row differs from the server's.
 
 **Parameters**
 
-- **`group`** (`GroupData`): The group, `r.group` of what `realized_group` returns.
+- **`group`** (`GroupData`): The group.  Pass `r.group` of what [`realized_group`](#realized_group)
+  returns.
 
 **Returns**
 
-- `EBRData or Refusal`: The columns as terms, `.ebrs`; the rows' coreps, `.corep_names`;
-  the EBR matrix and its Smith normal form, `.matrix` and `.smith`;
-  what the convention moves, `.convention`; and the group they were
-  read for, `.group`.  A `Refusal` in its place is falsy.
+- `EBRData or Refusal`: The elementary band representations, their matrix and its Smith
+  normal form, and where the rows differ from the server's.  A
+  `Refusal` in its place is falsy.
 
 **Refusals**
 
 A refusal handed in as `group` is returned as it is.
 
-- **`irrep_tables`**: `irreptables` is not installed.
-
-- **`ebr_tables`**: `irreptables` ships no elementary band representations for this
-  group and valuedness.
-
-- **`ebr_convention`**: An entry of the shipped file with no Wyckoff position, so its row
-  cannot be carried into this convention; every known case is a magnetic
-  group of type III, outside the groups returned.
+- **`ebr_tables` / `irrep_tables` / `ebr_convention`**: the tables installed hold no elementary band representations of this
+  group that can be read in the package's convention.
 
 ### `tables_status`
 
@@ -663,13 +678,13 @@ then refuses `irrep_tables`.
 
 ## Labeling the bands
 
-- [`solve_at`](#solve_at) — The energies and eigenvectors at one k, from one diagonalization.
-- [`sewing_matrix`](#sewing_matrix) — The matrix of one operation on a set of bands, at a k-point the operation leaves invariant: the sewing matrix `B(g,k)_mn = <u_m(k)|U(g;k)|u_n(k)>`.
-- [`characters`](#characters) — The characters of a set of bands at one k: the trace of each unitary operation of the little group over each degenerate multiplet of the set.
-- [`coreps_at`](#coreps_at) — The coreps a set of bands carries at one high-symmetry point, multiplet by multiplet.
-- [`hsp_table`](#hsp_table) — The coreps a set of bands carries at every high-symmetry point of the group: its symmetry data vector.
-- [`format_coreps`](#format_coreps) — Corep multiplicities on one line: `{'-GM6': 2, '-GM7': 1}` as `2x-GM6 + -GM7`.
-- [`multiplets`](#multiplets) — Which bands of a spectrum are one degenerate level, at a stated energy tolerance.
+- [`solve_at`](#solve_at) — The energies and eigenvectors at one k-point, from one diagonalization.
+- [`sewing_matrix`](#sewing_matrix) — The sewing matrix of one operation on a set of bands at one k-point.
+- [`characters`](#characters) — The characters of a set of bands at one k-point.
+- [`coreps_at`](#coreps_at) — The little-group representations of a set of bands at one high-symmetry point.
+- [`hsp_table`](#hsp_table) — The symmetry data vector of a set of bands, point by point.
+- [`format_coreps`](#format_coreps) — Multiplicities of little-group representations, written on one line.
+- [`multiplets`](#multiplets) — The degenerate multiplets of a spectrum, at an energy tolerance.
 
 ### `solve_at`
 
@@ -677,12 +692,11 @@ then refuses `irrep_tables`.
 solve_at(model, k, *, params=None)
 ```
 
-The energies and eigenvectors at one k, from one diagonalization.
+The energies and eigenvectors at one k-point, from one diagonalization.
 
-Hand the pair to [`sewing_matrix`](#sewing_matrix), [`characters`](#characters) or
-[`coreps_at`](#coreps_at) as `states=` to read several sets of bands at that
-k off the same states.  A second diagonalization chooses another basis
-inside each degenerate level, and a character read across the two is wrong.
+The pair is handed to [`sewing_matrix`](#sewing_matrix), [`characters`](#characters) or
+[`coreps_at`](#coreps_at) as `states=`, to read several sets of bands at that
+k-point off the same states.
 
 **Parameters**
 
@@ -690,15 +704,16 @@ inside each degenerate level, and a character read across the two is wrong.
 
 - **`k`** (`array_like, shape (dim_k,)`): One k-point, in reduced coordinates.
 
-- **`params`** (`dict, optional`): The scalar value of each parameter of the model, keyed by name:
-  `{"lam": 0.3}`.
+- **`params`** (`dict, optional`): The value of each parameter of the model, keyed by the parameter's
+  name, `{"lam": 0.3}`.  Pass it for a model whose terms depend on
+  parameters.
 
 **Returns**
 
-- `(ndarray, ndarray)`: `(evals, evecs)`: the energies, ascending, and the eigenvectors as
-  rows, as `model.solve_ham` returns them with `return_eigvecs=True`
-  and `flatten_spin_axis=True`, for the model with its parameters
-  evaluated at `params`.
+- `(ndarray, ndarray)`: `(evals, evecs)`: the energies in ascending order, and the
+  eigenvectors as rows.  They are what `model.solve_ham` returns with
+  `return_eigvecs=True` and `flatten_spin_axis=True`, for the model
+  with its parameters set to `params`.
 
 ### `sewing_matrix`
 
@@ -708,61 +723,73 @@ sewing_matrix(
 )
 ```
 
-The matrix of one operation on a set of bands, at a k-point the operation leaves invariant: the sewing matrix `B(g,k)_mn = <u_m(k)|U(g;k)|u_n(k)>`.
+The sewing matrix of one operation on a set of bands at one k-point.
 
-Its trace over a degenerate multiplet is that multiplet's character, and its
-eigenvalues are the operation's on those bands.  The states are checked to
-solve `H(k)`, and the bands to hold whole degenerate multiplets, wherever
-the states carry their energies.
+The sewing matrix `B(g,k)_mn = <u_m(k)|U(g;k)|u_n(k)>` is the matrix of
+the operation `g` on the bands, at a k-point that `g` leaves invariant
+up to a reciprocal lattice vector.  Here `U(g;k)` is the operator of
+`g` on the model's states at `k`.  For an operation combined with time
+reversal, the ket is complex conjugated before `U(g;k)` acts.  For a
+unitary operation, the trace of `B` over a degenerate multiplet is that
+multiplet's character.
 
 **Parameters**
 
 - **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned, `r`.
 
-- **`operation`** (`int`): The operation, by its index: `r.operations` lists them, and
-  [`operation_index`](#operation_index) finds one by its Seitz symbol.
+- **`operation`** (`int`): The operation, by its index in `r.operations`.
+  [`operation_index`](#operation_index) finds the index from a Seitz symbol.
   Required.
 
-- **`k`** (`str or array_like, shape (dim_k,)`): A k-point the operation leaves invariant up to a reciprocal lattice
-  vector: its tabulated name, `"M"`, or its reduced coordinates.
-  Required.
+- **`k`** (`str or array_like, shape (dim_k,)`): The k-point.  Pass its name in the tables of the irreptables package,
+  `"M"`, or its reduced coordinates.  Required.
 
-- **`bands`** (`int or sequence of int, optional`): The set of bands: `n` the lowest `n` bands, or the band indices.
-  Default: every state.
+- **`states`** (`None, pythtb.TBModel, pythtb.WFArray, (evals, evecs) or ndarray, optional`): The states at `k`.  Pass `None` or `r.model` to solve the model
+  there.  Pass a solved `WFArray`, or the pair [`solve_at`](#solve_at)
+  returns, to reuse one diagonalization.  Pass the eigenvectors alone,
+  as the rows of an ndarray, where no energies are at hand.  A
+  `WFArray` carries energies only where `WFArray.solve_model`
+  filled it.
 
-- **`states`** (`None, pythtb.WFArray, (evals, evecs) or ndarray, optional`): The states at `k`: `None` (default) solves the model there; a
-  solved `WFArray`, or the pair [`solve_at`](#solve_at) returns, reuses one
-  diagonalization.  Eigenvector rows alone, or a `WFArray` of a sector
-  with fewer states than the model, carry no energies.
+- **`bands`** (`int or sequence of int, optional`): The set of bands.  Pass `n` for the lowest `n` bands, or the band
+  indices.  Left out, every state handed in.
 
-- **`degeneracy_tol`** (`float, optional`): A number in the units of `H`: bands closer in energy than it are one
-  multiplet.  Left out, `1e-8` times `max|H|`, the largest entry of
-  `H(k)` once the mean on-site energy is subtracted.
+- **`degeneracy_tol`** (`float, optional`): The energy tolerance, in the units of `H`, within which bands are
+  one degenerate multiplet.  Left out, `1e-8` times `max|H|`, the
+  largest entry of `H(k)` once the mean on-site energy is subtracted.
 
 **Returns**
 
-- `SewingMatrix or Refusal`: `B.summary()` prints it.  `B.matrix` is the matrix and
-  `B.eigenvalues` its eigenvalues; `B.numerical` holds how far it is
-  from unitary, the operator from commuting with `H(k)`, and the states
-  from eigenstates.  For states without energies, whether they solve
-  `H(k)` and whether the bands close their multiplets is not measured.
-  A `Refusal` in its place is falsy and names what stopped the call.
+- `SewingMatrix or Refusal`: The record's `matrix` is the sewing matrix `B`, and its
+  `eigenvalues` are those of `B`.  For a unitary operation they are
+  the eigenvalues of the operation on the bands.  The record's
+  `numerical` holds how far `B` is from unitary, `U(g;k)` from
+  commuting with `H(k)`, and the states from eigenstates.  The sewing
+  matrix can only be returned at a k-point the operation leaves
+  invariant up to a reciprocal lattice vector.  It can only be returned
+  if the set of bands cuts no degenerate multiplet at `k`.  For states
+  without energies, the call checks neither whether the set of bands
+  cuts a multiplet nor whether the states solve `H(k)`.  A
+  `Refusal` in its place is falsy and names what stopped the call.
 
 **Refusals**
 
-- **`little_group`**: the operation does not leave `k` invariant.
+A refusal handed in as `realized` is returned as it is.
 
-- **`multiplet_split`**: `bands` cuts a degenerate multiplet at `k`.
+- **`little_group`**: the operation does not leave `k` invariant up to a reciprocal
+  lattice vector.
+
+- **`multiplet_split`**: the set of bands cuts a degenerate multiplet at `k`.
 
 - **`states_not_at_k`**: the states handed in do not solve `H(k)`.
 
-- **`k_not_on_mesh`**: the mesh handed in does not hold `k`.
+- **`k_not_on_mesh`**: the mesh of the `WFArray` handed in does not hold `k`.
 
-- **`out_of_plane`**: `k` has a component along a layer's vacuum, or names a tabulated
-  point out of the layer's plane.
+- **`out_of_plane`**: `k` has a nonzero component normal to the plane of a layer, or
+  names a tabulated point off that plane.
 
-- **`tables_not_ready`**: `k` is a name, and the group has no transformation to the tables'
-  conventional cell.
+- **`tables_not_ready`**: `k` is a name, and the model's cell cannot be transformed to the
+  conventional cell of the irreptables package.
 
 ### `characters`
 
@@ -770,52 +797,60 @@ the states carry their energies.
 characters(realized, k, *, states=None, bands=None, degeneracy_tol=None)
 ```
 
-The characters of a set of bands at one k: the trace of each unitary operation of the little group over each degenerate multiplet of the set.
+The characters of a set of bands at one k-point.
+
+The states at `k` are grouped into degenerate multiplets by energy, as
+[`multiplets`](#multiplets) groups them.  The sewing matrix of each unitary
+operation of the little group at `k` is built on the set of bands, and
+its trace over each multiplet is that multiplet's character.  `k` may
+be any point, whether or not the tables of the irreptables package list
+it.
 
 **Parameters**
 
 - **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned, `r`.
 
-- **`k`** (`str or array_like, shape (dim_k,)`): A k-point: its tabulated name, `"GM"`, or its reduced coordinates.
-  Only a tabulated point is labeled, by [`coreps_at`](#coreps_at).
+- **`k`** (`str or array_like, shape (dim_k,)`): The k-point.  Pass its name in the tables, `"GM"`, or its reduced
+  coordinates.  For a layer, the three reduced coordinates of a point of
+  its plane, in its three-dimensional cell, are also accepted.
 
-- **`bands`** (`int or sequence of int`): The set of bands: `n` the lowest `n` bands, or the band indices.
-  Required.
+- **`states`** (`None, pythtb.TBModel, pythtb.WFArray or (evals, evecs), optional`): The states at `k`, with their energies.  Pass `None` or
+  `r.model` to solve the model there.  Pass a `WFArray` filled by
+  `solve_model`, or the pair [`solve_at`](#solve_at) returns, to reuse one
+  diagonalization.
 
-- **`states`** (`None, pythtb.WFArray or (evals, evecs), optional`): The states at `k`: `None` (default) solves the model there; a
-  solved `WFArray`, or the pair [`solve_at`](#solve_at) returns, reuses one
-  diagonalization.  They carry energies, the rows being the multiplets.
+- **`bands`** (`int or sequence of int`): The set of bands.  Pass `n` for the lowest `n` bands, or the band
+  indices.  Required.
 
-- **`degeneracy_tol`** (`float, optional`): A number in the units of `H`: bands closer in energy than it are one
-  multiplet.  Left out, `1e-8` times `max|H|`, the largest entry of
-  `H(k)` once the mean on-site energy is subtracted.
+- **`degeneracy_tol`** (`float, optional`): The energy tolerance, in the units of `H`, within which bands are
+  one degenerate multiplet.  Left out, `1e-8` times `max|H|`, the
+  largest entry of `H(k)` once the mean on-site energy is subtracted.
 
 **Returns**
 
-- `BandCharacters or Refusal`: `ch.summary()` prints them.  `ch.multiplets` holds a row for each
-  degenerate multiplet: its bands, its mean energy and its characters by
-  operation index.  `ch.operations` names the operations of the little
-  group; `ch.numerical` holds how closely the characters are measured.
-  Characters can only be returned if the set of bands contains all the
-  states of each degenerate multiplet at `k`.  A `Refusal` in its
-  place is falsy and names what stopped the call.
+- `BandCharacters or Refusal`: The characters, a row for each degenerate multiplet of the set of
+  bands, lowest first, and an entry in each row for each unitary
+  operation of the little group.  The record's `numerical` holds how
+  far the inputs of the characters are from exact.  Characters can only
+  be returned if the set of bands contains all the states of each
+  degenerate multiplet at `k`.  A `Refusal` in its place is falsy
+  and names what stopped the call.
 
 **Refusals**
 
-A refusal handed in as `realized` is returned unchanged, and one from
-[`little_group`](#little_group) as it is.
+A refusal handed in as `realized` is returned as it is.
 
 - **`multiplet_split`**: the set of bands cuts a degenerate multiplet at `k`.
 
 - **`states_not_at_k`**: the states handed in do not solve `H(k)`.
 
-- **`k_not_on_mesh`**: the mesh handed in does not hold `k`.
+- **`k_not_on_mesh`**: the mesh of the `WFArray` handed in does not hold `k`.
 
-- **`out_of_plane`**: `k` has a component along a layer's vacuum, or names a tabulated
-  point out of the layer's plane.
+- **`out_of_plane`**: `k` has a nonzero component normal to the plane of a layer, or
+  names a tabulated point off that plane.
 
-- **`tables_not_ready`**: `k` is a name, and the group has no transformation to the tables'
-  conventional cell.
+- **`tables_not_ready`**: `k` is a name, and the model's cell cannot be transformed to the
+  conventional cell of the irreptables package.
 
 ### `coreps_at`
 
@@ -823,63 +858,77 @@ A refusal handed in as `realized` is returned unchanged, and one from
 coreps_at(realized, k, *, states=None, bands=None, degeneracy_tol=None, label_tol=0.001)
 ```
 
-The coreps a set of bands carries at one high-symmetry point, multiplet by multiplet.
+The little-group representations of a set of bands at one high-symmetry point.
 
-The characters of each degenerate multiplet are measured on the bands'
-eigenvectors and expanded over the coreps of the little group.
+The characters of each degenerate multiplet are measured as
+[`characters`](#characters) measures them.  Each row of characters is expanded
+over the characters of the little-group representations that the tables
+of the irreptables package list at `k`.  A multiplicity within
+`label_tol` of a nonnegative integer is rounded to that integer.
 
 **Parameters**
 
 - **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned, `r`.
 
-- **`k`** (`str or array_like`): A tabulated high-symmetry point: its name, `"GM"`, one of those
-  [`high_symmetry_points`](#high_symmetry_points) returns, or its coordinates in
-  the model's reduced cell.
+- **`k`** (`str or array_like, shape (dim_k,)`): The high-symmetry point.  Pass its name in the tables, `"GM"`, or
+  its reduced coordinates, as [`high_symmetry_points`](#high_symmetry_points)
+  returns them.  For a layer, the three reduced coordinates of a point
+  of its plane, in its three-dimensional cell, are also accepted.
 
-- **`bands`** (`int or sequence of int`): The set of bands: `n` the lowest `n` bands, or the band indices.
-  Required.
-
-- **`states`** (`None, pythtb.WFArray or (evals, evecs), optional`): The states at `k`: `None` (default) solves the model there; a
-  solved `WFArray`, or the pair [`solve_at`](#solve_at) returns, reuses one
+- **`states`** (`None, pythtb.TBModel, pythtb.WFArray or (evals, evecs), optional`): The states at `k`, with their energies.  Pass `None` or
+  `r.model` to solve the model there.  Pass a `WFArray` filled by
+  `solve_model`, or the pair [`solve_at`](#solve_at) returns, to reuse one
   diagonalization.
 
-- **`degeneracy_tol`** (`float, optional`): A number in the units of `H`: bands closer in energy than it are one
-  multiplet.  Left out, `1e-8` times `max|H|`, the largest entry of
-  `H(k)` once the mean on-site energy is subtracted.
+- **`bands`** (`int or sequence of int`): The set of bands.  Pass `n` for the lowest `n` bands, or the band
+  indices.  Required.
 
-- **`label_tol`** (`float, default 1e-3`): How far a fitted multiplicity may sit from an integer, dimensionless.
+- **`degeneracy_tol`** (`float, optional`): The energy tolerance, in the units of `H`, within which bands are
+  one degenerate multiplet.  Left out, `1e-8` times `max|H|`, the
+  largest entry of `H(k)` once the mean on-site energy is subtracted.
+
+- **`label_tol`** (`float, default 1e-3`): The largest distance from an integer at which a multiplicity is
+  rounded to that integer.
 
 **Returns**
 
-- `CorepsAt or Refusal`: `c.summary()` prints the coreps multiplet by multiplet.  `c.coreps`
-  holds the corep multiplicities of the set, `{corep: multiplicity}`;
-  `c.multiplets` a row for each degenerate multiplet, lowest first,
-  with its bands, its mean energy and the coreps it carries;
-  `c.isolation` the gap from these bands to the nearest other band;
-  `c.numerical` the thresholds and the identification the coreps were
-  read with.  Corep labels can only be returned if the set of bands
-  contains all the states of each degenerate multiplet at `k`.  A
+- `CorepsAt or Refusal`: The multiplicities of the little-group representations the set of
+  bands carries at `k`, and the labels of each of its degenerate
+  multiplets, lowest first.  Little-group representations can only be
+  returned at a point the tables list, at the coordinates
+  [`high_symmetry_points`](#high_symmetry_points) returns for it, up to a
+  reciprocal lattice vector.  They can only be returned if the set of
+  bands contains all the states of each degenerate multiplet there.  A
   `Refusal` in its place is falsy and names what stopped the call.
 
 **Refusals**
 
-A refusal handed in as `realized` is returned unchanged.
+A refusal handed in as `realized` is returned as it is.
 
-- **`multiplet_split`**: the set of bands cuts a degenerate multiplet at `k`: label the
-  multiplets whole.
+- **`multiplet_split`**: the set of bands cuts a degenerate multiplet at `k`.
 
-- **`kpoint_not_tabulated`**: `k` is not a tabulated point in this cell, or not the tabulated member
-  of its star.
+- **`kpoint_not_tabulated`**: `k`, given by its coordinates, is no tabulated point in the model's
+  cell, or is a member of a tabulated point's star other than the one
+  tabulated.
 
-- **`out_of_plane`**: `k` has a component along a layer's vacuum, or names a tabulated
-  point out of the layer's plane.
+- **`states_not_at_k`**: the states handed in do not solve `H(k)`.
 
-- **`integer_multiplicity` / `multiplet_dimension`**: the characters fit no whole number of coreps, or coreps that do not fill
-  their multiplet: most often a multiplet grouped wrongly.
+- **`k_not_on_mesh`**: the mesh of the `WFArray` handed in does not hold `k`.
 
-- **`states_not_at_k` / `k_not_on_mesh`**: states handed in from another point, or a mesh that does not hold `k`.
+- **`out_of_plane`**: `k` has a nonzero component normal to the plane of a layer, or
+  names a tabulated point off that plane.
 
-- **`little_group_mismatch` / `tables_not_ready`**: the tables do not apply in this cell.
+- **`integer_multiplicity`**: a multiplicity is farther than `label_tol` from a nonnegative
+  integer.
+
+- **`multiplet_dimension`**: the dimensions of the little-group representations found in a
+  multiplet do not add up to its degeneracy.
+
+- **`little_group_mismatch`**: a unitary operation of the little group in the model's cell is not
+  among those the tables list at the point.
+
+- **`tables_not_ready`**: the model's cell cannot be transformed to the conventional cell of
+  the irreptables package.
 
 ### `hsp_table`
 
@@ -887,47 +936,51 @@ A refusal handed in as `realized` is returned unchanged.
 hsp_table(realized, *, states=None, bands=None, degeneracy_tol=None, label_tol=0.001)
 ```
 
-The coreps a set of bands carries at every high-symmetry point of the group: its symmetry data vector.
+The symmetry data vector of a set of bands, point by point.
+
+The points are the high-symmetry points the tables of the irreptables
+package list for the model's group, those off a layer's plane left out,
+as [`high_symmetry_points`](#high_symmetry_points) returns them.  At each point the
+little-group representations of the set of bands are identified as
+[`coreps_at`](#coreps_at) identifies them.  Their multiplicities at every point,
+taken together, are the symmetry data vector.
 
 **Parameters**
 
 - **`realized`** (`RealizedGroup`): What [`realized_group`](#realized_group) returned, `r`.
 
-- **`bands`** (`int or sequence of int`): The set of bands: `n` the lowest `n` bands, or the band indices.
-  Required.
+- **`states`** (`None, pythtb.TBModel or pythtb.WFArray, optional`): The states at the points.  Pass `None` or `r.model` to solve the
+  model there.  Pass a `WFArray` filled by `solve_model` to read
+  its states at the points its mesh holds.
 
-- **`states`** (`None or pythtb.WFArray, optional`): `None` (default) solves the model at the points, once; a solved
-  `WFArray` is read as it stands, and a point its mesh does not hold is
-  refused there.
+- **`bands`** (`int or sequence of int`): The set of bands.  Pass `n` for the lowest `n` bands, or the band
+  indices.  Required.
 
-- **`degeneracy_tol`** (`float, optional`): A number in the units of `H`: bands closer in energy than it are one
-  multiplet.  Left out, `1e-8` times `max|H|`, the largest entry of
-  `H(k)` once the mean on-site energy is subtracted.
+- **`degeneracy_tol`** (`float, optional`): The energy tolerance, in the units of `H`, within which bands are
+  one degenerate multiplet.  Left out, `1e-8` times `max|H|`, the
+  largest entry of `H(k)` once the mean on-site energy is subtracted.
 
-- **`label_tol`** (`float, default 1e-3`): How far a fitted multiplicity may sit from an integer at each point,
-  dimensionless.
+- **`label_tol`** (`float, default 1e-3`): The largest distance from an integer at which a multiplicity is
+  rounded to that integer.
 
 **Returns**
 
-- `HSPTable or Refusal`: `t.summary()` prints the coreps at each point.  `t.symmetry_data`
-  is the symmetry data vector, `t.multiplets` a row for each
-  degenerate multiplet at each point, with the coreps it carries;
-  `t.complete` says whether every point was measured, and
-  `t.refusals` holds each point that was not, with its own
-  `Refusal`; `t.note` says where the labels rest on a choice the
-  hoppings leave open.  Corep labels can only be returned at a point if
-  the set of bands contains all the states of each degenerate multiplet
-  there.  The table is what [`decompose`](#decompose),
-  [`symmetry_indicator`](#symmetry_indicator) and [`srsi_of_bands`](#srsi_of_bands)
-  take, `decompose(t)`, in the group it was read in, `t.group`.  A
-  `Refusal` in its place is falsy and names what stopped the call.
+- `HSPTable or Refusal`: The labels of each degenerate multiplet of the set of bands at every
+  point, and the symmetry data vector.  Little-group representations
+  can only be returned at a point if the set of bands contains all the
+  states of each degenerate multiplet there.  The table holds, in
+  `refusals`, the refusal [`coreps_at`](#coreps_at) returns at each point
+  where they are not returned, and is then not complete.  With a
+  `WFArray`, the table holds the refusal `k_not_on_mesh` at each
+  point its mesh does not hold.  A `Refusal` in place of the table is
+  falsy and names what stopped the call.
 
 **Refusals**
 
-A refusal handed in as `realized` is returned unchanged.  A point that refuses
-is collected in `refusals`.
+A refusal handed in as `realized` is returned as it is.
 
-- **`tables_not_ready`**: the group's tables cannot be read in this cell.
+- **`tables_not_ready`**: the model's cell cannot be transformed to the conventional cell of
+  the irreptables package.
 
 ### `format_coreps`
 
@@ -935,25 +988,26 @@ is collected in `refusals`.
 format_coreps(coreps)
 ```
 
-Corep multiplicities on one line: `{'-GM6': 2, '-GM7': 1}` as `2x-GM6 + -GM7`.
+Multiplicities of little-group representations, written on one line.
 
-Every multiplicity the package prints reads this way: the coreps of a set
-of bands at one point (`CorepsAt.coreps`) or of one multiplet
-(`Multiplet.label`), a symmetry data vector
-(`HSPTable.symmetry_data`), an elementary band representation's
-coreps ([`ebr_rows`](#ebr_rows)).  The coreps are written point by point,
-Γ first and the other points alphabetically, and at each point in
-ascending order of the irreps' numbers, `GM2` before `GM10`, so one
-set of multiplicities always prints one line.
+`{'-GM6': 2, '-GM7': 1}` is written `2x-GM6 + -GM7`.  The labels are
+ordered point by point, `GM` first and the other points alphabetically,
+and at each point by the numbers in the label, `GM2` before `GM10`.
+So one set of multiplicities is always written as the same line.
+`Multiplet.label` holds multiplicities written so, and the
+summaries of `CorepsAt`, `HSPTable` and of the records
+[`decompose`](#decompose), [`regular_completion`](#regular_completion) and
+[`symmetry_indicator`](#symmetry_indicator) return print them the same way.
 
 **Parameters**
 
-- **`coreps`** (`mapping`): `{corep: multiplicity}`, the multiplicities nonnegative integers.
+- **`coreps`** (`mapping`): `{label: multiplicity}`, the multiplicities positive integers, as
+  `CorepsAt.coreps` and `HSPTable.symmetry_data` hold them.
 
 **Returns**
 
 - `str`: The labels joined by `" + "`, each after its multiplicity and `x`
-  where that is above one.
+  where the multiplicity is above one.
 
 ### `multiplets`
 
@@ -961,30 +1015,34 @@ set of multiplicities always prints one line.
 multiplets(energies, degeneracy_tol=1e-08)
 ```
 
-Which bands of a spectrum are one degenerate level, at a stated energy tolerance.
+The degenerate multiplets of a spectrum, at an energy tolerance.
 
-The levels are the rows of every character table read at that k.  A spread
-inside the levels (`multiplet_spread`) far below the gap between them
-(`multiplet_separation`) says the tolerance was a safe choice.
+The bands are grouped from the lowest up.  A band joins a multiplet where
+it lies within `degeneracy_tol` of the multiplet's lowest band, so every
+two bands of a multiplet lie within `degeneracy_tol` of each other.
+[`characters`](#characters), [`coreps_at`](#coreps_at) and [`hsp_table`](#hsp_table) group the rows
+of their character tables the same way.  The grouping is the same at any
+tolerance at least the largest spread inside a multiplet,
+`multiplet_spread`, and below the smallest gap between multiplets,
+`multiplet_separation`.
 
 **Parameters**
 
-- **`energies`** (`array_like, shape (nstate,)`): Ascending energies, as `solve_ham` and `WFArray.energies` give them.
+- **`energies`** (`array_like, shape (nstate,)`): Energies in ascending order, as [`solve_at`](#solve_at), `solve_ham` and
+  `WFArray.energies` return them.
 
-- **`degeneracy_tol`** (`float, optional`): The energy, in the units of the spectrum, within which bands are one
-  level; every two bands of a level lie within it of each other.  Default
-  `1e-8`.
+- **`degeneracy_tol`** (`float, default DEGENERACY_TOL (1e-8)`): The energy tolerance, in the units of the spectrum.
 
 **Returns**
 
-- `tuple of tuple of int`: The bands of each level, lowest first.
+- `tuple of tuple of int`: The indices of the bands of each multiplet, the lowest first.
 
 ## Atomic limits
 
 - [`decompose`](#decompose) — The sums of elementary band representations that carry a symmetry data vector.
 - [`subtract`](#subtract) — The symmetry data vector of the bands in one set and not in another, `a - b`.
 - [`regular_completion`](#regular_completion) — The bands completing a band set to copies of the regular band representation.
-- [`ebr_rows`](#ebr_rows) — Each elementary band representation of the group as a symmetry data vector: the coreps it carries at the high-symmetry points.
+- [`ebr_rows`](#ebr_rows) — The symmetry data vector of each elementary band representation of the group.
 - [`in_plane_restriction`](#in_plane_restriction) — The little-group representations a model measures, and what the others repeat.
 
 ### `decompose`
@@ -1164,33 +1222,35 @@ A refusal handed in as `realized` is returned as it is.
 ebr_rows(group)
 ```
 
-Each elementary band representation of the group as a symmetry data vector: the coreps it carries at the high-symmetry points.
+The symmetry data vector of each elementary band representation of the group.
 
-The coreps are in the convention every returned label is, a lattice
-translation acting as `e^{-ik·t}`, where the Bilbao Crystallographic
-Server's tables have `e^{+ik·t}`: away from the time-reversal-invariant
-points a row can carry other labels than the server's page, `K3` for its
-`K2` in the row of `A1` at `1b` of space group 143, and the Wyckoff
-positions never move.
+A row holds the multiplicity of each little-group representation at
+every high-symmetry point of the group.  The labels are in the package's
+convention, a lattice translation `t` acting as `e^{-ik·t}`, where the
+tables of the Bilbao Crystallographic Server have `e^{+ik·t}`.  The
+label the server prints at `k` is the label returned here at `-k`: in
+the row of `A1` at `1b` of space group 143, `K3` stands where the
+server prints `K2`.  The Wyckoff positions are the server's.
 
 **Parameters**
 
-- **`group`** (`GroupData`): The group, `r.group`.
+- **`group`** (`GroupData`): The group.  Pass `r.group` of what [`realized_group`](#realized_group)
+  returns.
 
 **Returns**
 
-- `dict or Refusal`: `{(irrep, wyckoff): {corep: multiplicity}}`, the zeros dropped, in
-  the order the tables list the elementary band representations: each
-  key the site irrep it is induced from and its Wyckoff position,
-  `("-E1", "1a")`, so that `rows["-E1", "1a"]` is one row.  A
-  `Refusal` in its place is falsy and names what stopped the call.
+- `dict or Refusal`: `{(irrep, wyckoff): {label: multiplicity}}`, the zeros dropped, in
+  the order the tables list the elementary band representations.  A key
+  is the site irrep the row is induced from and its Wyckoff position,
+  so that `rows["-E1", "1a"]` is one row.  A `Refusal` in its place
+  is falsy.
 
 **Refusals**
 
 A refusal handed in as `group` is returned as it is.
 
-- **`ebr_tables` / `irrep_tables` / `ebr_convention`**: no elementary band representations of this group in the tables
-  installed, or none that can be read in this package's convention.
+- **`ebr_tables` / `irrep_tables` / `ebr_convention`**: the tables installed hold no elementary band representations of this
+  group that can be read in the package's convention.
 
 ### `in_plane_restriction`
 

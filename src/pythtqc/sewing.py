@@ -1,30 +1,42 @@
-r"""The coreps a band set carries at the high-symmetry points, read off its eigenvectors.
+r"""The little-group representations of a set of bands, read off its eigenvectors.
 
-At a k-point an operation ``g`` leaves invariant, the sewing matrix
-``B(g,k)_mn = <u_m(k)|U(g;k)|u_n(k)>`` is the matrix of ``g`` on the bands
-selected; its trace over a degenerate multiplet is that multiplet's
-character, and the characters name the corep.
+At a k-point that an operation ``g`` leaves invariant up to a reciprocal
+lattice vector, the sewing matrix ``B(g,k)_mn = <u_m(k)|U(g;k)|u_n(k)>`` is
+the matrix of ``g`` on the bands.  Here ``U(g;k)`` is the operator of ``g``
+on the model's states at ``k``.  For an operation combined with time
+reversal, the ket is complex conjugated before ``U(g;k)`` acts.  For a
+unitary operation, the trace of ``B`` over a degenerate multiplet is that
+multiplet's character.  The characters of the unitary operations of the
+little group identify the little-group representation the multiplet
+carries: a corep in a group with time reversal, an irrep in one without.
 
-* :func:`hsp_table`: the coreps of a set of bands at every high-symmetry point,
-  its symmetry data vector, which :func:`.ebr.decompose`,
-  :func:`.ebr.symmetry_indicator` and :func:`.srsi.srsi_of_bands` take;
-* :func:`coreps_at`: the coreps at one point, multiplet by multiplet;
+* :func:`hsp_table`: the little-group representations a set of bands carries
+  at every high-symmetry point, whose multiplicities form its symmetry data
+  vector; :func:`.ebr.decompose`, :func:`.ebr.symmetry_indicator` and
+  :func:`.srsi.srsi_of_bands` take the table it returns;
+* :func:`coreps_at`: the little-group representations at one point, multiplet
+  by multiplet;
 * :func:`characters`: the characters they are read from;
-* :func:`sewing_matrix`: one operation's sewing matrix;
-* :func:`solve_at`: one diagonalization at a k-point, to read several sets of
-  bands there; :func:`multiplets` groups its energies into degenerate levels,
-  and :func:`multiplet_separation` and :func:`multiplet_spread` say how well
-  they are resolved;
-* :func:`format_coreps`: corep multiplicities on one line, ``2x-GM6 + -GM7``;
-* :class:`Thresholds`: the zero thresholds at a point, one for numbers built
-  from ``H(k)`` and one, widening where multiplets crowd, for numbers read off
-  eigenvectors.
+* :func:`sewing_matrix`: the sewing matrix of one operation;
+* :func:`solve_at`: the energies and eigenvectors at one k-point, from one
+  diagonalization, to read several sets of bands there;
+* :func:`multiplets`: the degenerate multiplets of a spectrum, with
+  :func:`multiplet_separation`, the smallest gap between multiplets, and
+  :func:`multiplet_spread`, the largest spread inside one;
+* :func:`format_coreps`: the multiplicities of little-group representations
+  on one line, ``2x-GM6 + -GM7``;
+* :class:`Thresholds`: the two zero thresholds at a point, one fixed and one
+  for a number read off eigenvectors, which grows as the smallest gap
+  between distinct multiplets shrinks.
 
-Each call takes the eigenvectors as ``states=``, in pythtb's own forms:
-``None``, to solve the model at the point; a solved :class:`pythtb.WFArray`;
-or the ``(evals, evecs)`` pair of one diagonalization.  A k-point is given by
-its tabulated name, ``"GM"``, or by its reduced coordinates.  The little
-groups, the corep tables and the labels are ``irrep``'s.
+:func:`sewing_matrix`, :func:`characters`, :func:`coreps_at` and
+:func:`hsp_table` take the eigenvectors as ``states=``, in pythtb's own forms:
+``None``, to solve the model; a solved :class:`pythtb.WFArray`; or, at one
+point, the ``(evals, evecs)`` pair of one diagonalization.  A call at one
+k-point takes the point by its name in the tables of the irreptables
+package, ``"GM"``, or by its reduced coordinates.  The little groups, their
+character tables and the names of the little-group representations are
+those of the irreptables package.
 """
 
 from __future__ import annotations
@@ -55,34 +67,41 @@ __all__ = [
 ]
 
 # ==========================================================================
-# the two-tier threshold contract
+# the two zero thresholds at one k-point
 # ==========================================================================
 
 @dataclass(frozen=True)
 class Thresholds:
-    """The zero thresholds at one k-point: one for numbers built from ``H(k)`` alone, and one, widening where the multiplets crowd, for numbers read off eigenvectors.
+    """The two zero thresholds at one k-point.
 
-    ``summary()`` prints them.  A threshold grown large says nothing read off a
-    set of bands at that point is to be trusted.
+    The record :func:`two_tier_thresholds` returns.  A number is treated as
+    zero where its magnitude is at most a threshold.  One threshold, ``flat``,
+    is fixed and makes no allowance for the gap between multiplets.  The
+    other, ``effective``, is for a number read off eigenvectors, and grows as
+    the smallest gap between distinct multiplets shrinks.  Both are
+    dimensionless.  :func:`characters` compares the departure of each of its
+    sewing matrices from unitarity with both.  ``summary()`` prints both,
+    with the numbers they are computed from.
 
     Attributes
     ----------
     flat : float
-        The threshold for a number built from ``H(k)`` alone, a commutator or a
-        residual: :data:`FLAT_ZERO`.
+        The fixed threshold, with no allowance for the gap between multiplets.
     noise_floor : float
-        ``8 ε ‖H(k)‖₂ / Δ``, ``ε`` the machine precision and ``Δ`` the smallest
-        gap between distinct multiplets: how far a computed eigenvector can turn
-        among its near neighbours.
+        The first-order bound on the amplitude a computed eigenvector carries
+        on the states of other multiplets, ``8 ε |H(k)| / Δ``.  Here ``ε`` is
+        the machine precision, ``|H(k)|`` is ``norm`` and ``Δ`` is
+        ``separation``.  Infinite where ``Δ`` is zero, negative or infinite.
     effective : float
-        ``max(flat, noise_floor)``, the threshold for a number read off
-        eigenvectors.
+        The threshold for a number read off eigenvectors, the larger of
+        ``flat`` and ``noise_floor``.
     norm : float
-        ``‖H(k)‖₂``, the spectral norm.
+        The spectral norm of ``H(k)``, in the units of ``H``.
     separation : float
-        ``Δ``.
+        The smallest gap between distinct multiplets, in the units of ``H``.
     degeneracy_tol : float
-        The energy tolerance the multiplets were grouped at.
+        The energy tolerance the multiplets were grouped at, in the units of
+        ``H``.
     """
 
     flat: float
@@ -93,19 +112,22 @@ class Thresholds:
     degeneracy_tol: float
 
     def zero(self, value) -> bool:
-        """Is ``value`` zero under the **conditioned** (eigenvector) rule?"""
+        """Whether ``|value|`` is at most ``effective``.
+
+        ``effective`` is the threshold for a number read off eigenvectors.
+        """
         return bool(float(np.abs(value)) <= self.effective)
 
     def zero_flat(self, value) -> bool:
-        """Is ``value`` zero under the **flat** (operator) rule?"""
+        """Whether ``|value|`` is at most ``flat``, the fixed threshold."""
         return bool(float(np.abs(value)) <= self.flat)
 
     def disagree(self, value) -> bool:
-        """Do the two rules classify ``value`` differently?"""
+        """Whether ``zero`` and ``zero_flat`` classify ``value`` differently."""
         return self.zero(value) != self.zero_flat(value)
 
     def summary(self) -> str:
-        """The two thresholds, a line for each part, with the attribute that holds it."""
+        """The two thresholds and the numbers they come from, with their attributes."""
         if not np.isfinite(self.noise_floor):
             return (f"zero below {self.flat:.2g} for a number built from H(k) alone; no number "
                     "read off the eigenvectors here can be told from zero, no gap separating "
@@ -124,36 +146,44 @@ class Thresholds:
 
 def two_tier_thresholds(hamiltonian, separation, *, flat=FLAT_ZERO,
                         degeneracy_tol=DEGENERACY_TOL) -> Thresholds:
-    r"""The zero thresholds at one k-point, from ``H(k)`` and the smallest gap between distinct multiplets there.
+    r"""The two zero thresholds at a k-point, from ``H(k)`` and the smallest gap.
+
+    The noise floor is ``8 ε |H(k)| / Δ``, with ``ε`` the machine precision,
+    ``|H(k)|`` the spectral norm and ``Δ`` the smallest gap between distinct
+    multiplets.  The threshold for a number read off eigenvectors is the larger
+    of ``flat`` and the noise floor.
 
     Parameters
     ----------
     hamiltonian : ndarray or float
         ``H(k)``, or its spectral norm.
     separation : float
-        The smallest gap between distinct energy multiplets at this k, as
-        :func:`multiplet_separation` gives it.  Zero, negative or infinite, it
-        makes the noise floor infinite: no number read off eigenvectors is then
-        told from zero.
-    flat : float, optional
-        The threshold for numbers built from ``H(k)`` alone, in the units of
-        ``H``.  Default :data:`FLAT_ZERO`.
-    degeneracy_tol : float, optional
-        The energy tolerance, in the units of ``H``, the multiplets were grouped
-        at, recorded.  Default :data:`DEGENERACY_TOL`.
+        The smallest gap between distinct multiplets at this k, in the units
+        of ``H``, as :func:`multiplet_separation` returns it.
+    flat : float, default FLAT_ZERO (1e-14)
+        The fixed threshold, with no allowance for the gap between
+        multiplets, dimensionless.
+    degeneracy_tol : float, default DEGENERACY_TOL (1e-8)
+        The energy tolerance the multiplets were grouped at, in the units of
+        ``H``.
 
     Returns
     -------
     Thresholds
-        ``summary()`` prints them.
+        The two thresholds, with the numbers they are computed from.
+        ``degeneracy_tol`` is kept in the record and enters neither
+        threshold.  Where ``separation`` is zero, negative or infinite, the
+        noise floor is infinite, and no number read off eigenvectors is told
+        from zero.
 
     Examples
     --------
-    The thresholds at one k, from ``H(k)`` and the spectrum alone::
+    The thresholds at ``M`` of lin3g (:func:`..models.lin3g`), from ``H(k)``
+    and its spectrum alone:
 
-        H   = model.hamiltonian(k_pts=np.atleast_2d(k), flatten_spin_axis=True)[0]
-        thr = two_tier_thresholds(H, multiplet_separation(np.linalg.eigvalsh(H)))
-        # Thresholds(effective=8.3e-14, flat=1e-14, nf=8.3e-14, |H|=12.65, sep=0.2706)
+    >>> H = r.model.hamiltonian(k_pts=[[0.5, 0.5]], flatten_spin_axis=True)[0]  # doctest: +SKIP
+    >>> two_tier_thresholds(H, multiplet_separation(np.linalg.eigvalsh(H)))    # doctest: +SKIP
+    Thresholds(effective=8.3e-14, flat=1e-14, nf=8.3e-14, |H|=12.65, sep=0.2706)
     """
     H = np.asarray(hamiltonian)
     norm = float(H) if H.ndim == 0 else float(np.linalg.norm(H, 2))
@@ -166,24 +196,29 @@ def two_tier_thresholds(hamiltonian, separation, *, flat=FLAT_ZERO,
                       norm=norm, separation=sep, degeneracy_tol=float(degeneracy_tol))
 
 def disagreements(thresholds: Thresholds, readouts: Mapping[str, Any]) -> tuple:
-    """Every number the two zero thresholds at one k-point classify differently.
+    """The numbers that the two zero thresholds at one k-point classify differently.
 
-    Such a number is zero against the eigenvectors' threshold and not against
-    the flat one, and which is right depends on how well the multiplets there
-    are resolved: the list is the verdict.
+    Such a number is zero against ``effective``, the threshold for a number
+    read off eigenvectors, and not against ``flat``.  It lies within the noise
+    floor the smallest gap between multiplets sets, and cannot be told from
+    zero at the point.
 
     Parameters
     ----------
     thresholds : Thresholds
         The thresholds at the point.
     readouts : mapping
-        ``{name: value}``, numbers read off eigenvectors.
+        Numbers read off eigenvectors, ``{name: value}``.
 
     Returns
     -------
     tuple of dict
-        ``{"name", "value", "zero_conditioned", "zero_flat"}`` for each number
-        the two classify differently.
+        A mapping for each number the two classify differently, in the order
+        of ``readouts``, with four keys:
+        ``"name"``, the number's name in ``readouts``;
+        ``"value"``, its magnitude;
+        ``"zero_conditioned"``, whether it is zero against ``effective``;
+        ``"zero_flat"``, whether it is zero against ``flat``.
     """
     out = []
     for name, value in readouts.items():
@@ -195,16 +230,16 @@ def disagreements(thresholds: Thresholds, readouts: Mapping[str, Any]) -> tuple:
     return tuple(out)
 
 # ==========================================================================
-# the multiplet analysis — small functions over pythtb's energy arrays
+# the degenerate multiplets of a spectrum
 # ==========================================================================
 
 
 def _degeneracy(rep, degeneracy_tol) -> float:
-    """The energy within which bands are one multiplet: as passed, or ``1e-8·max|H|``.
+    """The energy tolerance within which bands are one degenerate multiplet.
 
-    Relative to the Hamiltonian's own magnitude where none is passed, so that the
-    model in other units groups the same bands; a Hamiltonian that vanishes is
-    read at ``1e-8``.
+    ``degeneracy_tol`` is the tolerance passed, in the units of ``H``, or
+    ``None``.  Returns it where it is given, and otherwise ``1e-8`` times
+    ``max|H|`` of ``rep``'s model, or ``1e-8`` where ``H`` vanishes.
     """
     if degeneracy_tol is not None:
         return float(degeneracy_tol)
@@ -212,18 +247,22 @@ def _degeneracy(rep, degeneracy_tol) -> float:
     return DEGENERACY_TOL * scale if scale > 0.0 else DEGENERACY_TOL
 
 def _resolved(energies, degeneracy_tol):
-    """Energies at the resolution the multiplets were grouped at: each rounded to the nearest multiple of ``degeneracy_tol``."""
+    """Energies at the resolution the multiplets were grouped at.
+
+    Each of ``energies`` is rounded to the nearest multiple of
+    ``degeneracy_tol``, and returned as it is where that is zero.
+    """
     tol = float(degeneracy_tol)
     e = np.asarray(energies, dtype=float)
     return (np.round(e / tol) * tol if tol > 0.0 else e) + 0.0
 
 def _clusters(values, degeneracy_tol):
-    """Group a sorted 1-D array into clusters of width at most ``degeneracy_tol``.
+    """The clusters of a sorted spectrum, each at most ``degeneracy_tol`` wide.
 
-    Membership is tested against each cluster's **first** element, never its
-    running last, so a cluster can never chain its way past ``degeneracy_tol`` —
-    the grouping is then a genuine statement that every member of a multiplet
-    lies within ``degeneracy_tol`` of every other.
+    ``values`` are energies in ascending order.  A value joins a cluster where
+    it lies within ``degeneracy_tol`` of the cluster's first value, so every
+    two values of a cluster lie within ``degeneracy_tol`` of each other.
+    Returns the indices of each cluster, the lowest first.
     """
     out = [[0]]
     for i in range(1, len(values)):
@@ -236,33 +275,36 @@ def _clusters(values, degeneracy_tol):
 def _ascending(energies):
     w = np.asarray(energies, dtype=float).reshape(-1)
     if w.size == 0:
-        raise ValueError("grouping multiplets needs a non-empty spectrum")
+        raise ValueError("energies= is empty. Pass at least one energy.")
     if np.any(np.diff(w) < 0.0):
-        raise ValueError("energies must be in ascending order (pythtb's solve_ham "
-                         "and WFArray.energies already are); sort them, and sort the "
-                         "eigenvectors with them, before grouping multiplets")
+        raise ValueError("the energies are not in ascending order. Sort them in ascending "
+                         "order, and any eigenvectors with them.")
     return w
 
 def multiplets(energies, degeneracy_tol=DEGENERACY_TOL) -> tuple:
-    """Which bands of a spectrum are one degenerate level, at a stated energy tolerance.
+    """The degenerate multiplets of a spectrum, at an energy tolerance.
 
-    The levels are the rows of every character table read at that k.  A spread
-    inside the levels (:func:`multiplet_spread`) far below the gap between them
-    (:func:`multiplet_separation`) says the tolerance was a safe choice.
+    The bands are grouped from the lowest up.  A band joins a multiplet where
+    it lies within ``degeneracy_tol`` of the multiplet's lowest band, so every
+    two bands of a multiplet lie within ``degeneracy_tol`` of each other.
+    :func:`characters`, :func:`coreps_at` and :func:`hsp_table` group the rows
+    of their character tables the same way.  The grouping is the same at any
+    tolerance at least the largest spread inside a multiplet,
+    :func:`multiplet_spread`, and below the smallest gap between multiplets,
+    :func:`multiplet_separation`.
 
     Parameters
     ----------
     energies : array_like, shape (nstate,)
-        Ascending energies, as ``solve_ham`` and ``WFArray.energies`` give them.
-    degeneracy_tol : float, optional
-        The energy, in the units of the spectrum, within which bands are one
-        level; every two bands of a level lie within it of each other.  Default
-        ``1e-8``.
+        Energies in ascending order, as :func:`solve_at`, ``solve_ham`` and
+        ``WFArray.energies`` return them.
+    degeneracy_tol : float, default DEGENERACY_TOL (1e-8)
+        The energy tolerance, in the units of the spectrum.
 
     Returns
     -------
     tuple of tuple of int
-        The bands of each level, lowest first.
+        The indices of the bands of each multiplet, the lowest first.
 
     Raises
     ------
@@ -272,24 +314,33 @@ def multiplets(energies, degeneracy_tol=DEGENERACY_TOL) -> tuple:
     return _clusters(_ascending(energies), float(degeneracy_tol))
 
 def multiplet_separation(energies, degeneracy_tol=DEGENERACY_TOL) -> float:
-    """The smallest energy gap between distinct degenerate levels at one k.
+    """The smallest energy gap between distinct multiplets of a spectrum.
 
-    The gap sets how sharply anything read off the eigenvectors there is known:
-    it is the ``Δ`` of :class:`Thresholds`.
+    The multiplets are those :func:`multiplets` returns.  The gap between two
+    consecutive multiplets is the lowest energy of the upper one less the
+    highest energy of the lower one.  The smallest gap enters the noise floor
+    of :func:`two_tier_thresholds`, below which a number read off the
+    eigenvectors is treated as zero.
 
     Parameters
     ----------
     energies : array_like, shape (nstate,)
-        Ascending energies, as ``solve_ham`` and ``WFArray.energies`` give them.
-    degeneracy_tol : float, optional
-        The energy within which bands are one level, as in :func:`multiplets`.
-        Default ``1e-8``.
+        Energies in ascending order, as :func:`solve_at`, ``solve_ham`` and
+        ``WFArray.energies`` return them.
+    degeneracy_tol : float, default DEGENERACY_TOL (1e-8)
+        The energy tolerance the multiplets are grouped at, in the units of
+        the spectrum, as in :func:`multiplets`.
 
     Returns
     -------
     float
-        The smallest gap between consecutive levels, in the units of the
-        spectrum; ``inf`` where the spectrum is one level.
+        The smallest gap between consecutive multiplets, in the units of the
+        spectrum.  ``inf`` where the spectrum is one multiplet.
+
+    Raises
+    ------
+    ValueError
+        An empty spectrum, or one not in ascending order.
     """
     w = _ascending(energies)
     mult = _clusters(w, float(degeneracy_tol))
@@ -298,24 +349,31 @@ def multiplet_separation(energies, degeneracy_tol=DEGENERACY_TOL) -> float:
     return float(min(w[c[0]] - w[p[-1]] for p, c in zip(mult[:-1], mult[1:])))
 
 def multiplet_spread(energies, degeneracy_tol=DEGENERACY_TOL) -> float:
-    """The largest energy spread inside any one degenerate level.
+    """The largest energy spread inside any one multiplet of a spectrum.
 
-    A grouping is safe where this is far below :func:`multiplet_separation`:
-    the bands called degenerate lie much closer to each other than to anything
-    else.
+    The multiplets are those :func:`multiplets` returns, and the spread of a
+    multiplet is its highest energy less its lowest.  The grouping is the same
+    at any tolerance at least this spread and below
+    :func:`multiplet_separation`.
 
     Parameters
     ----------
     energies : array_like, shape (nstate,)
-        Ascending energies, as ``solve_ham`` and ``WFArray.energies`` give them.
-    degeneracy_tol : float, optional
-        The energy within which bands are one level, as in :func:`multiplets`.
-        Default ``1e-8``.
+        Energies in ascending order, as :func:`solve_at`, ``solve_ham`` and
+        ``WFArray.energies`` return them.
+    degeneracy_tol : float, default DEGENERACY_TOL (1e-8)
+        The energy tolerance the multiplets are grouped at, in the units of
+        the spectrum, as in :func:`multiplets`.
 
     Returns
     -------
     float
-        The largest spread inside a level, in the units of the spectrum.
+        The largest spread inside a multiplet, in the units of the spectrum.
+
+    Raises
+    ------
+    ValueError
+        An empty spectrum, or one not in ascending order.
     """
     w = _ascending(energies)
     return float(max(w[c[-1]] - w[c[0]] for c in _clusters(w, float(degeneracy_tol))))
@@ -325,12 +383,11 @@ def multiplet_spread(energies, degeneracy_tol=DEGENERACY_TOL) -> float:
 # ==========================================================================
 
 def solve_at(model, k, *, params=None):
-    r"""The energies and eigenvectors at one k, from one diagonalization.
+    r"""The energies and eigenvectors at one k-point, from one diagonalization.
 
-    Hand the pair to :func:`sewing_matrix`, :func:`characters` or
-    :func:`coreps_at` as ``states=`` to read several sets of bands at that
-    k off the same states.  A second diagonalization chooses another basis
-    inside each degenerate level, and a character read across the two is wrong.
+    The pair is handed to :func:`sewing_matrix`, :func:`characters` or
+    :func:`coreps_at` as ``states=``, to read several sets of bands at that
+    k-point off the same states.
 
     Parameters
     ----------
@@ -339,16 +396,17 @@ def solve_at(model, k, *, params=None):
     k : array_like, shape (dim_k,)
         One k-point, in reduced coordinates.
     params : dict, optional
-        The scalar value of each parameter of the model, keyed by name:
-        ``{"lam": 0.3}``.
+        The value of each parameter of the model, keyed by the parameter's
+        name, ``{"lam": 0.3}``.  Pass it for a model whose terms depend on
+        parameters.
 
     Returns
     -------
     (ndarray, ndarray)
-        ``(evals, evecs)``: the energies, ascending, and the eigenvectors as
-        rows, as ``model.solve_ham`` returns them with ``return_eigvecs=True``
-        and ``flatten_spin_axis=True``, for the model with its parameters
-        evaluated at ``params``.
+        ``(evals, evecs)``: the energies in ascending order, and the
+        eigenvectors as rows.  They are what ``model.solve_ham`` returns with
+        ``return_eigvecs=True`` and ``flatten_spin_axis=True``, for the model
+        with its parameters set to ``params``.
 
     Raises
     ------
@@ -360,56 +418,64 @@ def solve_at(model, k, *, params=None):
     return _bloch.solve(model, np.atleast_2d(np.asarray(k, dtype=float).reshape(-1)))
 
 def _as_columns(states) -> np.ndarray:
-    """A fiber of eigenvector **rows** -> the matrix whose **columns** they are.
+    """The eigenvectors at one k-point as the columns of a matrix ``V``.
 
-    Accepts pythtb's two fiber layouts — ``(nband, norb*nspin)`` (``solve_ham``
-    with ``flatten_spin_axis=True``, or ``WFArray.states(flatten_spin_axis=True)``)
-    and ``(nband, norb, nspin)`` (:attr:`pythtb.WFArray.wfs`) — and returns
-    ``V`` with ``H V = V diag(w)``, which is what a sewing sandwich wants.
+    ``states`` holds the eigenvectors as rows, in either of pythtb's shapes:
+    ``(nband, norb*nspin)``, as ``solve_ham`` returns them with
+    ``flatten_spin_axis=True``, or ``(nband, norb, nspin)``, as
+    :attr:`pythtb.WFArray.wfs` holds them.  Returns ``V``, with
+    ``H V = V diag(w)`` for eigenvectors of ``H``.  Raises ``ValueError`` for
+    any other shape.
     """
     arr = np.asarray(states)
     if arr.ndim == 3:
         arr = arr.reshape(arr.shape[0], -1)
     if arr.ndim != 2:
         raise ValueError(
-            f"eigenvector fibers are (nband, norb[, nspin]) arrays of rows; got shape "
-            f"{np.asarray(states).shape}")
+            f"states= holds eigenvectors of shape {np.asarray(states).shape}. Pass them "
+            f"as rows, of shape (n, norb*nspin) or (n, norb, nspin).")
     return np.ascontiguousarray(arr.T)
 
 def _flat_k_points(wf) -> np.ndarray:
-    """A ``WFArray``'s mesh k-points, flattened in the order its fibers are stored."""
+    """The k-points of the mesh of the ``WFArray`` ``wf``, a row each.
+
+    The rows stand in the order the mesh's states are stored.  Raises
+    ``ValueError`` where the mesh has parameter axes.
+    """
     mesh = wf.mesh
     if mesh.dim_lambda:
         raise ValueError(
-            "sewing_matrix consumes a pure-k WFArray; this one carries lambda axes "
-            f"({mesh.dim_lambda}), whose fibers are not indexed by k alone")
+            "states= is a WFArray whose mesh has parameter axes, dim_lambda = "
+            f"{mesh.dim_lambda}. Pass a WFArray on a mesh of k-points alone.")
     return np.asarray(wf.k_points, dtype=float).reshape(-1, int(wf.dim_k))
 
 def _wfarray_fiber(wf, k, *, mesh_tol=MESH_TOL):
-    """``(energies_or_None, V)`` at ``k`` from a solved ``WFArray``, or a Refusal.
+    """The energies and eigenvectors at ``k`` that a solved ``WFArray`` holds.
 
-    Never re-solves: a ``k`` the mesh does not carry is a refusal
-    (``gate="k_not_on_mesh"``) with the distance to the nearest mesh point,
-    because silently diagonalizing somewhere else is exactly the second
-    diagonalization the one-solve discipline exists to prevent.
+    ``wf`` is the ``WFArray`` and ``k`` the point, in reduced coordinates.
+    The point of the mesh nearest ``k`` is read where each of its coordinates
+    lies within ``mesh_tol`` of ``k``'s.  Returns ``(w, V)``: ``w`` the
+    energies there, or ``None`` where ``wf`` holds states without energies,
+    and ``V`` the eigenvectors as columns (:func:`_as_columns`).  Returns the
+    refusal ``k_not_on_mesh`` where no point of the mesh is that close.  The
+    model is never solved.  Raises ``ValueError`` where the mesh and ``k``
+    have different numbers of coordinates.
     """
     k = np.asarray(k, dtype=float).reshape(-1)
     pts = _flat_k_points(wf)
     if pts.shape[1] != k.size:
-        raise ValueError(f"the WFArray's mesh is {pts.shape[1]}-dimensional in k but the "
-                         f"requested point has {k.size} components")
+        raise ValueError(f"states= is a WFArray whose mesh is {pts.shape[1]}-dimensional "
+                         f"in k, and the point asked has {k.size} coordinates.")
     dist = np.abs(pts - k).max(axis=1)
     j = int(np.argmin(dist))
     if float(dist[j]) > float(mesh_tol):
         return Refusal(
             "k_not_on_mesh",
-            f"the WFArray's mesh does not carry k = {np.round(k, 8).tolist()}; the nearest "
-            f"of its {pts.shape[0]} points is {np.round(pts[j], 8).tolist()} at distance "
-            f"{float(dist[j]):.3g}. Sewing there would need a second diagonalization at a "
-            f"different point, which would corrupt the character: either build the mesh so "
-            f"it contains this k "
-            f"(groups.k_grid reports which high-symmetry points a mesh hits) or hand in the "
-            f"model and let this call solve at k itself.",
+            f"the mesh of the WFArray does not hold k = {np.round(k, 8).tolist()}; the "
+            f"nearest of its {pts.shape[0]} points is {np.round(pts[j], 8).tolist()}, at "
+            f"distance {float(dist[j]):.3g}. Build a mesh that holds this point (k_grid "
+            f"says which high-symmetry points a mesh holds), or leave states= out to solve "
+            f"the model there.",
             value=float(dist[j]), threshold=float(mesh_tol),
             context={"k": k, "nearest": pts[j], "npoints": int(pts.shape[0])})
     idx = np.unravel_index(j, tuple(wf.shape_mesh))
@@ -417,17 +483,22 @@ def _wfarray_fiber(wf, k, *, mesh_tol=MESH_TOL):
     try:
         w = np.asarray(wf.energies, dtype=float)[idx].reshape(-1)
     except ValueError:
-        w = None                      # a sector WFArray carries states, not energies
+        w = None  # a WFArray not filled by solve_model holds no energies
     return w, V
 
 def _resolve_states(source, rep, k, *, mesh_tol=MESH_TOL, bloch=None):
-    """The **single** eigenvector source at ``k`` -> ``(energies_or_None, V)``.
+    """The energies and eigenvectors at ``k``, from a call's ``states=``.
 
-    ``source`` is a solved :class:`pythtb.WFArray`, the ``(evals, evecs)`` pair
-    :meth:`pythtb.TBModel.solve_ham` returns, a bare fiber of eigenvector rows,
-    or ``None``/``rep._model`` (solve here, storing nothing).  There is exactly
-    one slot, which is what makes a second diagonalization unreachable by
-    accident.  ``bloch`` is as in :func:`_hamiltonian_at`.
+    ``source`` is what the call was handed: ``None`` or ``rep``'s model, to
+    solve the model at ``k``; a solved :class:`pythtb.WFArray`; the
+    ``(evals, evecs)`` pair :meth:`pythtb.TBModel.solve_ham` returns; or
+    eigenvector rows alone.  ``rep`` is the representation, ``k`` the point in
+    reduced coordinates, ``mesh_tol`` as in :func:`_wfarray_fiber`, and
+    ``bloch`` as in :func:`_hamiltonian_at`.  Returns ``(w, V)``: ``w`` the
+    energies, or ``None`` for states without them, and ``V`` the eigenvectors
+    as columns; or the refusal :func:`_wfarray_fiber` returns.  Raises
+    ``ValueError`` for a ``WFArray`` solved on another model, or for a model
+    other than ``rep``'s.
     """
     k = np.asarray(k, dtype=float).reshape(-1)
 
@@ -439,9 +510,8 @@ def _resolve_states(source, rep, k, *, mesh_tol=MESH_TOL, bloch=None):
         model = getattr(source, "_model", None)
         if model is not None and model is not rep._model:
             raise ValueError(
-                "the WFArray was solved on a different TBModel than r.model: the "
-                "representation's covariance was measured on r.model and its matrices "
-                "mean nothing on another one")
+                "states= is a WFArray of a model other than r.model. Pass a WFArray of "
+                "r.model, the model realized_group measured, or leave states= out.")
         return _wfarray_fiber(source, k, mesh_tol=mesh_tol)
 
     if isinstance(source, (tuple, list)) and len(source) == 2:
@@ -450,25 +520,28 @@ def _resolve_states(source, rep, k, *, mesh_tol=MESH_TOL, bloch=None):
 
     if hasattr(source, "solve_ham"):
         raise ValueError(
-            "the states source must be r.model (or None, meaning it): the "
-            "representation's covariance was measured on r.model and on nothing else")
+            "states= is a model other than r.model. Pass r.model, the model "
+            "realized_group measured, or leave states= out.")
 
     return None, _as_columns(source)
 
 def _hamiltonian_at(rep, k, bloch=None) -> np.ndarray:
-    """``H(k)`` from ``rep._model``, Hermitized — recomputed on demand, never stored.
+    """``H(k)`` of ``rep``'s model, made exactly Hermitian.
 
-    ``bloch``, where it is given, is the model's Bloch sum, as
-    :func:`.._bloch.evaluator` returns it.
+    ``k`` is the point, in reduced coordinates.  ``bloch``, where it is given,
+    is the model's Bloch sum, as :func:`.._bloch.evaluator` returns it.
+    Returns ``(H + H†) / 2``.
     """
     k = np.asarray(k, dtype=float).reshape(-1)
     H = np.asarray(_bloch.hamiltonian(rep._model, np.atleast_2d(k), bloch))[0]
     return 0.5 * (H + H.conj().T)
 
 def _measured_sum(rep, bloch=None):
-    """The Bloch sum of ``rep._model``, checked against ``rep``.
+    """The Bloch sum of ``rep``'s model, checked against ``rep``.
 
     A ``bloch`` handed in has been checked already, and is returned as it is.
+    Otherwise the sum is built, and ``ValueError`` is raised where the model
+    has been edited since it was measured.
     """
     if bloch is None:
         bloch = _bloch.evaluator(rep._model)
@@ -476,34 +549,39 @@ def _measured_sum(rep, bloch=None):
     return bloch
 
 def _states_at_k(H, w, V):
-    """``max |H V - V diag(w)|`` — the measured "these states are at this k" number."""
+    """How far states are from solving ``H``, ``max |H V - V diag(w)|``.
+
+    ``H`` is ``H(k)``, ``V`` the states as columns and ``w`` their energies.
+    """
     return float(np.abs(H @ V - V * np.asarray(w, dtype=float)[None, :]).max())
 
 def _foreign_states(H, k, residual, scale):
-    """The ``states_not_at_k`` refusal, or ``None`` when the residual closes.
+    """The refusal ``states_not_at_k``, or ``None`` where states solve ``H``.
 
-    The residual is held to ``1e-8`` of ``scale``, the model's ``max|H|``, so that
-    the model in other units is held to the same gate, at a point where ``H(k)``
-    vanishes as anywhere; a Hamiltonian that vanishes is held to ``1e-8``.
+    ``residual`` is :func:`_states_at_k` at the point ``k``, and ``scale`` the
+    model's ``max|H|``.  The states solve ``H(k)`` where the residual is at
+    most ``1e-8`` times ``scale``, or ``1e-8`` where ``scale`` is zero.  ``H``
+    is not read.
     """
     gate = STATES_AT_K_GATE * (float(scale) if scale > 0.0 else 1.0)
     if residual <= gate:
         return None
     return Refusal(
         "states_not_at_k",
-        f"the supplied (evals, evecs) do not diagonalize H(k) at "
+        f"the states passed do not solve H(k) at "
         f"k = {np.round(np.asarray(k, float).reshape(-1), 8).tolist()}: "
-        f"max |H V - V diag(w)| = {residual:.3g}. Sewing sandwiches bras and kets from one "
-        f"diagonalization at one k; states from a second solve, at the image point or "
-        f"anywhere else, produce a matrix that is still unitary and whose trace is "
-        f"silently wrong.",
+        f"max |H V - V diag(w)| = {residual:.3g}, with V the states and w their energies. "
+        f"Pass the states of one diagonalization at this k, as solve_at returns them, or "
+        f"leave states= out to solve the model there.",
         value=float(residual), threshold=float(gate), context={"k": np.asarray(k, float)})
 
 def _rep_of(call, realized, example):
-    """The representation of what :func:`..groups.realized_group` returned, or a refusal handed in as it is.
+    """The representation of what :func:`..groups.realized_group` returned.
 
-    ``TypeError`` for anything else, saying what to pass: ``example`` is the
-    call written with ``r``.
+    ``realized`` is what the public call ``call`` was handed.  Returns
+    ``realized.rep``, or ``realized`` itself where it is a refusal.  Raises
+    ``TypeError`` for anything else, its message opening with ``call`` and
+    showing ``example``, the call written with ``r``.
     """
     from ._realized import RealizedGroup
     from .symmetry import SpaceGroupRep
@@ -513,19 +591,21 @@ def _rep_of(call, realized, example):
     if isinstance(realized, RealizedGroup):
         return realized.rep
     if isinstance(realized, SpaceGroupRep):
-        raise TypeError(f"{call}(): pass what realized_group returns, as in {example}, "
-                        "not r.rep")
-    raise TypeError(f"{call}(): pass what realized_group returns, as in {example}; got a "
-                    f"{type(realized).__name__}")
+        raise TypeError(f"{call}(): the first argument is a SpaceGroupRep, such as r.rep. "
+                        f"Pass what realized_group returns, as in {example}.")
+    raise TypeError(f"{call}(): the first argument is of type {type(realized).__name__}. "
+                    f"Pass what realized_group returns, as in {example}.")
 
 
 def _band_block(nstate, bands, call=None):
-    """The sorted band indices a band count or a band sequence names.
+    """The indices of a set of bands, ascending.
 
-    An integer ``n`` means the lowest ``n`` bands; a sequence means exactly
-    those band indices.  ``None`` means every band of the fiber.  ``call``,
-    where it is given, names the public call in the ``ValueError`` an empty
-    sequence raises.
+    ``nstate`` is the number of states.  ``bands`` is an integer ``n``, for
+    the lowest ``n`` bands; a sequence of band indices; or ``None``, for every
+    state.  Raises ``ValueError`` for a count outside ``1..nstate``, a band
+    named twice, or a band outside the states.  ``call``, where it is given,
+    names the public call in the ``ValueError`` an empty sequence raises;
+    without it an empty sequence returns ``()``.
     """
     nstate = int(nstate)
     if bands is None:
@@ -533,17 +613,18 @@ def _band_block(nstate, bands, call=None):
     if np.isscalar(bands):
         n = int(bands)
         if not 0 < n <= nstate:
-            raise ValueError(f"the band count {n} is outside 1..{nstate}")
+            raise ValueError(f"bands={n} is not a count from 1 to {nstate}, the number of "
+                             "states. Pass a count in that range, or the band indices.")
         return tuple(range(n))
     idx = [int(b) for b in bands]
     if not idx and call is not None:
-        raise ValueError(f"{call}(): bands= names no band; pass the number of bands, "
+        raise ValueError(f"{call}(): bands= is empty. Pass the number of bands, "
                          "bands=2, or their indices, bands=[0, 1].")
     if len(set(idx)) != len(idx):
-        raise ValueError(f"the bands {idx} name a band more than once")
+        raise ValueError(f"bands={idx} names a band more than once. Pass each index once.")
     if idx and not (0 <= min(idx) and max(idx) < nstate):
-        raise ValueError(f"the bands {idx} are not all among the {nstate} bands "
-                         f"0..{nstate - 1}")
+        raise ValueError(f"bands={idx} holds an index outside 0 to {nstate - 1}, the "
+                         f"{nstate} states. Pass indices in that range.")
     return tuple(sorted(idx))
 
 # ==========================================================================
@@ -555,12 +636,14 @@ def _band_block(nstate, bands, call=None):
 _KTOL = _tables._corep_table.__kwdefaults__["ktol"]
 
 def _in_plane(group, k, call):
-    """``k`` as ``dim_k`` reduced coordinates, or the refusal ``out_of_plane``.
+    """The point ``k`` in reduced coordinates of the periodic directions.
 
-    Three coordinates of a layer's three-dimensional cell are read in its
-    plane, as :func:`.._tables.little_group` reads them, and a point with a
-    component out of the plane returns its refusal ``out_of_plane``.  Any
-    other ``k`` is returned as a flat array.
+    ``group`` is the group and ``k`` the point's coordinates.  Three
+    coordinates of a layer's three-dimensional cell are read in its plane,
+    as :func:`.._tables._little_group` reads them.  ``call``, the public
+    call's name, is handed to :func:`.._tables._little_group`.  The refusal
+    it returns, ``out_of_plane`` for a point off the plane, is returned as it
+    is.  Any other ``k`` is returned as a flat array.
     """
     k = np.asarray(k, dtype=float).reshape(-1)
     if k.size == 3 and int(group._dim_k) != 3:
@@ -571,13 +654,16 @@ def _in_plane(group, k, call):
     return k
 
 def _point_of(call, group, k):
-    """The coordinates a call on bands reads ``k`` at, or the refusal it returns there.
+    """The coordinates a call on bands reads ``k`` at, or its refusal there.
 
-    ``k`` is a tabulated name or coordinates.  A name is read as the
-    coordinates :func:`.._tables.high_symmetry_points` gives it
-    (:func:`.._tables._resolve_kpoint`, which raises ``ValueError``, starting
-    with ``call``, on a name the group does not tabulate); coordinates of a
+    ``call`` is the public call's name, ``group`` the group, and ``k`` a
+    tabulated name or coordinates.  A name is read as the coordinates
+    :func:`.._tables.high_symmetry_points` gives it
+    (:func:`.._tables._resolve_kpoint`, which raises ``ValueError``, opening
+    with ``call``, on a name the group does not tabulate).  Coordinates of a
     layer's three-dimensional cell are read in its plane (:func:`_in_plane`).
+    A refusal of :func:`.._tables._resolve_kpoint` or of :func:`_in_plane` is
+    returned as it is.
     """
     k = _tables._resolve_kpoint(call, group, k)
     if isinstance(k, Refusal):
@@ -585,13 +671,16 @@ def _point_of(call, group, k):
     return _in_plane(group, k, call)
 
 def _tabulated_name(group, k):
-    """The tables' name of the point ``k``, ``dim_k`` reduced coordinates, or ``None`` where it is none of their points.
+    """The name of the point ``k`` in the tables, or ``None``.
 
-    Matched as the identification of coreps matches a point
-    (:func:`.._tables._resolve_kpname`): the first tabulated point it differs
-    from by a reciprocal lattice vector of the cell as written, each
-    coordinate to within :data:`_KTOL`.  ``None`` also where the group's tables
-    cannot be read in this cell.
+    ``group`` is the group, and ``k`` holds ``dim_k`` reduced coordinates.
+    The point is matched as the identification of the little-group
+    representations matches it (:func:`.._tables._resolve_kpname`): the
+    first tabulated point it differs from by a reciprocal lattice vector of
+    the cell as written, each coordinate within :data:`_KTOL`.  Returns
+    ``None`` where it is none of the tabulated points, for a lattice
+    supergroup, and where the model's cell cannot be transformed to the
+    conventional cell of the irreptables package.
     """
     if _spacegroup._lattice_not_descended(group) is not None or not group._tables_ready:
         return None
@@ -602,11 +691,22 @@ def _tabulated_name(group, k):
     return None
 
 def _kpoint_text(kpoint, k) -> str:
-    """A k-point as the summaries print it: ``GM (0, 0)``, or ``k = (0.1, 0.5)`` where it has no name."""
+    """A k-point as the summaries print it, ``GM (0, 0)``.
+
+    ``kpoint`` is the point's name in the tables, or ``None``, and ``k`` its
+    reduced coordinates.  A point without a name, ``k = (0.1, 0.5)``, is
+    printed ``k = (1/10, 1/2)``.
+    """
     return f"{kpoint} {_k_text(k)}" if kpoint else f"k = {_k_text(k)}"
 
 def _seitz_of(group, ind) -> str:
-    """One operation's Seitz symbol, ``{4+_001|0,0,0}``, or ``""`` where the group has no conventional setting to write it in."""
+    """The Seitz symbol of one operation, ``{4+_001|0,0,0}``, or ``""``.
+
+    ``group`` is the group and ``ind`` the operation's index in it.  Returns
+    ``""`` where ``ind`` is not an operation of the group, for a lattice
+    supergroup, and where the model's cell cannot be transformed to the
+    conventional cell of the irreptables package.
+    """
     rows = _operation_rows(group, (int(ind),))
     if isinstance(rows, Refusal) or int(ind) not in rows:
         return ""
@@ -618,22 +718,27 @@ def _seitz_of(group, ind) -> str:
 
 @dataclass(frozen=True)
 class SewingMatrixNumerical:
-    """How closely a sewing matrix is measured: what :attr:`SewingMatrix.numerical` holds.
+    """How far a sewing matrix's inputs are from exact.
 
-    ``summary()`` prints it.
+    Held in :attr:`SewingMatrix.numerical`.  ``summary()`` prints the numbers
+    measured, together on one line.
 
     Attributes
     ----------
     unitarity : float
-        ``max |B†B − 1|``: zero where the set of bands is closed under the
-        operation.
+        The largest entry of ``|B†B − 1|``, with ``B`` the sewing matrix.  It
+        is zero where the set of bands is closed under the operation.
     commutator : float
-        ``max |U H(k) − H(k) U|``, ``U`` the operator on the model's states:
-        zero where ``U`` is a symmetry of ``H(k)``.
+        The largest entry of ``|U H(k) − H(k) U|``, in the units of ``H``,
+        with ``U`` the operator of the operation on the model's states at
+        ``k``.  For an operation combined with time reversal it is the
+        largest entry of ``|U H(k)* − H(k) U|``.  It is zero where ``U`` is a
+        symmetry of ``H(k)``.
     residual : float
-        ``max |H(k) V − V diag(w)|``, how far the states are from eigenstates
-        at ``k``.  ``nan`` where they came without energies, and then neither
-        this nor whether the bands close their multiplets was measured.
+        If not ``nan``, the largest entry of ``|H(k) V − V diag(w)|``, in the
+        units of ``H``, with ``V`` the states as columns and ``w`` their
+        energies: how far the states are from eigenstates at ``k``.  ``nan``
+        where the states came without energies.
     """
 
     unitarity: float
@@ -641,7 +746,7 @@ class SewingMatrixNumerical:
     residual: float = float("nan")
 
     def summary(self) -> str:
-        """The three numbers, on one line, with the attributes that hold them."""
+        """The numbers measured, on one line, with the attributes that hold them."""
         measured = [f"unitary to {self.unitarity:.2g}"]
         held = [".unitarity"]
         if np.isfinite(self.commutator):
@@ -659,38 +764,47 @@ class SewingMatrixNumerical:
 
 @dataclass(frozen=True)
 class SewingMatrix:
-    """The matrix of one operation on a set of bands, at a k-point the operation leaves invariant: ``B(g,k) = V† U(g;k) V``.
+    """The sewing matrix of one operation on a set of bands at one k-point.
 
-    Its trace over a degenerate multiplet is that multiplet's character.  The
-    set of bands holds whole degenerate multiplets, so that ``B`` is the
-    operation's own and not the basis the diagonalization chose.
-    ``summary()`` prints it.
+    The record :func:`sewing_matrix` returns.  ``summary()`` prints the
+    operation, the bands, the k-point, the reciprocal lattice vector ``G`` and
+    the eigenvalues.  The matrix is ``B(g,k) = V† U(g;k) V``, with ``V`` the
+    states of the bands as columns and ``U(g;k)`` the operator of the
+    operation ``g`` on the model's states at ``k``.  For an operation combined
+    with time reversal it is ``V† U(g;k) V*``.  For a unitary operation, its
+    trace over a degenerate multiplet is that multiplet's character.
 
     Attributes
     ----------
     operation : int
-        The operation, by its index.
+        The operation, by its index in ``r.operations``.
     seitz : str
-        Its Seitz symbol, ``{4+_001|0,0,0}``, primed where the operation is
-        combined with time reversal.
+        If nonempty, the operation's Seitz symbol, ``{4+_001|0,0,0}``, primed
+        where the operation is combined with time reversal.  Empty where the
+        model's cell cannot be transformed to the conventional cell of the
+        irreptables package.
     bands : tuple of int
-        The set of bands, by position among the states handed in: for a
-        ``WFArray`` of a sector, that sector's states.
+        The set of bands, by their indices among the states handed in.
     k : ndarray
         The k-point, in the model's reduced coordinates.
     kpoint : str or None
-        The tables' name of the k-point, ``"M"``, or ``None`` where it is no
-        tabulated point.
+        If not ``None``, the name of the k-point in the tables of the
+        irreptables package, ``"M"``.  ``None`` where ``k`` is not a tabulated
+        point, or where the model's cell cannot be transformed to the
+        conventional cell of the irreptables package.
     G : ndarray of int
-        The reciprocal lattice vector ``G = Rk − k``.  On the zone boundary it
-        brings the factor ``e^{2πi G·τ}`` of an orbital at ``τ`` off the
-        origin, which reads that orbital's characters right there.
+        The reciprocal lattice vector by which the operation's image of ``k``
+        differs from ``k``, in reduced coordinates.  It is ``Rk − k``, with
+        ``R`` the operation's rotation acting on ``k``, or ``−Rk − k`` for an
+        operation combined with time reversal.  ``U(g;k)`` carries the phase
+        ``e^{2πi G·τ}`` on an orbital at ``τ``.
     matrix : ndarray, shape (nb, nb)
-        ``B``.
+        The sewing matrix ``B``, ``nb`` the number of bands.
     eigenvalues : ndarray
-        ``B``'s eigenvalues, on the unit circle where ``B`` is unitary.
+        The eigenvalues of ``B``.  They lie on the unit circle where ``B`` is
+        unitary.
     numerical : SewingMatrixNumerical
-        How far ``B`` is from unitary, the operator from commuting with
+        How far ``B`` is from unitary, ``U(g;k)`` from commuting with
         ``H(k)``, and the states from eigenstates.
     """
 
@@ -709,7 +823,7 @@ class SewingMatrix:
                 else f"operation {self.operation}")
 
     def summary(self) -> str:
-        """The sewing matrix, a line for each part, with the attribute that holds it."""
+        """The operation, bands, k-point, ``G`` and eigenvalues, with their attributes."""
         held = ".operation, .seitz, .bands" if self.seitz else ".operation, .bands"
         held += ", .kpoint, .k" if self.kpoint else ", .k"
         lines = [f"{self._named()}, on band{'s' if len(self.bands) > 1 else ''} "
@@ -733,13 +847,40 @@ class SewingMatrix:
 
 def _sewing_core(rep, operation, k, V, idx, H, *, atol=1e-8,
                  residual=float("nan")) -> SewingMatrix | Refusal:
-    """``B = V†UV`` on ``idx`` with its two self-checks — the shared inner loop.
+    """The sewing matrix of one operation on the bands ``idx``.
 
-    Private on purpose: it is the piece :func:`characters` reuses across every
-    column of one table, so that a table is built from **one** fiber and one
-    ``H(k)``.  It stores nothing; ``V``, ``H`` and ``idx`` are local arrays
-    handed in.  The record returned has no Seitz symbol and no name of the
-    point, which :func:`_sewing_matrix_rep` puts in.
+    The matrix is ``B = V† U V``, or ``V† U V*`` for an operation combined
+    with time reversal, with ``U`` the operation's operator on the model's
+    states at ``k``.
+
+    Parameters
+    ----------
+    rep : ..symmetry.SpaceGroupRep
+        The representation.
+    operation : int
+        The operation's index.
+    k : ndarray
+        The point, in reduced coordinates.
+    V : ndarray
+        The states at ``k``, as columns.
+    idx : sequence of int
+        The indices of the bands among the states.
+    H : ndarray or None
+        ``H(k)``, or ``None``, which leaves the commutator ``nan``.
+    atol : float, default 1e-8
+        How far, in reduced coordinates, the operation's image of ``k`` may
+        sit from ``k`` plus a reciprocal lattice vector.
+    residual : float, default nan
+        How far the states are from eigenstates, kept in the record.
+
+    Returns
+    -------
+    SewingMatrix or Refusal
+        The record of ``B``, holding its departure from unitarity and the
+        commutator of ``U`` with ``H``.  Its ``seitz`` is ``""`` and its
+        ``kpoint`` ``None``; :func:`_sewing_matrix_rep` fills them in.  The
+        refusal ``little_group`` where the operation does not leave ``k``
+        invariant.
     """
     U = rep.sewing_operator(int(operation), k, _atol=atol)
     if isinstance(U, Refusal):
@@ -768,9 +909,14 @@ def _sewing_core(rep, operation, k, V, idx, H, *, atol=1e-8,
 def _sewing_matrix_rep(rep, operation=None, k=None, *, states=None, bands=None,
                        degeneracy_tol=None, _atol=1e-8,
                        _mesh_tol=MESH_TOL) -> SewingMatrix | Refusal:
-    """What :func:`sewing_matrix` returns, read off a representation: ``realized.rep``, or one built by hand.
+    """What :func:`sewing_matrix` returns, read off a representation.
 
-    Every argument but the first is :func:`sewing_matrix`'s own.
+    ``rep`` is the representation, ``r.rep`` or one built by hand.
+    ``operation``, ``k``, ``states``, ``bands`` and ``degeneracy_tol`` are as
+    :func:`sewing_matrix` takes them.  ``_atol`` is as ``atol`` in
+    :func:`_sewing_core`, and ``_mesh_tol`` as ``mesh_tol`` in
+    :func:`_wfarray_fiber`.  Returns and refuses as :func:`sewing_matrix`
+    does.
     """
     if operation is None:
         raise TypeError("sewing_matrix() missing required argument 'operation'")
@@ -802,12 +948,10 @@ def _sewing_matrix_rep(rep, operation=None, k=None, *, states=None, bands=None,
             if inside and len(inside) != len(m):
                 return Refusal(
                     "multiplet_split",
-                    f"the bands {sorted(idx)} cut through the degenerate multiplet "
+                    f"the bands {sorted(idx)} cut the degenerate multiplet "
                     f"{list(m)} at k = {np.round(k, 6).tolist()} (energies "
-                    f"{np.round(w[list(m)], 12).tolist()}): on part of a degenerate "
-                    f"multiplet the sewing matrix depends on the basis chosen inside the "
-                    f"multiplet. Ask for every band of the multiplet, or end the bands at "
-                    f"a gap.",
+                    f"{np.round(w[list(m)], 12).tolist()}). Ask for every band of the "
+                    f"multiplet, or end the bands at a gap.",
                     value=float(w[m[-1]] - w[m[0]]),
                     threshold=float(degeneracy_tol),
                     context={"bands": idx, "multiplet": m, "k": k})
@@ -822,85 +966,102 @@ def sewing_matrix(realized, operation=None, k=None, *, states=None, bands=None,
                   degeneracy_tol=None,
                   _atol=_sewing_matrix_rep.__kwdefaults__["_atol"],
                   _mesh_tol=MESH_TOL) -> SewingMatrix | Refusal:
-    """The matrix of one operation on a set of bands, at a k-point the operation leaves invariant: the sewing matrix ``B(g,k)_mn = <u_m(k)|U(g;k)|u_n(k)>``.
+    """The sewing matrix of one operation on a set of bands at one k-point.
 
-    Its trace over a degenerate multiplet is that multiplet's character, and its
-    eigenvalues are the operation's on those bands.  The states are checked to
-    solve ``H(k)``, and the bands to hold whole degenerate multiplets, wherever
-    the states carry their energies.
+    The sewing matrix ``B(g,k)_mn = <u_m(k)|U(g;k)|u_n(k)>`` is the matrix of
+    the operation ``g`` on the bands, at a k-point that ``g`` leaves invariant
+    up to a reciprocal lattice vector.  Here ``U(g;k)`` is the operator of
+    ``g`` on the model's states at ``k``.  For an operation combined with time
+    reversal, the ket is complex conjugated before ``U(g;k)`` acts.  For a
+    unitary operation, the trace of ``B`` over a degenerate multiplet is that
+    multiplet's character.
 
     Parameters
     ----------
     realized : ..groups.RealizedGroup
         What :func:`..groups.realized_group` returned, ``r``.
     operation : int
-        The operation, by its index: ``r.operations`` lists them, and
-        :func:`..groups.operation_index` finds one by its Seitz symbol.
+        The operation, by its index in ``r.operations``.
+        :func:`..groups.operation_index` finds the index from a Seitz symbol.
         Required.
     k : str or array_like, shape (dim_k,)
-        A k-point the operation leaves invariant up to a reciprocal lattice
-        vector: its tabulated name, ``"M"``, or its reduced coordinates.
-        Required.
+        The k-point.  Pass its name in the tables of the irreptables package,
+        ``"M"``, or its reduced coordinates.  Required.
+    states : None, pythtb.TBModel, pythtb.WFArray, (evals, evecs) or ndarray, optional
+        The states at ``k``.  Pass ``None`` or ``r.model`` to solve the model
+        there.  Pass a solved ``WFArray``, or the pair :func:`solve_at`
+        returns, to reuse one diagonalization.  Pass the eigenvectors alone,
+        as the rows of an ndarray, where no energies are at hand.  A
+        ``WFArray`` carries energies only where ``WFArray.solve_model``
+        filled it.
     bands : int or sequence of int, optional
-        The set of bands: ``n`` the lowest ``n`` bands, or the band indices.
-        Default: every state.
-    states : None, pythtb.WFArray, (evals, evecs) or ndarray, optional
-        The states at ``k``: ``None`` (default) solves the model there; a
-        solved ``WFArray``, or the pair :func:`solve_at` returns, reuses one
-        diagonalization.  Eigenvector rows alone, or a ``WFArray`` of a sector
-        with fewer states than the model, carry no energies.
+        The set of bands.  Pass ``n`` for the lowest ``n`` bands, or the band
+        indices.  Left out, every state handed in.
     degeneracy_tol : float, optional
-        A number in the units of ``H``: bands closer in energy than it are one
-        multiplet.  Left out, ``1e-8`` times ``max|H|``, the largest entry of
-        ``H(k)`` once the mean on-site energy is subtracted.
+        The energy tolerance, in the units of ``H``, within which bands are
+        one degenerate multiplet.  Left out, ``1e-8`` times ``max|H|``, the
+        largest entry of ``H(k)`` once the mean on-site energy is subtracted.
 
     Returns
     -------
     SewingMatrix or Refusal
-        ``B.summary()`` prints it.  ``B.matrix`` is the matrix and
-        ``B.eigenvalues`` its eigenvalues; ``B.numerical`` holds how far it is
-        from unitary, the operator from commuting with ``H(k)``, and the states
-        from eigenstates.  For states without energies, whether they solve
-        ``H(k)`` and whether the bands close their multiplets is not measured.
-        A ``Refusal`` in its place is falsy and names what stopped the call.
+        The record's ``matrix`` is the sewing matrix ``B``, and its
+        ``eigenvalues`` are those of ``B``.  For a unitary operation they are
+        the eigenvalues of the operation on the bands.  The record's
+        ``numerical`` holds how far ``B`` is from unitary, ``U(g;k)`` from
+        commuting with ``H(k)``, and the states from eigenstates.  The sewing
+        matrix can only be returned at a k-point the operation leaves
+        invariant up to a reciprocal lattice vector.  It can only be returned
+        if the set of bands cuts no degenerate multiplet at ``k``.  For states
+        without energies, the call checks neither whether the set of bands
+        cuts a multiplet nor whether the states solve ``H(k)``.  A
+        ``Refusal`` in its place is falsy and names what stopped the call.
+
+    Examples
+    --------
+    The fourfold rotation on the lowest pair of bands of lin3g at ``M``
+    (:func:`..models.lin3g`):
+
+    >>> c4 = operation_index(r.group, "{4+_001|0,0,0}")             # doctest: +SKIP
+    >>> sm = sewing_matrix(r, c4, "M", bands=2)                        # doctest: +SKIP
+    >>> np.sort(np.angle(sm.eigenvalues)) / np.pi                      # doctest: +SKIP
+    array([-0.75,  0.75])
 
     Refusals
     --------
+    A refusal handed in as ``realized`` is returned as it is.
+
     ``little_group``
-        the operation does not leave ``k`` invariant.
+        the operation does not leave ``k`` invariant up to a reciprocal
+        lattice vector.
     ``multiplet_split``
-        ``bands`` cuts a degenerate multiplet at ``k``.
+        the set of bands cuts a degenerate multiplet at ``k``.
     ``states_not_at_k``
         the states handed in do not solve ``H(k)``.
     ``k_not_on_mesh``
-        the mesh handed in does not hold ``k``.
+        the mesh of the ``WFArray`` handed in does not hold ``k``.
     ``out_of_plane``
-        ``k`` has a component along a layer's vacuum, or names a tabulated
-        point out of the layer's plane.
+        ``k`` has a nonzero component normal to the plane of a layer, or
+        names a tabulated point off that plane.
     ``tables_not_ready``
-        ``k`` is a name, and the group has no transformation to the tables'
-        conventional cell.
+        ``k`` is a name, and the model's cell cannot be transformed to the
+        conventional cell of the irreptables package.
 
     Raises
     ------
     TypeError
-        ``realized`` is not what :func:`..groups.realized_group` returned.
-    TypeError
-        ``operation`` or ``k`` left out.
+        ``realized`` is not what :func:`..groups.realized_group` returned, or
+        ``operation`` or ``k`` is left out.
     ValueError
-        States of another model than ``r.model``, ``bands`` outside the
-        states or naming none, ``k`` a name the group does not tabulate, or
+        States of a model other than ``r.model``.
+        Eigenvectors in an array that is neither two- nor three-dimensional.
+        ``bands`` naming no band, a band twice, or a band outside the states.
+        ``k`` a name the group does not tabulate.
+        ``k`` with a number of coordinates other than ``dim_k``, or three for
+        a layer.
+        A ``WFArray`` with parameter axes in its mesh, or whose mesh has
+        another number of coordinates than ``k``.
         ``r.model`` edited since :func:`..groups.realized_group` measured it.
-
-    Examples
-    --------
-    The fourfold rotation on lin3g's lowest pair at ``M``
-    (:func:`..models.lin3g`):
-
-    >>> c4 = operation_index(r.group, "{4+_001|0,0,0}")             # doctest: +SKIP
-    >>> B = sewing_matrix(r, c4, "M", bands=2)                         # doctest: +SKIP
-    >>> np.sort(np.angle(B.eigenvalues)) / np.pi                       # doctest: +SKIP
-    array([-0.75,  0.75])
     """
     rep = _rep_of("sewing_matrix", realized, "sewing_matrix(r, operation, k, bands=2)")
     if isinstance(rep, Refusal):
@@ -915,18 +1076,20 @@ def sewing_matrix(realized, operation=None, k=None, *, states=None, bands=None,
 
 @dataclass(frozen=True)
 class MultipletCharacters:
-    """The characters of one degenerate multiplet: a row of :attr:`BandCharacters.multiplets`.
+    """The characters of one degenerate multiplet.
+
+    A row of :attr:`BandCharacters.multiplets`.
 
     Attributes
     ----------
     bands : tuple of int
-        The multiplet's bands.
+        The bands of the multiplet.
     energy : float
-        Its mean energy, in the units of ``H``.
+        The mean energy of the multiplet, in the units of ``H``.
     characters : dict
-        ``{index: character}``: the trace over the multiplet of each unitary
-        operation of the little group, by the operation's index, the indices
-        :func:`..groups.corep_table` keys its characters by.
+        The trace over the multiplet of the sewing matrix of each unitary
+        operation of the little group, ``{index: character}``, keyed by the
+        operation's index in ``r.operations``.
     """
 
     bands: tuple
@@ -944,27 +1107,39 @@ class MultipletCharacters:
 
 @dataclass(frozen=True)
 class BandCharactersNumerical:
-    """How closely the characters of a set of bands are measured: what :attr:`BandCharacters.numerical` holds.
+    """How far the inputs of a set of bands' characters are from exact.
 
-    ``summary()`` prints it.
+    Held in :attr:`BandCharacters.numerical`.  ``summary()`` prints the
+    largest departures from unitarity, from commuting with ``H(k)`` and from
+    eigenstates.  It then names the operations whose departure from unitarity
+    the two zero thresholds classify differently.
 
     Attributes
     ----------
-    unitarity, commutators : dict
-        Per unitary operation, by index: how far its sewing matrix on the
-        whole set of bands is from unitary, and how far its operator is from
-        commuting with ``H(k)``.
+    unitarity : dict
+        For each unitary operation of the little group, by its index, the
+        largest entry of ``|B†B − 1|``, with ``B`` its sewing matrix on the
+        whole set of bands.
+    commutators : dict
+        For each unitary operation of the little group, by its index, the
+        largest entry of ``|U H(k) − H(k) U|``, with ``U`` its operator on the
+        model's states, in the units of ``H``.
     residual : float
-        How far the states are from eigenstates of ``H(k)``.
+        The largest entry of ``|H(k) V − V diag(w)|``, in the units of ``H``,
+        with ``V`` the states as columns and ``w`` their energies: how far the
+        states are from eigenstates at ``k``.
     spread : float
-        The largest energy spread inside a multiplet; a safe grouping has it
-        far below the gap between multiplets.
+        The largest energy spread inside a degenerate multiplet of the
+        spectrum, in the units of ``H``.
     thresholds : Thresholds
-        The zero thresholds at this k.
-    disagreements : tuple
-        The numbers the two thresholds classify differently.
+        The two zero thresholds at ``k``.
+    disagreements : tuple of dict
+        If nonempty, the departures from unitarity that the two thresholds
+        classify differently, by operation, as :func:`disagreements` returns
+        them.
     degeneracy_tol : float
-        The energy tolerance the multiplets were grouped at.
+        The energy tolerance the multiplets were grouped at, in the units of
+        ``H``.
     spectrum : ndarray
         Every energy of the diagonalization the characters were read from.
     """
@@ -979,7 +1154,7 @@ class BandCharactersNumerical:
     spectrum: np.ndarray
 
     def summary(self) -> str:
-        """How closely the characters hold, a line for each part, with the attribute that holds it."""
+        """The largest departures from exact, with the attributes that hold them."""
         unitary = max(self.unitarity.values(), default=0.0)
         commuting = max(self.commutators.values(), default=0.0)
         lines = [f"the sewing matrices unitary to {unitary:.2g}, the operators commuting "
@@ -1001,32 +1176,40 @@ class BandCharactersNumerical:
 
 @dataclass(frozen=True)
 class BandCharacters:
-    """The characters of a set of bands at one k: the trace of each unitary operation of the little group over each degenerate multiplet.
+    """The characters of a set of bands at one k-point.
 
-    Every corep label is read from such characters.  ``summary()`` prints
-    them.
+    The record :func:`characters` returns.  A character is the trace of the
+    sewing matrix of a unitary operation of the little group over one
+    degenerate multiplet.  ``summary()`` prints the characters as a table, a
+    column for each multiplet and a line for each operation.
+    :func:`coreps_at` identifies the little-group representations from them.
 
     Attributes
     ----------
     bands : tuple of int
-        The set of bands.
+        The set of bands, by their indices among the states handed in,
+        ascending.
     k : ndarray
         The k-point, in the model's reduced coordinates.
     kpoint : str or None
-        The tables' name of the k-point, ``"GM"``, or ``None`` where it is no
-        tabulated point.
+        If not ``None``, the name of the k-point in the tables of the
+        irreptables package, ``"GM"``.  ``None`` where ``k`` is not a
+        tabulated point, or where the model's cell cannot be transformed to
+        the conventional cell of the irreptables package.
     multiplets : tuple of MultipletCharacters
-        A row for each degenerate multiplet of the set, lowest first: its
-        bands, its mean energy and its characters by operation index.
-    operations : ..groups.OperationTable
-        The operations of the little group, unitary and antiunitary, by
-        index, each with its Seitz symbol.  The rows' characters are keyed by
-        the unitary ones: a corep table holds no characters for an operation
-        combined with time reversal.
+        A row for each degenerate multiplet of the set of bands, lowest
+        first, with its bands, its mean energy and its characters.
+    operations : ..groups.OperationTable or Refusal
+        The operations of the little group, unitary and antiunitary, by their
+        index in ``r.operations``, each with its Seitz symbol.  The
+        characters in ``multiplets`` are those of the unitary operations
+        alone.  A ``Refusal`` where the model's cell cannot be transformed to
+        the conventional cell of the irreptables package.
     numerical : BandCharactersNumerical
-        How far the sewing matrices are from unitary, the operators from
-        commuting with ``H(k)`` and the states from eigenstates, and the zero
-        thresholds at this k.
+        How far the sewing matrices are from unitary, the operators of the
+        operations on the model's states from commuting with ``H(k)``, and
+        the states from eigenstates.  It also holds the zero thresholds at
+        ``k``.
     """
 
     bands: tuple
@@ -1054,7 +1237,7 @@ class BandCharacters:
         return str(table[int(ind)].seitz)
 
     def summary(self) -> str:
-        """The characters, a line for each part, with the attribute that holds it."""
+        """The characters as a table, with the attributes that hold its parts."""
         held = ".bands, .kpoint, .k" if self.kpoint else ".bands, .k"
         lines = [f"band{'s' if len(self.bands) > 1 else ''} {_runs(self.bands)} at "
                  f"{_kpoint_text(self.kpoint, self.k)}   ({held})"]
@@ -1085,9 +1268,13 @@ class BandCharacters:
 
 def _characters_rep(rep, k, *, states=None, bands=None, degeneracy_tol=None,
                     _atol=1e-8, _mesh_tol=MESH_TOL) -> BandCharacters | Refusal:
-    """What :func:`characters` returns, read off a representation: ``realized.rep``, or one built by hand.
+    """What :func:`characters` returns, read off a representation.
 
-    Every argument but the first is :func:`characters`'s own.
+    ``rep`` is the representation, ``r.rep`` or one built by hand.  ``k``,
+    ``states``, ``bands`` and ``degeneracy_tol`` are as :func:`characters`
+    takes them.  ``_atol`` is as ``atol`` in :func:`_sewing_core`, and
+    ``_mesh_tol`` as ``mesh_tol`` in :func:`_wfarray_fiber`.  Returns and
+    refuses as :func:`characters` does.
     """
     return _characters(rep, k, states=states, bands=bands, degeneracy_tol=degeneracy_tol,
                        atol=_atol, mesh_tol=_mesh_tol, bloch=None, call="characters")
@@ -1095,68 +1282,86 @@ def _characters_rep(rep, k, *, states=None, bands=None, degeneracy_tol=None,
 def characters(realized, k, *, states=None, bands=None, degeneracy_tol=None,
                _atol=_characters_rep.__kwdefaults__["_atol"],
                _mesh_tol=MESH_TOL) -> BandCharacters | Refusal:
-    """The characters of a set of bands at one k: the trace of each unitary operation of the little group over each degenerate multiplet of the set.
+    """The characters of a set of bands at one k-point.
+
+    The states at ``k`` are grouped into degenerate multiplets by energy, as
+    :func:`multiplets` groups them.  The sewing matrix of each unitary
+    operation of the little group at ``k`` is built on the set of bands, and
+    its trace over each multiplet is that multiplet's character.  ``k`` may
+    be any point, whether or not the tables of the irreptables package list
+    it.
 
     Parameters
     ----------
     realized : ..groups.RealizedGroup
         What :func:`..groups.realized_group` returned, ``r``.
     k : str or array_like, shape (dim_k,)
-        A k-point: its tabulated name, ``"GM"``, or its reduced coordinates.
-        Only a tabulated point is labeled, by :func:`coreps_at`.
+        The k-point.  Pass its name in the tables, ``"GM"``, or its reduced
+        coordinates.  For a layer, the three reduced coordinates of a point of
+        its plane, in its three-dimensional cell, are also accepted.
+    states : None, pythtb.TBModel, pythtb.WFArray or (evals, evecs), optional
+        The states at ``k``, with their energies.  Pass ``None`` or
+        ``r.model`` to solve the model there.  Pass a ``WFArray`` filled by
+        ``solve_model``, or the pair :func:`solve_at` returns, to reuse one
+        diagonalization.
     bands : int or sequence of int
-        The set of bands: ``n`` the lowest ``n`` bands, or the band indices.
-        Required.
-    states : None, pythtb.WFArray or (evals, evecs), optional
-        The states at ``k``: ``None`` (default) solves the model there; a
-        solved ``WFArray``, or the pair :func:`solve_at` returns, reuses one
-        diagonalization.  They carry energies, the rows being the multiplets.
+        The set of bands.  Pass ``n`` for the lowest ``n`` bands, or the band
+        indices.  Required.
     degeneracy_tol : float, optional
-        A number in the units of ``H``: bands closer in energy than it are one
-        multiplet.  Left out, ``1e-8`` times ``max|H|``, the largest entry of
-        ``H(k)`` once the mean on-site energy is subtracted.
+        The energy tolerance, in the units of ``H``, within which bands are
+        one degenerate multiplet.  Left out, ``1e-8`` times ``max|H|``, the
+        largest entry of ``H(k)`` once the mean on-site energy is subtracted.
 
     Returns
     -------
     BandCharacters or Refusal
-        ``ch.summary()`` prints them.  ``ch.multiplets`` holds a row for each
-        degenerate multiplet: its bands, its mean energy and its characters by
-        operation index.  ``ch.operations`` names the operations of the little
-        group; ``ch.numerical`` holds how closely the characters are measured.
-        Characters can only be returned if the set of bands contains all the
-        states of each degenerate multiplet at ``k``.  A ``Refusal`` in its
-        place is falsy and names what stopped the call.
+        The characters, a row for each degenerate multiplet of the set of
+        bands, lowest first, and an entry in each row for each unitary
+        operation of the little group.  The record's ``numerical`` holds how
+        far the inputs of the characters are from exact.  Characters can only
+        be returned if the set of bands contains all the states of each
+        degenerate multiplet at ``k``.  A ``Refusal`` in its place is falsy
+        and names what stopped the call.
 
     Refusals
     --------
-    A refusal handed in as ``realized`` is returned unchanged, and one from
-    :func:`..groups.little_group` as it is.
+    A refusal handed in as ``realized`` is returned as it is.
 
     ``multiplet_split``
         the set of bands cuts a degenerate multiplet at ``k``.
     ``states_not_at_k``
         the states handed in do not solve ``H(k)``.
     ``k_not_on_mesh``
-        the mesh handed in does not hold ``k``.
+        the mesh of the ``WFArray`` handed in does not hold ``k``.
     ``out_of_plane``
-        ``k`` has a component along a layer's vacuum, or names a tabulated
-        point out of the layer's plane.
+        ``k`` has a nonzero component normal to the plane of a layer, or
+        names a tabulated point off that plane.
     ``tables_not_ready``
-        ``k`` is a name, and the group has no transformation to the tables'
-        conventional cell.
+        ``k`` is a name, and the model's cell cannot be transformed to the
+        conventional cell of the irreptables package.
 
     Raises
     ------
     TypeError
         ``realized`` is not what :func:`..groups.realized_group` returned, or
-        ``bands`` left out.
+        ``bands`` is left out.
     ValueError
-        States without energies or of another model than ``r.model``,
-        ``bands`` naming no band, ``k`` a name the group does not tabulate, or
+        States without energies: eigenvectors alone, or a ``WFArray`` not
+        filled by ``solve_model``.
+        States of a model other than ``r.model``.
+        Eigenvectors in an array that is neither two- nor three-dimensional.
+        ``bands`` naming no band, a band twice, or a band outside the states.
+        ``k`` a name the group does not tabulate.
+        ``k`` with a number of coordinates other than ``dim_k``, or three for
+        a layer.
+        A ``WFArray`` with parameter axes in its mesh, or whose mesh has
+        another number of coordinates than ``k``.
         ``r.model`` edited since :func:`..groups.realized_group` measured it.
-    ..refusal.InternalError
-        The representation leaves out an operation of the little group at
-        ``k``: the package disagreeing with itself.
+
+    See Also
+    --------
+    coreps_at : the little-group representations of a set of bands at a
+        high-symmetry point, identified from these characters.
     """
     rep = _rep_of("characters", realized, "characters(r, k, bands=6)")
     if isinstance(rep, Refusal):
@@ -1168,10 +1373,16 @@ def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol,
                 bloch, call, named=True) -> BandCharacters | Refusal:
     """The characters :func:`characters` returns.
 
-    ``bloch`` is the model's Bloch sum or ``None``, as in :func:`_hamiltonian_at`;
-    ``call`` names the public call in what is raised.  With ``named=False`` the
-    point's name is left ``None``, to be read off the identification of the
-    coreps.
+    ``rep`` is the representation, or a refusal, which is returned as it is.
+    ``k``, ``states``, ``bands`` and ``degeneracy_tol`` are as
+    :func:`characters` takes them, ``atol`` as in :func:`_sewing_core`, and
+    ``mesh_tol`` as in :func:`_wfarray_fiber`.  ``bloch`` is the model's Bloch
+    sum or ``None``, as in :func:`_hamiltonian_at`.  ``call`` names the public
+    call in what is raised.  With ``named=False`` the point's name is left
+    ``None``, to be read off the identification of the little-group
+    representations.  Raises :class:`~.refusal.InternalError` where ``rep``
+    leaves out a unitary operation of the little group the tables list at
+    ``k``.
     """
     if bands is None:
         raise TypeError(f"{call}() missing required argument 'bands'")
@@ -1192,10 +1403,9 @@ def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol,
     degeneracy_tol = _degeneracy(rep, degeneracy_tol)
     if w is None:
         raise ValueError(
-            "characters needs energies: its rows are the degenerate multiplets at k, so a "
-            "source that carries states but no spectrum (a feature-sector WFArray, a bare "
-            "fiber) cannot define the table. Use sewing_matrix() on such a source, or hand "
-            "in the model / the (evals, evecs) pair.")
+            f"{call}(): states= holds eigenvectors without their energies. Pass the model, "
+            "or the (evals, evecs) pair that solve_at returns; sewing_matrix() takes "
+            "eigenvectors alone.")
     idx = _band_block(V.shape[1], bands, call)
 
     bloch = _measured_sum(rep, bloch)
@@ -1215,13 +1425,12 @@ def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol,
         if len(inside) != len(m):
             return Refusal(
                 "multiplet_split",
-                f"the bands {sorted(idx)} cut through the degenerate multiplet {list(m)} at "
+                f"the bands {sorted(idx)} cut the degenerate multiplet {list(m)} at "
                 f"k = {np.round(k, 6).tolist()} (energies "
                 f"{np.round(w[list(m)], 12).tolist()}, spread "
-                f"{w[m[-1]] - w[m[0]]:.3g} at tolerance "
-                f"{float(degeneracy_tol):g}): on part of a degenerate multiplet the "
-                f"characters depend on the basis chosen inside the multiplet. Ask for every "
-                f"band of the multiplet, or end the bands at a gap.",
+                f"{w[m[-1]] - w[m[0]]:.3g}, degeneracy_tol "
+                f"{float(degeneracy_tol):g}). Ask for every band of the multiplet, or end "
+                f"the bands at a gap.",
                 value=float(w[m[-1]] - w[m[0]]),
                 threshold=float(degeneracy_tol),
                 context={"bands": idx, "multiplet": m, "k": k,
@@ -1241,8 +1450,7 @@ def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol,
         raise InternalError(
             f"the representation of #{rep._group.number_str} leaves out part of its own "
             f"little group at k = {np.round(k, 6).tolist()}; not carried: "
-            f"{list(not_carried)}. Every representation a call returns carries the "
-            f"whole group it was built for.")
+            f"{list(not_carried)}. Report it, with the model and the call.")
 
     chars = np.zeros((len(rows), len(ours_u)), dtype=complex)
     unit, comm = {}, {}
@@ -1275,37 +1483,43 @@ def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol,
         _group_provenance=str(rep._group._provenance))
 
 def _character_matrix(table) -> np.ndarray:
-    """The characters of a :class:`BandCharacters` as a matrix: a row per multiplet, a column per unitary operation in index order."""
+    """The characters of the :class:`BandCharacters` ``table`` as a matrix.
+
+    Returns a row for each degenerate multiplet and a column for each unitary
+    operation of the little group, in the order of the rows' characters,
+    which is ascending index.
+    """
     columns = tuple(table.multiplets[0].characters) if table.multiplets else ()
     return np.array([[m.characters[i] for i in columns] for m in table.multiplets],
                     dtype=complex).reshape(len(table.multiplets), len(columns))
 
 # ==========================================================================
-# the coreps at one point
+# the little-group representations at one point
 # ==========================================================================
 
 def format_coreps(coreps) -> str:
-    r"""Corep multiplicities on one line: ``{'-GM6': 2, '-GM7': 1}`` as ``2x-GM6 + -GM7``.
+    r"""Multiplicities of little-group representations, written on one line.
 
-    Every multiplicity the package prints reads this way: the coreps of a set
-    of bands at one point (:attr:`CorepsAt.coreps`) or of one multiplet
-    (:attr:`Multiplet.label`), a symmetry data vector
-    (:attr:`HSPTable.symmetry_data`), an elementary band representation's
-    coreps (:func:`..ebr.ebr_rows`).  The coreps are written point by point,
-    Γ first and the other points alphabetically, and at each point in
-    ascending order of the irreps' numbers, ``GM2`` before ``GM10``, so one
-    set of multiplicities always prints one line.
+    ``{'-GM6': 2, '-GM7': 1}`` is written ``2x-GM6 + -GM7``.  The labels are
+    ordered point by point, ``GM`` first and the other points alphabetically,
+    and at each point by the numbers in the label, ``GM2`` before ``GM10``.
+    So one set of multiplicities is always written as the same line.
+    :attr:`Multiplet.label` holds multiplicities written so, and the
+    summaries of :class:`CorepsAt`, :class:`HSPTable` and of the records
+    :func:`.ebr.decompose`, :func:`.ebr.regular_completion` and
+    :func:`.ebr.symmetry_indicator` return print them the same way.
 
     Parameters
     ----------
     coreps : mapping
-        ``{corep: multiplicity}``, the multiplicities nonnegative integers.
+        ``{label: multiplicity}``, the multiplicities positive integers, as
+        :attr:`CorepsAt.coreps` and :attr:`HSPTable.symmetry_data` hold them.
 
     Returns
     -------
     str
         The labels joined by ``" + "``, each after its multiplicity and ``x``
-        where that is above one.
+        where the multiplicity is above one.
     """
     return " + ".join(f"{n}x{lab}" if n > 1 else lab
                       for lab, n in sorted(coreps.items(),
@@ -1314,25 +1528,28 @@ def format_coreps(coreps) -> str:
 
 @dataclass(frozen=True, eq=False)
 class Multiplet:
-    """One degenerate multiplet at a high-symmetry point, with the coreps it carries.
+    """One degenerate multiplet at a high-symmetry point, with its labels.
 
-    A row of :attr:`HSPTable.multiplets` and of :attr:`CorepsAt.multiplets`;
-    the two hold the same rows.  Its degeneracy is ``len(m.bands)``.
+    A row of :attr:`CorepsAt.multiplets` and of :attr:`HSPTable.multiplets`.
+    Its degeneracy is the number of its ``bands``.
 
     Attributes
     ----------
     kpoint : str
-        The tables' name of the point, ``"GM"``.
+        The name of the point in the tables of the irreptables package,
+        ``"GM"``.
     k : ndarray
-        Its coordinates, in the model's reduced cell.
+        The point, in the model's reduced coordinates.
     bands : tuple of int
-        The multiplet's bands.
+        The bands of the multiplet.
     energy : float
-        Its mean energy, in the units of ``H``.
+        The mean energy of the multiplet, in the units of ``H``.
     corep_names : tuple of str
-        The coreps it carries, a corep carried twice named twice.
+        The labels of the little-group representations the multiplet
+        carries, a representation carried twice named twice.
     label : str
-        The same on one line, ``"-GM6"``, ``"-GM6 + -GM7"``, ``"2x-GM6"``.
+        The same labels on one line, as :func:`format_coreps` writes them:
+        ``"-GM6"``, ``"-GM6 + -GM7"``, ``"2x-GM6"``.
     """
 
     kpoint: str
@@ -1366,24 +1583,26 @@ class Multiplet:
 
 @dataclass(frozen=True)
 class CorepsAtNumerical:
-    """How the coreps at one point were read: what :attr:`CorepsAt.numerical` holds.
+    """How the little-group representations at one point were identified.
 
-    ``summary()`` prints it.
+    Held in :attr:`CorepsAt.numerical`.  ``summary()`` prints the thresholds
+    and the identification, each under a line naming its attribute.
 
     Attributes
     ----------
     thresholds : Thresholds
-        The zero thresholds at the point.
+        The two zero thresholds at the point.
     identification : ..groups.CorepIdentification
-        The identification of the characters: each multiplet's coreps, the
-        multiplicities before rounding, and how far they sat from integers.
+        The identification of the characters: the little-group
+        representations of each multiplet, their multiplicities before
+        rounding, and how far those are from integers.
     """
 
     thresholds: Thresholds
     identification: Any
 
     def summary(self) -> str:
-        """The thresholds and the identification, each under a line naming its field."""
+        """The thresholds and the identification, each under its attribute."""
         lines = [f"the zero thresholds at {self.identification.kpoint}   (.thresholds)"]
         lines += ["  " + line for line in self.thresholds.summary().splitlines()]
         lines.append(f"the {self.identification._kind} read off the characters   "
@@ -1398,30 +1617,35 @@ class CorepsAtNumerical:
 
 @dataclass(frozen=True)
 class CorepsAt:
-    """The coreps a set of bands carries at one high-symmetry point, multiplet by multiplet.
+    """The little-group representations of a set of bands at one high-symmetry point.
 
-    ``summary()`` prints them.
+    The record :func:`coreps_at` returns.  ``summary()`` prints the
+    multiplicities of the little-group representations over the set of
+    bands, then each degenerate multiplet's labels where there are several
+    multiplets, and the gap to the nearest other band.
 
     Attributes
     ----------
     kpoint : str
-        The tables' name of the point, ``"GM"``.
+        The name of the point in the tables of the irreptables package,
+        ``"GM"``.
     k : ndarray
-        Its coordinates, in the model's reduced cell.
+        The point, in the model's reduced coordinates.
     bands : tuple of int
-        The set of bands.
+        The set of bands, by their indices among the states handed in,
+        ascending.
     coreps : dict
-        ``{corep: multiplicity}`` over the set of bands: its symmetry data
-        vector at this point.
+        The multiplicities of the little-group representations of the set of
+        bands at the point, ``{label: multiplicity}``.
     multiplets : tuple of Multiplet
-        A row for each degenerate multiplet, lowest first, with the coreps it
-        carries.
+        A row for each degenerate multiplet of the set of bands, lowest
+        first, with its bands, its mean energy and its labels.
     isolation : float
-        The energy gap from the set of bands to the nearest band outside it, in
-        the units of ``H``; ``inf`` where the set is every band.
+        The energy gap from the set of bands to the nearest band outside it,
+        in the units of ``H``.  ``inf`` where the set holds every band.
     numerical : CorepsAtNumerical
-        The zero thresholds at the point and the identification of the
-        characters.
+        The zero thresholds at the point, and the multiplicities before
+        rounding.
     """
 
     kpoint: str
@@ -1431,11 +1655,12 @@ class CorepsAt:
     multiplets: tuple
     isolation: float
     numerical: CorepsAtNumerical
-    # the characters the coreps were read from, `characters(r, k, bands=...)`
+    # the characters the little-group representations were identified from,
+    # `characters(r, k, bands=...)`
     _characters: Any = field(default=None, repr=False, compare=False)
 
     def summary(self) -> str:
-        """The coreps at this point, a line for each part, with the attribute that holds it."""
+        """The little-group representations, a line for each part with its attribute."""
         bands = self.bands
         lines = [f"band{'s' if len(bands) > 1 else ''} {_runs(bands)} at "
                  f"{_kpoint_text(self.kpoint, self.k)}: {format_coreps(self.coreps)}   "
@@ -1453,7 +1678,11 @@ class CorepsAt:
         return f"CorepsAt({self.kpoint}: {format_coreps(self.coreps)})"
 
 def _isolation(spectrum, bands):
-    """Energy gap from a band block to the rest of the spectrum."""
+    """The energy gap from a set of bands to the nearest band outside it.
+
+    ``spectrum`` holds every energy at the point and ``bands`` the indices of
+    the set.  Returns ``inf`` where the set is empty or holds every band.
+    """
     w = np.asarray(spectrum, dtype=float).reshape(-1)
     inside = sorted(bands)
     outside = [b for b in range(len(w)) if b not in set(inside)]
@@ -1464,9 +1693,14 @@ def _isolation(spectrum, bands):
 def _coreps_at_rep(rep, k, *, states=None, bands=None, degeneracy_tol=None,
                    label_tol=LABEL_TOL, _ktol=1e-5, _atol=1e-8,
                    _mesh_tol=MESH_TOL) -> CorepsAt | Refusal:
-    """What :func:`coreps_at` returns, read off a representation: ``realized.rep``, or one built by hand.
+    """What :func:`coreps_at` returns, read off a representation.
 
-    Every argument but the first is :func:`coreps_at`'s own.
+    ``rep`` is the representation, ``r.rep`` or one built by hand.  ``k``,
+    ``states``, ``bands``, ``degeneracy_tol`` and ``label_tol`` are as
+    :func:`coreps_at` takes them.  ``_ktol`` is as ``ktol`` in
+    :func:`_coreps_at`, ``_atol`` as ``atol`` in :func:`_sewing_core`, and
+    ``_mesh_tol`` as ``mesh_tol`` in :func:`_wfarray_fiber`.  Returns and
+    refuses as :func:`coreps_at` does.
     """
     return _coreps_at(rep, k, states=states, bands=bands, degeneracy_tol=degeneracy_tol,
                       label_tol=label_tol, ktol=_ktol, atol=_atol, mesh_tol=_mesh_tol,
@@ -1476,83 +1710,54 @@ def coreps_at(realized, k, *, states=None, bands=None, degeneracy_tol=None,
               label_tol=LABEL_TOL, _ktol=_coreps_at_rep.__kwdefaults__["_ktol"],
               _atol=_coreps_at_rep.__kwdefaults__["_atol"],
               _mesh_tol=MESH_TOL) -> CorepsAt | Refusal:
-    """The coreps a set of bands carries at one high-symmetry point, multiplet by multiplet.
+    """The little-group representations of a set of bands at one high-symmetry point.
 
-    The characters of each degenerate multiplet are measured on the bands'
-    eigenvectors and expanded over the coreps of the little group.
+    The characters of each degenerate multiplet are measured as
+    :func:`characters` measures them.  Each row of characters is expanded
+    over the characters of the little-group representations that the tables
+    of the irreptables package list at ``k``.  A multiplicity within
+    ``label_tol`` of a nonnegative integer is rounded to that integer.
 
     Parameters
     ----------
     realized : ..groups.RealizedGroup
         What :func:`..groups.realized_group` returned, ``r``.
-    k : str or array_like
-        A tabulated high-symmetry point: its name, ``"GM"``, one of those
-        :func:`..groups.high_symmetry_points` returns, or its coordinates in
-        the model's reduced cell.
-    bands : int or sequence of int
-        The set of bands: ``n`` the lowest ``n`` bands, or the band indices.
-        Required.
-    states : None, pythtb.WFArray or (evals, evecs), optional
-        The states at ``k``: ``None`` (default) solves the model there; a
-        solved ``WFArray``, or the pair :func:`solve_at` returns, reuses one
+    k : str or array_like, shape (dim_k,)
+        The high-symmetry point.  Pass its name in the tables, ``"GM"``, or
+        its reduced coordinates, as :func:`..groups.high_symmetry_points`
+        returns them.  For a layer, the three reduced coordinates of a point
+        of its plane, in its three-dimensional cell, are also accepted.
+    states : None, pythtb.TBModel, pythtb.WFArray or (evals, evecs), optional
+        The states at ``k``, with their energies.  Pass ``None`` or
+        ``r.model`` to solve the model there.  Pass a ``WFArray`` filled by
+        ``solve_model``, or the pair :func:`solve_at` returns, to reuse one
         diagonalization.
+    bands : int or sequence of int
+        The set of bands.  Pass ``n`` for the lowest ``n`` bands, or the band
+        indices.  Required.
     degeneracy_tol : float, optional
-        A number in the units of ``H``: bands closer in energy than it are one
-        multiplet.  Left out, ``1e-8`` times ``max|H|``, the largest entry of
-        ``H(k)`` once the mean on-site energy is subtracted.
+        The energy tolerance, in the units of ``H``, within which bands are
+        one degenerate multiplet.  Left out, ``1e-8`` times ``max|H|``, the
+        largest entry of ``H(k)`` once the mean on-site energy is subtracted.
     label_tol : float, default 1e-3
-        How far a fitted multiplicity may sit from an integer, dimensionless.
+        The largest distance from an integer at which a multiplicity is
+        rounded to that integer.
 
     Returns
     -------
     CorepsAt or Refusal
-        ``c.summary()`` prints the coreps multiplet by multiplet.  ``c.coreps``
-        holds the corep multiplicities of the set, ``{corep: multiplicity}``;
-        ``c.multiplets`` a row for each degenerate multiplet, lowest first,
-        with its bands, its mean energy and the coreps it carries;
-        ``c.isolation`` the gap from these bands to the nearest other band;
-        ``c.numerical`` the thresholds and the identification the coreps were
-        read with.  Corep labels can only be returned if the set of bands
-        contains all the states of each degenerate multiplet at ``k``.  A
+        The multiplicities of the little-group representations the set of
+        bands carries at ``k``, and the labels of each of its degenerate
+        multiplets, lowest first.  Little-group representations can only be
+        returned at a point the tables list, at the coordinates
+        :func:`..groups.high_symmetry_points` returns for it, up to a
+        reciprocal lattice vector.  They can only be returned if the set of
+        bands contains all the states of each degenerate multiplet there.  A
         ``Refusal`` in its place is falsy and names what stopped the call.
-
-    Refusals
-    --------
-    A refusal handed in as ``realized`` is returned unchanged.
-
-    ``multiplet_split``
-        the set of bands cuts a degenerate multiplet at ``k``: label the
-        multiplets whole.
-    ``kpoint_not_tabulated``
-        ``k`` is not a tabulated point in this cell, or not the tabulated member
-        of its star.
-    ``out_of_plane``
-        ``k`` has a component along a layer's vacuum, or names a tabulated
-        point out of the layer's plane.
-    ``integer_multiplicity`` / ``multiplet_dimension``
-        the characters fit no whole number of coreps, or coreps that do not fill
-        their multiplet: most often a multiplet grouped wrongly.
-    ``states_not_at_k`` / ``k_not_on_mesh``
-        states handed in from another point, or a mesh that does not hold ``k``.
-    ``little_group_mismatch`` / ``tables_not_ready``
-        the tables do not apply in this cell.
-
-    Raises
-    ------
-    TypeError
-        ``realized`` is not what :func:`..groups.realized_group` returned, or
-        ``bands`` left out.
-    ValueError
-        States without energies or of another model than ``r.model``,
-        ``bands`` naming no band, ``k`` a name the group does not tabulate, or
-        ``r.model`` edited since :func:`..groups.realized_group` measured it.
-    ..refusal.InternalError
-        The representation leaves out an operation of the little group at
-        ``k``: the package disagreeing with itself.
 
     Examples
     --------
-    lin3g's six lowest bands at Γ (:func:`..models.lin3g`):
+    The six lowest bands of lin3g (:func:`..models.lin3g`) at ``GM``:
 
     >>> c = coreps_at(r, "GM", bands=6)                                # doctest: +SKIP
     >>> print(c.summary())                                            # doctest: +SKIP
@@ -1562,6 +1767,60 @@ def coreps_at(realized, k, *, states=None, bands=None, degeneracy_tol=None,
         bands 2-3 at -12.38: -GM7
         bands 4-5 at -4.325: -GM6
       13.02 from these bands to the nearest other band, in the units of H   (.isolation)
+
+    Refusals
+    --------
+    A refusal handed in as ``realized`` is returned as it is.
+
+    ``multiplet_split``
+        the set of bands cuts a degenerate multiplet at ``k``.
+    ``kpoint_not_tabulated``
+        ``k``, given by its coordinates, is no tabulated point in the model's
+        cell, or is a member of a tabulated point's star other than the one
+        tabulated.
+    ``states_not_at_k``
+        the states handed in do not solve ``H(k)``.
+    ``k_not_on_mesh``
+        the mesh of the ``WFArray`` handed in does not hold ``k``.
+    ``out_of_plane``
+        ``k`` has a nonzero component normal to the plane of a layer, or
+        names a tabulated point off that plane.
+    ``integer_multiplicity``
+        a multiplicity is farther than ``label_tol`` from a nonnegative
+        integer.
+    ``multiplet_dimension``
+        the dimensions of the little-group representations found in a
+        multiplet do not add up to its degeneracy.
+    ``little_group_mismatch``
+        a unitary operation of the little group in the model's cell is not
+        among those the tables list at the point.
+    ``tables_not_ready``
+        the model's cell cannot be transformed to the conventional cell of
+        the irreptables package.
+
+    Raises
+    ------
+    TypeError
+        ``realized`` is not what :func:`..groups.realized_group` returned, or
+        ``bands`` is left out.
+    ValueError
+        States without energies: eigenvectors alone, or a ``WFArray`` not
+        filled by ``solve_model``.
+        States of a model other than ``r.model``.
+        Eigenvectors in an array that is neither two- nor three-dimensional.
+        ``bands`` naming no band, a band twice, or a band outside the states.
+        ``k`` a name the group does not tabulate.
+        ``k`` with a number of coordinates other than ``dim_k``, or three for
+        a layer.
+        A ``WFArray`` with parameter axes in its mesh, or whose mesh has
+        another number of coordinates than ``k``.
+        ``r.model`` edited since :func:`..groups.realized_group` measured it.
+
+    See Also
+    --------
+    hsp_table : the little-group representations of a set of bands at every
+        high-symmetry point, and the symmetry data vector their
+        multiplicities form.
     """
     rep = _rep_of("coreps_at", realized, "coreps_at(r, k, bands=6)")
     if isinstance(rep, Refusal):
@@ -1572,9 +1831,16 @@ def coreps_at(realized, k, *, states=None, bands=None, degeneracy_tol=None,
 
 def _coreps_at(rep, k, *, states, bands, degeneracy_tol, label_tol, ktol, atol,
                mesh_tol, bloch) -> CorepsAt | Refusal:
-    """The coreps :func:`coreps_at` returns.
+    """The little-group representations :func:`coreps_at` returns.
 
-    ``bloch`` is the model's Bloch sum or ``None``, as in :func:`_hamiltonian_at`.
+    ``rep`` is the representation, or a refusal, which is returned as it is.
+    ``k``, ``states``, ``bands``, ``degeneracy_tol`` and ``label_tol`` are as
+    :func:`coreps_at` takes them.  ``ktol`` is how far ``k`` may sit from a
+    tabulated point and be named after it, in reduced coordinates.
+    ``atol``, ``mesh_tol`` and ``bloch`` are as :func:`_characters` takes
+    them.  The characters are read by :func:`_characters` and identified by
+    :func:`.._tables._identify_from_characters`, whose refusals are returned
+    as they are.
     """
     if bands is None:
         raise TypeError("coreps_at() missing required argument 'bands'")
@@ -1616,42 +1882,45 @@ def _coreps_at(rep, k, *, states, bands, degeneracy_tol, label_tol, ktol, atol,
                     _characters=tab)
 
 # ==========================================================================
-# the coreps at every high-symmetry point
+# the little-group representations at every high-symmetry point
 # ==========================================================================
 
 @dataclass(frozen=True)
 class HSPTable:
-    """The coreps a set of bands carries at every high-symmetry point: its symmetry data vector, point by point.
+    """The symmetry data vector of a set of bands, point by point.
 
-    The table is what :func:`..ebr.decompose`, :func:`..ebr.symmetry_indicator`
-    and :func:`..srsi.srsi_of_bands` take, read in the group it carries.
-    ``summary()`` prints it.
+    The record :func:`hsp_table` returns.  :func:`..ebr.decompose`,
+    :func:`..ebr.symmetry_indicator`, :func:`..ebr.regular_completion` and
+    :func:`..srsi.srsi_of_bands` take it without ``r``, and use the group it
+    holds.  ``summary()`` prints the multiplicities at each point, the points
+    refused, and the note.
 
     Attributes
     ----------
     bands : tuple of int
-        The band indices of the set, ascending.
+        The set of bands, by their indices, ascending.
     group : ..groups.GroupData
-        The group whose coreps the labels name, ``r.group``.
+        The group whose little-group representations the labels name,
+        ``r.group``.
     kpoints : dict
-        Every tabulated point in the model's periodic plane, by name, with its
-        reduced coordinates; a point that refused is here too.
+        Every point :func:`..groups.high_symmetry_points` returns, by name,
+        with its reduced coordinates, the points refused among them.
     symmetry_data : dict
-        ``{corep: multiplicity}`` over every point measured: the symmetry data
-        vector.
+        If nonempty, the symmetry data vector, ``{label: multiplicity}``, over
+        every point not refused.
     multiplets : dict
-        ``{kpoint: tuple of Multiplet}``: a row for each degenerate multiplet
-        at each point measured, lowest first, with the coreps it carries.
+        If nonempty, ``{kpoint: tuple of Multiplet}``: at each point not
+        refused, a row for each degenerate multiplet of the set of bands,
+        lowest first, with its labels.
     complete : bool
-        Whether every point was measured; a decomposition and an indicator
-        refuse a table that was not.
+        Whether the little-group representations were identified at every
+        point of ``kpoints``.
     refusals : dict
-        ``{kpoint: Refusal}`` at each point that refused.
+        If nonempty, ``{kpoint: Refusal}``, the refusal returned at each point
+        refused.
     note : str
-        If nonempty, a sentence saying where another labeling the hoppings
-        leave open gives some energy multiplet of these bands, at a point the
-        table labels, other labels, or a pseudospin's undeclared site irreps
-        set them.
+        If nonempty, a sentence describing any convention choices not fixed by
+        the Hamiltonian that are needed to determine the corep labels.
     """
 
     bands: tuple
@@ -1679,12 +1948,12 @@ class HSPTable:
     _heights: Any = field(default=None, repr=False, compare=False)
 
     def _at(self, kpoint) -> dict:
-        """The symmetry data vector's entries at one point."""
+        """The symmetry data vector's entries at the point named ``kpoint``."""
         return {lab: n for lab, n in self.symmetry_data.items()
                 if _tables.kpoint_of_label(lab) == kpoint}
 
     def summary(self) -> str:
-        """The coreps of these bands, a line for each part, with the attribute that holds it."""
+        """The labels at each point, a line for each part with its attribute."""
         lines = [f"band{'s' if len(self.bands) > 1 else ''} {_runs(self.bands)}   (.bands)"]
         measured = [name for name in self.kpoints if name in self.multiplets]
         if measured:
@@ -1715,7 +1984,11 @@ class HSPTable:
 # ==========================================================================
 
 def _site_content_record(rep):
-    """The site irreps a record's labels rest on, an :class:`..ebr.SiteContent`, or ``None`` without a ``rep``."""
+    """The site irreps a table's labels rest on, an :class:`..ebr.SiteContent`.
+
+    ``rep`` is the representation the labels were read with.  Returns
+    ``None`` where ``rep`` is ``None`` or holds no table of site irreps.
+    """
     if rep is None:
         return None
     ch = getattr(rep, "_characters", None)
@@ -1728,11 +2001,15 @@ def _site_content_record(rep):
                        residual=float(ch.residual))
 
 def _layer_height(group):
-    """``(normal_dir, height)`` for a layer read in a slab cell, or ``None`` for a crystal periodic in three directions.
+    """How a coordinate along a layer's vacuum direction gives a height.
 
-    ``normal_dir`` is the direction of the vacuum; ``height(z)`` takes a
-    reduced coordinate along it to the height from the layer's middle plane
-    along the normal ``a1 × a2``, in the model's units.
+    ``group`` is the group, read in its three-dimensional cell.  Returns
+    ``(normal_dir, height)`` for a layer with one direction of vacuum:
+    ``normal_dir`` that direction, and ``height(z)`` the height of the
+    reduced coordinate ``z`` along it from the layer's middle plane, along
+    the normal to the two periodic lattice vectors, in the model's units.
+    Returns ``None`` otherwise, as for a crystal periodic in three
+    directions.
     """
     padded = tuple(int(d) for d in (getattr(group, "_vacuum_dirs", ()) or ()))
     if int(getattr(group, "_dim_k", 3)) >= 3 or len(padded) != 1:
@@ -1744,16 +2021,18 @@ def _layer_height(group):
     scale = float(lattice[normal_dir] @ normal) / float(np.linalg.norm(normal))
 
     def height(z):
-        """A reduced coordinate along the vacuum direction as a height from the middle plane."""
+        """The height of ``z``, a coordinate along the vacuum direction."""
         return ((float(z) + 0.5) % 1.0 - 0.5) * scale
 
     return normal_dir, height
 
 def _orbital_heights(group, where):
-    """Each position's height from a layer's middle plane along its normal, in the model's units, or ``None`` for a crystal periodic in three directions.
+    """Each position's height from a layer's middle plane.
 
-    ``where`` holds the positions in the group's three-dimensional reduced
-    coordinates, a row each.
+    ``group`` is the group, and ``where`` holds the positions in reduced
+    coordinates of its three-dimensional cell, a row each.  The heights are
+    those of :func:`_layer_height`, in the model's units.  Returns ``None``
+    for a crystal periodic in three directions.
     """
     reading = _layer_height(group)
     if reading is None:
@@ -1762,14 +2041,18 @@ def _orbital_heights(group, where):
     return tuple(height(z) for z in np.atleast_2d(where)[:, normal_dir])
 
 def _table_heights(rep):
-    """The heights of ``rep``'s orbitals, :func:`_orbital_heights`, or ``None`` for a crystal."""
+    """The heights of ``rep``'s orbitals, or ``None`` for a crystal.
+
+    They are those :func:`_orbital_heights` gives at the orbitals' positions
+    in the group's three-dimensional cell.
+    """
     if _layer_height(rep._group) is None:
         return None
     from ._matrices import _orb_positions_3d
     return _orbital_heights(rep._group, _orb_positions_3d(rep._model, rep._group))
 
 #: The keys under which a labeling set aside can label a band otherwise: the
-#: site content at the lowest angular momentum, the functions the orbitals read
+#: site irreps at the lowest angular momentum, the functions the orbitals read
 #: as, and the band labels.
 _RELABELING_KEYS = ("content", "orbitals", "bands")
 
@@ -1781,15 +2064,19 @@ _ANOTHER_LABELING_RELABELS = (
     "of all the model's bands together")
 
 def _labeling_note(rep, block) -> str:
-    """The sentence :attr:`HSPTable.note` carries, or ``""``.
+    """The sentence of :attr:`HSPTable.note` on a labeling, or ``""``.
 
-    Where the lowest-angular-momentum rule kept one of several labelings of a
-    coupled part that give every orbital the same site irrep, and another of
-    them labels some band differently, the atomic-limit table holds the labels
-    every energy multiplet carries under each.  A set of bands rests on that
-    choice where an energy multiplet it holds whole, at a point where it cuts
-    none, carries other labels under another of them.  Where only the group's order of operations set them
-    apart, no label rests on the choice and nothing is said.
+    ``rep`` is the representation the table is read with, and ``block`` the
+    indices of the set of bands.  Where the lowest-angular-momentum rule kept
+    one of several labelings of a coupled part that give every orbital the
+    same site irrep, the atomic-limit table holds the labels each energy
+    multiplet carries under the labeling kept and under each other one that
+    labels some band otherwise.  The sentence is returned where an
+    energy multiplet the set holds whole, at a point where it cuts none,
+    carries other labels under a labeling set aside by one of the keys of
+    :data:`_RELABELING_KEYS` (:func:`_labeled_apart`).  A labeling set aside
+    by the group's order of operations alone labels every band alike, and
+    nothing is said.
     """
     table = getattr(rep, "_characters", None)
     record = getattr(table, "_labelings", {}) or {}
@@ -1800,11 +2087,14 @@ def _labeling_note(rep, block) -> str:
     return ""
 
 def _labeled_apart(chosen, other, held) -> bool:
-    """Whether a multiplet the bands ``held`` hold whole is labeled otherwise under ``other``.
+    """Whether ``other`` gives other labels to a multiplet ``held`` holds whole.
 
-    ``chosen`` and ``other`` are ``{point: ((bands, {corep: m}), ...)}``, and one
-    multiplet whose labels differ is enough.  A point where the bands held cut
-    a multiplet is one the table does not label, and is passed over.
+    ``chosen`` and ``other`` are the labels under two labelings,
+    ``{point: ((bands, {label: multiplicity}), ...)}``, and ``held`` is a set
+    of band indices.  One multiplet whose labels differ is enough.  A point is
+    passed over where ``other`` does not hold it or groups the bands into
+    other multiplets, and where the bands held cut a multiplet, which the
+    table does not label.
     """
     for point, multiplets in chosen.items():
         theirs = other.get(point)
@@ -1822,20 +2112,22 @@ def _labeled_apart(chosen, other, held) -> bool:
     return False
 
 def _multiplicity_note(rep, block, fibers) -> str:
-    """The sentence :attr:`HSPTable.note` carries where a pseudospin sets the content, or ``""``.
+    """The sentence of :attr:`HSPTable.note` on a pseudospin, or ``""``.
 
-    Where the Hamiltonian conserves a pseudospin, the representation its copies
-    carry is not fixed by it and was assigned by the lowest-angular-momentum
-    rule (:attr:`..symmetry._OrbitalTable.multiplicity_spaces`), and every
-    band on those orbitals carries it.  Where the representations the table
-    admits give different site contents, the site content itself is that
-    choice, and a set of bands with weight there is labeled by it and can read
-    differently under another; where a declaration states the content there is
-    no such choice.  Those giving one site content are labelings like any
-    other, and :func:`_labeling_note` says where a set of bands rests on them.
-    The weight is read off the eigenvectors the content was read from, where
-    they are to hand, and a set of bands is taken to have some where they are
-    not.
+    ``rep`` is the representation the table is read with, ``block`` the
+    indices of the set of bands, and ``fibers`` the states at each point read,
+    ``(evals, evecs)`` pairs where the model was solved.  Where the
+    Hamiltonian conserves a pseudospin, the representation its copies carry
+    is not fixed by it, and the lowest-angular-momentum rule assigned it
+    (:attr:`..symmetry._OrbitalTable.multiplicity_spaces`).  A clause is said
+    for each such set of copies where the representations the group's own
+    table admits give more than one set of site-irrep multiplicities, no
+    declaration states it, and the set of bands has a weight above ``1e-8``
+    on its orbitals.  The weight is the largest over the pairs in
+    ``fibers``; without a pair the set of bands is taken to have weight
+    there.  Copies whose admitted representations give one set of site-irrep
+    multiplicities are labelings like any other, which :func:`_labeling_note`
+    reads.
     """
     table = getattr(rep, "_characters", None)
     spaces = tuple(getattr(table, "multiplicity_spaces", ()) or ())
@@ -1869,9 +2161,14 @@ def _multiplicity_note(rep, block, fibers) -> str:
 def _hsp_table_rep(rep, *, states=None, bands=None, degeneracy_tol=None,
                    label_tol=LABEL_TOL, _ktol=1e-5, _atol=1e-8,
                    _mesh_tol=MESH_TOL) -> HSPTable | Refusal:
-    """What :func:`hsp_table` returns, read off a representation: ``realized.rep``, or one built by hand.
+    """What :func:`hsp_table` returns, read off a representation.
 
-    Every argument but the first is :func:`hsp_table`'s own.
+    ``rep`` is the representation, ``r.rep`` or one built by hand, or a
+    refusal, which is returned as it is.  ``states``, ``bands``,
+    ``degeneracy_tol`` and ``label_tol`` are as :func:`hsp_table` takes them.
+    ``_ktol`` is as ``ktol`` in :func:`_coreps_at`, ``_atol`` as ``atol`` in
+    :func:`_sewing_core`, and ``_mesh_tol`` as ``mesh_tol`` in
+    :func:`_wfarray_fiber`.  Returns and refuses as :func:`hsp_table` does.
     """
     if bands is None:
         raise TypeError("hsp_table() missing required argument 'bands'")
@@ -1882,8 +2179,8 @@ def _hsp_table_rep(rep, *, states=None, bands=None, degeneracy_tol=None,
     if gate is not None:
         return gate
     if states is not None and hasattr(states, "solve_ham") and states is not rep._model:
-        raise ValueError("hsp_table(): states= takes r.model, the model realized_group "
-                         "measured, or nothing")
+        raise ValueError("hsp_table(): states= is a model other than r.model. Pass r.model, "
+                         "the model realized_group measured, or leave states= out.")
     points = _tables._high_symmetry_points(rep._group)
     if isinstance(points, Refusal):
         return points
@@ -1891,9 +2188,8 @@ def _hsp_table_rep(rep, *, states=None, bands=None, degeneracy_tol=None,
     rows, records, refusals = {}, {}, {}
     counts: dict = {}
 
-    # Collect every point whose little group is read, then take *one* pass over them: on the
-    # model path that is a single solve_ham over the whole k-list -- the convenient
-    # route for "a handful of high-symmetry points", with no container built.
+    # Collect every point whose little group is read; where the model is solved here,
+    # it is solved once at all of them.
     wanted = []
     for name, k in points.items():
         lg = _tables._little_group(rep._group, k)
@@ -1943,64 +2239,50 @@ def hsp_table(realized, *, states=None, bands=None, degeneracy_tol=None,
               label_tol=LABEL_TOL, _ktol=_hsp_table_rep.__kwdefaults__["_ktol"],
               _atol=_hsp_table_rep.__kwdefaults__["_atol"],
               _mesh_tol=MESH_TOL) -> HSPTable | Refusal:
-    """The coreps a set of bands carries at every high-symmetry point of the group: its symmetry data vector.
+    """The symmetry data vector of a set of bands, point by point.
+
+    The points are the high-symmetry points the tables of the irreptables
+    package list for the model's group, those off a layer's plane left out,
+    as :func:`..groups.high_symmetry_points` returns them.  At each point the
+    little-group representations of the set of bands are identified as
+    :func:`coreps_at` identifies them.  Their multiplicities at every point,
+    taken together, are the symmetry data vector.
 
     Parameters
     ----------
     realized : ..groups.RealizedGroup
         What :func:`..groups.realized_group` returned, ``r``.
+    states : None, pythtb.TBModel or pythtb.WFArray, optional
+        The states at the points.  Pass ``None`` or ``r.model`` to solve the
+        model there.  Pass a ``WFArray`` filled by ``solve_model`` to read
+        its states at the points its mesh holds.
     bands : int or sequence of int
-        The set of bands: ``n`` the lowest ``n`` bands, or the band indices.
-        Required.
-    states : None or pythtb.WFArray, optional
-        ``None`` (default) solves the model at the points, once; a solved
-        ``WFArray`` is read as it stands, and a point its mesh does not hold is
-        refused there.
+        The set of bands.  Pass ``n`` for the lowest ``n`` bands, or the band
+        indices.  Required.
     degeneracy_tol : float, optional
-        A number in the units of ``H``: bands closer in energy than it are one
-        multiplet.  Left out, ``1e-8`` times ``max|H|``, the largest entry of
-        ``H(k)`` once the mean on-site energy is subtracted.
+        The energy tolerance, in the units of ``H``, within which bands are
+        one degenerate multiplet.  Left out, ``1e-8`` times ``max|H|``, the
+        largest entry of ``H(k)`` once the mean on-site energy is subtracted.
     label_tol : float, default 1e-3
-        How far a fitted multiplicity may sit from an integer at each point,
-        dimensionless.
+        The largest distance from an integer at which a multiplicity is
+        rounded to that integer.
 
     Returns
     -------
     HSPTable or Refusal
-        ``t.summary()`` prints the coreps at each point.  ``t.symmetry_data``
-        is the symmetry data vector, ``t.multiplets`` a row for each
-        degenerate multiplet at each point, with the coreps it carries;
-        ``t.complete`` says whether every point was measured, and
-        ``t.refusals`` holds each point that was not, with its own
-        ``Refusal``; ``t.note`` says where the labels rest on a choice the
-        hoppings leave open.  Corep labels can only be returned at a point if
-        the set of bands contains all the states of each degenerate multiplet
-        there.  The table is what :func:`..ebr.decompose`,
-        :func:`..ebr.symmetry_indicator` and :func:`..srsi.srsi_of_bands`
-        take, ``decompose(t)``, in the group it was read in, ``t.group``.  A
-        ``Refusal`` in its place is falsy and names what stopped the call.
-
-    Refusals
-    --------
-    A refusal handed in as ``realized`` is returned unchanged.  A point that refuses
-    is collected in ``refusals``.
-
-    ``tables_not_ready``
-        the group's tables cannot be read in this cell.
-
-    Raises
-    ------
-    TypeError
-        ``realized`` is not what :func:`..groups.realized_group` returned, or
-        ``bands`` left out.
-    ValueError
-        States of another model than ``r.model``, ``bands`` outside the
-        states or naming none, or ``r.model`` edited since
-        :func:`..groups.realized_group` measured it.
+        The labels of each degenerate multiplet of the set of bands at every
+        point, and the symmetry data vector.  Little-group representations
+        can only be returned at a point if the set of bands contains all the
+        states of each degenerate multiplet there.  The table holds, in
+        ``refusals``, the refusal :func:`coreps_at` returns at each point
+        where they are not returned, and is then not complete.  With a
+        ``WFArray``, the table holds the refusal ``k_not_on_mesh`` at each
+        point its mesh does not hold.  A ``Refusal`` in place of the table is
+        falsy and names what stopped the call.
 
     Examples
     --------
-    lin3g's six lowest bands (:func:`..models.lin3g`):
+    The six lowest bands of lin3g (:func:`..models.lin3g`):
 
     >>> print(hsp_table(r, bands=6).summary())                 # doctest: +SKIP
     bands 0-5   (.bands)
@@ -2008,6 +2290,35 @@ def hsp_table(realized, *, states=None, bands=None, degeneracy_tol=None,
         GM: 2x-GM6 + -GM7
         M: -M6 + 2x-M7
         X: 3x-X5
+
+    Refusals
+    --------
+    A refusal handed in as ``realized`` is returned as it is.
+
+    ``tables_not_ready``
+        the model's cell cannot be transformed to the conventional cell of
+        the irreptables package.
+
+    Raises
+    ------
+    TypeError
+        ``realized`` is not what :func:`..groups.realized_group` returned, or
+        ``bands`` is left out.
+    ValueError
+        A model other than ``r.model`` as ``states``, or a ``WFArray`` solved
+        on one.
+        A ``WFArray`` not filled by ``solve_model``, or with parameter axes in
+        its mesh.
+        ``bands`` naming no band, a band twice, or a band outside the states.
+        ``r.model`` edited since :func:`..groups.realized_group` measured it.
+
+    See Also
+    --------
+    .ebr.decompose : the sums of elementary band representations that carry
+        a symmetry data vector.
+    .ebr.symmetry_indicator : the symmetry-indicator class of a set of bands.
+    .srsi.srsi_of_bands : the integer-valued stable real-space invariants
+        (ZSRSIs) of a set of bands.
     """
     rep = _rep_of("hsp_table", realized, "hsp_table(r, bands=6)")
     return _hsp_table_rep(rep, states=states, bands=bands, degeneracy_tol=degeneracy_tol,

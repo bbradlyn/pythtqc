@@ -1016,12 +1016,13 @@ def test_the_grid_is_the_models_own_bloch_sum_bit_for_bit():
         spinful.set_hop(-1.0, 0, 0, lv)
     for model, params, message in (
             (honeycomb, dict(values, t=[-1.0, -0.5]),
-             "Parameter 't' must be a scalar. Each value of a parameter is one call."),
-            (honeycomb, dict(values, t="u"), "Parameter 't' must be a scalar."),
+             "params= gives 't' a value that is not a number. Pass one number, and make "
+             "a call for each value."),
+            (honeycomb, dict(values, t="u"), "params= gives 't' a value that is not a number."),
             (spinful, {"m": 0.3 * np.diag([1.0, -1.0])},
-             "Parameter 'm' must be a scalar. A term that acts on spin is written as a "
-             "function of its parameter that returns the 2x2 block: "
-             "set_hop(lambda m: m * sz, ...).")):
+             "params= gives 'm' a value that is not a number. Where the parameter enters "
+             "a term that acts on spin, write that term as a function of the parameter "
+             "that returns the 2x2 block, such as lambda m: m * sz.")):
         for enter in (lambda: _bloch.bound(model, params),
                       lambda: G.realized_group(model, params=params)):
             with pytest.raises(ValueError) as entry:

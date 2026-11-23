@@ -1,7 +1,12 @@
-"""``irrep``'s tables in the model's own cell: the high-symmetry points, the
-little group of a k-point, the character table of its coreps, the coreps that
-measured characters carry, the elementary band representations, the indicator
-group, and a mesh that respects the group.
+"""The tables of the irreptables package, read in the model's own cell.
+
+The high-symmetry points and the little group of a k-point; the character
+table of its little-group representations, and the ones measured characters
+carry; the Wyckoff position of each site in the tables' setting; the
+elementary band representations and the indicator group; and a mesh that
+respects the group.  Characters and labels are carried into the convention
+in which a lattice translation ``t`` acts as ``e^{-ik·t}``, where the tables
+have ``e^{+ik·t}``.
 """
 
 from __future__ import annotations
@@ -38,20 +43,21 @@ __all__ = ["kpoint_of_label", "ebr_rows", "wyckoff_sites_tables", "little_group"
 
 
 def kpoint_of_label(label: str) -> str:
-    """The tables' name of the point a corep label belongs to: ``-GM6`` to ``GM``, ``-M3M4`` to ``M``.
+    """The high-symmetry point a label belongs to, ``GM`` for ``-GM6``.
 
-    A leading ``-``, which marks a double-valued corep, is dropped, and the
-    letters before the first digit are the point.
+    The point is the run of letters before the first digit, read after the
+    ``-`` that marks a double-valued label: ``M`` for ``-M3M4``.
 
     Parameters
     ----------
     label : str
-        A corep label, ``"-GM6"``, ``"GM2-"``, ``"X1"``.
+        The label of a little-group representation, ``"-GM6"``, ``"GM2-"``
+        or ``"X1"``.
 
     Returns
     -------
     str
-        The point's name.
+        The name of the point in the tables, ``"GM"``.
     """
     s = str(label)
     if s.startswith("-"):
@@ -66,12 +72,14 @@ _COREP_TOKEN = re.compile(r"([A-Z]+)(\d+)([+-]?)")
 
 
 def point_order(name):
-    """The place of a high-symmetry point in the order every point and content is listed in.
+    """The sort key that places a high-symmetry point in the order points are listed.
 
-    ``GM`` (Γ) first, then the other points alphabetically by name, a partner
-    point ``−k`` (``KA``) right after its point (``K``).  A vector aligned with
-    a matrix, the elementary band representation basis and its rows, keeps the
-    tables' order.
+    ``name`` is the point's name in the tables, ``"GM"`` or ``"KA"``.  ``GM``
+    comes first, then the other points alphabetically.  A name of more than
+    one letter ending in ``A`` is read as the partner ``-k`` of the point
+    named without it, and placed right after that point: ``KA`` after ``K``.
+    A list aligned with a matrix, as the basis of the elementary band
+    representations is, keeps the tables' order instead.
     """
     name = str(name)
     base = name[:-1] if len(name) > 1 and name.endswith("A") else name
@@ -79,12 +87,14 @@ def point_order(name):
 
 
 def corep_order(label):
-    """The place of a corep label in the order every content is listed in.
+    """The sort key that places a label in the order labels are listed.
 
-    By point (:func:`point_order`), then in ascending order of the numbers of
-    the irreps the label names: ``GM2`` before ``GM10``, ``GM1+`` before
-    ``GM1-``, a label pairing two irreps placed by the first it names, and a
-    single-valued corep before a double-valued one of the same number.
+    ``label`` is the name of a little-group representation, ``"GM1+"`` or
+    ``"-M3M4"``.  Labels are ordered by point (:func:`point_order`), then by
+    the numbers of the irreps the label names, ascending: ``GM2`` before
+    ``GM10``, ``GM1+`` before ``GM1-``, a label pairing two irreps placed by
+    the first it names and then the second.  A single-valued label comes
+    before the double-valued one of the same numbers.
     """
     s = str(label)
     double = s.startswith("-")
@@ -96,47 +106,54 @@ def corep_order(label):
 
 
 def ordered_content(counts) -> dict:
-    """``{corep: multiplicity}`` with its coreps in the order of :func:`corep_order`."""
+    """Multiplicities of little-group representations, reordered by label.
+
+    ``counts`` maps each label to its multiplicity.  Returns a new mapping with
+    the same entries, its labels in the order of :func:`corep_order`.
+    """
     return {lab: counts[lab] for lab in sorted(counts, key=corep_order)}
 
 
 def ebr_rows(group) -> dict | Refusal:
-    r"""Each elementary band representation of the group as a symmetry data vector: the coreps it carries at the high-symmetry points.
+    r"""The symmetry data vector of each elementary band representation of the group.
 
-    The coreps are in the convention every returned label is, a lattice
-    translation acting as ``e^{-ik·t}``, where the Bilbao Crystallographic
-    Server's tables have ``e^{+ik·t}``: away from the time-reversal-invariant
-    points a row can carry other labels than the server's page, ``K3`` for its
-    ``K2`` in the row of ``A1`` at ``1b`` of space group 143, and the Wyckoff
-    positions never move.
+    A row holds the multiplicity of each little-group representation at
+    every high-symmetry point of the group.  The labels are in the package's
+    convention, a lattice translation ``t`` acting as ``e^{-ik·t}``, where the
+    tables of the Bilbao Crystallographic Server have ``e^{+ik·t}``.  The
+    label the server prints at ``k`` is the label returned here at ``-k``: in
+    the row of ``A1`` at ``1b`` of space group 143, ``K3`` stands where the
+    server prints ``K2``.  The Wyckoff positions are the server's.
 
     Parameters
     ----------
     group : .groups.GroupData
-        The group, ``r.group``.
+        The group.  Pass ``r.group`` of what :func:`..groups.realized_group`
+        returns.
 
     Returns
     -------
     dict or Refusal
-        ``{(irrep, wyckoff): {corep: multiplicity}}``, the zeros dropped, in
-        the order the tables list the elementary band representations: each
-        key the site irrep it is induced from and its Wyckoff position,
-        ``("-E1", "1a")``, so that ``rows["-E1", "1a"]`` is one row.  A
-        ``Refusal`` in its place is falsy and names what stopped the call.
+        ``{(irrep, wyckoff): {label: multiplicity}}``, the zeros dropped, in
+        the order the tables list the elementary band representations.  A key
+        is the site irrep the row is induced from and its Wyckoff position,
+        so that ``rows["-E1", "1a"]`` is one row.  A ``Refusal`` in its place
+        is falsy.
 
     Refusals
     --------
     A refusal handed in as ``group`` is returned as it is.
 
     ``ebr_tables`` / ``irrep_tables`` / ``ebr_convention``
-        no elementary band representations of this group in the tables
-        installed, or none that can be read in this package's convention.
+        the tables installed hold no elementary band representations of this
+        group that can be read in the package's convention.
 
     Raises
     ------
     TypeError
-        ``group`` is not a group: ``r`` or ``r.rep`` in its place, or
-        anything else.
+        ``group`` is not ``r.group``: ``r`` itself, ``r.rep``, the ``group``
+        of :func:`..srsi.srsi_tables` for a space-group number, which has no
+        cell, or anything else.
     """
     _require_group("ebr_rows", group)
     rows = _ebr_rows(group)
@@ -147,10 +164,14 @@ def ebr_rows(group) -> dict | Refusal:
 
 
 def _ebr_rows(group) -> dict | Refusal:
-    """Each elementary band representation's coreps, keyed by its name and position as the list writes them.
+    """The row of each elementary band representation, keyed as the tables write it.
 
-    ``{"-E1↑G(2)@1a(6mm1',6mm)": {corep: multiplicity}}``, the zeros dropped,
-    in the list's order; the refusals of :func:`_ebr_data`.
+    ``group`` is the group, ``r.group``.  Returns
+    ``{"-E1↑G(2)@1a(6mm1',6mm)": {label: multiplicity}}``, the zeros dropped,
+    the representations in the tables' order and the labels in the convention
+    of :func:`ebr_data`, in the order of :func:`corep_order`.  Returns
+    ``lattice_not_descended`` for a lattice supergroup, or a refusal of
+    :func:`_ebr_data`.
     """
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
@@ -167,22 +188,38 @@ def _ebr_rows(group) -> dict | Refusal:
 
 
 def _ebr_irrep(name: str) -> str:
-    """``"-E1↑G(2)" → "-E1"``: the site irrep an elementary band representation is induced from."""
+    """The site irrep an elementary band representation is induced from.
+
+    ``name`` is the representation's name in the tables.  Returns the part
+    before ``↑``: ``"-E1"`` for ``"-E1↑G(2)"``.
+    """
     return str(name).split("↑")[0]
 
 
 def _wyckoff_letter(position: str) -> str:
-    """``"1a(4mm1',4mm)" → "1a"`` — the multiplicity+letter, without the site groups."""
+    """A Wyckoff position's multiplicity and letter, without its site groups.
+
+    ``position`` is the position as the tables of elementary band
+    representations write it.  Returns ``"1a"`` for ``"1a(4mm1',4mm)"``.
+    """
     return str(position).split("(")[0]
 
 
 def _letter_only(position: str) -> str:
-    """``"1a(4mm1',4mm)" → "a"`` — the Wyckoff letter alone, without its multiplicity."""
+    """A Wyckoff position's letter alone.
+
+    ``position`` is the position with or without its site groups.  Returns
+    ``"a"`` for ``"1a(4mm1',4mm)"`` and for ``"1a"``.
+    """
     return _wyckoff_letter(position).lstrip("0123456789")
 
 
 def _bands_spanned(name: str) -> int:
-    """``"-E1↑G(4)" → 4`` — how many bands an elementary band representation spans."""
+    """The number of bands an elementary band representation spans.
+
+    ``name`` is the representation's name in the tables.  Returns the integer
+    in its last parentheses: ``4`` for ``"-E1↑G(4)"``.
+    """
     name = str(name)
     return int(name[name.rindex("(") + 1:name.rindex(")")])
 
@@ -190,62 +227,73 @@ def _bands_spanned(name: str) -> int:
 def wyckoff_sites_tables(
         group: GroupData, positions=None, *,
         position_tol: float = WYCKOFF_REFERENCE_TOL) -> tuple | Refusal:
-    """The Wyckoff position of each site in the tables' setting, the one every table is read with.
+    """The Wyckoff position of each site, in the setting of the tables.
 
-    A letter is a table key, and settings disagree about it: the Fu–Kane–Mele
-    diamond's orbit is ``8a`` here and ``8b`` in spglib's setting, and a site
-    irrep at two positions can carry the same content at every k-point and
-    different real-space invariants.  The orbitals' own positions are the rows'
-    ``wyckoff`` of ``r.wyckoff_orbits``.
+    The setting is the one the elementary band representations of
+    :func:`ebr_data` are listed in, from the tables of the irreptables
+    package.  Two settings can give one orbit different letters: the
+    Fu-Kane-Mele diamond's orbit is ``8a`` here and ``8b`` in spglib's
+    setting.  Two positions can give atomic limits with the same symmetry
+    data vector and different stable real-space invariants, so a site's
+    letter is read in this setting.  Each point is given the Wyckoff position
+    with the fewest free parameters on which it lies within ``position_tol``,
+    and of those the one of smallest multiplicity.  For the model's orbitals,
+    ``r.wyckoff_orbits`` holds the same positions.
 
     Parameters
     ----------
     group : GroupData
-        The group, ``r.group`` of what ``realized_group`` returns.  A grey
-        group's positions are those of its unitary subgroup.
+        The group.  Pass ``r.group`` of what :func:`..groups.realized_group`
+        returns.
     positions : array, shape (n, 3), optional
-        Points in reduced coordinates of the group's three-dimensional cell.
-        Default: the points the group was found on, the model's sites and any
-        species added to its cell.
+        The points, in reduced coordinates of the group's three-dimensional
+        cell.  Leave it out for the sites the group was found on: the
+        model's orbital sites, and those of the species added with the
+        ``decorations`` of :func:`..groups.realized_group`.
     position_tol : float, default 1e-4
-        How far a point may sit from a position and lie on it, in reduced
-        coordinates of the tables' conventional cell.
+        The largest distance at which a point is read as lying on a Wyckoff
+        position, in reduced coordinates of the conventional cell of the
+        tables.
 
     Returns
     -------
     tuple of SiteReference or Refusal
-        One per point: its Wyckoff position, ``"8a"``, its free parameters,
-        and the positions an orbital confined there can be moved to.  A
-        ``Refusal`` in its place is falsy.
+        One for each point: its Wyckoff position, ``"8a"``; its number of
+        free parameters; and the positions with elementary band
+        representations in the tables that lie on the point, line or plane
+        those parameters sweep out, ``("3a", "3b")`` for the line ``6c`` of
+        ``R-3m``.  A ``Refusal`` in its place is falsy.
+
+    Examples
+    --------
+    Fu, Kane and Mele's diamond model, pythtb's ``fu_kane_mele``, whose two
+    orbitals lie on one orbit, ``8a`` in the setting of the tables:
+
+    >>> from pythtb.models import fu_kane_mele                        # doctest: +SKIP
+    >>> r = realized_group(fu_kane_mele(1.0, 0.125, [0, 0, 0, 0]))     # doctest: +SKIP
+    >>> [s.wyckoff for s in wyckoff_sites_tables(r.group)]             # doctest: +SKIP
+    ['8a', '8a']
 
     Refusals
     --------
     A refusal handed in as ``group`` is returned as it is.
 
-    ``tables_not_ready``
-        The group has no transformation to the tables' conventional cell.
     ``wyckoff_setting``
-        ``pyxtal``'s list of the group's positions is not written in the
-        tables' setting, so no position would be read in it.
+        the list of Wyckoff positions of the pyxtal package is not written in
+        the setting of the tables.
     ``wyckoff_unresolved``
-        A point lies on no position within ``position_tol``; the refusal names
-        the nearest and its distance.
-    ``ebr_tables``, ``irrep_tables``, ``ebr_convention``
-        From :func:`ebr_data`, whose positions the sites are checked
-        against.
+        a point lies on no Wyckoff position within ``position_tol``.  The
+        reason names the nearest and its distance.
+    ``ebr_tables`` / ``irrep_tables`` / ``ebr_convention`` / ``tables_not_ready``
+        the tables installed hold no elementary band representations of this
+        group that can be read in the model's cell.
 
     Raises
     ------
     TypeError
-        ``group`` is not a group: ``r`` or ``r.rep`` in its place, or
-        anything else.
-
-    Examples
-    --------
-    >>> from pythtb.models import fu_kane_mele                         # doctest: +SKIP
-    >>> r = realized_group(fu_kane_mele(1.0, 0.125, [0, 0, 0, 0]))     # doctest: +SKIP
-    >>> [s.wyckoff for s in wyckoff_sites_tables(r.group)]             # doctest: +SKIP
-    ['8a', '8a']
+        ``group`` is not ``r.group``: ``r`` itself, ``r.rep``, the ``group``
+        of :func:`..srsi.srsi_tables` for a space-group number, which has no
+        cell, or anything else.
     """
     _require_group("wyckoff_sites_tables", group)
     read = _sites_in_tables_setting(group, positions, position_tol=position_tol)
@@ -265,17 +313,23 @@ def _sites_in_tables_setting(group: GroupData, positions=None, *,
                              ) -> tuple | Refusal:
     """Each point's Wyckoff position in the tables' setting, as the package reads it.
 
-    A :class:`_SiteReading` per point of ``positions`` (default the group's
-    own sites), with the refusals :func:`wyckoff_sites_tables` documents.
+    ``group`` is the group, ``r.group``.  ``positions`` are the points, in
+    reduced coordinates of the group's three-dimensional cell, or ``None`` for
+    the sites the group was found on.  ``position_tol`` is the largest
+    distance, in reduced coordinates of the tables' conventional cell, at which
+    a point lies on a position.  Returns a :class:`_SiteReading` for each
+    point, or a refusal :func:`wyckoff_sites_tables` documents, or
+    ``lattice_not_descended`` for a lattice supergroup.
     """
     gate = _lattice_not_descended(group)
     if gate is not None:
         return gate
     if not group._tables_ready:
         return Refusal("tables_not_ready",
-                       group._setup_note or "irrep tables are not set up for this cell, "
-                       "so there is no refUC/shiftUC to write positions in the "
-                       "reference cell with",
+                       group._setup_note or f"the cell of {group.name} "
+                       f"#{group.number_str} could not be matched to the setting the "
+                       "installed tables are written in. Report the model, with this "
+                       "reason.",
                        context={"number_str": group.number_str})
     data = _ebr_data(group)
     if isinstance(data, Refusal):
@@ -285,9 +339,10 @@ def _sites_in_tables_setting(group: GroupData, positions=None, *,
         match = re.match(r"^(\d+)([a-zA-Z])\((.*)\)$", str(position))
         if match is None:                              # pragma: no cover - guard
             raise InternalError(
-                f"#{group.number_str}: EBR position {position!r} is not "
-                "'<multiplicity><letter>(<site symbols>)', so its Wyckoff letter cannot "
-                "be read")
+                f"#{group.number_str}: the tables write the Wyckoff position of an "
+                f"elementary band representation as {position!r}, which is not "
+                "'<multiplicity><letter>(<site groups>)'. Report it, with the model and "
+                "the call.")
         ebr_positions.append((int(match.group(1)), match.group(2), match.group(3)))
     listed = frozenset(letter for _m, letter, _s in ebr_positions)
 
@@ -301,12 +356,12 @@ def _sites_in_tables_setting(group: GroupData, positions=None, *,
         bad = audit["offenders"][0]
         return Refusal(
             "wyckoff_setting",
-            f"pyxtal's Wyckoff list for space group {group._sg_number} is not written in "
-            f"the setting #{group.number_str}'s own tables are: position "
+            f"the Wyckoff positions the pyxtal package lists for space group "
+            f"{group._sg_number} are not written in the setting of the tables of "
+            f"{group.name} #{group.number_str}: the position "
             f"{bad['expected'] if bad['reason'] != 'multiplicity' else ''}{bad['letter']} "
-            f"fails the {bad['reason']} check (measured {bad['measured']}, expected "
-            f"{bad['expected']}). Every Wyckoff position this call would return would be "
-            "read in the wrong setting, so none is returned",
+            f"fails the check '{bad['reason']}', measured {bad['measured']} where "
+            f"{bad['expected']} is expected. Report it, with the model and the call.",
             value=None if bad["measured"] is None else float(bad["measured"]),
             threshold=None if bad["expected"] is None else float(bad["expected"]),
             context={"number_str": str(group.number_str), "sg": int(group._sg_number),
@@ -329,11 +384,12 @@ def _sites_in_tables_setting(group: GroupData, positions=None, *,
             return Refusal(
                 "wyckoff_unresolved",
                 f"the position {np.round(x, 6).tolist()} is "
-                f"{np.round(x_ref, 6).tolist()} in #{group.number_str}'s reference cell "
-                f"and lies on no Wyckoff variety of space group {group._sg_number} there: "
-                f"the nearest is {nearest['multiplicity']}{nearest['letter']}, "
+                f"{np.round(x_ref, 6).tolist()} in the conventional cell of the tables of "
+                f"{group.name} #{group.number_str}, and lies on none of its Wyckoff "
+                f"positions within the tolerance. The nearest is "
+                f"{nearest['multiplicity']}{nearest['letter']}, "
                 f"{float(residuals[nearest['letter']][i]):.3g} away in reduced "
-                f"coordinates. A center that far off every orbit is a modeling defect",
+                f"coordinates. Check the position.",
                 value=float(residuals[nearest["letter"]][i]),
                 threshold=float(position_tol),
                 context={"site": i, "position": x, "reference": x_ref,
@@ -353,72 +409,42 @@ def _sites_in_tables_setting(group: GroupData, positions=None, *,
 
 def _assign_orbitals(model, group: GroupData, *, typat=None,
                      symprec=None) -> OrbitalAssignment | Refusal:
-    """Which site orbit each orbital sits on, and how the operations move them.
+    """The site orbit each orbital sits on, and how the operations permute the sites.
 
-    Held as ``RealizedGroup._assignment``.  Each operation's image
-    ``R·τ + t`` is looked up among the
-    sites of the same species, and the permutation that comes out — with the
-    integer lattice shift beside it, which is what fixes a permuting
-    operation's embedding phase — is the data a representation is built from.
-    Orbits, site-symmetry groups and each orbit's Wyckoff position are read off
-    it.
+    ``model`` is the pythtb model whose orbital positions are read, rather
+    than the group's sites.  Its cell is the group's three-dimensional cell
+    once each vector out of a layer's plane is given the length the group's
+    cell gives it.  ``group`` is the group whose operations permute the
+    sites.  ``typat`` gives each orbital's species, as
+    :func:`.._realized.realized_group` takes it; pass the value given there.
+    ``symprec`` is the matching tolerance, a Cartesian length in the model's
+    units, by default the group's own.
 
-    Parameters
-    ----------
-    model : pythtb.TBModel
-        The orbital positions are read from **this** model, not from the group,
-        so a model whose orbitals have drifted off the ideal positions can be
-        checked against a group determined elsewhere (or at a looser
-        ``symprec``).  Its lattice must match the group's 3D cell: the
-        periodic vectors the same, and a layer's vector along its normal read at
-        the length the group's cell gives it.
-    group : GroupData
-        The group whose operations do the permuting; its ``symprec`` is the
-        default matching tolerance.
-        A group comes from :func:`.._realized.realized_group`:
-        ``realized_group(model, ...).group``.
-    typat : sequence, length norb, optional
-        Orbital-class labels, with the same meaning and default as
-        :func:`.._realized.realized_group`'s: the value given there.
-    symprec : float, optional
-        Matching tolerance — Cartesian, in the model's length units.  Defaults
-        to the group's own ``symprec``.
+    Each operation's image ``R·τ + t`` of a site is matched to the nearest
+    site of the same species.  The permutation of the sites, with the integer
+    lattice shift that fixes the phase of a permuting operation's matrix, is
+    what a representation is built from; the orbits and site-symmetry groups
+    are read off it.  Beside them stand three sets of Wyckoff letters, each
+    left empty where it cannot be read.  The letters in spglib's setting are
+    read per orbit.  The letters in the tables' setting are read per site.
+    spglib's own letter of each site is read in the group of the sites
+    alone.  All three are left empty for a lattice supergroup.
 
-    Returns
-    -------
-    OrbitalAssignment or Refusal
-
-    Refusals
-    --------
-    ``wyckoff_orbit``
-        An orbital's image under some operation lands on no orbital — the
-        refusal names the orbital, the operation and the **distance** to the
-        nearest candidate.  A misplaced orbital is a modelling bug and is never
-        silently symmetrized away.
-
-    Raises
-    ------
-    ValueError
-        When ``typat`` does not carry one entry per orbital, or the model's
-        cell, its vacuum included, is not the group's: there is no assignment to make
-        between a model and a group built on another cell.
-
-    Notes
-    -----
-    The orbit structure reported here is *measured* from the group's
-    operations.  The letters are read beside it, in both settings: from
-    :func:`_wyckoff_positions_spglib` per orbit and from
-    :func:`_sites_in_tables_setting` per site (left empty where the enumeration or
-    the reference cell was unavailable), with spglib's own per-site letter for
-    the sites alone, in the group of the positions, alongside.
+    Returns the :class:`OrbitalAssignment`, held as the ``_assignment`` of
+    what :func:`.._realized.realized_group` returns.  Returns
+    ``wyckoff_orbit`` where a site's image lies farther than ``symprec`` from
+    every site of its species, naming the orbitals, the operation and the
+    distance.  Raises ``ValueError`` where ``typat`` has not one entry per
+    orbital, or where the model's cell, so scaled, is not the group's.
     """
     tol = float(group._symprec if symprec is None else symprec)
     lat, positions, _ = _pad_cell(model, group._vacuum_length, lattice=group._lattice)
     if not np.allclose(lat, group._lattice, atol=1e-9):
         apart = float(np.abs(np.asarray(lat, dtype=float)
                              - np.asarray(group._lattice, dtype=float)).max())
-        raise ValueError(f"the model's cell, its vacuum included, is not the group's, "
-                         f"{apart:.3g} apart: the group was built for another cell.")
+        raise ValueError(f"the model's cell, its vacuum included, and the group's cell "
+                         f"differ by up to {apart:.3g} in a Cartesian component. Pass the "
+                         "group of the model's own cell.")
     pos, site_orbs, species = _sites_and_typat(positions, typat, tol, lat)
     nsite = pos.shape[0]
     nsym = len(group._symmetries)
@@ -439,12 +465,12 @@ def _assign_orbitals(model, group: GroupData, *, typat=None,
                 orbs = site_orbs[i]
                 return Refusal(
                     "wyckoff_orbit",
-                    f"orbital(s) {list(orbs)} at reduced position {np.round(pos[i], 6)} are not "
-                    f"carried onto any orbital by symmetry operation #{sym.ind} "
-                    f"(rotation {sym.rotation.tolist()}, translation "
-                    f"{np.round(sym.translation, 6).tolist()}): the nearest orbital of the same "
-                    f"class is {float(np.min(dist_masked)):.6g} away. A misplaced orbital is a "
-                    f"modeling bug, not something to symmetrize away.",
+                    f"operation #{sym.ind} (rotation {sym.rotation.tolist()}, translation "
+                    f"{np.round(sym.translation, 6).tolist()}) carries the orbitals "
+                    f"{list(orbs)} at the reduced position {np.round(pos[i], 6)} to a point "
+                    f"{float(np.min(dist_masked)):.6g} from the nearest orbital of their "
+                    "kind, a Cartesian distance in the units of the lattice vectors. Check "
+                    "the orbitals' positions.",
                     value=float(np.min(dist_masked)), threshold=tol,
                     context={"site": i, "orbitals": list(orbs), "operation_ind": int(sym.ind),
                              "position": pos[i], "image": images[i] % 1.0,
@@ -468,11 +494,11 @@ def _assign_orbitals(model, group: GroupData, *, typat=None,
     site_sym = tuple(tuple(int(group._symmetries[g].ind) for g in range(nsym) if perm[g, i] == i)
                      for i in range(nsite))
 
-    # Wyckoff letters: irrep returns ONE representative per position, so a site may
-    # sit on a symmetry-related copy of it -- test the whole orbit and keep the most
-    # special (fewest free parameters) match.
-    # A lattice supergroup's letters are the finer lattice's, so none is read:
-    # the geometry above is the whole of what this record can honestly carry.
+    # Wyckoff letters in spglib's setting.  irrep gives one representative of
+    # each position, and a site may sit on a symmetry-related copy of it, so
+    # every site of the orbit is tried and the match with the fewest free
+    # parameters is kept.  A lattice supergroup's letters are the finer
+    # lattice's, so none is read.
     supergroup = int(getattr(group, "_lattice_index", 1) or 1) > 1
     letters: list[str] = []
     wy = (Refusal("lattice_not_descended", "") if supergroup
@@ -496,10 +522,9 @@ def _assign_orbitals(model, group: GroupData, *, typat=None,
             orbit_of_orbital[o] = orbit_of[s]
             site_of_orbital[o] = s
 
-    # the letter in the TABLES' setting -- the one a table lookup needs.
-    # A refusal here is information -- the letter is left empty -- and not a
-    # defect: the orbit structure above is measured from the operations and does
-    # not depend on it.
+    # The letter in the tables' setting, the one a table is read with.  Where
+    # it cannot be read the letters are left empty: the orbits above are
+    # measured from the operations and do not depend on it.
     ref_letters: tuple = ()
     if not supergroup:
         sites_ref = _sites_in_tables_setting(group, pos)
@@ -518,10 +543,10 @@ def _assign_orbitals(model, group: GroupData, *, typat=None,
     except Exception:  # pragma: no cover - spglib API drift must not break the record
         pass
 
-    # the site-symmetry group's NAME, spelled as the atomic-limit table spells
-    # it: the point group of the site's own unitary operations, read off those
-    # operations.  The sites of one orbit have conjugate site groups and so one
-    # name, which is read once per orbit.
+    # The name of each site-symmetry group, spelled as the atomic-limit table
+    # spells it: the point group of the site's own unitary operations.  The
+    # sites of one orbit have conjugate site groups and so one name, which is
+    # read once per orbit.
 
     unitary = {int(s.ind) for s in group._symmetries if not s.time_reversal}
     orbit_names = [_sitechars.point_group_symbol(
@@ -545,48 +570,49 @@ def _assign_orbitals(model, group: GroupData, *, typat=None,
 def little_group(group: GroupData, k) -> LittleGroup | Refusal:
     """The operations that leave ``k`` invariant up to a reciprocal lattice vector.
 
-    The group a band's corep at ``k`` is a corep of: only these operations act
-    within the states there.
+    The unitary operations are listed apart from those combined with time
+    reversal.  A character vector at ``k`` has an entry for each unitary
+    operation, in the order listed.
 
     Parameters
     ----------
     group : GroupData
-        The group, ``r.group`` of what ``realized_group`` returns.
+        The group.  Pass ``r.group`` of what :func:`..groups.realized_group`
+        returns.
     k : str or array, shape (dim_k,)
-        The point: a tabulated name, ``"X"``, one of those
-        :func:`high_symmetry_points` returns, or its coordinates in the
-        model's reduced coordinates.  A layer takes a point of its
-        three-dimensional cell too, where it lies in the plane.
+        The point.  Pass its name in the tables, ``"X"``, one of those
+        :func:`high_symmetry_points` returns, or its reduced coordinates.  A
+        layer also takes the three reduced coordinates of a point of its
+        plane in its three-dimensional cell.
 
     Returns
     -------
     LittleGroup or Refusal
-        Its operations, the indices of its unitary operations in index order,
-        the columns a character vector at ``k`` is written in, and those of
-        its operations combined with time reversal, which carry no
-        characters; ``summary()`` prints it.  A ``Refusal`` in its place is
-        falsy.
+        The little group: its operations by index, unitary and combined with
+        time reversal; the reciprocal lattice vector each unitary one moves
+        ``k`` by; and the name of ``k`` in the tables where it has one.
+        ``summary()`` prints it.  A ``Refusal`` in its place is falsy.
 
     Refusals
     --------
     A refusal handed in as ``group`` is returned as it is.
 
     ``out_of_plane``
-        A point with a component along a layer's vacuum, a direction its zone
-        does not have, or the name of a tabulated point out of the layer's
-        plane.
+        ``k`` has a component out of a layer's plane, or names a tabulated
+        point out of the plane.
     ``tables_not_ready``
-        ``k`` is a name, and the group has no transformation to the tables'
-        conventional cell to carry the tabulated points into the model's.
+        ``k`` is a name, and the model's cell could not be matched to the
+        setting the tables are written in.
 
     Raises
     ------
     TypeError
-        ``group`` is not a group: ``r`` or ``r.rep`` in its place, or
-        anything else.
+        ``group`` is not ``r.group``: ``r`` itself, ``r.rep``, the ``group``
+        of :func:`..srsi.srsi_tables` for a space-group number, which has no
+        cell, or anything else.
     ValueError
         ``k`` is a name the group does not tabulate, or has neither
-        ``dim_k`` components nor three.
+        ``dim_k`` coordinates nor three.
     """
     _require_group("little_group", group)
     k = _resolve_kpoint("little_group", group, k)
@@ -596,11 +622,14 @@ def little_group(group: GroupData, k) -> LittleGroup | Refusal:
 
 
 def _little_group(group: GroupData, k, call: str = "little_group") -> LittleGroup | Refusal:
-    """The little group at coordinates ``k``, as :func:`little_group` documents it.
+    """The little group at the coordinates ``k``, as :func:`little_group` returns it.
 
-    ``k`` has ``dim_k`` components, or three for a point of a layer's
-    three-dimensional cell; ``call`` names the public call in the
-    ``ValueError`` raised on any other number.
+    ``group`` is the group, ``r.group``.  ``k`` holds ``dim_k`` reduced
+    coordinates, or three for a point of a layer's three-dimensional cell.
+    ``call`` is the public call's name, which opens the ``ValueError`` raised
+    on any other number of coordinates.  Returns the :class:`LittleGroup`, or
+    ``out_of_plane`` for three coordinates off a layer's plane, or
+    ``lattice_not_descended`` for a lattice supergroup.
     """
     gate = _lattice_not_descended(group)
     if gate is not None:
@@ -609,9 +638,9 @@ def _little_group(group: GroupData, k, call: str = "little_group") -> LittleGrou
     if k.size == 3 and group._dim_k != 3:
         if not group._in_plane(k[None, :]):
             return Refusal("out_of_plane",
-                           f"k = {np.round(k, 6)} has a component out of the model's periodic "
-                           f"plane (periodic directions {group.periodic_dirs}); a slab model "
-                           f"has no dispersion there.",
+                           f"k = {np.round(k, 6)} has a component out of the layer's plane, "
+                           f"whose periodic directions are {group.periodic_dirs}. Ask a "
+                           "point of the plane.",
                            value=float(np.max(np.abs(k[list(group._vacuum_dirs)]))),
                            threshold=0.0, context={"k": k, "periodic_dirs": group.periodic_dirs})
         k3 = k
@@ -619,12 +648,13 @@ def _little_group(group: GroupData, k, call: str = "little_group") -> LittleGrou
     elif k.size == group._dim_k:
         k3 = group._k_to_3d(k[None, :])[0]
     elif group._dim_k == 3:
-        raise ValueError(f"{call}(): k has {k.size} components; pass 3, or a tabulated "
-                         "name.")
+        raise ValueError(f"{call}(): the number of coordinates of k=, {k.size}, is not 3. "
+                         "Pass 3, or the name of a tabulated point.")
     else:
-        raise ValueError(f"{call}(): k has {k.size} components; pass {group._dim_k}, or 3 "
-                         "for a point of the layer's three-dimensional cell, or a "
-                         "tabulated name.")
+        raise ValueError(f"{call}(): the number of coordinates of k=, {k.size}, is neither "
+                         f"{group._dim_k} nor 3. Pass {group._dim_k}, or 3 for a point of "
+                         "the layer's plane in its three-dimensional cell, or the name of a "
+                         "tabulated point.")
 
     uni, anti = [], []
     for sym in group._symmetries:
@@ -643,12 +673,14 @@ def _little_group(group: GroupData, k, call: str = "little_group") -> LittleGrou
 
 
 def _kpoint_name(group: GroupData, k3):
-    """The tables' name of the point ``k3``, three reduced coordinates of the cell as written, or ``None`` where it is none of their points.
+    """The tables' name of the point ``k3``, or ``None`` where it is none of theirs.
 
-    The first tabulated point it differs from by a reciprocal lattice vector of
-    that cell, each coordinate to within the tables' own tolerance
-    (:func:`_same_point`); ``None`` also where the group's tables cannot be read
-    in this cell.
+    ``group`` is the group, ``r.group``, and ``k3`` three reduced coordinates
+    of its three-dimensional cell.  The name is that of the first point of
+    :func:`_table_kpoints` that ``k3`` equals up to a reciprocal lattice
+    vector, each coordinate within the default ``ktol`` of
+    :func:`_corep_table` (:func:`_same_point`).  Returns ``None`` also where
+    the group's tables cannot be read in this cell.
     """
     if not group._tables_ready:
         return None
@@ -660,14 +692,16 @@ def _kpoint_name(group: GroupData, k3):
 
 
 def _table_kpoints(group: GroupData) -> dict:
-    """``{kpname: k in the model's reduced 3D coordinates}`` from ``irreptables``.
+    """The tabulated points, by name, in the group's three-dimensional cell.
 
-    The irrep table's points, and, for a group without time reversal, the
-    partners ``−k`` its elementary band representations list on their own
-    (:func:`_partner_points`).  A reduced coordinate is defined modulo 1, and
-    each is returned in ``[0, 1)``: snapped to the fraction it is and then
-    reduced, so that a coordinate that is zero reads ``0`` whichever sign
-    rounding gave it, and never ``1``.
+    ``group`` is the group, ``r.group``.  The points are those of the irrep
+    table of the irreptables package and, for a group without time reversal,
+    the partners ``-k`` its elementary band representations list on their own
+    (:func:`_partner_points`), each right after its point.  Returns
+    ``{name: k}`` in the tables' order, each ``k`` three reduced coordinates
+    of the group's three-dimensional cell.  Each coordinate is snapped to the
+    fraction it is and reduced into ``[0, 1)``, so that a zero reads ``0``
+    whatever sign rounding gave it.
     """
     table = _spacegroup._irrep_table(group.number_str, group.spinor, group._magnetic)
     inv = np.linalg.inv(group._refUC.T)
@@ -687,44 +721,27 @@ def _table_kpoints(group: GroupData) -> dict:
 
 @lru_cache(maxsize=None)
 def _partner_points(number_str: str, spinor: bool) -> tuple:
-    r"""The points ``−k`` a unitary group's EBR rows list and its irrep table does not.
+    r"""The points ``-k`` a group's EBR rows list and its irrep table does not.
 
-    Without time reversal, ``k`` and ``−k`` are different points of the zone
-    wherever no operation of the group carries one onto the other, and the
-    tables' elementary band representations carry rows at both: ``KA``, ``HA``,
-    ``PA`` and ``WA`` beside ``K``, ``H``, ``P`` and ``W``.  The irrep table
-    lists only the first.  The little group at ``−k`` is the one at ``k`` and
-    its characters are the conjugates, the Bloch phases conjugating with them,
-    so the partner's table is the listed point's, conjugated
-    (:func:`_transported_table`); what is read here is which conjugate each
-    partner label names.
-
-    An elementary band representation induced from a site irrep ``ρ`` carries
-    at ``−k`` the conjugate of what the one induced from ``ρ*`` carries at
-    ``k``: the induced character's phases :math:`e^{-2\pi i\,k\cdot m}`
-    conjugate and so does the site character.  So each partner label is the
-    conjugate of the listed label whose row, read on the time-reversed columns,
-    is its row: :math:`m_j(XA_{\pi(n)}) = m_{\bar j}(X_n)` for every column
-    ``j``, ``j̄`` the column of the conjugate site irrep at the same position
-    and ``j`` itself for a real one.  The tables name a partner's irreps as the
-    conjugates of the listed point's, ``XA_n`` of ``X_n``, and that naming is
-    taken wherever the rows hold it, which includes labels whose rows the
-    columns do not tell apart; a different correspondence is taken only where
-    it is the one the rows hold.
-
-    Returns
-    -------
-    tuple
-        ``((partner, listed point, ((listed label, partner label), ...)), ...)``
-        in the physical convention of :func:`ebr_data`; empty for a table whose
-        EBR rows list no such point or that ships no EBR rows.
-
-    Raises
-    ------
-    ..refusal.InternalError
-        No correspondence reproduces the rows, or several do and the tables'
-        naming is not among them: the shipped rows and their conjugation
-        disagree, which is a defect, never a label to guess.
+    ``number_str`` is the number of a group without time reversal in the
+    tables, ``"143"``, and ``spinor`` whether its double-valued tables are
+    read.  Where no operation carries ``k`` onto ``-k``, the two are different
+    points, and the elementary band representations have rows at both, ``KA``
+    beside ``K``, where the irrep table lists only ``K``.  The characters at
+    ``-k`` are the conjugates of those at ``k``, so each label at ``-k``
+    names the conjugate of a label at ``k``.  Which one is read off the rows:
+    the representation induced from a site irrep ``ρ`` carries at ``-k`` the
+    conjugate of what the one induced from ``ρ*`` carries at ``k``.  The
+    tables' naming, ``KA_n`` the conjugate of ``K_n``, is kept where the rows
+    allow it at every label of the point, and otherwise the one correspondence
+    the rows allow is taken.  Returns ``(partner, point, pairs)`` for each
+    partner, ``pairs`` the ``(label, partner label)`` at that point, sorted,
+    the labels in the convention of :func:`ebr_data`.  Returns ``()`` where
+    the rows list no such point or the tables hold no rows for the group.
+    Raises :class:`~.refusal.InternalError` where a point the rows list is
+    not the partner of a listed one with as many labels, or no correspondence
+    reproduces the rows, or several do and the tables' naming is not among
+    them.  Raises ``ImportError`` where the irreptables package is missing.
     """
     try:
         raw = _spacegroup._ebr_file(number_str, spinor)
@@ -750,9 +767,10 @@ def _partner_points(number_str: str, spinor: bool) -> tuple:
         ours = [label for label in labels if _label_kpoint(label) == base]
         if base not in listed or len(theirs) != len(ours):
             raise InternalError(
-                f"#{number_str}: the EBR rows list {arm}, which the irrep table does "
-                "not, and it is not the partner -k of a point the table lists with as "
-                "many irreps, so its labels cannot be read off any listed point.")
+                f"#{number_str}: the elementary band representations of the tables have "
+                f"rows at {arm}, which the irrep table does not list, and {arm} is not the "
+                "partner -k of a listed point with as many labels. Report it, with the "
+                "model and the call.")
         fits = {n: [a for a in theirs
                     if np.array_equal(matrix[index[a]], matrix[index[n], partner])]
                 for n in ours}
@@ -764,30 +782,29 @@ def _partner_points(number_str: str, spinor: bool) -> tuple:
                      if len(set(pick)) == len(ours)]
             if len(every) != 1:
                 raise InternalError(
-                    f"#{number_str} at {arm}: {len(every)} correspondences between its "
-                    f"labels and the conjugates of {base}'s reproduce the EBR rows, and "
-                    f"the tables' naming ({arm}n the conjugate of {base}n) is not among "
-                    "them. The rows at a point -k and their conjugation disagree; that "
-                    "is a defect in the shipped rows or in this reading of them, not a "
-                    "label to choose.")
+                    f"#{number_str} at {arm}: {len(every)} pairings of its labels with the "
+                    f"conjugates of the labels at {base} reproduce the rows of the "
+                    f"elementary band representations, and the tables' naming, {arm}n the "
+                    f"conjugate of {base}n, is not among them. Report it, with the model "
+                    "and the call.")
             pi = every[0]
         out.append((arm, base, tuple(sorted(pi.items()))))
     return tuple(out)
 
 
 class HighSymmetryPoints(dict):
-    """The tabulated high-symmetry points of the model's zone, by name, in the model's reduced coordinates.
+    """The tabulated high-symmetry points of the model's zone, by name.
 
-    What :func:`high_symmetry_points` returns, a mapping ``{name: k}``;
-    ``summary()`` prints it.
+    What :func:`high_symmetry_points` returns.  It maps each point's name in
+    the tables, ``"GM"``, to its reduced coordinates in the model's cell,
+    ``dim_k`` of them.  ``summary()`` prints it.
 
     Attributes
     ----------
     out_of_plane : tuple of str
-        The tabulated points out of a layer's plane, ``A``, ``H`` and ``L`` of
-        a hexagonal group, which its zone does not have at any mesh: a symmetry
-        data vector read on this mapping alone is partial there.  Empty for a
-        crystal periodic in three directions.
+        If nonempty, the tabulated points out of a layer's plane, which the
+        layer's zone does not have: ``A``, ``H`` and ``L`` of a hexagonal
+        layer.
     """
 
     __slots__ = ("out_of_plane",)
@@ -798,7 +815,7 @@ class HighSymmetryPoints(dict):
         self.out_of_plane = tuple(out_of_plane)
 
     def summary(self) -> str:
-        """The points, a line for each part, with the attribute that holds it."""
+        """The points, a line for each, and a line for those out of a layer's plane."""
         lines = [f"{len(self)} point{'' if len(self) == 1 else 's'}, by name, in the model's "
                  "reduced coordinates   ([name])"]
         lines += [f"    {name} {_point_text(k)}" for name, k in self.items()]
@@ -809,49 +826,56 @@ class HighSymmetryPoints(dict):
 
 
 def high_symmetry_points(group: GroupData) -> HighSymmetryPoints | Refusal:
-    """The tabulated high-symmetry points, in the model's own reduced coordinates.
+    """The tabulated high-symmetry points, in the model's reduced coordinates.
 
-    The points a symmetry data vector is read at.  The tables write them in their
-    conventional cell, generally as other numbers: graphene's ``K`` is
-    ``(1/3, 1/3, 0)`` there and ``(1/3, 2/3)`` in pythtb's honeycomb cell.
-    Without time reversal a point and its partner ``−k`` are two points
-    wherever no operation carries one onto the other, ``KA`` beside ``K``, and
-    both are returned, the partner's irreps the complex conjugates of the
-    point's.  The points are listed Γ first, then alphabetically by name, a
-    partner right after its point.
+    The points are those of the tables of the irreptables package, carried
+    from the conventional cell the tables are written in into the model's
+    cell.  Graphene's ``K`` is ``(1/3, 1/3, 0)`` in the tables and
+    ``(1/3, 2/3)`` in pythtb's honeycomb cell.  In a group without time
+    reversal, a point ``k`` and its partner ``-k`` are inequivalent where no
+    operation carries one onto the other, as ``K`` and ``KA`` are, and both
+    are returned.  The points are listed ``GM`` first, then alphabetically by
+    name, each partner right after its point.
 
     Parameters
     ----------
     group : GroupData
-        The group, ``r.group`` of what ``realized_group`` returns.
+        The group.  Pass ``r.group`` of what :func:`..groups.realized_group`
+        returns.
 
     Returns
     -------
     HighSymmetryPoints or Refusal
-        ``{name: k}``, each ``k`` with ``dim_k`` components; its
+        ``{name: k}``, each ``k`` with ``dim_k`` reduced coordinates.  Its
         ``out_of_plane`` names the tabulated points out of a layer's plane.
-        ``summary()`` prints it.  A ``Refusal`` in its place is falsy.
+        A ``Refusal`` in its place is falsy.
 
     Refusals
     --------
     A refusal handed in as ``group`` is returned as it is.
 
     ``tables_not_ready``
-        The group has no transformation to the tables' conventional cell, to
-        carry their points into the model's coordinates.
+        the model's cell could not be matched to the setting the tables are
+        written in.
 
     Raises
     ------
     TypeError
-        ``group`` is not a group: ``r`` or ``r.rep`` in its place, or
-        anything else.
+        ``group`` is not ``r.group``: ``r`` itself, ``r.rep``, the ``group``
+        of :func:`..srsi.srsi_tables` for a space-group number, which has no
+        cell, or anything else.
     """
     _require_group("high_symmetry_points", group)
     return _high_symmetry_points(group)
 
 
 def _high_symmetry_points(group: GroupData) -> HighSymmetryPoints | Refusal:
-    """The points :func:`high_symmetry_points` returns, Γ first and then by name."""
+    """The points :func:`high_symmetry_points` returns, in the order of :func:`point_order`.
+
+    ``group`` is the group, ``r.group``.  Returns the
+    :class:`HighSymmetryPoints`, or a refusal of
+    :func:`_points_in_table_order`.
+    """
     points = _points_in_table_order(group)
     if isinstance(points, Refusal):
         return points
@@ -862,17 +886,23 @@ def _high_symmetry_points(group: GroupData) -> HighSymmetryPoints | Refusal:
 def _points_in_table_order(group: GroupData) -> HighSymmetryPoints | Refusal:
     """The points :func:`high_symmetry_points` returns, in the tables' own order.
 
-    The order the lowest-angular-momentum rule's band-label key and the naming
-    of a site irrep by its induced content read the points in, and the order
-    in which :func:`..ebr.regular_content` meets the point whose refusal it
-    returns.
+    ``group`` is the group, ``r.group``.  Returns the
+    :class:`HighSymmetryPoints`, or ``lattice_not_descended`` for a lattice
+    supergroup, or ``tables_not_ready`` where the model's cell cannot be
+    matched to the tables' setting.  A choice made by walking the points reads
+    them in this order: the choice among band labels the
+    lowest-angular-momentum rule makes, the naming of a site irrep by the
+    little-group representations it induces, and :func:`..ebr.regular_content`,
+    which returns the first refusal it meets.
     """
     gate = _lattice_not_descended(group)
     if gate is not None:
         return gate
     if not group._tables_ready:
-        return Refusal("tables_not_ready", group._setup_note or "irrep tables are not set up "
-                       "for this cell", context={"number_str": group.number_str})
+        return Refusal("tables_not_ready", group._setup_note or f"the cell of {group.name} "
+                       f"#{group.number_str} could not be matched to the setting the "
+                       "installed tables are written in. Report the model, with this "
+                       "reason.", context={"number_str": group.number_str})
     out, out_of_plane = {}, []
     for name, k3 in _table_kpoints(group).items():
         if group._in_plane(k3[None, :], atol=1e-9):
@@ -883,15 +913,16 @@ def _points_in_table_order(group: GroupData) -> HighSymmetryPoints | Refusal:
 
 
 def _resolve_kpoint(call: str, group: GroupData, k):
-    """The coordinates a call takes a k-point at, from its tabulated name or its coordinates.
+    """The coordinates of a k-point given by its tabulated name or its coordinates.
 
-    ``k`` that is no ``str`` is returned as it is.  A name of
-    :func:`high_symmetry_points` is returned as its coordinates; the name of a
-    tabulated point out of a layer's plane returns the refusal
-    ``out_of_plane`` :func:`little_group` returns at its three-dimensional
-    coordinates; a refusal of :func:`high_symmetry_points` is returned; any
-    other name raises ``ValueError``, starting with ``call``, listing the
-    names.
+    ``call`` is the public call's name, which opens the ``ValueError`` raised
+    for an unknown name.  ``group`` is the group, ``r.group``.  ``k`` is a
+    name of :func:`high_symmetry_points` or the point's coordinates.  Returns
+    ``k`` as it is where it is not a ``str``, and a name's ``dim_k`` reduced
+    coordinates.  Returns the refusal ``out_of_plane`` of :func:`little_group`
+    for the name of a tabulated point out of a layer's plane, and a refusal of
+    :func:`high_symmetry_points` as it is.  Raises ``ValueError`` for any
+    other name, listing the names.
     """
     if not isinstance(k, str):
         return k
@@ -904,26 +935,38 @@ def _resolve_kpoint(call: str, group: GroupData, k):
         refused = _little_group(group, _table_kpoints(group)[k], call=call)
         if not isinstance(refused, Refusal):        # pragma: no cover - guard
             raise InternalError(
-                f"{k} of #{group.number_str} is listed out of the layer's plane, and its "
-                "little group was read as a point of the plane. This is the package "
-                "failing, not a measurement about the model.")
+                f"{group.name} #{group.number_str}: {k} is listed as out of the layer's "
+                "plane, but its little group was read. Report it, with the model and the "
+                "call.")
         return refused
     raise ValueError(f"{call}(): {group.name} #{group.number_str} has no k-point named "
                      f"{k!r}; pass one of {', '.join(points)}, or the point's coordinates.")
 
 
 def _same_point(k, tabulated, ktol) -> bool:
-    """Whether two sets of reduced coordinates name one k-point of the cell as it is written.
+    """Whether two k-points are one, up to a reciprocal lattice vector.
 
-    They do where they differ by a reciprocal lattice vector of that cell, a
-    vector of integers, each coordinate to within ``ktol``.
+    ``k`` and ``tabulated`` are reduced coordinates in one cell, and ``ktol``
+    the tolerance on each coordinate.  They are one point where their
+    difference is a vector of integers, each coordinate within ``ktol``.
     """
     d = np.asarray(k, dtype=float) - np.asarray(tabulated, dtype=float)
     return bool(np.abs(d - np.round(d)).max() <= ktol)
 
 
 def _resolve_kpname(group: GroupData, lg: LittleGroup, kpname, ktol):
-    """The tabulated label of the model's k, or a Refusal listing the options."""
+    """The tables' name of a little group's point, or a refusal listing the points.
+
+    ``group`` is the group, ``r.group``, and ``lg`` the :class:`LittleGroup`
+    at the point.  ``kpname``, where it is not ``None``, is returned as it
+    is.  Otherwise the name is that of the first point of
+    :func:`_table_kpoints` that ``lg``'s point equals up to a reciprocal
+    lattice vector, each coordinate within ``ktol`` (:func:`_same_point`).
+    Returns ``kpoint_not_tabulated`` where there is none, listing the
+    tabulated points of the plane in the model's reduced coordinates.  A
+    point of the star of a tabulated point, other than its tabulated arm, is
+    refused the same way.
+    """
     kmap = _table_kpoints(group)
     if kpname is not None:
         return kpname
@@ -935,27 +978,38 @@ def _resolve_kpname(group: GroupData, lg: LittleGroup, kpname, ktol):
              for n, v in listed.items() if group._in_plane(v[None, :])}
     return Refusal(
         "kpoint_not_tabulated",
-        f"k = {np.round(lg.k, 6)} is not one of the tabulated high-symmetry points of "
-        f"#{group.number_str} in this cell. Tabulated (in this cell's reduced "
-        f"coordinates): {avail}. A point in the star of a tabulated one but not the "
-        f"tabulated arm carries a conjugate little group and is not transported here.",
+        f"k = {np.round(lg.k, 6)} is not a tabulated high-symmetry point of "
+        f"{group.name} #{group.number_str}; the tables list one member of each point's "
+        f"star. The tabulated points, in the model's reduced "
+        f"coordinates, are {avail}. Ask one of them, by its name or its coordinates.",
         context={"k": lg.k, "available": avail, "all_points": listed})
 
 
 def _operations(table) -> tuple:
-    """``(R, t, S, antiunitary)`` per tabulated symmetry, ``irreptables``' order."""
+    """Each operation of an irrep table as ``(R, t, S, antiunitary)``, in its order.
+
+    ``table`` is an irrep table of the irreptables package.  ``R``, ``t`` and
+    ``S`` are each operation's rotation, translation and spinor matrix as the
+    table holds them, as arrays, and ``antiunitary`` whether it is combined
+    with time reversal.
+    """
     return tuple((np.asarray(s.R, dtype=float), np.asarray(s.t, dtype=float),
                   np.asarray(s.S, dtype=complex), bool(s.time_reversal))
                  for s in table.symmetries)
 
 
 def _as_representative(R, t, S, ops, centering, spinor) -> tuple:
-    r"""Write a unitary ``{R|t}`` (spinor part ``S``) as ``σ·{E|m}·g_ℓ``.
+    r"""A unitary operation written as ``σ·{E|m}·g_ℓ``, ``g_ℓ`` an operation of the table.
 
-    Returns ``(ℓ, m, σ)`` with ``ℓ`` a **one-based** ``irreptables`` symmetry
-    index, ``m`` the lattice translation and ``σ = ±1`` the double-group sign
-    (always ``+1`` for a single-valued table).  Raises when the element is not
-    in the tabulated group at all, which nothing upstream can provoke.
+    ``R``, ``t`` and ``S`` are the operation's rotation, translation and
+    spinor matrix, ``ops`` the table's operations as :func:`_operations`
+    returns them, ``centering`` the cell's centering, which says which ``m``
+    is a lattice translation, and ``spinor`` whether the table is
+    double-valued.  Returns ``(ℓ, m, σ)``: ``ℓ`` the one-based index of
+    ``g_ℓ`` in ``ops``, ``m`` the lattice translation and ``σ = ±1`` the sign
+    of the double group, ``+1`` for a single-valued table.  Raises
+    ``_EBRTransportError`` where the operation, its spinor matrix up to sign
+    included, is none of the table's times a lattice translation.
     """
     for j, (Rj, tj, Sj, anti) in enumerate(ops):
         if anti or np.abs(R - Rj).max() > 1e-6:
@@ -971,31 +1025,31 @@ def _as_representative(R, t, S, ops, centering, spinor) -> tuple:
             return j + 1, m, -1.0
         break
     raise _EBRTransportError(                          # pragma: no cover - guard
-        "a product of tabulated operations is not a tabulated operation times a "
-        "lattice translation; the shipped symmetry list is not a group.")
+        "the operations the tables list are not closed under products, up to lattice "
+        "translations.")
 
 
 def _herring_data(table, k, centering) -> tuple:
-    r"""The convention-free half of the Wigner–Herring test at ``k``.
+    r"""The data of the Wigner-Herring test at ``k`` that hold in either convention.
 
-    Returns ``(H, coset, squares, twist)``:
+    ``table`` is an irrep table, ``k`` a point in reduced coordinates of its
+    conventional cell, and ``centering`` the table's centering.  Returns
+    ``(H, coset, squares, twist)``:
 
-    * ``H`` — one-based indices of the unitary little group of ``k``,
-      ``R^{-T}k ≡ k`` modulo the **reciprocal** lattice;
-    * ``coset`` — indices of the antiunitary elements with ``-R^{-T}k ≡ k``,
-      i.e. of the extended little group's antiunitary coset.  Empty when no
-      antiunitary fixes ``k`` at all (the ``K``/``KA`` "other arm" situation),
-      and otherwise of size ``|H|``;
-    * ``squares`` — ``(ℓ, m, σ)`` per ``a ∈ coset`` with
-      ``a² = σ·{E|m}·g_ℓ``.  With ``a = uΘ`` and ``Θ S Θ⁻¹ = S`` (SU(2) is
-      pseudo-real) this is ``a² = u²·Θ²``, so ``σ`` carries both the SU(2)
-      accumulation of ``u²`` **and** ``Θ² = −1`` for a double-valued table;
-    * ``twist`` — ``(ℓ, m, σ)`` per ``h ∈ H`` writing ``a₀⁻¹ h a₀`` (``a₀`` the
-      first coset element) the same way.  ``Θ`` drops out of this one entirely,
-      so it is the plain conjugation by ``a₀``'s unitary part.
+    * ``H``, the one-based indices of the unitary little group of ``k``, the
+      operations with ``R^{-T}k ≡ k`` modulo the reciprocal lattice;
+    * ``coset``, the indices of the antiunitary ``a`` with ``-R^{-T}k ≡ k``,
+      the antiunitary half of the extended little group: as many as ``H``,
+      or none where no antiunitary operation fixes ``k``, as at a ``K``
+      whose partner ``KA`` is a different point;
+    * ``squares``, mapping each ``a`` of ``coset`` to the ``(ℓ, m, σ)`` of
+      :func:`_as_representative` that writes ``a^2 = σ·{E|m}·g_ℓ``, ``σ``
+      including ``Θ^2 = -1`` for a double-valued table;
+    * ``twist``, mapping each ``h`` of ``H`` to ``a_0^{-1} h a_0`` written the
+      same way, ``a_0`` the first of ``coset``.
 
-    Nothing here depends on the ``e^{±ik·t}`` convention: the convention enters
-    only when ``m`` is turned into the phase ``e^{s·2πi k·m}``.
+    The convention of the translations enters only where ``m`` becomes the
+    phase ``e^{s·2πi k·m}`` (:func:`_corep_gluing`).
     """
     ops = _operations(table)
     spinor = bool(table.spinor)
@@ -1007,7 +1061,7 @@ def _herring_data(table, k, centering) -> tuple:
             (coset if anti else H).append(i + 1)
     squares, twist = {}, {}
     if coset:
-        eps = -1.0 if spinor else 1.0                  # Θ² = −1 for spin ½
+        eps = -1.0 if spinor else 1.0                  # Θ^2 = -1 for spin 1/2
         for a in coset:
             R, t, S, _ = ops[a - 1]
             ell, m, sig = _as_representative(R @ R, t + R @ t, S @ S,
@@ -1025,28 +1079,31 @@ def _herring_data(table, k, centering) -> tuple:
 
 
 def _corep_gluing(chars, k, H, squares, twist, s):
-    r"""The corep list at one k-point, in the convention ``s`` names.
+    r"""The coreps at one k-point, glued from the unitary irreps in the convention ``s``.
 
-    ``s = +1`` is BCS's convention and ``s = −1`` the physical one; ``chars``
-    maps each unitary little-group irrep label to its characters
-    ``{ind: χ}`` **in that convention**.  Returns a sorted list of
-    ``(constituent labels, type)`` with the Wigner type ``'a'``/``'b'``/``'c'``,
-    or ``None`` when the data does not support the classification.
-
-    The two ingredients, both evaluated from the table's own numbers:
+    ``chars`` maps each irrep label of the unitary little group to its
+    characters ``{index: χ}`` in that convention, ``k`` is the point, in
+    reduced coordinates of the table's conventional cell, ``H``, ``squares``
+    and ``twist`` are as :func:`_herring_data` returns them, and ``s`` is
+    ``+1`` for the tables' convention ``e^{+ik·t}`` and ``-1`` for the
+    package's ``e^{-ik·t}``.  Each irrep ``D`` has a conjugate ``\bar D`` and
+    a Herring indicator ``I_s(D)``,
 
     .. math::
         \bar D(h) = \overline{D(a_0^{-1} h a_0)},\qquad
         I_s(D) = \frac{1}{|H|}\sum_{a}\chi_D(a^2),
 
-    with every ``{E|m}`` in either expression contributing ``e^{s·2πi k·m}``.
-    ``I_s = +1`` (``\bar D ≅ D``) is type **a**, the corep is ``D`` alone;
-    ``I_s = −1`` is type **b**, ``D ⊕ D``; ``I_s = 0`` (``\bar D ≇ D``) is type
-    **c**, ``D ⊕ \bar D``.  Because *every* ``m`` here carries the convention,
-    the corep list can — and at a minority of the tabulated k-points does — differ
-    between ``s = +1`` and ``s = −1``: that is the fourth face of the convention
-    artifact, and it changes which irrep doubles, hence the corep
-    **dimensions**.
+    ``a`` running over the antiunitary coset, ``a_0`` its first element, and
+    each ``{E|m}`` contributing ``e^{s·2πi k·m}``.  ``I_s = +1`` with
+    ``\bar D ≅ D`` is type ``a``, the corep ``D``; ``I_s = -1`` with
+    ``\bar D ≅ D`` is type ``b``, ``D ⊕ D``; ``I_s = 0`` with ``\bar D ≇ D``
+    is type ``c``, ``D ⊕ \bar D``.  Returns the sorted list of
+    ``(labels, type)``, ``labels`` the irreps each corep glues and ``type``
+    its Wigner type, ``"a"``, ``"b"`` or ``"c"``; or ``None`` where the
+    characters fix no single conjugate for an irrep, the pairing is not
+    mutual, or the indicator disagrees with the conjugate.  Since every
+    ``m`` carries the convention, which irrep doubles can differ between
+    ``s = +1`` and ``s = -1``, and at some tabulated points does.
     """
     phase = lambda m: np.exp(s * 2j * np.pi * float(np.asarray(k) @ m))  # noqa: E731
     ind = {}
@@ -1081,20 +1138,29 @@ def _corep_gluing(chars, k, H, squares, twist, s):
 
 
 def _corep_name(parts, double: bool) -> str:
-    """``('-A7', '-A8') → '-A7A8'`` — ``irreptables``' own composite-name pattern.
+    """The name of a corep, spelled from the irreps it glues as the tables do.
 
-    The constituents are concatenated in **lexicographic** order of their bare
-    names (which is why the tables print ``-A11A9``, not ``-A9A11``) with the
-    double-valued ``-`` marker carried once at the front.  The rule reproduces
-    every one of the 2700 shipped grey corep names from its own constituents,
-    which the sweep in ``tests/test_groups.py`` checks.
+    ``parts`` are the labels of the irreps the corep glues, and ``double``
+    whether the table is double-valued.  Returns their names without the
+    ``-`` marker, joined in lexicographic order, with one ``-`` in front for
+    a double-valued table: ``('-A7', '-A8')`` gives ``'-A7A8'``, and
+    ``('-A9', '-A11')`` gives ``'-A11A9'``.  The rule gives every corep name
+    of the grey tables from that corep's own irreps.
     """
     bare = sorted(p[1:] if str(p).startswith("-") else str(p) for p in parts)
     return ("-" if double else "") + "".join(bare)
 
 
 def _decompose_into(chars, H, vector):
-    """Non-negative integer multiplicities of ``chars`` in ``vector``, or ``None``."""
+    """The irreps a character vector is a sum of, each as often as it occurs.
+
+    ``chars`` maps each irrep label to its characters ``{index: χ}``, ``H``
+    lists the operation indices read, and ``vector`` is the character vector
+    ``{index: χ}`` to decompose.  Returns the labels, each repeated by its
+    multiplicity, ``('A', 'A', 'B')``.  Returns ``None`` where the vector is
+    no sum of the characters with nonnegative integer multiplicities, within
+    ``_CHAR_TOL``.
+    """
     names = sorted(chars)
     a = np.array([[complex(chars[n][h]) for h in H] for n in names]).T
     b = np.array([complex(vector[h]) for h in H])
@@ -1108,58 +1174,53 @@ def _decompose_into(chars, H, vector):
 
 
 def _parent_table(number_str: str, spinor: bool):
-    """The unitary (``magnetic=False``) table of a grey table's parent group."""
+    """The irrep table of a grey group's parent group, without time reversal.
+
+    ``number_str`` is the grey group's number, ``"80.30"``, of which the part
+    before the dot is read, and ``spinor`` whether the table is
+    double-valued.  Returns the table of the irreptables package for that
+    space group without time reversal.
+    """
     return _spacegroup._irrep_table(str(number_str).split(".")[0], spinor, False)
 
 
 @lru_cache(maxsize=None)
 def _unitary_conjugation(number_str: str, spinor: bool) -> tuple:
-    """:func:`_table_conjugation` of the parent unitary table, cached and read-only."""
+    """What :func:`_table_conjugation` returns for a grey group's parent table.
+
+    ``number_str`` and ``spinor`` are as :func:`_parent_table` takes them.
+    What is returned is kept for each pair of arguments and shared between
+    calls, so it is read and never changed.
+    """
     return _table_conjugation(_parent_table(number_str, spinor))
 
 
 def _lifted_conjugation(table) -> dict:
-    r"""``{k-point: {corep label: physical corep label}}`` for a **grey** table.
+    r"""The name each corep of a grey table is returned under, from its irreps.
 
-    The whole fourth mechanism in one function.  A grey corep is a *composite*
-    object — its BCS name spells out the unitary little-group irreps it is glued
-    from — so its physical name is not a free choice: it is fixed by the
-    physical names of its constituents, which the unitary table's own
-    conjugation map ``c`` already decides.  Concretely, per tabulated k-point:
+    ``table`` is an irrep table of the irreptables package.  Returns
+    ``{k-point name: {label: label returned}}``.  A corep's name spells the
+    irreps of the parent group it glues, and the name returned spells the
+    names those irreps are returned under, the map ``c`` of the parent's own
+    :func:`_table_conjugation`.  At each tabulated point:
 
-    1. decompose each shipped corep's characters into the parent unitary
-       table's irrep characters (BCS convention, both tables' shipped numbers) —
-       the gluing, read off rather than assumed;
-    2. check it against the **BCS Herring indicators** computed from the table's
-       own operations (:func:`_corep_gluing` at ``s = +1``).  A shipped table
-       that violates its own convention's indicators is a data defect and is
-       reported by returning nothing for that k-point;
-    3. map every constituent through the unitary ``c`` and re-glue, naming the
-       glued corep by :func:`_corep_name`;
-    4. check *that* against the **physical Herring indicators** (``s = −1``),
-       which is the independent confirmation that the re-gluing is right.
+    1. each corep's characters are decomposed into the parent's irreps,
+       which must spell its name;
+    2. the gluing is checked against the Herring indicators of the tables'
+       convention, :func:`_corep_gluing` with ``s = +1``;
+    3. each irrep is mapped through ``c`` and the corep named again by
+       :func:`_corep_name`;
+    4. that gluing is checked against the Herring indicators of the
+       package's convention, ``s = -1``.
 
-    Step 3 is exact rather than heuristic because
-    ``χ_phys[c(D)] = conj(χ_BCS[D])`` gives, term by term in the Herring sum,
-    ``I_{-1}(c(D)) = conj(I_{+1}(D)) = I_{+1}(D)``: the physical corep list is
-    always the ``c``-image of the BCS one.  Where the image label is not a
-    shipped label, the point has been **re-glued**: the same unitary irreps are
-    partitioned differently, so the corep a given irrep sits in has a different
-    dimension, and the EBR basis at that point changes with it.
-
-    Because the unitary ``c`` is itself the character-matched naming, this lift
-    usually *agrees* with matching the grey characters directly — BCS's own
-    corep names spell BCS's own constituents, so the image of a
-    conjugation-closed shipped set is a shipped set, which is why the re-glued
-    residue is only 7 k-point entries.  It is still consulted **first**, because
-    where the two differ the spelling has to win: at SG 203's spinful ``W`` the
-    grey rows admit an exchange that the parent's do not, and taking it would
-    give a corep a name whose constituents the unitary table does not name.
-
-    Returns ``{}`` for a unitary table, and omits any k-point where the lift is
-    not available (an "other arm" point the unitary table does not carry) or
-    where a check above fails; :func:`_table_conjugation` then falls back to
-    matching character vectors, or reports the point as broken.
+    Where the name returned is not one the tables ship, the point is re-glued:
+    the same irreps are partitioned into coreps otherwise, and an irrep can
+    sit in a corep of another dimension.  Returns ``{}`` for a table without
+    antiunitary operations, or one whose operations are not twice as many as
+    its parent table's, the first half the parent's.
+    A point is left out where the parent table does not list it, holds it in
+    ``broken``, or has another little group there, or where a step above
+    fails.
     """
     if not getattr(table, "au_symmetries", ()):
         return {}
@@ -1170,7 +1231,7 @@ def _lifted_conjugation(table) -> dict:
     for (R1, t1, S1, _), (R2, t2, S2, _) in zip(gops[:len(pops)], pops):
         if (np.abs(R1 - R2).max() > 1e-6 or np.abs(t1 - t2).max() > _LATTICE_TOL
                 or np.abs(S1 - S2).max() > _SU2_TOL):
-            return {}                        # not the parent's grey extension
+            return {}                        # the first half is not the parent's
     centering = _centering(table)
     double = bool(table.spinor)
     by_kp_u: dict[str, list] = {}
@@ -1213,7 +1274,7 @@ def _lifted_conjugation(table) -> dict:
         want = _corep_gluing(bcs, k, H, squares, twist, +1)   # step 2
         if want is None or (sorted(v for v, _ in want)
                             != sorted(parts.values())):
-            continue                         # shipped gluing ≠ BCS's own indicators
+            continue                         # not the gluing the tables' indicators give
         lift = {name: _corep_name([c_u[p] for p in got], double)
                 for name, got in parts.items()}               # step 3
         physchars = {name: {h: np.conj(bcs[c_u[name]][h]) for h in H}
@@ -1227,13 +1288,15 @@ def _lifted_conjugation(table) -> dict:
 
 
 def _matching(chi: dict, image) -> dict | None:
-    """``{name: other}`` with ``chi[other] == image(chi[name])``, or ``None``.
+    """The row each row of a table is carried onto by a map of its characters.
 
-    The one primitive both naming rules of :func:`_table_conjugation` are built
-    from: ``image = conj`` asks which *shipped* row prints what the physical
-    convention prints (the name follows the character), ``image = conj/φ`` asks
-    which shipped row the tabulated content ``Γ`` carries onto (the tabulated
-    labelling).  ``None`` as soon as any row has no unique partner.
+    ``chi`` maps each label to its character vector, an array, and ``image``
+    is a map of one such vector.  Returns ``{name: other}`` with
+    ``chi[other]`` equal to ``image(chi[name])`` within ``_CHAR_TOL``, or
+    ``None`` where any row has no such partner or more than one.
+    :func:`_table_conjugation` calls it with the complex conjugation, and
+    with the conjugation divided by ``φ(g) = e^{-4πi k·t_g}``, which gives
+    the tabulated pairing.
     """
     out: dict[str, str] = {}
     for name, vec in chi.items():
@@ -1247,94 +1310,29 @@ def _matching(chi: dict, image) -> dict | None:
 
 
 def _table_conjugation(table) -> tuple[dict, frozenset, tuple]:
-    r"""Per tabulated k-point: which BCS name each **physical** row is returned under.
+    r"""The label each physical row of a table is returned under.
 
-    Returns ``(c, conjugated, broken)``.
+    ``table`` is an irrep table of the irreptables package.  At a point
+    ``k``, ``φ(g) = e^{-4πi k·t_g}``, and the tabulated factor system is
+    ``ω_0(R, S) = e^{2πi (R^T k - k)·t_S}``.  Returns
+    ``(c, conjugated, broken)``:
 
-    * ``c`` maps each tabulated label to the label whose **physical** character
-      is the conjugate of its tabulated one, ``χ_phys[c(D)] = conj(χ_BCS[D])``.
-      For a grey table the image may be a corep name the tables do not ship —
-      see :func:`_lifted_conjugation` and the re-gluing paragraph below.
-    * ``conjugated`` is the set of k-point names where :func:`_transported_table`
-      returns the whole-character conjugate rather than the phase-flipped
-      tabulated row — which it must do wherever ``c`` is not the pairing that
-      keeping the tabulated ``Γ`` would realize.
-    * ``broken`` lists k-points where neither branch applies, i.e. where the
-      tabulated data is inconsistent with itself.
+    * ``c`` maps each tabulated label ``D`` to the label of the physical
+      representation whose characters are the conjugates of ``D``'s,
+      ``χ_phys[c(D)] = conj(χ_table[D])``.  For a grey table the label can
+      be one the tables do not ship (:func:`_lifted_conjugation`);
+    * ``conjugated``, a frozenset, holds the points at which ``c`` is not
+      the tabulated pairing.  There :func:`_transported_table` returns the
+      whole-character conjugate;
+    * ``broken`` holds, sorted, the points at which the irreps disagree on
+      the operations of their little group, or no rule below applies while
+      ``ω_0`` and ``φ`` are both real.
 
-    **The name follows the character.**  Write
-    ``w_D = conj(χ_D)`` for the whole-character conjugate; conjugating a
-    representation conjugates its factor system *and* carries BCS's
-    time-reversal gluing ``{Γ, conj(Γ)φ}`` onto the physical one
-    ``{conj(Γ), Γ conj(φ)}`` (``φ(g) = e^{-4πi k·t_g}``), so **the w-set is
-    always the set of physical little-group characters**.  The question this
-    function answers is only what to *call* each ``w_D``, and the rule is: call
-    it by the BCS row it prints.  So ``c(D)`` is the shipped label ``E`` with
-    ``χ_E = w_D``, whenever every ``D`` has one.  The returned printed table is
-    then literally BCS's printed table — same names against the same numbers,
-    so the time-reversal doubling rules read as they do in BCS's book — and the
-    convention divergence shows up only in *which* row a physical band lands
-    on, which is what the EBR relabelling ``n^phys_ρ[c(D)] = n^BCS_{ρ*}[D]``
-    carries (:func:`_ebr_transport`).
-
-    Where the shipped character set is **not closed under conjugation** no such
-    naming exists: no permutation of BCS's rows is the physical table, and the
-    label has to be anchored to something else — to what the name *spells*,
-    i.e. to the constituents the parent unitary table already named
-    (:func:`_lifted_conjugation`), falling back to the pairing ``v_{c(D)} =
-    w_D`` that keeping the tabulated ``Γ`` realizes (``v_D = χ_D·φ``), and
-    finally to the identity.  59 of the 5462 tabulated (space group,
-    valuedness, k-point) entries are in that class, every one of them with at
-    least one complex character; the other 5403 are returned under BCS's own
-    names.
-
-    What the 59 mean is *not* that two conventions disagree about a doubling.
-    The entrywise conjugate of the returned table is the shipped table exactly
-    (that is ``χ_phys[c(D)] = conj(χ_BCS[D])`` read backwards), and time
-    reversal maps the ``k`` sector antiunitarily onto the ``−k`` one, so the
-    shipped page there tabulates the content of the **other star member**: at
-    SG 80's ``P`` the returned ``{-P3 (1,−i), -P4P4 (2,+2i)}`` conjugates to the
-    shipped ``{-P4 (1,+i), -P3P3 (2,−2i)}``.  The doubling itself is
-    convention-independent — it is the trace of the zero-translation
-    little-group generator on the degenerate level — which is exactly why no
-    relabelling is admissible there.
-
-    Three mechanisms put a k-point in the "not the tabulated pairing" branch,
-    and all are checked so that a *tabulation* defect is never mistaken for a
-    convention artifact:
-
-    1. the tabulated factor system ``ω₀(R,S) = e^{2πi (Rᵀk − k)·t_S}`` is not
-       real — a 3₁/4₁/6₁-type screw at a zone-boundary point (SG 91/92/95/96
-       ``A``/``Z``/``R``, 98/122 ``N``/``P``, 151-154 and 178-181 ``A``/``H``/
-       ``L``, 210 ``L``/``W``, 212/213 ``M``/``R``/``X``), where keeping ``Γ``
-       is not a representation of ``ω₀*`` at all;
-    2. ``φ`` is not real, so BCS's time-reversal gluing of a **grey** corep is
-       not the physical one (this arises only in grey tables: SG 76/78
-       ``A``/``Z``, 109/110 ``P``, 144/145 ``A``, 169-172 ``A``/``H``);
-    3. the **gluing itself** is convention-sensitive: the Wigner–Herring
-       indicators that decide which unitary irrep doubles carry the same
-       ``e^{s·2πi k·m}`` phases, so at a minority of the tabulated k-points the
-       physical corep list is a *different partition* of the same unitary
-       irreps — different constituents, sometimes different dimensions.  A grey
-       corep's *name* is therefore never decided by character matching where the
-       parent unitary table has already spoken: the
-       lift (:func:`_lifted_conjugation`) is consulted first, so that the name
-       always spells the constituents the unitary table names.  Where the two
-       agree — the common case, because BCS's own names
-       spell BCS's own constituents — the lift *is* the character
-       matching; where they disagree the lift wins, which is the only way a
-       renamed corep can keep meaning what it says (SG 203's spinful ``W`` is
-       such a point: the grey rows admit an exchange that the parent's do not,
-       so the exchange is refused there).
-
-    A k-point where **no** naming rule applies while ``ω₀`` *and* ``φ`` are both
-    real is none of the three: there the two conventions produce identical
-    numbers, so a set that is neither conjugation-closed nor ``φ``-paired would
-    be a defect of the shipped table and is returned in ``broken``, and
-    ``broken`` is empty for all 460 unitary and all 460 grey instances.  SG 80's
-    grey spinful ``P`` is the closest call: it is a mechanism-3 point, named by
-    the lift, and its shipped ``-P3P3 ⊕ -P4`` is exactly what BCS's own
-    indicators require in BCS's convention.
+    At each point the first rule that applies names the rows: the names
+    :func:`_lifted_conjugation` returns; the shipped label whose characters
+    are ``conj(χ_D)``, so that the name follows the printed character; the
+    tabulated pairing, the label whose characters are ``conj(χ_D)/φ``; and
+    the identity, where ``ω_0`` or ``φ`` is not real.
     """
     t_of = {i + 1: np.asarray(s.t, dtype=float) for i, s in enumerate(table.symmetries)}
     rot_of = {i + 1: np.asarray(s.R, dtype=float) for i, s in enumerate(table.symmetries)}
@@ -1361,7 +1359,7 @@ def _table_conjugation(table) -> tuple[dict, frozenset, tuple]:
             here = lift[kp]
         elif plain is not None:               # the name follows the printed character
             here = plain
-        elif pairs is not None:               # the tabulated labelling is physical
+        elif pairs is not None:               # the tabulated labeling is physical
             here = pairs
         else:
             omega = max(abs(np.sin(2 * np.pi * (rot_of[i].T @ k - k).dot(t_of[j])))
@@ -1379,12 +1377,14 @@ def _table_conjugation(table) -> tuple[dict, frozenset, tuple]:
 
 @lru_cache(maxsize=None)
 def _transport_naming(number_str: str, spinor: bool, magnetic: bool) -> tuple:
-    """``(conjugated k-points, ((label, image), ...))`` of one table.
+    """The points of one table conjugated whole, and the label of each row.
 
-    Cached per ``(number_str, spinor, magnetic)``: it is a property of
-    ``irreptables``' tables, not of any model or cell.  The pair is returned
-    together because both halves come out of the same
-    :func:`_table_conjugation` pass, which reads the parent unitary table too.
+    ``number_str``, ``spinor`` and ``magnetic`` pick the table of the
+    irreptables package: the group's number, whether the table is
+    double-valued, and whether it is a magnetic table.  Returns
+    ``(conjugated, pairs)``, ``conjugated`` and ``c`` of
+    :func:`_table_conjugation`, ``c`` as sorted ``(label, image)`` pairs.
+    What is returned depends on the table alone, and is kept for each table.
     """
     conj, conjugated, _broken = _table_conjugation(
         _spacegroup._irrep_table(number_str, spinor, magnetic))
@@ -1392,29 +1392,26 @@ def _transport_naming(number_str: str, spinor: bool, magnetic: bool) -> tuple:
 
 
 def _conjugated_kpoints(number_str: str, spinor: bool, magnetic: bool) -> frozenset:
-    """k-point names of one table returned as whole-character conjugates."""
+    """The points of one table whose characters are conjugated whole.
+
+    ``number_str``, ``spinor`` and ``magnetic`` pick the table, as
+    :func:`_transport_naming` takes them.  Returns the frozenset of point
+    names ``conjugated`` of :func:`_table_conjugation`.
+    """
     return _transport_naming(number_str, spinor, magnetic)[0]
 
 
 @lru_cache(maxsize=None)
 def _divergent_kpoints(number_str: str, spinor: bool, magnetic: bool) -> frozenset:
-    """k-point names whose returned table is **not** a permutation of BCS's rows.
+    """The points of one table whose rows returned are not the shipped rows.
 
-    The public census of where a reader cross-checking against the Bilbao
-    Crystallographic Server will not
-    find the returned numbers: everywhere else the name follows the character
-    (:func:`_table_conjugation`) and the returned table *is* BCS's printed table,
-    so only the label a measured band lands on can differ from BCS's own
-    analysis.  Here the shipped character set is not closed under conjugation,
-    so no permutation of BCS's rows is the physical table at all — its
-    *entrywise conjugate* is, which is the statement that the shipped page
-    tabulates the content of the other star member ``−k``.
-
-    Of the 5462 tabulated (space group, valuedness, k-point) entries, 59 are in
-    this class — 25 unitary and 34 grey — every one with at least one complex
-    character, and all at ``P``/``W`` of a body- or face-centred group
-    (SG 24/73/80/88/98/109/110/122/141/142/199/203/206/210/214/220/227/228/230
-    and their grey partners).
+    ``number_str``, ``spinor`` and ``magnetic`` pick the table, as
+    :func:`_transport_naming` takes them.  Returns the frozenset of point
+    names at which the shipped character vectors are not closed under
+    complex conjugation.  There the set of rows returned is the entrywise
+    conjugate of the shipped set.  The shipped rows describe the other member
+    ``-k`` of the star.  A point whose irreps disagree on their little group is
+    left out, being ``broken`` in :func:`_table_conjugation`.
     """
     table = _spacegroup._irrep_table(number_str, spinor, magnetic)
     by_kp: dict[str, list] = {}
@@ -1433,128 +1430,35 @@ def _divergent_kpoints(number_str: str, spinor: bool, magnetic: bool) -> frozens
 
 
 def _transported_table(group: GroupData, kpname: str, k3, ktol) -> dict | Refusal:
-    r"""``{label: {ind: character}}`` on **this cell's** coset representatives.
+    r"""The character table at a tabulated point, in the package's convention.
 
-    ``SpaceGroupIrreps.get_irreps_from_table`` re-implemented, with the
-    **factor system conjugated** at the boundary, reading the tabulated
-    characters out of ``irreptables``.
+    ``group`` is the group, ``kpname`` the point's name in the tables, ``k3``
+    its three reduced coordinates in the model's three-dimensional cell, and
+    ``ktol`` how far ``k3`` may sit from the tabulated point and be it, in
+    reduced reciprocal coordinates.  Returns ``{label: {index: character}}``,
+    the character of each little-group representation on each unitary
+    operation of the little group, by its one-based index in the group's
+    operations.
 
-    *The convention statement.*  BCS — and therefore ``irrep``/``irreptables`` —
-    tabulates little-group representations in the historically **unphysical**
-    convention in which a lattice translation is represented by
-    :math:`e^{+2\pi i\,k\cdot t}`.  The physical convention, the one
-    :mod:`..sewing` measures in (``(g f)(r) = f(g^{-1}r)`` acting on Bloch
-    functions :math:`\psi_k \sim e^{+ik\cdot r}`, so
-    :math:`\psi_k(r-m) = e^{-2\pi i\,k\cdot m}\psi_k(r)`), represents it by
-    :math:`e^{-2\pi i\,k\cdot t}`.  The mismatch is a historical artifact of the
-    tables and lives **entirely in the projective structure**: the tabulated
-    character factorises as
+    The tables represent a lattice translation by ``e^{+ik·t}`` and the
+    package by ``e^{-ik·t}``, and the difference is in the factor system
+    alone.  So the point-group part ``χ_0 = χ_table e^{-2πi k·t_table}`` of
+    each tabulated character is kept, and the phase of the operation's
+    translation in the model's cell ``t_cell`` is attached,
+    ``χ = χ_0 e^{-2πi k·t_cell}``, both translations and ``k`` in the
+    conventional cell of the tables.  At a point of ``conjugated`` of
+    :func:`_table_conjugation` the whole character is conjugated instead,
+    ``χ = conj(χ_0) e^{-2πi k·t_cell}``, under the label ``c(D)`` that ``c``
+    of :func:`_table_conjugation` gives the tabulated label ``D``.  Each
+    character is multiplied by the operation's ``sign``, which is ``+1`` on
+    every group the package builds.  At a partner point ``-k`` of a group
+    without time reversal (:func:`_partner_points`), the characters are the
+    conjugates of those at the listed point, under the partner labels.
 
-    .. math::
-        \chi_\text{table}(\{R|t_\text{table}\})
-            = e^{+2\pi i\,k_\text{ref}\cdot t_\text{table}}\;\Gamma(R),
-
-    where :math:`\Gamma(R)` — the loaded, point-group half — is gauge-free.  The
-    boundary rule is therefore *conjugate the factor system and nothing else*:
-    keep :math:`\Gamma(R)` exactly as tabulated and re-attach the **physical**
-    phase on this cell's own coset representative,
-
-    .. math::
-        \chi_\text{phys}(\{R|t_\text{phys}\})
-            = e^{-2\pi i\,k_\text{ref}\cdot t_\text{phys}}\;\Gamma(R)
-            = \chi_\text{table}\;\texttt{sym.sign}\;
-              e^{-2\pi i\,(t_\text{table} + t_\text{phys})\cdot k_\text{ref}},
-
-    with :math:`t_\text{phys}` from ``sym.translation_refUC(refUC, shiftUC)``
-    and everything on the
-    right in the BCS conventional basis.  ``k`` itself, the star/k-point
-    matching, the time-reversal corep pairing and the tabulated point-group
-    content are all left untouched: flipping ``k`` instead would repair the same
-    multiplicity defect while exchanging distinct stars (SG 199's ``P`` and
-    ``PA``, distinct exactly because the group has no inversion) and disturbing
-    the corep pairing.
-
-    The setting transformation is ``irrep``'s own.  ``sym.sign`` is ``+1`` on
-    every operation of a group this package built: ``irrep`` fits a ``±1`` per
-    operation from an unseeded random start and carries it on the *characters*,
-    while :func:`.._spacegroup._pin_spinor_branch` computes it from the tables' own spin frame
-    (:func:`.._spacegroup._canonical_spinor_signs`) and applies it to the **lifts** instead.
-    That is what makes the returned *names* reproducible and the returned *rows*
-    BCS's own: the little group's stored lifts then realize the tabulated ℤ₂
-    factor system exactly, so the tabulated character needs no bar at all.
-    Against
-    ``irrep``'s formula (``χ_table · sign · exp(+2πi·δt·k_ref)`` with
-    ``δt = t_table − t_phys``) this differs by ``exp(-4πi·t_table·k_ref)``,
-    which is 1 whenever ``k·t_table`` is a half-integer — i.e. everywhere except
-    a k-point that is not time-reversal invariant *and* whose little group
-    carries fractional translations.
-
-    *Where keeping* ``Γ`` *is not available: whole-character conjugation.*  The
-    rule above keeps the tabulated ``Γ`` and re-attaches the physical phase,
-    which is a
-    representation of the physical factor system :math:`\omega_0^*` only where
-    :math:`\omega_0` is **real**, and a physical *corep* only where the phase
-    :math:`\varphi(g) = e^{-4\pi i k\cdot t_g}` that carries BCS's
-    time-reversal gluing into the physical one is real as well.  Both conditions have the
-    same visible consequence, and it is the one tested here (via
-    :func:`_table_conjugation`): the tabulated set of character vectors is
-    closed under conjugation-composed-with-``φ`` exactly when the tabulated
-    labelling already names the physical representations.  Where it is not,
-    what is returned is the **whole-character conjugate**
-
-    .. math::
-        \chi_\text{phys}(\{R|t_\text{phys}\})
-            = \overline{\Gamma(R)}\;e^{-2\pi i\,k_\text{ref}\cdot t_\text{phys}}
-            = \overline{\chi_\text{table}(\{R|t_\text{phys}\})},
-
-    under the name :math:`c(D)` that :func:`_table_conjugation` supplies.
-    :math:`D\mapsto D^*` is the canonical bijection from the
-    :math:`\omega_0`-projective representations to the
-    :math:`\omega_0^*`-projective ones (conjugating a representation conjugates
-    its factor system, and it carries BCS's gluing
-    :math:`\{\Gamma,\overline{\Gamma}\varphi\}` onto the physical one
-    :math:`\{\overline\Gamma, \Gamma\overline\varphi\}`).
-
-    *And the name follows the character.*  ``c(D)`` is the **BCS label of the
-    row returned here** wherever the shipped character set is closed
-    under conjugation, so at those points the returned table is BCS's printed
-    table verbatim, whichever branch was taken; only where it is not closed is
-    the label anchored to what the name spells instead — for a **grey** table
-    to whatever the parent unitary table's relabelling forces on the corep's
-    constituents, which at the re-glued points is a corep the tables do not
-    ship at all (SG 80's ``-P3P3 ⊕ -P4`` becomes ``-P3 ⊕ -P4P4``: same four
-    units of dimension, different partition).
-
-    Over the 5462 tabulated (space group, valuedness, k-point) entries — 460
-    unitary and 460 grey instances, with ``broken`` empty —
-    **685** are returned by conjugating the whole character (398 unitary, 287
-    grey), and at **59** of those the printed rows are not a permutation of
-    BCS's shipped rows at all (25 unitary, 34 grey) — the only entries where a
-    reader cross-checking against the Bilbao Crystallographic Server will not
-    find the returned numbers under
-    the returned name, and the only ones where a returned corep name can be one the
-    tables do not ship (7 entries; SG 80's spinful ``P`` is the anchor).  At the
-    other 5403 the printed table is BCS's — **element by element**, because the
-    spinor matching sign of :func:`.._spacegroup._canonical_spinor_signs` lives in the lift
-    and not on the character, so the row printed under a returned name is a row
-    ``irreptables`` ships under that name, entry for entry, with only the
-    physical translation phase re-attached.  Carried on the character instead it would
-    print a bar wherever the stored lifts realize a different ℤ₂ factor system
-    from the tables' (``K`` of ``#183.186``: ``-K4`` as ``(+i, -i, -i)`` over
-    the three mirrors against BCS's ``(-i, -i, -i)``).
-
-    *A partner point* ``−k`` *the character table does not list* (``KA`` and
-    the like, :func:`_partner_points`) is read as its listed point's table
-    conjugated: the little group is the same, and the conjugate of a physical
-    irrep at ``k`` is one at ``−k``.
-
-    Refusals
-    --------
-    ``kpoint_not_tabulated``
-        The label and the coordinates disagree, or the label is not tabulated:
-        both are verdicts on what the shipped tables carry.
+    Returns ``kpoint_not_tabulated`` where ``k3`` is not the tabulated point
+    within ``ktol``, or where the table lists no point named ``kpname``.
     """
-    # A POINT -k THE IRREP TABLE DOES NOT LIST: its little group is the listed
+    # A point -k the irrep table does not list: its little group is the listed
     # point's, and its characters are the listed point's conjugated, each under
     # the partner label the EBR rows give the conjugate (`_partner_points`)
     if not group._magnetic:
@@ -1584,10 +1488,10 @@ def _transported_table(group: GroupData, kpname: str, k3, ktol) -> dict | Refusa
         if not _same_point(k3, carried, ktol):
             return Refusal(
                 "kpoint_not_tabulated",
-                f"the k-point {np.round(group._k_from_3d(np.asarray(k3, dtype=float)[None, :])[0], 6)} "
-                f"is not the tabulated point {kpname} of #{group.number_str}, which is at "
-                f"{np.round(group._k_from_3d(carried[None, :])[0], 6)} in this cell's reduced "
-                f"coordinates.",
+                f"k = {np.round(group._k_from_3d(np.asarray(k3, dtype=float)[None, :])[0], 6)} "
+                f"is not the tabulated point {kpname} of {group.name} #{group.number_str}, "
+                f"which is at {np.round(group._k_from_3d(carried[None, :])[0], 6)} in the "
+                f"model's reduced coordinates. Report it, with the model and the call.",
                 context={"kpname": kpname, "k": k2,
                          "number_str": str(group.number_str)})
         row: dict[int, complex] = {}
@@ -1597,8 +1501,8 @@ def _transported_table(group: GroupData, kpname: str, k3, ktol) -> dict | Refusa
                 continue                      # not in the little group (or antiunitary)
             t_table = np.asarray(sym_table.t, dtype=float)
             t_ours = sym.translation_refUC(group._refUC, group._shiftUC)
-            #  Γ(R) = χ_table · e^{-2πi k·t_table};  χ_phys = Γ · e^{-2πi k·t_ours}
-            if conjugated:                    # ... with Γ → conj(Γ), name c(D)
+            #  `χ_0 = χ_table e^{-2πi k·t_table}`; `χ = χ_0 e^{-2πi k·t_cell}`
+            if conjugated:                    # ... with `χ_0 → conj(χ_0)`, name `c(D)`
                 row[ind] = (np.conj(complex(irr.characters[ind])
                                     * np.exp(-2j * np.pi * t_table.dot(k_ref)))
                             * sym.sign * np.exp(-2j * np.pi * t_ours.dot(k_ref)))
@@ -1609,60 +1513,74 @@ def _transported_table(group: GroupData, kpname: str, k3, ktol) -> dict | Refusa
     if not out:
         return Refusal(
             "kpoint_not_tabulated",
-            f"the k-point with name {kpname} is not found in the spacegroup "
-            f"{table.number_str}",
+            f"the tables list no point named {kpname} for {group.name} "
+            f"#{group.number_str}. Ask a point high_symmetry_points returns.",
             context={"kpname": kpname, "k": k2,
                      "number_str": str(group.number_str)})
     return out
 
 
 def corep_table(group: GroupData, k) -> dict | Refusal:
-    """The character table of the little group at a high-symmetry point: each corep's character on each unitary operation.
+    """The character table of the little group at a high-symmetry point.
 
-    The table measured characters are read against, in the package's
-    convention for a lattice translation, so characters measured on the model
-    compare with it directly; the points where that convention moves a label,
-    or changes how time reversal glues the irreps, are named in
-    ``ebr_data(group).convention``.  Operations combined with time reversal
-    carry no characters.
+    The table holds the character of each little-group representation at
+    ``k`` on each unitary operation of the little group.  The characters are
+    those of the tables of the irreptables package, carried onto the
+    operations of the model's cell.  They are in the convention where a
+    lattice translation ``t`` acts as ``e^{-ik·t}``, the one
+    :func:`..sewing.characters` measures in.  At a partner point ``-k`` whose
+    characters the tables do not list, they are the complex conjugates of
+    those at ``k``.  ``ebr_data(group).convention`` names the points at which
+    the labels and characters returned differ from the tables'.
 
     Parameters
     ----------
     group : GroupData
-        The group, ``r.group`` of what ``realized_group`` returns.
+        The group.  Pass ``r.group`` of what :func:`..groups.realized_group`
+        returns.
     k : str or array, shape (dim_k,)
-        A tabulated point: its name, ``"X"``, or its coordinates in the
-        model's reduced coordinates, as :func:`high_symmetry_points` gives
-        them.
+        The point.  Pass its name in the tables, ``"X"``, or its reduced
+        coordinates, as :func:`high_symmetry_points` returns them.  A layer
+        also takes the three reduced coordinates of a point of its plane in
+        its three-dimensional cell.
 
     Returns
     -------
     dict or Refusal
-        ``{corep: {index: character}}``, one entry per corep of the little
-        group, its character on each unitary operation by index.  A
-        ``Refusal`` in its place is falsy.
+        ``{label: {index: character}}``, an entry for each little-group
+        representation at ``k``, with its character on each unitary operation
+        of the little group, keyed by the operation's index.  A ``Refusal`` in
+        its place is falsy.
 
     Refusals
     --------
     A refusal handed in as ``group`` is returned as it is.
 
     ``tables_not_ready``
-        The group has no transformation to the tables' conventional cell.
+        the model's cell could not be matched to the setting the tables are
+        written in.
     ``out_of_plane``
-        ``k`` has a component along a layer's vacuum, or names a tabulated
-        point out of the layer's plane.
+        ``k`` has a component out of a layer's plane, or names a tabulated
+        point out of the plane.
     ``kpoint_not_tabulated``
-        ``k`` is no tabulated point in the model's coordinates, or not the
-        tabulated member of its star; the refusal lists the tabulated points.
+        ``k`` is no tabulated point in the model's cell, or is a member of a
+        tabulated point's star other than the one tabulated.  The reason
+        lists the tabulated points.
 
     Raises
     ------
     TypeError
-        ``group`` is not a group: ``r`` or ``r.rep`` in its place, or
-        anything else.
+        ``group`` is not ``r.group``: ``r`` itself, ``r.rep``, the ``group``
+        of :func:`..srsi.srsi_tables` for a space-group number, which has no
+        cell, or anything else.
     ValueError
         ``k`` is a name the group does not tabulate, or has neither
-        ``dim_k`` components nor three.
+        ``dim_k`` coordinates nor three.
+
+    See Also
+    --------
+    identify_from_characters : the little-group representations each
+        multiplet carries, read from its characters against this table.
     """
     _require_group("corep_table", group)
     k = _resolve_kpoint("corep_table", group, k)
@@ -1675,17 +1593,23 @@ def _corep_table(group: GroupData, k, *, kpname=None, ktol=1e-5,
                  call: str = "corep_table") -> dict | Refusal:
     """The character table :func:`corep_table` returns, at coordinates ``k``.
 
+    ``group`` is the group and ``k`` the point's reduced coordinates.
     ``kpname`` is the point's tabulated name, taken as given instead of found
     from ``k``; ``ktol`` how far ``k`` may sit from a tabulated point and be
     it, in reduced reciprocal coordinates; ``call`` names the public call in
-    a ``ValueError`` on the number of ``k``'s components.
+    a ``ValueError`` on the number of ``k``'s components.  Returns what
+    :func:`corep_table` returns, and ``lattice_not_descended`` for a lattice
+    supergroup.
     """
     gate = _lattice_not_descended(group)
     if gate is not None:
         return gate
     if not group._tables_ready:
         return Refusal("tables_not_ready",
-                       group._setup_note or "irrep tables are not set up for this cell",
+                       group._setup_note or f"the cell of {group.name} "
+                       f"#{group.number_str} could not be matched to the setting the "
+                       "installed tables are written in. Report the model, with this "
+                       "reason.",
                        context={"number_str": group.number_str})
     lg = _little_group(group, k, call=call)
     if isinstance(lg, Refusal):
@@ -1698,72 +1622,85 @@ def _corep_table(group: GroupData, k, *, kpname=None, ktol=1e-5,
 
 def identify_from_characters(group: GroupData, k, characters, *, multiplet_dims=None,
                              label_tol=LABEL_TOL) -> CorepIdentification | Refusal:
-    r"""The coreps each multiplet carries at a high-symmetry point, from its measured characters.
+    r"""The little-group representations each multiplet carries, from its characters.
 
-    Each row of characters is expanded over the coreps of the little group,
-    ``m = Σ_g χ_corep(g) χ(g)* / Σ_g |χ_corep(g)|²``, and a multiplicity is a
-    nonnegative integer or the characters are wrong.  Levels merged into one
-    multiplet read as a sum of coreps.  :func:`..sewing.coreps_at`
-    measures the characters on a set of bands and reads them here.
+    Each row of characters ``χ`` is expanded over the little-group
+    representations ``ρ`` at ``k``, whose characters ``χ_ρ`` are those
+    :func:`corep_table` returns.  The multiplicity of ``ρ`` is
+    :math:`m_\rho = \sum_g \chi_\rho(g)\,\chi(g)^* / \sum_g |\chi_\rho(g)|^2`,
+    the sums over the unitary operations ``g`` of the little group.  A
+    multiplicity within ``label_tol`` of a nonnegative integer is read as that
+    integer.  A multiplet in which levels of several little-group
+    representations are degenerate reads as the sum of those representations.
 
     Parameters
     ----------
     group : GroupData
-        The group the characters were measured in, ``r.group`` of what
-        ``realized_group`` returns.
+        The group the characters were measured in.  Pass ``r.group`` of what
+        :func:`..groups.realized_group` returns.
     k : str or array, shape (dim_k,)
-        A tabulated point: its name, ``"X"``, or its coordinates in the
-        model's reduced coordinates, as :func:`high_symmetry_points` gives
-        them.
+        The point.  Pass its name in the tables, ``"X"``, or its reduced
+        coordinates, as :func:`high_symmetry_points` returns them.  A layer
+        also takes the three reduced coordinates of a point of its plane in
+        its three-dimensional cell.
     characters : array, shape (n_multiplets, n_unitary)
-        A row per degenerate multiplet and a column per unitary operation of
-        the little group in index order, ``little_group(group, k).unitary``:
-        the trace over the multiplet's states of ``rep.sewing_operator(index,
-        k)``, as :func:`..sewing.characters` measures it.
+        A row for each degenerate multiplet and a column for each unitary
+        operation of the little group, in the order of
+        ``little_group(group, k).unitary``.  An entry is the trace of the
+        operation's sewing matrix over the multiplet's states, as
+        :func:`..sewing.characters` measures it.
     multiplet_dims : array, shape (n_multiplets,), optional
-        Each multiplet's degeneracy, which the coreps found must add up to.
+        The degeneracy of each multiplet.
     label_tol : float, default 1e-3
-        How far a multiplicity may sit from an integer, dimensionless.
+        The tolerance for reading a multiplicity as an integer.
 
     Returns
     -------
     CorepIdentification or Refusal
-        Each multiplet's coreps and dimension, and the multiplicities before
-        rounding; ``summary()`` prints it.  A ``Refusal`` in its place is
-        falsy.
+        The little-group representations of each multiplet and its
+        dimension, and the multiplicities before rounding.  ``summary()``
+        prints it.  A ``Refusal`` in its place is falsy.
 
     Refusals
     --------
     A refusal handed in as ``group`` is returned as it is.
 
     ``tables_not_ready``
-        The group has no transformation to the tables' conventional cell.
+        the model's cell could not be matched to the setting the tables are
+        written in.
     ``out_of_plane``
-        ``k`` has a component along a layer's vacuum, or names a tabulated
-        point out of the layer's plane.
+        ``k`` has a component out of a layer's plane, or names a tabulated
+        point out of the plane.
     ``kpoint_not_tabulated``
-        ``k`` is no tabulated point in the model's coordinates, or not the
-        tabulated member of its star; the refusal lists the tabulated points.
+        ``k`` is no tabulated point in the model's cell, or is a member of a
+        tabulated point's star other than the one tabulated.  The reason
+        lists the tabulated points.
     ``little_group_mismatch``
-        The little group measured in the model's cell is not the table's.
+        a unitary operation of the little group in the model's cell is not
+        among those the tables list at the point.
     ``integer_multiplicity``
-        A multiplicity further than ``label_tol`` from a nonnegative integer:
-        characters in another convention, or one level split across
-        multiplets, which reads one half for a two-dimensional corep.
+        a multiplicity is further than ``label_tol`` from a nonnegative
+        integer.
     ``multiplet_dimension``
-        The coreps found do not add up to ``multiplet_dims``: the rows were
-        grouped into multiplets wrongly.
+        with ``multiplet_dims``, the dimensions of the representations found
+        in a multiplet do not add up to its degeneracy.
 
     Raises
     ------
     TypeError
-        ``group`` is not a group: ``r`` or ``r.rep`` in its place, or
-        anything else.
+        ``group`` is not ``r.group``: ``r`` itself, ``r.rep``, the ``group``
+        of :func:`..srsi.srsi_tables` for a space-group number, which has no
+        cell, or anything else.
     ValueError
         ``k`` is a name the group does not tabulate, or has neither
-        ``dim_k`` components nor three; ``characters`` has not one column per
-        unitary operation of the little group, or ``multiplet_dims`` not one
-        entry per row.
+        ``dim_k`` coordinates nor three; ``characters`` has not one column for
+        each unitary operation of the little group; ``multiplet_dims`` has
+        not one entry for each row.
+
+    See Also
+    --------
+    coreps_at : the little-group representations of a set of bands at a
+        point, measured on the model.
     """
     _require_group("identify_from_characters", group)
     k = _resolve_kpoint("identify_from_characters", group, k)
@@ -1778,19 +1715,26 @@ def _identify_from_characters(group: GroupData, k, characters, *, multiplet_dims
                               kpname=None, label_tol=1e-3, ktol=1e-5,
                               call: str = "identify_from_characters"
                               ) -> CorepIdentification | Refusal:
-    """The coreps :func:`identify_from_characters` returns, at coordinates ``k``.
+    """What :func:`identify_from_characters` returns, at coordinates ``k``.
 
-    ``kpname`` is the point's tabulated name, taken as given instead of found
-    from ``k``; ``ktol`` how far ``k`` may sit from a tabulated point and be
-    it, in reduced reciprocal coordinates; ``call`` names the public call in
-    a ``ValueError`` on the number of ``k``'s components.
+    ``group``, ``characters``, ``multiplet_dims`` and ``label_tol`` are as
+    :func:`identify_from_characters` takes them, and ``k`` is the point's
+    reduced coordinates.  ``kpname`` is the point's tabulated name, taken as
+    given instead of found from ``k``; ``ktol`` how far ``k`` may sit from a
+    tabulated point and be it, in reduced reciprocal coordinates; ``call``
+    names the public call in a ``ValueError`` on the number of ``k``'s
+    components.  Returns what :func:`identify_from_characters` returns, and
+    ``lattice_not_descended`` for a lattice supergroup.
     """
     gate = _lattice_not_descended(group)
     if gate is not None:
         return gate
     if not group._tables_ready:
         return Refusal("tables_not_ready",
-                       group._setup_note or "irrep tables are not set up for this cell",
+                       group._setup_note or f"the cell of {group.name} "
+                       f"#{group.number_str} could not be matched to the setting the "
+                       "installed tables are written in. Report the model, with this "
+                       "reason.",
                        context={"number_str": group.number_str})
 
     lg = _little_group(group, k, call=call)
@@ -1800,9 +1744,10 @@ def _identify_from_characters(group: GroupData, k, characters, *, multiplet_dims
     chars = np.atleast_2d(np.asarray(characters, dtype=complex))
     if chars.shape[1] != len(lg.unitary):
         raise ValueError(
-            f"characters must have one column per unitary little-group operation "
-            f"({len(lg.unitary)} at k={np.round(lg.k, 6)}, indices {lg.unitary}), "
-            f"got {chars.shape[1]}")
+            f"{call}(): the number of columns of characters=, {chars.shape[1]}, is not "
+            f"the number of unitary operations of the little group at "
+            f"k = {np.round(lg.k, 6)}, {len(lg.unitary)}: {lg.unitary}. Pass one column "
+            "for each, in that order.")
 
     kpname = _resolve_kpname(group, lg, kpname, ktol)
     if isinstance(kpname, Refusal):
@@ -1815,15 +1760,15 @@ def _identify_from_characters(group: GroupData, k, characters, *, multiplet_dims
     if not set(lg.unitary) <= table_inds:
         return Refusal(
             "little_group_mismatch",
-            f"the measured little group at {kpname} carries the operation indices "
-            f"{sorted(lg.unitary)} but the table lists {sorted(table_inds)}; matching the "
-            f"operations to the standard setting did not close, so no label would be meaningful.",
+            f"the little group at {kpname} holds the unitary operations "
+            f"{sorted(lg.unitary)}, and the tables list {sorted(table_inds)} there. Report "
+            "it, with the model and the call.",
             context={"ours": sorted(lg.unitary), "table": sorted(table_inds), "kpname": kpname})
 
     label_order = tuple(table)
     mult = np.zeros((chars.shape[0], len(label_order)), dtype=complex)
     dims = np.zeros(len(label_order))
-    # the identity is in every little group; its character is the irrep dimension
+    # the identity is in every little group; its character is the dimension
     identity = next((int(s.ind) for s in lg._unitary_operations
                      if np.array_equal(s.rotation, np.eye(3, dtype=int))
                      and np.abs(s.translation - np.round(s.translation)).max() < 1e-8),
@@ -1841,10 +1786,9 @@ def _identify_from_characters(group: GroupData, k, characters, *, multiplet_dims
         rows = sorted(set(int(r) for r in np.nonzero(bad)[0]))
         return Refusal(
             "integer_multiplicity",
-            f"irrep multiplicities at {kpname} are not non-negative integers (worst defect "
-            f"{defect:.3g} > {label_tol:g}) for multiplet row(s) {rows}. Either the characters were "
-            f"not computed in the convention pythtqc.groups documents (its module docstring), or "
-            f"a degeneracy was split into several multiplets by numerical noise.",
+            f"at {kpname}, the multiplicities of the little-group representations in the "
+            f"multiplets {rows} are not nonnegative integers within {label_tol:g}. "
+            f"The largest distance from an integer is {defect:.3g}.",
             value=defect, threshold=float(label_tol),
             context={"kpname": kpname, "k": lg.k, "indices": lg.unitary,
                      "labels": label_order, "multiplicities": mult,
@@ -1854,13 +1798,16 @@ def _identify_from_characters(group: GroupData, k, characters, *, multiplet_dims
     if multiplet_dims is not None:
         want = np.asarray(multiplet_dims, dtype=float).ravel()
         if want.shape[0] != chars.shape[0]:
-            raise ValueError("multiplet_dims must have one entry per character row")
+            raise ValueError(f"{call}(): the number of entries of multiplet_dims=, "
+                             f"{want.shape[0]}, is not the number of rows of characters=, "
+                             f"{chars.shape[0]}, one for each multiplet. Pass the "
+                             "degeneracy of each multiplet.")
         if not np.allclose(total_dims, want, atol=1e-6):
             return Refusal(
                 "multiplet_dimension",
-                f"identified irrep dimensions {total_dims.tolist()} do not match the supplied "
-                f"multiplet degeneracies {want.tolist()} at {kpname}; the degeneracy grouping "
-                f"and the characters disagree.",
+                f"at {kpname}, the little-group representations found in the multiplets "
+                f"add up to the dimensions {total_dims.tolist()}, where the multiplets' "
+                f"degeneracies are {want.tolist()}.",
                 value=float(np.abs(total_dims - want).max()), threshold=1e-6,
                 context={"kpname": kpname, "got": total_dims, "expected": want})
 
@@ -1888,10 +1835,11 @@ def _identify_from_characters(group: GroupData, k, characters, *, multiplet_dims
 
 
 def _label_kpoint(label: str) -> str:
-    """``'-GM4GM5' → 'GM'`` — the leading run of non-digits after the ``-`` marker.
+    """The name of a label's point, as :func:`kpoint_of_label` reads it.
 
-    The same three lines as :func:`kpoint_of_label`, kept beside the carrying
-    of the rows, which reads this one.
+    ``label`` is the label of a little-group representation.  Returns the
+    characters before its first digit, a leading ``-`` dropped:
+    ``'-GM4GM5'`` gives ``'GM'``.
     """
     s = str(label)[1:] if str(label).startswith("-") else str(label)
     i = 0
@@ -1901,19 +1849,17 @@ def _label_kpoint(label: str) -> str:
 
 
 def _conjugate_site_name(ebr_name: str) -> str | None:
-    """``'1E↑G(1)' → '2E↑G(1)'`` — the complex-conjugate *site* irrep, or ``None``.
+    """The EBR name with the site irrep replaced by its complex conjugate.
 
-    BCS names a complex-conjugate pair of site representations ``1X``/``2X``
-    (``1E``/``2E``, ``1E1``/``2E1``, ``-1Eg``/``-2Eg``, …), with the ``-``
-    marking a double-valued one; every other name is self-conjugate, and in a
-    grey group a conjugate pair that time reversal has already glued carries
-    both halves in one name (``1E2E``, ``-1E2E1``) and is self-conjugate too.
-    Returns ``None`` when the name is self-conjugate by that rule.
-
-    Measured, not assumed: over **all 230 space groups plus their grey
-    extensions, single- and double-valued — 10 074 EBR columns — this rule
-    agrees with the Γ-block requirement below in every case and disagrees in
-    none**.  The Γ check is applied at run time anyway.
+    ``ebr_name`` is a column's name, ``'1E↑G(1)'``.  The tables name a
+    complex-conjugate pair of site irreps ``1X`` and ``2X`` (``1E`` and
+    ``2E``, ``-1Eg`` and ``-2Eg``), a leading ``-`` marking a double-valued
+    one.  Returns the name with ``1`` and ``2`` exchanged at the head of the
+    site irrep, ``'2E↑G(1)'``, and ``None`` where the site irrep starts with
+    neither.  A grey group's pair glued into one site irrep, ``1E2E``, gives
+    ``2E2E``, a name no column of the tables has, so :func:`_ebr_transport`
+    reads it as self-conjugate.  :func:`_ebr_transport` checks every pairing
+    on the ``GM`` rows.
     """
     site = str(ebr_name).split("\u2191")[0]
     tail = str(ebr_name)[len(site):]
@@ -1926,67 +1872,28 @@ def _conjugate_site_name(ebr_name: str) -> str | None:
 
 
 def _conjugation_involution(table, labels) -> dict:
-    r"""``{label: label}`` — the map ``c`` with ``χ_phys[c(D)] = conj(χ_BCS[D])``.
+    r"""The map ``c`` on a table's labels and on those of its EBR basis.
 
-    At most tabulated k the physical-convention table is the tabulated one with
-    its factor system conjugated (:func:`_transported_table`), i.e. on the
-    table's own coset representatives
-
-    .. math::
-        \chi^\text{phys}_D(\{R|t\}) = \chi^\text{BCS}_D(\{R|t\})\,
-                                      e^{-4\pi i\,k\cdot t},
-
-    and ``c`` is fixed by matching character vectors — no naming convention is
-    consulted.  ``c`` is always an **involution**: writing
-    :math:`\varphi(g) = e^{-4\pi i k\cdot t_g}` (unimodular),
-    :math:`\chi_{c(D)}\varphi = \overline{\chi_D}` applied twice gives
-    :math:`\chi_{c(c(D))}\varphi = \overline{\chi_{c(D)}}
-    = \chi_D\overline{\varphi^{-1}} = \chi_D\varphi`, hence ``c(c(D)) = D``.
-    That is checked here rather than trusted.
-
-    Labels of an EBR-basis k-point the *irrep* table does not carry — the
-    ``KA``/``HA``/``PA``/``WA`` "other arm" points, which the grey (corep)
-    tables do carry but the unitary ones mostly do not — are mapped by
-    transporting ``c`` from the partner point through the name (``KA2`` ↔
-    ``K2``).  That is BCS's own arm convention, and it is verified against the
-    grey tables, where both arms are tabulated with
-    :math:`\chi_{XA_n} = \overline{\chi_{X_n}}` at :math:`k_{XA} = -k_X`.
-
-    **Where** :func:`_transported_table` **returns the whole-character conjugate**
-    — the k-points :func:`_table_conjugation` marks, where the tabulated
-    labelling names no physical representation and the physical table is
-    :math:`\overline{\chi_\text{BCS}}` — the definition above is unchanged, and
-    it is also what fixes the returned *name*: ``c(D)`` is the
-    BCS label whose shipped characters are :math:`\overline{\chi_D}` wherever
-    one exists, so the EBR relabelling and the returned table move together by
-    construction.  Only where no such label exists does ``c`` come from
-    somewhere else — for a **grey** table from the corep relabelling lifted from
-    the parent unitary table, whose image at the re-glued points is a corep name
-    the EBR basis does not contain.  The transport formula is still the same
-    relabelling — the derivation of
-    :math:`n^\text{phys}_\rho[c(C)] = n^\text{BCS}_{\rho^*}[C]` only uses
-    :math:`\chi_\text{phys}[c(C)] = \overline{\chi_\text{BCS}[C]}`, which the
-    lift satisfies constituent by constituent — but the *basis itself* moves
-    there, so ``c`` is a bijection onto a label set that is not the one it
-    started from.  It is therefore checked to be an involution only where the
-    image is a label of the same basis, and to preserve dimension always.
-
-    Raises :class:`_EBRTransportError` only for a **tabulation** defect: a
-    k-point whose irreps disagree about which operations are in the little
-    group, or one where the tabulated character set is not conjugation-closed
-    although both ``ω₀`` and ``φ`` are real and no gluing statement can explain
-    it either.  No point shipped in ``irreptables`` is of either kind.
+    ``table`` is an irrep table and ``labels`` the labels of the rows of its
+    group's EBR matrix.  Returns ``{label: label}``, ``c`` of
+    :func:`_table_conjugation` on every label of the table and of
+    ``labels``, ``χ_phys[c(D)] = conj(χ_table[D])``.  A label of ``labels``
+    at a partner point ``XA`` the table does not list is mapped through the
+    name of its partner at ``X``: ``KA2`` goes where ``K2`` goes, with ``K``
+    read as ``KA``.  Raises :class:`_EBRTransportError` where the table has
+    ``broken`` points, where a label is neither in the table nor at the
+    partner of a point that is, where ``c`` is not one-to-one on ``labels``,
+    where ``c(c(D))`` is not ``D`` although ``c(D)`` is a label ``c`` maps,
+    or where ``c`` moves a label to another point.  At a re-glued point
+    ``c(D)`` is a name the tables do not ship, and ``c`` does not map it.
     """
     conj, _conjugated, broken = _table_conjugation(table)
     if broken:
         raise _EBRTransportError(
-            f"the tabulated little-group characters of #{table.number_str} at "
-            f"{list(broken)} are not a consistent set: they are not closed under "
-            "complex conjugation, and neither the tabulated factor system nor the "
-            "time-reversal gluing phase is complex there, so the e^{+ik.t}/e^{-ik.t} "
-            "convention difference cannot account for it. This is a defect of the "
-            "shipped table, not of the transport, so the EBR rows are refused "
-            "rather than carried across it.", points=list(broken))
+            f"the characters the tables list for #{table.number_str} at {list(broken)} "
+            "are not closed under complex conjugation, and neither the factor system nor "
+            "the phase with which time reversal glues irreps into coreps is complex "
+            "there.", points=list(broken))
 
     for label in labels:                       # the untabulated 'A' arms
         if label in conj:
@@ -1996,96 +1903,62 @@ def _conjugation_involution(table, labels) -> dict:
         base = label.replace(kp, kp[:-1]) if len(kp) > 1 and kp.endswith("A") else None
         if base is None or base not in conj:
             raise _EBRTransportError(
-                f"the EBR-basis label {label!r} (k-point {kp!r}) is not in the "
-                "irrep table and is not the 'other arm' of one that is, so its "
-                "convention transport is undefined.", points=[kp])
+                f"the label {label!r} of the elementary band representations, at "
+                f"{kp!r}, is not in the irrep table, and is not at the partner -k of a "
+                "point that is.", points=[kp])
         conj[label] = conj[base].replace(kp[:-1], kp)
 
     images = {conj[label] for label in labels}
     if len(images) != len(labels):
         raise _EBRTransportError(
-            "the conjugation map is not injective on the EBR basis "
-            f"({len(labels)} labels, {len(images)} images); the tabulated "
-            "characters are not what this transport assumes.")
+            f"complex conjugation sends the {len(labels)} labels of the elementary band "
+            f"representations to {len(images)} labels.")
     for label in labels:
         image = conj[label]
         if image in conj and conj[image] != label:
             raise _EBRTransportError(
-                f"the conjugation map is not an involution at {label!r} "
-                f"({label} → {image} → {conj.get(image)}); "
-                "the tabulated characters are not what this transport assumes.",
+                f"complex conjugation of the labels is not an involution at {label!r}: "
+                f"{label} → {image} → {conj.get(image)}.",
                 points=[_label_kpoint(label)])
         if _label_kpoint(image) != _label_kpoint(label):
             raise _EBRTransportError(          # pragma: no cover - structural
-                f"the conjugation map moves {label!r} to another k-point "
-                f"({image!r}); the transport is per k-point by construction.",
+                f"complex conjugation sends the label {label!r} to {image!r}, at "
+                "another point.",
                 points=[_label_kpoint(label)])
     return conj
 
 
 @lru_cache(maxsize=None)
 def _ebr_transport(number_str: str, spinor: bool, magnetic: bool) -> tuple:
-    r"""Permutations carrying ``irreptables``' EBR rows into the physical convention.
+    r"""The relabeling of the tables' EBR rows into the package's convention.
 
-    Returns ``(labels, conjugation, partner, changed_labels, new_labels, perm)``:
-    the tabulated EBR-basis label order, the per-k conjugation ``c`` of
-    :func:`_conjugation_involution`, the index ``ρ ↦ ρ*`` of the time-reversed
-    EBR column, which labels move, the **physical** basis labels in the
-    same positions, and the row permutation that goes with them.  Cached per
-    ``(number_str, spinor, magnetic)`` — it is a property of the tables, not of
-    any model.
-
-    The physics in one line.  A band representation induced from the site
-    representation ``ρ`` at Wyckoff position ``q`` has, at the k-point ``k``,
-    the character
-
-    .. math::
-        \chi^{(s)}(\{R|t\}) = \sum_{j:\,g q_j = q_j}
-            e^{s\,2\pi i\,k\cdot m_j}\,\chi_\rho(g_j),
-        \qquad m_j = R\tau_j + t - \tau_j\in\mathbb{Z}^3 ,
-
-    with ``s = +1`` in BCS's convention (what ``irreptables`` ships) and
-    ``s = −1`` in the physical one (what :mod:`..sewing` measures).  Because
-    :math:`\chi_\rho(g_j)` and :math:`m_j` are convention-free,
-
-    .. math::
-        \chi^{(-)}_\rho = \overline{\chi^{(+)}_{\rho^*}},
-
-    where :math:`\rho^*` is the complex-conjugate site representation — note
-    that conjugating only the phase would be wrong for a complex ``1E``/``2E``
-    site pair.  Pairing that with the definition of ``c`` gives the whole
-    transport as a **relabelling**,
-
-    .. math::
-        n^\text{phys}_\rho[\,c(D)\,] = n^\text{BCS}_{\rho^*}[\,D\,],
-
-    which is what comes back.  Two consequences are worth naming:
-    the Wyckoff **position never moves** (``ρ*`` sits at ``q`` too), and at
-    ``k = 0`` the transport is the identity — asserted below on the Γ block of
-    every column, which is the run-time check that ``ρ*`` was identified right.
-
-    *Re-glued k-points.*  Where ``c`` carries a grey corep label to one the
-    tables do not ship, the formula above is unchanged but the **basis** at that
-    k-point is not: the physical corep list is a
-    different partition of the same unitary irreps, so the labels there are
-    renamed in place rather than permuted (``-P3P3, -P4 → -P4P4, -P3`` for
-    ``80.30``, multiplicities ``1, 2 → 1, 2`` — read positionally, which is what
-    ``n^phys[c(C)] = n^BCS[C]`` says).  ``c`` preserves the dimension of every
-    constituent, so the ``degeneracies`` array is untouched and the per-k-point
-    dimension ``Σ_C n_C · dim C`` is conserved; both are asserted here.
-
-    Raises :class:`_EBRTransportError` (never returns partly transported rows).
+    ``number_str``, ``spinor`` and ``magnetic`` pick the tables, as
+    :func:`_transport_naming` takes them.  Returns
+    ``(labels, conjugation, partner, changed_labels, new_labels, perm)``:
+    the tables' row labels in their order; ``c`` of
+    :func:`_conjugation_involution`; for each column, the index of the column
+    induced from the complex-conjugate site irrep ``ρ*`` at the same Wyckoff
+    position, the column itself for a real site irrep; the labels that are
+    renamed or whose row changes; the row labels returned, in the same
+    positions; and the row permutation.  The multiplicity of ``c(D)`` in the
+    column of ``ρ`` returned is the tables' multiplicity of ``D`` in the
+    column of ``ρ*``, so column ``i`` returned is
+    ``matrix[perm, partner[i]]``.  At a re-glued point the labels are renamed
+    in place and not permuted.  Raises :class:`_EBRTransportError`, and
+    returns nothing transported in part, where an entry has no key
+    ``ebr_name`` or ``wyckoff_position``, :func:`_conjugation_involution`
+    raises, ``c`` changes a dimension, the pairing of the columns is
+    ambiguous or not an involution, a column's ``GM`` rows change, or a
+    column's dimension at a point changes.
     """
     raw = _spacegroup._ebr_file(number_str, spinor)
     labels = tuple(str(l) for l in raw["basis"]["irrep_labels"])
     try:
         names = [str(e["ebr_name"]) for e in raw["ebrs"]]
         wyck = [str(e["wyckoff_position"]) for e in raw["ebrs"]]
-    except KeyError as exc:                       # e.g. 80.31 ships no position
+    except KeyError as exc:                       # e.g. 80.31 writes its positions under `wps`
         raise _EBRTransportError(
-            f"the EBR data of #{number_str} is missing {exc}; it cannot be "
-            "carried into the physical convention (nor read by irrep's own "
-            "`get_ebr_names_and_positions`).") from exc
+            f"an elementary band representation in the tables has no entry {exc}.") from exc
     matrix = np.array([e["vector"] for e in raw["ebrs"]], dtype=int).T
 
     table = _spacegroup._irrep_table(number_str, spinor, magnetic)
@@ -2096,8 +1969,7 @@ def _ebr_transport(number_str: str, spinor: bool, magnetic: bool) -> tuple:
            if conj[l] in degen and degen[l] != degen[conj[l]]]
     if bad:
         raise _EBRTransportError(
-            f"conjugation changes the dimension of {bad}; the tabulated "
-            "degeneracies and characters disagree.",
+            f"complex conjugation changes the dimension of the labels {bad}.",
             points=[_label_kpoint(l) for l in bad])
 
     partner = []
@@ -2106,23 +1978,23 @@ def _ebr_transport(number_str: str, spinor: bool, magnetic: bool) -> tuple:
         hits = [j for j, (n2, p2) in enumerate(zip(names, wyck))
                 if n2 == want and p2 == pos]
         if want is None or not hits:
-            partner.append(i)                     # self-conjugate site representation
+            partner.append(i)                     # self-conjugate site irrep
         elif len(hits) == 1:
             partner.append(hits[0])
         else:
             raise _EBRTransportError(
-                f"the EBR data of #{number_str} lists {want!r}@{pos} more than "
-                "once, so the time-reversed partner of "
-                f"{name!r}@{pos} is ambiguous.")
+                f"the tables list the elementary band representation {want!r}@{pos} "
+                f"of #{number_str} more than once, so {name!r}@{pos} has more than one "
+                "partner under time reversal.")
     if any(partner[partner[i]] != i for i in range(len(partner))):
         raise _EBRTransportError(
-            f"the time-reversal pairing of #{number_str}'s EBR columns is not an "
-            "involution.")
+            f"the pairing of the elementary band representations of #{number_str} "
+            "under time reversal is not an involution.")
 
     index = {l: i for i, l in enumerate(labels)}
     #  Per k-point block: where ``c`` maps the block onto itself the labels stay
     #  put and the multiplicities permute (the ordinary case: the returned rows are
-    #  then the shipped rows permuted); where it does not — a re-glued point —
+    #  then the shipped rows permuted). Where it does not, at a re-glued point,
     #  the labels are renamed in place.
     block: dict[str, list] = {}
     for i, l in enumerate(labels):
@@ -2143,10 +2015,8 @@ def _ebr_transport(number_str: str, spinor: bool, magnetic: bool) -> tuple:
         for l in gamma:
             if matrix[index[l], i] != matrix[index[conj[l]], partner[i]]:
                 raise _EBRTransportError(
-                    f"the Γ block of {names[i]}@{wyck[i]} is not invariant under "
-                    "the transport (k = 0 carries no site-displacement phase, so "
-                    "it must be): the conjugate-site pairing or the tabulated "
-                    "Γ characters are not what this transport assumes.",
+                    f"the rows at GM of {names[i]}@{wyck[i]} change when it is carried "
+                    "into the package's convention.",
                     points=["GM"])
 
     #  Dimension conservation, k-point by k-point and column by column: the band
@@ -2160,9 +2030,8 @@ def _ebr_transport(number_str: str, spinor: bool, magnetic: bool) -> tuple:
             now = int(sum(col[j] * deg[j] for j in pos))
             if was != now:
                 raise _EBRTransportError(
-                    f"the transport changes the dimension of {names[i]}@{wyck[i]} "
-                    f"at {kp} ({was} → {now}); the re-glued corep basis is not a "
-                    "partition of the same unitary irreps.", points=[kp])
+                    f"carried into the package's convention, {names[i]}@{wyck[i]} has "
+                    f"{now} bands at {kp}, where the tables give {was}.", points=[kp])
 
     moved = tuple(l for l, l2, j in zip(labels, new_labels, perm)
                   if l != l2 or any(matrix[index[l], i] != matrix[j, partner[i]]
@@ -2172,18 +2041,20 @@ def _ebr_transport(number_str: str, spinor: bool, magnetic: bool) -> tuple:
 
 def _to_physical_convention(raw: dict, number_str: str, spinor: bool,
                             magnetic: bool) -> dict:
-    """``raw`` with every EBR row rewritten in the physical convention.
+    """The tables' EBR record carried into the package's convention.
 
-    A new ``dict`` (``raw`` is only read, and what is not rewritten is
-    ``raw``'s own): the ``vector``/``irrep_list`` of each EBR, the basis
-    ``irrep_labels`` where a k-point was re-glued, and the Smith form, which is
-    transported exactly rather than recomputed — with ``M' = P M Q`` for the
-    label permutation ``P`` and the column permutation ``Q`` (both involutions),
-    ``M = U⁻¹RV⁻¹`` gives ``M' = (UP)⁻¹R(QV)⁻¹`` with the elementary divisors
-    ``R`` untouched.  A re-glued block contributes the identity to ``P`` (its
-    labels are renamed in place, not permuted), so the Smith form is carried
-    across it unchanged, which is right: the multiplicity *vector* does not move
-    there, only what its entries are called.
+    ``raw`` is the record of the irreptables package for the group, and
+    ``number_str``, ``spinor`` and ``magnetic`` pick the tables, as
+    :func:`_transport_naming` takes them.  Returns a new mapping, ``raw``
+    only read and what is not rewritten shared with it.  Rewritten are each
+    column's ``vector`` and ``irrep_list``, by :func:`_ebr_transport`; the
+    row labels ``irrep_labels``, where a point is re-glued; and the Smith
+    factors ``u`` and ``v``, permuted with the rows and the columns.  With
+    ``M' = P M Q`` for the permutation ``P`` of the rows and ``Q`` of the
+    columns, both involutions, ``u M v = r`` gives ``(u P) M' (Q v) = r``,
+    and the diagonal ``r`` is unchanged.  Raises
+    :class:`_EBRTransportError` where :func:`_ebr_transport` raises, and
+    where a factor to be permuted is not a matrix.
     """
     labels, conj, partner, moved, new_labels, perm = _ebr_transport(
         number_str, spinor, magnetic)
@@ -2203,11 +2074,11 @@ def _to_physical_convention(raw: dict, number_str: str, spinor: bool,
                              for _ in range(int(m))]
         out["ebrs"].append(new)
 
-    # ``r`` — the elementary divisors — is invariant under both permutations, and
+    # ``r``, the elementary divisors, is invariant under both permutations, and
     # each of ``u``/``v`` is rewritten only when its permutation is not the
     # identity: ``irreptables`` stores a degenerate Smith factor as a scalar when
-    # the group has a single EBR column (measured on SG 4, 7, 9, 29, …), and
-    # there the column permutation is the identity anyway.
+    # the group has a single EBR column (SG 4, 7, 9, 29 and others), and there
+    # the column permutation is the identity anyway.
     smith = raw.get("smith_form")
     if smith is not None:
         moves = {"u": (list(perm) != list(range(len(labels))), perm, 1),
@@ -2221,16 +2092,26 @@ def _to_physical_convention(raw: dict, number_str: str, spinor: bool,
                 arr = np.asarray(smith[key], dtype=int)
                 if arr.ndim != 2:
                     raise _EBRTransportError(
-                        f"#{number_str}'s tabulated Smith factor {key!r} is not a "
-                        f"matrix (ndim={arr.ndim}), so the transport cannot be "
-                        "carried onto it.")
+                        f"the factor {key!r} of the Smith normal form the tables hold "
+                        f"for #{number_str} is an array of {arr.ndim} dimensions, not a "
+                        "matrix.")
                 out["smith_form"][key] = (arr[:, order] if axis else
                                           arr[order, :]).tolist()
     return out
 
 
 def _transport_record(number_str: str, spinor: bool, magnetic: bool) -> dict:
-    """The ``"convention"`` entry :func:`ebr_data` publishes — what moved, and why."""
+    """The record of what the convention moved in a group's EBR rows.
+
+    ``number_str``, ``spinor`` and ``magnetic`` pick the tables, as
+    :func:`_transport_naming` takes them.  Returns a mapping with the keys
+    ``name``, ``applied``, ``changed_labels``, ``changed_points``,
+    ``conjugated_points``, ``divergent_points``, ``reglued_points``,
+    ``conjugation``, ``labels_bcs``, ``labels_physics_convention``,
+    ``row_permutation``, ``tr_partner`` and ``note``, from which
+    :func:`ebr_data` builds its ``convention``.  Points are in the package's
+    order of points.
+    """
     labels, conj, partner, moved, new_labels, _perm = _ebr_transport(
         number_str, spinor, magnetic)
     reglued = tuple(sorted({_label_kpoint(l) for l, l2 in zip(labels, new_labels)
@@ -2271,11 +2152,12 @@ def _transport_record(number_str: str, spinor: bool, magnetic: bool) -> dict:
 def _improper_letters(sg: int) -> frozenset:
     r"""The Wyckoff letters of space group ``sg`` whose site group is improper.
 
-    A letter's site group is every operation of the group that fixes its
+    ``sg`` is the space-group number.  Returns a frozenset of letters.  A
+    letter's site group is every operation of the group that fixes its
     representative point at a generic value of its free parameters, the point
     and the operations both ``pyxtal``'s in the tables' setting
     (:func:`_pyxtal_wyckoff`: the general position's operations, the
-    conventional cell's centring among them).  It is named by
+    conventional cell's centering among them).  It is named by
     :func:`.._sitechars.point_group_of`, and improper is that name starting
     with a bar: ``-1``, ``-3``, ``-4``, ``-6``, ``-3m``, ``-42m``, ``-6m2`` or
     ``-43m``.
@@ -2298,14 +2180,18 @@ def _improper_letters(sg: int) -> frozenset:
 
 
 def _barred(position: str, improper) -> str:
-    """``"3a(3m1',3m)" → "3a(-3m1',-3m)"``: an EBR position, its site group with its bar.
+    """An EBR position with the bar written on its improper site group.
 
-    The tables' own EBR files write every improper site group without its bar:
-    ``3m`` for the ``-3m`` at ``3a`` of ``R-3m``, ``6m2`` for the ``-6m2`` at
-    ``2c`` of ``P6/mmm``, ``4`` for ``-4``.  At a letter of ``improper``
-    (:func:`_improper_letters`) the bar goes back on the tables' own symbol,
-    which keeps the orientation that symbol writes: which axis carries which
-    operation, and so which irrep is ``B1`` and which ``B2``.
+    ``position`` is a position as the tables' EBR files write it,
+    ``"3a(3m1',3m)"``, and ``improper`` the letters
+    :func:`_improper_letters` returns for the group.  The files write every
+    improper site group without its bar: ``3m`` for the ``-3m`` at ``3a`` of
+    ``R-3m``, ``6m2`` for the ``-6m2`` at ``2c`` of ``P6/mmm``.  Returns the
+    position with a bar on each symbol of its site groups where its letter
+    is in ``improper``, ``"3a(-3m1',-3m)"``, and the position as it is
+    otherwise.  The bar goes on the tables' own symbol, which keeps the
+    orientation that symbol writes, and so which irrep is ``B1`` and which
+    ``B2``.
     """
     match = re.match(r"^(\d+)([a-zA-Z])\((.*)\)$", position)
     if match is None or match.group(2) not in improper:
@@ -2317,38 +2203,62 @@ def _barred(position: str, improper) -> str:
 
 @dataclass(frozen=True)
 class EBRConvention:
-    """What the package's convention for a lattice translation moves in a group's elementary band representations.
+    """Where the elementary band representations returned differ from the tables'.
 
-    What ``ebr_data(group).convention`` holds.  The rows are in the
-    convention ``e^{-ik·t}``, where the tables' own pages write ``e^{+ik·t}``.
+    What ``ebr_data(group).convention`` holds.  The rows returned are labeled
+    in the convention where a lattice translation ``t`` acts on a Bloch state
+    at ``k`` as ``e^{-ik·t}``.  The tables of the Bilbao Crystallographic
+    Server, which the irreptables package ships, use ``e^{+ik·t}``.  The
+    label the server prints at ``k`` is the label returned at ``-k``, so the
+    two agree at the time-reversal-invariant momenta.  The Wyckoff positions
+    are the server's.
 
     Attributes
     ----------
     name : str
         The convention, ``"physical (translations as e^{-ik.t})"``.
-    changed_points, changed_labels : tuple of str
-        The high-symmetry points at which a row's labels differ from the
-        Bilbao Crystallographic Server's, and the labels that differ.
+    changed_points : tuple of str
+        If nonempty, the points of ``changed_labels``: the high-symmetry
+        points at which a label is renamed or its row differs from the
+        server's.
+    changed_labels : tuple of str
+        If nonempty, the server's labels that are renamed here, or whose row
+        of the matrix of elementary band representations differs from the
+        server's row of that label.
     conjugated_points : tuple of str
-        The points at which the little-group characters are the whole
-        characters' conjugates, under the server's name of the row.
+        If nonempty, the points at which the characters of
+        :func:`corep_table` are the complex conjugates of the server's.  Each
+        character vector there carries the server's label of the vector it
+        equals, where the server prints one.
     divergent_points : tuple of str
-        The points at which the server's page tabulates the other member
-        ``-k`` of the star, so that the rows printed are not the server's.
+        If nonempty, the points at which the characters the server prints
+        are, in the package's convention, those of ``-k``, another point of
+        the star of ``k``.  The characters :func:`corep_table` returns there
+        are their complex conjugates.  No reordering of the labels makes them
+        the server's.
     reglued_points : tuple of str
-        The points, always in a grey group, at which time reversal glues the
-        irreps into coreps otherwise than the server does.
+        If nonempty, the points at which time reversal glues the irreps into
+        coreps differently from the server's tables.  They occur in grey
+        groups only.
     conjugation : dict
-        ``{corep: corep}``, each row's partner under complex conjugation.
+        ``{label: label}``, each of the server's labels with the label
+        returned whose characters are the complex conjugates of its own.
     tr_partner : tuple of int
-        For each column, the column of the complex-conjugate site irrep.
+        For each column of the matrix, the column induced from the
+        complex-conjugate site irrep at the same Wyckoff position, the column
+        itself for a real site irrep.
     corep_names_bcs : tuple of str
-        The server's names of the rows.
+        The server's label of each row, position by position with
+        ``ebr_data(group).corep_names``.  The two hold the same label at
+        every position outside ``reglued_points``.  Outside them, what can
+        differ is the row a label holds, given by ``row_permutation``.
     row_permutation : tuple of int
-        ``P`` with ``y_BCS[j] = y[P[j]]``, which carries a form written in the
-        server's labels onto the rows.
+        The permutation ``P`` of the rows.  Row ``i`` of a column returned is
+        the server's row ``P[i]`` of the column ``tr_partner`` names.  So a
+        linear form whose coefficients are shipped on the server's labels
+        has, on row ``i``, its coefficient on ``corep_names_bcs[P[i]]``.
     note : str
-        A sentence on what the convention changes at each kind of point.
+        A few sentences on what the convention changes at each kind of point.
     """
 
     name: str
@@ -2367,29 +2277,33 @@ class EBRConvention:
 
 @dataclass(frozen=True)
 class EBRData:
-    """Every elementary band representation of a group, in the package's convention.
+    """The elementary band representations of a group, and their matrix.
 
-    What :func:`ebr_data` returns: a column per elementary band
-    representation, a row per corep at each high-symmetry point of the group,
-    those out of a layer's plane included.
+    What :func:`ebr_data` returns.  The matrix has a column for each
+    elementary band representation and a row for each little-group
+    representation at each high-symmetry point of the group, those out of a
+    layer's plane included.
 
     Attributes
     ----------
     ebrs : tuple of Term
-        The columns, in the tables' order, each a term of multiplicity one:
-        the site irrep it is induced from, its Wyckoff position and the
-        position's site-symmetry group, an improper one with its bar.
+        The columns, in the order of the tables.  Each names the site irrep
+        it is induced from, its Wyckoff position and the position's
+        site-symmetry group.  A site-symmetry group whose symbol begins with
+        a bar, ``-43m``, is written with it, where the tables leave it out.
     corep_names : tuple of str
-        The rows' coreps, in the labels :func:`identify_from_characters`
-        returns.
+        The label of each row, as :func:`identify_from_characters` returns
+        labels.
     matrix : ndarray
-        The EBR matrix, a row per corep and a column per elementary band
-        representation.
+        The matrix of elementary band representations.  Entry ``(i, j)`` is
+        the multiplicity of ``corep_names[i]`` in ``ebrs[j]``.
     smith : tuple of ndarray
-        The Smith normal form ``(U, D, V)`` of the matrix, ``U @ matrix @ V == D``.
+        The Smith normal form ``(U, D, V)`` of ``matrix``, with
+        ``U @ matrix @ V == D``.  For a group with one elementary band
+        representation, ``D`` is a vector and ``V`` a number.
     convention : EBRConvention
-        What the convention ``e^{-ik·t}`` moves against the Bilbao
-        Crystallographic Server's tables.
+        Where the rows differ from those of the Bilbao Crystallographic
+        Server.
     group : GroupData
         The group the elementary band representations are read for.
     """
@@ -2409,7 +2323,15 @@ class EBRData:
 
 
 def _ebr_term(name, position) -> Term:
-    """One column of the list, ``("-E1↑G(2)", "1a(4mm1',4mm)")``, as a term of multiplicity one."""
+    """A column of the EBR matrix as a term of multiplicity one.
+
+    ``name`` is the column's name, ``"-E1↑G(2)"``, and ``position`` its
+    position with its site groups, ``"1a(4mm1',4mm)"``.  Returns a ``Term``
+    with the site irrep, the Wyckoff position, ``"1a"``, the site-symmetry
+    group, the first symbol in the parentheses, and its unitary part, the
+    last, each group named as :func:`.._spacegroup._written_site_symmetry`
+    writes it.
+    """
     position = str(position)
     inside = position[position.index("(") + 1:position.rindex(")")].split(",")
     site = _written_site_symmetry(inside[0])
@@ -2419,49 +2341,46 @@ def _ebr_term(name, position) -> Term:
 
 
 def ebr_data(group: GroupData) -> EBRData | Refusal:
-    """Every elementary band representation of the group: the bands each site irrep at each Wyckoff position induces.
+    """The elementary band representations of the group, and their matrix.
 
-    The atomic limits the group has, and the columns a symmetry data vector is
-    decomposed over; :func:`..ebr.decompose` and
-    :func:`..ebr.symmetry_indicator` read them, a layer's restricted to the
-    points of its plane.  The rows are in the package's convention for a
-    lattice translation, ``e^{-ik·t}``, where the tables' own pages write
-    ``e^{+ik·t}``: away from the time-reversal-invariant momenta a row pairs
-    labels with Wyckoff positions otherwise than the Bilbao Crystallographic
-    Server's page does, and ``convention`` says where.
+    Each elementary band representation is the band representation one site
+    irrep induces from its Wyckoff position.  Its column holds the
+    multiplicity of each little-group representation at every high-symmetry
+    point of the group, those out of a layer's plane included.  The columns
+    are read from the tables of the Bilbao Crystallographic Server, which the
+    irreptables package ships, and carried into the package's convention for
+    a lattice translation ``t``, ``e^{-ik·t}``, where the server writes
+    ``e^{+ik·t}``.  The label the server prints at ``k`` is the label
+    returned at ``-k``.  ``convention`` lists the points at which a label is
+    renamed or its row differs from the server's.
 
     Parameters
     ----------
     group : GroupData
-        The group, ``r.group`` of what ``realized_group`` returns.
+        The group.  Pass ``r.group`` of what :func:`..groups.realized_group`
+        returns.
 
     Returns
     -------
     EBRData or Refusal
-        The columns as terms, ``.ebrs``; the rows' coreps, ``.corep_names``;
-        the EBR matrix and its Smith normal form, ``.matrix`` and ``.smith``;
-        what the convention moves, ``.convention``; and the group they were
-        read for, ``.group``.  A ``Refusal`` in its place is falsy.
+        The elementary band representations, their matrix and its Smith
+        normal form, and where the rows differ from the server's.  A
+        ``Refusal`` in its place is falsy.
 
     Refusals
     --------
     A refusal handed in as ``group`` is returned as it is.
 
-    ``irrep_tables``
-        ``irreptables`` is not installed.
-    ``ebr_tables``
-        ``irreptables`` ships no elementary band representations for this
-        group and valuedness.
-    ``ebr_convention``
-        An entry of the shipped file with no Wyckoff position, so its row
-        cannot be carried into this convention; every known case is a magnetic
-        group of type III, outside the groups returned.
+    ``ebr_tables`` / ``irrep_tables`` / ``ebr_convention``
+        the tables installed hold no elementary band representations of this
+        group that can be read in the package's convention.
 
     Raises
     ------
     TypeError
-        ``group`` is not a group: ``r`` or ``r.rep`` in its place, or
-        anything else.
+        ``group`` is not ``r.group``: ``r`` itself, ``r.rep``, the ``group``
+        of :func:`..srsi.srsi_tables` for a space-group number, which has no
+        cell, or anything else.
     """
     _require_group("ebr_data", group)
     data = _ebr_data(group)
@@ -2486,16 +2405,19 @@ def ebr_data(group: GroupData) -> EBRData | Refusal:
 
 
 def _ebr_data(group) -> dict | Refusal:
-    """The group's elementary band representations as the package reads them, a mapping.
+    """The elementary band representations of a group, as a mapping.
 
     ``group`` is a :class:`GroupData`, or anything that carries its
-    ``number_str``, ``spinor`` and ``_magnetic`` (the tables' own key), and
-    only those are read.  Keys: ``matrix``; ``labels_physics_convention``,
-    the rows' coreps; ``ebrs``, each column as ``(name, position)``, the
-    position with its site groups, an improper one with its bar,
+    ``number_str``, ``spinor`` and ``_magnetic`` (the tables' own key).  Only
+    those are read, with ``_lattice_index`` where it is present, and the
+    ``name`` and ``_fractional_translations`` a lattice supergroup's refusal
+    names.  Keys: ``matrix``; ``labels_physics_convention``,
+    the labels of the rows; ``ebrs``, each column as ``(name, position)``,
+    the position with its site groups, an improper one with its bar,
     ``"3a(-3m1',-3m)"``; ``smith``, ``(U, D, V)``; ``convention``, the record
     of :func:`_transport_record`; ``raw``, the tables' own record carried
-    into this convention.  The refusals :func:`ebr_data` documents.
+    into this convention.  Returns ``lattice_not_descended`` for a lattice
+    supergroup, and otherwise the refusals :func:`ebr_data` documents.
     """
     gate = _lattice_not_descended(group)
     if gate is not None:
@@ -2509,8 +2431,9 @@ def _ebr_data(group) -> dict | Refusal:
         raw = _spacegroup._ebr_file(group.number_str, group.spinor)
     except (FileNotFoundError, OSError) as exc:
         return Refusal("ebr_tables",
-                       f"irreptables has no EBR data for group #{group.number_str} "
-                       f"({'double' if group.spinor else 'single'} valued): {exc}",
+                       f"the tables of the irreptables package hold no "
+                       f"{'double' if group.spinor else 'single'}-valued elementary band "
+                       f"representations of #{group.number_str}: {exc}",
                        context={"number_str": group.number_str, "spinor": group.spinor})
     try:
         raw = _to_physical_convention(raw, group.number_str, group.spinor,
@@ -2519,14 +2442,16 @@ def _ebr_data(group) -> dict | Refusal:
     except _EBRTransportError as exc:
         return Refusal(
             "ebr_convention",
-            f"the EBR rows of #{group.number_str} cannot be carried out of BCS's "
-            f"e^(+ik.t) convention into this package's physical one: {exc}",
+            f"the elementary band representations of #{group.number_str} cannot be "
+            "carried from the convention of the tables of the irreptables package, "
+            f"e^(+ik·t), into the package's, e^(-ik·t): {exc} Report it, with the model "
+            "and the call.",
             context={"number_str": group.number_str, "spinor": group.spinor,
                      "magnetic": group._magnetic, "points": exc.points})
     except (FileNotFoundError, OSError) as exc:
         return Refusal("irrep_tables",
-                       f"irreptables has no irrep table for group #{group.number_str}, "
-                       f"so its EBR rows cannot be transported: {exc}",
+                       f"the tables of the irreptables package hold no irrep table of "
+                       f"#{group.number_str}: {exc}",
                        context={"number_str": group.number_str, "spinor": group.spinor})
     improper = _improper_letters(int(str(group.number_str).split(".")[0]))
     return {"raw": copy.deepcopy(raw), "matrix": get_ebr_matrix(raw),
@@ -2536,8 +2461,8 @@ def _ebr_data(group) -> dict | Refusal:
             "smith": get_smith_form(raw), "convention": record}
 
 
-#: Why :func:`indicator_group` withholds ``irreptables``' named forms from a
-#: group that is not grey, one string per case.
+#: The note :func:`indicator_group` returns for each case: why the formulas are
+#: withheld from a group that is not grey, or how a grey group's formulas are read.
 _SI_NOTES = {
     "bare_key": (
         "no named form is returned: for a unitary group irreptables' non-magnetic "
@@ -2575,45 +2500,56 @@ _SI_NOTES = {
 
 
 def indicator_group(group: GroupData) -> dict | Refusal:
-    """The group's symmetry-indicator group, and the tables' named indicator formulas for it.
+    """A space group's symmetry-indicator group, and the tables' indicator formulas.
 
-    For a band set's class, :func:`..ebr.symmetry_indicator` is the call: it
-    reads the class off the Smith normal form, and names it with a formula only
-    after checking that the formula vanishes on every elementary band
-    representation of the group.  This one returns the group's own data, a
-    layer's out-of-plane points included.
+    The indicator group is read off the Smith normal form of the group's
+    matrix of elementary band representations, on every high-symmetry point
+    of the group, those out of a layer's plane included.  The formulas are
+    the named indicator formulas the irreptables package ships, returned for
+    a grey group only.
 
     Parameters
     ----------
     group : GroupData
-        The group, ``realized_group(model).group``; only its label, its
-        valuedness and whether it is grey are read.
+        The group.  Pass ``r.group`` of what :func:`..groups.realized_group`
+        returns.
 
     Returns
     -------
     dict or Refusal
-        ``elementary_divisors``: the divisors above 1 of the Smith normal form
-        of the group's EBR matrix, the indicator group ``⊕ ℤ_d``; ``None``
-        where :func:`ebr_data` refuses, and that refusal is the one to read.
-        ``indicators``: the tables' named formulas, ``{name: {"factors",
-        "mod"}}``, returned for a grey group only; ``orders``,
-        ``{name: mod}``, each the order of one formula, so that equal or
-        dependent formulas make them something other than the divisors.
-        ``withheld``: whether formulas exist and are left out, as for every
-        group that is not grey, ``reason`` saying why; ``indicators`` empty
-        with ``withheld`` False is a verdict, no formula named for this group.
-        ``note``: the caveat to read either way, that a formula's coefficients
-        are keyed by the tables' labels and are re-keyed by
-        ``ebr_data(group).convention.row_permutation`` before they are
-        read on a returned symmetry data vector.  A ``Refusal`` in its place is
-        falsy.
+        A mapping with the keys:
+
+        * ``elementary_divisors``: the elementary divisors ``d`` above 1 of
+          the Smith normal form; the indicator group has a factor ``Zd`` for
+          each.  ``None`` where :func:`ebr_data` refuses for the group.
+        * ``indicators``: the formulas, ``{name: {"factors": {label:
+          coefficient}, "mod": modulus}}``, the coefficients keyed by the
+          labels of the Bilbao Crystallographic Server.  To read a formula on
+          a returned symmetry data vector, its coefficients are carried onto
+          the rows by ``ebr_data(group).convention.row_permutation``.  Empty
+          where the tables name no formula for the group.
+        * ``orders``: ``{name: modulus}``.  Two formulas can be dependent, so
+          the moduli need not be the elementary divisors.
+        * ``withheld``: whether the formulas are left out, as they are for
+          every group that is not grey.
+        * ``reason``: why they are left out, ``None`` where they are not.
+        * ``note``: where the formulas are withheld, ``reason``; otherwise
+          how the formulas are evaluated on a symmetry data vector, or that
+          the tables name none.
+
+        A ``Refusal`` in its place is falsy.
 
     Refusals
     --------
     A refusal handed in as ``group`` is returned as it is.
 
     ``irrep_tables``
-        ``irreptables`` is not installed.
+        the character tables of the irreptables package are not loaded.
+
+    See Also
+    --------
+    symmetry_indicator : the symmetry-indicator class of a band set and, for
+        a grey group, its values in the named indicators of Hwang et al.
     """
     gate = _lattice_not_descended(group)
     if gate is not None:
@@ -2645,11 +2581,18 @@ def indicator_group(group: GroupData) -> dict | Refusal:
 
 
 def _ebr_solve_shim(ebr_matrix, y, original_exc):
-    """``irrep.ebrs.compute_ebr_decomposition`` with the ortools-9.15 status fix.
+    """The integer combinations of EBRs that equal a symmetry data vector.
 
-    Identical model and callback to ``irrep``'s (``varArraySolutionObtainer`` is
-    reused verbatim); only ``solver.status_name()`` — which ortools 9.15 broke —
-    is replaced by comparing the enum ``Solve`` returns.
+    ``ebr_matrix`` is the EBR matrix, a row for each label and a column for
+    each EBR, ``y`` the vector on its rows, and ``original_exc`` the error
+    the irrep package raised, which is not read.  The model and the callback
+    are those of ``irrep.ebrs.compute_ebr_decomposition``, the solver's
+    status compared with the value ``Solve`` returns in place of
+    ``solver.status_name()``, which ortools 9.15 broke.  Returns
+    ``(solutions, True)`` with at most five combinations with coefficients
+    from 0 to 50; where there are none, ``(solutions, False)`` with
+    coefficients from -50 to 50; and ``(None, False)`` where there are none
+    either.
     """
     from ortools.sat.python import cp_model
     from irrep.or_solutions_obtainer import varArraySolutionObtainer
@@ -2680,50 +2623,84 @@ def _ebr_solve_shim(ebr_matrix, y, original_exc):
 def decompose_ebrs(group: GroupData, irrep_counts: dict) -> dict | Refusal:
     """A symmetry data vector written in the group's elementary band representations.
 
-    For a model's band set, :func:`..ebr.decompose` is the call: it reads a
-    layer's vector in its plane and lists the decompositions.  This one takes a
-    vector over every high-symmetry point of the group and reads it as ``irrep``
-    does.
+    The vector ``y`` holds the multiplicity of the label of each row of the
+    group's matrix of elementary band representations.  Its coordinates
+    ``U @ y``, with ``U`` of the matrix's Smith normal form, show whether an
+    integer combination of elementary band representations equals it.  Where
+    one does, the integer solver of the ortools package searches for
+    combinations with coefficients from 0 to 50, and, where it finds none,
+    from -50 to 50.
 
     Parameters
     ----------
     group : GroupData
-        The group, ``realized_group(model).group``.
+        The group.  Pass ``r.group`` of what :func:`..groups.realized_group`
+        returns.
     irrep_counts : dict
-        ``{corep: multiplicity}``, the band set's coreps at every high-symmetry
-        point of the group, as ``HSPTable.symmetry_data`` holds them.
+        The symmetry data vector, ``{label: multiplicity}``, at every
+        high-symmetry point of the group, those out of a layer's plane
+        included.  Pass ``HSPTable.symmetry_data``, or a vector written out by
+        hand.
 
     Returns
     -------
     dict or Refusal
-        ``classification``: ``"stable topological"`` where no integer
-        combination of elementary band representations reproduces the vector,
-        ``"fragile topological"`` where only one with a negative coefficient
-        does, and ``"atomic limit"`` where a nonnegative one does, which an
-        atomic limit needs and which does not make one; ``stable_nontrivial``,
-        whether it is the first; ``solutions``, the combinations found,
-        written out in ``decomposition_strings``, and ``is_positive``, whether
-        one is nonnegative; ``y`` and ``y_prime``, the vector and its Smith
-        coordinates; ``ebrs``, the columns; ``unused``,
-        the coreps handed in that no column carries; ``indicators``, the
-        tables' named formulas summed over the vector, ``None`` where they are
-        withheld, with ``indicators_note`` saying why, or the formulas'
-        caveat.  A ``Refusal`` in its place is falsy.
+        A mapping with the keys:
+
+        * ``classification``: ``"stable topological"`` where no integer
+          combination of elementary band representations equals the vector,
+          ``"atomic limit"`` where one with coefficients from 0 to 50 does,
+          and ``"fragile topological"`` otherwise.
+        * ``stable_nontrivial``: whether the vector is stable topological.
+        * ``solutions``: at most five combinations, each a list of
+          coefficients on ``ebrs``.  ``None`` for a stable topological
+          vector, and where no combination with coefficients from -50 to 50
+          is found.
+        * ``decomposition_strings``: each combination written out, present
+          where combinations were found.
+        * ``is_positive``: whether a combination with coefficients from 0 to
+          50 was found.  ``None`` for a stable topological vector.
+        * ``y``: the vector.
+        * ``y_prime``: ``U @ y``.
+        * ``ebrs``: the columns, each as its name and Wyckoff position,
+          ``("-E1↑G(4)", "8a(-43m1',-43m)")``.  They are written as the
+          tables write them, but for the bar of a site-symmetry group such as
+          ``-43m``, which the tables leave out.
+        * ``unused``: the labels handed in that no row of the matrix carries.
+        * ``indicators``: for a grey group, the value of each named formula
+          of :func:`indicator_group` on the vector, modulo its modulus, each
+          shipped coefficient multiplying the multiplicity of the label it
+          is keyed by.  ``None`` where the formulas are withheld.  Where
+          ``ebr_data(group).convention.row_permutation`` moves a formula's
+          coefficients, as for the ``z2`` of the double-valued 220.90, that
+          value is not the indicator.
+        * ``indicators_note``: the ``note`` of :func:`indicator_group`.
+
+        The symmetry data vector of an atomic limit is a combination with no
+        negative coefficient.  A band set classified ``"atomic limit"`` need
+        not be one.  A ``Refusal`` in its place is falsy.
 
     Refusals
     --------
     A refusal handed in as ``group`` is returned as it is.
 
     ``incomplete_content``
-        A high-symmetry point of the group carries no corep in the vector,
-        which would read as no bands there; ``context["missing_points"]`` names
-        each.  A layer's vector misses the points out of its plane, and
-        :func:`..ebr.decompose` reads it.
+        the vector holds no label at a high-symmetry point of the group.
+        ``context["missing_points"]`` names each.  A layer's
+        ``HSPTable.symmetry_data`` holds no point out of its plane.
+        :func:`..ebr.decompose` reads such a vector.
     ``ortools``
-        Telling an atomic limit from fragile bands needs the integer solver
-        ``ortools``, which is not installed.
-    ``ebr_tables``, ``irrep_tables``, ``ebr_convention``
-        From :func:`ebr_data`.
+        the ortools package is not installed, and an integer combination of
+        elementary band representations equals the vector.
+    ``ebr_tables`` / ``irrep_tables`` / ``ebr_convention``
+        the tables installed hold no elementary band representations of this
+        group that can be read in the package's convention.
+
+    See Also
+    --------
+    decompose : the sums of elementary band representations that carry the
+        symmetry data vector of a model's bands, read for a layer on the
+        points of its plane.
     """
     gate = _lattice_not_descended(group)
     if gate is not None:
@@ -2736,26 +2713,21 @@ def decompose_ebrs(group: GroupData, irrep_counts: dict) -> dict | Refusal:
 
     basis = data["labels_physics_convention"]
     unused = sorted(set(irrep_counts) - set(basis), key=corep_order)
-    # COMPLETE, or nothing.  `create_symmetry_vector` reads an unmentioned point
-    # as zero, and a zero row is a constraint -- the wrong
-    # one -- so a vector with a point missing decomposes into the EBRs of a
-    # different band set.  A slab is where this bites: the EBR basis of the 3D
-    # space group carries k_z = 1/2 points its zone does not have.
+    # A vector at every point, or a refusal. `create_symmetry_vector` reads an
+    # unmentioned point as zero, and a zero row is a wrong constraint, so a
+    # vector with a point missing decomposes into the EBRs of a different band
+    # set. A layer meets this: the EBR basis of the 3D space group carries
+    # k_z = 1/2 points its zone does not have.
     points = sorted({_label_kpoint(lab) for lab in basis}, key=point_order)
     covered = {_label_kpoint(lab) for lab in irrep_counts}
     missing_points = [p for p in points if p not in covered]
     if missing_points:
         return Refusal(
             "incomplete_content",
-            f"the symmetry data vector carries no label at {missing_points}, and the EBR "
-            f"basis of #{group.number_str} is written over {points}. A decomposition "
-            "of a partial symmetry data vector is a confident wrong answer: an unmentioned "
-            "point is read as zero content there, which is a constraint on a "
-            "different band set. Supply counts covering "
-            "every point, or -- for a 2D model, whose zone does not contain the "
-            "basis's out-of-plane points at all -- use ebr.decompose, which "
-            "restricts the EBR matrix to the measurable rows and checks that the "
-            "restriction loses nothing.",
+            f"the symmetry data vector holds no label at {missing_points}, and the "
+            f"elementary band representations of #{group.number_str} have rows at "
+            f"{points}. Pass multiplicities at every point. For a layer, whose zone does "
+            "not hold the points out of its plane, use decompose.",
             value=float(len(missing_points)), threshold=0.0,
             context={"missing_points": tuple(missing_points), "points": tuple(points)})
     y, y_prime, nontrivial = compute_topological_classification_vector(irrep_counts, data["raw"])
@@ -2764,7 +2736,7 @@ def decompose_ebrs(group: GroupData, irrep_counts: dict) -> dict | Refusal:
     indicators, indicators_note = None, None
     if not isinstance(si, Refusal):
         # whether the named forms are returned is `withheld`, not the emptiness of
-        # the mapping: a grey group can ship no form at all, which is a verdict --
+        # the mapping: a grey group can ship no form at all, which is a verdict,
         # and it is returned as the empty sum, `{}`, not as `None`.
         indicators_note = si["reason"] if si["withheld"] else si["note"]
         if not si["withheld"]:
@@ -2783,19 +2755,15 @@ def decompose_ebrs(group: GroupData, irrep_counts: dict) -> dict | Refusal:
         return out
     if not ORTOOLS_AVAILABLE:
         return Refusal("ortools",
-                       "the band set has integer EBR solutions, so it is trivial or fragile, "
-                       "but telling them apart needs the ortools integer solve, which is not "
-                       "installed. Install it: pip install 'ortools>=9.10'",
+                       "an integer combination of elementary band representations equals "
+                       "the symmetry data vector, and the ortools package is not "
+                       "installed. Install it: pip install 'ortools>=9.10'.",
                        context={"y": y, "y_prime": y_prime})
     try:
         solutions, is_positive = compute_ebr_decomposition(data["raw"], y)
     except (TypeError, AttributeError) as exc:
-        # ortools 9.15 broke CpSolver.status_name(): its internal
-        # `_checked_response.status` became an attribute while cp_model.py still
-        # calls it, so irrep's ebrs.get_solutions raises. Everything else in the
-        # ortools path works, so run irrep's own model with the status enum
-        # compared directly. The shim is deliberately minimal and defers to
-        # irrep whenever irrep works.
+        # Where irrep's call fails on ortools 9.15, whose CpSolver.status_name()
+        # raises, run irrep's model with the solver's status compared directly.
         solutions, is_positive = _ebr_solve_shim(data["matrix"], y, exc)
     out["solutions"] = solutions
     out["is_positive"] = bool(is_positive)
@@ -2810,46 +2778,50 @@ def decompose_ebrs(group: GroupData, irrep_counts: dict) -> dict | Refusal:
 # --------------------------------------------------------------------------
 
 def k_grid(group: GroupData, n, *, allow_asymmetric=False) -> KGrid | Refusal:
-    """A Γ-centred mesh that respects the group, with the high-symmetry points it holds.
+    """A mesh through ``GM`` that the group carries onto itself.
 
-    A mesh holds only the high-symmetry points it happens to contain: ``Γ``
-    always, and the zone boundary only with an even number of divisions.  A
-    label read off a mesh at a point it misses is no label, so ``contains``
-    names the points it holds, and :func:`high_symmetry_points` gives every
-    tabulated point's coordinates.  The mesh is pythtb's own, ``k`` in
-    ``[0, 1)``, periodic in the gauge a ``WFArray`` reads.
+    The mesh is a ``pythtb.Mesh``, with ``k`` in ``[0, 1)`` along each
+    periodic direction.  It can be handed to a ``pythtb.WFArray`` as it is.
+    It holds a tabulated high-symmetry point only where the number of
+    divisions fits the point's coordinates: ``X`` at ``1/2`` needs an even
+    number.
 
     Parameters
     ----------
     group : GroupData
-        The group, ``r.group`` of what ``realized_group`` returns.
+        The group.  Pass ``r.group`` of what :func:`..groups.realized_group`
+        returns.
     n : int or sequence of int
-        The divisions along each periodic direction, or one number for all.
+        The number of divisions along each periodic direction, or one number
+        for all of them.
     allow_asymmetric : bool, default False
-        Whether a mesh the group does not carry onto itself is returned.
-        With ``allow_asymmetric=True``, it is returned with no irreducible
-        points.
+        Whether a mesh the group does not carry onto itself is returned or
+        refused.  With ``allow_asymmetric=True``, it is returned, with no
+        irreducible points.
 
     Returns
     -------
     KGrid or Refusal
-        The mesh, ready for a ``pythtb.WFArray``, with the tabulated points it
-        holds; ``summary()`` prints it.  A ``Refusal`` in its place is falsy.
+        The mesh, its irreducible points, and which tabulated high-symmetry
+        points it holds.  ``summary()`` prints it.  With
+        ``allow_asymmetric=True``, a mesh the group does not carry onto
+        itself is returned with no irreducible points.  A ``Refusal`` in its
+        place is falsy.
 
     Refusals
     --------
     A refusal handed in as ``group`` is returned as it is.
 
     ``asymmetric_grid``
-        The group does not carry the mesh onto itself, so a sum over it would
-        weigh points unlike their partners; ``allow_asymmetric=True`` returns
-        it all the same.
+        the group does not carry the mesh onto itself.  With
+        ``allow_asymmetric=True``, the call does not refuse.
 
     Raises
     ------
     TypeError
-        ``group`` is not a group: ``r`` or ``r.rep`` in its place, or
-        anything else.
+        ``group`` is not ``r.group``: ``r`` itself, ``r.rep``, the ``group``
+        of :func:`..srsi.srsi_tables` for a space-group number, which has no
+        cell, or anything else.
     ValueError
         ``n`` is a sequence of other than ``dim_k`` numbers.
     """
@@ -2863,8 +2835,9 @@ def k_grid(group: GroupData, n, *, allow_asymmetric=False) -> KGrid | Refusal:
     else:
         divs = [int(v) for v in n]
         if len(divs) != group._dim_k:
-            raise ValueError(f"k_grid(): n has {len(divs)} entries; pass one number, or "
-                             f"{group._dim_k}, one for each periodic direction.")
+            raise ValueError(f"k_grid(): the number of entries of n=, {len(divs)}, is not "
+                             f"the number of periodic directions, {group._dim_k}. Pass one "
+                             "number, or one for each periodic direction.")
     grid3 = [1, 1, 1]
     for j, d in enumerate(group.periodic_dirs):
         grid3[d] = divs[j]
@@ -2872,9 +2845,9 @@ def k_grid(group: GroupData, n, *, allow_asymmetric=False) -> KGrid | Refusal:
     symmetric = bool(group._sg.is_grid_symmetrical(grid3))
     if not symmetric and not allow_asymmetric:
         return Refusal("asymmetric_grid",
-                       f"the {tuple(grid3)} mesh is not symmetric under #{group.number_str}; "
-                       f"reading symmetry-related quantities off it double-counts. Pass "
-                       f"allow_asymmetric=True to override deliberately.",
+                       f"{group.name} #{group.number_str} does not carry the "
+                       f"{tuple(grid3)} mesh onto itself. Pass a mesh the group carries "
+                       "onto itself, or allow_asymmetric=True.",
                        context={"grid": tuple(grid3), "number_str": group.number_str})
 
     mesh = Mesh(["k"] * group._dim_k)

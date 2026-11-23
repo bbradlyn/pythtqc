@@ -87,14 +87,17 @@ Returned by `realized_group`.
   then moves `H(k)` by more than the check allows, by up to `context["reach"]`, and the
   more at an image point the larger its reduced coordinates. The checks are the
   covariance of the group's representation and the projection of the hoppings onto their
-  symmetric part, whose operators carry each center onto its image to `1e-9`. On a cell
-  whose sites of one species (`typat=`) repeat under a fraction of a cell's translation,
-  the tables' setting is not read and the operations cannot be rebuilt from it: centers
-  missed by less are refused the same way before anything is built wherever their miss
-  leaves the operations read off them open, the cell's group named as an upper bound in
-  the reason and by `context["number_str"]` and `context["name"]`; no group is
-  identified, and the context carries none. Operations that do not close leave no exactly
-  symmetric set of centers to measure `H` against.
+  symmetric part, whose operators carry each center onto its image to `1e-9`. Centers
+  that miss the operations by more than `1e-9` are refused before the projection is
+  made: averaged with operators that miss the centers, each hopping would be carried to a
+  vector that is not a lattice vector, and no projection of the hoppings removes a defect
+  in the centers. On a cell whose sites of one species (`typat=`) repeat under a fraction
+  of a cell's translation, the tables' setting is not read and the operations cannot be
+  rebuilt from it: centers missed by less are refused the same way before anything is
+  built wherever their miss leaves the operations read off them open, the cell's group
+  named as an upper bound in the reason and by `context["number_str"]` and
+  `context["name"]`; no group is identified, and the context carries none. Operations
+  that do not close leave no exactly symmetric set of centers to measure `H` against.
 - **Usual cause.** A numerical model, such as a Wannier90 import, asked with no precision
   declared; or centers converted onto a strongly skewed lattice basis in floating point.
 - **What to do.** Declare the model's precision, `precision=`, or `position_tol=` for the
@@ -147,7 +150,7 @@ Returned by `wyckoff_sites_tables` and `srsi_of_model`.
 
 - **What it means.** A position, carried into the tables' reference cell, lies on no Wyckoff
   position of the group within the tolerance, `1e-4` in reduced coordinates by default.
-- **Usual cause.** A centre far off every orbit: a position written in another cell or
+- **Usual cause.** A center far off every orbit: a position written in another cell or
   origin, or mistyped.
 - **What to do.** Check the position; the reason names the nearest Wyckoff position and
   how far it is.
@@ -210,6 +213,11 @@ Returned by `realized_group`.
 Returned by no public call: `realized_group` averages only over the operations it kept
 at the declared precision
 ([a broken operation](../guide/numerical.md#a-broken-operation-is-never-symmetrized-into)).
+
+- **What it means.** A measurement handed to the projection of `H` onto its symmetric
+  part lists an operation broken at the declared tolerance, and the projection is not
+  made. Averaging over an operation the Hamiltonian does not obey would impose it, moving
+  `H` by its residual, which is noise only within the declared tolerance.
 
 ### Spin
 
@@ -295,7 +303,8 @@ Returned by `characters`, `coreps_at` and `sewing_matrix`; `hsp_table` keeps it
 for each point it refuses at.
 
 - **What it means.** The set of bands asked for cuts a degenerate multiplet at `k`, so its
-  characters would depend on the basis the diagonalization chose inside the multiplet.
+  sewing matrices and characters would depend on the basis the diagonalization chose
+  inside the multiplet.
 - **Usual cause.** A band count that ends inside a degeneracy: half a Kramers pair, or bands
   that meet at the point, as a semimetal's do.
 - **What to do.** Label the whole multiplet, or the isolated set of bands:
@@ -304,13 +313,15 @@ for each point it refuses at.
 
 #### `integer_multiplicity`
 
-Returned by `coreps_at`.
+Returned by `coreps_at` and `pythtqc.groups.identify_from_characters`.
 
 - **What it means.** The multiplicities of the coreps fitted to the characters at a point are
   not non-negative integers within `label_tol`, `1e-3` by default.
 - **Usual cause.** A degeneracy split into several multiplets by numerical noise beyond
   `degeneracy_tol`: a two-dimensional corep split in two reads exactly 0.5. Levels merged
-  into one multiplet never refuse; they are labelled as a sum of coreps.
+  into one multiplet never refuse; they are labeled as a sum of coreps. From
+  `identify_from_characters`, also characters measured in a convention other than the
+  one `characters` measures in.
 - **What to do.** On a numerical model, declare its precision to `realized_group`
   (`precision=`), which moves `H` onto its symmetric part, or set `degeneracy_tol`, an
   energy, to the noise its degeneracies carry; `context["rows"]` names the multiplets at fault and
@@ -318,7 +329,8 @@ Returned by `coreps_at`.
 
 #### `multiplet_dimension`
 
-Returned by `coreps_at`, through its identification of the coreps.
+Returned by `coreps_at`, through its identification of the coreps, and by
+`pythtqc.groups.identify_from_characters` given `multiplet_dims=`.
 
 - **What it means.** The coreps identified from a multiplet's characters do not add up to
   the multiplet's degeneracy, so the grouping of levels and the characters disagree.
@@ -334,16 +346,20 @@ Returned by `coreps_at`, through its identification of the coreps.
 
 Returned by `decompose`, `symmetry_indicator`, `subtract`, `regular_completion`,
 `splitting` and `srsi_of_bands`, each when it is handed a table that refused at some
-high-symmetry point.
+high-symmetry point; and by `pythtqc.groups.decompose_ebrs`.
 
 - **What it means.** The table holds no little-group representations at that point. A
   decomposition, a class or a difference of the multiplicities it does hold would be a
   verdict on a different symmetry data vector. Leaving a point out removes conditions, so a
-  decomposition of the rest is easier to find than one of the whole vector.
+  decomposition of the rest is easier to find than one of the whole vector. From
+  `decompose_ebrs`, the symmetry data vector handed in holds no label at some point of the
+  group's elementary band representations, where it would read zero multiplicities.
 - **Usual cause.** A set of bands that cuts a multiplet at that point, or another refusal
-  recorded in the table there.
-- **What to do.** Read the table's refusals, which `context["refusals"]` repeats, and fix
-  the set of bands. Where a point's tables cannot be read, `decompose` takes
+  recorded in the table there. From `decompose_ebrs`, also a layer's vector, which holds no
+  point out of its plane.
+- **What to do.** Pass `decompose_ebrs` multiplicities at every point; for a layer, use
+  `decompose`, which reads the vector on the points of the plane. Otherwise read the
+  table's refusals, which `context["refusals"]` repeats, and fix the set of bands. Where a point's tables cannot be read, `decompose` takes
   `allow_incomplete=True` and decomposes the multiplicities at the other points; it is not
   for a point where the physics refused. The record then says whether its sums are exact.
   They are exact where, for every little-group representation left out, one kept occurs as
@@ -526,8 +542,11 @@ Returned by `realized_group`.
 Returned by `realized_group`.
 
 - **What it means.** The projection onto the group-invariant part needs more memory at its
-  peak than `max_bytes` allows. Its grid is set by the hoppings' range, and a coarser grid
-  would alias, so the projection is not run on one: a limit on memory.
+  peak than `max_bytes` allows: it holds `H(k)` and its group average together on a grid
+  of k-points. Along each periodic direction the grid has `2·(R + 1) + 1` divisions, `R`
+  the number of cells the symmetrized hoppings can reach along it, the widest among the
+  directions the group's operations mix. A coarser grid would alias the transform back to
+  a hopping list, so the projection is not run on one: a limit on memory.
 - **Usual cause.** A numerical model with many states and long-ranged hoppings.
 - **What to do.** The same call with the `max_bytes=` the reason names
   ([a large model](../guide/numerical.md#a-large-model)).
@@ -552,7 +571,8 @@ Returned by `atomic_realizations`, and by `nsit_criterion` and `splitting` throu
 #### `irrep_tables`
 
 Returned by `realized_group`, `ebr_data`, `ebr_rows`, `decompose`, `symmetry_indicator`,
-`regular_completion`, `in_plane_restriction`, `srsi_tables` and `wyckoff_sites_tables`.
+`regular_completion`, `in_plane_restriction`, `srsi_tables`, `wyckoff_sites_tables`,
+`pythtqc.groups.decompose_ebrs` and `pythtqc.groups.indicator_group`.
 
 - **What it means.** The character tables were not loaded, so no label can be read; or the
   tables carry no irrep table for this group, so its band representations cannot be carried
@@ -568,7 +588,8 @@ Returned by `realized_group`, `ebr_data`, `ebr_rows`, `decompose`, `symmetry_ind
 Returned by `operations`, `operation_index`, `high_symmetry_points`, `little_group`,
 `corep_table`, `coreps_at`, `hsp_table`, `wyckoff_sites_tables`,
 `in_plane_restriction`, `decompose`, `symmetry_indicator`, `regular_content`,
-`regular_completion`, `srsi_of_bands` and `srsi_of_model`.
+`regular_completion`, `srsi_of_bands`, `srsi_of_model` and
+`pythtqc.groups.identify_from_characters`.
 
 - **What it means.** The group was identified, but its cell could not be matched to the
   setting the tables are written in, so no table can be read for it. The reason carries
@@ -580,8 +601,8 @@ Returned by `operations`, `operation_index`, `high_symmetry_points`, `little_gro
 #### `ebr_tables`
 
 Returned by `ebr_data`, `ebr_rows`, `decompose`, `symmetry_indicator`,
-`regular_completion`, `in_plane_restriction`, `srsi_tables`, `srsi_of_model` and
-`wyckoff_sites_tables`.
+`regular_completion`, `in_plane_restriction`, `srsi_tables`, `srsi_of_model`,
+`wyckoff_sites_tables` and `pythtqc.groups.decompose_ebrs`.
 
 - **What it means.** The installed tables carry no elementary band representations for this
   group and valuedness.
@@ -594,18 +615,23 @@ Returned by the same calls as `ebr_tables`.
 
 - **What it means.** The shipped rows of this group's band representations cannot be
   carried out of the tables' phase convention into this package's
-  ([conventions](../background/conventions.md)).
-- **Usual cause.** A defect in the tabulation itself.
+  ([conventions](../background/conventions.md)). Carried exactly, the rows at `GM` and
+  the number of bands of each band representation at every point stay as the tables give
+  them, and the complex conjugation of the labels is an involution that keeps each label
+  at its point; rows that break any of these are refused, never carried.
+- **Usual cause.** A defect in the tabulation itself: an entry without its name or its
+  Wyckoff position, or characters at a point that are not closed under complex
+  conjugation where neither the factor system nor the time-reversal gluing is complex.
 - **What to do.** None in the model; report it.
 
 #### `ortools`
 
 Returned by `pythtqc.groups.decompose_ebrs`.
 
-- **What it means.** The band set is an integer combination of elementary band
+- **What it means.** The symmetry data vector is an integer combination of elementary band
   representations, and whether a combination with no negative coefficient exists, which
-  tells a decomposable band set from a fragile one, needs the integer search of `ortools`,
-  which is not importable.
+  tells a vector consistent with an atomic limit from a fragile one, needs the integer
+  search of `ortools`, which is not importable.
 - **Usual cause.** An installation without `ortools`, a dependency of the package.
 - **What to do.** Install `ortools` 9.10 or later.
 
@@ -749,7 +775,7 @@ Returned by `operation_index`.
 
 #### `kpoint_not_tabulated`
 
-Returned by `coreps_at` and `corep_table`.
+Returned by `coreps_at`, `corep_table` and `pythtqc.groups.identify_from_characters`.
 
 - **What it means.** The k-point is not one of the group's tabulated high-symmetry points in
   this cell, or a name the tables do not hold. A point in the star of a tabulated one, but
@@ -778,22 +804,25 @@ Returned by `sewing_matrix` and `SpaceGroupRep.sewing_operator`.
 
 #### `states_not_at_k`
 
-Returned by `characters`, `coreps_at` and `sewing_matrix`.
+Returned by `characters`, `coreps_at` and `sewing_matrix`; `hsp_table` keeps it
+for each point where the states handed in do not solve `H(k)`.
 
 - **What it means.** The energies and states handed in do not diagonalize `H(k)` at the
   k-point asked. Characters read off states from another point, or another model, come
-  out wrong without any sign.
+  out wrong without any sign: the sewing matrix built on them can be unitary all the same.
 - **What to do.** Hand in the states of one diagonalization at that point, or the model, and
   let the call solve there ([one diagonalization, reused](../guide/labels.md#one-diagonalization-reused)).
 
 #### `k_not_on_mesh`
 
-Returned by `characters`, `coreps_at` and `sewing_matrix`.
+Returned by `characters`, `coreps_at` and `sewing_matrix`; `hsp_table` keeps it
+for each point its mesh does not contain.
 
-- **What it means.** A mesh of states handed in does not contain the k-point asked, and a
-  second diagonalization there would corrupt the character.
+- **What it means.** A mesh of states handed in does not contain the k-point asked.
+  Handed a mesh, the call reads its states at the point asked and does not diagonalize
+  there. The states at the nearest point of the mesh are not those at `k`.
 - **What to do.** Build the mesh to contain the point (`k_grid` reports which high-symmetry
-  points a mesh hits), or hand in the model.
+  points a mesh holds), or hand in the model.
 
 #### `asymmetric_grid`
 
@@ -964,7 +993,7 @@ Returned by `realized_group` and `pythtqc.symmetry.normalize_rep`.
 
 #### `little_group_mismatch`
 
-Returned by `coreps_at`.
+Returned by `coreps_at` and `pythtqc.groups.identify_from_characters`.
 
 - **What it means.** The operations of the little group measured at a point do not match
   the tables' list for it, so no label would be meaningful.
@@ -992,17 +1021,24 @@ Returned by `realized_group`.
 - **What it means.** The group average moved `H` by more than the declared `tol`. Over
   operations obeyed within `tol` the move is of the order of their residuals, so a larger
   one says the matrices averaged with are not the symmetry the residuals were measured
-  for.
-- **What to do.** Check the declared tolerance, and the centres' defect the reason
-  quotes; otherwise report it.
+  for. A miss of the centers by `δ` costs `H(k)` a covariance of order `2π·δ·max|H|`
+  whatever the hoppings do.
+- **What to do.** Where the covariance the reason quotes is close to `tol`, the tolerance
+  is too tight: declare a larger precision. Where the reason quotes a miss of the centers,
+  declare the model's precision, and the centers within it are moved onto their positions
+  before anything is projected. Otherwise report it, with the model and the call.
 
 #### `symmetrize_range_not_closed`
 
 Returned by `realized_group`.
 
 - **What it means.** The symmetrized hopping list has weight outside the range the group can
-  carry a hopping to, so the transform back to hoppings aliased.
-- **What to do.** Report it with the model and the call.
+  carry a hopping to. The transform back to hoppings on the grid is exact only while the
+  hoppings fit inside that range, so it aliased, and the hopping list would not be the
+  symmetrized Hamiltonian.
+- **What to do.** Where the reason quotes a miss of the centers, declare the model's
+  precision, as for `symmetrize_defect_exceeds_tol`; otherwise report it, with the model
+  and the call.
 
 #### `wyckoff_setting`
 

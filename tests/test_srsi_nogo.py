@@ -892,9 +892,10 @@ def test_the_band_set_is_one_keyword_on_both_routes(lin3g_declared_cross_checked
         tqr.splitting(record)
     # bands outside the model's eight, or none, are named in this call
     with pytest.raises(ValueError,
-                       match=r"^splitting\(\): the band count 9 is outside 1\.\.8$"):
+                       match=r"^splitting\(\): bands=9 is not a count from 1 to 8, the number "
+                             r"of states\."):
         tqr.splitting(record, bands=9)
-    with pytest.raises(ValueError, match=r"^splitting\(\): bands= names no band"):
+    with pytest.raises(ValueError, match=r"^splitting\(\): bands= is empty\."):
         tqr.splitting(record, bands=[])
 
     table = tqw.hsp_table(record, bands=[0, 1, 2, 3])
