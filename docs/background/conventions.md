@@ -524,9 +524,11 @@ physical irreps at `-P`.
 runs this measurement whole.
 
 `ebr_data(group).convention` holds the fields read above. Its
-`row_permutation` re-keys a linear form written in the server's labels, such
-as an indicator formula copied off the server, so that it can be evaluated on
-a returned symmetry data vector
+`corep_names_bcs`, the server's label of each row, and its `row_permutation`
+`P` carry a linear form written in the server's labels, such as an indicator
+formula copied off the server, onto the rows returned: row `i` takes the
+coefficient of `corep_names_bcs[P[i]]`. The form can then be evaluated on a
+returned symmetry data vector
 ([How a symmetry indicator is computed](tqc-primer.md#how-a-symmetry-indicator-is-computed)).
 
 ## Spin

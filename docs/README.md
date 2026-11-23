@@ -122,9 +122,9 @@ and on refusals, apply to the whole calculation.
 - [Functions](reference/functions.md) gives every function the package
   exports, by task, with its arguments, what it returns and the checks at which
   it refuses. It is written from the docstrings.
-- [Returned records](reference/records.md) prints the records a physicist
-  reads, says how to read each printout and lists every field. A table gives
-  each of the other records with the call that returns it.
+- [Returned records](reference/records.md) gives every record a call returns,
+  by task: what it holds, the call that returns it or the field that holds it,
+  and every field. It is written from the docstrings.
 - [Refusals](reference/refusals.md) lists every refusal by the name of its
   check, with what it means, its usual cause and what to do.
 - [Glossary](reference/glossary.md) defines each term the pages and the records

@@ -91,7 +91,7 @@ is found.
 | the check that stopped a call | `gate` | every `Refusal` |
 | what the check measured, and what it compared it with | `value` and `threshold` | every `Refusal` |
 | what was found and what to do, and the objects it names | `reason` and `context` | every `Refusal` |
-| the group identified | `context["group"]` | a `Refusal` that `realized_group` returns once the group is identified |
+| the group identified | `context["group"]`; `context["number_str"]` where a refusal carries only its number | a `Refusal` that carries the group: one `realized_group` returns once the group is identified, and `not_a_band_structure`, `indicator_not_evaluable`, `restriction_not_exact` and `unknown_label` from `decompose`, `symmetry_indicator` and `srsi_of_bands` |
 
 ## Words the pages use
 
@@ -574,7 +574,9 @@ entries say.
   the units of H. A number read off the eigenvectors at the point, such as an
   entry of a sewing matrix or a character, is zero below the larger of `1e-14`
   and the noise floor, `coreps_at(...).numerical.thresholds.effective`. The
-  noise floor is infinite where `Δ` is zero.
+  noise floor is infinite where `Δ` is zero. It is zero for a spectrum of one
+  multiplet, where there is no other multiplet to mix with and `Δ` is
+  infinite, and the threshold is then `1e-14`.
 
 The defaults of the tolerances that are keywords of a call are the signatures'
 own. These lines print them:

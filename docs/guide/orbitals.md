@@ -159,7 +159,7 @@ for o in r.wyckoff_orbits:
   rows for either.
 
 Every field of a row is in
-[Returned records](../reference/records.md#wyckofforbit). Operation
+[`WyckoffOrbit`](../reference/records.md#wyckofforbit). Operation
 names and the spellings of site irreps are in
 [Conventions: operations, labels and band representations](../background/conventions.md).
 
@@ -662,7 +662,7 @@ descends and does not refuse
 - [How pythTQC reads a Hamiltonian](../background/measurement.md) says why the
   hoppings cannot say what an orbital is, and gives the lowest-angular-momentum
   rule with the keys it reads where labelings tie.
-- [Returned records](../reference/records.md#atomiclimittable) lists
+- [`AtomicLimitTable`](../reference/records.md#atomiclimittable) lists
   every field of the atomic-limit table.
 - [Conventions: operations, labels and band representations](../background/conventions.md)
   gives operation names, Seitz symbols and the spellings of site irreps.

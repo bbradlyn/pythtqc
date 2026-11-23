@@ -141,7 +141,7 @@ flowchart TD
         s_bloch["r.rep.bloch_operator(ind, k)"] --> s_bloch_out(["the Bloch operator of operation ind at k"])
         s_sew["r.rep.sewing_operator(ind, k)"] --> s_sew_out(["the Bloch operator of an operation that leaves k invariant, folded back to k"])
         s_little["r.rep.little_group(k), in_little_group(ind, k), transform_k(ind, k)"] --> s_little_out(["which operations leave k invariant, and where each operation carries k"])
-        s_cov["r.rep.covariance(kpoints)"] --> s_cov_out(["for each operation, the largest ‖D H(k) D† − H(Rk)‖ over the k-points, D its matrix and H(k) the Bloch Hamiltonian"])
+        s_cov["r.rep.covariance(kpoints)"] --> s_cov_out(["for each operation, the largest modulus of an entry of D H(k) D† − H(Rk) over the k-points, D its matrix and H(k) the Bloch Hamiltonian"])
     end
 ```
 
@@ -157,7 +157,7 @@ flowchart TD
     p_import(["a model whose spin states are listed as separate orbitals, as in a Wannier90 spinor import"])
     p_present["spinless_presentation(model)"]
     p_basis["spin_basis(model, order=..., pairs=...)"]
-    p_sb[["SpinBasis: which orbitals are the spin up and down states of one Wannier function"]]
+    p_sb[["SpinBasis: which orbitals are the spin up and down states of one spinful orbital"]]
     p_op["spin_operator(spin, n)"]
     p_op_out(["the spin along n̂, n̂·σ in units of ħ/2, on each pair of orbitals a SpinBasis names"])
     p_realized(["realized_group(model, spin=...), from the groups module"])
@@ -177,7 +177,7 @@ where it is not handed a `SpinBasis`, and keeps the basis on `r.spin`.
 ### `symmetrization`
 
 A Hamiltonian symmetric only within the tolerance, projected onto its symmetric
-part ([How do I measure a numerical or wannier90
+part ([How do I measure a numerical or Wannier90
 model?](../guide/numerical.md)).
 
 ```mermaid

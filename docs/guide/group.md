@@ -482,7 +482,7 @@ is measured.
   [`realized_group`](../reference/functions.md#realized_group).
 - [Returned records](../reference/records.md) lists every field of
   [`RealizedGroup`](../reference/records.md#realizedgroup) and of
-  [the descent](../reference/records.md#descent).
+  [`Descent`](../reference/records.md#descent).
 - [How pythTQC reads a Hamiltonian](../background/measurement.md) gives the
   measurement, the tie rule and what a declaration does to the group.
 - [Fu-Kane-Mele: a 3D crystal, a distortion, the Z4 indicator](../start/tutorial-3d.md)

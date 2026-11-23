@@ -147,10 +147,10 @@ Every refusal is one of four kinds, and the kind says where the fix lies.
    reporting with the model and the call
    ([The package's checks on itself](../reference/refusals.md#the-packages-checks-on-itself)).
    `tol` is the tolerance of the covariance check, on how far a matrix for an
-   operation misses carrying `H(k)` onto `H(gk)`, in the units of `H`. The
+   operation `{R|t}` misses carrying `H(k)` onto `H(Rk)`, in the units of `H`. The
    exception is `rep_not_covariant` reached close to `tol`. There each
    operation alone is obeyed within `tol`, and only the representation built
-   for the group carries `H(k)` onto `H(gk)` beyond it. Its reason asks for
+   for the group carries `H(k)` onto `H(Rk)` beyond it. Its reason asks for
    `precision=` ([Refusals](../reference/refusals.md#rep_not_covariant)).
 
 The example of a practical limit is a copy of Kane-Mele with every hopping off
@@ -251,7 +251,7 @@ except tqc.RefusalError as error:
   a layer measured on a substrate and free-standing, where the substrate's
   group is not the subgroup of the free-standing group that preserves the
   layer's normal. Another is a representation of the identified group that
-  does not carry `H(k)` onto `H(gk)` within `tol`, though every operation of
+  does not carry `H(k)` onto `H(Rk)` within `tol`, though every operation of
   the group was measured to hold within it. Close to `tol` that case is the
   refusal `rep_not_covariant` instead, as kind 4 above says. With neither
   `precision=` nor `position_tol=` declared, it is the refusal

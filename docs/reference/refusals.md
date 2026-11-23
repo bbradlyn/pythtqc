@@ -39,7 +39,10 @@ the cell's group or a subgroup the measurement has lowered it to, as an upper bo
 what the Hamiltonian obeys, and carries it in `context["group"]`. The entries say where a
 refusal names no group, or names one without carrying it, and `cell_group_not_realized`
 names the group the projection was made in, with how many of its operations the
-Hamiltonian obeys.
+Hamiltonian obeys. `decompose`, `symmetry_indicator`, `srsi_of_bands` and
+`in_plane_restriction` name the group they read in the reasons of
+`not_a_band_structure`, `indicator_not_evaluable`, `restriction_not_exact` and
+`unknown_label`, and carry it in `context["group"]`.
 
 Where `H` was projected onto its symmetric part and the orbital centers were not moved,
 a refusal `realized_group` returns after the projection, other than
@@ -710,8 +713,13 @@ Returned by `realized_group`.
   before anything is measured.
 - **Usual cause.** `{(0, 1): "A"}` written for two `A` orbitals, whose spelling is
   `{0: "A", 1: "A"}`; a two-dimensional site irrep declared on one orbital.
-- **What to do.** The reason gives the spelling that says it, or, where the site holds too
-  few orbitals for the site irrep, the words that fit it.
+- **What to do.** The reason gives the spelling that says it. Where the hoppings bind
+  orbitals the declaration names into a multiplet of the site irrep's dimension, it
+  offers a key naming that multiplet alone: `{(0, 1, 2): "E"}` on an `s` orbital beside
+  a `(p_x, p_y)` pair is offered `{(1, 2): "E"}`. Where an orbital left over is a
+  multiplet of its own, it names that multiplet and the words that fit it, such as `A1`
+  for the `s` orbital. Where the site holds too few orbitals for the site irrep, it lists
+  the words that fit what the site holds.
 
 #### `spin_pair_split`
 
@@ -764,7 +772,8 @@ Returned by `coreps_at`, `corep_table` and `pythtqc.groups.identify_from_charact
   point's star. Another member has a conjugate little group, whose little-group
   representations the tables do not list.
 - **What to do.** Ask a point `high_symmetry_points(group)` returns, by its name or its
-  coordinates.
+  coordinates. The reason and `context["available"]` give each tabulated point by its
+  name and its reduced coordinates.
 
 #### `out_of_plane`
 
@@ -782,13 +791,16 @@ Returned by `sewing_matrix` and `SpaceGroupRep.sewing_operator`.
 
 - **What it means.** The operation carries `k` to a point that is not `k` up to a reciprocal
   lattice vector, so it is not in the little group of `k`, and neither `sewing_matrix` nor
-  `SpaceGroupRep.sewing_operator` returns a matrix there.
+  `SpaceGroupRep.sewing_operator` returns a matrix there. `value` is the largest amount by
+  which a component of the image minus `k` misses an integer, in reduced coordinates, and
+  `threshold` is the `1e-8` it is held to.
 - **What to do.** Pass an operation of the little group of `k`, which `little_group` lists.
 
 #### `states_not_at_k`
 
-Returned by `characters`, `coreps_at` and `sewing_matrix`; `hsp_table` keeps it for each
-point where the states handed in do not solve `H(k)`.
+Returned by `characters`, `coreps_at` and `sewing_matrix`. `hsp_table` takes no states of
+one point, and raises `ValueError` for a model, or the `WFArray` of a model, other than
+the one `realized_group` measured.
 
 - **What it means.** The energies and states handed in do not solve `H(k)` at the k-point
   asked: the largest entry of `|H(k) V − V diag(w)|`, with `V` the states as columns and
@@ -1003,7 +1015,11 @@ Returned by `realized_group`, through a declaration.
   sum over the site group of one row's characters times the other's conjugate to be the
   site group's order for a row with itself and zero for two different rows. The
   departure the reason prints is the largest amount by which such a sum misses its
-  required value. Neither leaves a table on which site irreps can be named.
+  required value. Neither leaves a table on which site irreps can be named. The reason
+  names the site's operations and the group. It is returned where a site group is read
+  for a declaration. Read with nothing declared, the same failure raises
+  `InternalError`, except where the representation is built, which goes on without the
+  site's character table.
 - **What to do.** Report it, with the model and the call.
 
 ### The projection, and the Wyckoff positions

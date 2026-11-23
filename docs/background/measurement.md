@@ -72,24 +72,25 @@ print({b.name: b.refuted_by for b in broken}["C2(z)"])
   `None` where it obeys every unitary operation its cell allows.
 - `no symmetry matrix`: `refuted_by` of the twofold axis `C2(z)` in the graphene
   with an offset. No matrix solves the axis's equations.
-  [Returned records](../reference/records.md) lists every value `refuted_by`
-  takes, under the descent.
+  [`DroppedOperation`](../reference/records.md#droppedoperation) lists every
+  value `refuted_by` takes.
 
 The grid is the one `realized_group` measures on: `nk` points along each
 periodic direction, starting at Γ, 6 by default. The space is found at one `k`
 and cut down at the others. At one `k` a solution carries each eigenvector of
 `H(k)` onto eigenvectors of `H(Rk)` at the same energy, so the outer products
 of such pairs span the solutions there. Two eigenvectors are paired when their
-energies differ by at most `window` times `max|H|`, `window` a dimensionless
-tolerance ([Tolerances](../reference/glossary.md#tolerances)) and `max|H|`
-defined below. At each further point, the space found so far is restricted to
+energies differ by at most `window` times the largest entry of `H(k) − μ` or
+`H(Rk) − μ` at that `k`, `window` a dimensionless tolerance
+([Tolerances](../reference/glossary.md#tolerances)) and `μ` the mean on-site
+energy. At each further point, the space found so far is restricted to
 that point's equations, and the directions whose singular value there is at
 most `cut` times the largest are kept, `cut` another dimensionless tolerance.
 Further points cut the space down until it stops changing.
 
-`max|H|` is the largest entry of `H(k) − μ`, `μ` the mean on-site energy, over
-64 fixed random points of the zone. Where the largest hopping, or the largest
-on-site energy measured from `μ`, comes out larger, `max|H|` is raised to it.
+`max|H|` is the largest entry of `H(k) − μ` over 64 fixed random points of the
+zone. Where the largest hopping, or the largest on-site energy measured from
+`μ`, comes out larger, `max|H|` is raised to it.
 Every energy tolerance is read against `max|H|`. Where a precision is declared,
 the record prints it as `measured max|H|`. A model shifted by a constant energy
 has the same `max|H|`, and so the same tolerances.
@@ -110,8 +111,9 @@ alone.
 A space that is not empty must still hold a matrix of the form an operation
 has: a permutation of the sites times each site's own matrix and, with spin,
 the operation's own spin rotation. That matrix `U` must pass the covariance
-check, `max_k ‖U H(k) U† − H(Rk)‖` at most `tol`. `tol` is an energy in the
-units of `H`, `1e-8 × max|H|` unless a declared `precision=` derives another
+check: the largest modulus of an entry of `U H(k) U† − H(Rk)` over the grid, at
+most `tol`. `tol` is an energy in the units of `H`, `1e-8 × max|H|` unless a
+declared `precision=` derives another
 ([Tolerances](../reference/glossary.md#tolerances)). With the default
 tolerances or a declared precision, two eigenvectors whose energies differ by
 at most `tol` are paired whatever the window, so that levels the covariance
@@ -123,7 +125,7 @@ every point of the grid. The operation holds where a fitted matrix passes. It
 is broken where none of them passes, or where the energies of `H(k)` and
 `H(Rk)` at one point already differ by more than `tol` allows. Each operation
 that fails is recorded with what refuted it
-([Returned records](../reference/records.md)).
+([`DroppedOperation`](../reference/records.md#droppedoperation)).
 
 ### The descent, and the tie rule
 
@@ -799,9 +801,9 @@ Every other refusal is one of four kinds:
   handle, worth reporting. Any other such check that fails raises
   `InternalError` and returns no refusal.
 
-Once the group is identified, a refusal opens by naming it and its number and
-stating that every operation of it is obeyed, and carries it in
-`context["group"]`. One reached while the group is still being measured names
-the group the cell has at that point, an upper bound
+Once the group is identified, a refusal `realized_group` returns opens by naming
+it and its number and stating that every operation of it is obeyed, and carries
+it in `context["group"]`. One reached while the group is still being measured
+names the group the cell has at that point, an upper bound
 ([What does a refusal mean, and what do I do about it?](../guide/refusals.md),
 [Refusals](../reference/refusals.md)).

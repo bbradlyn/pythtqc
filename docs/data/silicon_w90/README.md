@@ -1,7 +1,7 @@
 # Silicon from Wannier90
 
-The data of [the wannier90 tutorial](../../start/tutorial-wannier90.md): a
-Wannier90 1.2 calculation of silicon, eight Wannier functions projected from
+The data of [Silicon from Wannier90: the group the model has](../../start/tutorial-wannier90.md):
+a Wannier90 1.2 calculation of silicon, eight Wannier functions projected from
 `sp³` hybrids on the two atoms of the primitive cell, four on each,
 disentangled from twelve bands on a 4×4×4 k-point mesh. Energies are in eV and
 lengths in Å.
@@ -10,7 +10,7 @@ lengths in Å.
 |---|---|
 | `si.win` | the Wannier90 input: the lattice, the two atoms, the `sp³` projections, the disentanglement windows, the 4×4×4 mesh and the band path `L–Γ–X–K–Γ` |
 | `si_hr.dat` | the Hamiltonian in real space, `H(R)` on 93 lattice vectors `R`, with each vector's Wigner–Seitz degeneracy |
-| `si_centres.xyz` | the eight Wannier centres and the two atoms, in Cartesian coordinates |
+| `si_centres.xyz` | the eight Wannier centers and the two atoms, in Cartesian coordinates |
 | `si_band.dat`, `si_band.kpt` | Wannier90's own interpolated bands along the band path, and the path's k-points |
 
 pythtb reads them, from the repository root, as

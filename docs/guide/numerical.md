@@ -44,12 +44,13 @@ print(repr(rn))
   holds within `tol`.
 - `precision 1e-07 declared`: the precision declared.
 - `tol 1.74e-05`: an energy tolerance for checking whether an operation is a
-  symmetry of `H`. For an operation `g`, with `U(g;k)` its matrix from the
-  Bloch states at `k` to those at `gk`, the covariance residual
-  `max_k ‖U(g;k) H(k) U(g;k)† − H(gk)‖` is measured, with `H(k)*` in place of
-  `H(k)` for an operation combined with time reversal. The operation holds
-  when the residual is at most `tol`, in the units of `H`. Computed from
-  `precision` and `max|H|`.
+  symmetry of `H`. For an operation `g = {R|t}`, with `U(g;k)` its matrix from
+  the Bloch states at `k` to those at `Rk`, the covariance residual, the
+  largest modulus of an entry of `U(g;k) H(k) U(g;k)† − H(Rk)` over `k`, is
+  measured. For an operation combined with time reversal, `H(k)*` and `H(−Rk)`
+  stand in place of `H(k)` and `H(Rk)`. The operation holds when the residual
+  is at most `tol`, in the units of `H`. Computed from `precision` and
+  `max|H|`.
 - `cut 1e-06`: a dimensionless tolerance for checking whether an operation is a
   symmetry. For each operation, the singular values of the symmetry equations
   are computed. A singular value is treated as zero when it is at most `cut`
@@ -347,15 +348,15 @@ print(rc.group.name == rn.group.name,
   representation matrices identical to the clean model's.
 
 The projection replaces `H(k)` by the average, over every operation `g` of the
-group, of `U(g;k)† H(gk) U(g;k)`, or its complex conjugate for an operation
-combined with time reversal. Those operations are among the ones averaged
-over, so a model with time reversal keeps it. A tight-binding `H(k)` is a
-finite Fourier series, so the average is again a hopping list, exactly, with no
-fit.
+group, of `U(g;k)† H(Rk) U(g;k)` for `g = {R|t}`, and of the complex conjugate
+of `U(g;k)† H(−Rk) U(g;k)` for an operation combined with time reversal. Those
+operations are among the ones averaged over, so a model with time reversal
+keeps it. A tight-binding `H(k)` is a finite Fourier series, so the average is
+again a hopping list, exactly, with no fit.
 
 The projection also runs where no operation is near, in four cases. Each has a
 field of `numerical.symmetrization`, which
-[Returned records](../reference/records.md) describes:
+[`Symmetrization`](../reference/records.md#symmetrization) describes:
 
 - `site_multiplets`: a site's orbitals split into
   [multiplets](../reference/glossary.md#words-the-pages-use) only within the

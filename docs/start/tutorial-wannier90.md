@@ -333,8 +333,8 @@ print(indicator.indicator_group, indicator.indicators)
 #  Z2 {"z2'": 0}
 ```
 
-- `(0, 4) 6c 3m A1 lowest-l`: one row of the
-  [atomic-limit table](../reference/records.md#atomiclimittable), a
+- `(0, 4) 6c 3m A1 lowest-l`: one row of the atomic-limit table
+  ([`AtomicLimitTable`](../reference/records.md#atomiclimittable)), a
   Wyckoff orbit of orbitals. It gives:
   - `o.orbitals`, the orbitals;
   - `o.wyckoff`, their Wyckoff position;
@@ -446,8 +446,9 @@ r = tqc.realized_group(model, spin="interleaved", precision=1e-4)
 - [How does pythTQC read the spin of my model?](../guide/spin.md) reads a
   spinor calculation, which pythtb imports as a spinless model with the spin
   inside the orbital index, declared with `spin=`.
-- [Returned records](../reference/records.md#realizedgroupnumerical) lists every field of
-  `numerical.precision`, `numerical.positions` and `numerical.symmetrization`.
+- [`RealizedGroupNumerical`](../reference/records.md#realizedgroupnumerical) and the
+  records under it list every field of `numerical.precision`, `numerical.positions`
+  and `numerical.symmetrization`.
 - [Which little-group representations do these bands carry?](../guide/labels.md),
   [Could these bands be an atomic limit?](../guide/atomic-limits.md) and
   [Which symmetry-indicator class do these bands occupy?](../guide/indicators.md)
