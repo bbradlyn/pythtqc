@@ -160,8 +160,8 @@ class Restriction:
         where every tabulated point is measured.
     copies : dict
         If nonempty, ``{left out: (measured, ...)}``: for each little-group
-        representation left out, the measured ones it repeats.  An empty tuple
-        for one that repeats no measured one.
+        representation left out, the measured ones it repeats.  ``()`` for
+        one that repeats no measured one.
     orphans : tuple of str
         If nonempty, the little-group representations left out that repeat no
         measured one.  The multiplicity of each is an entry of a symmetry data

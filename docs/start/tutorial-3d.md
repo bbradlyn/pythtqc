@@ -53,7 +53,9 @@ print(r.wyckoff_orbits.summary())
   is a grey group. `227.129` is its number in the Belov-Neronova-Smirnova
   numbering of the magnetic space groups. The record prints a clause after the
   group for each thing the call did or found beyond the group, such as
-  lowering the group the orbital positions allow. Here there is none.
+  lowering the group the orbital positions allow. Here there is none. A
+  crystal periodic in three directions has no environment, so its record
+  prints no clause for one.
 - `Wyckoff  site symmetry  orbitals ...`: `r.wyckoff_orbits`, the model's
   atomic-limit table. It has one row for each Wyckoff orbit, the orbitals the
   operations carry into one another.
@@ -216,7 +218,7 @@ for o in rs.wyckoff_orbits:
   `X H(k) = H(Rk) X` at every `k` of the grid the measurement uses, and for
   `g` combined with time reversal none satisfies `X H(k)* = H(−Rk) X`. That
   proves the operation broken.
-  [The descent](../reference/records.md#the-descent), in
+  [`DroppedOperation`](../reference/records.md#droppedoperation), in
   [Returned records](../reference/records.md), lists the other ways an
   operation is refuted.
 - `1  {1|0,0,0}         E`: each operation kept without time reversal, its

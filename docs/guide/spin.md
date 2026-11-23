@@ -136,7 +136,9 @@ for ind in (2, 5, 7):                           # C3(z), m(x), and time reversal
   rotation `C2(x)`. The inversion does not act on the spin, so its spin matrix
   is that of `C2(x)` alone, `−iσ_x = e^{−iπσ_x/2}`.
 - `E'`: time reversal. Its block is `iσ_y`, and it acts as that matrix times
-  complex conjugation.
+  complex conjugation. It is operation 7 of the twelve operations of
+  `P3m11'`, each with a matrix in `native.rep.matrices`. Operations 7 to 12
+  are combined with time reversal.
 
 ## A model with its spin up along -z
 
@@ -207,7 +209,7 @@ print(back.group.name, back.group.number_str)
   free-standing layer has the same group
   ([Is my 2D model on a substrate or free-standing?](layers.md)).
 - `{'tensor structure'}`: what refuted each dropped operation, from
-  `wrong.descent.dropped` ([The descent](../reference/records.md#the-descent)).
+  `wrong.descent.dropped` ([`DroppedOperation`](../reference/records.md#droppedoperation)).
   `tensor structure` means that at every `k` some matrix maps `H(k)` to `H` at
   the k-point the operation takes `k` to, but none that is an orbital part
   times the operation's own spin matrix.
@@ -318,6 +320,10 @@ bare = tqc.realized_group(flat, typat=[0, 0, 1, 1])     # no spin=: read as nspi
 print(bare.group.name, bare.group.number_str, bare.time_reversal.outcome,
       bare.time_reversal.square.measured, tuple(o.label for o in bare.wyckoff_orbits))
 #  P3m1 156 measured broken -1.0 ('E', 'E')
+print(repr(bare))
+#  RealizedGroup(P3m1 #156; time reversal measured broken, descended from P3m11' #156.50: its square is -1, so the states carry half-integer spin, and spin= declares which orbitals are spin partners; on a substrate (the default), the free-standing group P-6m2 #187 agrees)
+print(bare.time_reversal.n_obeyed, "of", bare.time_reversal.n_antiunitary, bare.beyond_grey)
+#  0 of 6 None
 ```
 
 - `P3m1 156`: the group returned, space group 156 without time reversal.
@@ -327,13 +333,23 @@ print(bare.group.name, bare.group.number_str, bare.time_reversal.outcome,
   these states, `-1` as on a spinor. Time reversal in the single-valued tables
   squares to `+1`, so it is broken.
 - `('E', 'E')`: each site's two states read as the doublet `E` of `3m`.
+- `time reversal measured broken, descended from P3m11' #156.50: its square is -1, ...`:
+  the clause the record prints where time reversal is broken by its square. It
+  names the grey group time reversal was measured in, and `spin=`, which reads
+  the states as spinors.
+- `0 of 6 None`: none of the six operations of `P3m11'` combined with time
+  reversal holds, `bare.time_reversal.n_obeyed` of `n_antiunitary`, and
+  `bare.beyond_grey` names none. Each combines time reversal with an operation
+  of `P3m1`, so holding it would make time reversal hold too. `P3m11'` is the
+  group of these states read as spinors, in the double-valued tables, which
+  `spin=` reads.
 
 Where two operations that commute have spinor matrices that anticommute, as
 two perpendicular twofold rotations do, these states carry no single-valued
 representation of a group holding both. The group then descends further, to
 the largest subgroup on which they carry one, and each operation left out has
 `refuted_by = "projective class"`
-([The descent](../reference/records.md#the-descent)). On a layer, the subgroup
+([`DroppedOperation`](../reference/records.md#droppedoperation)). On a layer, the subgroup
 is chosen for the free-standing layer
 ([The horizontal mirror, and what breaks it](layers.md#the-horizontal-mirror-and-what-breaks-it)).
 On a substrate, the layer keeps those operations of that subgroup that do not

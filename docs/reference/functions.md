@@ -13,18 +13,18 @@ Each entry's **Refusals** are the checks at which that call can refuse.
 
 The functions fall into six groups:
 
-- [The group](#the-group) — the space group a Hamiltonian has and which operations it obeys, the orbitals' Wyckoff orbits, and the operations by index and Seitz symbol.
-- [Declaring what the hoppings cannot supply](#declaring-what-the-hoppings-cannot-supply) — the spin a spinless model carries in its orbital index.
-- [Group data in this cell's coordinates](#group-data-in-this-cells-coordinates) — the tables' k-points, little groups, character tables, Wyckoff positions and elementary band representations, in the model's own cell.
-- [Labeling the bands](#labeling-the-bands) — the states at one k-point, and the sewing matrices, characters and coreps of a set of bands, at one high-symmetry point or at all of them.
-- [Atomic limits](#atomic-limits) — whether a symmetry data vector is a sum of elementary band representations, and the counting beside it.
-- [Stable invariants](#stable-invariants) — the symmetry-indicator class of a band set, and its stable real-space invariants, from the bands or from the orbitals.
+- [The group](#the-group): the space group a Hamiltonian has and which operations it obeys, the orbitals' Wyckoff orbits, and the operations by index and Seitz symbol.
+- [Declaring what the hoppings cannot supply](#declaring-what-the-hoppings-cannot-supply): the spin a spinless model carries in its orbital index.
+- [Group data in this cell's coordinates](#group-data-in-this-cells-coordinates): the tables' k-points, little groups, character tables, Wyckoff positions and elementary band representations, in the model's own cell.
+- [Labeling the bands](#labeling-the-bands): the states at one k-point, and the sewing matrices, characters and coreps of a set of bands, at one high-symmetry point or at all of them.
+- [Atomic limits](#atomic-limits): whether a symmetry data vector is a sum of elementary band representations, and the counting beside it.
+- [Stable invariants](#stable-invariants): the symmetry-indicator class of a band set, and its stable real-space invariants, from the bands or from the orbitals.
 
 ## The group
 
-- [`realized_group`](#realized_group) — The space group a Hamiltonian obeys.
-- [`operations`](#operations) — The operations of a group, one for each coset of the lattice translations.
-- [`operation_index`](#operation_index) — The index of the operation a Seitz symbol names.
+- [`realized_group`](#realized_group): The space group a Hamiltonian obeys.
+- [`operations`](#operations): The operations of a group, one for each coset of the lattice translations.
+- [`operation_index`](#operation_index): The index of the operation a Seitz symbol names.
 
 ### `realized_group`
 
@@ -281,9 +281,9 @@ A refusal handed in as `group` is returned as it is.
 
 ## Declaring what the hoppings cannot supply
 
-- [`spin_basis`](#spin_basis) — The spin pairs of a spinless model whose orbital index carries spin.
-- [`spin_operator`](#spin_operator) — The spin along an axis on the orbitals of a spinless model's spin pairs.
-- [`spinless_presentation`](#spinless_presentation) — A spinful model written as a spinless one, and its spin pairs.
+- [`spin_basis`](#spin_basis): The spin pairs of a spinless model whose orbital index carries spin.
+- [`spin_operator`](#spin_operator): The spin along an axis on the orbitals of a spinless model's spin pairs.
+- [`spinless_presentation`](#spinless_presentation): A spinful model written as a spinless one, and its spin pairs.
 
 ### `spin_basis`
 
@@ -387,13 +387,13 @@ are known, to compare such an import against.
 
 ## Group data in this cell's coordinates
 
-- [`high_symmetry_points`](#high_symmetry_points) — The tabulated high-symmetry points, in the model's reduced coordinates.
-- [`little_group`](#little_group) — The operations that leave `k` invariant up to a reciprocal lattice vector.
-- [`corep_table`](#corep_table) — The character table of the little group at a high-symmetry point.
-- [`wyckoff_sites_tables`](#wyckoff_sites_tables) — The Wyckoff position of each site, in the setting of the tables.
-- [`k_grid`](#k_grid) — A mesh through `GM` that the group carries onto itself.
-- [`ebr_data`](#ebr_data) — The elementary band representations of the group, and their matrix.
-- [`tables_status`](#tables_status) — The state of `irrep`'s character tables and of `ortools`.
+- [`high_symmetry_points`](#high_symmetry_points): The tabulated high-symmetry points, in the model's reduced coordinates.
+- [`little_group`](#little_group): The operations that leave `k` invariant up to a reciprocal lattice vector.
+- [`corep_table`](#corep_table): The character table of the little group at a high-symmetry point.
+- [`wyckoff_sites_tables`](#wyckoff_sites_tables): The Wyckoff position of each site, in the setting of the tables.
+- [`k_grid`](#k_grid): A mesh through `GM` that the group carries onto itself.
+- [`ebr_data`](#ebr_data): The elementary band representations of the group, and their matrix.
+- [`tables_status`](#tables_status): The state of `irrep`'s character tables and of `ortools`.
 
 ### `high_symmetry_points`
 
@@ -677,13 +677,13 @@ then refuses `irrep_tables`.
 
 ## Labeling the bands
 
-- [`solve_at`](#solve_at) — The energies and eigenvectors at one k-point, from one diagonalization.
-- [`sewing_matrix`](#sewing_matrix) — The sewing matrix of one operation on a set of bands at one k-point.
-- [`characters`](#characters) — The characters of a set of bands at one k-point.
-- [`coreps_at`](#coreps_at) — The little-group representations of a set of bands at one high-symmetry point.
-- [`hsp_table`](#hsp_table) — The symmetry data vector of a set of bands, point by point.
-- [`format_coreps`](#format_coreps) — Multiplicities of little-group representations, written on one line.
-- [`multiplets`](#multiplets) — The degenerate multiplets of a spectrum, at an energy tolerance.
+- [`solve_at`](#solve_at): The energies and eigenvectors at one k-point, from one diagonalization.
+- [`sewing_matrix`](#sewing_matrix): The sewing matrix of one operation on a set of bands at one k-point.
+- [`characters`](#characters): The characters of a set of bands at one k-point.
+- [`coreps_at`](#coreps_at): The little-group representations of a set of bands at one high-symmetry point.
+- [`hsp_table`](#hsp_table): The symmetry data vector of a set of bands, point by point.
+- [`format_coreps`](#format_coreps): Multiplicities of little-group representations, written on one line.
+- [`multiplets`](#multiplets): The degenerate multiplets of a spectrum, at an energy tolerance.
 
 ### `solve_at`
 
@@ -1041,11 +1041,11 @@ tolerance at least the largest spread inside a multiplet,
 
 ## Atomic limits
 
-- [`decompose`](#decompose) — The sums of elementary band representations that carry a symmetry data vector.
-- [`subtract`](#subtract) — The symmetry data vector of the bands in one set and not in another, `a - b`.
-- [`regular_completion`](#regular_completion) — The bands completing a band set to copies of the regular band representation.
-- [`ebr_rows`](#ebr_rows) — The symmetry data vector of each elementary band representation of the group.
-- [`in_plane_restriction`](#in_plane_restriction) — The little-group representations a model measures, and what the others repeat.
+- [`decompose`](#decompose): The sums of elementary band representations that carry a symmetry data vector.
+- [`subtract`](#subtract): The symmetry data vector of the bands in one set and not in another, `a - b`.
+- [`regular_completion`](#regular_completion): The bands completing a band set to copies of the regular band representation.
+- [`ebr_rows`](#ebr_rows): The symmetry data vector of each elementary band representation of the group.
+- [`in_plane_restriction`](#in_plane_restriction): The little-group representations a model measures, and what the others repeat.
 
 ### `decompose`
 
@@ -1302,14 +1302,14 @@ A refusal handed in as `group` is returned as it is.
 
 ## Stable invariants
 
-- [`symmetry_indicator`](#symmetry_indicator) — The symmetry-indicator class of a set of bands.
-- [`stack_presentation`](#stack_presentation) — A layer repeated along its normal, with no hopping between the copies.
-- [`srsi_tables`](#srsi_tables) — The stable real-space invariants of a grey space group, as tabulated.
-- [`srsi_of_bands`](#srsi_of_bands) — The integer-valued stable real-space invariants (ZSRSIs) of a band set.
-- [`srsi_of_model`](#srsi_of_model) — The stable real-space invariants of a model, a row for each Wyckoff orbit.
-- [`splitting`](#splitting) — The no-go test of a gapped splitting of a model's bands.
-- [`nsit_criterion`](#nsit_criterion) — The no-go test of a gapped splitting, from its invariants.
-- [`atomic_realizations`](#atomic_realizations) — Every atomic realization of given integer-valued stable real-space invariants.
+- [`symmetry_indicator`](#symmetry_indicator): The symmetry-indicator class of a set of bands.
+- [`stack_presentation`](#stack_presentation): A layer repeated along its normal, with no hopping between the copies.
+- [`srsi_tables`](#srsi_tables): The stable real-space invariants of a grey space group, as tabulated.
+- [`srsi_of_bands`](#srsi_of_bands): The integer-valued stable real-space invariants (ZSRSIs) of a band set.
+- [`srsi_of_model`](#srsi_of_model): The stable real-space invariants of a model, a row for each Wyckoff orbit.
+- [`splitting`](#splitting): The no-go test of a gapped splitting of a model's bands.
+- [`nsit_criterion`](#nsit_criterion): The no-go test of a gapped splitting, from its invariants.
+- [`atomic_realizations`](#atomic_realizations): Every atomic realization of given integer-valued stable real-space invariants.
 
 ### `symmetry_indicator`
 

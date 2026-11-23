@@ -12,9 +12,9 @@ other rounding.  The pages are read off the tree by that script's
 listing, so a page is under this test the day it exists.  A failure is a
 unified diff per statement, at the page's own line numbers.
 
-One page is held to more than its code: ``docs/reference/functions.md`` is
-written from the docstrings by ``scripts/build_reference.py``, and must be what
-that script writes now.
+Two pages are held to more than their code: ``docs/reference/functions.md``
+and ``docs/reference/records.md`` are written from the docstrings by
+``scripts/build_reference.py``, and must be what that script writes now.
 
 And the pages together build as the documentation site, ``mkdocs build
 --strict`` by ``mkdocs.yml``: every page in its navigation, every link and
@@ -27,7 +27,7 @@ To rewrite the outputs after a deliberate change:
   that a rewrite is never a green run; re-run without the variable to see it
   pass, and read the change as ``git diff docs README.md``.
 * ``python scripts/check_page.py --update <page>`` rewrites one page.
-* ``python scripts/build_reference.py`` rewrites the function reference.
+* ``python scripts/build_reference.py`` rewrites the two reference pages.
 """
 
 import difflib
@@ -61,21 +61,23 @@ build_reference = _load("tqc_build_reference", os.path.join("scripts", "build_re
 #: every user page, read off the tree, so a new page cannot slip in unrun
 PAGES = check_page.user_pages(ROOT)
 
-FUNCTIONS = "docs/reference/functions.md"
+#: the pages written from the docstrings, each with the function that writes it
+WRITTEN = {"docs/reference/functions.md": build_reference.render,
+           "docs/reference/records.md": build_reference.render_records}
 
 
-def _reference_drift():
-    """How the function reference differs from what the docstrings make it now."""
-    want = build_reference.render()
-    with open(os.path.join(ROOT, FUNCTIONS), "rb") as handle:
+def _reference_drift(page):
+    """How a reference page differs from what the docstrings make it now."""
+    want = WRITTEN[page]()
+    with open(os.path.join(ROOT, page), "rb") as handle:
         have = handle.read().decode("utf-8").replace("\r\n", "\n")
     if have == want:
         return []
     diff = list(difflib.unified_diff(have.splitlines(), want.splitlines(),
-                                     f"{FUNCTIONS} (in the tree)",
-                                     f"{FUNCTIONS} (the docstrings now)", lineterm=""))
+                                     f"{page} (in the tree)",
+                                     f"{page} (the docstrings now)", lineterm=""))
     more = f"\n... and {len(diff) - 120} lines more" if len(diff) > 120 else ""
-    return [f"{FUNCTIONS} is not what the docstrings make it; "
+    return [f"{page} is not what the docstrings make it; "
             f"`python scripts/build_reference.py` writes it\n" + "\n".join(diff[:120]) + more]
 
 
@@ -88,8 +90,8 @@ def test_page_prints_what_it_shows(page):
         pytest.fail(f"outputs rewritten for {page}: {len(run.rewritten)} statement(s); "
                     f"re-run without the variable" + "".join("\n\n" + p for p in run.problems))
     problems = list(run.problems)
-    if page == FUNCTIONS:
-        problems += _reference_drift()
+    if page in WRITTEN:
+        problems += _reference_drift(page)
     assert not problems, "\n\n".join(problems)
 
 

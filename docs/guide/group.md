@@ -33,6 +33,11 @@ print(r.group.name, r.group.number_str)
 for o in r.wyckoff_orbits:
     print(repr(o))
 #  WyckoffOrbit(2b (3m1'): orbitals 0-1, A1)
+print(r.summary())
+#  P6mm1' #183.186, on a substrate   (.group, .environment.kind)
+#    its operations, by index and Seitz symbol   (.operations)
+#    the orbitals, by Wyckoff orbit   (.wyckoff_orbits)
+#      2b (3m1'): orbitals 0-1, A1
 ```
 
 ## How to read it
@@ -65,6 +70,9 @@ for o in r.wyckoff_orbits:
   [the lowest-angular-momentum rule](../background/measurement.md#the-lowest-angular-momentum-rule),
   and `characters=` can declare another site irrep
   ([How do I say what my orbitals are?](orbitals.md)).
+- `P6mm1' #183.186, on a substrate   (.group, .environment.kind)`: the first
+  line of `r.summary()`, which prints the record part by part. The line that
+  opens each part ends with the fields that hold it.
 
 Graphene is a layer, so its group is that of a slab: the layer in a
 three-dimensional cell, with vacuum along its normal
@@ -120,6 +128,9 @@ for o in rd.wyckoff_orbits:
 - `72 of 96 coset representatives of the lattice translations broken`: the
   operations the Hamiltonian breaks, one counted for each coset of the lattice
   translations. `d.dropped_by` says what dropped them, here the hoppings.
+- `broken`: the hoppings broke every operation counted. Other causes are
+  counted in the same clause, each by name
+  ([`Descent`](../reference/records.md#descent)).
 - `these are the single-valued group's, each standing for itself and its negative in the double group`:
   printed for a model with spin. The operations counted are those of the
   single-valued group. Each stands for two operations of the double group,
@@ -128,7 +139,7 @@ for o in rd.wyckoff_orbits:
   says what showed it broken. No matrix on the orbitals carries `H(k)` onto
   `H(Rk)` at every `k`, where `R` is the operation's action on `k`. So the
   Hamiltonian breaks the operation. The other values are listed under
-  [The descent](../reference/records.md#the-descent).
+  [`DroppedOperation`](../reference/records.md#droppedoperation).
 - `['C2(x)', "C2(x)'", 'C2(y)', "C2(y)'"]`: the names of operations dropped,
   each written in the Cartesian axes in which the pythtb Lattice is specified.
   A prime marks an operation combined with time reversal.
@@ -471,7 +482,7 @@ is measured.
   [`realized_group`](../reference/functions.md#realized_group).
 - [Returned records](../reference/records.md) lists every field of
   [`RealizedGroup`](../reference/records.md#realizedgroup) and of
-  [the descent](../reference/records.md#the-descent).
+  [the descent](../reference/records.md#descent).
 - [How pythTQC reads a Hamiltonian](../background/measurement.md) gives the
   measurement, the tie rule and what a declaration does to the group.
 - [Fu-Kane-Mele: a 3D crystal, a distortion, the Z4 indicator](../start/tutorial-3d.md)

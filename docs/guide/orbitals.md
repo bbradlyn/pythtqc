@@ -155,10 +155,11 @@ for o in r.wyckoff_orbits:
   induce ([`BandRepresentation`](../reference/records.md#bandrepresentation)).
   Each term holds a multiplicity, a site irrep, its Wyckoff position, and its
   site-symmetry group with and without time reversal. Each sublattice induces
-  the one `-E1` at its own position.
+  the one `-E1` at its own position, so the table prints no line under its
+  rows for either.
 
-Every field of a row, and the lines the table can print under its rows, are in
-[Returned records](../reference/records.md#the-atomic-limit-table). Operation
+Every field of a row is in
+[Returned records](../reference/records.md#wyckofforbit). Operation
 names and the spellings of site irreps are in
 [Conventions: operations, labels and band representations](../background/conventions.md).
 
@@ -491,6 +492,10 @@ broke = lowered.descent
 print(broke.cell_group.number_str, "->", broke.subgroup.number_str,
       sorted({b.name for b in broke.dropped}), {b.refuted_by for b in broke.dropped})
 #  156.50 -> 143.2 ['m([010])', "m([010])'", 'm([1-10])', "m([1-10])'", 'm(x)', "m(x)'"] {'declaration'}
+print(lowered.wyckoff_orbits.summary())
+#  Wyckoff  site symmetry  orbitals  label  determined by  declared
+#       1c            31'         0  -1E2E    declaration        A1
+#       1b            31'         1  -1E2E    declaration        A2
 ```
 
 - **A reduction, printed `cell lowered by the declared content`.** Two sites of
@@ -511,6 +516,12 @@ print(broke.cell_group.number_str, "->", broke.subgroup.number_str,
   that are. Each broken one is on `descent` with `refuted_by = "declaration"`.
   A descent by declaration never refuses: it ends at `P1` at the least, or
   `P11'` with time reversal.
+- **`-1E2E` under `label`, on both rows.** The site-symmetry group is now
+  `31'`, whose unitary part `3` does not tell `A1` from `A2`: both restrict to
+  its `A`, and with spin both rows carry `-1E2E`. What each declaration
+  resolved to, the groups it was read and resolved in, and the operations it
+  broke are on the row's `numerical`: `declared_irrep`, `declared_in`,
+  `reduced_in` and `declaration_broke`.
 
 A shorthand given to one orbital, at a site whose group turns it into others,
 names one direction, and lowers the cell by a reduction alone. Of the
@@ -651,7 +662,7 @@ descends and does not refuse
 - [How pythTQC reads a Hamiltonian](../background/measurement.md) says why the
   hoppings cannot say what an orbital is, and gives the lowest-angular-momentum
   rule with the keys it reads where labelings tie.
-- [Returned records](../reference/records.md#the-atomic-limit-table) lists
+- [Returned records](../reference/records.md#atomiclimittable) lists
   every field of the atomic-limit table.
 - [Conventions: operations, labels and band representations](../background/conventions.md)
   gives operation names, Seitz symbols and the spellings of site irreps.

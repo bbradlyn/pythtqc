@@ -161,7 +161,37 @@ for m in content.multiplets:
 `content.summary()` prints the same record part by part, and
 `table.summary()` prints the characters with a line for each unitary operation
 of the little group: its index, its Seitz symbol and its trace over each
-multiplet.
+multiplet. The example prints both for lin3g's six bands at Γ:
+
+```python
+print(content.summary())
+#  bands 0-5 at GM (0, 0): 2x-GM6 + -GM7   (.bands, .kpoint, .k, .coreps)
+#    by degenerate multiplet, from the lowest   (.multiplets)
+#      bands 0-1 at -16.35: -GM6
+#      bands 2-3 at -12.38: -GM7
+#      bands 4-5 at -4.325: -GM6
+#    13.02 from these bands to the nearest other band, in the units of H   (.isolation)
+print(table.summary())
+#  bands 0-5 at GM (0, 0)   (.bands, .kpoint, .k)
+#    the trace of each unitary operation of the little group, by index, over each degenerate multiplet   (.multiplets: characters of each; .operations)
+#      bands                   0-1     2-3     4-5   (.multiplets: bands of each)
+#      energy               -16.35  -12.38  -4.325   (.multiplets: energy of each)
+#        1  {1|0,0,0}            2       2       2
+#        2  {2_001|0,0,0}        0       0       0
+#        3  {4+_001|0,0,0}  -1.414   1.414  -1.414
+#        4  {4-_001|0,0,0}  -1.414   1.414  -1.414
+#        5  {m_010|0,0,0}        0       0       0
+#        6  {m_100|0,0,0}        0       0       0
+#        7  {m_110|0,0,0}        0       0       0
+#        8  {m_1-10|0,0,0}       0       0       0
+```
+
+- `bands 0-5 at GM (0, 0): 2x-GM6 + -GM7   (.bands, .kpoint, .k, .coreps)`:
+  the first line of `content.summary()`. The line that opens each part of a
+  summary ends with the fields that hold it.
+- `3  {4+_001|0,0,0}  -1.414   1.414  -1.414`: a line of `table.summary()`,
+  the fourfold rotation by its index and its Seitz symbol, and its trace over
+  each of the three multiplets.
 
 ## Every high-symmetry point at once
 
@@ -561,9 +591,10 @@ then `False`. The checks these calls meet:
 ## Where to go next
 
 - [Returned records](../reference/records.md) lists every field of
-  [`BandCharacters` and `CorepsAt`](../reference/records.md#bandcharacters-and-corepsat),
+  [`BandCharacters`](../reference/records.md#bandcharacters) and
+  [`CorepsAt`](../reference/records.md#corepsat),
   of [`HSPTable`](../reference/records.md#hsptable) and of
-  [`Operation`](../reference/records.md#operationtable-and-operation).
+  [`Operation`](../reference/records.md#operation).
 - [Functions](../reference/functions.md) gives the arguments of
   [`high_symmetry_points`](../reference/functions.md#high_symmetry_points),
   [`characters`](../reference/functions.md#characters),

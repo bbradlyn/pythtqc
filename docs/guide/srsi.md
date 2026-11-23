@@ -97,7 +97,7 @@ print(t25.theta({("-E", "1b"): 1}))                # ... or at 1b
   where the tables hold them. One counts the paper's splittings of an EBR,
   `split_ebrs` ([The no-go criterion](#the-no-go-criterion)). The other lists the
   pairs of site irreps no SRSI distinguishes, `stably_equivalent`
-  ([Site irreps no invariant distinguishes](#site-irreps-no-invariant-distinguishes)).
+  ([Site irreps no stable invariant distinguishes](#site-irreps-no-stable-invariant-distinguishes)).
 - `theta_1 (Z)  = 2 (-1E2E)_e + ... + 1 (-E)_a + ...`: from `t25.formulas()`,
   one SRSI written out. Each term `c (irrep)_w` is `c` times the multiplicity of
   a site irrep at the Wyckoff position with letter `w`. A leading `-` marks a
@@ -475,7 +475,7 @@ the one to pass to `theta`. `wyckoff_sites_tables(r.group)` returns each site's
 Wyckoff position in the irreptables package's setting, with its free parameters
 and the positions it slides onto.
 
-## Site irreps no invariant distinguishes
+## Site irreps no stable invariant distinguishes
 
 Two site irreps at one maximal Wyckoff position can induce EBRs with the same
 symmetry data vector and carry the same SRSIs. The tables' `stably_equivalent`
@@ -533,7 +533,7 @@ symmetry data vectors at the high-symmetry points are read. An enumeration that
 finds more than 256 realizations is refused with
 `srsi_realizations_truncated`. A realization that uses a member of a pair of
 site irreps no SRSI distinguishes holds the pair in its record
-([Site irreps no invariant distinguishes](#site-irreps-no-invariant-distinguishes)),
+([Site irreps no stable invariant distinguishes](#site-irreps-no-stable-invariant-distinguishes)),
 and so does a splitting with such a realization.
 
 The example is lin3g, its six lowest bands against the two above them.
@@ -761,7 +761,8 @@ The checks these calls meet:
   [`SRSITables`](../reference/records.md#srsitables),
   [`BandSRSIs`](../reference/records.md#bandsrsis),
   [`ModelSRSIs`](../reference/records.md#modelsrsis),
-  [`Splitting` and `Realizations`](../reference/records.md#splitting-and-realizations)
+  [`Splitting`](../reference/records.md#splitting) and
+  [`Realizations`](../reference/records.md#realizations)
   and [`StablePair`](../reference/records.md#stablepair).
 - [Functions](../reference/functions.md) gives the arguments of
   [`srsi_tables`](../reference/functions.md#srsi_tables),

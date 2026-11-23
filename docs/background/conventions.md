@@ -180,7 +180,7 @@ symmorphic group. A site irrep those names leave open keeps its Mulliken
 symbol, and one that nothing names is left without a name.
 `numerical.named_by`, on each row of `r.wyckoff_orbits`, says which of these
 named it: `tables`, `invariants`, `point group`, `Mulliken` or `unnamed`
-([The atomic-limit table](../reference/records.md#the-atomic-limit-table)).
+([`WyckoffOrbitNumerical`](../reference/records.md#wyckofforbitnumerical)).
 The example is graphene read free-standing, its one orbit at `2c`:
 
 ```python
@@ -282,7 +282,7 @@ the unitary irreps `-M3` and `-M4`). One irrep doubled is written twice
 constituents stand in the lexicographic order of their bare names, the minus
 written once in front. The field `coreps` of what `coreps_at` returns maps each
 label to its multiplicity
-([`CorepsAt`](../reference/records.md#bandcharacters-and-corepsat)).
+([`CorepsAt`](../reference/records.md#corepsat)).
 
 ## The origin the names are read about
 

@@ -770,7 +770,9 @@ class WyckoffOrbitNumerical:
     characters : dict
         For each orbital, its orbital factor's character on every operation of
         its site-symmetry group, by index.  It is single-valued, with spin or
-        without.
+        without.  A spinor's character is zero on every mirror and twofold
+        rotation, so the parity of an orbital under those operations is read
+        here.
     named_by : str
         Where the row's site irreps take their names.  ``"tables"``: the
         tables of elementary band representations list the band representation
@@ -786,7 +788,8 @@ class WyckoffOrbitNumerical:
         Mulliken symbol, read off its
         characters on the site's rotations and mirrors in the Cartesian axes
         in which the pythtb Lattice is specified.  ``"unnamed"``: nothing names
-        the row, and ``o.label`` is blank.
+        the row, and ``o.label`` is blank.  A sum of site irreps takes the
+        value of its term that stands latest in the order above.
     declared_irrep : dict
         If nonempty, for each declared orbital, the site irreps its
         declaration resolved to, ``{0: "A1"}``.
@@ -1049,7 +1052,10 @@ class AtomicLimitTable:
     site irreps at each Wyckoff position that specify an atomic limit.
     ``table[j]`` is row ``j``, a :class:`WyckoffOrbit`, the rows in the order
     the orbits' first orbitals come in the model.  Iterating and ``len()`` go
-    over the rows.  ``table.summary()`` prints it.
+    over the rows.  ``table.summary()`` prints it.  A declaration the
+    Hamiltonian's blocks do not carry shows here, as a row whose
+    ``determined_by`` reads ``"declaration not carried"`` and a line under the
+    table.
 
     Attributes
     ----------

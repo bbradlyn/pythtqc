@@ -153,28 +153,30 @@ class DroppedOperation:
         as for a screw rotation, a glide or a pure translation, the name
         carries the translation in Seitz form, ``{E|1/2,0,0}``.
     refuted_by : str
-        What dropped it.  ``"no symmetry matrix"``: no matrix carries
-        ``H(k)`` onto ``H(gk)``.  ``"covariance"``: such matrices exist, and
-        the covariance residual is above the tolerance.  ``"tensor
-        structure"``: no matrix of the operation's form carries ``H(k)`` onto
-        ``H(gk)`` within the tolerance.  ``"out of plane"``: an operation of
-        the slab a layer is read as (:class:`Presentation`) that turns the
-        layer's plane out of itself, so that it has no action on the layer's
-        k.  ``"translation"``: a pure translation whose permutation of the
-        sites, with or without a change of basis within each site, does not
+        What dropped it.  ``"no symmetry matrix"``: no matrix carries ``H(k)``
+        onto ``H(gk)``.  ``"covariance"``: such matrices exist, and the
+        covariance residual is above the tolerance.  ``"tensor structure"``: no
+        matrix of the operation's form carries ``H(k)`` onto ``H(gk)`` within
+        the tolerance.  A pure translation acts on every k as the identity
+        does, so a matrix always carries ``H(k)`` onto ``H(k)``, and one this
+        test refutes reads ``"tensor structure"``.  ``"out of plane"``: an
+        operation of the slab a layer is read as (:class:`Presentation`) that
+        turns the layer's plane out of itself, so that it has no action on the
+        layer's k.  ``"translation"``: a pure translation whose permutation of
+        the sites, with or without a change of basis within each site, does not
         commute with ``H(k)``.  ``"declaration"``: it is outside the largest
         group of the operations still standing that carries the declared site
         irreps.  ``"centers"``: it is outside the largest group that carries
         the orbital centers within the tolerance declared for them.
         ``"projective class"``: the hoppings obey it, and the states carry no
         single-valued representation of a group containing it and the
-        operations kept.  ``"closure"``: the operations measured to hold do
-        not close into a group, and no subgroup of them of the largest order
+        operations kept.  ``"closure"``: the operations measured to hold do not
+        close into a group, and no subgroup of them of the largest order
         contains it.  ``"tie"``: several subgroups of the operations measured
         to hold have the largest order, and the one the tie rule
-        (:class:`Descent`) keeps does not contain it.  For the declaration
-        and the centers, an operation combined with time reversal is dropped
-        where its unitary part is.
+        (:class:`Descent`) keeps does not contain it.  For the declaration and
+        the centers, an operation combined with time reversal is dropped where
+        its unitary part is.
     residual : float
         The number the measurement rests on.  For ``"covariance"``, the
         covariance residual, in the units of H.  For ``"translation"``, the
@@ -648,15 +650,18 @@ class DescentStep:
 class Descent:
     """The operations of the cell's group that were dropped, and why.
 
-    Held in :attr:`RealizedGroup.descent`, which is ``None`` where no
-    operation was dropped.  A descent lowers the cell's group to the group the
-    Hamiltonian obeys: the group of the operations kept is identified again,
-    in one step or several.  An operation is dropped where the hoppings break
-    it, or where it does not carry the declared site irreps or the orbital
-    centers.  An operation the hoppings obey is dropped where the states carry
-    no single-valued representation of a group containing it.  It is also
-    dropped where the operations that hold do not close into a group and it
-    lies outside the subgroup kept.
+    Held in :attr:`RealizedGroup.descent`, which is ``None`` where the descent
+    dropped no unitary operation.  The operations a declaration excluded before
+    any hopping was read are recorded in ``RealizedGroup.decoration.declared``,
+    and time reversal broken on the group in
+    :attr:`RealizedGroup.time_reversal`.  A descent lowers the cell's group to
+    the group the Hamiltonian obeys: the group of the operations kept is
+    identified again, in one step or several.  An operation is dropped where
+    the hoppings break it, or where it does not carry the declared site irreps
+    or the orbital centers.  An operation the hoppings obey is dropped where
+    the states carry no single-valued representation of a group containing it.
+    It is also dropped where the operations that hold do not close into a group
+    and it lies outside the subgroup kept.
 
     Where several subgroups of the largest order qualify and nothing measured
     tells them apart, the tie rule keeps one: on a layer whose group contains
@@ -702,7 +707,10 @@ class Descent:
         first step whose cell is not primitive.
     note : str
         The descent in words: what dropped the operations, counted by cause,
-        and the group arrived at.
+        and the group arrived at.  Where every operation broken was refuted by
+        its tensor structure, it also names the least ``precision=`` under
+        which all of them, and the group of the cell, would hold, where one
+        does.
     """
 
     cell_group: NamedGroup
@@ -845,7 +853,10 @@ class BeyondGrey:
     that a descent left out, so none is in the group returned, and the
     Hamiltonian's magnetic group is larger than the group returned.
     ``magnetic_type`` names the type of a magnetic group whose antiunitary
-    operations they are.
+    operations they are.  An operation combined with time reversal holds only
+    where a matrix measured for it and the matrices of the group returned, up
+    to a one-dimensional character of that group, make a corepresentation of
+    the magnetic group it generates with that group.
 
     Attributes
     ----------
@@ -888,7 +899,12 @@ class ConservedSector:
         states, counted as orbitals, or as spin pairs where ``spin=`` declares
         them; the spin of a model built with spin is not counted.  The
         conserved matrices on it are every matrix acting on the copies, times
-        the identity on each copy's states.
+        the identity on each copy's states.  A sector is a block of the states
+        in whatever basis splits them, not necessarily a set of orbitals.
+        Graphene's two orbitals are one sector of one copy.  Two orbitals on
+        one site with the same hoppings, which no hopping joins, are one sector
+        of two copies.  A ``(p_x, p_y)`` pair whose two hoppings differ, and
+        which no hopping couples, is two sectors.
     """
 
     orbitals: tuple
@@ -1235,7 +1251,10 @@ class DeclaredReduction:
     crystal.  Before any hopping is read, the orbit of a generic point under
     the operations kept is added to the cell, and the cell's group is found
     again.  No operation taken out here is among those of
-    :attr:`RealizedGroup.descent`.
+    :attr:`RealizedGroup.descent`.  Where the declaration states every site of
+    an orbit, the operations kept are every operation that carries it.
+    Elsewhere they can be fewer, and a site left undeclared carries what the
+    operations kept carry onto it.
 
     Attributes
     ----------
@@ -1249,7 +1268,10 @@ class DeclaredReduction:
         The number of operations taken out, one for each coset of the lattice
         translations.
     kept : tuple of int
-        The operations kept, by index in ``cell_group``.
+        The operations kept, by index in ``cell_group``.  They are the largest
+        group whose every operation carries the declared site irreps, the
+        first by the tie rule (:class:`Descent`) where several of that order
+        tie.
     generic_point : tuple of float
         The generic point added to the cell, in reduced coordinates.
     orbit : tuple
@@ -1326,7 +1348,10 @@ class Positions:
     ----------
     defect : float
         How far the centers as handed in miss the action of the whole group,
-        in reduced coordinates.
+        in reduced coordinates.  It is the largest magnitude of a component of
+        ``A·τ_a + t - τ_b``, taken modulo the lattice, over the operations
+        ``{A|t}`` of the group and the orbitals ``a``, with ``τ_b`` the center
+        of the site the operation carries orbital ``a``'s site onto.
     position_tol : float
         The tolerance within which a center is moved, in reduced coordinates.
         It is ``position_tol=`` as declared, or ``precision=``.
@@ -1714,7 +1739,10 @@ class RealizedGroup:
         and the band representation they induce.
     descent : Descent or None
         If not ``None``, the operations of the cell's group that were dropped,
-        and why.  ``None`` where no operation was dropped.
+        and why.  ``None`` where the descent dropped no unitary operation.
+        The operations a declaration excluded before any hopping was read are
+        recorded in ``decoration.declared``, and time reversal broken on the
+        group in ``time_reversal``.
     time_reversal : TimeReversal
         How time reversal was measured.
     beyond_grey : BeyondGrey or None

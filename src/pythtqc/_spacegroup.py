@@ -299,8 +299,8 @@ class GroupData:
     """A space group, written in the cell of the model's pythtb Lattice.
 
     The record held by ``realized_group(model).group``.  The calls that read
-    the tables take it, among them :func:`.._seitz.operations` and
-    :func:`.._tables.corep_table`.  Its operations, one per coset of the
+    the tables take it, among them :func:`..groups.operations` and
+    :func:`..groups.corep_table`.  Its operations, one per coset of the
     lattice translations, are listed by ``realized_group(model).operations``,
     each with an index counted from 1.  The group's three-dimensional cell is
     the cell of the pythtb Lattice.  For a layer, the lattice vector out of
@@ -543,7 +543,7 @@ class GroupData:
 class LittleGroup:
     """The operations that leave one k invariant up to a reciprocal lattice vector.
 
-    The record :func:`.._tables.little_group` returns.  ``summary()`` prints
+    The record :func:`..groups.little_group` returns.  ``summary()`` prints
     it, and ``len()`` is the number of its unitary operations.
 
     Attributes
@@ -695,7 +695,7 @@ class SiteReference:
 
     The tables' setting is the conventional cell used by the irreptables
     package.  The record is one entry of what
-    :func:`.._tables.wyckoff_sites_tables` returns.  It prints as one line:
+    :func:`..groups.wyckoff_sites_tables` returns.  It prints as one line:
     its position, its free parameters and the positions it slides onto.
 
     Attributes
@@ -704,7 +704,7 @@ class SiteReference:
         The Wyckoff position the site lies on, written with its multiplicity
         in the conventional cell, ``"8a"``.  Where the site lies on several
         positions, within the ``position_tol`` of
-        :func:`.._tables.wyckoff_sites_tables`, it is the one with the fewest
+        :func:`..groups.wyckoff_sites_tables`, it is the one with the fewest
         free parameters, and then the smallest multiplicity.
     slides_onto : tuple of str
         The Wyckoff positions at which the tables list elementary band
@@ -893,7 +893,7 @@ class OrbitalAssignment:
 class CorepIdentification:
     """The little-group representations each measured multiplet carries at one k.
 
-    The record :func:`.._tables.identify_from_characters` returns, and
+    The record :func:`..groups.identify_from_characters` returns, and
     ``coreps_at(...).numerical.identification`` holds.  The multiplicities
     are read off each multiplet's characters at a high-symmetry point and
     rounded to integers.  ``summary()`` prints it.
@@ -960,9 +960,9 @@ class CorepIdentification:
 
 @dataclass(frozen=True)
 class KGrid:
-    """A mesh of k-points that holds GM, with the high-symmetry points on it.
+    """A mesh of k-points that holds ``GM``, with the high-symmetry points on it.
 
-    The record :func:`.._tables.k_grid` returns.  ``summary()`` prints it.
+    The record :func:`..groups.k_grid` returns.  ``summary()`` prints it.
     Its :attr:`mesh` is a ``pythtb.Mesh``, which ``pythtb.WFArray`` takes
     directly.
 
@@ -986,7 +986,7 @@ class KGrid:
         reduced coordinates in the model's cell is a multiple of ``1/n``
         along an axis of ``n`` divisions: ``1/2`` needs an even number of
         divisions, and ``1/3`` a multiple of three.
-        :func:`.._tables.high_symmetry_points` gives the coordinates of each
+        :func:`..groups.high_symmetry_points` gives the coordinates of each
         point.  Empty where the high-symmetry points cannot be read.
     """
 
@@ -1038,7 +1038,7 @@ class Term:
 
     One term of a band representation written as a sum of band
     representations induced from site irreps.  The columns of
-    :func:`.._tables.ebr_data` are terms of multiplicity one, each an
+    :func:`..groups.ebr_data` are terms of multiplicity one, each an
     elementary band representation.
 
     Attributes

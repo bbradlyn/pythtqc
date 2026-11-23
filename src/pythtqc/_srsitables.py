@@ -729,7 +729,7 @@ class SplitEBR:
 
 @dataclass(frozen=True)
 class StablePair:
-    """Two site irreps at one Wyckoff position that no invariant distinguishes.
+    """Two site irreps at one position with the same stable real-space invariants.
 
     The position is maximal, and the elementary band representations the two
     induce have the same symmetry data vector.  Atomic limits that differ
@@ -823,7 +823,7 @@ class SRSITables:
         representation into others, one SplitEBR each.
     stably_equivalent : tuple of StablePair
         If nonempty, each pair of site irreps at one maximal Wyckoff position
-        that no invariant distinguishes.
+        that no stable real-space invariant distinguishes.
     provenance : Provenance
         The paper the tables come from, and what the conversion read and
         counted.

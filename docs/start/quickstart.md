@@ -89,7 +89,7 @@ print(r.wyckoff_orbits.summary())
   `lowest-l`, not printed here, means that the hoppings and the declarations
   leave it open, and the lowest-angular-momentum rule assigned it: the site
   irrep carried by the functions of lowest angular momentum the hoppings allow.
-  [Returned records](../reference/records.md#the-atomic-limit-table) gives all
+  [Returned records](../reference/records.md#wyckofforbit) gives all
   four values.
 - `A1`, under `declared`: what `characters=` declared for the row, blank where
   nothing was.

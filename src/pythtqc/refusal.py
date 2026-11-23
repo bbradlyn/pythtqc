@@ -80,20 +80,21 @@ class Refusal:
     gate : str
         The name of the check that stopped the call, such as
         ``"multiplet_split"``.  The name does not change between versions.
-        Each call lists the checks it can stop at under *Refusals*, and
-        ``docs/reference/refusals.md`` has an entry under each name.
+        Each call lists the checks it can stop at under *Refusals*, and the
+        documentation's page Refusals has an entry under each name.
     reason : str
         What the check found, in words, naming the orbital, operation, point
         or group concerned.
     value : float or None
-        If not None, the number the check measured.
+        If not ``None``, the number the check measured.
     threshold : float or None
-        If not None, the number the check compared ``value`` against.
+        If not ``None``, the number the check compared ``value`` against.
     context : dict
         If nonempty, the data needed to act on the refusal without running
         the call again, such as indices, labels and multiplicities.  A
-        refusal that :func:`..groups.realized_group` returns after
-        identifying the group holds the group as ``context["group"]``.
+        refusal that carries the group holds it as ``context["group"]``.  One
+        that carries only its number holds it as ``context["number_str"]``,
+        some with its symbol as ``context["name"]``.
 
     Examples
     --------
