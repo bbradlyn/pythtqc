@@ -657,12 +657,13 @@ _PROJECTION_GRIDS = 2.1
 #: of 129 to 235 points: 5.95 matrices a point on every one.
 _POINT_MATRICES = 6.0
 
-def _memory_budget(max_bytes) -> float:
+def _memory_budget(max_bytes, call="realized_group") -> float:
     """``max_bytes`` read as a number of bytes.
 
-    Returns it as a float.  Raises ``ValueError`` where it is not a positive,
-    finite number.  :func:`_symmetrized` and :func:`..groups.realized_group`
-    read it before anything is measured.
+    Returns it as a float.  Raises ``ValueError``, opening with ``call``, the
+    public call's name, where it is not a positive, finite number.
+    :func:`_symmetrized` and :func:`..groups.realized_group` read it before
+    anything is measured.
     """
     try:
         budget = float(max_bytes)
@@ -670,21 +671,22 @@ def _memory_budget(max_bytes) -> float:
         budget = float("nan")
     if not (budget > 0.0 and np.isfinite(budget)):
         raise ValueError(
-            f"realized_group(): max_bytes={max_bytes!r} is not a positive, finite number "
+            f"{call}(): max_bytes={max_bytes!r} is not a positive, finite number "
             "of bytes. Pass a number of bytes, such as the default 1e9.")
     return budget
 
-def _search_ceiling(max_candidates) -> int:
+def _search_ceiling(max_candidates, call="realized_group") -> int:
     """``max_candidates`` read as a whole number of candidates.
 
-    Returns it as an int.  Raises ``ValueError`` where it is not a positive
-    whole number; a bool is not one.  :func:`_symmetrized` and
-    :func:`..groups.realized_group` read it before anything is measured.
+    Returns it as an int.  Raises ``ValueError``, opening with ``call``, the
+    public call's name, where it is not a positive whole number; a bool is
+    not one.  :func:`_symmetrized` and :func:`..groups.realized_group` read it
+    before anything is measured.
     """
     if (isinstance(max_candidates, (bool, np.bool_))
             or not isinstance(max_candidates, (int, np.integer)) or int(max_candidates) < 1):
         raise ValueError(
-            f"realized_group(): max_candidates={max_candidates!r} is not a positive whole "
+            f"{call}(): max_candidates={max_candidates!r} is not a positive whole "
             "number. Pass a whole number of candidates, such as the default 2**20.")
     return int(max_candidates)
 
@@ -981,8 +983,9 @@ def _average_on_grid(model, group, assignment, ops, D, kpts, divisions, *,
     (:func:`_as_held`), where given, holds apart what the sectors keep apart;
     both commute with the average.  Returns ``(H_sym, moved, scale)``: the
     average on the grid, ``max_k |H_sym(k) − H(k)|`` and ``max_k |H(k)|``, in
-    the units of ``H``.  Raises ``ValueError`` where an operation does not
-    carry the grid onto itself.
+    the units of ``H``.  Raises :class:`..refusal.InternalError` where an
+    operation does not carry the grid onto itself, which :func:`_divisions`
+    rules out.
     """
     n_points = int(kpts.shape[0])
     counts = tuple(int(c) for c in divisions)
@@ -994,10 +997,11 @@ def _average_on_grid(model, group, assignment, ops, D, kpts, divisions, *,
         kp = group._k_action_of(sym)(kpts)
         mm = np.rint(kp * n)
         if np.abs(kp * n - mm).max() > 1e-7:      # pragma: no cover - guarded by design
-            raise ValueError(
-                f"realized_group(): operation #{ind} does not carry the "
-                f"{' x '.join(str(c) for c in counts)} grid of k-points onto itself. "
-                "Report it, with the model and the call.")
+            raise InternalError(
+                f"operation #{ind} of {group.name} #{group.number_str} does not carry the "
+                f"{' x '.join(str(c) for c in counts)} grid of k-points onto itself, though "
+                "the grid's divisions are chosen so that every operation does. Report it, "
+                "with the model and the call.")
         mm = mm.astype(int) % np.asarray(counts, dtype=int)
         idx = np.ravel_multi_index(tuple(mm.T), counts)
         k_out = mm / n
@@ -1330,17 +1334,17 @@ def _symmetrize(model, group, assignment, validated, *, tol, k_grid=None, params
         The hopping list returned misses the average, which it reproduces
         exactly.
     """
-    model = _bloch.bound(model, params)
+    model = _bloch.bound(model, params, call="_symmetrize")
     return _symmetrized(model, group, assignment, validated, tol=tol, k_grid=k_grid,
                         max_passes=max_passes, verify=verify,
                         verify_nk=verify_nk, verify_tol=verify_tol, max_bytes=max_bytes,
                         characters=characters, multiplets=site_multiplets, spin=spin,
-                        max_candidates=max_candidates)
+                        max_candidates=max_candidates, _call="_symmetrize")
 
 def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
                  max_passes=3, verify=True, verify_nk=None, verify_tol=None,
                  max_bytes=1e9, _parts=None, _held=None, _centers_declared=False,
-                 _operators=None, **build_kw):
+                 _operators=None, _call="realized_group", **build_kw):
     """The pass :func:`_symmetrize` runs, on a model whose parameters are bound.
 
     ``model``, ``group``, ``assignment``, ``validated``, ``tol``, ``k_grid``,
@@ -1358,17 +1362,19 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
     ``positions_not_exactly_symmetric``, and its own verdict stands.
     ``_operators`` is ``(exact_gate, (rep, record), classes)``, the exact
     gate, the provisional build of :func:`_projection_operators` and the
-    classes read on it, used as they are.  Returns and refuses as
+    classes read on it, used as they are.  ``_call`` is the public call's
+    name, which the ``ValueError`` raised for ``tol``, ``k_grid``,
+    ``max_bytes`` or ``max_candidates`` opens with.  Returns and refuses as
     :func:`_symmetrize` does, and raises as it does, ``params`` aside.
     """
 
     tol = float(tol)
     if not np.isfinite(tol) or tol <= 0.0:
-        raise ValueError(f"_symmetrize(): tol={tol!r} is not a positive number. Pass the "
+        raise ValueError(f"{_call}(): tol={tol!r} is not a positive number. Pass the "
                          "tolerance the operations were measured at, in the units of H.")
-    budget = _memory_budget(max_bytes)
+    budget = _memory_budget(max_bytes, _call)
     if "max_candidates" in build_kw:
-        build_kw["max_candidates"] = _search_ceiling(build_kw["max_candidates"])
+        build_kw["max_candidates"] = _search_ceiling(build_kw["max_candidates"], _call)
     # what the provisional build is handed, read as grammar before anything is
     # measured: a malformed `characters=` or `multiplets=` raises here
     _declaration_grammar(int(model.norb), characters=build_kw.get("characters"),
@@ -1389,17 +1395,29 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
         handed, classes = None, _classify_operations(validated, tol, exact_gate=exact_gate)
     broken = sorted(i for i, c in classes.items() if c == "broken")
     if broken:
-        worst = max(float(validated.residuals.get(i, np.inf)) for i in broken)
+        # the measurement holds an infinite residual, or none, for an operation it
+        # found no matrix for: there is no number to quote for it
+        measured = {i: float(validated.residuals[i]) for i in broken
+                    if np.isfinite(float(validated.residuals.get(i, np.inf)))}
+        unmeasured = [i for i in broken if i not in measured]
+        worst = max(measured.values()) if measured else None
+        found = []
+        if measured:
+            found.append(f"Operations {sorted(measured)} reach a covariance residual of "
+                         f"{worst:.3g} against tol={tol:.3g}.")
+        if unmeasured:
+            found.append(f"For operations {unmeasured} the measurement found no matrix "
+                         "the Hamiltonian is covariant under, so no covariance residual.")
         return Refusal(
             "symmetrize_broken_operation",
             f"{len(broken)} of the {len(classes)} operations handed in are broken at the "
             "declared tolerance. The operations are counted "
-            f"{_counted_as(group.spinor)}. Operations {broken} reach a covariance residual "
-            f"of {worst:.3g} against tol={tol:.3g}. Pass a validated record that lists only "
-            "the operations holding at tol, or a larger tol where the defect is numerical.",
-            value=float(worst), threshold=tol,
-            context={"broken": tuple(broken), "classes": classes, "tol": tol,
-                     "exact_gate": exact_gate})
+            f"{_counted_as(group.spinor)}. {' '.join(found)} Pass a validated record that "
+            "lists only the operations holding at tol, or a larger tol where the defect is "
+            "numerical.",
+            value=worst, threshold=tol,
+            context={"broken": tuple(broken), "unmeasured": tuple(unmeasured),
+                     "classes": classes, "tol": tol, "exact_gate": exact_gate})
     # ... and the centers, which the operators are built on.  The average is
     # taken with Bloch operators that carry each center onto its image, checked
     # to `bloch_operator`'s own tolerance; on centers the operations miss, the
@@ -1481,7 +1499,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
         divisions = (int(k_grid),) * dim_k
         if int(k_grid) < int(need.max()):
             raise ValueError(
-                f"_symmetrize(): k_grid={int(k_grid)} is too coarse for this model. Its "
+                f"{_call}(): k_grid={int(k_grid)} is too coarse for this model. Its "
                 f"hoppings reach {R_max.tolist()} cells along the periodic directions and "
                 f"its symmetrized hoppings can reach {R_box.tolist()}, which, read alike "
                 f"along directions the operations mix, takes a grid of at least "
@@ -1781,7 +1799,7 @@ def _symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=Non
     ('2.0e-08 -> 1.1e-16', 'model')
     """
 
-    model = _bloch.bound(model, params)
+    model = _bloch.bound(model, params, call="_symmetrize_positions")
     frame = _centers._assigned_sites(model, group, assignment)
     syms = group._symmetries
     unitary = [k for k, s in enumerate(syms) if not s.time_reversal]

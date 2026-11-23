@@ -1855,13 +1855,8 @@ def splitting(realized, *, bands=None) -> "Splitting | Refusal":
     if isinstance(realized, Refusal):
         return realized
     model, group, _assignment, rep = _unpack_realized(realized, "splitting")
-    try:
-        _sewing._band_block(int(model.nstate), bands, "splitting")
-    except ValueError as exc:
-        # the bands are checked here, so that the message names this call
-        text = str(exc)
-        raise ValueError(text if text.startswith("splitting(): ")
-                         else "splitting(): " + text) from None
+    # the bands are checked here, so that the message names this call
+    _sewing._band_block(int(model.nstate), bands, "splitting")
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate

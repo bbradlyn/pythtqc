@@ -524,6 +524,36 @@
   `corep_names` are the rows' coreps, and `matrix`, `smith` and `convention` are as
   before, the convention an `EBRConvention` whose `corep_names_bcs` are the Bilbao
   Crystallographic Server's names of the rows. Every value is unchanged.
+- `hsp_table`, `coreps_at`, `characters` and `sewing_matrix` raise the errors for their
+  `states=` and `bands=` with messages that open with the call's own name, where some
+  named no call and `hsp_table`'s opened `coreps_at():` and asked for the
+  `(evals, evecs)` pair it does not take. `hsp_table` handed another model names the
+  solved `WFArray` it also takes. `multiplets`, `multiplet_separation` and
+  `multiplet_spread` open their errors with their own names, an empty spectrum reading
+  "no energy is passed", and `solve_at` opens its error for a parameter's value that is
+  not a number with `solve_at():`.
+- `sewing_matrix`, `characters` and `coreps_at` handed an `(evals, evecs)` pair whose
+  energies and eigenvectors differ in number raise a `ValueError` that opens with the
+  call, where numpy's error on shapes reached the user. `hsp_table` handed anything for
+  `states=` other than `None`, `r.model` or a `WFArray`, such as the pair of one point,
+  raises a `ValueError` naming what it takes, where it read that point and refused every
+  other one `states_not_at_k`.
+- `decompose_ebrs` reads each named indicator with every coefficient on the row it stands
+  for, by the row's label on the Bilbao Crystallographic Server and the change of
+  convention's row permutation, where it looked each coefficient up by its label alone.
+  In `I4_1/a1'` with spin the two conventions name the rows at `P` differently, so the
+  `P` part of `z2` was dropped: `z2` was `1.0` on each of the four elementary band
+  representations induced from `4a` and `4b`, and could read `0.0` on a vector of the
+  class where it is `1.0`. The four read `0.0` now. No other value of any group
+  changes.
+- `two_tier_thresholds` gives a spectrum of one multiplet, whose smallest gap is
+  infinite, a noise floor of zero, where it gave an infinite one: `8 ε |H(k)| / Δ` goes
+  to zero as `Δ` grows. Its `effective` threshold is then the flat one, `1e-14`, and the
+  characters of a model of one band are held to it.
+- `format_coreps` leaves out a label of multiplicity zero, where it wrote it as a
+  multiplicity of one: `format_coreps({'-GM6': 0})` is `''`.
+- The refusal `kpoint_not_tabulated` gives the tabulated points as lists of floats, in its
+  reason and in `context["available"]`, where it gave numpy arrays.
 
 ## 0.1.0a3 — the second public version
 

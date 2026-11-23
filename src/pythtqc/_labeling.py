@@ -273,7 +273,7 @@ def _band_fibers(model, group, D, syms):
     scale = _max_hamiltonian(model)
     tol = DEGENERACY_TOL * scale if scale > 0.0 else DEGENERACY_TOL
     return tuple((name, k, lg, multiplets(np.asarray(evals[i], dtype=float).reshape(-1),
-                                          tol), _as_columns(evecs[i]))
+                                          tol), _as_columns("realized_group", evecs[i]))
                  for i, (name, k, lg) in enumerate(wanted))
 
 
@@ -1335,8 +1335,7 @@ def _assembled(D, choice, syms, layout):
 
 
 def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, layout,
-                        syms, kept, checks, pool, site_tables, ident, note="", spin=None,
-                        ref_chan):
+                        syms, kept, checks, pool, site_tables, ident, spin=None):
     r"""The atomic-limit table of the representation returned, read off it and nothing else.
 
     Every character here was measured before the labeling was chosen
@@ -1390,12 +1389,8 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
         The character table of each site's site group, by site.
     ident : int
         The position of the identity in ``syms``.
-    note : str, default ""
-        Not read.
     spin : ..spin.SpinBasis or None, default None
         The declared spinor pairs, flagged on their rows.
-    ref_chan : int
-        Not read.
 
     Returns
     -------

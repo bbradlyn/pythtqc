@@ -321,7 +321,7 @@ def spinless_presentation(model, *, order="interleaved", pairs=None, params=None
     """
     from pythtb import Lattice, TBModel
 
-    model = _bloch.bound(model, params)
+    model = _bloch.bound(model, params, call="spinless_presentation")
     nspin = int(model.nspin)
     if nspin != 2:
         return Refusal(

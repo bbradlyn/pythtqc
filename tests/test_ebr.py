@@ -1821,18 +1821,21 @@ def test_named_indicator_forms_are_transported_before_they_are_read():
     """``irreptables``' named formulas are keyed by BCS labels; ours are not.
 
     The coefficients live on the BCS convention's labels, so a form has to be
-    re-keyed by the transport's row permutation before it can be read on a
-    served symmetry data vector.  In scope that changes exactly one form: the ``z2``
-    of grey ``220.90`` (``I-43d1'``), whose coefficients sit on the ``P``/``PA``
-    labels the transport swaps.
+    carried onto the rows, by each row's BCS label and the transport's row
+    permutation, before it can be read on a served symmetry data vector.  The
+    permutation moves the coefficients of one form in scope: the ``z2`` of grey
+    ``220.90`` (``I-43d1'``), whose coefficients sit on the ``P``/``PA`` labels
+    it swaps.  In grey ``88.82`` (``I4_1/a1'``) with spin the permutation is the
+    identity, but the two conventions name the rows at ``P`` differently, so a
+    coefficient looked up by its label string would miss its row.
 
     The re-keying is asked of ``_named_forms`` rather than performed here: the
     module reports which forms the permutation moved in ``touched`` and returns
     the re-keyed coefficient vector it actually evaluated, and those are what
-    is read below.  No fixture in this suite is grey ``#220.90`` -- ``I-43d1'``
-    is a body-centred cubic group no model here realizes -- so the group record
-    is stood up from the three fields the table route reads off it, and the
-    tables themselves supply everything else.
+    is read below; ``decompose_ebrs`` returns the same values.  No fixture in
+    this suite is grey ``#220.90`` or ``#88.82`` -- no model here realizes
+    either -- so each group record is stood up from the fields the table route
+    reads off it, and the tables themselves supply everything else.
     """
     import json
     import os
@@ -1868,6 +1871,35 @@ def test_named_indicator_forms_are_transported_before_they_are_read():
                     if served[i] != shipped[i]}
     assert len(moved_labels) == 8
     assert {tqe.kpoint_of_label(l) for l in moved_labels} == {"P", "PA"}
+
+    # decompose_ebrs reads each form row by row too: the same values as
+    # _named_forms, and 0 on every elementary band representation.  A grey group
+    # holds {1|0} with time reversal, which is what its magnetic type is read from
+    grey_op = [types.SimpleNamespace(rotation=np.eye(3), translation=np.zeros(3))]
+    for number_str, vectors in (
+            # the class-1 vector of 88.82, rows in the package's order of labels
+            ("88.82", [[1, 1, 0, 0, 1, 2, 0, 1, 1, 0, 1]]),
+            ("220.90", [])):
+        g = types.SimpleNamespace(number_str=number_str, name=number_str, spinor=True,
+                                  _magnetic=True, au_symmetries=grey_op)
+        data = _tables._ebr_data(g)
+        matrix = [[int(x) for x in row] for row in np.asarray(data["matrix"], dtype=int)]
+        labels = list(data["labels_physics_convention"])
+        columns = [[row[j] for row in matrix] for j in range(len(matrix[0]))]
+        for v in columns + vectors:
+            dec = _tables.decompose_ebrs(g, dict(zip(labels, v)))
+            named = tqe._named_forms(g, data, matrix, v, "II")[0]
+            assert dec["indicators"] == named, (number_str, v, dec["indicators"], named)
+            if v in columns:
+                assert set(dec["indicators"].values()) == {0}, (number_str, v)
+            else:
+                assert dec["indicators"]["z2"] == 1, dec["indicators"]
+        if number_str == "88.82":
+            # where a lookup by label read z2 as 1 on the four EBRs at 4a and 4b: the
+            # server's rows -P7P7 and -P8P8, where z2's coefficients sit, are the
+            # package's -P5P5 and -P6P6
+            assert tuple(data["convention"]["labels_bcs"][7:10]) == ("-P5P6", "-P7P7", "-P8P8")
+            assert labels[7:10] == ["-P7P8", "-P5P5", "-P6P6"]
 
 
 def test_a_call_handed_what_it_does_not_take_raises_saying_what_to_pass(

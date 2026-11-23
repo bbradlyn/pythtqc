@@ -1023,11 +1023,12 @@ def test_the_grid_is_the_models_own_bloch_sum_bit_for_bit():
              "params= gives 'm' a value that is not a number. Where the parameter enters "
              "a term that acts on spin, write that term as a function of the parameter "
              "that returns the 2x2 block, such as lambda m: m * sz.")):
-        for enter in (lambda: _bloch.bound(model, params),
-                      lambda: G.realized_group(model, params=params)):
+        for opening, enter in (("", lambda: _bloch.bound(model, params)),
+                               ("realized_group(): ",
+                                lambda: G.realized_group(model, params=params))):
             with pytest.raises(ValueError) as entry:
                 enter()
-            assert str(entry.value) == message
+            assert str(entry.value) == opening + message
 
     # a request pythtb stops stops with pythtb's error
     bound = _bloch.bound(honeycomb, values)

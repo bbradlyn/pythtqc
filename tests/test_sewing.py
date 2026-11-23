@@ -204,7 +204,8 @@ def test_coreps_at_raises_on_a_representation_short_of_its_little_group(lin3g_sl
         with pytest.raises(InternalError, match="not carried"):
             tqw._coreps_at_rep(rep, k, bands=6)
 
-    with pytest.raises(InternalError, match="not carried"):
+    with pytest.raises(InternalError, match=re.escape(
+            f"the representation of {group.name} #{group.number_str} leaves out")):
         tqw._hsp_table_rep(rep, bands=6)
 
     # a point by its name is the point at its coordinates
@@ -235,6 +236,30 @@ def test_coreps_at_raises_on_a_representation_short_of_its_little_group(lin3g_sl
                  lambda: tqw.characters(r, "GM", bands=[]),
                  lambda: tqw.sewing_matrix(r, 1, "GM", bands=[])):
         with pytest.raises(ValueError, match=r"\(\): bands= is empty"):
+            call()
+    # what a call on bands raises opens with that call, whichever helper finds it
+    evals, evecs = solve_at(r.model, [0.0, 0.0])
+    for call, opening in (
+            (lambda: tqw.hsp_table(r, bands=[0, 0]), r"hsp_table\(\): bands=\[0, 0\] names"),
+            (lambda: tqw.coreps_at(r, "GM", bands=99), r"coreps_at\(\): bands=99 is not"),
+            (lambda: tqw.hsp_table(r, states=np.asarray(evecs), bands=2),
+             r"hsp_table\(\): states= is of type ndarray\."),
+            (lambda: tqw.hsp_table(r, states=WFArray(r.model.lattice, tqg.k_grid(r.group, 2).mesh,
+                                                     spinful=True), bands=2),
+             r"hsp_table\(\): states= holds eigenvectors without their energies\. Pass "
+             r"r\.model, or a WFArray filled by solve_model;"),
+            (lambda: tqw.sewing_matrix(r, 1, "GM", states=(evals[::-1], evecs[::-1]), bands=2),
+             r"sewing_matrix\(\): the energies are not in ascending order"),
+            (lambda: tqw.characters(r, "GM", states=(evals, evecs[0]), bands=1),
+             r"characters\(\): states= holds eigenvectors of shape \(8,\)"),
+            (lambda: tqw.coreps_at(r, "GM", states=(evals[:0], evecs), bands=2),
+             r"coreps_at\(\): the energies of states= number 0, and its eigenvectors 8\."),
+            (lambda: tqw.sewing_matrix(r, 1, "GM", states=(evals[:3], evecs), bands=2),
+             r"sewing_matrix\(\): the energies of states= number 3, and its eigenvectors 8\."),
+            (lambda: tqw.hsp_table(r, states=(evals, evecs), bands=2),
+             r"hsp_table\(\): states= is of type tuple\. Pass r\.model, or a WFArray filled "
+             r"by solve_model, or leave states= out")):
+        with pytest.raises(ValueError, match="^" + opening):
             call()
 
 
@@ -723,6 +748,15 @@ def test_two_tier_helper_contract():
     degenerate = tqw.two_tier_thresholds(10.0, 0.0)
     assert degenerate.noise_floor == float("inf"), \
         "with degenerate multiplets nothing is conditioned"
+    # a spectrum of one multiplet has no other to mix with: no floor, the flat rule
+    alone = tqw.two_tier_thresholds(10.0, tqw.multiplet_separation([2.0, 2.0]))
+    assert alone.separation == float("inf") and alone.noise_floor == 0.0
+    assert alone.effective == tqw.FLAT_ZERO and not alone.disagree(1e-10)
+    assert alone.summary() == (
+        "zero below 1e-14 for a number read off the eigenvectors here, as for one built "
+        "from H(k) alone   (.effective, .flat)\n"
+        "  the spectrum is one multiplet, with no other for the eigenvectors to mix with, "
+        "so their noise floor is 0   (.separation, .noise_floor)")
 
 
 def test_multiplet_helpers_are_the_analysis_over_pythtb_s_arrays():
@@ -743,10 +777,12 @@ def test_multiplet_helpers_are_the_analysis_over_pythtb_s_arrays():
     # can never chain its way past tol
     assert tqw.multiplets(np.array([0.0, 0.6, 1.2]), 1.0) == ((0, 1), (2,))
     assert tqw.multiplet_separation(np.array([1.0, 1.0])) == float("inf")
-    with pytest.raises(ValueError, match="ascending"):
+    with pytest.raises(ValueError, match=r"^multiplets\(\): the energies are not in ascending"):
         tqw.multiplets(np.array([1.0, 0.0]))
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"^multiplets\(\): no energy is passed"):
         tqw.multiplets(np.array([]))
+    with pytest.raises(ValueError, match=r"^multiplet_spread\(\): no energy is passed"):
+        tqw.multiplet_spread(np.array([]))
 
 
 # ---------------------------------------------------------------------------
@@ -779,6 +815,10 @@ def test_hsp_table_shape(lin3g_undeclared):
     assert {kp: pattern(rows) for kp, rows in table.multiplets.items()} == {
         "GM": (0, 1, 0), "M": (0, 1, 1), "X": (0, 0, 0)}
     assert table.symmetry_data == {"-GM6": 2, "-GM7": 1, "-M6": 1, "-M7": 2, "-X5": 3}
+    # the vector on one line, and a multiplicity of zero not written
+    assert tqw.format_coreps(dict(table.symmetry_data, **{"-GM8": 0})) == \
+        "2x-GM6 + -GM7 + -M6 + 2x-M7 + 3x-X5"
+    assert tqw.format_coreps({"-GM6": 0}) == ""
     assert table.group is undeclared.group
     # the aggregated counts are exactly what decompose_ebrs takes
     assert set(table.symmetry_data) <= set(tqg.ebr_data(group).corep_names)
@@ -798,7 +838,10 @@ def test_hsp_table_shape(lin3g_undeclared):
                            [len(m.bands) for m in chars.multiplets]), \
             "the identity column is the multiplet degeneracy"
 
-    with pytest.raises(ValueError, match=r"r\.model"):
+    with pytest.raises(ValueError, match=r"^hsp_table\(\): states= is a model other than "
+                                         r"r\.model\. Pass r\.model, the model realized_group "
+                                         r"measured, or a WFArray of it filled by solve_model; "
+                                         r"or leave states= out\.$"):
         tqw.hsp_table(undeclared, states=tqc_models.lin3g(), bands=6)
     with pytest.raises(ValueError, match=r"r\.model"):
         tqw.characters(undeclared, np.zeros(2), states=tqc_models.lin3g(), bands=6)
@@ -814,6 +857,9 @@ def test_hsp_table_shape(lin3g_undeclared):
     assert r and r.rep._model is crystal and r.model is crystal, str(r)
     kX = tqg.high_symmetry_points(r.group)["X"]
     op = r.rep.little_group(kX)[1]
+    # one band, one multiplet: its sewing matrices are held to the flat threshold
+    one = tqw.characters(r, kX, bands=1).numerical.thresholds
+    assert one.noise_floor == 0.0 and one.effective == tqw.FLAT_ZERO
     calls = {"hsp_table": lambda: [(name, rows[0].label, float(rows[0].energy)) for
                                    name, rows in tqw.hsp_table(r, bands=1).multiplets.items()],
              "coreps_at": lambda: tqw.coreps_at(r, kX, bands=1)._characters.numerical.spectrum,
@@ -822,12 +868,15 @@ def test_hsp_table_shape(lin3g_undeclared):
              "sewing_matrix": lambda: tqw.sewing_matrix(r, op, kX, bands=1).matrix,
              "covariance": lambda: r.rep.covariance()}
     before = {name: call() for name, call in calls.items()}
+    # an index the group does not hold: the error opens with the call made
+    with pytest.raises(KeyError, match=r"^'sewing_matrix\(\): operation #9999 is not"):
+        tqw.sewing_matrix(r, 9999, kX, bands=1)
     crystal.set_hop(-0.3, 0, 0, [0, 0, 1], mode="set")
     for name, call in calls.items():
-        with pytest.raises(ValueError, match="edited since realized_group measured it"):
+        # the error opens with the call its user made
+        with pytest.raises(ValueError, match=rf"^{name}\(\): the model has been edited "
+                                             "since realized_group measured it"):
             call()
-    with pytest.raises(ValueError, match=r"^covariance\(\): the model has been edited"):
-        r.rep.covariance()
     crystal.set_hop(-0.2, 0, 0, [0, 0, 1], mode="set")
     for name, call in calls.items():
         again = call()
@@ -863,6 +912,9 @@ def test_hsp_table_shape(lin3g_undeclared):
         assert got.numerical.source is named and got.model is not named
         named.set_onsite([0.5], mode="set")
         assert tqw.hsp_table(got, bands=1).symmetry_data == labels
+    with pytest.raises(ValueError, match=r"^solve_at\(\): params= gives 't' a value that is "
+                                         r"not a number\."):
+        solve_at(named, [0.0, 0.0], params={"t": "u"})
 
 
 def test_hsp_table_measures_a_point_whose_little_group_is_the_identity_alone():

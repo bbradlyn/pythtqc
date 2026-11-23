@@ -342,7 +342,7 @@ def stack_presentation(model, *, c=STACK_C, params=None):
     """
     from pythtb import Lattice, TBModel
 
-    model = _bloch.bound(model, params)
+    model = _bloch.bound(model, params, call="stack_presentation")
     dim_r = int(model.lattice.dim_r)
     per = tuple(int(d) for d in model.periodic_dirs)
     if int(model.lattice.dim_k) != 2 or len(per) != 2 or dim_r not in (2, 3):

@@ -11,14 +11,15 @@ from fractions import Fraction
 
 import numpy as np
 
-from ._tolerance import CHARACTER, _LATTICE_TOL
+from ._tolerance import CHARACTER, _LATTICE_TOL, _PRINTED_ZERO
 
 
 def _fmt_char(z) -> str:
     # A character that vanishes prints as the unsigned 0 a table carries, and
     # not as the rounding it was measured to. Only the printed text is rounded.
     z = complex(z)
-    re_, im_ = (0.0 if abs(z.real) < 1e-9 else z.real), (0.0 if abs(z.imag) < 1e-9 else z.imag)
+    re_ = 0.0 if abs(z.real) < _PRINTED_ZERO else z.real
+    im_ = 0.0 if abs(z.imag) < _PRINTED_ZERO else z.imag
     if im_ == 0.0:
         return "0" if re_ == 0.0 else f"{re_:+.3g}"
     return f"{re_:+.3g}{im_:+.3g}j"
@@ -169,24 +170,6 @@ def _label_terms(label):
 # ==========================================================================
 # the words a summary prints
 # ==========================================================================
-
-def _runs(indices) -> str:
-    """The integers ``indices``, sorted and written as runs, ``0-3, 5, 7-8``.
-
-    The same text as :func:`_index_ranges` writes.
-    """
-    runs, start, prev = [], None, None
-    for i in sorted(int(i) for i in indices):
-        if start is not None and i == prev + 1:
-            prev = i
-            continue
-        if start is not None:
-            runs.append(f"{start}-{prev}" if prev > start else f"{start}")
-        start = prev = i
-    if start is not None:
-        runs.append(f"{start}-{prev}" if prev > start else f"{start}")
-    return ", ".join(runs)
-
 
 def _listed(items) -> str:
     """Names as a sentence lists them: ``A``, ``A and B``, ``A, B and C``.

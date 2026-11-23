@@ -53,7 +53,7 @@ from . import _tables
 from .refusal import InternalError, Refusal
 from ._seitz import _operation_rows
 from ._tolerance import DEGENERACY_TOL, FLAT_ZERO, LABEL_TOL, MESH_TOL, STATES_AT_K_GATE
-from ._text import _character_text, _k_text, _listed, _runs
+from ._text import _character_text, _index_ranges, _k_text, _listed
 
 __all__ = [
     "FLAT_ZERO", "DEGENERACY_TOL",
@@ -91,7 +91,8 @@ class Thresholds:
         The first-order bound on the amplitude a computed eigenvector carries
         on the states of other multiplets, ``8 ε |H(k)| / Δ``.  Here ``ε`` is
         the machine precision, ``|H(k)|`` is ``norm`` and ``Δ`` is
-        ``separation``.  Infinite where ``Δ`` is zero, negative or infinite.
+        ``separation``.  Infinite where ``Δ`` is zero or negative, and zero
+        where ``Δ`` is infinite, for a spectrum of one multiplet.
     effective : float
         The threshold for a number read off eigenvectors, the larger of
         ``flat`` and ``noise_floor``.
@@ -132,6 +133,12 @@ class Thresholds:
             return (f"zero below {self.flat:.2g} for a number built from H(k) alone; no number "
                     "read off the eigenvectors here can be told from zero, no gap separating "
                     "distinct multiplets   (.flat, .effective, .separation)")
+        if np.isinf(self.separation):
+            return "\n".join([
+                f"zero below {self.effective:.2g} for a number read off the eigenvectors here, "
+                "as for one built from H(k) alone   (.effective, .flat)",
+                "  the spectrum is one multiplet, with no other for the eigenvectors to mix "
+                "with, so their noise floor is 0   (.separation, .noise_floor)"])
         return "\n".join([
             f"zero below {self.effective:.2g} for a number read off the eigenvectors here, "
             f"below {self.flat:.2g} for one built from H(k) alone   (.effective, .flat)",
@@ -172,9 +179,10 @@ def two_tier_thresholds(hamiltonian, separation, *, flat=FLAT_ZERO,
     Thresholds
         The two thresholds, with the numbers they are computed from.
         ``degeneracy_tol`` is kept in the record and enters neither
-        threshold.  Where ``separation`` is zero, negative or infinite, the
-        noise floor is infinite, and no number read off eigenvectors is told
-        from zero.
+        threshold.  Where ``separation`` is zero or negative, the noise floor
+        is infinite, and no number read off eigenvectors is told from zero.
+        Where it is infinite, for a spectrum of one multiplet, the noise floor
+        is zero and ``effective`` is ``flat``.
 
     Examples
     --------
@@ -188,9 +196,10 @@ def two_tier_thresholds(hamiltonian, separation, *, flat=FLAT_ZERO,
     H = np.asarray(hamiltonian)
     norm = float(H) if H.ndim == 0 else float(np.linalg.norm(H, 2))
     sep = float(separation)
-    if not np.isfinite(sep) or sep <= 0.0:
+    if np.isnan(sep) or sep <= 0.0:
         nf = float("inf")
     else:
+        # a spectrum of one multiplet, sep = inf, has no other multiplet to mix with: 0
         nf = 8.0 * float(np.finfo(float).eps) * norm / sep
     return Thresholds(flat=float(flat), noise_floor=nf, effective=max(float(flat), nf),
                       norm=norm, separation=sep, degeneracy_tol=float(degeneracy_tol))
@@ -272,13 +281,18 @@ def _clusters(values, degeneracy_tol):
             out.append([i])
     return tuple(tuple(c) for c in out)
 
-def _ascending(energies):
+def _ascending(energies, call):
+    """``energies`` as a flat array, checked to be ascending.
+
+    ``call`` is the public call's name, which the ``ValueError`` raised for
+    an empty spectrum or one not in ascending order opens with.
+    """
     w = np.asarray(energies, dtype=float).reshape(-1)
     if w.size == 0:
-        raise ValueError("energies= is empty. Pass at least one energy.")
+        raise ValueError(f"{call}(): no energy is passed. Pass at least one energy.")
     if np.any(np.diff(w) < 0.0):
-        raise ValueError("the energies are not in ascending order. Sort them in ascending "
-                         "order, and any eigenvectors with them.")
+        raise ValueError(f"{call}(): the energies are not in ascending order. Sort them in "
+                         "ascending order, and any eigenvectors with them.")
     return w
 
 def multiplets(energies, degeneracy_tol=DEGENERACY_TOL) -> tuple:
@@ -311,7 +325,7 @@ def multiplets(energies, degeneracy_tol=DEGENERACY_TOL) -> tuple:
     ValueError
         An empty spectrum, or one not in ascending order.
     """
-    return _clusters(_ascending(energies), float(degeneracy_tol))
+    return _clusters(_ascending(energies, "multiplets"), float(degeneracy_tol))
 
 def multiplet_separation(energies, degeneracy_tol=DEGENERACY_TOL) -> float:
     """The smallest energy gap between distinct multiplets of a spectrum.
@@ -342,7 +356,7 @@ def multiplet_separation(energies, degeneracy_tol=DEGENERACY_TOL) -> float:
     ValueError
         An empty spectrum, or one not in ascending order.
     """
-    w = _ascending(energies)
+    w = _ascending(energies, "multiplet_separation")
     mult = _clusters(w, float(degeneracy_tol))
     if len(mult) <= 1:
         return float("inf")
@@ -375,7 +389,7 @@ def multiplet_spread(energies, degeneracy_tol=DEGENERACY_TOL) -> float:
     ValueError
         An empty spectrum, or one not in ascending order.
     """
-    w = _ascending(energies)
+    w = _ascending(energies, "multiplet_spread")
     return float(max(w[c[-1]] - w[c[0]] for c in _clusters(w, float(degeneracy_tol))))
 
 # ==========================================================================
@@ -414,58 +428,61 @@ def solve_at(model, k, *, params=None):
         A name in ``params`` that is not a parameter of the model, a parameter
         given no value, or a value that is not a number.
     """
-    model = _bloch.bound(model, params)
+    model = _bloch.bound(model, params, call="solve_at")
     return _bloch.solve(model, np.atleast_2d(np.asarray(k, dtype=float).reshape(-1)))
 
-def _as_columns(states) -> np.ndarray:
+def _as_columns(call, states) -> np.ndarray:
     """The eigenvectors at one k-point as the columns of a matrix ``V``.
 
-    ``states`` holds the eigenvectors as rows, in either of pythtb's shapes:
-    ``(nband, norb*nspin)``, as ``solve_ham`` returns them with
-    ``flatten_spin_axis=True``, or ``(nband, norb, nspin)``, as
-    :attr:`pythtb.WFArray.wfs` holds them.  Returns ``V``, with
-    ``H V = V diag(w)`` for eigenvectors of ``H``.  Raises ``ValueError`` for
-    any other shape.
+    ``call`` is the public call's name, and ``states`` holds the eigenvectors
+    as rows, in either of pythtb's shapes: ``(nband, norb*nspin)``, as
+    ``solve_ham`` returns them with ``flatten_spin_axis=True``, or
+    ``(nband, norb, nspin)``, as :attr:`pythtb.WFArray.wfs` holds them.
+    Returns ``V``, with ``H V = V diag(w)`` for eigenvectors of ``H``.  Raises
+    ``ValueError``, opening with ``call``, for any other shape.
     """
     arr = np.asarray(states)
     if arr.ndim == 3:
         arr = arr.reshape(arr.shape[0], -1)
     if arr.ndim != 2:
         raise ValueError(
-            f"states= holds eigenvectors of shape {np.asarray(states).shape}. Pass them "
-            f"as rows, of shape (n, norb*nspin) or (n, norb, nspin).")
+            f"{call}(): states= holds eigenvectors of shape {np.asarray(states).shape}. "
+            f"Pass them as rows, of shape (n, norb*nspin) or (n, norb, nspin).")
     return np.ascontiguousarray(arr.T)
 
-def _flat_k_points(wf) -> np.ndarray:
+def _flat_k_points(call, wf) -> np.ndarray:
     """The k-points of the mesh of the ``WFArray`` ``wf``, a row each.
 
     The rows stand in the order the mesh's states are stored.  Raises
-    ``ValueError`` where the mesh has parameter axes.
+    ``ValueError``, opening with ``call``, the public call's name, where the
+    mesh has parameter axes.
     """
     mesh = wf.mesh
     if mesh.dim_lambda:
         raise ValueError(
-            "states= is a WFArray whose mesh has parameter axes, dim_lambda = "
+            f"{call}(): states= is a WFArray whose mesh has parameter axes, dim_lambda = "
             f"{mesh.dim_lambda}. Pass a WFArray on a mesh of k-points alone.")
     return np.asarray(wf.k_points, dtype=float).reshape(-1, int(wf.dim_k))
 
-def _wfarray_fiber(wf, k, *, mesh_tol=MESH_TOL):
+def _wfarray_fiber(call, wf, k, *, mesh_tol=MESH_TOL):
     """The energies and eigenvectors at ``k`` that a solved ``WFArray`` holds.
 
-    ``wf`` is the ``WFArray`` and ``k`` the point, in reduced coordinates.
-    The point of the mesh nearest ``k`` is read where each of its coordinates
-    lies within ``mesh_tol`` of ``k``'s.  Returns ``(w, V)``: ``w`` the
-    energies there, or ``None`` where ``wf`` holds states without energies,
-    and ``V`` the eigenvectors as columns (:func:`_as_columns`).  Returns the
-    refusal ``k_not_on_mesh`` where no point of the mesh is that close.  The
-    model is never solved.  Raises ``ValueError`` where the mesh and ``k``
-    have different numbers of coordinates.
+    ``call`` is the public call's name, ``wf`` the ``WFArray`` and ``k`` the
+    point, in reduced coordinates.  The point of the mesh nearest ``k`` is
+    read where each of its coordinates lies within ``mesh_tol`` of ``k``'s.
+    Returns ``(w, V)``: ``w`` the energies there, or ``None`` where ``wf``
+    holds states without energies, and ``V`` the eigenvectors as columns
+    (:func:`_as_columns`).  Returns the refusal ``k_not_on_mesh`` where no
+    point of the mesh is that close.  The model is never solved.  Raises
+    ``ValueError``, opening with ``call``, where the mesh and ``k`` have
+    different numbers of coordinates.
     """
     k = np.asarray(k, dtype=float).reshape(-1)
-    pts = _flat_k_points(wf)
+    pts = _flat_k_points(call, wf)
     if pts.shape[1] != k.size:
-        raise ValueError(f"states= is a WFArray whose mesh is {pts.shape[1]}-dimensional "
-                         f"in k, and the point asked has {k.size} coordinates.")
+        raise ValueError(f"{call}(): states= is a WFArray whose mesh is "
+                         f"{pts.shape[1]}-dimensional in k, and the point asked has "
+                         f"{k.size} coordinates.")
     dist = np.abs(pts - k).max(axis=1)
     j = int(np.argmin(dist))
     if float(dist[j]) > float(mesh_tol):
@@ -479,51 +496,60 @@ def _wfarray_fiber(wf, k, *, mesh_tol=MESH_TOL):
             value=float(dist[j]), threshold=float(mesh_tol),
             context={"k": k, "nearest": pts[j], "npoints": int(pts.shape[0])})
     idx = np.unravel_index(j, tuple(wf.shape_mesh))
-    V = _as_columns(np.asarray(wf.wfs)[idx])
+    V = _as_columns(call, np.asarray(wf.wfs)[idx])
     try:
         w = np.asarray(wf.energies, dtype=float)[idx].reshape(-1)
     except ValueError:
         w = None  # a WFArray not filled by solve_model holds no energies
     return w, V
 
-def _resolve_states(source, rep, k, *, mesh_tol=MESH_TOL, bloch=None):
+def _resolve_states(call, source, rep, k, *, mesh_tol=MESH_TOL, bloch=None):
     """The energies and eigenvectors at ``k``, from a call's ``states=``.
 
-    ``source`` is what the call was handed: ``None`` or ``rep``'s model, to
-    solve the model at ``k``; a solved :class:`pythtb.WFArray`; the
-    ``(evals, evecs)`` pair :meth:`pythtb.TBModel.solve_ham` returns; or
-    eigenvector rows alone.  ``rep`` is the representation, ``k`` the point in
-    reduced coordinates, ``mesh_tol`` as in :func:`_wfarray_fiber`, and
-    ``bloch`` as in :func:`_hamiltonian_at`.  Returns ``(w, V)``: ``w`` the
-    energies, or ``None`` for states without them, and ``V`` the eigenvectors
-    as columns; or the refusal :func:`_wfarray_fiber` returns.  Raises
-    ``ValueError`` for a ``WFArray`` solved on another model, or for a model
-    other than ``rep``'s.
+    ``call`` is the public call's name, which every ``ValueError`` raised
+    opens with.  ``source`` is what the call was handed: ``None`` or
+    ``rep``'s model, to solve the model at ``k``; a solved
+    :class:`pythtb.WFArray`; the ``(evals, evecs)`` pair
+    :meth:`pythtb.TBModel.solve_ham` returns; or eigenvector rows alone.
+    ``rep`` is the representation, ``k`` the point in reduced coordinates,
+    ``mesh_tol`` as in :func:`_wfarray_fiber`, and ``bloch`` as in
+    :func:`_hamiltonian_at`.  Returns ``(w, V)``: ``w`` the energies, or
+    ``None`` for states without them, and ``V`` the eigenvectors as columns;
+    or the refusal :func:`_wfarray_fiber` returns.  Raises ``ValueError`` for
+    a ``WFArray`` solved on another model, for a model other than ``rep``'s,
+    and for a pair whose energies and eigenvectors differ in number.
     """
     k = np.asarray(k, dtype=float).reshape(-1)
 
     if source is None or source is rep._model:
         evals, evecs = _bloch.solve(rep._model, np.atleast_2d(k), bloch)
-        return np.asarray(evals, dtype=float).reshape(-1), _as_columns(evecs)
+        return np.asarray(evals, dtype=float).reshape(-1), _as_columns(call, evecs)
 
     if hasattr(source, "wfs") and hasattr(source, "mesh"):
         model = getattr(source, "_model", None)
         if model is not None and model is not rep._model:
             raise ValueError(
-                "states= is a WFArray of a model other than r.model. Pass a WFArray of "
-                "r.model, the model realized_group measured, or leave states= out.")
-        return _wfarray_fiber(source, k, mesh_tol=mesh_tol)
+                f"{call}(): states= is a WFArray of a model other than r.model. Pass a "
+                "WFArray of r.model, the model realized_group measured, or leave states= "
+                "out.")
+        return _wfarray_fiber(call, source, k, mesh_tol=mesh_tol)
 
     if isinstance(source, (tuple, list)) and len(source) == 2:
         evals, evecs = source
-        return np.asarray(evals, dtype=float).reshape(-1), _as_columns(evecs)
+        w, V = np.asarray(evals, dtype=float).reshape(-1), _as_columns(call, evecs)
+        if w.size != V.shape[1]:
+            raise ValueError(
+                f"{call}(): the energies of states= number {w.size}, and its eigenvectors "
+                f"{V.shape[1]}. Pass one energy for each eigenvector, as solve_at returns "
+                "them.")
+        return w, V
 
     if hasattr(source, "solve_ham"):
         raise ValueError(
-            "states= is a model other than r.model. Pass r.model, the model "
+            f"{call}(): states= is a model other than r.model. Pass r.model, the model "
             "realized_group measured, or leave states= out.")
 
-    return None, _as_columns(source)
+    return None, _as_columns(call, source)
 
 def _hamiltonian_at(rep, k, bloch=None) -> np.ndarray:
     """``H(k)`` of ``rep``'s model, made exactly Hermitian.
@@ -536,16 +562,17 @@ def _hamiltonian_at(rep, k, bloch=None) -> np.ndarray:
     H = np.asarray(_bloch.hamiltonian(rep._model, np.atleast_2d(k), bloch))[0]
     return 0.5 * (H + H.conj().T)
 
-def _measured_sum(rep, bloch=None):
+def _measured_sum(rep, bloch=None, *, call):
     """The Bloch sum of ``rep``'s model, checked against ``rep``.
 
     A ``bloch`` handed in has been checked already, and is returned as it is.
     Otherwise the sum is built, and ``ValueError`` is raised where the model
-    has been edited since it was measured.
+    has been edited since it was measured.  ``call`` is the public call's
+    name.
     """
     if bloch is None:
         bloch = _bloch.evaluator(rep._model)
-        rep._check_unedited(bloch)
+        rep._check_unedited(bloch, call=call)
     return bloch
 
 def _states_at_k(H, w, V):
@@ -555,13 +582,12 @@ def _states_at_k(H, w, V):
     """
     return float(np.abs(H @ V - V * np.asarray(w, dtype=float)[None, :]).max())
 
-def _foreign_states(H, k, residual, scale):
-    """The refusal ``states_not_at_k``, or ``None`` where states solve ``H``.
+def _foreign_states(k, residual, scale):
+    """The refusal ``states_not_at_k``, or ``None`` where states solve ``H(k)``.
 
     ``residual`` is :func:`_states_at_k` at the point ``k``, and ``scale`` the
     model's ``max|H|``.  The states solve ``H(k)`` where the residual is at
-    most ``1e-8`` times ``scale``, or ``1e-8`` where ``scale`` is zero.  ``H``
-    is not read.
+    most ``1e-8`` times ``scale``, or ``1e-8`` where ``scale`` is zero.
     """
     gate = STATES_AT_K_GATE * (float(scale) if scale > 0.0 else 1.0)
     if residual <= gate:
@@ -604,27 +630,30 @@ def _band_block(nstate, bands, call=None):
     the lowest ``n`` bands; a sequence of band indices; or ``None``, for every
     state.  Raises ``ValueError`` for a count outside ``1..nstate``, a band
     named twice, or a band outside the states.  ``call``, where it is given,
-    names the public call in the ``ValueError`` an empty sequence raises;
-    without it an empty sequence returns ``()``.
+    is the public call's name, which each ``ValueError`` opens with, and an
+    empty sequence raises too; without it an empty sequence returns ``()``.
     """
     nstate = int(nstate)
+    opening = f"{call}(): " if call is not None else ""
     if bands is None:
         return tuple(range(nstate))
     if np.isscalar(bands):
         n = int(bands)
         if not 0 < n <= nstate:
-            raise ValueError(f"bands={n} is not a count from 1 to {nstate}, the number of "
-                             "states. Pass a count in that range, or the band indices.")
+            raise ValueError(f"{opening}bands={n} is not a count from 1 to {nstate}, the "
+                             "number of states. Pass a count in that range, or the band "
+                             "indices.")
         return tuple(range(n))
     idx = [int(b) for b in bands]
     if not idx and call is not None:
         raise ValueError(f"{call}(): bands= is empty. Pass the number of bands, "
                          "bands=2, or their indices, bands=[0, 1].")
     if len(set(idx)) != len(idx):
-        raise ValueError(f"bands={idx} names a band more than once. Pass each index once.")
+        raise ValueError(f"{opening}bands={idx} names a band more than once. Pass each "
+                         "index once.")
     if idx and not (0 <= min(idx) and max(idx) < nstate):
-        raise ValueError(f"bands={idx} holds an index outside 0 to {nstate - 1}, the "
-                         f"{nstate} states. Pass indices in that range.")
+        raise ValueError(f"{opening}bands={idx} holds an index outside 0 to {nstate - 1}, "
+                         f"the {nstate} states. Pass indices in that range.")
     return tuple(sorted(idx))
 
 # ==========================================================================
@@ -827,7 +856,7 @@ class SewingMatrix:
         held = ".operation, .seitz, .bands" if self.seitz else ".operation, .bands"
         held += ", .kpoint, .k" if self.kpoint else ", .k"
         lines = [f"{self._named()}, on band{'s' if len(self.bands) > 1 else ''} "
-                 f"{_runs(self.bands)} at {_kpoint_text(self.kpoint, self.k)}   ({held})"]
+                 f"{_index_ranges(self.bands)} at {_kpoint_text(self.kpoint, self.k)}   ({held})"]
         if np.any(self.G):
             lines.append(f"  carries k to k + {_k_text(self.G)}, a reciprocal lattice vector "
                          "away   (.G)")
@@ -845,7 +874,7 @@ class SewingMatrix:
         return (f"SewingMatrix({self._named()}, {len(self.bands)} bands, "
                 f"unitarity={self.numerical.unitarity:.2e})")
 
-def _sewing_core(rep, operation, k, V, idx, H, *, atol=1e-8,
+def _sewing_core(rep, operation, k, V, idx, H, *, call, atol=1e-8,
                  residual=float("nan")) -> SewingMatrix | Refusal:
     """The sewing matrix of one operation on the bands ``idx``.
 
@@ -867,6 +896,8 @@ def _sewing_core(rep, operation, k, V, idx, H, *, atol=1e-8,
         The indices of the bands among the states.
     H : ndarray or None
         ``H(k)``, or ``None``, which leaves the commutator ``nan``.
+    call : str
+        The public call's name.
     atol : float, default 1e-8
         How far, in reduced coordinates, the operation's image of ``k`` may
         sit from ``k`` plus a reciprocal lattice vector.
@@ -882,12 +913,12 @@ def _sewing_core(rep, operation, k, V, idx, H, *, atol=1e-8,
         refusal ``little_group`` where the operation does not leave ``k``
         invariant.
     """
-    U = rep.sewing_operator(int(operation), k, _atol=atol)
+    U = rep.sewing_operator(int(operation), k, _atol=atol, _call=call)
     if isinstance(U, Refusal):
         return U
 
     Vb = V[:, list(idx)]
-    op = rep._operation(int(operation))
+    op = rep._operation(int(operation), call=call)
     anti = bool(op.time_reversal)
     src = np.conj(Vb) if anti else Vb
     B = Vb.conj().T @ (U @ src)
@@ -918,32 +949,33 @@ def _sewing_matrix_rep(rep, operation=None, k=None, *, states=None, bands=None,
     :func:`_wfarray_fiber`.  Returns and refuses as :func:`sewing_matrix`
     does.
     """
+    call = "sewing_matrix"
     if operation is None:
-        raise TypeError("sewing_matrix() missing required argument 'operation'")
+        raise TypeError(f"{call}() missing required argument 'operation'")
     if k is None:
-        raise TypeError("sewing_matrix() missing required argument 'k'")
-    k = _point_of("sewing_matrix", rep._group, k)
+        raise TypeError(f"{call}() missing required argument 'k'")
+    k = _point_of(call, rep._group, k)
     if isinstance(k, Refusal):
         return k
     degeneracy_tol = _degeneracy(rep, degeneracy_tol)
-    bloch = (_measured_sum(rep) if states is None or states is rep._model
+    bloch = (_measured_sum(rep, call=call) if states is None or states is rep._model
              else None)
-    got = _resolve_states(states, rep, k, mesh_tol=_mesh_tol, bloch=bloch)
+    got = _resolve_states(call, states, rep, k, mesh_tol=_mesh_tol, bloch=bloch)
     if isinstance(got, Refusal):
         return got
     w, V = got
-    idx = _band_block(V.shape[1], bands, "sewing_matrix")
+    idx = _band_block(V.shape[1], bands, call)
 
-    bloch = _measured_sum(rep, bloch)
+    bloch = _measured_sum(rep, bloch, call=call)
     H = _hamiltonian_at(rep, k, bloch)
     resid = float("nan") if w is None else _states_at_k(H, w, V)
 
     if w is not None:
-        foreign = _foreign_states(H, k, resid, rep._scale)
+        foreign = _foreign_states(k, resid, rep._scale)
         if foreign is not None:
             return foreign
         chosen = set(idx)
-        for m in multiplets(w, degeneracy_tol):
+        for m in _clusters(_ascending(w, call), float(degeneracy_tol)):
             inside = chosen & set(m)
             if inside and len(inside) != len(m):
                 return Refusal(
@@ -956,7 +988,7 @@ def _sewing_matrix_rep(rep, operation=None, k=None, *, states=None, bands=None,
                     threshold=float(degeneracy_tol),
                     context={"bands": idx, "multiplet": m, "k": k})
 
-    out = _sewing_core(rep, operation, k, V, idx, H, atol=_atol, residual=resid)
+    out = _sewing_core(rep, operation, k, V, idx, H, call=call, atol=_atol, residual=resid)
     if isinstance(out, Refusal):
         return out
     return replace(out, seitz=_seitz_of(rep._group, operation),
@@ -1055,6 +1087,8 @@ def sewing_matrix(realized, operation=None, k=None, *, states=None, bands=None,
     ValueError
         States of a model other than ``r.model``.
         Eigenvectors in an array that is neither two- nor three-dimensional.
+        An ``(evals, evecs)`` pair with a number of energies other than that
+        of eigenvectors.
         ``bands`` naming no band, a band twice, or a band outside the states.
         ``k`` a name the group does not tabulate.
         ``k`` with a number of coordinates other than ``dim_k``, or three for
@@ -1102,7 +1136,7 @@ class MultipletCharacters:
     def __repr__(self) -> str:  # pragma: no cover - convenience only
         energy = float(_resolved([self.energy], self._degeneracy_tol)[0])
         return (f"MultipletCharacters(band{'s' if len(self.bands) > 1 else ''} "
-                f"{_runs(self.bands)} at {energy:.4g})")
+                f"{_index_ranges(self.bands)} at {energy:.4g})")
 
 
 @dataclass(frozen=True)
@@ -1239,7 +1273,7 @@ class BandCharacters:
     def summary(self) -> str:
         """The characters as a table, with the attributes that hold its parts."""
         held = ".bands, .kpoint, .k" if self.kpoint else ".bands, .k"
-        lines = [f"band{'s' if len(self.bands) > 1 else ''} {_runs(self.bands)} at "
+        lines = [f"band{'s' if len(self.bands) > 1 else ''} {_index_ranges(self.bands)} at "
                  f"{_kpoint_text(self.kpoint, self.k)}   ({held})"]
         columns = tuple(self.multiplets[0].characters) if self.multiplets else ()
         if columns:
@@ -1248,7 +1282,7 @@ class BandCharacters:
                          ".operations)")
             energies = _resolved([m.energy for m in self.multiplets],
                                  self.numerical.degeneracy_tol)
-            rows = [("bands", [_runs(m.bands) for m in self.multiplets],
+            rows = [("bands", [_index_ranges(m.bands) for m in self.multiplets],
                      "   (.multiplets: bands of each)"),
                     ("energy", [f"{e:.4g}" for e in energies],
                      "   (.multiplets: energy of each)")]
@@ -1264,7 +1298,7 @@ class BandCharacters:
     def __repr__(self) -> str:  # pragma: no cover - convenience only
         n = len(self.multiplets)
         return (f"BandCharacters({_kpoint_text(self.kpoint, self.k)}, bands "
-                f"{_runs(self.bands)} in {n} multiplet{'' if n == 1 else 's'})")
+                f"{_index_ranges(self.bands)} in {n} multiplet{'' if n == 1 else 's'})")
 
 def _characters_rep(rep, k, *, states=None, bands=None, degeneracy_tol=None,
                     _atol=1e-8, _mesh_tol=MESH_TOL) -> BandCharacters | Refusal:
@@ -1350,6 +1384,8 @@ def characters(realized, k, *, states=None, bands=None, degeneracy_tol=None,
         filled by ``solve_model``.
         States of a model other than ``r.model``.
         Eigenvectors in an array that is neither two- nor three-dimensional.
+        An ``(evals, evecs)`` pair with a number of energies other than that
+        of eigenvectors.
         ``bands`` naming no band, a band twice, or a band outside the states.
         ``k`` a name the group does not tabulate.
         ``k`` with a number of coordinates other than ``dim_k``, or three for
@@ -1395,26 +1431,29 @@ def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol,
     if isinstance(k, Refusal):
         return k
     if states is None or states is rep._model:
-        bloch = _measured_sum(rep, bloch)
-    got = _resolve_states(states, rep, k, mesh_tol=mesh_tol, bloch=bloch)
+        bloch = _measured_sum(rep, bloch, call=call)
+    got = _resolve_states(call, states, rep, k, mesh_tol=mesh_tol, bloch=bloch)
     if isinstance(got, Refusal):
         return got
     w, V = got
     degeneracy_tol = _degeneracy(rep, degeneracy_tol)
     if w is None:
+        # hsp_table takes the model or a WFArray; the other calls take a pair too
+        takes = ("r.model, or a WFArray filled by solve_model" if call == "hsp_table" else
+                 "the model, or the (evals, evecs) pair that solve_at returns")
         raise ValueError(
-            f"{call}(): states= holds eigenvectors without their energies. Pass the model, "
-            "or the (evals, evecs) pair that solve_at returns; sewing_matrix() takes "
-            "eigenvectors alone.")
+            f"{call}(): states= holds eigenvectors without their energies. Pass {takes}; "
+            "sewing_matrix() takes eigenvectors alone.")
     idx = _band_block(V.shape[1], bands, call)
 
-    bloch = _measured_sum(rep, bloch)
+    bloch = _measured_sum(rep, bloch, call=call)
     H = _hamiltonian_at(rep, k, bloch)
     resid = _states_at_k(H, w, V)
-    foreign = _foreign_states(H, k, resid, rep._scale)
+    foreign = _foreign_states(k, resid, rep._scale)
     if foreign is not None:
         return foreign
 
+    w = _ascending(w, call)
     mult = multiplets(w, degeneracy_tol)
     chosen = set(idx)
     rows = []
@@ -1441,21 +1480,22 @@ def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol,
     if isinstance(lg, Refusal):
         return lg
     ours = [int(i) for i in rep.little_group(k, _atol=atol)]
-    ours_u = tuple(sorted(i for i in ours if not rep._operation(i).time_reversal))
+    ours_u = tuple(sorted(i for i in ours
+                          if not rep._operation(i, call=call).time_reversal))
     not_carried = tuple(sorted(set(lg.unitary) - set(ours_u)))
     if not_carried:
         # every representation a call returns carries the whole group it was
         # built for, so an operation of that group left out is the package
         # disagreeing with itself
         raise InternalError(
-            f"the representation of #{rep._group.number_str} leaves out part of its own "
-            f"little group at k = {np.round(k, 6).tolist()}; not carried: "
+            f"the representation of {rep._group.name} #{rep._group.number_str} leaves out "
+            f"part of its own little group at k = {np.round(k, 6).tolist()}; not carried: "
             f"{list(not_carried)}. Report it, with the model and the call.")
 
     chars = np.zeros((len(rows), len(ours_u)), dtype=complex)
     unit, comm = {}, {}
     for c, ind in enumerate(ours_u):
-        whole = _sewing_core(rep, ind, k, V, idx, H, atol=atol, residual=resid)
+        whole = _sewing_core(rep, ind, k, V, idx, H, call=call, atol=atol, residual=resid)
         if isinstance(whole, Refusal):  # pragma: no cover - membership tested above
             return whole
         unit[ind] = whole.numerical.unitarity
@@ -1512,18 +1552,22 @@ def format_coreps(coreps) -> str:
     Parameters
     ----------
     coreps : mapping
-        ``{label: multiplicity}``, the multiplicities positive integers, as
-        :attr:`CorepsAt.coreps` and :attr:`HSPTable.symmetry_data` hold them.
+        ``{label: multiplicity}``, the multiplicities nonnegative integers,
+        as :attr:`CorepsAt.coreps` and :attr:`HSPTable.symmetry_data` hold
+        them.
 
     Returns
     -------
     str
         The labels joined by ``" + "``, each after its multiplicity and ``x``
-        where the multiplicity is above one.
+        where the multiplicity is above one.  A label of multiplicity zero
+        is not written, and ``""`` is returned where every multiplicity is
+        zero.
     """
     return " + ".join(f"{n}x{lab}" if n > 1 else lab
                       for lab, n in sorted(coreps.items(),
-                                           key=lambda item: _tables.corep_order(item[0])))
+                                           key=lambda item: _tables.corep_order(item[0]))
+                      if n)
 
 
 @dataclass(frozen=True, eq=False)
@@ -1574,7 +1618,7 @@ class Multiplet:
     def _line(self) -> str:
         """The row as the summaries print it: ``bands 0-1 at -16.35: -GM6``."""
         energy = float(_resolved([self.energy], self._degeneracy_tol)[0])
-        return (f"band{'s' if len(self.bands) > 1 else ''} {_runs(self.bands)} at "
+        return (f"band{'s' if len(self.bands) > 1 else ''} {_index_ranges(self.bands)} at "
                 f"{energy:.4g}: {self.label}")
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
@@ -1662,7 +1706,7 @@ class CorepsAt:
     def summary(self) -> str:
         """The little-group representations, a line for each part with its attribute."""
         bands = self.bands
-        lines = [f"band{'s' if len(bands) > 1 else ''} {_runs(bands)} at "
+        lines = [f"band{'s' if len(bands) > 1 else ''} {_index_ranges(bands)} at "
                  f"{_kpoint_text(self.kpoint, self.k)}: {format_coreps(self.coreps)}   "
                  "(.bands, .kpoint, .k, .coreps)"]
         if len(self.multiplets) > 1:
@@ -1808,6 +1852,8 @@ def coreps_at(realized, k, *, states=None, bands=None, degeneracy_tol=None,
         filled by ``solve_model``.
         States of a model other than ``r.model``.
         Eigenvectors in an array that is neither two- nor three-dimensional.
+        An ``(evals, evecs)`` pair with a number of energies other than that
+        of eigenvectors.
         ``bands`` naming no band, a band twice, or a band outside the states.
         ``k`` a name the group does not tabulate.
         ``k`` with a number of coordinates other than ``dim_k``, or three for
@@ -1830,27 +1876,28 @@ def coreps_at(realized, k, *, states=None, bands=None, degeneracy_tol=None,
                           _ktol=_ktol, _atol=_atol, _mesh_tol=_mesh_tol)
 
 def _coreps_at(rep, k, *, states, bands, degeneracy_tol, label_tol, ktol, atol,
-               mesh_tol, bloch) -> CorepsAt | Refusal:
+               mesh_tol, bloch, call="coreps_at") -> CorepsAt | Refusal:
     """The little-group representations :func:`coreps_at` returns.
 
     ``rep`` is the representation, or a refusal, which is returned as it is.
     ``k``, ``states``, ``bands``, ``degeneracy_tol`` and ``label_tol`` are as
     :func:`coreps_at` takes them.  ``ktol`` is how far ``k`` may sit from a
     tabulated point and be named after it, in reduced coordinates.
-    ``atol``, ``mesh_tol`` and ``bloch`` are as :func:`_characters` takes
-    them.  The characters are read by :func:`_characters` and identified by
+    ``atol``, ``mesh_tol``, ``bloch`` and ``call``, the public call's name,
+    are as :func:`_characters` takes them.  The characters are read by
+    :func:`_characters` and identified by
     :func:`.._tables._identify_from_characters`, whose refusals are returned
     as they are.
     """
     if bands is None:
-        raise TypeError("coreps_at() missing required argument 'bands'")
+        raise TypeError(f"{call}() missing required argument 'bands'")
     if isinstance(rep, Refusal):
         return rep
     gate = _spacegroup._lattice_not_descended(rep._group)
     if gate is not None:
         return gate
     tab = _characters(rep, k, states=states, bands=bands, degeneracy_tol=degeneracy_tol,
-                      atol=atol, mesh_tol=mesh_tol, bloch=bloch, call="coreps_at",
+                      atol=atol, mesh_tol=mesh_tol, bloch=bloch, call=call,
                       named=False)
     if isinstance(tab, Refusal):
         return tab
@@ -1954,7 +2001,7 @@ class HSPTable:
 
     def summary(self) -> str:
         """The labels at each point, a line for each part with its attribute."""
-        lines = [f"band{'s' if len(self.bands) > 1 else ''} {_runs(self.bands)}   (.bands)"]
+        lines = [f"band{'s' if len(self.bands) > 1 else ''} {_index_ranges(self.bands)}   (.bands)"]
         measured = [name for name in self.kpoints if name in self.multiplets]
         if measured:
             kind = ("irreps" if getattr(self.group, "magnetic_type", None) == "I"
@@ -1976,7 +2023,7 @@ class HSPTable:
 
     def __repr__(self) -> str:  # pragma: no cover - convenience only
         n = len(self.multiplets)
-        return (f"HSPTable(bands {_runs(self.bands)}, {n} k-point{'' if n == 1 else 's'} "
+        return (f"HSPTable(bands {_index_ranges(self.bands)}, {n} k-point{'' if n == 1 else 's'} "
                 f"measured, {len(self.refusals)} refused)")
 
 # ==========================================================================
@@ -2144,7 +2191,7 @@ def _multiplicity_note(rep, block, fibers) -> str:
         for fiber in fibers:
             if not (isinstance(fiber, (tuple, list)) and len(fiber) == 2):
                 continue
-            V = _as_columns(fiber[1])
+            V = _as_columns("hsp_table", fiber[1])
             got = float(np.sum(np.abs(V[np.ix_(states, list(block))]) ** 2))
             weight = got if weight is None else max(weight, got)
         if weight is not None and weight <= 1e-8:
@@ -2180,7 +2227,13 @@ def _hsp_table_rep(rep, *, states=None, bands=None, degeneracy_tol=None,
         return gate
     if states is not None and hasattr(states, "solve_ham") and states is not rep._model:
         raise ValueError("hsp_table(): states= is a model other than r.model. Pass r.model, "
-                         "the model realized_group measured, or leave states= out.")
+                         "the model realized_group measured, or a WFArray of it filled by "
+                         "solve_model; or leave states= out.")
+    if not (states is None or states is rep._model
+            or (hasattr(states, "wfs") and hasattr(states, "mesh"))):
+        raise ValueError(f"hsp_table(): states= is of type {type(states).__name__}. Pass "
+                         "r.model, or a WFArray filled by solve_model, or leave states= "
+                         "out; the (evals, evecs) pair of one point is read by coreps_at.")
     points = _tables._high_symmetry_points(rep._group)
     if isinstance(points, Refusal):
         return points
@@ -2202,7 +2255,7 @@ def _hsp_table_rep(rep, *, states=None, bands=None, degeneracy_tol=None,
     bloch = None                    # the model's Bloch sum, where the model is solved here
     if wanted and (states is None or states is rep._model):
         karr = np.array([k for _, k in wanted], dtype=float)
-        bloch = _measured_sum(rep)
+        bloch = _measured_sum(rep, call="hsp_table")
         evals, evecs = _bloch.solve(rep._model, karr, bloch)
         evals, evecs = np.asarray(evals), np.asarray(evecs)
         if evals.ndim == 1:                     # solve_ham drops a length-1 k axis
@@ -2216,7 +2269,7 @@ def _hsp_table_rep(rep, *, states=None, bands=None, degeneracy_tol=None,
     for name, k in wanted:
         got = _coreps_at(rep, k, states=per_point[name], bands=block,
                          degeneracy_tol=degeneracy_tol, label_tol=label_tol, ktol=_ktol,
-                         atol=_atol, mesh_tol=_mesh_tol, bloch=bloch)
+                         atol=_atol, mesh_tol=_mesh_tol, bloch=bloch, call="hsp_table")
         if isinstance(got, Refusal):
             refusals[name] = got
             continue
@@ -2306,7 +2359,9 @@ def hsp_table(realized, *, states=None, bands=None, degeneracy_tol=None,
         ``bands`` is left out.
     ValueError
         A model other than ``r.model`` as ``states``, or a ``WFArray`` solved
-        on one.
+        on one.  Anything else as ``states`` that is neither ``None``,
+        ``r.model`` nor a ``WFArray``, such as the ``(evals, evecs)`` pair of
+        one point.
         A ``WFArray`` not filled by ``solve_model``, or with parameter axes in
         its mesh.
         ``bands`` naming no band, a band twice, or a band outside the states.

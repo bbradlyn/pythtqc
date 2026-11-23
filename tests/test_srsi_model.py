@@ -312,6 +312,25 @@ def test_a_drifted_center_reads_as_the_general_position_rather_than_refusing():
     on_site = _spacegroup._variety_residual(
         arms["a"], [s._reference for s in tqg.wyckoff_sites_tables(group)])
     assert on_site.max() < 1e-9, on_site
+    # the reason of the audit's refusal, by the check that failed; no group fails
+    # it (the sweep above), so each failure is planted in the group's audit
+    planted = (
+        ({"reason": "multiplicity", "measured": 16, "expected": 8},
+         "the position a has multiplicity 16 in the pyxtal package's list, and 8 in the "
+         "tables."),
+        ({"reason": "absent from pyxtal's list", "measured": None, "expected": 8},
+         "the position 8a of the tables is not in the pyxtal package's list."),
+        ({"reason": "stabilizer order", "measured": 12, "expected": 24},
+         "the stabilizer of a point of the position 8a has order 12, where 24 is expected."))
+    kept = dict(group._wyckoff_audit)
+    try:
+        for bad, words in planted:
+            group._wyckoff_audit["audit"] = {"ok": False, "offenders": (dict(bad, letter="a"),)}
+            refused = tqg.wyckoff_sites_tables(group)
+            assert refused.gate == "wyckoff_setting" and words in refused.reason, refused.reason
+    finally:
+        group._wyckoff_audit.clear()
+        group._wyckoff_audit.update(kept)
 
 
 # ---------------------------------------------------------------------------

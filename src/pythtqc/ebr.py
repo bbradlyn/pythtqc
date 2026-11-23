@@ -2322,7 +2322,7 @@ def _named_forms(group, data, matrix, y, magnetic_type):
     values, touched, coeffs = {}, [], {}
     for name, spec in forms.items():
         coef = [float(spec["factors"].get(lab, 0.0)) for lab in labels_bcs]
-        moved = [coef[perm[i]] for i in range(len(coef))]
+        moved = list(_tables._form_on_rows(data["convention"], spec["factors"], len(y)))
         if moved != coef:
             touched.append(str(name))
         mod = float(spec["mod"])
@@ -2743,7 +2743,7 @@ def _stack_in_group(table, group, rep, restriction, *, c, characters_tol):
         noun = "operation" if len(unrepresented) == 1 else "operations"
         return stop("representation",
                     f"the representation the table carries has no matrix for {noun} "
-                    f"{_text._runs(unrepresented)} of {group.name} #{group.number_str}",
+                    f"{_text._index_ranges(unrepresented)} of {group.name} #{group.number_str}",
                     unrepresented=unrepresented)
     g3, asg3 = _layers._layer_on_stack(group, rep._assignment, stack)
     by_ind = {int(s.ind): s for s in g3._symmetries}

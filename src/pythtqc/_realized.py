@@ -2217,7 +2217,7 @@ def realized_group(model, *, typat=None, environment=None, cross_check=True,
     hsp_table : the little-group representations a set of bands carries at
         every high-symmetry point, read with the record returned.
     """
-    bound = _bloch.bound(model, params)
+    bound = _bloch.bound(model, params, call="realized_group")
     got = _realize(bound, typat=typat, environment=environment,
                    cross_check=cross_check, decorations=decorations,
                    nk=nk, max_bytes=max_bytes, position_tol=position_tol,

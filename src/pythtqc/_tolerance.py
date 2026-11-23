@@ -424,6 +424,13 @@ _CARRY_TOL = 1e-9
 #: Zero, for a quantity built from ``H(k)`` alone: a commutator, a residual.
 FLAT_ZERO = 1e-14
 
+#: How far the real or the imaginary part of a number may sit from zero and be
+#: printed as ``0`` by :func:`.._text._fmt_char`, which prints the characters and
+#: phases of matrices read off ``H`` in the declaration's checks and the reasons
+#: of the build and the descent.  The cut is a choice of printing, not a measured
+#: noise: no value is compared with it.
+_PRINTED_ZERO = 1e-9
+
 #: Bands closer in energy than this are one degenerate multiplet, and a
 #: multiplet is one row of a character table.  The representation a measurement
 #: returns is covariant at the exact gate, so a degeneracy its group forces is

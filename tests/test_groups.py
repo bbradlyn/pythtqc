@@ -679,12 +679,13 @@ def test_a_model_and_a_group_built_on_another_lattice_raise():
     It maps this model's orbitals onto that group's site orbits, so a group
     whose padded cell is not this model's leaves nothing to map onto.  Every
     call in the package hands it the group of the model's own cell, so a pair
-    from two cells is a malformed argument: it raises, saying how far apart the
-    two lattices are.
+    from two cells is the package disagreeing with itself: it raises
+    ``InternalError``, saying how far apart the two lattices are.
     """
     g = _spacegroup._group_of(graphene(0.0, -1.0), include_TR=False)
     assert g and g._sg_number == 191
-    with pytest.raises(ValueError, match="Pass the group of the model's own cell"):
+    with pytest.raises(InternalError, match=r"differs from the cell of P6/mmm #191 by up to "
+                                            r".* Report it, with the model and the call\."):
         _tables._assign_orbitals(square(), g)
 
 
@@ -993,6 +994,10 @@ def test_identify_refuses_a_k_point_the_tables_do_not_carry():
     r = G.identify_from_characters(g, [0.17, 0.31], chars)
     assert not r and r.gate == "kpoint_not_tabulated"
     assert set(r.context["available"]) == {"GM", "K", "M"}
+    # the points as lists of floats, in the reason and the context alike
+    assert all(type(v) is list for v in r.context["available"].values())
+    assert r.context["available"]["GM"] == [0.0, 0.0] and "'GM': [0.0, 0.0]" in r.reason
+    assert r.reason.startswith("k = [0.17, 0.31] is not a tabulated")
 
 
 def test_corep_table_is_keyed_by_our_operation_indices():

@@ -120,12 +120,14 @@ def model_key(model) -> str:
     return _digest(model, *hopping_arrays(model), model.onsite)
 
 
-def bound(model, params=None):
+def bound(model, params=None, *, call=None):
     """The model with the values of its parameters in place; the model itself where it has none.
 
     ``params`` maps each parameter's name to its value.  The names are checked
     as ``TBModel.hamiltonian`` checks them, with the same error, and each value
-    is checked to be a number, before anything is evaluated.
+    is checked to be a number, before anything is evaluated.  ``call`` is the
+    public call's name, which the error for a value that is not a number
+    opens with; where it is ``None`` the error opens with ``params=``.
 
     Raises
     ------
@@ -150,7 +152,9 @@ def bound(model, params=None):
                         "term as a function of the parameter that returns the 2x2 block, "
                         f"such as lambda {arg}: {arg} * sz.")
                     }.get(dims, "")
-            raise ValueError(f"params= gives '{name}' a value that is not a number.{hint}")
+            opening = f"{call}(): " if call is not None else ""
+            raise ValueError(f"{opening}params= gives '{name}' a value that is not a "
+                             f"number.{hint}")
     if not model._has_parameterized_terms():
         return model
     return model.with_parameters(params)

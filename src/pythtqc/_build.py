@@ -1654,7 +1654,7 @@ def _returned_representation(model, group, assignment, ops, mul, meas, bat, acc,
                                      assignment=assignment, model=model, layout=layout,
                                      syms=syms, kept=kept, checks=verdict.rows,
                                      pool=pool, site_tables=site_tables, ident=ident,
-                                     note=char_note, spin=spin, ref_chan=ref_chan)
+                                     spin=spin)
         # A conserved pseudospin's choice, on the record: the site irreps chosen for
         # its copies, and every choice the group's table admits beside it, in the
         # order the key ranks them.

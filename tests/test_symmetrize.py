@@ -773,8 +773,12 @@ def test_symmetrize_refuses_an_operation_that_is_broken_rather_than_near(lin3g):
             if int(s.ind) in got.context["broken"]} == {
         "C4(z)", "C4^-1(z)", "m([110])", "m([1-10])",
         "C4(z)'", "C4^-1(z)'", "m([110])'", "m([1-10])'"}
-    assert got.threshold == 1e-6 and not np.isfinite(got.value)
-    assert "are broken at the declared tolerance" in got.reason
+    # none of the eight has a matrix, so no residual: none is quoted, inf or otherwise
+    assert got.threshold == 1e-6 and got.value is None
+    assert got.context["unmeasured"] == got.context["broken"]
+    assert "are broken at the declared tolerance" in got.reason and "inf" not in got.reason
+    assert (f"For operations {list(got.context['broken'])} the measurement found no matrix "
+            "the Hamiltonian is covariant under, so no covariance residual.") in got.reason
 
 
 @pytest.mark.slow
@@ -935,17 +939,20 @@ def test_the_grammar_gates_are_ValueErrors(lin3g):
     m3, group, asg, val = _pipeline(lin3g, [0, 0, 1, 1], tol=tol)
     with pytest.raises(TypeError):
         _symmetrize(m3, group, asg, val)                     # tol is required
-    with pytest.raises(ValueError, match="positive"):
+    with pytest.raises(ValueError, match=r"^_symmetrize\(\): tol=0\.0 is not a positive"):
         _symmetrize(m3, group, asg, val, tol=0.0)
     with pytest.raises(ValueError, match="too coarse"):
         _symmetrize(m3, group, asg, val, tol=tol, k_grid=5)
-    with pytest.raises(ValueError, match="max_bytes=0 is not a positive"):
+    with pytest.raises(ValueError, match=r"^_symmetrize\(\): max_bytes=0 is not a positive"):
         _symmetrize(m3, group, asg, val, tol=tol, max_bytes=0)
-    with pytest.raises(ValueError, match="max_bytes=-1.0 is not a positive"):
+    with pytest.raises(ValueError, match=r"^realized_group\(\): max_bytes=-1.0 is not a "
+                                         r"positive"):
         tqg.realized_group(m3, typat=[0, 0, 1, 1], max_bytes=-1.0)
-    with pytest.raises(ValueError, match="max_candidates='many' is not a positive"):
+    with pytest.raises(ValueError, match=r"^_symmetrize\(\): max_candidates='many' is not a "
+                                         r"positive"):
         _symmetrize(m3, group, asg, val, tol=tol, max_candidates="many")
-    with pytest.raises(ValueError, match="max_candidates=0 is not a positive"):
+    with pytest.raises(ValueError, match=r"^realized_group\(\): max_candidates=0 is not a "
+                                         r"positive"):
         tqg.realized_group(m3, typat=[0, 0, 1, 1], max_candidates=0)
     tight = _symmetrize(m3, group, asg, val, tol=tol, max_bytes=1e5)
     assert not tight and tight.gate == "projection_too_large"

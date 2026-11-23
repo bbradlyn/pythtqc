@@ -1000,13 +1000,16 @@ summaries of `CorepsAt`, `HSPTable` and of the records
 
 **Parameters**
 
-- **`coreps`** (`mapping`): `{label: multiplicity}`, the multiplicities positive integers, as
-  `CorepsAt.coreps` and `HSPTable.symmetry_data` hold them.
+- **`coreps`** (`mapping`): `{label: multiplicity}`, the multiplicities nonnegative integers,
+  as `CorepsAt.coreps` and `HSPTable.symmetry_data` hold
+  them.
 
 **Returns**
 
 - `str`: The labels joined by `" + "`, each after its multiplicity and `x`
-  where the multiplicity is above one.
+  where the multiplicity is above one.  A label of multiplicity zero
+  is not written, and `""` is returned where every multiplicity is
+  zero.
 
 ### `multiplets`
 

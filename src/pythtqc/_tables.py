@@ -354,14 +354,26 @@ def _sites_in_tables_setting(group: GroupData, positions=None, *,
         group._wyckoff_audit["audit"] = audit
     if not audit["ok"]:
         bad = audit["offenders"][0]
+        letter = bad["letter"]
+        position = f"{dict((l, m) for m, l, _s in ebr_positions)[letter]}{letter}"
+        if bad["reason"] == "multiplicity":
+            failed = (f"the position {letter} has multiplicity {bad['measured']} in the "
+                      f"pyxtal package's list, and {bad['expected']} in the tables")
+        elif bad["measured"] is None:
+            failed = f"the position {position} of the tables is not in the pyxtal package's list"
+        elif bad["expected"] is None:
+            failed = (f"the conventional cell has "
+                      f"{audit['point_group'] * audit['centering']} operations, not a "
+                      f"multiple of the multiplicity of the position {position}")
+        else:
+            failed = (f"the stabilizer of a point of the position {position} has order "
+                      f"{bad['measured']}, where {bad['expected']} is expected")
         return Refusal(
             "wyckoff_setting",
             f"the Wyckoff positions the pyxtal package lists for space group "
             f"{group._sg_number} are not written in the setting of the tables of "
-            f"{group.name} #{group.number_str}: the position "
-            f"{bad['expected'] if bad['reason'] != 'multiplicity' else ''}{bad['letter']} "
-            f"fails the check '{bad['reason']}', measured {bad['measured']} where "
-            f"{bad['expected']} is expected. Report it, with the model and the call.",
+            f"{group.name} #{group.number_str}: {failed}. Report it, with the model and the "
+            "call.",
             value=None if bad["measured"] is None else float(bad["measured"]),
             threshold=None if bad["expected"] is None else float(bad["expected"]),
             context={"number_str": str(group.number_str), "sg": int(group._sg_number),
@@ -435,16 +447,19 @@ def _assign_orbitals(model, group: GroupData, *, typat=None,
     ``wyckoff_orbit`` where a site's image lies farther than ``symprec`` from
     every site of its species, naming the orbitals, the operation and the
     distance.  Raises ``ValueError`` where ``typat`` has not one entry per
-    orbital, or where the model's cell, so scaled, is not the group's.
+    orbital.  Raises :class:`~.refusal.InternalError` where the model's cell,
+    so scaled, is not the group's: the group handed in is always the one
+    measured on the model's own cell.
     """
     tol = float(group._symprec if symprec is None else symprec)
     lat, positions, _ = _pad_cell(model, group._vacuum_length, lattice=group._lattice)
     if not np.allclose(lat, group._lattice, atol=1e-9):
         apart = float(np.abs(np.asarray(lat, dtype=float)
                              - np.asarray(group._lattice, dtype=float)).max())
-        raise ValueError(f"the model's cell, its vacuum included, and the group's cell "
-                         f"differ by up to {apart:.3g} in a Cartesian component. Pass the "
-                         "group of the model's own cell.")
+        raise InternalError(f"the model's cell, its vacuum included, differs from the cell "
+                            f"of {group.name} #{group.number_str} by up to {apart:.3g} in a "
+                            "Cartesian component, and the group is measured on the model's "
+                            "own cell. Report it, with the model and the call.")
     pos, site_orbs, species = _sites_and_typat(positions, typat, tol, lat)
     nsite = pos.shape[0]
     nsym = len(group._symmetries)
@@ -974,11 +989,11 @@ def _resolve_kpname(group: GroupData, lg: LittleGroup, kpname, ktol):
         if _same_point(lg._k3, k3, ktol):
             return name
     listed = {n: kmap[n] for n in sorted(kmap, key=point_order)}
-    avail = {n: np.round(group._k_from_3d(v[None, :])[0], 6)
+    avail = {n: (np.round(group._k_from_3d(v[None, :])[0], 6) + 0.0).tolist()
              for n, v in listed.items() if group._in_plane(v[None, :])}
     return Refusal(
         "kpoint_not_tabulated",
-        f"k = {np.round(lg.k, 6)} is not a tabulated high-symmetry point of "
+        f"k = {(np.round(lg.k, 6) + 0.0).tolist()} is not a tabulated high-symmetry point of "
         f"{group.name} #{group.number_str}; the tables list one member of each point's "
         f"star. The tabulated points, in the model's reduced "
         f"coordinates, are {avail}. Ask one of them, by its name or its coordinates.",
@@ -2461,6 +2476,26 @@ def _ebr_data(group) -> dict | Refusal:
             "smith": get_smith_form(raw), "convention": record}
 
 
+def _form_on_rows(convention, factors, n_rows):
+    """A named indicator's coefficients, carried onto the rows of the EBR matrix.
+
+    ``convention`` is the record of :func:`_transport_record`, ``factors`` the
+    form's coefficients as the irreptables package ships them, keyed by the
+    Bilbao Crystallographic Server's labels, and ``n_rows`` the number of rows.
+    Row ``i`` takes the coefficient of ``labels_bcs[P[i]]``, ``P`` the row
+    permutation, whatever the label the package gives the row.  Returns the
+    coefficients, row by row, or ``None`` where the record does not carry a
+    label and a permutation entry for every row, or the form names a label
+    that is no row's.
+    """
+    labels_bcs = list(convention.get("labels_bcs", ()))
+    perm = list(convention.get("row_permutation", ()))
+    if len(labels_bcs) != n_rows or len(perm) != n_rows or set(factors) - set(labels_bcs):
+        return None
+    coef = [float(factors.get(lab, 0.0)) for lab in labels_bcs]
+    return tuple(coef[perm[i]] for i in range(n_rows))
+
+
 #: The note :func:`indicator_group` returns for each case: why the formulas are
 #: withheld from a group that is not grey, or how a grey group's formulas are read.
 _SI_NOTES = {
@@ -2487,11 +2522,11 @@ _SI_NOTES = {
         "own transported EBR matrix. For values, use ebr.symmetry_indicator"),
     "grey": (
         "irreptables' named forms for this grey group, as shipped: their "
-        "coefficients are keyed by BCS labels and must be re-keyed by "
-        "ebr_data(group).convention.row_permutation before they are evaluated "
-        "on a returned symmetry data vector (in scope that bites once, the z2 of 220.90). "
-        "ebr.symmetry_indicator does that re-keying, and checks the form on the "
-        "group's own EBRs, before it reports a value"),
+        "coefficients are keyed by BCS labels, and are carried onto the rows by the "
+        "convention's labels and row permutation before they are evaluated on a "
+        "returned symmetry data vector. "
+        "ebr.symmetry_indicator reports the class of a band set, in the named "
+        "indicators of Hwang et al. where the group has them"),
     "grey_none": (
         "irreptables ships no named indicator formula for this grey group, a "
         "verdict in itself -- read `elementary_divisors` for the indicator group "
@@ -2526,7 +2561,9 @@ def indicator_group(group: GroupData) -> dict | Refusal:
           coefficient}, "mod": modulus}}``, the coefficients keyed by the
           labels of the Bilbao Crystallographic Server.  To read a formula on
           a returned symmetry data vector, its coefficients are carried onto
-          the rows by ``ebr_data(group).convention.row_permutation``.  Empty
+          the rows by the server's label of each row,
+          ``ebr_data(group).convention.corep_names_bcs``, and
+          ``ebr_data(group).convention.row_permutation``.  Empty
           where the tables name no formula for the group.
         * ``orders``: ``{name: modulus}``.  Two formulas can be dependent, so
           the moduli need not be the elementary divisors.
@@ -2668,13 +2705,15 @@ def decompose_ebrs(group: GroupData, irrep_counts: dict) -> dict | Refusal:
           ``-43m``, which the tables leave out.
         * ``unused``: the labels handed in that no row of the matrix carries.
         * ``indicators``: for a grey group, the value of each named formula
-          of :func:`indicator_group` on the vector, modulo its modulus, each
-          shipped coefficient multiplying the multiplicity of the label it
-          is keyed by.  ``None`` where the formulas are withheld.  Where
-          ``ebr_data(group).convention.row_permutation`` moves a formula's
-          coefficients, as for the ``z2`` of the double-valued 220.90, that
-          value is not the indicator.
-        * ``indicators_note``: the ``note`` of :func:`indicator_group`.
+          of :func:`indicator_group` on the vector, modulo its modulus.  Each
+          shipped coefficient is carried onto the row it stands for, by the
+          server's label of each row and
+          ``ebr_data(group).convention.row_permutation``, and multiplies the
+          multiplicity of that row's label.  ``None`` where the formulas are
+          withheld, or cannot be carried onto the rows, as
+          ``indicators_note`` then says.
+        * ``indicators_note``: the ``note`` of :func:`indicator_group`, or why
+          the formulas cannot be carried onto the rows.
 
         The symmetry data vector of an atomic limit is a combination with no
         negative coefficient.  A band set classified ``"atomic limit"`` need
@@ -2740,11 +2779,21 @@ def decompose_ebrs(group: GroupData, irrep_counts: dict) -> dict | Refusal:
         # and it is returned as the empty sum, `{}`, not as `None`.
         indicators_note = si["reason"] if si["withheld"] else si["note"]
         if not si["withheld"]:
+            # each shipped coefficient on the row it stands for, then summed over
+            # the rows: the server's label of a row need not be the package's
+            rows = [irrep_counts.get(lab, 0) for lab in basis]
             indicators = {}
             for name, spec in si["indicators"].items():
-                total = sum(v * irrep_counts.get(lab, 0)
-                            for lab, v in spec["factors"].items())
-                indicators[name] = total % spec["mod"]
+                coef = _form_on_rows(data["convention"], spec["factors"], len(basis))
+                if coef is None:
+                    indicators, indicators_note = None, (
+                        f"no named form is evaluated: the form {name!r} of "
+                        f"#{group.number_str} names a label that is no row of the elementary "
+                        "band representations, or the record of the change of convention "
+                        "does not give each row's label on the Bilbao Crystallographic "
+                        "Server, which carries the form's coefficients onto the rows")
+                    break
+                indicators[name] = sum(c * n for c, n in zip(coef, rows)) % spec["mod"]
 
     out = {"y": y, "y_prime": y_prime, "stable_nontrivial": bool(nontrivial),
            "indicators": indicators, "indicators_note": indicators_note,
