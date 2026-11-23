@@ -281,9 +281,9 @@ A refusal handed in as `group` is returned as it is.
 
 ## Declaring what the hoppings cannot supply
 
-- [`spin_basis`](#spin_basis) — Which orbitals of a spinless model are the spin up and down states of one Wannier function.
-- [`spin_operator`](#spin_operator) — The spin along `n̂`, in units of `ħ/2`, on the orbitals of a declared spinor basis: `n̂·σ` on each pair.
-- [`spinless_presentation`](#spinless_presentation) — The same crystal as a `wannier90` spinor import delivers it: `2N` orbitals, the spin in the orbital index.
+- [`spin_basis`](#spin_basis) — The spin pairs of a spinless model whose orbital index carries spin.
+- [`spin_operator`](#spin_operator) — The spin along an axis on the orbitals of a spinless model's spin pairs.
+- [`spinless_presentation`](#spinless_presentation) — A spinful model written as a spinless one, and its spin pairs.
 
 ### `spin_basis`
 
@@ -291,27 +291,28 @@ A refusal handed in as `group` is returned as it is.
 spin_basis(model, *, order='interleaved', pairs=None)
 ```
 
-Which orbitals of a spinless model are the spin up and down states of one Wannier function.
+The spin pairs of a spinless model whose orbital index carries spin.
 
-Nothing in `H(k)` says which orbital is whose spin partner, so the pairing
-is declared, and `realized_group(model, spin=...)` then reads the model as
-a native spinful one, each pair a spinor Wannier function at its own centre.
+A pair is two orbitals, the up and the down state of one spinful orbital.
+The pairs are read off `order`, or given one by one in `pairs`.
 
 **Parameters**
 
-- **`model`** (`pythtb.TBModel`): A spinless model whose orbital index carries spin, as a `wannier90`
-  spinor import's does; a native spinful model raises.
+- **`model`** (`pythtb.TBModel`): A model made with `spinful=False` (`nspin=1`) whose orbital index
+  carries spin, such as the model pythtb's `W90.model` returns for a
+  spinor calculation.
 
-- **`order`** (`{"interleaved", "blocked"}, optional`): `"interleaved"` (default), `(0↑, 0↓, 1↑, 1↓, …)`, or `"blocked"`,
-  `(0↑, 1↑, …, 0↓, 1↓, …)`.
+- **`order`** (`{"interleaved", "blocked"}, default "interleaved"`): The order of the spin states in the orbital index. `"interleaved"`
+  is the up and then the down state of each pair in turn. `"blocked"`
+  is every up state, then every down state, each in the pairs' order.
 
-- **`pairs`** (`sequence of (int, int), optional`): The pairs one by one, up first, every orbital in exactly one: an
-  irregular ordering, in place of `order`.
+- **`pairs`** (`sequence of (int, int), optional`): The pairs one by one, each `(up, down)`, for an order that is
+  neither. Every orbital is in exactly one pair. With `pairs` given,
+  `order` is not read.
 
 **Returns**
 
-- `SpinBasis`: `sb.summary()` prints the pairs, which `sb.pairs` holds.  It goes to
-  `realized_group(model, spin=sb)` and to [`spin_operator`](#spin_operator).
+- `SpinBasis`: The pairs.
 
 ### `spin_operator`
 
@@ -319,26 +320,28 @@ a native spinful one, each pair a spinor Wannier function at its own centre.
 spin_operator(spin, n=(0.0, 0.0, 1.0))
 ```
 
-The spin along `n̂`, in units of `ħ/2`, on the orbitals of a declared spinor basis: `n̂·σ` on each pair.
+The spin along an axis on the orbitals of a spinless model's spin pairs.
 
-It is the operator a spin-resolved calculation projects onto a set of
-bands, `P (n̂·σ) P`: eigenvalues of that kept away from zero split the
-bands by the sign of their spin along `n̂`, the split the spin Chern
-number is read on.  It is the matrix
-`spin_resolved_analysis.spin_operator_spinless` builds from the same
-pairs, entry for entry.
+The matrix `S` returned is `n·σ/|n|` on the two orbitals of each
+pair, with the up orbital as the first state of σ, and zero between
+pairs. Where each pair's two orbitals are its spin-up and spin-down
+states, `S` is the spin along `n` in units of hbar/2. A spin-resolved
+calculation projects it onto a set of bands as `P S P`, with `P` the
+projector onto those bands. Eigenvalues of `P S P` kept away from zero
+split the bands by the sign of their spin along `n`, the split on which
+the spin Chern number is read.
 
 **Parameters**
 
 - **`spin`** (`SpinBasis`): The pairs, from [`spin_basis`](#spin_basis) or [`spinless_presentation`](#spinless_presentation).
 
-- **`n`** (`array_like, optional`): The axis `n̂`, in the model's Cartesian frame, not necessarily
-  normalized.  Default `(0, 0, 1)`, `σ_z`.
+- **`n`** (`array_like, default (0, 0, 1)`): The axis, a three-vector in the Cartesian axes in which the pythtb
+  Lattice is specified. It need not be normalized.
 
 **Returns**
 
-- `numpy.ndarray`: The Hermitian `norb × norb` matrix: `n̂·σ` on each pair's two
-  orbitals, the up one first, and zero between pairs.
+- `numpy.ndarray`: The Hermitian matrix `S`, of shape `(norb, norb)` for a model of
+  `norb` orbitals.
 
 ### `spinless_presentation`
 
@@ -346,34 +349,40 @@ pairs, entry for entry.
 spinless_presentation(model, *, order='interleaved', pairs=None, params=None)
 ```
 
-The same crystal as a `wannier90` spinor import delivers it: `2N` orbitals, the spin in the orbital index.
+A spinful model written as a spinless one, and its spin pairs.
 
-Each orbital becomes two at its own position, the up and down states of
-one pair, and the two models' Hamiltonians are measured to be the same.
-It is a trusted model to hold a real import against.
+Each orbital of the spinful model becomes two orbitals at its position,
+the up and the down state of one pair. The Hamiltonian returned is the
+spinful one with its states reordered. pythtb's `W90.model` returns a
+spinor calculation in this form. The model returned is one whose pairs
+are known, to compare such an import against.
 
 **Parameters**
 
-- **`model`** (`pythtb.TBModel`): A spinful model.
+- **`model`** (`pythtb.TBModel`): A model made with `spinful=True` (`nspin=2`).
 
-- **`order`** (`{"interleaved", "blocked"}, optional`): `"interleaved"` (default), `(0↑, 0↓, 1↑, 1↓, …)`, pythtb's own order
-  of the states, or `"blocked"`, `(0↑, 1↑, …, 0↓, 1↓, …)`.
+- **`order`** (`{"interleaved", "blocked"}, default "interleaved"`): The order of the spin states in the orbital index returned.
+  `"interleaved"` is the up and then the down state of each orbital of
+  `model` in turn, pythtb's own order of the states. `"blocked"` is
+  every up state, then every down state, each in orbital order.
 
-- **`pairs`** (`sequence of (int, int), optional`): The pairs one by one, up first, every orbital in exactly one, in place
-  of `order`.
+- **`pairs`** (`sequence of (int, int), optional`): The pairs one by one, each `(up, down)`, pair `c` holding the two
+  spin states of orbital `c` of `model`. Every orbital of the model
+  returned is in exactly one pair. With `pairs` given, `order` is
+  not read.
 
 - **`params`** (`dict, optional`): The scalar value of each parameter of the model, keyed by name:
   `{"lam": 0.3}`.
 
 **Returns**
 
-- `(pythtb.TBModel, SpinBasis) or Refusal`: The spinless model, its parameters evaluated at `params`, and its
-  pairing, which `realized_group(flat, spin=sb)` reads as the native
-  model's spin.  A `Refusal` in its place is falsy.
+- `(pythtb.TBModel, SpinBasis) or Refusal`: The spinless model and its spin pairs. The spinless model holds the
+  Hamiltonian of `model` at the values in `params`. A `Refusal` in
+  its place is falsy.
 
 **Refusals**
 
-- **`not_a_spinful_model`**: a spinless model, which is in this presentation already;
+- **`not_a_spinful_model`**: the model is spinless. Where its orbital index carries spin,
   [`spin_basis`](#spin_basis) declares its pairs.
 
 ## Group data in this cell's coordinates

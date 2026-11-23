@@ -88,12 +88,13 @@ Returned by `realized_group`.
   more at an image point the larger its reduced coordinates. The checks are the
   covariance of the group's representation and the projection of the hoppings onto their
   symmetric part, whose operators carry each center onto its image to `1e-9`. On a cell
-  whose sites of one content repeat under a fraction of a cell's translation, the tables'
-  setting is not read and the operations cannot be rebuilt from it: centers missed by
-  less are refused the same way before anything is built wherever their miss leaves the
-  operations read off them open, the cell's group named as an upper bound in the reason
-  and by `context["number_str"]` and `context["name"]`; no group is identified, and the
-  context carries none.
+  whose sites of one species (`typat=`) repeat under a fraction of a cell's translation,
+  the tables' setting is not read and the operations cannot be rebuilt from it: centers
+  missed by less are refused the same way before anything is built wherever their miss
+  leaves the operations read off them open, the cell's group named as an upper bound in
+  the reason and by `context["number_str"]` and `context["name"]`; no group is
+  identified, and the context carries none. Operations that do not close leave no exactly
+  symmetric set of centers to measure `H` against.
 - **Usual cause.** A numerical model, such as a Wannier90 import, asked with no precision
   declared; or centers converted onto a strongly skewed lattice basis in floating point.
 - **What to do.** Declare the model's precision, `precision=`, or `position_tol=` for the
@@ -225,8 +226,9 @@ Returned by `realized_group`.
 - **What to do.** Declare the spinor basis, `spin="interleaved"`, `spin="blocked"` or
   explicit pairs ([a wannier90 spinor import](../guide/spin.md#a-wannier90-spinor-import));
   ask the single-valued group, `spinor=False`; or build the model with spin, if the
-  half-integer content is the electron's own. An unpaired spinor orbital is not supported
-  ([what the package cannot do yet](../background/limits.md#an-unpaired-spinor-orbital)).
+  half-integer content is the electron's own. [An unpaired spinor
+  orbital](../background/limits.md#an-unpaired-spinor-orbital) is outside the package's
+  scope.
 
 #### `single_valued_spinful`
 
@@ -472,9 +474,15 @@ Returned by `realized_group`.
 
 - **What it means.** The representation's discrete choices, which the measurement does not
   fix, had to be enumerated, and there were more than `max_candidates` of them: a limit on
-  the search. A declaration on orbitals whose states come in identical copies is compared
-  with every representation the hoppings leave open on the copies, all at once, and that
-  comparison has the same limit.
+  the search. Where the Hamiltonian conserves a pseudospin of n copies, it does not fix
+  the representation the copies carry. The candidates are then the sums of total
+  dimension n of the irreducible projective representations of the unitary operations
+  that map one set of the copies onto itself. Where it splits a multiplet into sets of
+  states it does not couple and no operation exchanges, it does not fix the representation
+  of each set either. The candidates are then every way of choosing one for each set. A
+  declaration on orbitals whose states come in identical copies is compared with every
+  representation the hoppings leave open on the copies, all at once, and that comparison
+  has the same limit.
 - **Usual cause.** A conserved operator, or accidental degeneracy, inside a multiplet of
   several orbitals with nothing declared, so the multiplet's block is fixed only up to the
   conserved part; or a declaration on orbitals that carry such a conserved operator.
@@ -482,9 +490,15 @@ Returned by `realized_group`.
   search would otherwise choose among; or run the same call with a larger
   `max_candidates=`, as in `realized_group(..., max_candidates=...)`, which runs a longer
   search. Where the reason names a declaration being compared, declare fewer of the
-  orbitals it names, which leaves fewer representations to compare.
+  orbitals it names, which leaves fewer representations to compare. Where the reason
+  counts phases on orbits of multiplets, stating a site of several orbitals as one
+  multiplet with `site_multiplets=` cuts the count.
   `context["fallback_reason"]`, where present, says why the choices could not be read off
-  the measurement, and is the thing to act on first.
+  the measurement. Where it says a generator's block is not a multiple of the operation's
+  own internal factor, then of the matrices that carry `H(k)` onto `H(Rk)` for that
+  generator, the one nearest a permutation of multiplets times a multiple of that factor
+  on each block misses that form by more than the tolerance it names, and a larger
+  search does not change that.
 
 #### `detector_too_large`
 
@@ -691,22 +705,22 @@ Returned by `realized_group`.
 
 Returned by `realized_group`.
 
-- **What it means.** The two members of a declared spin pair sit at different centres,
+- **What it means.** The two members of a declared spin pair sit at different centers,
   where the two spin states of one Wannier function share one. Either the pairing is
-  mislabelled, or the orbitals each carry one spin state with no partner at their own
-  centre, a magnetic configuration outside the package's present scope
+  mislabeled, or the orbitals each carry one spin state with no partner at their own
+  center, a magnetic configuration outside the package's present scope
   ([an unpaired spinor orbital](../background/limits.md#an-unpaired-spinor-orbital)).
-  Two centres apart only by the numerical noise of a fitted model are neither: a declared
-  precision (`precision=`) reads two centres closer than it as one. `realized_group` reads
-  it off the orbitals' centres alone, the orbitals at one centre being one site at the
+  Two centers apart only by the numerical noise of a fitted model are neither: a declared
+  precision (`precision=`) reads two centers closer than it as one. `realized_group` reads
+  it off the orbitals' centers alone, the orbitals at one center being one site at the
   tolerance the cell's group is found at, and refuses before anything is identified or
   measured, so it names no group; `value` is the distance between the pair's two sites
   and `context["positions"]` says where they are.
 - **Usual cause.** The spin states declared in the wrong order: `spin="blocked"` and
   `spin="interleaved"` differ by exactly this.
-- **What to do.** Read the order of the spin states off the wannier90 files and declare
+- **What to do.** Read the order of the spin states off the Wannier90 files and declare
   it, with explicit pairs where the orbitals are ordered irregularly; where the two
-  centres differ by a fitted model's noise, declare its precision.
+  centers differ by a fitted model's noise, declare its precision.
 
 ### In the arguments of a call
 
@@ -753,8 +767,9 @@ and `regular_content`.
 Returned by `sewing_matrix` and `SpaceGroupRep.sewing_operator`.
 
 - **What it means.** The operation carries `k` to a point that is not `k` up to a reciprocal
-  lattice vector, so it is not in the little group of `k` and has no sewing matrix there.
-- **What to do.** Ask an operation of the little group, which `little_group` lists.
+  lattice vector, so it is not in the little group of `k`, and neither `sewing_matrix` nor
+  `SpaceGroupRep.sewing_operator` returns a matrix there.
+- **What to do.** Pass an operation of the little group of `k`, which `little_group` lists.
 
 #### `states_not_at_k`
 
@@ -857,14 +872,18 @@ Returned by `realized_group`.
   measured to obey passes the covariance check. Reached once `realized_group` has
   identified the group, it is the package's check on itself: the operations were measured
   to hold, and no representation of them was built.
+- **Usual cause.** Multiplets stated with `site_multiplets=` that split a site whose
+  orbitals mix under its site-symmetry group.
 - **When it has a route.** Close to the tolerance: each operation is obeyed within the
   tolerance on its own, the worst to `context["obeyed_alone"]`, while the representation
-  built for the group carries `H(k)` onto `H(gk)` only to `value`, beyond it, so the
+  built for the group carries `H(k)` onto `H(Rk)` only to `value`, beyond it, so the
   Hamiltonian's asymmetry is close to the tolerance. A declared `precision=` sets the
   tolerance to `10·precision·max|H|`, `max|H|` as above. Declare one whose tolerance lies
   above these numbers if the asymmetry is numerical noise, and the Hamiltonian is made
   symmetric under the group, or below them if it is a term of the model to keep, and the
-  operations it breaks are dropped.
+  operations it breaks are dropped. Operations the reason calls near-symmetric can also
+  hold on parts of the crystal the measurement reads apart while the hoppings couple them
+  only below the tolerance, as in a numerical (Wannier90) Hamiltonian.
 - **Otherwise.** Report it, with the model and the call.
 
 #### `rep_internal_factor`
@@ -874,7 +893,8 @@ Returned by `realized_group`.
 - **What it means.** Candidate matrices carry `H(k)` onto `H(Rk)` as the group requires,
   but on none of them does a site's block take the form a representation of these
   operations has, a character times the group's own factor for the operation, its spin
-  rotation where there is spin: they are some other operations' matrices.
+  rotation where there is spin: they are some other operations' matrices. With no site
+  character to read off them, no orbital can be declared or labeled.
 - **What to do.** Where the multiplets were stated (`site_multiplets=`), the statement;
   otherwise report it.
 
@@ -885,7 +905,15 @@ Returned by `realized_group`.
 - **What it means.** Candidate matrices pass the covariance and site-matrix checks, but none
   reproduces the group's multiplication table. Either they form a projective
   representation of a class the table does not carry, or a conserved pseudospin admits no
-  representation of the group on its copies.
+  representation of the group on its copies. On a pseudospin's copies, every
+  operation's matrix is the tensor product of the factor the hoppings fix with a matrix
+  on the copies. The copies are held in sets, which the hoppings do not couple to one
+  another and the operations carry onto one another. They carry a representation only
+  where a sum of irreducible representations, of their dimension, of the unitary
+  operations that map one set onto itself makes up the factor system the fixed factor
+  leaves them, time reversal's square included.
+  Where the reason names neither a projective class nor a pseudospin, the operations,
+  the generators or the blocks on the multiplets are wrong.
 - **When it has a route.** Spinor states held in a spinless model's orbital index carry
   the sign of spin ½ (`context["spin_half"]`): declare `spin=`, and they are read in the
   double group. `realized_group` measures that class before it builds, and descends to the
@@ -898,26 +926,35 @@ Returned by `realized_group`.
 
 - **What it means.** More than one distinct representation passes every check, so the
   choice the measurement should fix is not fixed: the k-points the candidates are tested at
-  are too few, or the model carries more symmetry than the group.
+  are too few, or the model carries more symmetry than the group. Two survivors that are
+  the two orientation branches, `D(g)` and `D(g^-1)`, are settled by convention where both
+  give the same site labels under the same labeling; where they do not, they are two
+  different representations.
 - **What to do.** Open an issue on pythTQC's GitHub with the model and the call: the
   measurement should have fixed this choice.
 
 #### `canonical_norm`
 
-Returned by `pythtqc.symmetry.normalize_rep`.
+Returned by `realized_group` and `pythtqc.symmetry.normalize_rep`.
 
-- **What it means.** A matrix raised to its operation's order is not a multiple of the
-  identity, so it represents no operation and no phase can fix it.
+- **What it means.** A matrix `D` raised to its operation's order is not a multiple of
+  the identity, so it represents no operation and no phase can fix it. The check reads the
+  unitary matrix nearest `D`, raised to the order of the operation modulo lattice
+  translations, with every second factor complex conjugated for an antiunitary operation,
+  and compares it with the multiple of the identity nearest it.
 - **What to do.** A matrix of one's own handed in is not the operation's; met any other way,
   report it.
 
 #### `antiunitary_anchor`
 
-Returned by `pythtqc.symmetry.normalize_rep`.
+Returned by `realized_group` and `pythtqc.symmetry.normalize_rep`.
 
-- **What it means.** No phase the canonical norm allows makes a matrix agree with time
-  reversal, `T conj(D) T† = D`: the matrix and the time reversal belong to different
-  representations, and corep labels built on it would be meaningless.
+- **What it means.** No phase the canonical norm allows makes a matrix `D` agree with time
+  reversal, `T conj(D) T† = D` for `T` the matrix of time reversal, or of another
+  antiunitary operation where the group has none: the matrix and the time reversal belong
+  to different representations, and corep labels built on it would be meaningless. Where `T conj(D) T† = ρD`, the matrix `λD`, for a phase `λ`, agrees
+  with time reversal only for `λ**2 = ρ`, and no such `λ` is among the phases the
+  canonical norm allows.
 - **What to do.** As for `canonical_norm`.
 
 #### `little_group_mismatch`

@@ -946,7 +946,7 @@ def test_the_measured_blocks_enumeration_is_capped_and_says_so():
     assert out.context["multiplet"] == (0, 1, 2, 3) and out.context["multiplicity"] == 4
     assert out.context["n_candidates"] == 46
     assert out.value == 46.0 and out.threshold == 16.0
-    assert "fourfold pseudospin" in out.reason and "46 sums" in out.reason
+    assert "fourfold pseudospin" in out.reason and "46 representations" in out.reason
     assert "`characters=`" in out.reason
 
 

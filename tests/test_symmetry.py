@@ -1194,10 +1194,10 @@ def test_bloch_operator_row_phases_follow_the_preimage(inline_rep):
     c4 = rep._generators[0]
     D = rep.matrices[c4].copy()
     D[[1, 2], :] = D[[2, 1], :]              # keep it unitary, break the permutation
-    with pytest.raises(ValueError, match="integer-shift identity|preimages"):
+    with pytest.raises(ValueError, match="does not carry onto orbital|not a lattice vector"):
         tqs.bloch_operator(model, group, assignment, rep._operation(c4), D,
                            np.array([0.2, 0.3]))
-    with pytest.raises(ValueError, match="integer reciprocal-lattice"):
+    with pytest.raises(ValueError, match="not a reciprocal lattice vector"):
         rep.bloch_operator(c4, np.array([0.2, 0.3]), k_out=np.array([0.1, 0.1]))
 
 
@@ -1545,9 +1545,9 @@ def test_the_table_anchor_errors_rather_than_refusing(monkeypatch):
     assert not isinstance(excinfo.value, Refusal), "a gauge the tables fix raises"
     assert isinstance(excinfo.value, RuntimeError)
     assert f"operation #{gen}" in message
-    assert "the tables fix this gauge completely" in message
-    assert "bug in this package's application of that convention" in message
-    assert "not a multiple of the operation's own sym.spinor_rotation" in message
+    assert "spin rotation S in the tables" in message
+    assert "Report it, with the model and the call." in message
+    assert "is not a multiple of the operation's spin rotation" in message
 
     # 3.  the helper-level branch: a ratio no offered phase can make real
     S = np.diag([-1j, 1j])
@@ -1558,12 +1558,12 @@ def test_the_table_anchor_errors_rather_than_refusing(monkeypatch):
     with pytest.raises(InternalError) as excinfo:
         _matrices._table_anchored((np.exp(1j * np.pi / 3),), S, S, op_ind=3, order=4, zeta=-1)
     assert "real multiple" in str(excinfo.value)
-    assert "one-dimensional character of the group" in str(excinfo.value)
+    assert "the products are ('+0.5000+0.8660j',)" in str(excinfo.value)
 
     with pytest.raises(InternalError) as excinfo:
         _matrices._table_anchored((1.0 + 0j,), np.diag([-1j, -1j]), S,
                             op_ind=3, order=4, zeta=-1)
-    assert "not a multiple of the operation's own sym.spinor_rotation" in str(excinfo.value)
+    assert "not a multiple of the operation's spin rotation S" in str(excinfo.value)
 
 
 # ---------------------------------------------------------------------------
@@ -1733,12 +1733,12 @@ def test_a_spinless_model_asked_with_double_valued_tables_refuses(
 
     assert isinstance(out, Refusal) and not out, str(out)
     assert out.gate == "rep_double_valued_spinless"
-    assert "half-integer local spin" in out.reason
-    assert "wannier90" in out.reason, "the non-magnetic use case is named"
-    assert "`spin=`" in out.reason, "and the route that now exists for it"
-    assert 'order="interleaved"' in out.reason and "`pairs=`" in out.reason
-    assert "an unpaired spinor orbital" in out.reason, "what is still unsupported"
-    assert "double-group site declarations" in out.reason
+    assert "nothing said about where the spin is" in out.reason
+    assert "Wannier90" in out.reason, "the non-magnetic use case is named"
+    assert '`spin="interleaved"`' in out.reason, "and the route that exists for it"
+    assert '`spin="blocked"`' in out.reason and '`spin={"pairs": ...}`' in out.reason
+    assert "`spinor=False`" in out.reason, "the single-valued group"
+    assert "build the model with spin" in out.reason
     assert out.context["nspin"] == 1 and out.context["spinful"] is False
     assert out.context["number_str"] == "191" and out.context["spinor"] is True
 
@@ -1997,7 +1997,7 @@ def test_an_enumeration_larger_than_max_candidates_is_refused_not_run(lin3g_rep)
     assert not stuck and stuck.gate == "rep_search_too_large", str(stuck)
     assert stuck.value == 32 and stuck.threshold == 1
     assert "no measured intertwiner" in stuck.context["fallback_reason"]
-    assert "The read-off deferred to it because" in stuck.reason
+    assert "The choices were not read off the measurement because" in stuck.reason
 
 
 # ---------------------------------------------------------------------------

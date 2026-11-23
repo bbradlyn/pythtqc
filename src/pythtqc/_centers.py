@@ -138,10 +138,9 @@ def _centers_account_for(model, group, assignment, ops, *, failure, gate, check,
     tolerance for the centers was declared, or where the miss does not
     account for the failure.
     """
-    # The refusal is for centers no declaration speaks for, as the one made
-    # before the detector is, and its reason asks for a precision; under a
-    # declared one the centers were moved within it, and the check's own
-    # verdict is returned.
+    # The refusal is returned only where no tolerance for the centers was
+    # declared, and asks for one. Under a declared tolerance the centers were
+    # moved within it, and the check's own verdict is returned.
     if declared:
         return None
     failure, gate = float(failure), float(gate)
@@ -151,13 +150,13 @@ def _centers_account_for(model, group, assignment, ops, *, failure, gate, check,
     delta = float(_position_defect(model, group, assignment, ops))
     return Refusal(
         "positions_not_exactly_symmetric",
-        f"the orbital centers miss the positions the group puts them at by {delta:.3g} "
-        "(reduced): declare this model's precision, `realized_group(..., precision=)`, "
-        "or `position_tol=` for the centers alone, and centers within it are moved onto "
-        "those positions. Undeclared, the miss alone moves H(k) by up to "
-        f"{reach:.3g}, more than the {gate:.3g} that {check} is held to, where "
-        f"{failure:.3g} is measured. The group identified is {group.name} "
-        f"#{group.number_str}, every operation of it obeyed.",
+        f"the orbital centers miss the positions the group puts them at by {delta:.3g}, "
+        "in reduced coordinates. The miss alone moves H(k) by up to "
+        f"{reach:.3g} in the units of H, more than the {gate:.3g} allowed for {check}, "
+        f"where {failure:.3g} is measured. The group identified is {group.name} "
+        f"#{group.number_str}, and H obeys every operation of it within the tolerance "
+        "it was identified at. Declare the model's precision with `precision=`, or a "
+        "tolerance for the centers alone with `position_tol=`.",
         value=delta, threshold=delta * gate / reach,
         context={"group": group, "number_str": str(group.number_str),
                  "position_defect": delta, "reach": reach, "gate": gate,
@@ -187,24 +186,21 @@ def _centers_account_for_closure(refusal):
         return None
     return Refusal(
         "positions_not_exactly_symmetric",
-        f"the orbital centers miss the operations of the cell's group by {miss:.3g} (reduced): "
-        "declare this model's precision, `realized_group(..., precision=)`, or "
-        "`position_tol=` for the centers alone, and centers within it are moved onto the "
-        "positions the group puts them at. Undeclared, the operations read off these centers "
+        f"the operations of the cell's group carry the orbital centers onto one another "
+        f"only to within {miss:.3g}, in reduced coordinates. That miss can leave the "
+        f"operations open by up to {reach:.3g}. The operations read off these centers "
         f"close only to {closure:.3g}, more than the {gate:.3g} a cell built from exact "
-        f"numbers closes to, and a miss of {miss:.3g} can leave them open by up to "
-        f"{reach:.3g}, so there is no exactly symmetric configuration to measure H against. "
-        f"Nothing was built. The cell's group is {ctx['name']} #{ctx['number_str']}, an upper "
-        "bound on what this Hamiltonian obeys.",
+        "numbers closes to. "
+        f"The cell's group is {ctx['name']} #{ctx['number_str']}, an upper "
+        "bound on what this Hamiltonian obeys. Declare the model's precision with "
+        "`precision=`, or a tolerance for the centers alone with `position_tol=`.",
         value=miss, threshold=miss * gate / reach,
         context={"number_str": str(ctx["number_str"]), "name": str(ctx["name"]),
                  "position_defect": miss, "reach": reach, "gate": gate,
                  "failure": closure})
 
 
-# --------------------------------------------------------------------------
-# the centres against the group's action: the sites, the moves and the defect
-# --------------------------------------------------------------------------
+# The centers against the group's action: the sites, the moves and the defect.
 
 @dataclass(frozen=True, eq=False)
 class _SiteFrame:
@@ -472,8 +468,8 @@ def _rational_offset(trans, rotations, rows, periodic):
         return None
     delta = np.zeros(3)
     delta[per] = sol
-    # rounding is no shift: centres written in the model's own frame stay
-    # exactly where they are
+    # Each component at rounding is set to zero, so centers written in the
+    # model's own frame stay exactly where they are.
     delta[np.abs(delta) <= ROUNDING] = 0.0
     return delta
 
@@ -481,12 +477,13 @@ def _rational_offset(trans, rotations, rows, periodic):
 def _moves_of(frame, x) -> np.ndarray:
     r"""Each point's move onto its site at ``x``.
 
-    The moves are in the cell's own reduced coordinates.  ``x`` holds the
-    moved position of each moving site.  A point moves from where it is to
-    the position of its site, modulo the lattice.  Where every move is at
-    rounding, none is made.  Otherwise a move at the rounding of the largest
-    is set to zero, and every other move is made, however small.  The points
-    of sites that do not move stay at zero.
+    The moves are in the cell's own reduced coordinates.  ``frame`` is the
+    cell's :class:`_SiteFrame`, and ``x`` holds the moved position of each of
+    its moving sites.  A point moves from where it is to the position of its
+    site, modulo the lattice.  Where every move is at rounding, none is made.
+    Otherwise a move at the rounding of the largest is set to zero, and every
+    other move is made, however small.  The points of sites that do not move
+    stay at zero.
     """
     pts = frame.points
     out = np.zeros_like(pts)
@@ -506,7 +503,9 @@ def _frame_defect(frame, perm, rotations, trans, rows, sites=None) -> float:
     model's own orbitals, ``τ_b`` the first orbital of the site the operation
     sends ``τ_a``'s to, in the 3D cell's frame: the position defect
     (:func:`_position_defect`), read on the centers as they are, or with every
-    orbital on its site at ``sites`` where that is given.
+    orbital on its site at ``sites`` where that is given.  ``rotations`` and
+    ``perm`` hold each operation's rotation and its permutation of the moving
+    sites of ``frame`` (:func:`_site_action`).
     """
     pts = frame.points
     move = [int(s) for s in frame.moving]
@@ -530,7 +529,10 @@ def _frame_defect(frame, perm, rotations, trans, rows, sites=None) -> float:
 
 
 def _geometry(model, orb):
-    """A model's lattice with the centers ``orb``, carrying no Hamiltonian."""
+    """A spinless model on the lattice of ``model``, its orbitals at ``orb``.
+
+    ``orb`` is in reduced coordinates. The model carries no Hamiltonian.
+    """
     from pythtb import Lattice, TBModel
 
     return TBModel(Lattice(np.asarray(model.lat_vecs, dtype=float),

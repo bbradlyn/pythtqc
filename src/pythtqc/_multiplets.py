@@ -1,8 +1,14 @@
-"""The multiplets the Hamiltonian binds each site's orbitals into, and the block
-of every operation on each multiplet, read off the solution spaces: the finest
-partition every validated operation respects, the orbits of sectors built by
-induction, the blocks carried round an orbit, and whether each solution space
-holds a member in the operation's own form.
+"""The multiplets the Hamiltonian binds each site's orbitals into, and their blocks.
+
+Both are read off the operations' solution spaces.  An operation's solution
+space is every matrix ``X`` with ``X H(k) = H(Rk) X`` on the grid, or
+``X H(k)* = H(-Rk) X`` for an operation combined with time reversal, as the
+detector finds it (``ValidatedGroup._bases``).  A matrix of the operation's
+own form carries each site's states onto its image's, with any change of
+basis within the site, and on states that carry a spin it is ``O ⊗ S(g)``,
+``S(g)`` the operation's own spin lift (:func:`.._matrices._lift_of`).  A
+multiplet's block is what such a matrix carries from the multiplet onto its
+image.
 """
 
 from __future__ import annotations
@@ -28,18 +34,17 @@ from .symmetry import _fold
 
 
 def _declared_parts(declared, site_orbs, site_of, atoms):
-    """Stated multiplets, re-keyed onto this assignment's own sites.
+    """Multiplets stated by ``site_multiplets=``, each given to the site its orbitals sit on.
 
-    The multiplets are a partition of the model's **orbitals**, and which site
-    index holds which multiplet is the assignment's business rather than the
-    declaration's — so the multiplets are read as a flat set, each assigned to
-    the site its orbitals sit on, and the sites' own order is applied here.
-    That is what carries the multiplets from a model to another presentation of
-    it, where the same orbitals are grouped in a different order.
-
-    Everything that can go wrong is grammar, and raises ``ValueError``
-    (:func:`.._grammar._declaration_grammar`), which every call that takes a statement
-    has asked before anything was measured.
+    ``declared`` is the statement, every site's multiplets as their orbitals,
+    read as one partition of the model's orbitals whatever site each list
+    stands at.  ``site_orbs`` holds the orbitals of each site of this
+    assignment, ``site_of`` each orbital's site, and ``atoms`` each site's
+    atoms, its orbitals or its declared spinor pairs.  Returns, per site, its
+    multiplets in the order of their first orbitals.  A malformed statement,
+    or one that splits a spinor pair or spans two sites, raises
+    ``ValueError`` (:func:`.._grammar._multiplets_grammar`); the call that took
+    it has checked that before measuring anything.
     """
     pairs = tuple(tuple(int(o) for o in atom) for site_atoms in atoms
                   for atom in site_atoms if len(atom) == 2)
@@ -52,22 +57,23 @@ def _declared_parts(declared, site_orbs, site_of, atoms):
 def _slot_order(model, group, assignment, atoms, spaces, *, tol=ZERO):
     r"""Each site's atoms in the order of the atoms they are images of at its orbit's reference site.
 
-    Which orbital at one site of an orbit answers to which at another is what
-    the operations carry, never where the orbitals happen to be listed: an
-    operation carrying the orbit's reference site onto another carries each of
-    the reference's atoms into the atoms its solution space puts weight on
-    there, and those share its slot.  Atoms an operation carries into one
-    another's span -- the members of a multiplet, or copies of one irrep
-    written in bases turned from site to site -- are paired in the order each
-    site lists them, which is all a slot says about them: the multiplet they
-    land in is decided by the site's own operations.  Of the operations
-    reaching a site, the one that pairs the atoms most finely is read.  Where
-    none reaches it, or none pairs them one to one, the site keeps its own
-    order.  A weight below ``tol`` of the largest links nothing: ``1e-9``, or
-    the declared tolerance where it is larger (:func:`.._tolerance.noise_floor`).
+    An orbit's reference site is its lowest-numbered site.  An operation
+    carrying the reference site onto site ``t`` links each atom there to the
+    atoms of ``t`` its solution space puts weight on, and linked atoms share a
+    slot.  Atoms in one linked set are paired in the order each site lists
+    them; the multiplet they land in is decided by the operations that fix
+    the site.  Of the operations reaching ``t`` whose every set holds as many
+    atoms of one site as of the other, the one with the most sets is read.  A
+    site no such operation reaches keeps its own order.  A weight at most
+    ``tol`` times the largest links nothing.
 
-    ``atoms[s]`` is site ``s``'s atoms in its own order; returns them per site
-    in slot order.
+    ``model``, ``group`` and ``assignment`` are the model, its group and the
+    orbitals' assignment to it.  ``atoms[s]`` is site ``s``'s atoms in its own
+    order, each an orbital or a declared spinor pair.  ``spaces`` maps an
+    operation's index to its solution space within its site blocks
+    (:func:`_site_spaces`).  ``tol`` is :data:`.._tolerance.ZERO`, or the
+    declared tolerance where larger.  Returns the atoms per site, in slot
+    order.
     """
     nspin = int(model.nspin)
     orbit_of = np.asarray(assignment.orbit_of_site, dtype=int)
@@ -124,103 +130,62 @@ def _slot_order(model, group, assignment, atoms, spaces, *, tol=ZERO):
 
 def _site_multiplets(model, group, assignment, spin, validated, declared=None, tol=None,
                      sectors=None):
-    r"""The multiplets this Hamiltonian glues at every site, measured.
+    r"""The multiplets the Hamiltonian binds each site's orbitals into, measured.
 
-    The rule, one sentence: the **finest** partition of each site's orbitals
-    into multiplets for which every validated operation's solution space —
-    ``validated._bases[ind]``, the detector's whole nullspace for that operation
-    — still contains a nonsingular member in **block form**, block-diagonal
-    within every site the operation fixes, the geometric permutation between
-    the sites of an orbit, and a declared spinor pair never split.  *Finest*
-    assumes nothing the hoppings do not force: two decoupled orbitals at one
-    site, each with hoppings of its own, are two one-dimensional multiplets and
-    never a doublet, because a diagonal member exists.  What those two carry
-    *relatively* is a different question, and one a Hamiltonian that neither
-    permutes nor couples them cannot answer.  Two identical ones are copies of
-    one another, and those are one multiplet (below).
+    A site's multiplets are the finest partition of its atoms, its orbitals
+    or declared spinor pairs, for which every operation the partition is
+    about still has a nonsingular member of its solution space in block form:
+    block-diagonal on the multiplets of every site it fixes, and carrying the
+    multiplets of a site onto those of its image.  The operations it is about
+    are those the whole site as one multiplet makes realizable
+    (:func:`_ansatz_defects`).  The partition is refined from singletons, one
+    merge at a time: a block an operation's space cannot fill merges that
+    multiplet with one the space couples it to at the image site.  The merges
+    asked by operations at a site they fix are made first.  An operation that
+    moves a site merges only multiplets that carry copies of one site irrep,
+    by their characters under the site group.  Atoms of a site that each hold
+    part of one sector of the conserved matrices (:mod:`._sectors`) are one
+    multiplet, and so are identical copies.  The sites of an orbit share one
+    partition, matched slot by slot (:func:`_slot_order`).  Where two
+    partitions are equally fine, the lowest-indexed partner is taken and the
+    tie recorded in ``accidental``.
 
-    The search is a refinement from singletons.  For a candidate partition and
-    an operation, the members of the solution space that are in block form are
-    measured (:func:`.._matrices._in_blocks`, :func:`_unfilled_blocks`); where the space
-    cannot fill a block, what the space *does* couple that multiplet to says
-    which multiplets merge.  Only operations the **coarsest** partition — the
-    whole site as one multiplet, its blocks carried round the orbit as the
-    tensor test carries them — makes realizable drive it: an operation not even
-    that can carry is refuted by its own tensor structure, and gluing orbitals
-    would substitute a partition for that verdict.  Sites in one orbit share one
-    partition, so a merge measured at one site is transported to the whole
-    orbit rather than measured again there, and the refinement terminates at
-    the whole site at worst.
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        The model.
+    group : ..groups.GroupData
+        The group measured on it.
+    assignment : ..groups.OrbitalAssignment
+        The orbitals' sites and each operation's permutation of the sites.
+    spin : ..spin.SpinBasis or None
+        The declared spinor pairs, which no multiplet splits.
+    validated : ..groups.ValidatedGroup or None
+        The verdicts, ``_bases`` holding each kept operation's solution space.
+    declared : SiteMultiplets or sequence, default None
+        Multiplets stated by ``site_multiplets=``: a :class:`SiteMultiplets`,
+        or each site's multiplets as their orbitals.
+    tol : float, default None
+        The declared tolerance, relative to ``max|H|``.  Every threshold here
+        that measures noise is the larger of its exact default and ``tol``
+        (:func:`.._tolerance.noise_floor`).  ``None`` keeps the exact defaults.
+    sectors : .._sectors.SectorReading, default None
+        The sectors of the conserved matrices
+        (:func:`.._sectors.read_sectors`), read here where none is given.
 
-    **Orbitals on a site are glued by the operations that fix it.**  Those
-    decide each site's finest multiplets, and every merge they ask for is made
-    before any other.  An operation that carries a site onto another asks for
-    a merge where the two sites write their orbitals in bases it does not carry
-    into one another, and that merge is made only inside one isotypic
-    component: the multiplets it would join carry copies of one site irrep, at
-    every site of the orbit.  Their characters under the site group say so —
-    the traces of their blocks in one member of each operation's solution
-    space, so that the member's free phase is common to both, and on every
-    member where the space holds more than one, since a relation the hoppings
-    leave open is no evidence of one irrep.  Copies of one irrep written in
-    bases rotated from site to site (``A'`` and ``A'`` at a mirror site) become
-    one multiplet.  A merge across different irreps is not made, and the
-    operation that asked for it stays refuted by its own tensor structure: a
-    half translation the hoppings obey only dressed by a rotation of one
-    site's frame would glue a ``p_x`` even under the site's mirror to a
-    ``p_y`` odd under it, and it is no symmetry of the crystal.
-
-    **No basis splits what the conserved matrices join.**  The matrices that
-    commute with ``H(k)`` at every ``k`` and act within sites split the states
-    into sectors (:mod:`._sectors`) whatever basis the orbitals are written in,
-    and two orbitals of one site that each hold part of one sector are one
-    multiplet.  A square's ``p_x, p_y`` pair that nothing couples is two
-    sectors; written as ``(p_x ± p_y)/√2`` each orbital holds half of each, and
-    the pair is one multiplet there as in every other basis, though in that
-    one basis the fourfold's solution space holds a diagonal member and no
-    operation would bind the two.  These merges are made first and carried
-    round the orbit as every merge is.  **Identical copies are one multiplet**:
-    where a sector holds several copies of one set of states, each copy written
-    as orbitals of its own, the matrices exchanging the copies join every state
-    of one copy to the same state of every other, so that a content mixing
-    them -- two identical ``s`` orbitals declared the doublet ``E``, with a spin
-    or without -- can be read on them.  ``sectors`` is the reading
-    (:func:`.._sectors.read_sectors`), made here where none is handed in.
-
-    Two incomparable finest partitions need an accidental degeneracy (a
-    decoupled orbital whose bands coincide with a partner's).  The tie is
-    resolved deterministically — the lowest-indexed partner — and recorded on
-    :attr:`SiteMultiplets.accidental`; nothing is refused.
-
-    **Which orbital answers to which across an orbit** is measured too, never
-    read off the order the sites list their orbitals in: the operation carrying
-    the orbit's reference site onto another says which of the reference's
-    orbitals each one there is the image of (:func:`_slot_order`), and a slot is
-    that correspondence.  So a site that lists ``(p_y, p_x)`` where the
-    reference lists ``(p_x, p_y)`` has each orbital in its own multiplet, each
-    reading its own irrep, and a merge is asked only where the bases genuinely
-    turn.
-
-    ``declared`` holds multiplets stated rather than measured, by
-    ``multiplets=``: a :class:`SiteMultiplets`, or the multiplets of every
-    site, each given as the orbitals it holds.  They are used verbatim, and a
-    statement carries the multiplets from one presentation of a model to
-    another.
-
-    ``tol`` is the declared symmetry tolerance relative to ``max|H|``
-    (:func:`.._tolerance.noise_floor`): every threshold here that measures noise -- how far
-    a member sits outside the blocks, when a block is empty or singular, which
-    weights link or couple, when two characters agree, which operations the
-    whole-site partition carries -- is the larger of its exact default and it,
-    and the record carries it for every later test of its blocks.  ``None``,
-    nothing declared, is every default exactly.  A Wannier basis whose orbital
-    frame is off the ideal one by less than the declared precision then reads
-    the multiplets of the ideal one, measured as holding only within the
-    declared precision: the Hamiltonian's own symmetry matrices mix those
-    multiplets at the size of the turn, which is how far outside their block
-    form the members they were read off reach (:attr:`SiteMultiplets._mixing`,
-    :func:`_block_members`), and so do its conserved matrices, by how far a
-    sector reaches between two of them (:func:`.._sectors.joined`).
+    Returns
+    -------
+    SiteMultiplets
+        The multiplets, carrying ``tol`` for every later test of their blocks.
+        ``_mixing`` holds how far outside their block form the members they
+        were read off reach, and, where the multiplets are measured, how far
+        a sector of the conserved matrices reaches between two multiplets of
+        one site: rounding where the Hamiltonian holds them exactly, more
+        where it holds them only within ``tol``.  With ``declared``, the
+        multiplets are the ones stated, and a :class:`SiteMultiplets` about
+        the same sites is returned as it is.  Every atom is its own multiplet
+        where nothing is declared and ``validated`` is ``None`` or holds no
+        space, or where the whole-site test returns a refusal.
     """
     site_orbs = tuple(tuple(int(o) for o in orbs) for orbs in assignment.site_orbitals)
     atoms = _atoms_of_site(site_orbs, spin)
@@ -246,7 +211,7 @@ def _site_multiplets(model, group, assignment, spin, validated, declared=None, t
                                 order=order, tol=tol)
         if not tol or not spaces:
             return layout
-        # WHETHER THE DECLARED MULTIPLETS HOLD EXACTLY or only within the
+        # Whether the declared multiplets hold exactly or only within the
         # declared tolerance: how far outside their block form the members of
         # each operation's space that sit in it reach
         mixing = 0.0
@@ -270,13 +235,13 @@ def _site_multiplets(model, group, assignment, spin, validated, declared=None, t
 
     orbit_of = np.asarray(assignment.orbit_of_site, dtype=int)
     perms = np.asarray(assignment.permutations, dtype=int)
-    # THE SITE BLOCKS, once: they are the operation's own permutation of the
+    # The site blocks, once: they are the operation's own permutation of the
     # sites and no partition of a site's orbitals changes them, so the space
     # each operation is asked about is restricted to them before the
     # refinement starts.
     spaces, site_layout, site_mixing = _site_spaces(model, group, assignment, spin,
                                                     validated, tol=tol)
-    # THE SLOTS: which atom of every site answers to which of its orbit's
+    # The slots: which atom of every site answers to which of its orbit's
     # reference site, as the operations carry them.  From here on `atoms[s][j]`
     # is the atom of site `s` in slot `j`.
     atoms = _slot_order(model, group, assignment, atoms, spaces,
@@ -289,7 +254,7 @@ def _site_multiplets(model, group, assignment, spin, validated, declared=None, t
                 slot_of[int(o)] = (int(orbit_of[s]), j)
             orbs_of_slot.setdefault((int(orbit_of[s]), j), tuple(int(o) for o in a))
     merged, pending = _Union(), []
-    # NO BASIS SPLITS WHAT THE CONSERVED MATRICES JOIN.  The sectors of the
+    # No basis splits what the conserved matrices join.  The sectors of the
     # matrices that commute with H at every k and act within sites are sets of
     # states, whatever basis the orbitals are written in, and two orbitals of a
     # site that each hold part of one sector are one multiplet: a square's
@@ -299,13 +264,13 @@ def _site_multiplets(model, group, assignment, spin, validated, declared=None, t
     if sectors is None:
         sectors = _sectors.read_sectors(model, group, assignment, spin, validated,
                                         tol=tol or None)
-    # ... and IDENTICAL COPIES ARE ONE MULTIPLET: where the conserved matrices
+    # And identical copies are one multiplet: where the conserved matrices
     # exchange copies of one set of states, which representation the copies
-    # carry together is the freedom the hoppings leave, and a content that mixes
-    # them -- two identical s orbitals declared the doublet E -- has to be
-    # readable on them, so every state of a copy is one multiplet with the same
-    # state of every other.  On states carrying a spin the copies are read in
-    # the orbital factor, every copy carrying the operation's own spin lift
+    # carry together is the freedom the hoppings leave, and a declaration that
+    # mixes them, as two identical s orbitals declared the doublet E, has to be
+    # readable on them.  So every state of a copy is one multiplet with the
+    # same state of every other.  On states carrying a spin the copies are read
+    # in the orbital factor, every copy carrying the operation's own spin lift.
     joins, joining = {}, noise_floor(_IN_BLOCKS, tol)
     if sectors is not None:
         for s, site_atoms in enumerate(atoms):
@@ -314,14 +279,15 @@ def _site_multiplets(model, group, assignment, spin, validated, declared=None, t
                 for j in range(i + 1, len(site_atoms)):
                     if float(joins[s][i, j]) > joining:
                         merged.union((int(orbit_of[s]), i), (int(orbit_of[s]), j))
-    # WHICH OPERATIONS THE MULTIPLETS ARE ABOUT.  Gluing a site's orbitals can
-    # only ever help an operation that the COARSEST partition -- the whole site
-    # as one multiplet -- makes realizable; an operation not even that can carry
+    # Which operations the multiplets are about.  Gluing a site's orbitals can
+    # only ever help an operation that the coarsest partition, the whole site
+    # as one multiplet, makes realizable.  An operation not even that can carry
     # is refuted by its own tensor structure (a lattice supergroup's coset
     # partner, a sigma_h partner), and answering it by gluing orbitals would
-    # substitute a partition for a verdict.  How far a member may sit from that
-    # form and still be realizable is noise, so it reads the declared tolerance
-    # too: a model symmetric only within its precision has every member that far off.
+    # put a partition in place of a verdict.  How far a member may sit from
+    # that form and still be realizable is noise, so it reads the declared
+    # tolerance too: a model symmetric only within its precision has every
+    # member that far off.
     positions = [pos_of_ind[int(i)] for i in validated._indices
                  if int(i) in bases and int(i) in pos_of_ind]
     coarse = _ansatz_defects(model, group, assignment, validated, positions,
@@ -345,11 +311,15 @@ def _site_multiplets(model, group, assignment, spin, validated, declared=None, t
         sites_of_orbit.setdefault(int(orbit_of[s]), []).append(int(s))
 
     def _verdict(layout, asked, ind):
-        """``(p, image, unfilled)`` of one operation on one partition.
+        """One operation's verdict on one partition, ``(p, image, unfilled)``.
 
-        ``asked`` holds the partition's verdicts measured so far, each with how
-        far outside its blocks the members in block form reach, so that the
-        partition the refinement ends on is read once.
+        ``layout`` is the partition and ``ind`` the operation's index; ``p``
+        is its position in the group and ``image`` where it carries each
+        multiplet.  ``unfilled`` lists the blocks its space cannot fill, empty
+        where a nonsingular member in block form exists
+        (:func:`_unfilled_blocks`).  ``asked`` holds the verdicts on
+        ``layout`` measured so far, each with how far its members in block
+        form reach outside the blocks, so that each is measured once.
         """
         if ind not in asked:
             p = pos_of_ind[ind]
@@ -363,11 +333,16 @@ def _site_multiplets(model, group, assignment, spin, validated, declared=None, t
     last = {}
 
     def _sweep(parts):
-        """One merge, the first a verdict asks for; ``True`` when one ran.
+        """Whether any verdict on ``parts`` asks for a merge; the first is made.
 
-        The merges an operation asks for at a site it fixes are made first;
-        only where none is left is a merge asked across the sites of an orbit
-        read, and made only between copies of one site irrep.
+        ``parts`` is each site's multiplets.  The merges asked by operations at
+        a site they fix are made first; where none is left, a merge asked
+        across the sites of an orbit is made, only between multiplets that
+        carry copies of one site irrep (``_one_irrep``).  The partner is the
+        lowest-indexed multiplet of the image site that the space couples to
+        the unfilled one within half the largest such weight; the others so
+        coupled are kept as a possible tie.  The partition swept and its
+        verdicts are kept in ``last``.
         """
         layout = _multiplets_of(model, assignment, spin, parts, order=order)
         asked = {}
@@ -375,12 +350,14 @@ def _site_multiplets(model, group, assignment, spin, validated, declared=None, t
         last.update(parts=parts, layout=layout, asked=asked)
 
         def _one_irrep(orbit, ja, jb):
-            """Do the multiplets of slots ``ja`` and ``jb`` carry copies of one site irrep?
+            """Whether the multiplets of slots ``ja`` and ``jb`` carry copies of one site irrep.
 
-            Asked at every site of the orbit, of the characters the operations
-            fixing it carry on the two multiplets: the traces of their blocks in
-            the same member of the operation's solution space, so that its free
-            phase is common to both, and on every member of it.
+            Asked at every site of orbit ``orbit``, under each unitary
+            operation that fixes the site: the two multiplets' characters,
+            each its block's trace per orbital with the spin lift divided out,
+            agree in every member of the operation's solution space that
+            reaches the site.  Both are read in the same member, so that its
+            free phase is common to both.
             """
             for u in sites_of_orbit[int(orbit)]:
                 a = int(layout._chan_of[atoms[u][ja][0]])
@@ -410,8 +387,8 @@ def _site_multiplets(model, group, assignment, spin, validated, declared=None, t
                 space = spaces[ind]
                 # A block the space cannot fill says this partition is too
                 # fine: the multiplet the operation must carry there is glued to
-                # another one of the same site, and WHICH one the space itself
-                # says -- the multiplets of the image site it does put weight on.
+                # another one, and which one the space itself says: the
+                # multiplets of the image site it does put weight on.
                 floor = link * max(float(np.abs(space).max()), 1.0)
                 for c in unfilled:
                     if (int(perms[p][int(layout._chan_site[c])])
@@ -447,10 +424,10 @@ def _site_multiplets(model, group, assignment, spin, validated, declared=None, t
                     if not merged.union(mine, keys[0]):
                         continue
                     if len(top) > 1:
-                        # several partners couple equally: the merge taken is
-                        # the lowest-indexed one and the rest are recorded, to
-                        # be kept as ties only where the multiplets end with
-                        # them still apart
+                        # several partners couple within half the largest
+                        # weight: the merge taken is the lowest-indexed one and
+                        # the rest are recorded, to be kept as ties only where
+                        # the multiplets end with them still apart
                         pending.append({"operation": int(ind), "chosen": (mine, keys[0]),
                                         "alternatives": tuple((mine, k) for k in keys[1:])})
                     return True
@@ -462,7 +439,7 @@ def _site_multiplets(model, group, assignment, spin, validated, declared=None, t
         if not _sweep(parts):
             break
     parts = _parts_from_merge(site_orbs, atoms, orbit_of, merged)
-    # WHETHER THE MULTIPLETS HOLD EXACTLY, or only within the declared
+    # Whether the multiplets hold exactly, or only within the declared
     # tolerance: how far outside the block form of the partition returned the
     # members it was read off reach, at the site blocks and at the multiplets,
     # over the operations it carries.  The last sweep measured that partition,
@@ -502,17 +479,17 @@ def _site_multiplets(model, group, assignment, spin, validated, declared=None, t
 
 
 def _channel_perms(model, assignment, syms, positions, layout, spin):
-    """``{p: image}`` — where each operation carries each multiplet.
+    """Where each operation carries each multiplet, ``{p: image}``.
 
-    Nothing is assumed: the image is lifted from ``assignment.permutations`` and
-    the slot order of the site's orbitals (:func:`_channel_permutation`), and a
-    **declared** spinor pair additionally has to land on one pair, which
-    :func:`_spin_channel_permutation` measures, in the same slot order.  Each
-    site's orbitals are read pair by pair as the pairs are declared, so every
-    operation carries a pair onto a pair, and one that does not is this package
-    disagreeing with itself.  That check is about the pair and the image is
-    about the **multiplets**, one of which a pair may share with others, so the
-    two are asked separately.  ``positions`` are indices into ``syms``.
+    ``positions`` are positions in ``syms``, the group's operations.
+    ``image[c]`` is the multiplet of ``layout`` that operation ``p`` carries
+    multiplet ``c`` onto (:func:`_channel_permutation`), read off the sites'
+    permutation in ``assignment`` and the slot order of the orbitals of
+    ``model``.  With a declared ``spin``, each operation is also checked to
+    carry every spinor pair onto a pair (:func:`_spin_channel_permutation`).
+    One that does not raises ``InternalError``: each site's orbitals are read
+    pair by pair, so a pair carried off a pair is the package's own reading
+    failing.
     """
     if spin is None:
         return {p: _channel_permutation(assignment, p, model, layout)
@@ -527,11 +504,8 @@ def _channel_perms(model, assignment, syms, positions, layout, spin):
             raise InternalError(
                 f"operation #{syms[p].ind} does not carry declared spinor pair {c} = "
                 f"(up {up}, dn {dn}) onto one pair: it sends orbital {up} into pair "
-                f"{cu} and orbital {dn} into pair {cd}. Each site's orbitals are read "
-                f"pair by pair as the pairs are declared, and an operation carries a "
-                f"site onto a site, so it carries each pair onto a pair: this is this "
-                f"package's own reading failing, not a statement about the model or "
-                f"its pairing.")
+                f"{cu} and orbital {dn} into pair {cd}. Report it, with the model and "
+                f"the call.")
         cperm[p] = _channel_permutation(assignment, p, model, layout)
     return cperm
 
@@ -551,16 +525,12 @@ def _orbit_factor(z, noise):
     r"""The factor an orbit of multiplets carries relative to the reference orbit, as read.
 
     ``z`` is the ratio measured between the two orbits' blocks of one
-    operation.  Within ``noise`` of a root of unity of order dividing twelve --
-    a sign, a quarter turn, a character of a three- or sixfold axis, or one of
-    those times a spin rotation's sign -- it is that root, exactly: the
-    orbitals are written as one another's images, and what the measurement
-    adds to the root is rounding, or a numerical model's noise.  Any other
-    factor of unit modulus is a phase the basis functions carry, an orbital
-    written as ``e^{iφ}`` times its partner's image, and it is kept as
-    measured.  ``None`` where ``z`` is no phase: its modulus misses one by
-    more than ``noise``.  The build's read-off reads every factor this way, and
-    the three gates then say whether what it read is a representation.
+    operation.  Within ``noise`` of a root of unity of order dividing twelve
+    (``_TWELFTH_ROOTS``), it is returned as that root exactly.  Any other
+    ``z`` whose modulus is within ``noise`` of one is returned as its phase,
+    ``z / |z|``: a phase the orbitals themselves carry, an orbital written as
+    ``e^{iφ}`` times its partner's image.  Returns ``None`` where the modulus
+    of ``z`` misses one by more than ``noise``.
     """
     z = complex(z)
     if not abs(abs(z) - 1.0) <= float(noise):
@@ -570,7 +540,11 @@ def _orbit_factor(z, noise):
 
 
 def _factor_said(z) -> str:
-    """A factor between orbits of multiplets in words: a root of unity by name, a phase by value."""
+    """The factor ``z`` between two orbits of multiplets, in words.
+
+    A root of ``_TWELFTH_ROOTS`` is named, as ``i`` or ``e^(2πi·1/3)``; any
+    other value is printed to six significant digits.
+    """
     z = complex(z)
     if z in _TWELFTH_ROOTS:
         k = _TWELFTH_ROOTS.index(z)
@@ -582,27 +556,23 @@ def _factor_said(z) -> str:
 def _reversal_scalars(basis, blocks, lifts, classes, ref_chan, *, tol=_IN_BLOCKS):
     r"""The scalar time reversal carries on each orbit of multiplets, as its solution space pins it.
 
-    Time reversal is assembled as its tensor structure: its own internal factor
-    on every multiplet, times one scalar per orbit of multiplets.  Where the
-    orbitals are real functions every scalar is one.  A basis function that is
-    ``i`` times a real one turns its scalar to ``-1`` instead, and the
-    Hamiltonian pins that sign wherever such an orbital couples to the
-    reference: spinor states read spinless, whose time reversal of square
-    ``+1`` the model's commutant supplies, are written that way, the states of
-    one ``(p_x, p_y)`` spin sector coupled by an imaginary spin-orbit term.  So
-    the scalars are read off the solution space and not assumed.  Its members
-    in tensor form (:func:`_ansatz_residual`, one scalar per block) carry a
-    vector of scalars on each orbit; two orbits whose vectors are parallel are
-    pinned to one another at their ratio, an orbit pinned to the reference's
-    takes its ratio to it, and a set of orbits the hoppings leave free of the
-    reference is anchored at one on its lowest orbit -- rephasing orbitals the
-    Hamiltonian does not couple to the rest changes nothing it measures.
+    Time reversal's matrix is its own factor ``lifts[c]`` on each multiplet
+    ``c``, times one scalar per orbit of multiplets.  Where the orbitals are
+    real functions every scalar is one; an orbital written as ``i`` times a
+    real function has ``-1``.  The members of ``basis``, time reversal's
+    solution space, that are in that form within ``tol`` of the space's scale
+    (:func:`_ansatz_residual`) each carry a scalar on every orbit.  Orbits
+    whose vectors of scalars over these members are parallel are pinned to
+    one another at their ratio.  The reference orbit, and the lowest orbit of
+    each set pinned to none before it, take one.  A ratio within
+    ``max(SNAP, 10·tol)`` of a sign is that sign.
 
-    ``tol`` is how far from tensor form a member may be and still count as in
-    it, relative to the space's own scale.  Returns one unit scalar per orbit,
-    or ``None`` where the space holds no member in tensor form, or the scalars
-    it pins are not of unit modulus -- where time reversal keeps the scalar one
-    on every orbit.
+    ``blocks`` holds the rows and columns of each multiplet's block
+    (:func:`_ansatz_blocks`), ``classes`` each multiplet's orbit, and
+    ``ref_chan`` a multiplet of the reference orbit.  Returns one unit scalar
+    per orbit, indexed by orbit.  Returns ``None`` where no member is in the
+    form, the members carry nothing on some orbit, or a pinned ratio is not
+    of unit modulus; time reversal is then assembled with one on every orbit.
     """
     B = np.asarray(basis, dtype=complex)
     if B.ndim != 3 or not len(B):
@@ -655,25 +625,69 @@ def _reversal_scalars(basis, blocks, lifts, classes, ref_chan, *, tol=_IN_BLOCKS
 
 def _induced_blocks(model, group, assignment, spin, validated, layout, kept, cperm, bases, *,
                     ref_chan=None, sectors=None, max_candidates=2 ** 20):
-    r"""Every orbit of sectors built by induction that the sectors read, each as a record.
+    r"""The orbits of sectors whose representations are built by induction, as records.
 
-    The sectors are read where the model entered (``sectors``, read here where
-    none is handed in); where the multiplets hold each sector's copies
-    together, every orbit of sectors under the operations ``kept`` that holds
-    identical copies, or that uncoupled orbitals a symmetry exchanges make one
-    the group's one-dimensional characters do not carry
-    (:func:`.._sectors.induced_orbits`), is read (:class:`.._sectors.InducedOrbit`):
-    its candidates counted before anything is built, each a representation of
-    the orbit the hoppings leave open, the first built and checked against the
-    group's own table and every operation's solution space.  On states that
-    carry a spin the orbits are read on the orbital factor, each matrix
-    carrying the operation's own lift on the spin, so identical copies there
-    carry an ordinary representation, the double-valued factor system the
-    spin's alone.  An orbit the sectors do not read, an orbit of one copy with
-    no representation, or one whose first candidate misses those checks, is
-    left to the multiplets' own blocks.  Returns the records (:meth:`.._sectors.InducedOrbit.record`), the
-    orbit itself as ``induced``, or the ``rep_search_too_large`` refusal
-    where the candidates exceed ``max_candidates``.
+    These are the orbits of sectors of the conserved matrices, under the
+    operations ``kept``, of three kinds (:func:`.._sectors.induced_orbits`):
+    those whose sectors hold identical copies; those of several sectors of
+    one copy that one multiplet holds together; and those of several sectors
+    of one copy that an orbit of multiplets crosses
+    (:func:`.._sectors.crossed`), where a sector's stabilizer has a
+    one-dimensional character that no character of the group restricts to.
+    They are read only where the multiplets hold each sector's copies
+    together.
+    An orbit's candidates, the representations of it the hoppings leave open,
+    are counted before any is built, and the first is checked against the
+    group's multiplication table and every operation's solution space
+    (:meth:`.._sectors.InducedOrbit.check`).  On states that carry a spin the
+    orbits are read on the orbital factor, each matrix carrying the
+    operation's own spin lift, so identical copies there carry an ordinary
+    representation.
+
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        The model.
+    group : ..groups.GroupData
+        The group measured on it.
+    assignment : ..groups.OrbitalAssignment
+        The orbitals' sites and each operation's permutation of the sites.
+    spin : ..spin.SpinBasis or None
+        The declared spinor pairs.
+    validated : ..groups.ValidatedGroup
+        The verdicts the sectors are read from.
+    layout : SiteMultiplets
+        The multiplets, carrying the declared tolerance every threshold reads.
+    kept : list of int
+        The positions in the group of the operations represented.
+    cperm : dict
+        Where each of them carries each multiplet (:func:`_channel_perms`).
+    bases : dict
+        Each operation's solution space, by index, which the first candidate
+        is checked against.
+    ref_chan : int, default None
+        The multiplet an orbit is read at, where the orbit holds it.
+    sectors : .._sectors.SectorReading, default None
+        The sectors read where the model entered, read here where none is
+        given.  Sectors read at a declared tolerance are read again on
+        ``model``, which may have been projected since.
+    max_candidates : int, default 2**20
+        The most candidates an orbit of several copies, or the orbits read
+        together, may have.
+
+    Returns
+    -------
+    list of .._sectors._OrbitRecord or Refusal
+        One record per orbit, or per set of orbits read together
+        (:meth:`.._sectors.InducedOrbit.record`), whose first candidate passes
+        the check, or that holds identical copies and admits no candidate.
+        Every other orbit is left to the multiplets' own blocks.  Empty where
+        no orbit is built by induction.
+
+    Refusals
+    --------
+    ``rep_search_too_large``
+        the candidates exceed ``max_candidates``.
     """
 
     eps = getattr(layout, "_tol", None) or None
@@ -690,7 +704,7 @@ def _induced_blocks(model, group, assignment, spin, validated, layout, kept, cpe
         return []
     if sectors is not None and reading.tol is not None:
         # the frames the matrices are built in are the conserved matrices' of
-        # THIS model: read where a precision was declared, the model handed in
+        # this model: read where a precision was declared, the model handed in
         # may have been projected since, and its sectors are then exact
         reading = _sectors.read_sectors(model, group, assignment, spin, validated, tol=eps)
         if not _induced(reading):
@@ -708,11 +722,10 @@ def _induced_blocks(model, group, assignment, spin, validated, layout, kept, cpe
             return Refusal(
                 "rep_search_too_large",
                 f"the multiplets of orbitals {many.orbitals} hold {many.sets} sets of states "
-                "the Hamiltonian conserves apart and no operation exchanges, and which "
-                f"representation each carries is not fixed by it: the {many.count:,} ways of "
-                f"choosing one for each are more than max_candidates = "
-                f"{int(max_candidates):,}. Declare what the orbitals are (`characters=`), or "
-                "raise `max_candidates=` if the enumeration is worth waiting for.",
+                "that the Hamiltonian does not couple and no operation exchanges. There "
+                f"are {many.count:,} ways of choosing a representation for each of these "
+                f"sets, more than max_candidates = {int(max_candidates):,}. Declare what "
+                "the orbitals are with `characters=`, or pass a larger `max_candidates=`.",
                 value=float(many.count), threshold=float(max_candidates),
                 context={"multiplet": tuple(many.orbitals), "sets": int(many.sets),
                          "n_candidates": int(many.count),
@@ -720,11 +733,9 @@ def _induced_blocks(model, group, assignment, spin, validated, layout, kept, cpe
         return Refusal(
             "rep_search_too_large",
             f"the Hamiltonian conserves a {_fold(many.copies)} pseudospin on orbitals "
-            f"{many.orbitals}, and which representation its copies carry is not fixed by "
-            f"it: the {many.count:,} sums of irreducible representations of dimension "
-            f"{many.copies} that could carry it are more than max_candidates = "
-            f"{int(max_candidates):,}. Declare what the orbitals are (`characters=`), or "
-            "raise `max_candidates=` if the enumeration is worth waiting for.",
+            f"{many.orbitals}. There are {many.count:,} representations its copies "
+            f"could carry, more than max_candidates = {int(max_candidates):,}. Declare "
+            "what the orbitals are with `characters=`, or pass a larger `max_candidates=`.",
             value=float(many.count), threshold=float(max_candidates),
             context={"multiplet": tuple(many.orbitals), "multiplicity": int(many.copies),
                      "n_candidates": int(many.count), "max_candidates": int(max_candidates)})
@@ -743,28 +754,24 @@ def _induced_blocks(model, group, assignment, spin, validated, layout, kept, cpe
 
 
 def _orbit_blocks(basis, image, chan_states, c0, members, Y, *, identity=False, tol=ZERO):
-    r"""``{c: block}`` — one operation's block at every multiplet of a Wyckoff orbit.
+    r"""One operation's block at every multiplet of a Wyckoff orbit, ``{c: block}``.
 
     The block at the reference multiplet ``c0`` is ``Y``, a block of the
-    operation's solution space at ``(image[c0], c0)``; the block at each other
-    multiplet ``c`` is read at ``(image[c], c)`` off the **same member** of that
-    space — the one whose reference block is ``Y``.  An intertwiner is one
-    matrix, so its blocks at the other sites of the orbit are the operation
-    acting in *their* frames: where the orbit permutes the orbital frame they
-    are different matrices, the reference's frame carried round the orbit, and
-    where every site carries the same functions they are the reference's block
-    again.  Where the space is one-dimensional this is the model's own
-    intertwiner read at every multiplet, up to one scalar for the operation.
+    operation's solution space at ``(image[c0], c0)``.  The block at each
+    other multiplet ``c`` is read at ``(image[c], c)`` off the same member of
+    the space, the one whose block at the reference is ``Y``, and made
+    unitary where it can be: it is the operation acting in that site's own
+    frame.  Where that member's block at ``c`` is at most ``tol`` times the
+    scale of ``Y``, as at a multiplet the Hamiltonian decouples from the
+    reference, the largest block the space carries there is taken
+    (:func:`_block_space`).
 
-    A multiplet whose block the reference's does not determine — one the
-    Hamiltonian decouples from it, so that the member read there vanishes —
-    takes the leading block the space carries there.  ``identity`` says the
-    operation is the identity, whose reference block ``Y`` is the identity
-    matrix in the phase the rest of the build is written in: it is that block
-    at every multiplet, since ``D(E) = 1`` is what a representation means,
-    whatever conserved operator the identity's solution space holds.  A block
-    below ``tol`` of the reference's scale vanishes: :data:`.._tolerance.ZERO`,
-    or the declared tolerance the space was measured at where that is larger.
+    ``basis`` is the operation's solution space, ``image`` where it carries
+    each multiplet, ``chan_states`` each multiplet's states, and ``members``
+    the multiplets of the orbit, ``c0`` among them.  With ``identity``, the
+    operation is the identity and ``Y`` is returned at every multiplet.
+    ``tol`` is :data:`.._tolerance.ZERO`, or the declared tolerance where
+    larger.
     """
     c0 = int(c0)
     if identity:
@@ -802,29 +809,60 @@ _TRANSPORT_SIGNS = (1.0 + 0.0j, -1.0 + 0.0j, 1.0j, -1.0j)
 
 def _transported_lifts(syms, kept, cperm, layout, members, c0, bases, intertwiners,
                        prod, ident, *, tol=SPREAD):
-    r"""``{p: {c: S}}`` — a class of one-dimensional multiplets, carried round its orbit.
+    r"""A class of one-dimensional multiplets carried round its orbit, ``{p: {c: S}}``.
 
-    A ``p`` along each site's own fourfold axis, the axes pointing along
-    different cube edges, is a one-dimensional multiplet at every site, and an
-    operation carrying one site onto the next carries it onto plus or minus the
-    one there: the relative signs inside the orbit are what the model's
-    transport says they are.  They are read here off
-    **one member** of each operation's solution space -- its block at every
-    multiplet of the class relative to its block at the reference multiplet,
-    which keeps the tables' own lift -- and only where the space pins them:
-    every member of a space with more than one gives the same ratio.
+    A ``p`` orbital along each site's own fourfold axis, the axes along
+    different cube edges, is such a class: an operation carrying one site
+    onto the next carries it onto plus or minus the one there.  Each
+    operation's block at each multiplet of the class is its spin lift (one,
+    spinless) times a scalar, read off its solution space relative to the
+    scalar at ``c0``, and taken only where every member of the space gives
+    the same ratio.  A ratio within :data:`.._tolerance.SNAP` of ``±1`` or
+    ``±i`` (``_TRANSPORT_SIGNS``), or within the declared tolerance where
+    larger, is taken as that value, any other as its phase.  What is read is
+    taken only where it is a representation: the unitary operations read
+    close under the group's product, and any two that commute carry every
+    multiplet alike in either order.  A sign per site that is not a
+    representation is a gauge, as a flux threading the cell is, and not a
+    symmetry.
 
-    What is read is taken only where it is a representation, since a sign per
-    site that is not one is a gauge the hoppings carry and not a symmetry of
-    the crystal (a flux threading the cell): the operations read must be closed
-    under the group's product, and any two that commute must carry every
-    multiplet of the class the same way in either order.  Otherwise, or where
-    nothing is read at all, ``None``, and every multiplet keeps the tables' lift.
+    Parameters
+    ----------
+    syms : list
+        The group's operations, ``group._symmetries``.
+    kept : list of int
+        The positions in ``syms`` of the operations represented.
+    cperm : dict
+        Where each of them carries each multiplet (:func:`_channel_perms`).
+    layout : SiteMultiplets
+        The multiplets, carrying the declared tolerance every threshold reads.
+    members : list of int
+        The multiplets of the class.
+    c0 : int
+        Its reference multiplet, which keeps the tables' lift.
+    bases : dict
+        Each operation's solution space, by index.
+    intertwiners : dict
+        One member of each operation's space, by index, read where ``bases``
+        holds none.
+    prod : ndarray
+        The group's multiplication table, by position.
+    ident : int
+        The position of the identity, which carries every multiplet by its
+        lift.
+    tol : float, default SPREAD
+        How far a block may miss the lift times a number, and the ratios
+        spread over the members, relative to their scale; the declared
+        tolerance where larger.
 
-    Every threshold here measures the noise of the solution spaces, so each
-    reads the declared tolerance the multiplets were measured at where that is
-    larger than its exact default (:func:`.._tolerance.noise_floor`): a
-    numerical model's transported sign misses the exact one by its own noise.
+    Returns
+    -------
+    dict or None
+        ``{p: {c: S}}``, each block the lift times the scalar read.  ``None``
+        where a block is no multiple of the lift, fewer than two unitary
+        operations are read, a product of two of them is not read, or what
+        is read is no representation; every multiplet then keeps the tables'
+        lift.
     """
     su2 = layout._spinful
     eps = getattr(layout, "_tol", None)
@@ -902,13 +940,14 @@ def _transported_lifts(syms, kept, cperm, layout, members, c0, bases, intertwine
 def _phase_multiplet(ones, c0, chan_states, commutant, *, tol=SPREAD):
     """The one-dimensional multiplet a measured multiplet's blocks are phased against, or ``None``.
 
-    The first of the one-dimensional multiplets ``ones`` the hoppings couple to
-    multiplet ``c0``, directly or through others.  It is read off
-    ``commutant``, the identity's solution space -- every matrix commuting with
-    ``H`` -- whose members carry one scalar per coupled part of the crystal:
-    two multiplets of one part carry proportional scalars on every member, and
-    a multiplet the hoppings never reach carries a scalar of its own.  Where
-    that space is not at hand the first of ``ones`` is taken.
+    Returns the first of the one-dimensional multiplets ``ones`` the hoppings
+    couple to multiplet ``c0``, directly or through others.  It is read off
+    ``commutant``, the identity's solution space, every matrix commuting with
+    ``H``, whose members carry one scalar per coupled part of the crystal:
+    two multiplets of one part carry proportional scalars on every member,
+    within ``tol`` of their scale.  ``chan_states`` holds each multiplet's
+    states.  Where ``commutant`` is not at hand the first of ``ones`` is
+    returned.
     """
     if not ones:
         return None
@@ -936,67 +975,68 @@ def _phase_multiplet(ones, c0, chan_states, commutant, *, tol=SPREAD):
 
 def _multiplet_blocks(model, group, assignment, spin, validated, layout, positions, *,
                       ref_chan=None, tol=ZERO, max_candidates=2 ** 20, sectors=None):
-    r"""``{ind: {channel: S}}`` — the internal block of every multiplet, the model's own.
+    r"""Every operation's block at every multiplet, the model's own, ``{ind: {c: S}}``.
 
-    A one-dimensional multiplet's internal factor is the tables' own lift, times
-    the sign the model's own transport gives it relative to its class's
-    reference multiplet (:func:`_transported_lifts`): what an operation does to
-    the ``p`` along a site's own fourfold axis is as much a measurement as what
-    it does to a doublet, and it is the relative signs inside the orbit that
-    carry it.
-
-    A wider multiplet's block is the **model's own**, whatever basis its
-    orbitals are written in, carried round the Wyckoff orbit.  The reference
-    multiplet's block is the block of an intertwiner at ``(image channel,
-    channel)``, read off the whole solution space rather than off the
-    polar-extracted member alone, whose block at the operation's own image can
-    vanish while the space still carries one; every other multiplet of the
-    class takes its block from the same member of that space
-    (:func:`_orbit_blocks`), which is the operation acting in that site's own
-    frame.  So the representation of the orbit is the one induced from the
-    reference site's in the model's own frames, and where every solution space
-    is one-dimensional it is the model's own intertwiner read at every
-    multiplet.  Nothing about which orbital functions a multiplet is enters:
+    A one-dimensional multiplet's block is the tables' spin lift (one,
+    spinless) times the sign the model's own transport gives it relative to
+    its orbit's reference multiplet (:func:`_transported_lifts`).  A wider
+    multiplet's block at the reference multiplet of its orbit is the block of
+    the operation's stored member (``validated._intertwiners``), or, where
+    that block vanishes, the largest block its solution space carries there
+    (:func:`_block_space`), made unitary.  It is put in the phase in which
+    the stored member carries the tables' lift on a one-dimensional multiplet
+    the hoppings couple it to, where there is one (:func:`_phase_multiplet`).
+    The blocks at the other multiplets of the orbit are read off the same
+    member of the space (:func:`_orbit_blocks`), so the representation on the
+    orbit is the one induced from the reference site's, in the model's own
+    frames.  The identity's block is the identity.  The orbits of sectors
+    :func:`_induced_blocks` builds by induction are written in their first
+    candidate, where they admit one.  The spaces read are each operation's
+    own form (:func:`_own_form_spaces`), so on states that carry a spin the
+    spin factor is the operation's own lift.  No orbital function enters:
     the site irreps are read off these blocks' characters afterwards
-    (:func:`.._declaration._multiplet_characters`), and a basis turned inside a site changes
-    the blocks and not their characters.
+    (:func:`.._declaration._multiplet_characters`).  Whether the blocks make
+    a representation is checked by :func:`.._build._build_rep`.
 
-    Where a space is more than one-dimensional the extra members are the
-    model's commutant acting inside the multiplet, and where the sectors of the
-    conserved matrices read it the block is built by induction (below).  A
-    multiplet they leave alone keeps the block its own intertwiner gives,
-    carried round the orbit, and :func:`.._build._build_rep` asks of the matrices it
-    propagates to, as of every other, whether they represent the group.
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        The model.
+    group : ..groups.GroupData
+        The group measured on it.
+    assignment : ..groups.OrbitalAssignment
+        The orbitals' sites and each operation's permutation of the sites.
+    spin : ..spin.SpinBasis or None
+        The declared spinor pairs.
+    validated : ..groups.ValidatedGroup
+        The verdicts: ``_bases`` holds each operation's solution space and
+        ``_intertwiners`` one member of it.
+    layout : SiteMultiplets
+        The multiplets, carrying in ``_tol`` the declared tolerance every
+        threshold here reads where it is larger than the default.
+    positions : sequence of int
+        The positions in the group of the operations whose blocks are built.
+    ref_chan : int, default None
+        The reference multiplet, the first orbital's where ``None``.
+    tol : float, default ZERO
+        The scale, relative to the largest, at which a block of a solution
+        space counts as zero; the declared tolerance where larger.
+    max_candidates : int, default 2**20
+        As in :func:`_induced_blocks`.
+    sectors : .._sectors.SectorReading, default None
+        As in :func:`_induced_blocks`.
 
-    Where the sectors of the conserved matrices (``sectors``,
-    :func:`.._sectors.read_sectors`, read here where none is handed in) hold
-    identical copies -- a pseudospin ``H`` conserves -- the hoppings do not
-    settle what the copies carry; and where uncoupled orbitals a symmetry
-    exchanges -- the ``p_x`` of one site and the ``p_y`` a screw carries it
-    onto -- lie on sectors whose stabilizer has characters the group's do not
-    restrict to, no one-dimensional character of the group carries what they
-    can be.  Every representation of each such orbit of sectors the hoppings
-    leave open is built from the reading, induced from the stabilizer of one of
-    its sectors (:class:`.._sectors.InducedOrbit`), and the orbit's multiplets
-    are written in the first; which one they carry is the labelling's choice.
-    The sectors are what says whether a multiplet's conserved operators are
-    copies or projectors.
-    States carrying a spin, native or declared, carry that spin's own lift, as
-    a one-dimensional multiplet carries the tables': every solution space read
-    here was read in its operation's own form (:func:`_own_form_spaces`), its
-    members ``O ⊗ S(g)`` with ``S(g)`` the operation's own lift and ``O`` the
-    orbital factor ``H`` fixes, so the spin is never chosen, and an orbit of
-    sectors there is built on the orbital factor, identical copies carrying an
-    ordinary representation.
+    Returns
+    -------
+    _MultipletBlocks or Refusal
+        The blocks by operation index and multiplet, with the orbits built by
+        induction in ``multiplicity``.  A one-dimensional multiplet with no
+        block carries the tables' lift.
 
-    Returns ``{ind: {channel: S}}`` over the multiplets a block was built for,
-    with the orbits built by induction on its ``multiplicity``, or a
-    :class:`..refusal.Refusal` from the multiplet permutation or from the cap
-    on the representations the induction tries.  Every threshold here
-    measures the noise of the solution spaces the blocks are read off, so each
-    reads the declared tolerance the multiplets were measured at where that is
-    larger than its exact default (:attr:`SiteMultiplets._tol`,
-    :func:`.._tolerance.noise_floor`).
+    Refusals
+    --------
+    ``rep_search_too_large``
+        from :func:`_induced_blocks`.
     """
     syms = group._symmetries
     prod = group._get_product_table(get_diff=False)
@@ -1016,14 +1056,11 @@ def _multiplet_blocks(model, group, assignment, spin, validated, layout, positio
 
     out, multiplicity = {}, []
     commutant = bases.get(int(syms[ident].ind))
-    # IDENTICAL COPIES, and uncoupled orbitals a symmetry exchanges, read once
-    # where the model entered: every representation of each orbit of sectors
-    # the one-dimensional characters of the group do not carry that the
-    # hoppings leave open, built from the reading and counted before anything
-    # is built; the orbit's multiplets are written in the first, and their
-    # classes are read no further here.  On states that carry a spin the
-    # orbits are read on the orbital factor, each matrix carrying the
-    # operation's own lift on the spin
+    # The orbits of sectors built by induction (_induced_blocks), read once
+    # where the model entered: each orbit that admits a candidate has its
+    # multiplets written in the first, and their classes read no further
+    # here.  On states that carry a spin the orbits are read on the orbital
+    # factor, each matrix carrying the operation's own lift on the spin.
     done = set()
     got = _induced_blocks(model, group, assignment, spin, validated, layout, kept, cperm,
                           bases, ref_chan=ref_chan, sectors=sectors,
@@ -1050,11 +1087,11 @@ def _multiplet_blocks(model, group, assignment, spin, validated, layout, positio
         c0 = ref_chan if int(classes[ref_chan]) == cls else members[0]
         d = len(layout._chan_states[c0])
         if layout._chan_kind[members[0]] != "measured":
-            # A ONE-DIMENSIONAL CLASS keeps the tables' lift at its reference
+            # A one-dimensional class keeps the tables' lift at its reference
             # multiplet, and at every other multiplet the sign the model's own
-            # transport gives it, read off one member of each solution space --
-            # where that is a representation, and the lift everywhere where it
-            # is not.
+            # transport gives it, read off one member of each solution space,
+            # where that is a representation; it keeps the lift everywhere
+            # where it is not.
             if len(members) > 1:
                 got = _transported_lifts(syms, kept, cperm, layout, members, c0, bases,
                                          validated._intertwiners, prod, ident)
@@ -1084,19 +1121,18 @@ def _multiplet_blocks(model, group, assignment, spin, validated, layout, positio
                 blk = space.get(p, [None])[0] if space.get(p) else None
             unit = None if blk is None else _unitarized(blk, tol=zero)
             if p == ident:
-                # THE IDENTITY'S BLOCK IS THE IDENTITY.  Its solution space is
+                # The identity's block is the identity.  Its solution space is
                 # the model's whole commutant, so a polar extraction there
-                # returns whichever conserved operator the decomposition
-                # happened to hand back -- `-1` on a decoupled doublet -- and
-                # that is not a measurement about the operation at all:
-                # `D(E) = 1` is what a representation means.
+                # returns whichever conserved operator the decomposition hands
+                # back, `-1` on a decoupled doublet, which says nothing about
+                # the operation: `D(E) = 1` is what a representation means.
                 unit = np.eye(d, dtype=complex)
             if unit is not None and unit.shape == (d, d):
-                # THE PHASE A MEASURED BLOCK IS READ IN.  The member this block
+                # The phase a measured block is read in.  The member this block
                 # came from carries one free phase, and a block extracted with
-                # it makes the *other* multiplets' scalars carry its inverse --
-                # which the read-off then has to find among the two signs the
-                # tensor structure offers and cannot.  Where the hoppings couple
+                # it makes the other multiplets' scalars carry its inverse,
+                # which the read-off then cannot find among the two signs the
+                # tensor structure offers.  Where the hoppings couple
                 # the multiplet to a one-dimensional one there is a phase
                 # convention to hand: the tables' own lift.  So the block is put
                 # in it, and the scalars the rest of the build reads are the
@@ -1116,13 +1152,13 @@ def _multiplet_blocks(model, group, assignment, spin, validated, layout, positio
                 polar[p] = unit
 
         def _carried(p, Y):
-            """``{c: block}`` -- the member of ``p``'s space with block ``Y`` at ``c0``."""
+            """Operation ``p``'s blocks round the orbit, off its member with block ``Y`` at ``c0``."""
             return _orbit_blocks(basis_of.get(p), cperm[p], layout._chan_states, c0,
                                  members, Y, identity=(p == ident), tol=tol)
 
-        # CARRIED ROUND THE ORBIT, NEVER COPIED.  The sites of one Wyckoff
+        # Carried round the orbit, never copied.  The sites of one Wyckoff
         # orbit are one another's images, so the block an operation has at the
-        # next site is the operation acting in THAT site's frame, which a copy
+        # next site is the operation acting in that site's frame, which a copy
         # of the reference's block is only where every site writes its orbitals
         # in the same frame.  The member of the solution space the reference
         # block came from says it at every multiplet at once.
@@ -1134,13 +1170,14 @@ def _multiplet_blocks(model, group, assignment, spin, validated, layout, positio
 
 
 class _MultipletBlocks(dict):
-    """``{ind: {multiplet: block}}``, and the orbits of sectors built by induction on the way.
+    """Every operation's block at every multiplet, ``{ind: {c: block}}``, and the orbits built by induction.
 
     ``multiplicity`` holds one record per orbit of sectors built by induction
-    (:func:`_induced_blocks`): the orbit's orbitals and states, the number of
-    identical copies it holds -- one where it holds none -- how many
-    representations of it there were and were admitted, and every admitted one
-    with the site content it gives each multiplet and its own character.
+    (:class:`.._sectors._OrbitRecord`, from :func:`_induced_blocks`): its
+    multiplets, orbitals and states, how many identical copies each sector
+    holds, how many representations of it there were and were admitted, and
+    each admitted one with its character and the character it gives each
+    multiplet.
     """
 
     def __init__(self, blocks=(), *, multiplicity=()):
@@ -1151,71 +1188,74 @@ class _MultipletBlocks(dict):
 def _ansatz_defects(model, group, assignment, validated, positions, *,
                     layout=None, spin=None, tol=None, orients=(1, -1),
                     blocks=None, max_candidates=2 ** 20):
-    r"""Per-operation: does the detector's solution space contain an ``O ⊗ S``?
+    r"""Whether each operation's solution space holds a matrix of tensor form, and how far it misses.
 
-    The detector answers about a **k-action class**, not about an operation:
-    two operations acting identically on reduced ``k`` pose the identical
-    intertwiner problem and share one verdict, and on a slab every class is the
-    pair ``{g, σ_h·g}`` (``ValidatedGroup._verdicts``).  A surviving
-    multi-member class therefore proves only that *some* operator with that
-    k-action is a symmetry, and which member it is, is a statement about the
-    **tensor structure** of the representation rather than about ``H(k)``'s
-    k-dependence: ``D(g) = O(g) ⊗ S(g)`` with ``O`` fixed by the site
-    permutation and, on a one-dimensional multiplet, ``S`` the tables' own lift,
-    and ``S(σ_h·g)`` is a different SU(2) element from ``S(g)``.
+    A matrix of tensor form for operation ``g`` is ``O(g) ⊗ S(g)``: it
+    carries each multiplet onto its image, holding there that multiplet's
+    block ``S(g)`` times one scalar per orbit of multiplets.  On a
+    one-dimensional multiplet ``S(g)`` is ``g``'s own spin lift
+    (:func:`_lift_of`), carried round the orbit with the signs the model's
+    transport gives it; on a wider one it is the model's own block
+    (:func:`_multiplet_blocks`).  The solution space is projected onto that
+    form and its closest member taken (:func:`_ansatz_member`).  The scaled
+    defect is the norm of what that member does not put in the form, over
+    its own norm: zero where the form is realized, one where it is refuted
+    outright.  An operation is realizable where some branch of ``orients``
+    has a scaled defect at most ``tol``.  The spaces read are each
+    operation's own form where :func:`_own_form_spaces` has restricted them;
+    on a free-standing layer that is what tells ``g`` from ``σ_h·g`` on a
+    multiplet wider than one, whose block the two share.
 
-    This measures exactly that, per operation, with the arithmetic
-    :func:`.._build._build_rep`'s read-off already uses on a generator: project the
-    detector's whole solution space onto the tensor-structure subspace of that
-    operation's own blocks and take the closest member (:func:`_ansatz_member`).
-    The reported ``scaled`` defect is the norm of what that member could **not**
-    put in tensor-structure form, divided by the member's own norm —
-    dimensionless, ``0`` when the tensor structure is realizable and ``1`` when
-    its component vanishes outright.
-    The branches ``orients`` names are measured -- the ``g⁻¹`` branch's
-    candidate is the adjoint and carries ``S(g)†`` on the transposed blocks --
-    and an operation is realizable when *some* branch measured is, and
-    ``orientation`` says which.
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        The model.
+    group : ..groups.GroupData
+        The group measured on it.
+    assignment : ..groups.OrbitalAssignment
+        The orbitals' sites and each operation's permutation of the sites.
+    validated : ..groups.ValidatedGroup
+        The verdicts: ``_bases`` holds each operation's solution space, and
+        ``_intertwiners`` the one member read where it holds none.
+    positions : sequence of int
+        The positions in ``group._symmetries`` of the operations tested.
+    layout : SiteMultiplets, default None
+        The multiplets the form is written on, measured here
+        (:func:`_site_multiplets`) where none is given.
+    spin : ..spin.SpinBasis or None, default None
+        The declared spinor pairs.
+    tol : float, default None
+        The gate on the scaled defect: :data:`.._tolerance.ANSATZ_GATE`, or
+        the declared tolerance the multiplets carry where larger, which
+        ``None`` reads off ``layout``.
+    orients : tuple of int, default (1, -1)
+        The branches measured: ``1`` the operation's own candidate, ``-1``
+        the branch of ``g``'s inverse, whose candidate is the adjoint and
+        carries ``S(g)†`` on the transposed blocks.  Pass ``(1,)`` for an
+        operation the detector left undetermined: for a fourfold, ``S(g)†``
+        is, up to sign, the lift of its ``σ_h`` partner.
+    blocks : _MultipletBlocks, default None
+        The multiplets' blocks, built here (:func:`_multiplet_blocks`) where
+        none is given.
+    max_candidates : int, default 2**20
+        As in :func:`_multiplet_blocks`, where the blocks are built here.
 
-    ``positions`` are indices into ``group._symmetries``.  ``S(g)`` on a
-    one-dimensional multiplet is that operation's own lift in pythtb's
-    convention (:func:`_lift_of`) — there is no override of the lift, because
-    an operation represented by some other SU(2) element is a different
-    operation — carried round the orbit with the signs the model's own
-    transport gives it (:func:`_transported_lifts`); on a wider multiplet it is
-    the model's own block for **that** multiplet (:func:`_multiplet_blocks`),
-    so that the tensor test asks exactly whether ``P(g) ⊗ S(g)`` is in the
-    space the detector solved, and asks it of the frame a Wyckoff orbit
-    actually has rather than of a copy of one site's.  A wider multiplet's
-    block is read off a solution space both members of a ``σ_h`` fiber share,
-    so there it tells them apart by nothing: only a one-dimensional multiplet's
-    lift does.  So each operation's own form -- each site's states carried onto
-    its image's, with its own lift on the spin -- is read on its whole solution
-    space first (:func:`_own_form_spaces`), which tells such a pair apart on a
-    multiplet of any dimension, and the spaces this test reads are the members
-    of that form.  ``layout`` holds the multiplets to test against, measured
-    here when omitted.
+    Returns
+    -------
+    dict or Refusal
+        ``{ind: record}``, each record holding ``ind``, ``dim``, ``defect``,
+        ``scale``, ``norm``, ``scaled``, ``orientation``, ``branches`` (the
+        scaled defect of each branch), ``realizable`` and ``note``.  An
+        operation not tested, for want of a space, a block or memory, is
+        realizable with ``scaled`` ``nan``, and its ``note`` says why:
+        nothing was measured, so nothing is refuted.  One whose space carries
+        a multiplet wider than one to its image only by a zero block is
+        refuted with ``scaled`` one.
 
-    ``tol`` is the gate on the scaled defect: :data:`ANSATZ_GATE` for a model
-    built from exact numbers, or the declared tolerance the multiplets were
-    measured at where that is larger (:func:`.._tolerance.noise_floor`) -- a model symmetric
-    only within its precision has every member of a solution space that far
-    from tensor form, while an operation the tensor structure refutes misses by
-    order one.  ``None`` reads it off ``layout``.
-
-    ``orients`` says which branches are measured, both by default.  The
-    verdict on an operation the detector left undetermined asks the ``g``
-    branch alone, ``(1,)``, in every environment
-    (:func:`.._descent._ansatz_refuted`): on the ``g⁻¹`` branch the candidate
-    carries ``S(g)†``, which for a fourfold **is** the ``σ_h`` partner's lift
-    (``S(C4)† = −S(σ_h)·S(C4)``), so asking it would keep an operation on the
-    strength of a lift the tables do not give it.  Which operations the
-    multiplets are about is asked on both.  Returns
-    ``{ind: record}`` with ``dim``, ``defect``, ``scale``, ``norm``, ``scaled``,
-    ``orientation``, ``branches`` and ``realizable``.  An operation the
-    detector kept no solution space for is reported with ``scaled = nan`` and
-    ``realizable = True``: nothing was measured, so nothing is refuted.
-    ``spin`` is the declared :class:`..spin.SpinBasis` itself, or ``None``.
+    Refusals
+    --------
+    ``rep_search_too_large``
+        where the blocks are built here (:func:`_multiplet_blocks`).
     """
     if layout is None:
         layout = _site_multiplets(model, group, assignment, spin, validated)
@@ -1237,10 +1277,8 @@ def _ansatz_defects(model, group, assignment, validated, positions, *,
     class_blocks = [[c for c in range(nchan) if cls[c] == k] for k in range(ncls)]
     # the multiplets' blocks: the same ones the representation is assembled
     # from, so that the tensor test and the build rest on one tensor structure
-    # rather than two.  Measured once per set of multiplets and per round, and
-    # handed in where the call already has it: the block IS the same
-    # measurement, and re-solving it per test is the one cost this package
-    # cannot afford on a wannier90 Hamiltonian.
+    # rather than two.  They are built here only where the call does not hand
+    # them in.
     got = blocks if blocks is not None else _multiplet_blocks(
         model, group, assignment, spin, validated, layout,
         [p for p, s in enumerate(syms) if int(s.ind) in set(validated._indices)],
@@ -1265,9 +1303,9 @@ def _ansatz_defects(model, group, assignment, validated, positions, *,
                                "so its tensor structure was not tested")
                 out[ind] = rec
                 continue
-            # the polar-extracted member IS the space when dim == 1, and where it
-            # is not, the projection has nothing to choose from and the defect
-            # says so -- a fallback, not a wrong verdict (as in the read-off).
+            # the polar-extracted member is the space when dim == 1; where it is
+            # not, the projection has nothing to choose from and the defect says
+            # so, a fallback and not a wrong verdict, as in the read-off.
             basis = np.asarray(member)[None, :, :]
             rec["note"] = ("only the unitary member nearest the solution space was "
                            "tested, not the whole space")
@@ -1295,10 +1333,9 @@ def _ansatz_defects(model, group, assignment, validated, positions, *,
                 break
         if zero is not None:
             # No member of the space sends this multiplet where the operation
-            # must -- the case a LATTICE SUPERGROUP puts every coset partner
-            # in, where the measured operator is the partner's and never this
-            # operation's -- so the tensor structure is refuted rather than left
-            # untested.
+            # must, as on a lattice supergroup, where every coset partner's
+            # measured operator is the partner's and never this operation's.
+            # So the tensor structure is refuted rather than left untested.
             rec.update(defect=1.0, scale=1.0, norm=1.0, scaled=1.0,
                        orientation=0, realizable=False,
                        note=(f"no member of the measured solution space carries multiplet "
@@ -1346,68 +1383,70 @@ def _own_form_spaces(model, group, assignment, validated, positions, *, spin=Non
                      covariance=None):
     r"""Each operation's solution space restricted to the members of its own form, and the verdict on it.
 
-    The detector finds every matrix carrying ``H(k)`` onto ``H(gk)``, whichever
-    operation of the crystal it belongs to: one action on ``k`` poses one
-    problem, and where several operations pose it -- a translation and the
-    identity, time reversal and time reversal composed with a translation, a
-    layer's ``g`` and ``σ_h·g`` -- or where the Hamiltonian conserves more than
-    the crystal does, a spin rotation among it, the space holds members of
-    other operations and other symmetries.  A matrix represents ``g`` only in
-    ``g``'s own form, asked of one member: it carries each site's states onto
-    its image's under ``g``, with any change of basis within the site, and on
-    states that carry a spin, native or declared, it carries ``g``'s own spin
-    lift ``S(g)`` (:func:`_lift_of`) -- ``O ⊗ S(g)``, the orbital factor ``O``
-    block by block on the site permutation.  Both conditions are linear, so the
-    members of that form are read off the space once: a member is of it where
-    what no matrix of the form carries is within :data:`ANSATZ_GATE` of the
-    member's own norm, the defect and the gate every test of tensor structure
-    reads, so that matrices missing the form by a model's own numerical noise
-    are its matrices still.  The operation holds where one of them is
-    nonsingular on every site block (:func:`_filled_check`).  Neither condition
-    alone is enough: in a
-    Néel antiferromagnet time reversal's space holds members keeping every site
-    -- time reversal with a spin rotation the exchange field allows -- and
-    members carrying ``iσ_y`` -- time reversal with the half translation,
-    which exchanges the two sites -- and no member that does both.
+    Where several operations share one action on ``k``, as a layer's ``g``
+    and ``σ_h·g`` do, or ``H`` conserves more than the crystal does, the
+    detector's space for ``g`` holds matrices of other operations, or of
+    symmetries beyond the crystal's, too.  A member is of ``g``'s own form
+    where it carries each site's states onto its image's, and on states that
+    carry a spin carries ``g``'s own spin lift (:func:`_lift_of`).  Both
+    conditions are linear, so the members of the form are read off the space
+    once: a member is of it where the part no matrix of the form carries is
+    within :data:`.._tolerance.ANSATZ_GATE` of its own norm.  The operation
+    holds where one of them is nonsingular on every site block
+    (:func:`_filled_check`).  The two conditions are imposed together.  In a
+    Néel antiferromagnet, time reversal's space holds the members of time
+    reversal with a spin rotation, which keep every site, and those of time
+    reversal with the half translation, which carry ``iσ_y`` between the two
+    sites; none does both.
 
-    ``tol`` is the declared tolerance, relative to ``max|H|``, every threshold
-    here reads (:func:`.._tolerance.noise_floor`); ``None`` keeps the exact
-    defaults.  Where ``covariance`` is given, a form missed by more than
-    rounding is also held to the detector's own measure: the member nearest
-    the form, its part in the form, is held to the covariance gate
-    ``validated.tol`` the operation was kept at (``covariance`` is called with
-    the operation's position and that matrix, and returns its covariance
-    residual over the detector's grid).  A gate on the form alone cannot tell
-    a model's noise from a small angle: spin blocks written in a frame turned
-    against the lattice by ``δ`` carry every operation whose lift the turn
-    changes through a spin factor ``δ`` from its own, inside any such gate,
-    and with its own lift they carry ``H(k)`` onto ``H(gk)`` only to what the
-    turn does to ``H``.  So where members are of the form within the gate, the
-    operation holds where that part is within the covariance gate; where it is
-    not, the condition that failed is the spin lift where the member's part on
-    the site blocks, with any spin factor, carries ``H(k)`` within it, and the
-    site permutation otherwise.  Where no member is of the form within the
-    gate, as a model symmetric only within its precision needs, the operation
-    holds where that part is within the covariance gate and nonsingular on
-    every site block -- a part the form leaves empty, as it leaves a
-    ferrimagnet's spin-diagonal members under time reversal's ``iσ_y``, is no
-    matrix of the operation.
+    With ``covariance``, the form is also held to the detector's own measure.
+    Where the members are of the form only within the gate, and not to
+    rounding, the nearest member's part in the form must carry ``H(k)`` onto
+    ``H(gk)`` within ``validated.tol``, the gate the operation was kept at,
+    or the operation is refuted.  Where no member is of the form within the
+    gate, that part is kept as the operation's one member where it is within
+    ``validated.tol`` and nonsingular on every site block.
 
-    Returns ``(spaces, records)``.  ``spaces[ind]`` holds the members of the
-    form -- the space itself where every member has it, the one member nearest
-    it where the covariance kept an operation no member of which is of the
-    form within the gate, none where the operation is refuted -- in the
-    model's own state order; it is what every later reading of the operation
-    reads.  ``records[ind]`` carries :func:`_ansatz_defects`'s fields
-    (``dim``, ``defect``, ``scale``, ``norm``, ``scaled``, ``orientation``,
-    ``branches``, ``realizable``, ``note``), the ``covariance`` residual where
-    it was measured, and ``own_form``: ``None`` where the operation holds,
-    else the condition that failed -- ``"spin lift"`` where members keeping
-    every site exist and none carries the lift within the gates, ``"site
-    permutation"`` otherwise, the members carrying the lift, if any, carrying
-    the sites elsewhere -- with ``spin_lift`` marking the first.  An operation
-    with no measured space, or a space past the read-off's own ceiling, is
-    absent from both: nothing was measured, and it is read as it stands.
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        The model.
+    group : ..groups.GroupData
+        The group measured on it.
+    assignment : ..groups.OrbitalAssignment
+        The orbitals' sites and each operation's permutation of the sites.
+    validated : ..groups.ValidatedGroup
+        The verdicts: ``_bases`` holds each operation's solution space, and
+        ``tol`` the gate the operations were kept at.
+    positions : sequence of int
+        The positions in ``group._symmetries`` of the operations read.
+    spin : ..spin.SpinBasis or None, default None
+        The declared spinor pairs.
+    tol : float, default None
+        The declared tolerance, relative to ``max|H|``, every threshold here
+        reads (:func:`.._tolerance.noise_floor`).  ``None`` keeps the exact
+        defaults.
+    covariance : callable, default None
+        Called with an operation's position and a matrix, it returns the
+        matrix's covariance residual over the detector's grid, in the units
+        of ``H``.  ``None`` reads the form alone.
+
+    Returns
+    -------
+    tuple
+        ``(spaces, records)``.  ``spaces[ind]`` holds the members of the form
+        in the model's own state order: the whole space where every member is
+        of it, those members where only some are, the one member kept by
+        ``covariance`` scaled to norm ``sqrt(nstate)``, or none where the
+        operation is refuted.  ``records[ind]`` holds the fields
+        :func:`_ansatz_defects` returns, the ``covariance`` residual where it
+        was measured, ``own_form`` and ``spin_lift``.  ``own_form`` is
+        ``None`` where the operation holds, and otherwise the condition that
+        failed: ``"spin lift"`` where a matrix keeping every site carries
+        ``H(k)`` onto ``H(gk)`` and none with the operation's own lift does,
+        ``"site permutation"`` otherwise; ``spin_lift`` is true for the
+        first.  An operation with no space, or a space past the read-off's
+        memory ceiling, is in neither: nothing was measured.
     """
     syms = group._symmetries
     nstate = int(model.nstate)
@@ -1446,9 +1485,9 @@ def _own_form_spaces(model, group, assignment, validated, positions, *, spin=Non
             pieces, lifts = blocks, [None] * len(blocks)
         # the members of the form: what no member of it carries is the
         # residual, read once over the whole space, and a member is the form's
-        # where its residual is within the gate of its own norm -- the defect
-        # every test of tensor structure reads, at their gate, so that a model
-        # whose matrices miss the form by its own numerical noise keeps them
+        # where its residual is within the gate of its own norm.  That is the
+        # defect every test of tensor structure reads, at their gate: a model
+        # whose matrices miss the form by its own numerical noise keeps them.
         A = np.stack([_ansatz_residual(basis[j], pieces, lifts).reshape(-1)
                       for j in range(len(basis))], axis=1)
         _u, s, vh = np.linalg.svd(A, full_matrices=False)
@@ -1472,7 +1511,7 @@ def _own_form_spaces(model, group, assignment, validated, positions, *, spin=Non
         if held and covariance is not None and scaled > FLAT_ZERO:
             # of the form only within the gate: the member nearest it, its part
             # in the form, held to the covariance gate the operation was kept
-            # at, as below where no member is within the gate -- spin blocks
+            # at, as below where no member is within the gate.  Spin blocks
             # written in a frame turned against the lattice by a small angle
             # miss the form within any gate on it, and carry H(k) onto H(gk)
             # with the operation's own lift only as far as the turn allows
@@ -1502,7 +1541,7 @@ def _own_form_spaces(model, group, assignment, validated, positions, *, spin=Non
         if not len(V) and covariance is not None:
             # no member of the form within the gate: the member nearest it, its
             # part in the form, held to the covariance gate the operation was
-            # kept at -- where that part is a matrix of the operation at all,
+            # kept at, where that part is a matrix of the operation at all,
             # nonsingular on every site block; a part the form leaves empty or
             # singular is no member of it, whatever its nearest unitary carries
             part = X - _ansatz_residual(X, pieces, lifts)
@@ -1514,7 +1553,7 @@ def _own_form_spaces(model, group, assignment, validated, positions, *, spin=Non
                     spaces[ind] = (part * (np.sqrt(nstate)
                                            / float(np.linalg.norm(part))))[None]
                     continue
-        # refuted: which condition fails -- the site permutation, unless members
+        # refuted: which condition fails, the site permutation unless members
         # keeping every site exist and none carries the operation's own lift
         site_space = _block_members(basis, blocks, tol=in_blocks)[0]
         keeps_sites = bool(len(site_space)) and _filled_check(site_space, blocks, tol=tol)[0]
@@ -1546,56 +1585,36 @@ def _own_form_spaces(model, group, assignment, validated, positions, *, spin=Non
 
 def _spin_lift_defects(model, group, validated, positions, *, spin=None, tol=None,
                        orients=(1, -1)):
-    r"""Per operation: does its solution space hold a member carrying its own spin lift?
+    r"""Whether each operation's solution space holds a member carrying its own spin lift.
 
-    Every symmetry matrix of a spinful crystal has the form
-    ``D(g) = O(g) ⊗ S(g)``: an orbital factor, and on the spin the operation's
-    own SU(2) lift in pythtb's convention -- the tables' lift carried onto the
-    model's cell by the computed frame rotation (:func:`_lift_of`), the one
-    :func:`.._build._build_rep` builds every representation with.  The detector assumes
-    no such structure: it finds every matrix that carries ``H(k)`` onto
-    ``H(gk)``.  So a Hamiltonian whose spin blocks are written in a frame
-    turned against its lattice passes it for operations it obeys only through
-    a spin factor other than their lift, and this is where that is measured.
+    A member ``X`` is ``O ⊗ S(g)`` for some orbital factor ``O`` exactly
+    where ``X (1 ⊗ S(g))†`` is its own spin trace times the identity on the
+    spin, ``S(g)`` the operation's own lift (:func:`_lift_of`); an
+    antiunitary operation's lift is its unitary part's times ``iσ_y``.  The
+    space is projected onto that form once, and ``scaled`` is the norm of
+    what its closest unit member does not put in it: zero where the lift is
+    carried, of order one where it is not.  No orbital structure is asked
+    for, so a model with no spin-orbit coupling passes for every operation it
+    obeys.  A member of the form counts only where it is nonsingular, which
+    is measured on fixed pseudo-random combinations of the members in the
+    form.
 
-    With the spin pairing explicit the question is linear.  A member ``X`` of
-    the solution space has the form ``O ⊗ S(g)``, for some orbital factor
-    ``O``, exactly where ``X (1 ⊗ S(g))†`` commutes with ``1 ⊗ σ_a`` for
-    ``a = x, y, z``, that is where it equals its own spin trace times the
-    identity on the spin.  The space is projected onto that form once, and
-    ``scaled`` is the norm of what the closest member could not put in it,
-    relative to that member's own norm: ``0`` where the lift is carried and
-    of order one where it is not.  No orbital structure is asked for -- no
-    multiplets, no site permutation, any orbital factor at all -- so the test
-    reads the spin alone, for a multiplet of any dimension, and a model with
-    no spin-orbit coupling passes it for every operation it obeys.  That is
-    also what tells a layer's ``σ_h`` pair apart where a site's orbitals are
-    bound into a multiplet wider than one: the two members share one solution
-    space and differ only in their lift.  A member of
-    that form is a symmetry matrix only where it is nonsingular, which is
-    measured on fixed pseudo-random combinations of the members in the form.
-
-    Both orientation branches are measured where ``orients`` asks for them,
-    the ``g⁻¹`` branch carrying ``S(g)†`` as the build reads it, and an
-    operation passes where either does, as in :func:`_ansatz_defects`; an
-    antiunitary operation's lift is its unitary part's times time reversal's
-    ``iσ_y``, as :func:`_lift_of` gives it.  ``positions`` index
+    ``validated`` holds each operation's solution space (``_bases``), or one
+    member of it (``_intertwiners``), and ``positions`` index
     ``group._symmetries``.  The states are paired as pythtb stores a spinful
-    model's, ``2·orbital + spin``, or as the declared
-    :class:`..spin.SpinBasis` ``spin`` pairs them; a spinless model with no
-    declared basis has no spin factor to test, and nothing is returned for it.
-    ``tol`` is the declared tolerance, relative to ``max|H|``, that every
-    threshold here reads (:func:`.._tolerance.noise_floor`): the gate on ``scaled`` is
-    :data:`ANSATZ_GATE` or it, whichever is larger, and ``None`` keeps the
-    exact defaults.
+    ``model``, ``2·orbital + spin``, or as the declared
+    :class:`..spin.SpinBasis` ``spin`` pairs them.  ``tol`` is the declared
+    tolerance relative to ``max|H|``: the gate on ``scaled`` is
+    :data:`.._tolerance.ANSATZ_GATE` or ``tol``, whichever is larger, and
+    ``None`` keeps the exact defaults.  ``orients`` names the branches
+    measured, ``-1`` carrying ``S(g)†``, and an operation passes where either
+    does.
 
-    Returns ``{ind: record}`` in the fields :func:`_ansatz_defects` returns --
-    ``dim``, ``defect``, ``scale``, ``norm``, ``scaled``, ``orientation``,
-    ``branches``, ``realizable`` and ``note`` -- each record marked
-    ``spin_lift``.  An
-    operation with no measured space, a single member of a larger space, or a
-    space too large to project is reported untested and realizable: nothing
-    was measured, so nothing is refuted.
+    Returns ``{ind: record}`` in the fields :func:`_ansatz_defects` returns,
+    each record marked ``spin_lift``.  An operation with no space, one member
+    of a larger space, or a space too large to project is untested and
+    realizable.  Returns ``{}`` for a spinless model with no declared basis,
+    or where ``group.spinor`` is false.
     """
     if int(model.nspin) == 2:
         order = np.arange(int(model.nstate))

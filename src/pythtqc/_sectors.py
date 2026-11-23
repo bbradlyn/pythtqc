@@ -1,46 +1,23 @@
-r"""The sectors the Hamiltonian's conserved matrices acting within sites split its states into.
+r"""The sectors a Hamiltonian's conserved matrices split its states into.
 
-The matrices that commute with ``H(k)`` at every ``k`` and act within sites form
-an algebra.  It holds the identity; the projector onto every set of orbitals the
-hoppings couple to nothing else; and, where several such sets are identical
-copies of one another, the matrices that exchange the copies.  Every such
-algebra is a sum of **sectors**: a sector holds ``m`` identical copies of a set
-of ``d`` states, and on it the algebra is every ``m × m`` matrix acting on the
-copies, times the identity on each copy's states.  A crystal whose hoppings
-connect every orbital is one sector of one copy.  Two orbitals at one site that
-no hopping reaches, at different energies, are two sectors; a square's
-``p_x, p_y`` pair that nothing couples is two sectors whichever basis the pair is
-written in, since a sector is a set of states and not of orbitals.  Two identical
-copies of a lattice that no hopping joins, on the same sites, are one sector of
-two copies: a pseudospin the Hamiltonian conserves.
+The matrices that commute with ``H(k)`` at every ``k`` and act within sites
+form an algebra, and the algebra is a sum of sectors (:class:`Sector`).  A
+sector holds ``m`` identical copies of a set of ``d`` states, and on it the
+algebra is every ``m × m`` matrix on the copies times the identity on each
+copy's states.  On states that carry a spin, native or declared in pairs, the
+algebra is read on the orbital factor ``O`` of its members ``O ⊗ 1``, whose
+indices are the orbitals, or the declared pairs.  On states with no spin the
+orbital factor is the states themselves.  Every ``tol`` here but
+:class:`SectorSearch`'s is the declared tolerance relative to ``max|H|``,
+``None`` where nothing is declared.  A threshold reads it where it is larger
+than its exact default (:func:`.._tolerance.noise_floor`).
 
-The sectors are read once, where a model enters, off the identity's solution
-space the detector measured -- the matrices that commute with ``H(k)`` at every
-``k`` -- at the declared precision: a coupling below it leaves the projectors
-onto the pieces it joins in that space, so the pieces are read apart, and one
-above it joins them.  On states that carry a spin, native or declared in pairs,
-the members read are those that act on the orbitals alone, ``O ⊗ 1``, so a
-spin rotation the Hamiltonian conserves is never a sector's.
-
-An operation the Hamiltonian obeys carries each sector onto a sector, and every
-matrix it can be acts on each copy's states by one factor ``w(g)``, the
-Hamiltonian's own, up to a number: what it does on the copies is the freedom the
-hoppings leave.  :func:`sector_action` reads, per operation, the sector each one
-is carried onto and that factor.
-
-So the representations of a group ``H`` the hoppings leave open are read off
-the sectors alone.  ``H`` carries the sectors in orbits; on each orbit a
-representation is induced from the stabilizer of one of its sectors, by any
-representation ``b`` of that stabilizer on the ``m`` copies whose product with
-the factors ``w`` is a representation of it, extended to time reversal where
-``H`` holds it.  An orbit of one sector of one copy -- a coupled part of the
-crystal -- is carried by every one-dimensional character of ``H``; an orbit of
-several sectors -- uncoupled orbitals a symmetry exchanges -- by every
-representation induced from a character of a sector's stabilizer; and an orbit
-of identical copies by every representation of the copies the stabilizer
-admits.  A smaller ``H`` splits the orbits by itself, and what each declared
-site holds under each choice is the induced character, read without building a
-matrix (:class:`SectorSearch`).
+The sectors are read once, where a model enters (:func:`read_sectors`), and
+then what each operation does to them (:func:`sector_action`).  On each orbit
+of sectors under a subgroup, the representations the hoppings leave open are
+induced from the stabilizer of one sector.  :class:`SectorSearch` weighs them
+against a declaration on any subgroup, :func:`induced_orbits` builds them, and
+:func:`tables_gauge` writes them in the tables' matrices.
 """
 
 from __future__ import annotations
@@ -74,18 +51,17 @@ class Sector:
 
     Attributes
     ----------
-    basis : numpy.ndarray
-        ``(n, copies · dim)``, orthonormal columns in the orbital factor,
-        column ``a · dim + w`` being state ``w`` of copy ``a``: every conserved
-        matrix acting within sites is ``basis (c ⊗ 1) basis†`` on the sector,
-        ``c`` acting on the copies.
+    basis : numpy.ndarray, shape (n, copies · dim)
+        Orthonormal columns in the orbital factor, column ``a · dim + w`` the
+        state ``w`` of copy ``a``.  On the sector every conserved matrix
+        acting within sites is ``basis (c ⊗ 1) basis†``, ``c`` acting on the
+        copies.
     copies : int
-        How many identical copies the sector holds, ``m``.
+        The number of identical copies, ``m``.
     dim : int
-        How many states one copy holds, ``d``: orbitals, or declared spinor
-        pairs, counted in the orbital factor.
+        The number of states in one copy, ``d``, counted in the orbital factor.
     atoms : tuple of int
-        The orbitals (or declared spinor pairs) the sector's states lie on.
+        The indices of the orbital factor the sector's states lie on.
     """
 
     basis: np.ndarray
@@ -99,11 +75,11 @@ class SectorReading:
 
     Attributes
     ----------
-    algebra : numpy.ndarray
-        ``(k, n, n)``, an orthonormal basis of the conserved matrices acting
-        within sites, in the orbital factor.
+    algebra : numpy.ndarray, shape (k, n, n)
+        An orthonormal basis of the conserved matrices acting within sites,
+        in the orbital factor.
     sectors : tuple of Sector
-        The sectors, ordered by the lowest orbital (or pair) each touches.
+        The sectors, ordered by the lowest index each touches.
     atoms : tuple of tuple of int
         The orbitals each index of the orbital factor stands for: one orbital,
         or a declared spinor pair's two.
@@ -113,10 +89,11 @@ class SectorReading:
     defect : float
         How far the conserved matrices miss the sectors' form, relative to
         their scale: rounding where the reading is exact, and up to the
-        declared tolerance where the matrices were measured at it.
+        declared tolerance where the matrices were measured at it.  Infinite
+        where no draw read the sectors, all the states then forming one
+        sector of one copy.
     tol : float or None
-        The declared tolerance the reading was made at, relative to ``max|H|``;
-        ``None`` where nothing was declared.
+        The declared tolerance the reading was made at.
     """
 
     algebra: np.ndarray
@@ -132,13 +109,14 @@ class SectorAction:
 
     Attributes
     ----------
-    images : mapping
-        ``{ind: images}``, per operation by index the sector it carries each
-        sector onto.
-    factors : mapping
-        ``{(ind, sector): w}``, the factor every matrix the operation can be
-        carries on each copy's states between the sector and its image: unitary,
-        of determinant one.
+    images : dict
+        Per operation, by its index, a tuple whose entry ``j`` is the sector
+        the operation carries sector ``j`` onto.
+    factors : dict
+        Per ``(ind, j)``, the ``d × d`` factor ``w``, unitary and of
+        determinant one, that every matrix of operation ``ind`` carries on
+        each copy's states from sector ``j`` to its image.  Those matrices are
+        ``c ⊗ w`` there, ``c`` acting on the copies.
     defect : float
         How far the operations' matrices miss that form, relative to their
         scale.
@@ -149,11 +127,14 @@ class SectorAction:
     defect: float
 
 def _atoms_of(model, spin):
-    """``(atoms, order, su2)`` -- the indices of the orbital factor and the states' spin order.
+    """The indices of the orbital factor, and the states' spin order.
 
-    An index of the orbital factor is one orbital, or one declared spinor pair;
-    ``order`` puts the states in pair order, the spin fast, where they carry a
-    spin, and is ``None`` where they do not.
+    ``model`` is the pythtb model and ``spin`` its declared spinor basis
+    (:class:`..spin.SpinBasis`), ``None`` where none is declared.  Returns
+    ``(atoms, order, su2)``: ``atoms`` holds the orbitals of each index of the
+    orbital factor, one orbital or a declared pair's two; ``order`` puts the
+    states in pair order, the spin fast, and is ``None`` on states with no
+    spin; ``su2`` says whether the states carry a spin.
     """
     if int(model.nspin) == 2:
         atoms = tuple((int(o),) for o in range(int(model.norb)))
@@ -164,13 +145,20 @@ def _atoms_of(model, spin):
     return tuple((int(o),) for o in range(int(model.norb))), None, False
 
 def _orthonormal(members, tol):
-    """An orthonormal basis of the span of ``members``, under the trace inner product."""
+    """An orthonormal basis of the span of ``members``.
+
+    ``members`` has shape ``(k, n, n)``, and the inner product is the trace
+    one.  ``tol`` is the declared tolerance.  A direction is kept where its
+    singular value exceeds :data:`.._tolerance.ZERO`, or ``tol`` where
+    larger, relative to the largest singular value or to one where that is
+    smaller.  Returns an array of shape ``(r, n, n)``.
+    """
     A = np.asarray(members, dtype=complex)
     if not len(A):
         return A
     n = int(A.shape[1])
-    # the right singular vectors span the members' own span -- not its conjugate,
-    # which commutes with H(k)* rather than with H(k)
+    # the right singular vectors span the members' own span; the conjugate span
+    # would commute with H(k)* and not with H(k)
     _u, s, vh = np.linalg.svd(A.reshape(len(A), -1), full_matrices=False)
     keep = s > noise_floor(ZERO, tol) * max(float(s[0]), 1.0)
     return vh[keep].reshape(int(keep.sum()), n, n)
@@ -178,11 +166,15 @@ def _orthonormal(members, tol):
 def _orbital_factor(members, sym, order, su2, tol):
     """The orbital factors ``O`` of members ``O ⊗ S(g)``, orthonormal.
 
-    ``S(g)`` is the operation's own spin lift.  Every solution space read here
-    was read in its operation's own form (:func:`.._multiplets._own_form_spaces`),
-    so each member is ``O ⊗ S(g)`` and ``O`` is its trace against the lift on
-    the spin.  On states with no spin the members are their own orbital
-    factors.
+    ``members`` is a solution space of the operation ``sym``, read in its own
+    form (:func:`.._multiplets._own_form_spaces`), and ``S(g)`` is that
+    operation's spin lift (:func:`.._matrices._lift_of`).  ``order`` and
+    ``su2`` are the states' spin order and whether they carry a spin
+    (:func:`_atoms_of`), and ``tol`` is the declared tolerance.  The entry
+    ``O_ab`` is ``tr(S(g)† M_ab) / 2``, ``M_ab`` a member's spin block between
+    indices ``a`` and ``b``.  On states with no spin the members are their own
+    orbital factors.  Returns an orthonormal basis of the factors' span
+    (:func:`_orthonormal`).
     """
     M = np.asarray(members, dtype=complex)
     if not su2 or not len(M):
@@ -194,10 +186,13 @@ def _orbital_factor(members, sym, order, su2, tol):
     return _orthonormal(O, tol)
 
 def _site_blocks(model, assignment, spin, image=None):
-    """``[(rows, cols)]`` per site: where a matrix carrying each site onto its image may be nonzero.
+    """Per site, the block a matrix carrying it onto its image may fill.
 
-    ``image[s]`` is the site the operation carries site ``s`` onto, every site
-    its own where ``None``: the blocks of a matrix acting within sites.
+    ``model`` and ``assignment`` give each site's states, and ``spin`` is not
+    read.  ``image[s]`` is the site the operation carries site ``s`` onto;
+    with ``image=None`` every site is its own, the blocks of a matrix acting
+    within sites.  Returns ``[(rows, cols)]``, the image's states and the
+    site's.
     """
     nspin = int(model.nspin)
     states = [np.asarray([o * nspin + t for o in orbs for t in range(nspin)], dtype=int)
@@ -206,7 +201,12 @@ def _site_blocks(model, assignment, spin, image=None):
             for s in range(len(states))]
 
 def _within_sites(basis, blocks, tol):
-    """The members of a solution space carrying each site onto its image alone."""
+    """The members of the solution space ``basis`` that lie within ``blocks``.
+
+    ``blocks`` are a matrix's allowed blocks (:func:`_site_blocks`), and
+    ``tol`` is the declared tolerance at which a member is read as lying
+    within them (:func:`.._matrices._block_members`).
+    """
     members, _reach = _matrices._block_members(basis, blocks,
                                                tol=noise_floor(_IN_BLOCKS, tol))
     return members
@@ -217,7 +217,15 @@ def _draw(B, rng):
     return np.einsum("j,jab->ab", c, B)
 
 def _tensor_defect(Z, m, d):
-    """How far one block ``Z`` on a sector misses ``c ⊗ 1``, relative to its scale."""
+    """How far one block ``Z`` on a sector misses ``c ⊗ 1``.
+
+    ``Z`` acts on the sector's ``m`` copies of ``d`` states, copy-major.  The
+    miss is relative to the block's scale.  ``Z`` is rearranged so that a
+    product ``c ⊗ w`` has rank one.  Returns the larger of two numbers: the
+    ratio of the second to the first singular value of that rearrangement,
+    and how far the factor ``w`` of the first, normalized, misses a multiple
+    of the identity.  Returns ``0.0`` for a zero block.
+    """
     R = Z.reshape(m, d, m, d).transpose(0, 2, 1, 3).reshape(m * m, d * d)
     _u, s, vh = np.linalg.svd(R, full_matrices=False)
     if not s.size or float(s[0]) <= 0.0:
@@ -228,16 +236,19 @@ def _tensor_defect(Z, m, d):
     return max(worst, float(np.abs(w - trace * np.eye(d)).max()))
 
 def _sectors_once(B, rng, tol):
-    """``(sectors, defect)`` -- one reading of the sectors of ``B``, or ``None`` where it misses.
+    """One reading of the sectors of the algebra ``B``.
 
-    The eigenspaces of one Hermitian member drawn from ``B`` are the copies, one
-    eigenvalue to each copy of each sector; two copies are of one sector where
-    another drawn member carries one into the other; and that member, carried
-    from a sector's first copy into each of the others along the links found,
-    puts every copy in one frame, so that each member of ``B`` acts on the
-    sector as ``c ⊗ 1``.  Two more draws check the reading: what either
-    carries from one sector into another, and how far either misses ``c ⊗ 1`` on
-    a sector, is its defect.
+    ``B`` is an orthonormal basis of the algebra, ``rng`` draws its members,
+    and ``tol`` is the declared tolerance.  The eigenspaces of one drawn
+    Hermitian member are the copies, one eigenvalue to each copy of each
+    sector.  Two copies are of one sector where another drawn member carries
+    one into the other.  That member, carried from a sector's first copy along
+    the links found, puts every copy in one frame, so that each member of
+    ``B`` acts on the sector as ``c ⊗ 1``.  Two more draws give the defect:
+    what either carries between sectors, and how far either misses ``c ⊗ 1``
+    on a sector (:func:`_tensor_defect`).  Returns ``(sectors, defect)``;
+    ``None`` where the copies of one sector differ in dimension, or the links
+    do not reach every copy.
     """
     n = int(B.shape[1])
     cluster, zero = noise_floor(CLUSTER, tol), noise_floor(ZERO, tol)
@@ -313,16 +324,21 @@ def _sectors_once(B, rng, tol):
     return tuple(sectors), defect
 
 def read_sectors(model, group, assignment, spin, validated, *, tol=None):
-    """The sectors of one Hamiltonian, read off the identity's solution space; ``None`` where unread.
+    """The sectors of one Hamiltonian, read off the identity's solution space.
 
-    ``validated`` holds the detector's solution spaces (``validated._bases``);
-    the identity's is every matrix that commutes with ``H(k)`` at every ``k``,
-    and its members acting within sites are read, in the orbital factor
-    (:func:`_orbital_factor`).  ``tol`` is the declared tolerance relative to
-    ``max|H|`` every threshold here reads where it is larger than its exact
-    default (:func:`.._tolerance.noise_floor`); ``None`` keeps the defaults.
-    ``None`` is returned where the space is not held, or is past the read-off's
-    own ceiling.
+    ``model`` is the pythtb model, ``group`` the group it is measured on
+    (:class:`.._spacegroup.GroupData`), ``assignment`` the sites of its
+    orbitals (:class:`.._spacegroup.OrbitalAssignment`), ``spin`` its
+    declared spinor basis or ``None``, and ``validated`` the detector's
+    verdict, whose ``_bases`` hold each operation's solution space
+    (:class:`.._measure.ValidatedGroup`).  ``tol`` is the declared tolerance.
+    The identity's space is every matrix that commutes with ``H(k)`` at every
+    ``k``, and its members acting within sites are read in the orbital factor
+    (:func:`_orbital_factor`).  A coupling below the declared tolerance leaves
+    the pieces it joins apart, and one above it joins them.  Returns a
+    :class:`SectorReading`; ``None`` where the identity's space is not held,
+    is past the detector's memory ceiling for reading a space off, or has no
+    member acting within sites.
     """
     syms = group._symmetries
     ident = _matrices._identity_position(group)
@@ -345,7 +361,14 @@ def read_sectors(model, group, assignment, spin, validated, *, tol=None):
                          defect=float(defect), tol=tol)
 
 def _sectors_of(B, tol):
-    """``(sectors, defect)`` of the algebra ``B``, the best of the draws (:func:`_sectors_once`)."""
+    """The sectors of the algebra ``B``, the best of the draws :data:`_SEEDS`.
+
+    ``tol`` is the declared tolerance.  Each seed reads the sectors once
+    (:func:`_sectors_once`), the reading with the smallest defect is kept, and
+    the draws stop at one within :data:`.._tolerance._FACTOR_TOL`, or ``tol``
+    where larger.  Returns ``(sectors, defect)``.  Where no draw reads them,
+    all the states form one sector of one copy, with an infinite defect.
+    """
     best = None
     for seed in _SEEDS:
         got = _sectors_once(B, np.random.default_rng(seed), tol)
@@ -362,18 +385,16 @@ def _sectors_of(B, tol):
     return best
 
 def carried_reading(reading, layout, *, tol=None):
-    r"""The sectors as the multiplets carry them: the conserved matrices block-diagonal on them.
+    r"""The sectors as the multiplets carry them.
 
-    The multiplets the representation is written on are what a site's content
-    is read on.  Where every conserved matrix acting within sites acts within
-    each of them -- a model whose identical copies the multiplets hold
-    together, or one with none -- the sectors carried are ``reading``'s own,
-    and ``reading`` is returned.  Where the multiplets keep identical copies
-    apart, each copy written as multiplets of its own, the matrices exchanging
-    the copies reach between multiplets, and the sectors carried are those of
-    the conserved matrices that do not: each copy a sector of one copy, read
-    on its own.  ``layout`` holds the multiplets (:class:`..symmetry.SiteMultiplets`)
-    and ``tol`` is the declared tolerance the reading was made at.
+    ``reading`` is the :class:`SectorReading`, ``layout`` the multiplets the
+    representation is written on (:class:`..symmetry.SiteMultiplets`), and
+    ``tol`` the declared tolerance the reading was made at.  Where every
+    conserved matrix acting within sites acts within each multiplet,
+    ``reading`` itself is returned.  Where the multiplets keep identical copies
+    apart, the matrices exchanging the copies reach between multiplets.  The
+    conserved matrices that do not are then read on their own, each copy a
+    sector of one copy, and their :class:`SectorReading` is returned.
     """
     index = {int(o): a for a, orbs in enumerate(reading.atoms) for o in orbs}
     B = reading.algebra
@@ -397,21 +418,20 @@ def carried_reading(reading, layout, *, tol=None):
                          su2=reading.su2, defect=float(defect), tol=reading.tol)
 
 def joined(reading, site_atoms):
-    r"""``W[i, j]`` -- how far the conserved matrices join atom ``i`` of one site to atom ``j``.
+    r"""How far the conserved matrices join each pair of atoms of one site.
 
-    The largest, over the sectors, of how far a matrix of the sector reaches
-    between the two atoms' indices in the orbital factor.  For the sector's
-    projector that is zero to rounding where every sector holds each of the two
-    wholly or not at all, as it does orbitals written along the sectors, and of
-    order one where a sector holds part of each: a square's ``p_x, p_y`` pair
-    that nothing couples, written as ``(p_x ± p_y)/√2``, is joined by a half.
-    The matrices exchanging a sector's identical copies are read too: their
-    reach between the two atoms, summed in square over every pair of copies,
-    which is the same in any basis of the copies, joins each state of one copy
-    to the same state of every other -- two identical ``s`` orbitals by one,
-    with a spin or without.  ``site_atoms`` are the site's atoms, each the
-    orbitals of one index of the orbital factor -- one orbital, or a declared
-    spinor pair; the diagonal is zero.
+    ``reading`` is the :class:`SectorReading`, and ``site_atoms`` are the
+    site's atoms, each the orbitals of one index of the orbital factor.
+    Returns the matrix ``W``.  ``W[i, j]``, how far atom ``i`` is joined to
+    atom ``j``, is the largest, over the sectors, of the reach between the two
+    atoms of the sector's projector and of the matrices exchanging its
+    identical copies, the latter summed in square over every pair of copies.
+    The projector's reach is zero to rounding where each sector holds each
+    atom wholly or not at all, and of order one where it holds part of each:
+    a square's ``p_x, p_y`` pair that nothing couples, written as
+    ``(p_x ± p_y)/√2``, is joined by a half.  The exchange's reach is the same
+    in any basis of the copies, and joins two identical ``s`` orbitals by one,
+    with a spin or without.  The diagonal is zero.
     """
     index = {int(o): a for a, orbs in enumerate(reading.atoms) for o in orbs}
     idx = np.asarray([index[int(atom[0])] for atom in site_atoms], dtype=int)
@@ -430,18 +450,23 @@ def joined(reading, site_atoms):
     return W
 
 def sector_action(reading, model, group, assignment, spin, validated, *, tol=None):
-    """What the operations of ``group`` do to the sectors of ``reading``: a :class:`SectorAction`.
+    """What the operations of ``group`` do to the sectors of ``reading``.
 
-    Each operation's solution space is read within the sites it carries onto
-    one another (:func:`.._matrices._site_spaces`) and in the orbital factor, and
-    one member drawn from it says which sector it carries each sector onto,
-    the sector its weight lies on; two members drawn from it say the factor
-    ``w`` they share on each copy's states between a sector and its image, read
-    as the common factor of their ``c ⊗ w`` form and made unitary, of
-    determinant one, so that two of them compose to a third times a ``d``-th
-    root of unity.  An antiunitary operation's matrices act on the conjugate
-    states.  An operation the detector kept no solution space for, or none of
-    whose members acts within sites, is absent.
+    ``reading`` is the :class:`SectorReading`; ``model``, ``group``,
+    ``assignment``, ``spin`` and ``validated`` are as :func:`read_sectors`
+    takes them, and ``tol`` is the declared tolerance.  Each operation's
+    solution space is read within the sites it carries onto one another
+    (:func:`.._matrices._site_spaces`), in the orbital factor.  One member
+    drawn from it gives the sector each sector is carried onto, the one its
+    weight lies on.  Two members give the factor ``w`` on each copy's states
+    between a sector and its image: the common factor of their ``c ⊗ w``
+    form, made unitary and of determinant one, so that two factors compose to
+    a third times a ``d``-th root of unity.  An antiunitary operation's
+    matrices act on the conjugate states.  Returns a :class:`SectorAction`.
+    It leaves out an operation the detector kept no solution space for, one
+    too large to read, one none of whose members acts within sites, and one
+    that does not carry each sector wholly onto a sector of the same number
+    of copies and states per copy.
     """
     syms = group._symmetries
     pos_of = {int(s.ind): p for p, s in enumerate(syms)}
@@ -500,18 +525,27 @@ def sector_action(reading, model, group, assignment, spin, validated, *, tol=Non
 # --------------------------------------------------------------------------
 
 class _Unread(Exception):
-    """The sectors do not read this group: the factors its operations carry do not compose."""
+    """The sectors read no representation of the operations asked.
+
+    Raised where the factors the operations carry on the sectors do not
+    compose, where an operation an orbit needs has no reading on them, where
+    the multiplets hold part of an orbit or split its copies, where the
+    tables' spin sign for a product disagrees with the factor the spin lifts
+    carry, or where no draw separates a stabilizer's representations with
+    the factor system read (:func:`.._matrices._projective_irreps`).
+    """
 
 def _composed(wa, wb, wab, *, after_antiunitary=False, tol=None):
-    r"""``ρ`` with ``w(a) w(b) = ρ w(ab)``, ``w(b)*`` after an antiunitary ``a``: a root of unity.
+    r"""The root of unity ``ρ`` with ``w(a) w(b) = ρ w(ab)``.
 
-    The factors are of determinant one (:func:`sector_action`), so ``ρ^d = 1``
-    for ``d × d`` factors, and the measured ratio is read as the ``d``-th root
-    of unity it sits at: exactly, whatever noise the factors carry within a
-    declared precision, so that the representations it leaves are read off an
-    exact factor system.  A ratio that misses that form, or sits nearer the
-    middle between two roots than a quarter of their spacing, raises
-    :class:`_Unread`.
+    ``wa``, ``wb`` and ``wab`` are the factors of :func:`sector_action` for
+    ``a``, ``b`` and ``ab`` on one sector, ``d × d`` and of determinant one,
+    so ``ρ^d = 1``.  With ``after_antiunitary=True``, ``a`` is antiunitary and
+    ``w(b)*`` stands in place of ``w(b)``.  ``tol`` is the declared tolerance
+    the factors were read at.  Returns the ``d``-th root of unity the measured
+    ratio sits at, exactly.  Raises :class:`_Unread` where ``w(a) w(b)`` is
+    not a multiple of ``w(ab)``, or where the ratio lies farther than a
+    quarter of the roots' spacing from the nearest root.
     """
     rho, res = _matrices._proportionality(wa @ (wb.conj() if after_antiunitary else wb), wab)
     if res > noise_floor(_FACTOR_TOL, tol) or abs(rho) <= 0.0:
@@ -524,11 +558,13 @@ def _composed(wa, wb, wab, *, after_antiunitary=False, tol=None):
     return complex(root)
 
 class _TooMany(Exception):
-    """More representations to weigh than ``max_candidates``: how many, and on which orbitals.
+    """More representations to weigh than ``max_candidates``.
 
-    ``copies`` is the pseudospin's dimension where one orbit's copies are
-    counted; ``sets`` the number of orbits read together where several are
-    (:class:`SharedOrbits`), ``None`` otherwise.
+    ``count`` is how many there are, and ``orbitals`` the orbitals they are
+    weighed on.  ``sets`` is the number of orbits read together where
+    several are (:class:`SharedOrbits`), ``None`` otherwise.  ``copies`` is
+    the largest number of identical copies a sector among them holds where
+    ``sets`` is ``None``, and ``1``, standing for nothing, where it is given.
     """
 
     def __init__(self, count, orbitals, copies, sets=None):
@@ -537,18 +573,21 @@ class _TooMany(Exception):
         self.sets = None if sets is None else int(sets)
 
 def _extends(rep, positions, a_pos, prod, factor, *, tol=None, seed=17):
-    r"""Whether a representation of a sector's stabilizer extends to an antiunitary operation.
+    r"""Whether a stabilizer's representation extends to an antiunitary operation.
 
     ``rep`` holds ``b(u)`` for every unitary ``u`` of ``positions``, a
-    representation with the factor system ``factor``, and ``a_pos`` is an
-    antiunitary operation fixing the same sector, ``a²`` among ``positions``.
-    The matrix ``X`` it would carry satisfies ``X b(u)* = f(a, u) / f(u', a) ·
-    b(u') X`` for every ``u``, ``u' a = a u``, and ``X X* = f(a, a) b(a²)``,
-    which for a unitary ``X`` is the linear ``X = Xᵀ · conj(f(a, a) b(a²))``.
-    A member of that solution space drawn at random is made unitary and kept
-    where it closes both: one of a pair of complex-conjugate representations
-    without its partner is carried by no such ``X``.  ``tol`` is the declared
-    tolerance the factors were read at (:func:`.._tolerance.noise_floor`).
+    representation with the factor system ``f``, which ``factor`` holds keyed
+    by pairs of positions.  ``a_pos`` is an antiunitary operation ``a`` fixing
+    the same sector, and ``prod`` the group's multiplication table by
+    position.  The matrix ``X`` that ``a`` would carry satisfies
+    ``X b(u)* = f(a, u) / f(u', a) · b(u') X`` for every ``u``, with
+    ``u' a = a u``, and ``X X* = f(a, a) b(a²)``.  For a unitary ``X`` the
+    last is the linear ``X = Xᵀ · conj(f(a, a) b(a²))``.  Members of that
+    solution space, drawn from ``seed``, are made unitary, and one that meets
+    both within the declared tolerance ``tol`` returns ``True``.  One of a
+    pair of complex-conjugate representations without its partner is carried
+    by no such ``X``.  Returns ``False`` too where ``a²`` or some ``u'`` is
+    not among ``positions``.
     """
     positions = [int(p) for p in positions]
     square = int(prod[a_pos, a_pos])
@@ -592,32 +631,51 @@ def _extends(rep, positions, a_pos, prod, factor, *, tol=None, seed=17):
     return False
 
 class SectorSearch:
-    r"""Whether a declared content is carried on a subgroup, read off the sectors.
+    r"""The search for whether a declaration is carried on a subgroup.
 
-    Made once per round, on the sectors the multiplets carry
-    (:func:`carried_reading`) and what the round's operations do to them
-    (:func:`sector_action`).  ``decls`` are the declared contents as the round
-    reads them, each over whole multiplets of one site; ``positions`` the
-    round's unitary operations still standing; ``reversal`` the pure time
-    reversal where it stands, ``None`` where it does not; ``tol`` how far a
-    character may sit from a declared one and be read as it; and
-    ``max_candidates`` the most representations weighed at once.
+    Made once per round of the search for the group.  :meth:`met` says, for
+    any subgroup of the round's unitary operations, whether one
+    representation per orbit of sectors under it, of those the sectors leave
+    open, gives every declared site what was declared.  That is the same
+    character where the whole site was declared, a character containing it
+    where part of the site was, and the corep multiplicities alone where the
+    declaration is written in coreps.  A site's character under each choice
+    is the induced character, read without building a matrix.  An orbit time
+    reversal carries onto another is chosen once, its partner carrying the
+    conjugate.  Declarations sharing no orbit are weighed apart.  Where the
+    sectors of an orbit carry no representation of their stabilizer with the
+    tables' factor system, the declarations on them are not weighed.  That
+    is a verdict on the states' projective class, given apart from the
+    declarations.  Where, on the identity alone, no representation the copies
+    admit both extends to time reversal and carries the declarations, they
+    are asked of the unitary operations alone.  Once made, ``complete`` is
+    false where an operation of the round has no reading on the sectors,
+    which then say nothing.
 
-    :meth:`met` answers for any subgroup of those operations: whether one
-    representation per orbit of sectors under that subgroup, of those the
-    sectors leave open, gives every declared site what was declared -- the same
-    content where the whole site was declared, a content holding it where part
-    of the site was, and the corep content alone where the words are coreps.
-    An orbit time reversal carries onto another is chosen once, its partner
-    carrying the conjugate.  Declarations sharing no orbit are weighed apart, so
-    that the choices multiply only inside each.  States that carry no
-    representation of their stabilizer with the tables' factor system put
-    nothing to a declaration there: that is their projective class, a verdict
-    of its own.  Time reversal is asked where these states hold it; where none
-    of the copies extends to it on the identity, its square on the states is
-    not the one the tables ask for, and the declarations are asked of the
-    unitary operations alone.  ``complete`` is false where an operation of the
-    round has no reading on the sectors, which then answer nothing.
+    Parameters
+    ----------
+    reading : SectorReading
+        The sectors as the multiplets carry them (:func:`carried_reading`).
+    action : SectorAction
+        What the round's operations do to them (:func:`sector_action`).
+    group : .._spacegroup.GroupData
+        The group of the round.
+    assignment : .._spacegroup.OrbitalAssignment
+        The sites of the orbitals.
+    decls : sequence of dict
+        The declarations as the round reads them, each over whole
+        multiplets of one site.
+    positions : iterable of int
+        The round's unitary operations still standing, by position in the
+        group's list of operations.
+    reversal : int or None, default None
+        The position of the pure time reversal where it stands.
+    tol : float, default CHARACTER
+        How far a character may sit from a declared one and be read as it.
+        It also bounds how far the tables' spin sign for a product may sit
+        from the factor the spin lifts carry (:meth:`_tau`).
+    max_candidates : int, default 2 ** 20
+        The most representations weighed at once.
     """
 
     def __init__(self, reading, action, group, assignment, decls, positions, *,
@@ -658,12 +716,13 @@ class SectorSearch:
                 "touch": {j for j, s in enumerate(reading.sectors)
                           if float(np.linalg.norm(s.basis[atoms, :])) > zero},
                 "table_of": _naming._SiteTableOf(group, assignment, site, corep=corep)})
-        # TIME REVERSAL, where these states hold it: on the identity every
-        # declaration is carried by the copies as they stand, so a time reversal
-        # none of them extends to -- one whose square on the states is not the one
-        # the tables ask for, a spinor's read in single-valued tables -- is no
-        # operation of these states, which its own verdict says once the
-        # unitary operations settle; the declaration is then asked of those alone
+        # Where these states hold time reversal, the declarations are first
+        # asked on the identity alone, where the copies as they stand carry
+        # every one of them: where none of the representations the copies
+        # admit extends to time reversal, its square on the states is not the
+        # one the tables ask for, as for a spinor read in single-valued tables.
+        # It is then dropped and the declarations are asked of the unitary
+        # operations alone; its own verdict says so once those settle.
         if self.reversal is not None and self.complete:
             try:
                 if not self.met({int(self.syms[self.ident].ind)}):
@@ -680,11 +739,14 @@ class SectorSearch:
         return self._lifts[p]
 
     def _tau(self, x, y):
-        """The factor ``O(x) O(y) = τ O(xy)`` the orbital part carries: the table's own over the spin lifts'.
+        """The factor ``τ`` with ``O(x) O(y) = τ O(xy)`` on the orbital part.
 
-        One wherever the tables and the lifts agree, which every group
-        identified here does; a pair where it is not is no group these
-        sectors read.
+        ``x`` and ``y`` are positions of operations.  ``τ`` is the table's
+        spin sign for their product over the factor the spin lifts carry,
+        ``S(x) S(y) = λ S(xy)``, ``S(y)*`` standing in place of ``S(y)`` after
+        an antiunitary ``x``.  Returns ``1`` where the two agree within the
+        search's ``tol``.  Raises :class:`_Unread` where they do not, or where
+        ``S(x) S(y)`` is not a multiple of ``S(xy)``.
         """
         key = (int(x), int(y))
         if key not in self._target:
@@ -699,17 +761,39 @@ class SectorSearch:
         return self._target[key]
 
     def _rho(self, wa, wb, wab, *, after_antiunitary=False):
-        """``ρ`` with ``w(a) w(b) = ρ w(ab)`` on one sector, ``w(b)*`` after an antiunitary ``a``.
+        """The root of unity ``ρ`` with ``w(a) w(b) = ρ w(ab)`` on one sector.
 
-        The factors are of determinant one, so ``ρ`` is a root of unity, and
-        it is read as the one it sits at.
+        ``wa``, ``wb`` and ``wab`` are the factors of ``a``, ``b`` and ``ab``;
+        with ``after_antiunitary=True``, ``w(b)*`` stands in place of
+        ``w(b)``.  Read by :func:`_composed` at the reading's tolerance.
         """
         return _composed(wa, wb, wab, after_antiunitary=after_antiunitary,
                          tol=self.reading.tol)
 
     # ---- one orbit of sectors under a subgroup ---------------------------------
     def _orbit(self, orbit, H):
-        """The stabilizer, frames and representations of one orbit of sectors under ``H``."""
+        """The stabilizer, frames and representations of one orbit under ``H``.
+
+        ``orbit`` lists the orbit's sectors, the first its reference, and ``H``
+        the subgroup's unitary operations by position.  Returns a mapping,
+        cached: ``orbit``, the sectors as handed in; ``rep[t]``, an operation
+        carrying the first sector onto ``t``; ``K``, the first sector's
+        stabilizer, and ``w``, the factors on it; ``frames[t]``, the basis of
+        ``t`` in the frame ``rep[t]`` carries the first sector's into; ``m``
+        and ``d``; ``kind``, how time reversal meets the orbit, ``"fixes"``,
+        ``"inside"``, ``"pairs"`` or ``None``; ``options``, the character on
+        ``K`` of each representation of ``K`` on the copies with the factor
+        system the sectors leave; of these, where an antiunitary operation
+        fixes the first sector, only those that extend to it; ``orbitals``;
+        and ``obstructed``, true where that factor system admits
+        no representation on the copies.  Raises :class:`_Unread` where ``H``
+        does not carry the first sector onto every sector of ``orbit``, where
+        an operation the orbit needs has no factor on the sectors, where the
+        factors do not compose (:meth:`_tau`, :meth:`_rho`), or where no draw
+        separates the stabilizer's representations.  Raises
+        :class:`_TooMany` where the representations on the copies number
+        more than ``max_candidates``.
+        """
         key = (tuple(orbit), frozenset(H))
         if key in self._orbit_of:
             return self._orbit_of[key]
@@ -810,13 +894,16 @@ class SectorSearch:
         return got
 
     def _contributions(self, i, rec, H):
-        """``{h: [(k, θ)]}`` -- what one orbit puts at declared site ``i`` under each operation fixing it.
+        """What one orbit puts at declared site ``i`` under each operation.
 
-        The induced character: an operation fixing a sector ``t`` of the orbit
-        acts there as ``k = r_t⁻¹ h r_t`` of the stabilizer, ``r_t`` carrying the
-        orbit's first sector onto ``t``, and the site's share is ``tr b(k)``
-        times ``θ = tr(π_t w(k))``, ``π_t`` the site's states in one copy of
-        ``t`` read in the frame ``r_t`` carries the first sector's into.
+        ``rec`` is the orbit's record (:meth:`_orbit`) and ``H`` the subgroup
+        by position.  An operation ``h`` of the site group fixing a sector
+        ``t`` of the orbit acts there as ``k = r_t⁻¹ h r_t`` of the stabilizer,
+        ``r_t`` carrying the orbit's first sector onto ``t``.  The site's share
+        of the induced character is ``tr b(k)`` times ``θ = tr(π_t w(k))``,
+        ``π_t`` the projector onto the site's indices, compressed to the first
+        copy of ``t``, in the frame of ``rec``.  Returns ``{h: [(k, θ)]}``,
+        cached.
         """
         key = (int(i), rec["orbit"], frozenset(H))
         if key in self._theta_of:
@@ -844,7 +931,17 @@ class SectorSearch:
 
     # ---- whether the declarations are carried -----------------------------------
     def _holds(self, i, content, H):
-        """Whether declared site ``i`` holds what was declared, its content ``{h: χ}`` on ``H``."""
+        """Whether declared site ``i`` holds what was declared.
+
+        ``content`` maps operations of ``H``, by position, to the site's
+        character.  A whole site's declaration holds where the characters
+        agree within the search's ``tol``; one written in coreps is not
+        compared where the operation's spin lift has zero trace.  A
+        declaration of part of the site holds where the character contains it
+        on the site group ``H`` leaves (:func:`.._naming._contained`).  Where
+        that site group carries no table, or the character is not read on
+        every class of it, ``True`` is returned.
+        """
         item = self.items[i]
         ops = [h for h in H if h in content]
         if not item["partial"]:
@@ -852,7 +949,7 @@ class SectorSearch:
                 if h not in item["want"]:
                     continue
                 if item["corep"] and abs(complex(np.trace(self._lift(h)))) <= ZERO:
-                    continue                  # a corep content says nothing here
+                    continue                  # a corep declaration says nothing here
                 if abs(content[h] - item["want"][h]) > self.tol:
                     return False
             return True
@@ -871,7 +968,13 @@ class SectorSearch:
         return _naming._contained(table, held, want, corep=item["corep"], asked=asked)
 
     def met(self, sub):
-        """Whether the subgroup of unitary operations ``sub`` (by ``.ind``) carries every declaration."""
+        """Whether the subgroup ``sub`` carries every declaration.
+
+        ``sub`` holds the indices of the subgroup's unitary operations.
+        Raises :class:`_TooMany` where the choices to weigh pass
+        ``max_candidates``, and :class:`_Unread` where the sectors read
+        nothing on ``sub``.
+        """
         H = sorted(self.pos_of[int(i)] for i in sub if int(i) in self.pos_of)
         sectors = self.reading.sectors
         parent = list(range(len(sectors)))
@@ -966,17 +1069,22 @@ class SectorSearch:
 # --------------------------------------------------------------------------
 
 def atom_sites(reading, layout):
-    """The site each index of ``reading``'s orbital factor lies at, as the multiplets ``layout`` place it."""
+    """The site of each index of ``reading``'s orbital factor.
+
+    ``layout`` holds the multiplets, and an index lies at the site of the
+    multiplet holding its first orbital.  Returns an array of sites.
+    """
     chan_of = np.asarray(layout._chan_of, dtype=int)
     return np.asarray([int(layout._chan_site[int(chan_of[int(orbs[0])])])
                        for orbs in reading.atoms], dtype=int)
 
 def chan_rows(reading, layout):
-    """Per multiplet of ``layout``, the indices of ``reading``'s orbital factor it holds, in order.
+    """Per multiplet of ``layout``, the indices of the orbital factor it holds.
 
-    On states read without spin they are the multiplet's states; on states that
-    carry a spin, native or declared in pairs, each orbital (or pair) once, in
-    the order the multiplet's states first reach it.
+    ``reading`` is the :class:`SectorReading` whose orbital factor is meant.
+    On states read without spin they are the multiplet's states, in order.
+    On states that carry a spin, native or declared in pairs, each index is
+    listed once, in the order the multiplet's states first reach it.
     """
     if not reading.su2:
         return [tuple(int(a) for a in states) for states in layout._chan_states]
@@ -991,11 +1099,13 @@ def chan_rows(reading, layout):
     return out
 
 def spin_places(reading, states):
-    """``[(index, spin)]`` -- where each state lies in ``reading``'s orbital factor, and its spin.
+    """Where each of ``states`` lies in the orbital factor, and its spin.
 
-    A native spinful model stores state ``2·orbital + spin``; a declared spinor
-    basis holds each pair's ``(up, dn)`` orbitals, a state's spin its place in
-    its pair.
+    ``reading`` is the :class:`SectorReading` whose orbital factor is meant.
+    A native spinful model stores state ``2·orbital + spin``.  A declared
+    spinor basis holds each pair's ``(up, down)`` orbitals, and a state's spin
+    is its place in its pair.  Returns ``[(index, spin)]``, ``spin`` ``0`` up
+    and ``1`` down.
     """
     index = {int(o): a for a, orbs in enumerate(reading.atoms) for o in orbs}
     native = all(len(orbs) == 1 for orbs in reading.atoms)
@@ -1010,15 +1120,14 @@ def spin_places(reading, states):
     return out
 
 def in_states(reading, basis, nstate):
-    r"""A basis written in ``reading``'s orbital factor, written in the states, each index times the spin.
+    r"""A basis written in ``reading``'s orbital factor, written in the states.
 
-    On states that carry a spin, native or declared in pairs, an index of the
-    orbital factor is one orbital or one declared pair, holding a state of
-    either spin.  Column ``j`` of ``basis`` becomes columns ``2j`` and
-    ``2j + 1``, the same coefficients on the up and on the down state, so a
-    basis copy-major in the orbital factor stays copy-major, each copy's
-    states its orbital factor's times the spin.  ``nstate`` is the model's
-    number of states.
+    The states carry a spin, native or declared in pairs.  Column ``j`` of
+    ``basis`` becomes columns ``2j`` and ``2j + 1``, the same coefficients on
+    the up and on the down state.  A basis copy-major in the orbital factor so
+    stays copy-major, each copy's states its orbital factor's times the spin.
+    ``nstate`` is the model's number of states.  Returns an array of shape
+    ``(nstate, 2 · ncols)``, ``ncols`` the columns of ``basis``.
     """
     Q = np.asarray(basis, dtype=complex)
     out = np.zeros((int(nstate), 2 * int(Q.shape[1])), dtype=complex)
@@ -1030,19 +1139,19 @@ def in_states(reading, basis, nstate):
     return out
 
 def _snapped(per, sites, tol):
-    r"""Copies lying along the orbitals within a declared precision, held exactly along them; or ``None``.
+    r"""Copies lying along orbitals within the precision, held exactly along them.
 
-    Read at a declared precision, copies that lie along the orbitals do so only
-    within it: a copy's weight reaches the other copies' orbitals, and the
-    matrix carrying one copy onto another reaches between sites, by the noise
-    the precision allows.  Each copy is put wholly on its own orbitals, the
-    first made unitary there, and every copy after it is the first carried by
-    the matrix between them, kept within each site and made unitary: the
-    copies are then exact, and every matrix acting on the copies alone acts
-    within sites, as a conserved one does.  ``per`` is the basis copy by copy,
-    ``(n, m, d)``, and ``sites`` the site of each of its ``n`` indices.
-    ``None`` where a copy does not lie along orbitals of its own within the
-    precision, or the copies' orbitals do not sit at the same sites.
+    ``per`` is a sector's basis copy by copy, of shape ``(n, m, d)``: ``n``
+    indices of the orbital factor, ``m`` copies of ``d`` states.  ``sites``
+    gives the site of each of the ``n`` indices, and ``tol`` is the declared
+    tolerance the sector was read at.  Each copy is put wholly on its own
+    orbitals, the first made unitary there.  Every later copy is the first
+    carried by the matrix between them, kept within each site and made
+    unitary, so that every matrix acting on the copies alone acts within
+    sites.  Returns an array of the shape of ``per``.  Returns ``None`` where
+    a copy does not lie along orbitals of its own, or where the matrix
+    carrying the first copy onto another reaches between sites, by more than
+    ``tol`` or :data:`.._tolerance._IN_BLOCKS` where that is larger.
     """
     n, m, d = per.shape
     loose = noise_floor(_IN_BLOCKS, tol)
@@ -1071,26 +1180,21 @@ def _snapped(per, sites, tol):
     return out
 
 def held_shares(reading, sectors, sites, tol, *, on=None):
-    r"""Sectors of one copy read at a declared precision, each held exactly to its own share of every site.
+    r"""Sectors of one copy, each held exactly to its own share of every site.
 
-    Read at a declared precision, sectors that split a multiplet between them
-    -- the bonding and the antibonding state of two orbitals an on-site
-    coupling joins -- are each a set of states only within it: a sector's
-    projector reaches between sites, and two sectors' shares of one site
-    overlap, by the noise the precision allows.  At each site the shares are
-    read off together, as the eigenvectors of one matrix weighting each
-    sector's projector by a number of its own, so that they are exact and
-    orthogonal; and each sector's basis is the nearest one to its own lying
-    in its shares.  ``sectors`` are indices into ``reading.sectors``, each of
-    one copy, and ``sites`` the site of each index of the orbital factor;
-    ``on`` the indices of the multiplets holding them, where they are known,
-    whose states the shares are read within: two lines nothing couples, held
-    by a multiplet of their own beside a third line's, reach that third line
-    by what the precision allows, and are held off it exactly.  A sector lying
-    along orbitals of its own to rounding -- each of those lines -- is held
-    exactly along them; one turned off them by more, as an orbital frame turned
-    within the precision is, keeps its own turn.  Returns ``{sector: basis}``,
-    or ``None`` where a sector's shares do not hold its states.
+    ``sectors`` are indices into ``reading.sectors``, each of one copy, and
+    ``sites`` gives the site of each index of the orbital factor.  ``tol``,
+    the declared tolerance, is not read.  ``on`` holds the indices of the
+    orbital factor the multiplets holding the sectors lie on, and the shares
+    are read within them; ``None`` reads every index.  At each site the
+    sectors' shares are read together, as the eigenspaces of one Hermitian
+    matrix that weights each sector's projector by a number of its own, so
+    that they are exact and orthogonal.  Each sector's basis is then the
+    nearest to its own that lies in its shares.  A basis lying along
+    orbitals of its own to rounding is held exactly along them; one turned
+    off them by more keeps its turn.  Returns ``{sector: basis}``, or
+    ``None`` where a sector's shares hold a number of states other than its
+    own.
     """
     bases = {int(t): np.asarray(reading.sectors[int(t)].basis, dtype=complex)
              for t in sectors}
@@ -1125,21 +1229,21 @@ def held_shares(reading, sectors, sites, tol, *, on=None):
     return out
 
 def aligned(sector, tol=None, sites=None):
-    r"""A sector's basis, its copies put along the orbitals as written wherever they lie so.
+    r"""A sector's basis, its copies put along the orbitals as written.
 
-    Which basis of its copies a sector is read in is no measurement: every
-    unitary acting on the copies alone commutes with ``H``.  The copies are put
-    along the orbitals as written -- the copy holding the lowest orbital first,
-    then the one holding the lowest orbital the first does not, and so on -- so
-    that identical sets of orbitals, each written as orbitals of its own, are
-    each one copy; and each copy after the first is put in the phase that makes
+    ``sector`` is a :class:`Sector`.  Its copies are read orbital by orbital,
+    in order: at each orbital in turn, the combinations of copies carrying
+    its weight and not already chosen are added, the largest weight first,
+    until there are ``copies`` of them.  So copies lying along orbitals of
+    their own are each one copy as written, the one holding the lowest
+    orbital first.  Each copy after the first is put in the phase that makes
     the largest entry of the matrix carrying the first copy onto it real and
-    positive, so that copies written alike are carried onto one another by the
-    orbitals' own correspondence.  Where no copy lies along the orbitals the
-    order is the one their weights give.  ``tol`` is the declared tolerance the
-    sector was read at; where one was declared and ``sites`` gives the site of
-    each index of the orbital factor, copies lying along the orbitals within
-    it are held exactly along them (:func:`_snapped`).
+    positive.  ``tol`` is the declared tolerance the sector was read at, and
+    ``sites`` the site of each index of the orbital factor.  Where both are
+    given, copies lying along the orbitals within ``tol`` are held exactly
+    along them (:func:`_snapped`).  Returns the basis, of the shape of
+    ``sector.basis``; ``sector.basis`` itself where the sector holds one copy,
+    or where the orbitals' weights give fewer than ``copies`` combinations.
     """
     m, d = int(sector.copies), int(sector.dim)
     Q = np.asarray(sector.basis, dtype=complex)
@@ -1178,16 +1282,18 @@ def aligned(sector, tol=None, sites=None):
     return per.reshape(n, m * d)
 
 def _first_sector(reading, sectors, bases=None):
-    r"""The sector of an orbit the others are carried from: the one its orbitals put first.
+    r"""The sector of an orbit the others are carried from.
 
-    Which sector a reading lists first is the order its draw found them in, no
-    measurement, so the first is read off the orbitals as written: the sector
-    holding the most of the lowest orbital the orbit holds, then of the next,
-    and so on; between sectors holding every orbital alike -- a square's pair
-    written as ``(p_x ± p_y)/√2`` -- the one whose projector joins the orbitals
-    with the largest real part, entry by entry: the sum before the difference.
-    ``bases`` are the sectors' bases held to their shares where a precision was
-    declared (:func:`held_shares`), read in place of the reading's own.
+    ``sectors`` are the orbit's sectors, indices into ``reading.sectors``.
+    The first is read off the orbitals as written: the sector whose
+    projector holds the most of the lowest orbital the orbit holds, then of
+    the next, and so on.  Between sectors that hold every orbital alike, as
+    a square's pair written as ``(p_x ± p_y)/√2`` does, the one whose
+    projector joins the orbitals with the largest real part, pair by pair,
+    comes first: the sum before the difference.  Where all still tie, the
+    lowest index does.  ``bases``, where given, maps a sector to its basis
+    held to its shares (:func:`held_shares`), read in place of the
+    reading's own.  Returns the sector's index.
     """
     live = sorted(int(t) for t in sectors)
     proj = {t: np.asarray(bases[t] if bases is not None and t in bases
@@ -1212,15 +1318,18 @@ def _pure_reversal(sym):
             and float(np.abs(t - np.rint(t)).max()) <= _LATTICE_TOL)
 
 class _InducedCandidate:
-    """One representation of an orbit of sectors: its stabilizer's part, the rest read lazily.
+    """One representation of an orbit of sectors, its matrices built when asked for.
 
-    ``combo`` names the irreducible representations of the stabilizer the
-    copies carry -- one, one-dimensional, where each sector holds one copy --
-    ``character`` their character on its unitary operations, and
-    ``X`` the matrix the copies take under the antiunitary operation fixing the
-    orbit's first sector, where there is one.  The matrices on the orbit's
-    states (``"W"``) are built the first time they are asked for, and the
-    content each multiplet holds (``"contents"``) is read off the character.
+    ``orbit`` is the :class:`InducedOrbit`.  ``combo`` lists the irreducible
+    representations of the stabilizer the copies carry, as indices into the
+    orbit's ``irreps``: one, one-dimensional, where each sector holds one
+    copy.  ``character`` is their character on the stabilizer's unitary
+    operations, by position.  ``X`` is the matrix the copies take under the
+    antiunitary operation fixing the orbit's first sector, ``None`` where
+    there is none.  Asked by key, ``"W"`` gives the matrices on the orbit's
+    states (:meth:`InducedOrbit.matrices`), built the first time;
+    ``"contents"`` what each multiplet holds (:meth:`InducedOrbit.contents`);
+    ``"character"`` the character keyed by operation index.
     """
 
     def __init__(self, orbit, combo, X, character):
@@ -1260,22 +1369,25 @@ class _OrbitRecord:
     multiplets : tuple of int
         The multiplets the orbit lies on.
     orbitals : tuple of int
-        Their orbitals.
+        The orbitals of its sectors, in order.
     lead : int
-        The multiplet the orbit is read from.
+        The multiplet the orbit is read at: the reference multiplet where the
+        orbit holds it, its first otherwise.
     site : int
         The site of that multiplet.
     dim : int
-        How many identical copies each sector holds, one where it holds none.
+        How many identical copies each sector holds; one for orbits read
+        together.
     n_candidates : int
-        How many representations of the orbit there were.
+        How many representations of the orbit were counted.
     n_admitted : int
-        How many of them were admitted.
+        How many of them extend to the antiunitary operations and are kept.
     states : tuple of int
-        The orbit's states.
+        The states of the orbit's multiplets, in order; every candidate's
+        matrices are written on them.
     candidates : tuple
-        The admitted representations, in order, each with the site content it
-        gives each multiplet and its own character.
+        The admitted representations, in order, each giving by key its
+        matrices, what it puts at each multiplet and its own character.
     induced : InducedOrbit or SharedOrbits
         The orbit itself.
     """
@@ -1295,40 +1407,68 @@ class _OrbitRecord:
 class InducedOrbit:
     r"""One orbit of sectors, and every representation the hoppings leave on it.
 
-    ``H`` conserves every matrix acting on the copies of a sector, so what the
-    copies carry is not fixed by it; every operation carries each sector of the
-    orbit onto another by the factor ``w`` it fixes on each copy's states,
-    times any matrix on the copies -- a number, where the sector holds one
-    copy, which ``H`` leaves free sector by sector.  A representation of the
-    group on the orbit is therefore induced from the stabilizer ``K`` of its
-    first sector: a representation ``b`` of ``K`` on the copies whose product
-    with ``w`` is one of the group's, extended to the antiunitary operations
-    ``K`` holds, and carried round the orbit along the operations taking the
-    first sector onto each of the others, every sector's copies put along the
-    orbitals as written (:func:`aligned`).  On every operation ``g`` and
-    sector ``t`` the matrix is ``F_{gt} (b(k) ⊗ w(k)) F_t^†`` -- ``F_t`` the
-    frame the coset representative ``r_t`` carries the first sector's into,
-    ``k = r_{gt}⁻¹ g r_t`` -- conjugated where ``r_{gt}`` is antiunitary.
-    What a multiplet holds under each is the induced character, read without
-    building a matrix; the matrices are built where they are asked for and
-    checked against the group's own table and every operation's solution
-    space (:meth:`check`).
+    Every representation is induced from the stabilizer ``K`` of the orbit's
+    first sector.  On each copy's states an operation carries the factor
+    ``w`` the sectors fix (:func:`sector_action`), and on the copies a
+    representation ``b`` of ``K``, which ``H`` leaves open.  The candidates
+    are the sums ``b`` of irreducible representations of ``K`` for which
+    ``b ⊗ w`` carries the orbital part's factor system
+    (:meth:`_orbital_table`): the table's spin signs on states read without
+    spin, and trivial on states that carry one.  Where ``K`` holds an
+    antiunitary operation, only the sums that extend to it are kept
+    (:meth:`_extension`).  On an operation ``g`` and a sector ``t`` the
+    matrix is ``F_{gt} (b(k) ⊗ w(k)) F_t^†``, conjugated where ``r_{gt}`` is
+    antiunitary.  Here ``gt`` is the sector ``g`` carries ``t`` onto.
+    ``r_t`` is the coset representative carrying the first sector onto
+    ``t``.  ``F_t`` is the frame of ``t``, its copies along the orbitals
+    (:func:`aligned`), or held to its shares where ``bases`` is given, and
+    carried from the first sector's by ``r_t``.  ``k`` is
+    ``r_{gt}⁻¹ g r_t``.  At a declared tolerance ``w`` is first replaced by
+    the exact representation of ``K`` nearest it, where there is one.  The
+    candidates are counted before anything is built, and what each multiplet
+    holds under one is read without building a matrix (:meth:`contents`).
 
-    ``sectors`` are the orbit's sectors of ``reading``, the first read the one
-    its orbitals put first (:func:`_first_sector`);
-    ``action`` what the group's operations do to them (:func:`sector_action`);
-    ``kept`` the positions represented, unitary and antiunitary, and ``cperm``
-    where each carries each multiplet; ``reference`` the multiplet a lead is
-    taken at where the orbit holds it; ``tol`` the declared tolerance.  The
-    candidates are counted before anything is built, and more than
-    ``max_candidates`` raise :class:`_TooMany`; an orbit the sectors do not
-    read -- an operation with no reading on them, factors that do not
-    compose, a multiplet holding part of the orbit -- raises :class:`_Unread`.
-    ``shared`` are the multiplets of orbits read together where they hold
-    shares of one another's multiplets (:class:`SharedOrbits`): the orbit is
-    written on all of them, holding its share of each, and ``bases`` each
-    sector's basis held to its shares where a precision was declared
-    (:func:`held_shares`).
+    Parameters
+    ----------
+    reading : SectorReading
+        The sectors.
+    action : SectorAction
+        What the group's operations do to them.
+    group : .._spacegroup.GroupData
+        The group.
+    layout : ..symmetry.SiteMultiplets
+        The multiplets the representation is written on.
+    kept : iterable of int
+        The operations represented, unitary and antiunitary, by position in
+        the group's list of operations.
+    cperm : mapping
+        Per position, where the operation carries each multiplet.
+    sectors : sequence of int
+        The orbit's sectors, indices into ``reading.sectors``.  The first is
+        the one its orbitals put first (:func:`_first_sector`).
+    reference : int, default None
+        The multiplet the orbit is read at, where the orbit holds it.
+    tol : float, default None
+        The declared tolerance.
+    max_candidates : int, default 2 ** 20
+        The most candidates an orbit of several copies may have.
+    shared : sequence of int, default None
+        The multiplets of the orbits read together with this one
+        (:class:`SharedOrbits`), on which it is written, holding its share of
+        each.  ``None`` reads the multiplets the orbit lies on.
+    bases : dict, default None
+        Each sector's basis held to its shares (:func:`held_shares`), read
+        in place of the reading's own.
+
+    Raises
+    ------
+    _TooMany
+        Where an orbit of several copies has more than ``max_candidates``
+        candidates.
+    _Unread
+        Where the sectors do not read the orbit: an operation of ``kept``
+        with no reading on them, factors that do not compose, or a multiplet
+        holding part of the orbit or splitting its copies.
     """
 
     def __init__(self, reading, action, group, layout, kept, cperm, sectors, *,
@@ -1355,7 +1495,7 @@ class InducedOrbit:
         self.sectors = (j0,) + tuple(int(t) for t in sectors if int(t) != j0)
         first = reading.sectors[j0]
         self.m, self.d = int(first.copies), int(first.dim)
-        # THE COSET REPRESENTATIVES, a unitary one wherever one reaches
+        # the coset representatives, a unitary one wherever one reaches
         rep = {j0: ident}
         for ops in (self.unitary, self.kept):
             frontier = sorted(rep)
@@ -1382,11 +1522,11 @@ class InducedOrbit:
                 raise _Unread
             self.w[g] = got
         if tol is not None:
-            # READ AT A DECLARED PRECISION the factors compose only within it,
-            # off solution spaces of a model symmetric only within it: they are
-            # the exact representation of the stabilizer nearest them, so that
-            # what is induced from them is a representation of the group to
-            # rounding, as a projection onto the symmetric part needs
+            # at a declared precision the factors compose only within it: they
+            # are replaced by the exact representation of the stabilizer
+            # nearest them, where there is one, so that what is induced from
+            # them is a representation of the group to rounding, as a
+            # projection onto the symmetric part needs
             settled = _matrices._nearest_representation(self.w, self.K, self.syms, self.prod)
             if settled is not None:
                 self.w = {int(g): settled[int(g)] for g in self.K}
@@ -1400,12 +1540,11 @@ class InducedOrbit:
             basis = (bases[t] if bases is not None and t in bases
                      else aligned(reading.sectors[t], tol, sites=sites))
             self.frames[t] = basis @ np.kron(np.eye(self.m), wt)
-        # EACH SECTOR THE IMAGE OF THE FIRST: the phase a sector's basis was read
-        # in is no measurement, so each sector after the first is put in the one
-        # that makes the largest entry of the matrix carrying the first sector's
-        # states onto its own real and positive -- the orbitals written as one
-        # another's images under the coset representatives, as the tables write
-        # the sites of a Wyckoff orbit
+        # each sector after the first is put in the phase that makes the
+        # largest entry of the matrix carrying the first sector's states onto
+        # its own real and positive, so that the orbitals are written as one
+        # another's images under the coset representatives, as the tables
+        # write the sites of a Wyckoff orbit
         first = self.frames[j0]
         for t, r in rep.items():
             if t == j0:
@@ -1430,16 +1569,16 @@ class InducedOrbit:
         if irreps is None:
             raise _Unread
         # each matrix made unitary: read off eigenvectors of the regular
-        # representation, they are unitary only to that reading's rounding, which
-        # every matrix induced from them would carry, and products of them more
+        # representation, the irreps are unitary only to rounding, which the
+        # induced matrices and their products would carry
         self.irreps = [{k: _matrices._unitarized(r[k]) for k in r} for r in irreps]
         dims = [int(np.asarray(r[self.Ku[0]]).shape[0]) for r in self.irreps]
         self.orbitals = tuple(sorted(int(o) for t in self.sectors
                                      for a in reading.sectors[t].atoms
                                      for o in reading.atoms[int(a)]))
-        # COUNTED BEFORE ANYTHING IS BUILT: every sum of the stabilizer's
-        # irreducible representations the copies could carry -- of one copy,
-        # its one-dimensional ones, no more than a coupled part has characters
+        # counted before anything is built: every sum of the stabilizer's
+        # irreducible representations the copies could carry, its
+        # one-dimensional ones where each sector holds one copy
         self.n_candidates = _matrices._count_dimension_sums(dims, self.m)
         if self.m > 1 and self.n_candidates > int(max_candidates):
             raise _TooMany(self.n_candidates, self.orbitals, self.m)
@@ -1457,14 +1596,17 @@ class InducedOrbit:
 
     # ---- the orbital part's own factor system ------------------------------------
     def _orbital_table(self, x, y):
-        """The factor ``O(x) O(y) = τ O(xy)`` the orbital part carries: the table's own over the spin lifts'.
+        """The factor ``τ`` with ``O(x) O(y) = τ O(xy)`` on the orbital part.
 
-        On states read without spin the orbital part is the whole matrix and
-        ``τ`` is the table's own; on states that carry a spin every matrix is
-        ``O ⊗ S(g)``, the spin lifts carry the table's factor, and the orbital
-        part carries one -- wherever the tables and the lifts agree, which
-        every group identified here does; a pair where they do not is no group
-        these sectors read.
+        ``x`` and ``y`` are positions of operations.  On states read without
+        spin the orbital part is the whole matrix, and ``τ`` is the group
+        table's spin sign for the pair.  On states that carry a spin every
+        matrix is ``O ⊗ S(g)``, and ``τ`` is that sign over the factor
+        ``λ`` of the spin lifts, ``S(x) S(y) = λ S(xy)``, with ``S(y)*`` in
+        place of ``S(y)`` after an antiunitary ``x``.  There it returns ``1``
+        where the two agree within :data:`.._tolerance.CHARACTER`, and
+        raises :class:`_Unread` where they do not or where ``S(x) S(y)`` is
+        not a multiple of ``S(xy)``.
         """
         if not self.reading.su2:
             return complex(self.spf[x, y])
@@ -1561,12 +1703,19 @@ class InducedOrbit:
         return out
 
     def _extension(self, combo, seed=17):
-        r"""``X`` the copies take under the antiunitary operation fixing the first sector, or ``None``.
+        r"""The copies' matrix ``X`` under the antiunitary operation, or ``None``.
 
+        ``combo`` names the candidate's irreducible representations of the
+        stabilizer, which make ``b`` (:meth:`_b`), and ``a`` is the orbit's
+        antiunitary operation fixing the first sector, time reversal itself
+        where the stabilizer holds it.  ``X`` is unitary and solves
         ``X b(u)* = ν(a, u)/ν(u', a) · b(u') X`` for every unitary ``u`` of the
-        stabilizer, ``u' a = a u``, and ``X X* = ν(a, a) b(a²)``; of the unitary
-        solutions the one nearest the identity, where the identity reaches
-        their space, and otherwise one drawn from it.
+        stabilizer, with ``u' a = a u``, and ``X X* = ν(a, a) b(a²)``, ``ν``
+        the orbit's factor system.  The solution nearest the identity is tried
+        first, where the identity reaches their space, then four drawn from it
+        with the seed ``seed``, each made unitary.  Returns the first that
+        meets both equations within :data:`.._tolerance.ASSEMBLED`, or the
+        declared tolerance where larger; ``None`` where none does.
         """
         a, prod = self.a_pos, self.prod
         b = self._b(combo)
@@ -1619,7 +1768,16 @@ class InducedOrbit:
         return None
 
     def _beta(self, cand):
-        """``{k: b(k) ⊗ w(k)}`` over the whole stabilizer, its antiunitary part included."""
+        """The matrices ``b(k) ⊗ w(k)`` of the candidate ``cand`` on the stabilizer.
+
+        Returns ``{k: matrix}`` over every operation ``k`` of the stabilizer,
+        by position.  ``a`` is the orbit's antiunitary operation fixing the
+        first sector, and ``ν`` the orbit's factor system.  An antiunitary
+        ``k = u a`` takes ``b(u) X / ν(u, a)`` in place of ``b(k)``, ``X`` the
+        candidate's matrix under ``a``.  Raises
+        :class:`_Unread` where ``k a⁻¹`` is not a unitary operation of the
+        stabilizer.
+        """
         b = self._b(cand.combo)
         out = {k: np.kron(b[k], self.w[k]) for k in self.Ku}
         a = self.a_pos
@@ -1636,11 +1794,15 @@ class InducedOrbit:
 
     # ---- what a candidate gives -----------------------------------------------------
     def contents(self, cand):
-        """``{multiplet: {ind: χ}}`` -- what each multiplet holds under one candidate.
+        """What each multiplet holds under the candidate ``cand``, as a character.
 
-        The induced character: per sector of the multiplet the operation fixes,
-        the candidate's character at the stabilizer's element there times the
-        trace of the multiplet's share of one copy's frame against ``w``.
+        Returns ``{multiplet: {ind: χ}}`` over the unitary operations carrying
+        the multiplet onto itself, read off the induced character without
+        building a matrix.  ``χ`` sums, over the sectors on the multiplet that
+        the operation fixes, the candidate's character at the stabilizer's
+        element there times the trace of the multiplet's share of one copy's
+        frame against ``w``.  The character is conjugated where the sector's
+        coset representative is antiunitary.
         """
         out = {}
         for c, per in self.theta.items():
@@ -1650,13 +1812,14 @@ class InducedOrbit:
         return out
 
     def matrices(self, cand):
-        """``{position: matrix}`` -- one candidate's matrices on the orbit's states.
+        """The candidate ``cand``'s matrices on the orbit's states.
 
-        Each carries every multiplet onto its image and nothing else: what a
-        model symmetric only within a declared precision puts between other
-        multiplets is that model's noise, not the operation's.  On states that
-        carry a spin the matrix built on the orbital factor carries the
-        operation's own lift on the spin, ``O ⊗ S(g)``.
+        Returns ``{position: matrix}`` over the operations represented.  Each
+        matrix carries every multiplet onto its image and holds nothing else.
+        On states that carry a spin the matrix built on the orbital factor is
+        multiplied by the operation's own spin lift, ``O ⊗ S(g)``.  The
+        antiunitary operations' matrices are put in one phase, the largest
+        entry of the first one's real and positive.
         """
         beta = self._beta(cand)
         n = len(self.atoms)
@@ -1694,7 +1857,16 @@ class InducedOrbit:
         return W
 
     def check(self, W, bases):
-        """How far ``W`` misses the group's table and every operation's solution space."""
+        """How far ``W`` misses the group's table and the solution spaces.
+
+        ``W`` maps each operation represented, by position, to its matrix on
+        the orbit's states, and ``bases`` maps each operation's index to its
+        solution space.  Returns the larger of the residual of the group's
+        multiplication table and, per operation, the distance of its matrix
+        from the solution space's block on the orbit's states, relative to the
+        larger of one and the matrix's largest entry.  Returns infinity where
+        an operation has no solution space or none on those states.
+        """
         worst = _matrices._product_table_residual(W, self.kept, self.syms, self.prod, self.spf)
         rows = np.asarray(self.states, dtype=int)
         zero = noise_floor(ZERO, self.tol)
@@ -1713,13 +1885,15 @@ class InducedOrbit:
         return worst
 
     def sector_frames(self):
-        """``[(F, copies, dim, first, rep)]`` -- each sector's frame on the orbit's states, copy-major.
+        """Each sector's frame on the orbit's states, the first sector first.
 
-        ``first`` is where in the list the orbit's first sector is, and ``rep``
-        the position of the coset representative carrying it onto this one.  On
-        states that carry a spin each copy's states are its orbital factor's
-        times the spin, which nothing the Hamiltonian conserves on the copies
-        acts on.
+        Returns ``[(F, copies, dim, first, rep)]``, one entry per sector:
+        ``F`` the frame, copy-major; ``copies`` and ``dim`` the sector's;
+        ``first`` the place of the orbit's first sector in the list, here
+        ``0``; ``rep`` the position of the coset representative carrying the
+        first sector onto this one.  On states that carry a spin each copy's
+        states are its orbital factor's times the spin, and ``dim`` counts
+        them.
         """
         if self.places is None:
             return [(self.loc[t], self.m, self.d, 0, int(self.rep[t])) for t in self.sectors]
@@ -1735,7 +1909,7 @@ class InducedOrbit:
         return out
 
     def record(self):
-        """The orbit's record, a conserved pseudospin's where it holds copies, its admitted candidates in order."""
+        """The orbit's :class:`_OrbitRecord`, its admitted candidates in order."""
         return _OrbitRecord(multiplets=self.members, orbitals=self.orbitals, lead=self.lead,
                             site=self.site, dim=int(self.m),
                             n_candidates=int(self.n_candidates),
@@ -1743,7 +1917,14 @@ class InducedOrbit:
                             candidates=tuple(self.candidates), induced=self)
 
 class _SharedCandidate:
-    """One representation of orbits read together: one of each orbit's, their matrices summed."""
+    """One representation of orbits read together, one candidate of each.
+
+    ``shared`` is the :class:`SharedOrbits`, and ``picks`` holds one
+    candidate of each of its orbits.  Asked by key, ``"W"`` gives the sum of
+    their matrices, built the first time, the picks' own then dropped;
+    ``"contents"`` and ``"character"`` the sums of theirs; ``"parts"`` each
+    pick's ``"contents"``, orbit by orbit.
+    """
 
     def __init__(self, shared, picks):
         self.shared, self.picks = shared, tuple(picks)
@@ -1790,22 +1971,19 @@ class _SharedCandidate:
             pick.release()
 
 class SharedOrbits:
-    r"""Orbits of sectors one multiplet holds sectors of together, read together.
+    r"""Orbits of sectors that one multiplet holds sectors of, read together.
 
-    Two orbitals at a site coupled by a hopping that a symmetry of their own
-    conserves -- the same orbital of two layers joined on site, which splits
-    into a bonding and an antibonding state -- lie on two sectors no
-    operation exchanges, and each orbital holds a share of both, so the
-    multiplet the two make holds shares of two orbits; orbitals nothing
-    couples, stated as one multiplet, hold one orbit's sector each, whole.
-    What the hoppings leave on each orbit is its own (:class:`InducedOrbit`),
-    one choice per orbit: the representations of the orbits together are
-    every choice of one of each, counted before anything is built, their
-    matrices summed and what each multiplet holds the sum of the orbits'
-    shares.  Each candidate also says what each orbit puts at each multiplet
-    (``"parts"``), so that a labelling reads the orbits one by one.
-    ``orbits`` are the orbits' readings, each written on the multiplets they
-    share; more than ``max_candidates`` choices raise :class:`_TooMany`.
+    A multiplet holds sectors of several orbits where two orbitals an
+    on-site hopping joins make a bonding and an antibonding state that no
+    operation exchanges, or where orbitals nothing couples are stated as one
+    multiplet.  ``orbits`` are the orbits' :class:`InducedOrbit`, each
+    written on the multiplets they share.  What the hoppings leave on each
+    orbit is its own, so a candidate is one candidate of each orbit
+    (:class:`_SharedCandidate`).  Its matrices are their sum, and what each
+    multiplet holds is the sum of the orbits' shares.  Each candidate also
+    gives what each orbit puts at each multiplet (``"parts"``), so that a
+    labeling reads the orbits one by one.  The candidates are counted before
+    any is built, and more than ``max_candidates`` raise :class:`_TooMany`.
     """
 
     def __init__(self, orbits, *, max_candidates=2 ** 20):
@@ -1823,11 +2001,20 @@ class SharedOrbits:
                            itertools.product(*(orbit.candidates for orbit in self.orbits))]
 
     def check(self, W, bases):
-        """How far ``W`` misses the group's table and every operation's solution space."""
+        """How far ``W`` misses the group's table and the solution spaces ``bases``.
+
+        The orbits share their states, so the first orbit's
+        :meth:`InducedOrbit.check` of ``W`` and ``bases`` is returned.
+        """
         return self.orbits[0].check(W, bases)
 
     def sector_frames(self):
-        """``[(F, copies, dim, first, rep)]`` -- every orbit's sectors' frames on the states they share."""
+        """Every orbit's sector frames on the states they share, orbit after orbit.
+
+        Returns ``[(F, copies, dim, first, rep)]`` as
+        :meth:`InducedOrbit.sector_frames` does, each ``first`` the place of
+        its own orbit's first sector in the whole list.
+        """
         out = []
         for orbit in self.orbits:
             at = len(out)
@@ -1836,14 +2023,20 @@ class SharedOrbits:
         return out
 
     def record(self):
-        """The orbits' record, their admitted candidates in order."""
+        """The orbits' :class:`_OrbitRecord`, every choice of candidates in order."""
         return _OrbitRecord(multiplets=self.members, orbitals=self.orbitals, lead=self.lead,
                             site=self.site, dim=1, n_candidates=int(self.n_candidates),
                             n_admitted=len(self.candidates), states=self.states,
                             candidates=tuple(self.candidates), induced=self)
 
 def held_sectors(reading, layout, *, tol=None):
-    """``[sectors]`` -- per multiplet of ``layout``, the sectors of ``reading`` its states lie on."""
+    """Per multiplet of ``layout``, the sectors of ``reading`` its states lie on.
+
+    ``tol`` is the declared tolerance the reading was made at.  A multiplet
+    lies on a sector where the sector's weight at one of its indices passes
+    ten times the larger of :data:`.._tolerance._IN_BLOCKS` and ``tol``.
+    Returns a list of frozensets of sector indices, one per multiplet.
+    """
     loose = noise_floor(_IN_BLOCKS, tol) * 10.0
     weights = [np.sum(np.abs(np.asarray(s.basis)) ** 2, axis=1) for s in reading.sectors]
     return [frozenset(j for j, w in enumerate(weights)
@@ -1851,9 +2044,10 @@ def held_sectors(reading, layout, *, tol=None):
             for rows in chan_rows(reading, layout)]
 
 def held_on(reading, layout, held, sectors):
-    """The indices of ``reading``'s orbital factor the multiplets holding any of ``sectors`` lie on.
+    """The indices the multiplets holding any of ``sectors`` lie on.
 
-    ``held`` is :func:`held_sectors`'s reading of ``layout``.
+    ``held`` is :func:`held_sectors`'s reading of ``layout``, and the indices
+    are those of ``reading``'s orbital factor.  Returns a frozenset.
     """
     index = {int(o): a for a, orbs in enumerate(reading.atoms) for o in orbs}
     mine = set(int(t) for t in sectors)
@@ -1863,14 +2057,17 @@ def held_on(reading, layout, held, sectors):
 def crossed(reading, layout, group, kept, cperm, *, tol=None):
     r"""The sectors an orbit of multiplets lies on differently at different multiplets.
 
-    The operations ``kept`` carry the multiplets in orbits, ``cperm`` saying
-    where each carries each.  An orbit whose multiplets lie on different
-    sectors -- the ``p_x`` of one site and the ``p_y`` of another that a screw
-    carries it onto, which no hopping joins -- crosses those sectors, and the
-    sectors of every such orbit are returned, as a set of indices.  An orbit
-    whose every multiplet lies on the same sectors -- a ``(p_x, p_y)`` pair
-    nothing couples, one multiplet holding both of its sectors -- crosses none.
-    ``tol`` is the declared tolerance the sectors were read at.
+    ``reading`` holds the sectors, and ``layout`` the multiplets of
+    ``group``'s representation.  The unitary operations of ``kept``, by
+    position, carry the multiplets in orbits, ``cperm`` saying where each
+    carries each.  An orbit of multiplets crosses its sectors where its
+    multiplets do not all lie on the same set of them (:func:`held_sectors`).
+    The ``p_x`` of one site and the ``p_y`` a screw carries it onto, which no
+    hopping joins, are such an orbit.  An orbit whose multiplets all lie on
+    the same sectors crosses none.  A ``(p_x, p_y)`` pair nothing couples,
+    one multiplet holding both, is such an orbit.  ``tol`` is the declared
+    tolerance the sectors were read at.  Returns the indices of every crossed
+    sector, as a frozenset.
     """
     syms = group._symmetries
     u_pos = [int(p) for p in kept if not syms[int(p)].time_reversal]
@@ -1883,7 +2080,13 @@ def crossed(reading, layout, group, kept, cperm, *, tol=None):
                      for held in sets for j in held)
 
 def _commutators(members, prod, inv, ident):
-    """The positions the commutators ``x y x⁻¹ y⁻¹`` of ``members`` generate."""
+    """The subgroup the commutators ``x y x⁻¹ y⁻¹`` of ``members`` generate.
+
+    ``members`` are positions of operations, ``prod`` the group's
+    multiplication table by position, ``inv`` maps each position to its
+    inverse's, and ``ident`` is the identity's position.  Returns the
+    subgroup as a set of positions.
+    """
     gens = {int(prod[int(prod[int(prod[x, y]), inv[x]]), inv[y]])
             for x in members for y in members}
     got = {int(ident)} | gens
@@ -1900,11 +2103,13 @@ def _commutators(members, prod, inv, ident):
 def _beyond_the_group(K, G, prod, ident):
     r"""Whether ``K`` has a one-dimensional character that no character of ``G`` restricts to.
 
-    A character of the subgroup ``K`` is a restriction of one of ``G`` exactly
-    where it is one on every commutator of ``G`` that ``K`` holds; every
-    character of ``K`` is one on ``K``'s own commutators, so ``K`` has one that
-    is not a restriction exactly where ``G``'s commutators in ``K`` are more
-    than ``K``'s own.  ``K`` and ``G`` are positions, unitary, ``G`` a group.
+    ``G`` is a group and ``K`` a subgroup of it, both as positions of
+    unitary operations; ``prod`` is the multiplication table by position and
+    ``ident`` the identity's position.  A one-dimensional character of ``K``
+    is a restriction of one of ``G`` exactly where it is one on every
+    commutator of ``G`` that ``K`` holds.  So ``True`` is returned exactly
+    where ``K`` holds an element of the commutator subgroup of ``G`` outside
+    its own commutator subgroup.
     """
     inv = {int(p): next(int(q) for q in G if int(prod[int(p), int(q)]) == int(ident))
            for p in G}
@@ -1912,15 +2117,19 @@ def _beyond_the_group(K, G, prod, ident):
                 - _commutators(K, prod, inv, ident))
 
 def sector_orbits(reading, action, group, layout, kept, *, tol=None):
-    r"""The orbits of sectors under the operations ``kept``, and which are read together.
+    r"""The orbits of sectors under ``kept``, and which are read together.
 
-    Returns ``(orbits, together)``: ``{root: [sector, ...]}``, each orbit by
-    its lowest sector, and ``[(roots, multiplets), ...]`` -- the orbits one
-    multiplet holds sectors of together, linked through every multiplet that
-    holds sectors of several, whole or a share of each, each set with the
-    multiplets of ``layout`` it lies on; an orbit sharing a multiplet with
-    none is a set of its own.  ``None`` where an operation of ``kept`` has no
-    reading on the sectors.
+    ``reading`` holds the sectors, ``action`` what ``group``'s operations do
+    to them (:func:`sector_action`), and ``layout`` the multiplets.
+    ``kept`` are the operations, by position, and ``tol`` the declared
+    tolerance the sectors were read at.  Returns ``(orbits, together)``.
+    ``orbits`` is ``{root: [sector, ...]}``, each orbit keyed by its lowest
+    sector.  ``together`` is ``[(roots, multiplets), ...]``: the orbits linked
+    through every multiplet that lies on sectors of several
+    (:func:`held_sectors`), each set with the multiplets it lies on, in the
+    order of their lowest roots.  An orbit sharing no multiplet is a set of
+    its own.  Returns ``None`` where an operation of ``kept`` has no reading
+    on the sectors.
     """
     pos_of = {int(s.ind): p for p, s in enumerate(group._symmetries)}
     images = {pos_of[int(i)]: tuple(int(j) for j in got)
@@ -1970,33 +2179,60 @@ def sector_orbits(reading, action, group, layout, kept, *, tol=None):
 
 def induced_orbits(reading, action, group, layout, kept, cperm, *, reference=None, tol=None,
                    max_candidates=2 ** 20):
-    r"""Every orbit of sectors whose representations are built by induction: ``[InducedOrbit or None]``.
+    r"""Every orbit of sectors whose representations are built by induction.
 
-    Those are the orbits holding identical copies; the orbits of several
-    sectors of one copy that one multiplet holds together -- the square's
-    ``p_x, p_y`` pair nothing couples, three lines nothing couples at one
-    site; and the orbits of several sectors of one copy that an orbit of
-    multiplets crosses (:func:`crossed`) and whose stabilizer has a
-    one-dimensional character no character of the group restricts to: a
-    ``p_x`` and the ``p_y`` a screw carries it onto, which no hopping joins,
-    can carry ``B_{3u}`` and ``B_{2u}`` of the site's ``mmm``, which no
-    one-dimensional character of the group times what the hoppings fix gives.
-    And orbits one multiplet holds sectors of together -- a bonding and an
-    antibonding state no operation exchanges, two orbitals each holding a
-    share of both, or orbitals nothing couples stated as one multiplet -- are
-    read together, each its own choice (:class:`SharedOrbits`): no one
-    character of a part of the crystal made of whole multiplets says what each
-    carries.  Every other orbit of one copy is a coupled part of the crystal,
-    and the group's one-dimensional characters times what the hoppings fix are
-    the representations induced on it: it is not built here.
+    Three kinds of orbit are built: those whose sectors hold identical
+    copies; those of several sectors of one copy that one multiplet holds
+    together, as the square's ``p_x, p_y`` pair nothing couples or three
+    lines nothing couples at one site; and those of several sectors of one
+    copy that an orbit of multiplets crosses (:func:`crossed`), where the
+    stabilizer of a sector has a one-dimensional character that no character
+    of the group restricts to (:func:`_beyond_the_group`).  Orbits that one
+    multiplet holds sectors of together are read together, as one
+    :class:`SharedOrbits`.  Every other orbit of one copy is a coupled part
+    of the crystal, whose representations are the group's one-dimensional
+    characters times what the hoppings fix, and is not built here.  On states
+    that carry a spin the orbits are read on the orbital factor, every matrix
+    carrying the operation's own spin lift.
 
-    The orbits are those of the operations ``kept``, unitary and antiunitary;
-    on states that carry a spin they are read on the orbital factor, every
-    matrix carrying the operation's own lift on the spin, so that identical
-    copies there carry an ordinary representation, the double-valued factor
-    system the spin's alone.  An orbit the sectors do not read is ``None``, and
-    an empty list is returned where an operation has no reading on the sectors.
-    :class:`_TooMany` propagates.
+    Parameters
+    ----------
+    reading : SectorReading or None
+        The sectors.  ``None`` returns an empty list.
+    action : SectorAction
+        What ``group``'s operations do to them (:func:`sector_action`).
+    group : .._spacegroup.GroupData
+        The group.
+    layout : ..symmetry.SiteMultiplets
+        The multiplets the representation is written on.
+    kept : iterable of int
+        The operations represented, unitary and antiunitary, by position in
+        the group's list of operations.
+    cperm : mapping
+        Per position, where the operation carries each multiplet.
+    reference : int, default None
+        The multiplet an orbit is read at, where the orbit holds it.
+    tol : float, default None
+        The declared tolerance the sectors were read at.  Where it is given,
+        the sectors of one copy of orbits read together, and the several
+        sectors of one orbit that one multiplet holds, are held to their
+        shares (:func:`held_shares`).
+    max_candidates : int, default 2 ** 20
+        The most candidates an orbit of several copies, or the orbits read
+        together, may have.
+
+    Returns
+    -------
+    list of InducedOrbit, SharedOrbits or None
+        One entry per orbit, or set of orbits read together, that is built;
+        ``None`` for one the sectors do not read.  Empty where none is built,
+        or where an operation of ``kept`` has no reading on the sectors.
+
+    Raises
+    ------
+    _TooMany
+        Where an orbit of several copies, or a set of orbits read together,
+        has more than ``max_candidates`` candidates.
     """
     if reading is None:
         return []
@@ -2068,13 +2304,20 @@ def induced_orbits(reading, action, group, layout, kept, cperm, *, reference=Non
     return out
 
 def _reaching(lead, frames, on, want, gate):
-    r"""``[c_t]`` -- the conserved unitary writing the multiplet's matrices ``on`` as ``want``; or ``None``.
+    r"""The conserved unitary writing the matrices ``on`` as ``want``, or ``None``.
 
-    ``lead`` is each sector's frame on the multiplet; the ``C = Σ_t E_t (c_t ⊗
-    1) E_t†`` with ``want(g) C = C on(g)`` are one linear space, and of them the
-    one nearest the identity is made unitary sector by sector.  ``None`` where
-    none of them is unitary on every sector the multiplet holds, or the one
-    made so misses ``want`` by more than ``gate``.
+    ``lead`` holds each sector's frame ``E_t`` on the multiplet's states, and
+    ``frames`` the sectors' ``(F, copies, dim, first, rep)``
+    (:meth:`InducedOrbit.sector_frames`), of which the copies and the
+    dimension are read.  ``on`` and ``want`` map each operation, by position,
+    to its matrix on the multiplet and to the matrix wanted there.  The
+    ``C = Σ_t E_t (c_t ⊗ 1) E_t†`` with ``want(g) C = C on(g)`` form a
+    linear space.  Its member nearest the identity is made unitary sector by
+    sector.  Where the space is one direction orthogonal to the identity,
+    that direction is used.  ``gate`` is the tolerance of every comparison.
+    Returns the unitaries ``[c_t]``, one per sector.  Returns ``None`` where
+    the space is empty, where that member is singular on a sector, or where
+    the unitary made misses ``want`` by more than ``gate``.
     """
     ops = sorted(on)
     units, start = [], []
@@ -2113,33 +2356,29 @@ def _reaching(lead, frames, on, want, gate):
     return cs
 
 def tables_gauge(frames, W, target, rows, syms, *, tol=None):
-    r"""``W`` turned by the conserved unitary that writes it as ``target`` on one multiplet, where one does.
+    r"""The matrices ``W``, turned toward ``target`` by a conserved unitary.
 
-    What ``H`` conserves on an orbit of sectors is a unitary on each sector's
-    copies, ``C = Σ_t F_t (c_t ⊗ 1) F_t†`` -- a phase per sector where each
-    holds one copy -- and conjugating a representation by one gives another the
-    hoppings obey equally, its characters unchanged: which one is no
-    measurement.  It is the one whose matrices on the multiplet of states
-    ``rows`` (indices into the orbit's states) are ``target``, ``{position:
-    matrix}`` over the unitary operations carrying that multiplet onto itself.
-    The ``C`` with ``target(g) C = C W(g)`` there are one linear space; of them
-    the one nearest the identity -- the only one, up to a number, where the
-    multiplet's content is irreducible -- is made unitary sector by sector, so
-    that every direction ``target`` leaves open stays as it was.  Where no
-    conserved unitary carries ``W`` onto ``target`` -- the multiplet's orbitals
-    not each a row of its content's irreducible representations, as a pair
-    turned inside its site, or three lines a rotation permutes, are not -- each
-    sector of one copy after its orbit's first is put in the phase that brings
-    its coset representative's block from the first sector nearest that
-    representative's matrix in ``target``, where the block reaches it, and is
-    left as it was otherwise; ``W`` is returned unchanged where nothing moves.
-    ``frames`` are ``(F, copies, dim, first, rep)`` per sector on the orbit's
-    states, copy-major, with where its orbit's first sector is in the list and
-    the position of the coset representative carrying that one onto it
-    (:meth:`InducedOrbit.sector_frames`); ``tol`` is the declared tolerance the
-    orbit was read at.  An antiunitary operation's matrix is turned as
-    ``C W C^T``, and the antiunitary operations are put back in one phase, the
-    largest entry of the first one's matrix real and positive.
+    What ``H`` conserves on an orbit of sectors is ``C = Σ_t F_t (c_t ⊗ 1)
+    F_t†``, a unitary ``c_t`` on each sector's copies, and conjugating by it
+    leaves every character unchanged.  ``frames`` are the sectors' ``(F,
+    copies, dim, first, rep)`` on the orbit's states
+    (:meth:`InducedOrbit.sector_frames`), and ``W`` the representation,
+    ``{position: matrix}`` on those states.  ``rows`` are one multiplet's
+    states, as indices into the orbit's states, and ``target`` the matrices
+    wanted there, ``{position: matrix}`` over the unitary operations carrying
+    the multiplet onto itself.  ``syms`` are the group's operations by
+    position, and ``tol`` the declared tolerance the orbit was read at.  ``C``
+    solves ``target(g) C = C W(g)`` on the multiplet, unique up to a number
+    where the multiplet carries one irreducible representation.  It is the
+    solution nearest the identity, made unitary sector by sector
+    (:func:`_reaching`).  Where no such ``C`` is found, each sector after its
+    orbit's first, both of one copy, is put in
+    the phase that brings its coset representative's block from the first
+    sector nearest that representative's matrix in ``target``, where the
+    block reaches it.  An antiunitary operation's matrix is turned as
+    ``C W C^T``, and the antiunitary matrices are then put in one phase, the
+    largest entry of the first one's real and positive.  Returns the turned
+    matrices, or ``W`` itself where nothing moves.
     """
     rows = np.asarray(rows, dtype=int)
     lead = [np.asarray(f[0], dtype=complex)[rows, :] for f in frames]

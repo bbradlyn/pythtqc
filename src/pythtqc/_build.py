@@ -1,7 +1,10 @@
-"""The representation, built once on what the verdict stage measured: one matrix
-per operation on the model's states, in the tables' convention, with the
-atomic-limit table of its orbitals, the content assigned to a conserved
-pseudospin's copies and the band representation each orbit induces.
+"""The representation of a space group on a model's states.
+
+The representation has one matrix per operation, built on what the
+measurement of the group read, in the convention of the irreptables package's
+tables.  With it come the atomic-limit table of the orbitals, the site irreps
+chosen for the copies of a conserved pseudospin, and the band representation
+each Wyckoff orbit of orbitals induces.
 """
 
 from __future__ import annotations
@@ -53,7 +56,7 @@ class _ReadOff:
     branches : dict
         The record of each branch read cleanly, by orientation.
     reason : str or None
-        Why no branch was read, where none was.
+        Why no branch was read; ``None`` where one was.
     record : dict
         The record of the read-off as the build returns it: every branch, and
         the size of the enumeration behind it.
@@ -70,7 +73,7 @@ class _ReadOff:
 
 @dataclass(frozen=True)
 class _GateOutcome:
-    """The candidate representations of a build, through the three gates.
+    """The candidate representations of a build, through the three checks.
 
     Attributes
     ----------
@@ -79,7 +82,8 @@ class _GateOutcome:
     distinct : list
         The candidates grouped where they build the identical representation.
     covariant : list
-        The groups that carry ``H(k)`` onto itself within the gate.
+        The groups that carry ``H(k)`` onto ``H(Rk)`` within the covariance check's
+        tolerance.
     consistent : list
         Those that also factorize on every site into a character times the
         group's own internal factor.
@@ -99,16 +103,16 @@ class _GateOutcome:
 
 @dataclass(frozen=True)
 class _PinnedBranch:
-    """The survivors of the gates once a tie between the two orientation branches is settled.
+    """The survivors of the checks once a tie between the two orientation branches is settled.
 
     Attributes
     ----------
     survivors : list
         The candidates left.
     tie : bool
-        Whether the branch was pinned by convention.
+        Whether the branch was pinned by convention, to ``+1``.
     note : str or None
-        Why it was, where it was.
+        The sentence saying why the branch was pinned; ``None`` where it was not.
     """
 
     survivors: list
@@ -231,9 +235,10 @@ class _Multiplets:
     decls : list
         The declarations, read on the multiplets.
     char_note : str
-        Why the site tables are unavailable, empty where they are not.
+        If nonempty, why the site tables are unavailable.
     ref_orb : int
-        The reference orbital.
+        The orbital the lowest-angular-momentum rule reads first,
+        ``reference_orbital`` of :func:`_build_rep`.
     ref_chan : int
         Its multiplet.
     """
@@ -275,7 +280,7 @@ class _Measured:
     reversal : ndarray of complex
         The scalar time reversal carries on each orbit.
     pool : list of dict
-        The one-dimensional characters the labelling is chosen among.
+        The one-dimensional characters the labeling is chosen among.
     unpinned : frozenset of int
         The orbits the hoppings leave free of the anchor.
     coupled_parts : list
@@ -318,14 +323,14 @@ class _Battery:
     kact : dict
         Each operation's action on k.
     tol : float
-        The covariance gate, in the units of ``H``.
+        The covariance check's tolerance, in the units of ``H``.
     internal_tol : float
         As in :func:`_build_rep`.
     product_tol : float
         As in :func:`_build_rep`.
     _gate_lifts : dict
         The block each multiplet carries under each unitary operation, which the
-        internal-factor gate measures against.
+        internal-factor check measures against.
     reach : float
         The largest defect of the product table, as the largest entry of a difference of
         matrices, that is replaced by the nearest exact representation.
@@ -364,7 +369,7 @@ class _Battery:
 
 @dataclass(frozen=True, eq=False)
 class _Accepted:
-    """The candidate representation the gates accept, with the record of the search.
+    """The candidate representation the checks accept, with the record of the search.
 
     Attributes
     ----------
@@ -382,34 +387,30 @@ class _Accepted:
 
 
 def _no_multiplicity_representation(group, record, layout, kept, syms) -> Refusal:
-    r"""``rep_not_multiplicative`` — a conserved pseudospin whose copies no representation fits.
+    r"""The ``rep_not_multiplicative`` of a pseudospin whose copies no representation fits.
 
-    The operators ``H`` conserves on the orbit are a whole matrix algebra on
-    ``record.dim`` copies, so every representation of the group on its
-    states is ``B ⊗ B'`` with ``B`` the factor ``H`` fixes and ``B'`` a
-    representation on the copies making up the factor system ``B`` leaves
-    them (:class:`.._sectors.InducedOrbit`); no sum of the group's irreducible
-    representations with that factor system, of that dimension and extended to
-    time reversal with the square the tables read, is admitted.  So no
-    representation of the group with its own factor system exists on these
-    states: the projective class they carry is one the multiplicity space
-    cannot make up.
+    ``record`` is the :class:`.._sectors._OrbitRecord` of an orbit of sectors,
+    each holding ``record.dim`` identical copies, which admit no
+    representation.  On the copies, a matrix of the group is ``B ⊗ B'``, with
+    ``B`` the factor ``H`` fixes and ``B'`` a matrix on the copies.  None of
+    the ``record.n_candidates`` sums of that dimension of the irreducible
+    representations of the stabilizer of one sector makes up the factor system
+    ``B`` leaves, time reversal's square included.  ``group`` is named in the
+    reason.  ``layout`` holds the
+    multiplets, and it is carried in the context with the indices of the
+    operations at positions ``kept`` of ``syms``.  Returns the refusal.
     """
     k, orbitals = int(record.dim), tuple(record.orbitals)
     named = f"{group.name} #{group.number_str}"
     return Refusal(
         "rep_not_multiplicative",
-        f"the Hamiltonian conserves a {_fold(k)} pseudospin on orbitals {orbitals}: the "
-        f"operators it conserves there are every {k} x {k} matrix on {k} identical "
-        f"copies of the states it acts on, so every operation's matrix on them is the "
-        f"one factor the hoppings fix times a matrix on the copies. A representation "
-        f"of {named} with its own factor system needs the copies to carry a "
-        f"{k}-dimensional representation making up the factor system the fixed "
-        f"factor leaves them, time reversal's square included, and of the "
-        f"{int(record.n_candidates)} sums of the group's irreducible representations "
-        f"with that factor system that have dimension {k}, none does: no "
-        f"representation of {named} with its own factor system exists on these "
-        f"states.",
+        f"the Hamiltonian conserves a {_fold(k)} pseudospin on orbitals {orbitals}, held "
+        f"as sets of {k} identical copies that the operations carry onto one another, "
+        f"and none of the {int(record.n_candidates)} sums of dimension {k} of the "
+        f"irreducible representations of the unitary operations that map one set onto "
+        f"itself gives its copies the factor system they need, time reversal's square "
+        f"included: no representation of {named} with its own factor system exists on "
+        f"these states.",
         value=0.0, threshold=1.0,
         context={"multiplets": layout, "multiplet": orbitals, "multiplicity": k,
                  "n_candidates": int(record.n_candidates),
@@ -417,23 +418,19 @@ def _no_multiplicity_representation(group, record, layout, kept, syms) -> Refusa
 
 
 def _raise_unformed(group, unformed, n_cand, gate, *, spinful):
-    r"""Raise for operations handed to the build none of whose matrices has its own form.
+    r"""Raise ``InternalError`` for operations with no matrix of their own form.
 
-    The operations a representation is built for are the ones the measurement
-    read in their own form, so one that has none is the package disagreeing
-    with itself: :class:`..refusal.InternalError`, naming each such operation
-    and the condition that failed.
-
-    ``unformed`` is ``{ind: {"own_form": condition, "covariance": residual,
-    ...}}``, read off the record each operation's own form was read on
-    (:func:`.._measure._own_form_read`): the condition that failed, ``"site
-    permutation"`` -- no matrix carries each site's states onto its image's --
-    or ``"spin lift"`` -- none carries the operation's own spin rotation --
-    and the covariance of the matrix of that form nearest its space, where
-    one was measured.  ``n_cand`` is how many operations were to be
-    represented, and ``gate`` the covariance gate they were kept at.
-    ``spinful`` says whether the states carry a spin, the model's own or
-    declared: only then is a spin rotation asked of them, and named.
+    ``group`` holds the operations.  ``unformed`` is ``{ind: {"own_form":
+    condition, "covariance": residual, ...}}``, read off the record each
+    operation's own form was read on (:func:`.._measure._own_form_read`).
+    The condition is ``"site permutation"``, where no matrix carries each
+    site's states onto its image's, or ``"spin lift"``, where none carries
+    the operation's own spin rotation.  The covariance is that of the
+    matrix of that form nearest the operation's solution space, where one
+    was measured.  ``n_cand`` is how many operations were to be represented,
+    and ``gate`` the covariance tolerance they were kept at.  ``spinful`` says
+    whether the states carry a spin, the model's own or declared; only then
+    is the spin rotation named in the message.
     """
 
     syms = {int(s.ind): s for s in group._symmetries}
@@ -447,19 +444,16 @@ def _raise_unformed(group, unformed, n_cand, gate, *, spinful):
                 if r.get("covariance") is not None]
     closest = min(measured) if measured else None
     reach = ("" if closest is None else
-             f" The matrix of its own form nearest any of their spaces carries H(k) onto "
-             f"H(Rk) to {closest:.3g}, against the {float(gate):.3g} they were kept at.")
+             f" The nearest matrix of their own form carries H(k) onto H(Rk) to "
+             f"{closest:.3g}, against the {float(gate):.3g} they were kept at.")
     carried = ("every site's states onto its image's with the operation's own spin "
-               "rotation, the condition named failing" if spinful else
+               "rotation" if spinful else
                "every site's states onto its image's")
     raise InternalError(
-        f"{len(unformed)} of the {int(n_cand)} operations handed to the build, "
-        f"{_counted_as(spinful)}, are not "
-        f"realized on this orbital content: {named}. Matrices with each one's action on k "
-        f"carry H(k) onto H(Rk), but none carries {carried}: they are other operations' "
-        f"matrices, not these operations'.{reach} The operations a representation is "
-        f"built for are the ones measured to hold in their own form, so this is the "
-        f"package disagreeing with itself.")
+        f"{len(unformed)} of the {int(n_cand)} operations to be represented, "
+        f"{_counted_as(spinful)}, are not realized on these orbitals: {named}. "
+        f"Matrices with each one's action on k carry H(k) onto H(Rk), but none carries "
+        f"{carried}.{reach} Report it, with the model and the call.")
 
 
 def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
@@ -471,503 +465,205 @@ def _build_rep(model, group, assignment, *, validated=None, multiplets=None,
                product_tol=1e-9, seed=101, _choices=None,
                _returned=True, _labeled=True,
                _search_record=None) -> SpaceGroupRep | Refusal:
-    r"""The matrix each symmetry operation is, on this model's orbitals.
+    r"""The representation of ``group`` on the model's states: a matrix for each operation.
 
-    Returns one matrix ``D(g)`` per operation the Hamiltonian obeys: the
-    representation induced from the site content
-    ``SpaceGroupRep._characters`` holds — each orbital's Wyckoff position,
-    site symmetry and site irrep — in the tables' convention (spin along
-    ``+z``, a right-handed frame).  It is the object every corep label is read
-    through.  The construction is the tensor
-
-    .. math:: D(g) = O(g) \otimes S(g),
-
-    with ``O(g)`` a signed permutation of the **multiplets** of
-    :class:`SiteMultiplets`, whose permutation comes from
-    :attr:`..groups.OrbitalAssignment.permutations` (never typed), and
-    ``S(g)`` the operation's own matrix on each multiplet.  Which orbitals a
-    multiplet holds is **measured** — one per orbital where nothing mixes, the
-    multiplet where the Hamiltonian binds one — and its matrix is the model's
-    own, read off its solution spaces and carried round the Wyckoff orbit, in
-    whatever basis the orbitals are written.  What is left free is a finite
-    set of signs — one phase per generator and orbit of multiplets, plus the
-    orientation branch, ``D`` versus ``D†``, i.e. ``g`` versus ``g⁻¹`` — and
-    those are pinned by measurement, never by hand.  Time reversal carries its
-    own internal factor on every multiplet times the scalar its solution space
-    pins on each orbit of multiplets: one where the orbitals are real
-    functions, and ``-1`` where an orbital is written as ``i`` times one
-    relative to the first orbital's.  Every candidate goes
-    through **three independent gates**, and uniqueness is asserted on their
-    joint survivor set:
-
-    1. **Hamiltonian covariance** — ``max_k ‖D H(k) D† − H(Rk)‖ ≤ tol``.  A
-       candidate that fails this is not a symmetry of *this Hamiltonian*: a
-       wrong relative sign inside a permuted Wyckoff orbit dies here, by orders
-       of magnitude.
-    2. **the group's own internal factor** — on every multiplet an operation
-       fixes, the block must be ``χ(g)·S(g)`` with ``S(g)`` the operation's own
-       ``sym.spinor_rotation``: ``max ‖B(g) − χ(g)S(g)‖ ≤ internal_tol``, the
-       same defect the site characters are read off
-       (:attr:`_OrbitalTable.residual`).  A candidate that fails this
-       commutes with ``H`` exactly as the group demands but is **not the matrix
-       set of these operations**, and no orbital of it has a site character to
-       declare or to label.
-    3. **the group's own multiplication table**, spinor factors included —
-       ``max ‖D(g₁)∘D(g₂) − spf(g₁,g₂)·D(g₁g₂)‖ ≤ product_tol``, measured after
-       :func:`.._matrices.normalize_rep` has phase-canonicalized the generators.  The
-       canonical norm fixes a generator's phase up to a root of unity; where
-       nothing else narrows the roots — no antiunitary operation, and a
-       multi-dimensional lead multiplet with no table lift behind it — the
-       table itself chooses among them wherever positivity's own pick does not
-       multiply.  A candidate that fails this is
-       covariant but is *not a representation of the group* at all: the
-       operation set, the generators or the internal blocks are wrong, or its
-       matrices are a projective representation whose class the table does
-       not carry — spin-½ states read in single-valued tables, where two
-       commuting operations' matrices anticommute — and no choice of phases
-       will fix it.
-
-    **No two of the three suffice.**  A ``g⁻¹`` branch is a perfectly good
-    representation of the abstract group, only of the elements relabelled by an
-    automorphism, so it is exactly covariant *and* exactly multiplicative; what
-    separates it is gate 2, since it carries ``S(g)†`` where the group says
-    ``S(g)``.  Where every operation is an involution that measurement does not
-    exist: ``S(g)† = −S(g)``, the internal-factor gate's per-block coefficient
-    absorbs the sign, and every gate is blind.  The branch is then settled by
-    the convention ``+1``, the intertwiner that carries ``k → gk``, with
-    ``SpaceGroupRep._branch_tie`` set and ``_search["branch_note"]`` saying
-    so.  ``rep_not_unique`` still fires when the two survivors are not one
-    representation up to a one-dimensional character on each coupled part of
-    the crystal.  Which gate killed a
-    candidate is recorded per candidate in
-    ``_search["candidates"][i]["killed_by"]``, and an empty survivor set is a
-    refusal carrying all three residual spectra.
-
-    All three gates are blind to multiplying the matrices of a coupled part of
-    the crystal -- the orbitals the hoppings connect, directly or through
-    others -- by a one-dimensional character of the group: the hoppings fix how
-    the orbitals transform relative to one another, not what they are.  The
-    phases a canonical norm leaves are narrowed by time reversal in a grey
-    group, and where the group ships none by the tables' own lift on a
-    one-dimensional lead multiplet (:attr:`RepAnchor.internal`): a
-    normalization of the matrices before the labelling is chosen, not a
-    fourth gate.  The **labelling** is then chosen once, the same way for
-    every part: its candidates are the characters its declarations leave --
-    with time reversal the real ones, without it every one, the complex ones
-    included -- and one key orders them, read on the orbital factor.  First
-    the part's site content at the lowest angular momentum, at the reference
-    orbital's site, then over the crystal, then on the reference orbital's own
-    row: a character, the same in any basis the orbitals are written in.  Then
-    the letter the orbitals read as: the point-group representation their frame
-    character -- the trace of each block carrying a site's orbitals onto its
-    image -- averages to, at the lowest angular momentum.  Then the band labels
-    themselves: the candidate whose labels come first in the tables' order at
-    the high-symmetry points.  Last the group's own order of operations, on
-    which no band label rests (:attr:`_OrbitalRow.determined_by`, and
-    :func:`..sewing.hsp_table`'s note).  A part the hoppings leave free of
-    the rest is brought to its own canonical norm, and the key reads it from
-    its first orbital unless it holds the reference one.  Where the
-    Hamiltonian conserves a pseudospin on states read spinless -- ``k``
-    identical copies of a part of the crystal that nothing joins, every
-    ``k × k`` matrix on the copies commuting with it -- the representation the
-    copies carry is left open as well, and it moves the site content: the same
-    key chooses it, the copies read copy by copy first, among the
-    representations the group's own table admits
-    (:attr:`_OrbitalTable.multiplicity_spaces`); so it chooses among every
-    representation induced on uncoupled orbitals a symmetry exchanges, where
-    those carry what no one-dimensional character gives.  Where the
-    model's own blocks carry noise within a hundred times ``internal_tol`` the
-    matrices are the exact representation nearest them, which a near-symmetric
-    model's symmetrizing pass averages with.  The conventions the tables fix are
-    stated in ``docs/background/conventions.md``.
-
-    This is one of the pieces :func:`..groups.realized_group` already ran, and
-    it is re-runnable with different arguments on a group already in hand —
-    ``_build_rep(r.model, r.group, r._assignment, validated=r.numerical.validated,
-    multiplets=...)``, or with a different ``characters=`` or ``generators=``.
+    Each matrix is ``D(g) = O(g) ⊗ S(g)``.  ``O(g)`` carries each multiplet onto
+    its image, as the operation carries the sites, with a factor on each orbit
+    of multiplets relative to the orbit of the anchor, orbital 0's multiplet.
+    ``S(g)``, the internal factor, is the operation's own matrix on a
+    multiplet: its spin rotation, or ``1`` without spin, on a one-dimensional
+    multiplet, and the block of the model's own solution space on a wider one.
+    An antiunitary operation's matrix carries time reversal's internal factor
+    on each multiplet times the scalar the measurement read on each orbit.  The
+    factors on the orbits, one per generator and orbit, and the orientation
+    branch, ``D(g)`` or ``D(g⁻¹)``, are read off the solution spaces or
+    enumerated.  Each candidate is held to three checks:
+    ``max_k ‖D H(k) D† − H(Rk)‖ ≤ tol``; every block a multiple of the group's
+    own internal factor, within ``internal_tol``; and the group's
+    multiplication table, the signs of the spin-1/2 lifts included, within
+    ``product_tol``.  A coupled part of the crystal is a set of multiplets the
+    hoppings connect, directly or through others.  What the
+    declarations leave open of the one-dimensional character the hoppings leave
+    on each coupled part, and of the representation a conserved pseudospin's
+    copies carry, is then chosen by the lowest-angular-momentum rule, so that
+    the matrices are the representation induced from the site irreps returned,
+    in the convention of the irreptables package's tables.
 
     Parameters
     ----------
     model : pythtb.TBModel
+        The model, with the values of its parameters in place.
     group : ..groups.GroupData
-        A group comes from :func:`..groups.realized_group`:
-        ``realized_group(model, ...).group``.
+        The group, as ``realized_group(model).group`` holds it.
     assignment : ..groups.OrbitalAssignment
-        From :func:`.._tables._assign_orbitals` on **this** model and group.
-    validated : ..groups.ValidatedGroup, optional
-        Which operations the Hamiltonian obeys.  Computed here when omitted,
-        by :func:`.._measure._validate_group` at its defaults, whose
-        ``detector_too_large`` is then handed back as it comes.  Only its
-        surviving operations are candidates for representation, and its
-        discrepancy list is carried into :attr:`SpaceGroupRep._failed`.  A
-        record as the detector measured it, :func:`.._measure._validate_group`'s
-        own, is read here once, first, as :func:`..groups.realized_group` reads
-        its own: each operation's solution space held to the matrices of its
-        own form, each site's states carried onto its image's with the
-        operation's own spin rotation on states that carry a spin.  A record
-        already read is read as it stands.
-    multiplets : SiteMultiplets, optional
-        The multiplets each site's orbitals are bound into, **stated** instead
-        of measured: the multiplets of every site, each given as the orbitals it
-        holds, or a :class:`SiteMultiplets` record.  It is a partition of the
-        model's orbitals, so which site index holds which multiplet is this
-        assignment's business and a statement is re-keyed onto it — which is
-        what carries one partition to another presentation of the same model.
-        A statement that is not such a partition raises ``ValueError`` before
-        anything is measured: an orbital named twice or not at all, a multiplet
-        spread over two sites, a declared spinor pair split.  Omitted — the
-        default — the multiplets are
-        measured, by the rule :class:`SiteMultiplets` states: a site's own
-        operations bind its orbitals, and copies of one site irrep turned from
-        site to site of an orbit are one multiplet.  A one-dimensional multiplet
-        takes ``S(g)`` to be the spin factor from the group
-        (``sym.spinor_rotation``, raw, and ``iσ_y conj(·)`` for antiunitary
-        operations), with the extraction *checked* against the detector's own
-        intertwiner; a multi-dimensional one — a site whose orbitals form an
-        irreducible multiplet of the site-symmetry group, a
-        ``(d_z², d_x²₋y²)`` doublet at a ``32`` site, which no signed
-        permutation of orbitals can represent — takes the model's own
-        intertwiner's block, in whatever basis the orbitals are written.
-    reference_orbital : int, optional
-        The orbital the lowest-angular-momentum rule reads the crystal from
-        first: among the labellings the declarations leave, its site's
-        content is put at the lowest angular momentum it allows, and every
-        orbital the hoppings couple to it follows; of two rows one site content
-        leaves open, the reference orbital's is the one put at the lower.
-        Naming a different orbital starts the rule there instead.  It
-        constrains nothing a declaration does not.
-    characters : sequence or mapping, optional
-        **A statement of what the orbitals are** — the physics input the
-        Hamiltonian cannot supply, since the hoppings do not measure what an
-        orbital is: they measure which operations are symmetries once the
-        orbitals are stated.  A list with one entry per orbital, each a word or
-        ``None``, or a mapping from an orbital, or from several orbitals of
-        one site together, to a word; a mapping from operations to characters
-        stands for a word in either (``docs/guide/orbitals.md``).  A declaration in
-        none of these forms raises ``ValueError`` before anything is measured,
-        and a word that names nothing at its site is refused
-        ``unknown_label``.  A declaration states
-        each site's content and is read on the measured multiplets, however it
-        partitions them: a content the site does not hold breaks the operations
-        it is not carried by — declaring ``s`` and ``d`` where the hoppings
-        realize a ``p`` doublet states a crystal whose fourfold axis is not a
-        symmetry, and declaring them where nothing couples the pair's two
-        orbitals says which of the two the pair is.  ``None`` (the default)
-        assigns every orbital by the lowest-angular-momentum rule.  A declaration the
-        hoppings are not covariant under is not a wrong declaration: it is a
-        smaller group, refused
-        ``declaration_breaks_group`` here — this call is handed a **fixed**
-        group and cannot lower it — and descended to by
-        :func:`..groups.realized_group`.
-
-        **What a declaration speaks for.**  The hoppings fix how the orbitals
-        they connect transform relative to one another, so a declaration on
-        any orbital is a statement about every orbital coupled to it, directly
-        or through others: they are read relative to it, which relabels them
-        all at once, wherever the declaration sits.  Declaring one sublattice
-        of an orbit is the same statement as declaring the other.  Where no
-        labelling carries every declaration of such a coupled part at once,
-        the operations they disagree on are broken and the group is smaller.
-    spin : ..spin.SpinBasis, str or dict, optional
-        **The spinor basis of a spinless model**, declared: which orbital is the
-        ``↑`` partner of which ``↓``.  A :class:`..spin.SpinBasis` (from
-        :func:`..spin.spin_basis`), the shorthand ``"interleaved"`` /
-        ``"blocked"``, or a mapping of :func:`..spin.spin_basis` keyword
-        arguments.  This is the one piece of physics a ``wannier90`` import
-        cannot supply — the importer returns ``nspin = 1`` whatever the
-        calculation did, and ``H(k)`` is blind to the names of its ``2N``
-        indices.  A one-dimensional multiplet is then a declared pair carrying
-        the tables' own SU(2) lift, and everything downstream runs as for a
-        native spinful model; see
-        ``docs/guide/spin.md#a-wannier90-spinor-import``.  Only for a spinless
-        model asked in double-valued tables; a native spinful model carries its
-        own spin axis and raises.
-    generators : sequence of int, optional
-        ``.ind`` of the operations to enumerate signs on.  A minimal generating
-        set of the represented unitary operations is found from the product
-        table when omitted.
-    operations : sequence of int, optional
-        Restrict the represented set (default: everything ``validated`` kept).
-    phases : sequence of complex, optional
+        Each orbital's site in ``group``, from :func:`.._tables._assign_orbitals`
+        on this model and group.
+    validated : ..groups.ValidatedGroup, default None
+        Which operations ``H`` obeys, as :func:`.._measure._validate_group`
+        measures it.  A record not read in each operation's own form is read so
+        first, once.  ``None`` measures it here at the defaults.
+    multiplets : list or SiteMultiplets, default None
+        The multiplets each site's orbitals are bound into, stated: one list per
+        site of the multiplets it holds, each written as its orbitals, or a
+        :class:`SiteMultiplets`.  ``None`` measures them.
+    reference_orbital : int, default 0
+        The orbital the lowest-angular-momentum rule reads first.
+    characters : sequence or mapping, default None
+        The declared site irreps, in the forms ``characters=`` of
+        :func:`..groups.realized_group` takes.  ``None`` declares nothing.
+    spin : ..spin.SpinBasis, str or dict, default None
+        The spinor basis of a spinless model: a :class:`..spin.SpinBasis`,
+        ``"interleaved"`` or ``"blocked"``, or the keyword arguments of
+        :func:`..spin.spin_basis`.  ``None`` declares none.
+    generators : sequence of int, default None
+        The indices of generators of the represented unitary operations.
+        ``None`` finds a set of at most three from the product table.
+    operations : sequence of int, default None
+        The indices of the operations to represent: a subgroup holding the
+        identity, each antiunitary operation in it the product of one of them,
+        time reversal where it is represented, with a represented unitary one.
+        ``None`` takes every operation ``validated`` holds.
+    phases : sequence of complex, default (1, -1)
         The factors the enumeration tries on each orbit of multiplets, per
-        generator, relative to the reference orbit.  The default ``(1, -1)``
-        covers real relative signs; a richer set such as ``(1, 1j, -1, -1j)``
-        covers orbits related by roots of unity, at
-        ``len(phases)**(n_gen·(n_class−1))`` candidates.  The read-off does not
-        consult it: it takes each factor as the solution spaces measure it, a
-        root of unity of order dividing twelve where the measured factor is one
-        to within the noise and the measured phase otherwise, so ``phases``
-        matters only where the enumeration runs.
-    orientation_branch : None or {+1, -1}, optional
-        Which orientation branches enter the candidate set: ``None`` (default)
-        both, ``+1`` only ``g``, ``-1`` only ``g⁻¹``.  The branch is degenerate
-        whenever every generator is an involution with a Hermitian
-        representative, and the deduplication step then merges it.  This is a
-        **restriction of the search space**, not a tolerance: a ``+1`` build
-        never learns whether ``g⁻¹`` would also have passed, so it never reports
-        ``SpaceGroupRep._branch_tie``.  It is not needed to settle the
-        branch; keep it for speed on a large group, to state a convention
-        deliberately, or (with ``-1``) to measure what the other branch does.
-    include_vacuum_ops : bool, optional
-        Represent operations that act non-trivially on a slab's vacuum
-        directions.  Off by default: a 2D pythtb model's orbitals carry no
-        out-of-plane structure for such an operation to move, so the *geometry*
-        does not fix their orbital action, and — because their in-plane k-action
-        is degenerate with an in-plane partner's — the *detector* cannot refute
-        them either.  Whether a flat layer's own orbital content nevertheless
-        determines the action is a question only a built representation answers,
-        by covariance.  Left out, they are not in the representation's
-        ``SpaceGroupRep._indices``.
-    strategy : {"readoff", "enumerate"}, optional
-        How the candidates are **found**.  ``"readoff"`` (the default) measures
-        the free factors off the detector's own solution space — when the tensor
-        structure is realizable ``D(g)`` is an element of it, so the space is
-        projected onto tensor-structure form, polar-extracted, and the phases of
-        the multiplet orbits read off the block ratios against ``S(g)`` — and
-        builds one candidate per orientation branch.  ``"enumerate"`` builds
-        every combination of the factors ``phases`` offers instead, which is the
-        instrument for a full kill record and is what the read-off falls back to
-        when what it read is not clean or is not a representation; a refusal
-        after such a fallback says what the read-off read.  **Neither is a
-        tolerance**: both answer to the same three gates, so where the measured
-        factors are among those ``phases`` offers the two return the same
-        representation and differ only in what they cost.
-        ``_search["strategy"]`` says which ran.
-    max_candidates : int, optional
-        Refuse (``gate="rep_search_too_large"``) rather than run an enumeration
-        of more than this many candidates.  Default ``2**20``.  Reached only
-        when an enumeration is needed, so under ``strategy="readoff"`` the
-        refusal also carries the reason the read-off deferred.
-    k_pts : array, optional
-        Covariance battery points.  Random generic k by default: high-symmetry
-        points make far too many wrong candidates look right.
-    n_battery : int, optional
-        How many random points to use when ``k_pts`` is omitted.
-    tol : float, optional
-        The covariance gate, absolute and in the units of ``H``.  Omitted, it
-        is :func:`covariance_gate` of this build: the larger of the exact floor
-        :data:`.._tolerance.EXACT_TOL`, ``5e-14·max|H|``, and ``|G|·N·ε·max|H|``, the rounding a
-        representation of the ``|G|`` operations represented, on ``N`` states,
-        carries, with ``max|H|`` the largest entry of ``H(k)`` on the battery,
-        and the rounding of the Bloch phases of ``H(k)`` and ``H(Rk)`` there,
-        which grows with the integers of a strongly skewed lattice basis.
-        Rounding never refuses a valid model; above the gate the verdict is the
-        verdict, and nothing is weakened to make a candidate pass.  A number
-        given here is the gate.
-    internal_tol : float, optional
-        The internal-factor gate: ``max ‖B(g) − χ·S(g)‖`` over **every** block
-        of every represented unitary operation — the block carrying a
-        multiplet to its image as much as the block of a multiplet the
-        operation fixes, with the per-block coefficient free.  Dimensionless
-        (the blocks are unitary).  Default ``1e-9``.  Vacuous for a spinless
-        model with no declared spinor basis (``S`` is ``1×1``).  On a
-        multi-dimensional multiplet ``S(g)`` is not a table's but is
-        **measured**, off the whole detector solution space, and the gate is
-        the statement that the built blocks are multiples of what was measured.
-    product_tol : float, optional
-        The product-table gate: ``max ‖D(g₁)∘D(g₂) − spf·D(g₁g₂)‖`` over the
-        represented pairs.  The matrices are unitary, so unlike ``tol`` this
-        number is **dimensionless** and carries no scale from ``H`` — which is
-        why it is a separate knob rather than ``tol`` re-used.  Default
-        ``1e-9``; tighten it only after reading
-        ``_search["product_residuals"]``.
-    seed : int, optional
-        Seed of the battery's RNG, so the search is reproducible.
+        generator, relative to the anchor's orbit.
+    orientation_branch : {None, 1, -1}, default None
+        The orientation branches tried: ``None`` both, ``1`` only ``D(g)``,
+        ``-1`` only ``D(g⁻¹)``.
+    include_vacuum_ops : bool, default False
+        Whether operations that move a slab cell's vacuum direction are
+        represented.
+    strategy : {"readoff", "enumerate"}, default "readoff"
+        How candidates are found.  ``"readoff"`` reads the factors off the
+        solution spaces, one candidate a branch.  It enumerates where it reads
+        nothing or what it read does not give one representation; where none of
+        what it read passes the covariance check and the best lies between
+        ``tol`` and a larger declared tolerance, nothing is enumerated and the
+        call refuses ``rep_not_covariant``.  ``"enumerate"`` builds every
+        combination of ``phases``.
+    max_candidates : int, default 2**20
+        The most candidates an enumeration may run: of the factors on the
+        orbits, or of the representations that sets of states the Hamiltonian
+        does not couple and no operation exchanges, or a conserved pseudospin's
+        copies, may carry.
+    k_pts : ndarray, shape (n, dim_k), default None
+        The k-points of the covariance check, in reduced coordinates.  ``None``
+        draws ``n_battery`` points uniformly from ``[-0.5, 0.5)``.  At
+        high-symmetry points wrong candidates can pass the covariance check.
+    n_battery : int, default 6
+        How many random k-points are drawn where ``k_pts`` is ``None``.
+    tol : float, default None
+        The covariance check's tolerance, in the units of ``H``.  ``None`` is
+        :func:`.._matrices.covariance_gate` on the k-points: the rounding of
+        the representation's own arithmetic and of the Bloch phases, and never
+        below ``5e-14·max|H|``.
+    internal_tol : float, default 1e-9
+        The internal-factor check's tolerance on ``max ‖B(g) − χ S(g)‖`` over
+        every block ``B(g)`` of every unitary operation, ``χ`` free per block.
+        Dimensionless.  It also bounds from below how far outside a solution
+        space counts as inside it, and a product-table miss of at most
+        ``100·internal_tol``, capped at ``1e-2``, is replaced by the nearest
+        exact representation.
+    product_tol : float, default 1e-9
+        The product-table check's tolerance on
+        ``max ‖D(g1) D(g2) − spf·D(g1 g2)‖``, ``spf`` the sign of the spin-1/2
+        lifts.  Dimensionless.
+    seed : int, default 101
+        The seed of the random k-points.
+    _choices : .._declaration._Verdict, default None
+        A measurement on the multiplets made earlier, as
+        :func:`..groups.realized_group` makes it.  It is used where it was made
+        on the same unitary operations, declarations, tolerance, orbits and
+        anchor, and the measurement is made here otherwise.
+    _returned : bool, default True
+        Whether this is the representation returned: only then are the Bloch
+        operators' factor system and each orbit's band representation measured.
+    _labeled : bool, default True
+        Whether the labeling is chosen.  With ``_labeled=False`` and nothing
+        declared, the site tables are not read and no atomic-limit table is
+        made.
+    _search_record : dict, default None
+        Where given, the record of the search is put under its ``"search"`` key,
+        beside a refusal as well.
 
     Returns
     -------
     SpaceGroupRep or Refusal
-        The single surviving candidate: one matrix per represented operation,
-        the record of what pinned every discrete choice, and the resolved site
-        character of every orbital.  It records no environment
-        (``SpaceGroupRep._environment`` is ``None``); the representation
-        :func:`..groups.realized_group` returns keeps the environment it was
-        read in.
-
-    Refusals
-    --------
-    ``"rep_not_covariant"``
-        no candidate closes the covariance gate — read it as *this operation
-        set is not realized on this orbital content*, e.g. a slab operation
-        the model cannot represent on the multiplets the Hamiltonian binds.
-    ``"rep_internal_factor"``
-        covariant candidates exist but none carries the group's own internal
-        factor on the multiplets its operations fix — they are somebody else's
-        matrices, not these operations'.
-    ``"rep_not_multiplicative"``
-        candidates pass both of those but none reproduces the multiplication
-        table, and no choice of phases will fix it: the operation set, the
-        generators or the internal blocks are wrong, or the matrices form a
-        projective representation of a class the table does not carry.  The
-        second is measured and named — two commuting operations whose matrices
-        commute only up to a phase no rephasing removes
-        (``context["commuting_operations"]``, ``context["commutation_phase"]``)
-        — and where that phase is the one the operations' spin-½ lifts carry
-        (``context["spin_half"]``) the states carry half-integer spin: no
-        single-valued representation exists on them, and a spinor basis in the
-        orbital index is read in the double group once ``spin=`` declares it.
-        This build is handed a fixed group; :func:`..groups.realized_group`
-        measures the same class before it builds and descends to the largest
-        subgroup that carries an ordinary representation.  On a conserved
-        pseudospin the class is not the states' alone -- the copies' own
-        representation can make it up -- and the refusal says where no
-        representation of the copies' space does (``context["multiplicity"]``).
-    ``"rep_not_unique"``
-        more than one distinct representation survives **all three** gates,
-        which means the battery is too small or the model is more symmetric
-        than the group says.  All four of these carry the number of candidates
-        tried (``context["n_candidates"]``).  The one survivor pair it does
-        **not** fire on is the two orientation branches returning the same site
-        labels under the same labelling: that is a convention
-        rather than a second representation, and it is pinned to ``+1`` with
-        ``SpaceGroupRep._branch_tie`` set.
-    ``"rep_search_too_large"``
-        not about the model at all: an enumeration was needed (asked for, or
-        fallen back to) and would have run more candidates than
-        ``max_candidates``.  Under ``strategy="readoff"`` the message also says
-        why the read-off deferred, which is the thing to act on — a read that is
-        not clean says the tensor structure ``O(g) ⊗ S(g)`` does not describe
-        this operation set on this orbital content.  The same ceiling bounds
-        the enumeration that grows with the *model*: where the Hamiltonian
-        conserves sets of states apart that no operation exchanges, or a
-        pseudospin, the hoppings do not fix which representation those states
-        carry, and the finite set to try is every choice of one for each set
-        -- or, on the pseudospin, every sum of the group's irreducible
-        representations the copies' space could carry.
-    ``"detector_too_large"``
-        only where ``validated`` is omitted and measured here: the detector's
-        own memory limit on a spectrum with exactly degenerate levels
-        (:func:`.._detector._find_intertwiners`), handed back as it comes.
-    ``"rep_double_valued_spinless"``
-        a structural gate on the valuedness the model and the tables disagree
-        about: the model is spinless, the tables asked for are double-valued,
-        and nothing said where the spin is.  For a ``wannier90`` import declare
-        the spinor basis (``spin="interleaved"``, ``"blocked"``, or explicit
-        ``pairs=``) and the build runs.  What stays unsupported is an
-        **unpaired** spinor orbital — a single Wannier function carrying
-        half-integer spin with no partner, the locally time-reversal-broken
-        magnetic case — which needs double-group *site* declarations that
-        single-valued site tables cannot express.
-    ``"spin_pair_split"``
-        a declared spin pair whose two members sit on different sites, where
-        the two spin states of one Wannier function share a centre: a
-        mislabelled pairing, or orbitals each carrying one spin state with no
-        partner at their own centre, a magnetic configuration outside this
-        package's present scope.  :func:`..groups.realized_group` refuses it
-        from the centres alone before anything is identified, a declared
-        ``precision`` reading two centres closer than it as one.  A pairing
-        that is well formed and wrong is a different tensor structure, and it
-        fails the covariance or the internal-factor gate like any other, where
-        :func:`..groups.realized_group` descends instead.
-    ``"unknown_label"``, ``"ambiguous_multiplet"``
-        what a well-formed ``characters=`` can say that its site cannot read:
-        a label that is not an irrep of *that orbital's measured site group*
-        (the message names the site group, lists its valid labels and prints
-        the generator frame); a flat list that cannot say which orbitals form
-        a multiplet; a joint declaration whose irrep is not the dimension of
-        the multiplet it names (``{(0, 1): "A"}``, where ``{0: "A", 1: "A"}``
-        is the spelling for two ``A`` orbitals).
-    ``"declaration_breaks_group"``
-        the declared content is not covariant under every operation of the
-        group handed in.  Not a wrong declaration and not a tolerance: the
-        *positions* allow both of lin3g's ``1a`` orbitals to be ``s`` and the
-        Hamiltonian does not, so what was declared is a crystal with less
-        symmetry.  This call is handed a fixed group and cannot lower it, so it
-        names the subgroup the content **is** covariant on
-        (``context["subgroup"]``), the operations it breaks with their rows
-        (``context["broken"]``), the maximal readings where several tie, in the
-        order the tie rule ranks them with that subgroup first
-        (``context["tied"]``), what the declaration that fails measured, in
-        irrep names, and the complete ``checks`` table; ``context["group"]`` is
-        the group handed in.
-        :func:`..groups.realized_group` descends to that subgroup instead of
-        refusing.  In a group with **no antiunitary operation** more
-        declarations stand: one the hoppings carry up to a one-dimensional
-        character of the group breaks nothing, and the representation returned
-        is induced from the content as declared.
-
-    A unitary-only build that cannot be anchored to the tables does **not**
-    come back as a refusal: see *Raises*.
-
-    Raises
-    ------
-    ..refusal.InternalError
-        A unitary-only build with a one-dimensional reference multiplet (no
-        antiunitary operation in the group) whose generator blocks are not real
-        multiples of the operations' own ``sym.spinor_rotation``.  The tables fix that gauge
-        outright, so this is a bug in the application of the convention and not
-        a measurement about the model, and it is deliberately **not** a
-        ``Refusal``: no gauge is left to supply and there is nothing to report.
-        A model and a table that disagree about *valuedness* falsify the
-        anchor's premise rather than its application, and are refused above
-        or raise ``ValueError`` below instead.  Also, the package disagreeing
-        with itself in what it hands the build: an operation to be represented
-        none of whose matrices has its own form, each site's states carried
-        onto its image's with its own spin rotation where the states carry a
-        spin; operations measured to hold that do not close into a group; no
-        generating set of three operations or fewer for the represented
-        unitary ones; an internal block the measurement does not reach.
-    ValueError
-        Grammar in the arguments: a ``characters=`` that is not a list with
-        one entry per orbital or a mapping from orbitals to words, that names
-        an orbital twice or out of range, that writes orbitals of two sites as
-        one key, or that gives the two orbitals of a declared spin pair
-        different words; a ``multiplets=`` that is not a
-        partition of the model's orbitals into multiplets of one site each; a
-        ``spin=`` declaration written for another model; a ``strategy=`` or an
-        ``orientation_branch=`` that names nothing; an ``operations=`` that is
-        not closed under the group's product, or holds an antiunitary
-        operation that is not time reversal times a represented one;
-        ``generators=`` that do not generate the represented unitary
-        operations; a group of single-valued tables for states that carry
-        spin-1/2, natively or by declaration.  The declarations are read
-        before anything is measured.
-
-    Notes
-    -----
-    **Validity conditions.**
-
-    * The search is only as sharp as the battery.  Generic k-points are used
-      deliberately; a battery of high-symmetry points would let wrong signs
-      through.
-    * "Unique" is asserted on *distinct representations*, not on parameter
-      choices: candidates that build the identical matrices (an involutive
-      generator under the orientation branch) are merged first.
-    * The representation's phase is anchored at orbital 0's multiplet, and on
-      a coupled part without it at the part's first, whatever
-      ``reference_orbital`` names (see :class:`RepAnchor`); the labelling is
-      put on top of it, and ``reference_orbital`` picks only the lead the
-      labelling's keys read first.
-    * The product-table gate runs on the **normalized** matrices — the ones the
-      returned object carries — so ``_search["product"]`` and
-      ``product_residual`` are the same measurement.  The internal-factor gate
-      needs no normalization pass: its defect is invariant under ``D → λD``.
-    * ``factor_residual`` — the Bloch operators' factor system, translation
-      differences included — stays a **post-hoc** cross-check and is not a
-      gate: for matrices that already reproduce the product table it follows
-      from the candidate-independent position identity
-      ``A τ_a + t = τ_{g(a)} + s``.
-    * **The environment is not set here.**  Nothing in this construction knows
-      whether a 2D model's layer is free-standing or substrate-bound — that is
-      :func:`..groups.realized_group`'s resolved verdict, stamped on the record
-      it returns — so ``SpaceGroupRep._environment`` and
-      ``SpaceGroupRep._free_standing_group`` are ``None`` on a
-      representation built here.  :func:`..ebr.symmetry_indicator` reads a
-      layer's class in the group handed in either way.
-    * ``SpaceGroupRep.numerical.residuals`` (covariance), ``._norm_residuals``
-      (``D^n = ζ``), ``._anchor_residuals`` (``T conj(D) T† = D``),
-      ``.numerical.product_residual`` and ``.numerical.factor_residual`` are all re-measured on the
-      returned matrices.
+        The one representation that passes the three checks, its labeling
+        chosen: a matrix for each represented operation, the atomic-limit table
+        of the orbitals, and the record of the search.  Candidates that build the
+        same matrices count once.  Where the two orientation branches both pass
+        and are one representation up to a one-dimensional character on each
+        coupled part, the branch ``+1`` is returned with ``_branch_tie`` set.
+        The covariance, product-table and factor-system residuals are measured on
+        the matrices returned.  No environment is recorded: ``_environment`` is
+        ``None``.
 
     Examples
     --------
-    Redo the build :func:`..groups.realized_group` already made, with each
-    site's orbitals stated as one multiplet instead of measured::
+    The build ``realized_group`` made, made again with each site's orbitals
+    stated as one multiplet::
 
         r = tqc.realized_group(model, characters={0: "s"})
         rep = _build_rep(r.model, r.group, r._assignment,
                          validated=r.numerical.validated,
                          multiplets=[[orbs] for orbs in r._assignment.site_orbitals])
+
+    Refusals
+    --------
+    ``rep_double_valued_spinless``
+        a spinless model in double-valued tables, with no ``spin=``.
+    ``spin_pair_split``
+        a declared spin pair whose two members sit on different sites.
+    ``detector_too_large``
+        ``validated`` is ``None``, and the measurement made here needs more
+        memory than its limit.
+    ``unknown_label`` / ``ambiguous_multiplet`` / ``site_group``
+        a declaration its site cannot read, or, where something is declared, a
+        site's character table that cannot be made.
+    ``declaration_breaks_group``
+        the declared site irreps are not covariant under every operation of
+        ``group``.  The context names the subgroup they are covariant under.
+    ``rep_not_covariant``
+        no candidate passes the covariance check.
+    ``rep_internal_factor``
+        covariant candidates exist, and on none is every block a multiple of the
+        group's own internal factor.
+    ``rep_not_multiplicative``
+        candidates pass both, and none reproduces the multiplication table.  The
+        context names two commuting operations whose matrices commute only up to
+        a phase, where there are such, or the copies of a conserved pseudospin
+        that admit no representation.
+    ``canonical_norm`` / ``antiunitary_anchor``
+        no candidate that passes the first two checks can be brought to its
+        canonical norm and antiunitary anchor.
+    ``rep_not_unique``
+        more than one representation passes all three checks, other than the two
+        orientation branches pinned above.
+    ``rep_search_too_large``
+        an enumeration of more than ``max_candidates`` was needed.  Under
+        ``strategy="readoff"`` the reason says why the read-off enumerated.
+
+    Raises
+    ------
+    ValueError
+        A malformed ``characters=``, ``multiplets=`` or ``spin=``, a ``spin=``
+        on a spinful model or written for another model, a ``strategy=`` or
+        ``orientation_branch=`` that names nothing, ``operations=`` that are not
+        a subgroup holding the identity, ``generators=`` that do not generate
+        the represented unitary operations, or single-valued tables for states
+        that carry spin 1/2.
+    ..refusal.InternalError
+        An operation to be represented with no matrix of its own form, operations
+        measured to hold that do not close into a group, no generating set of
+        three or fewer, an internal block the measurement does not reach, a
+        one-dimensional lead multiplet in a group with no antiunitary operation
+        whose generator blocks are not real multiples of the tables' lift, or a
+        representation with its labeling in it that misses the covariance check.
+
+    See Also
+    --------
+    ..groups.realized_group : the space group a Hamiltonian obeys, this
+        representation built on it.
     """
     ops = _represented_operations(model, group, assignment, validated=validated,
                                   multiplets=multiplets, characters=characters, spin=spin,
@@ -1001,129 +697,74 @@ def _represented_operations(model, group, assignment, *, validated, multiplets, 
                             spin, generators, operations, include_vacuum_ops, strategy):
     """The operations to be represented, with their generators and the word of each.
 
-    Parameters
-    ----------
-    model : pythtb.TBModel
-        As in :func:`_build_rep`.
-    group : ..groups.GroupData
-        As in :func:`_build_rep`.
-    assignment : ..groups.OrbitalAssignment
-        As in :func:`_build_rep`.
-    validated : ..groups.ValidatedGroup
-        As in :func:`_build_rep`.
-    multiplets : SiteMultiplets
-        As in :func:`_build_rep`.
-    characters : sequence or mapping
-        As in :func:`_build_rep`.
-    spin : ..spin.SpinBasis, str or dict
-        As in :func:`_build_rep`.
-    generators : sequence of int
-        As in :func:`_build_rep`.
-    operations : sequence of int
-        As in :func:`_build_rep`.
-    include_vacuum_ops : bool
-        As in :func:`_build_rep`.
-    strategy : {"readoff", "enumerate"}
-        As in :func:`_build_rep`.
-
-    Returns
-    -------
-    _Operations or Refusal
-        The record, or the refusal that ends the build.
+    ``model``, ``group``, ``assignment``, ``validated``, ``multiplets``,
+    ``characters``, ``spin``, ``generators``, ``operations``,
+    ``include_vacuum_ops`` and ``strategy`` are as in :func:`_build_rep`.
+    ``validated`` is measured here where it is ``None``, and read in each
+    operation's own form where it was not.  Returns the :class:`_Operations`,
+    or the refusal that ends the build: ``rep_double_valued_spinless``,
+    ``spin_pair_split`` or ``detector_too_large``.
 
     Raises
     ------
     ValueError
-        Grammar in the arguments, as in :func:`_build_rep`: a ``strategy=`` that names
-        nothing, a malformed declaration or one written for another model, a group of
-        single-valued tables for states that carry spin-1/2, ``operations=`` without the
-        identity or not closed, ``generators=`` that do not generate the represented unitary
-        operations.
+        A ``strategy=`` that names nothing, a malformed declaration or one
+        written for another model, a ``spin=`` on a spinful model,
+        single-valued tables for states that carry spin 1/2, ``operations=``
+        that are not a subgroup holding the identity, or ``generators=`` that
+        do not generate the represented unitary operations.
     ..refusal.InternalError
-        An operation to be represented none of whose matrices has its own form, operations
-        measured to hold that do not close into a group, or no generating set of three
-        operations or fewer for the unitary ones.
+        An operation to be represented with no matrix of its own form,
+        operations measured to hold that do not close into a group, or no
+        generating set of three operations or fewer for the unitary ones.
     """
     if strategy not in ("readoff", "enumerate"):
-        raise ValueError("strategy must be 'readoff' (read the choices off the measured "
-                         "solution spaces) or 'enumerate' (the exhaustive search), got "
-                         f"{strategy!r}")
+        raise ValueError(f"_build_rep(): strategy={strategy!r} names no strategy. Pass "
+                         "'readoff' or 'enumerate'.")
     nspin, norb, nstate = int(model.nspin), int(model.norb), int(model.nstate)
 
-    # ---- 0. the spin the tables assume and the model does not carry ---------
-    # Everything below reads `group.spinor` as "these orbitals carry the SU(2)
-    # lift": the internal factor is the operations' own `sym.spinor_rotation`,
-    # the canonical norms are the double cover's, and the table anchor of
-    # `RepAnchor.internal` rests on that lift being pseudo-real.  A spinless
-    # model's orbitals carry no such factor *unless a declaration says where
-    # it is*, so the premise is either false before a single matrix is built --
-    # and the anchor's own diagnosis would then be wrong, `_table_anchored`
-    # raising `InternalError` to say *this package misapplied the tables*
-    # where the truth is that the physics asked for is unsupported -- or it is
-    # restored verbatim by a `spin=` declaration, whose multiplet is a declared
-    # (up, dn) pair carrying exactly that lift.  Both settled here,
-    # structurally, ahead of all of it.
+    # 0. The spin the tables assume and the model does not carry.
+    # Double-valued tables are read as the orbitals carrying the spin-1/2 lift.
+    # A spinless model carries it only where `spin=` declares a spinor basis;
+    # without one, the build is refused here, before any matrix is built.
     spin = _resolve_spin(spin, model)
-    # ... and what the declarations say, read as grammar before anything is
-    # measured: a malformed `characters=` or `multiplets=` raises here
+    # The declarations, read as grammar before anything is measured: a malformed
+    # `characters=` or `multiplets=` raises here.
     _declaration_grammar(norb, characters=characters, multiplets=multiplets, spin=spin,
                          site_of=assignment.site_of_orbital)
 
     if spin is not None and not bool(group.spinor):
         raise ValueError(
-            f"the orbitals were declared to carry spin (`spin=`, a "
-            f"{spin._kind!r} spinor basis on {spin._norb} orbitals) and #{group.number_str} "
-            f"is a group of single-valued tables: states that carry spin-1/2 have a "
-            f"double-valued content, which those tables do not describe.")
+            f"_build_rep(): spin= declares the {spin._kind!r} spinor basis on {spin._norb} "
+            f"orbitals, and #{group.number_str} is a group of single-valued tables. Pass "
+            f"the group realized_group finds with spinor=True, or leave out spin=.")
 
     if spin is None and nspin == 1 and bool(group.spinor):
         return Refusal(
             "rep_double_valued_spinless",
             f"the model is spinless (nspin=1, spinful=False) and #{group.number_str} "
-            f"was asked for its double-valued tables, with nothing said about where the "
-            f"spin is. A double-valued representation of a spin-free basis says the "
-            f"orbitals themselves carry half-integer local spin -- a spinor Wannier "
-            f"basis, the spin inside each Wannier function -- so the internal factor is "
-            f"not the SU(2) lift the tables are written in, and the tables cannot fix "
-            f"its gauge. "
-            f"If the orbitals are the two spin states of N Wannier functions -- the "
-            f"wannier90 case, where the importer returns nspin=1 whatever the "
-            f"calculation did -- then declare the spinor basis with `spin=` "
-            f"(`order=\"interleaved\"`, `order=\"blocked\"`, or explicit `pairs=`) and "
-            f"this build runs: a multiplet becomes a declared (up, dn) pair and the "
-            f"internal factor is the tables' own SU(2) lift on it. "
-            f"What remains unsupported is an unpaired spinor orbital -- a single "
-            f"Wannier function carrying half-integer spin with no partner, which is the "
-            f"locally time-reversal-broken magnetic case -- because that needs "
-            f"double-group site declarations and the site tables of `characters=` are "
-            f"single-valued. "
-            f"Otherwise ask this model in its single-valued group "
-            f"(`realized_group(model, spinor=False)`), or give the orbitals a spin axis "
-            f"(`spinful=True`) if the half-integer content is the electron's own.",
+            f"was asked for in its double-valued tables, with nothing said about where "
+            f"the spin is. If the orbitals are the two spin states of each Wannier "
+            f"function, as in a spinor Wannier90 import, declare the pairs with "
+            f"`spin=\"interleaved\"`, `spin=\"blocked\"` or `spin={{\"pairs\": ...}}`. "
+            f"Otherwise ask for the single-valued group with `spinor=False`, or build "
+            f"the model with spin if the half-integer spin is the electron's own.",
             context={"nspin": nspin, "spinful": bool(getattr(model, "spinful", nspin == 2)),
                      "number_str": str(group.number_str), "spinor": bool(group.spinor),
                      "include_TR": bool(getattr(group, "_include_TR", False))})
 
-    # The mirror of it, and this one is not a deferred feature but an invalid
-    # ask: ``nspin == 2`` always means double-valued tables, at every level.  A
-    # spinful model's states carry the electron's own spin-1/2, so the tensor
-    # structure below assembles SU(2) blocks (`_internal_from_table`, taken whenever
-    # `nspin == 2`) whatever the group says.  Against a single-valued table
-    # those blocks miss the canonical norm, so the anchor would blame this
-    # package for it (`InternalError`) or -- in the grey presentation --
-    # answer with a true `antiunitary_anchor` measurement of a false setup.
-    # Neither is a question worth asking: the pair is a malformed argument, and
-    # it raises before anything is diagnosed.
+    # A spinful model in single-valued tables is a malformed argument, and it
+    # raises before anything is measured: the electron's own spin 1/2 gives its
+    # states double-valued representations, which those tables do not describe.
     if nspin == 2 and not bool(group.spinor):
         raise ValueError(
-            f"the model is spinful (nspin=2) and #{group.number_str} is a group of "
-            f"single-valued tables: the electron's own spin-1/2 gives its states a "
-            f"double-valued content, which those tables do not describe.")
+            f"_build_rep(): the model is spinful (nspin=2) and #{group.number_str} is a "
+            f"group of single-valued tables. Pass the group realized_group finds with "
+            f"spinor=True.")
 
-    # ---- 0b. what a declared spinor basis has to be, to be one --------------
-    # A declared (up, dn) pair is one Wannier function, which no multiplet
-    # splits, so its two orbitals share a centre: the check `realized_group`
-    # asks before anything is identified, here on the sites handed in.
+    # 0b. A declared spinor basis: the two orbitals of a declared (up, dn) pair
+    # are one Wannier function and share a center, which `realized_group` checks
+    # before anything is identified, and the build checks on the sites handed in.
     if spin is not None:
         split = _spin_pair_split(spin, assignment.site_orbitals,
                                  assignment.site_positions, group._lattice)
@@ -1140,26 +781,24 @@ def _represented_operations(model, group, assignment, *, validated, multiplets, 
         if isinstance(validated, Refusal):
             return validated                # the detector's memory limit, as it came
 
-    # ---- 0c. EACH OPERATION'S OWN FORM, read once ---------------------------
+    # 0c. Each operation's own form, read once.
     # The detector's record holds, for each operation, every matrix with its
-    # action on k: another operation's among them, or one composed with a spin
-    # rotation the Hamiltonian conserves.  Each operation is held to its own
-    # form once, as the verdict stage holds it, before anything reads a
-    # solution space; a record already read -- realized_group's -- is read as
-    # it stands, and the build assembles what was read.
+    # action on k, another operation's among them, or one composed with a spin
+    # rotation the Hamiltonian conserves.  Each operation is held to its own form
+    # once, before anything reads a solution space; a record already read, as
+    # realized_group's is, is used as it stands.
     validated = _measure._own_form_once(
         model, group, assignment, spin, validated,
         tol=(multiplets._tol if isinstance(multiplets, SiteMultiplets) else None))
 
-    # ---- 1. which operations are candidates for representation -------------
+    # 1. Which operations are candidates for representation.
     if operations is None:
         cand = [pos_of_ind[int(i)] for i in validated._indices]
     else:
         cand = [pos_of_ind[int(i)] for i in operations]
     if ident not in cand:
-        raise ValueError("the identity operation is not among the operations to "
-                         "represent: `operations=` leaves it out, and every "
-                         "Hamiltonian obeys it")
+        raise ValueError("_build_rep(): operations= leaves out the identity operation. "
+                         "Add it.")
 
     # an operation acting on a vacuum direction of a slab cell is left out
     # unless asked for: the model carries no out-of-plane orbital structure for
@@ -1182,30 +821,33 @@ def _represented_operations(model, group, assignment, *, validated, multiplets, 
     au_pos = [p for p in kept if syms[p].time_reversal]
     if set(_closure(u_pos, prod, ident)) != set(u_pos):
         said = (f"the unitary operations {tuple(int(syms[p].ind) for p in u_pos)} to be "
-                f"represented are not closed under the group's own product table, so no "
-                f"representation of them exists")
+                f"represented are not closed under the group's product table")
         if operations is not None:
-            raise ValueError(f"{said}; `operations=` names a subgroup.")
-        raise InternalError(f"{said}, and they are the operations measured to hold.")
+            raise ValueError(f"_build_rep(): {said}. Pass operations= that form a subgroup.")
+        raise InternalError(f"{said}. Report it, with the model and the call.")
 
-    # ---- 2. generators and the word tree ----------------------------------
+    # 2. Generators and the word tree.
     if generators is None:
         gens = _minimal_generators(u_pos, prod, ident)
         if gens is None:
             raise InternalError(
-                f"no generating set of size <= 3 was found for the represented unitary "
-                f"operations {tuple(int(syms[p].ind) for p in u_pos)}.")
+                f"no generating set of at most three operations was found for the "
+                f"represented unitary operations {tuple(int(syms[p].ind) for p in u_pos)}. "
+                f"Report it, with the model and the call.")
     else:
         gens = tuple(pos_of_ind[int(i)] for i in generators)
         if set(_closure(gens, prod, ident)) != set(u_pos):
             raise ValueError(
-                f"`generators=` {tuple(int(syms[p].ind) for p in gens)} do not generate the "
-                f"represented unitary operations {tuple(int(syms[p].ind) for p in u_pos)}.")
+                f"_build_rep(): generators= {tuple(int(syms[p].ind) for p in gens)} do not "
+                f"generate the represented unitary operations "
+                f"{tuple(int(syms[p].ind) for p in u_pos)}. Pass generators= that generate "
+                f"them, or leave it out.")
     words, parent = _bfs_words(gens, prod, ident, u_pos)
     if set(words) != set(u_pos):  # pragma: no cover - guarded by the closure test
         raise InternalError(
-            f"the generator tree does not reach the operations "
-            f"{tuple(int(syms[p].ind) for p in set(u_pos) - set(words))}.")
+            f"the words in the generators do not reach the operations "
+            f"{tuple(int(syms[p].ind) for p in set(u_pos) - set(words))}. Report it, with "
+            f"the model and the call.")
 
     T_pos, au_of = None, {}
     if au_pos:
@@ -1219,8 +861,9 @@ def _represented_operations(model, group, assignment, *, validated, multiplets, 
                 said = (f"antiunitary operation #{syms[p].ind} is not the product of "
                         f"#{syms[T_pos].ind} with a represented unitary operation")
                 if operations is not None:
-                    raise ValueError(f"{said}; `operations=` names a subgroup.")
-                raise InternalError(f"{said}, and they are the operations measured to hold.")
+                    raise ValueError(f"_build_rep(): {said}. Pass operations= that form a "
+                                     "subgroup.")
+                raise InternalError(f"{said}. Report it, with the model and the call.")
             au_of[p] = match[0]
     return _Operations(group=group, syms=syms, kept=kept, u_pos=u_pos, au_pos=au_pos,
                        gens=gens, words=words, parent=parent, T_pos=T_pos, au_of=au_of,
@@ -1232,30 +875,14 @@ def _multiplet_layout(model, group, assignment, ops, *, multiplets, characters,
                       reference_orbital, _labeled):
     """The multiplets, their orbits under the operations, and the anchor.
 
-    Parameters
-    ----------
-    model : pythtb.TBModel
-        As in :func:`_build_rep`.
-    group : ..groups.GroupData
-        As in :func:`_build_rep`.
-    assignment : ..groups.OrbitalAssignment
-        As in :func:`_build_rep`.
-    multiplets : SiteMultiplets
-        As in :func:`_build_rep`.
-    characters : sequence or mapping
-        As in :func:`_build_rep`.
-    reference_orbital : int
-        As in :func:`_build_rep`.
-    _labeled : bool
-        Whether the labelling is named: with it ``False`` and nothing declared, the site
-        tables are not read.
-    ops : _Operations
-        As :func:`_represented_operations` returns it.
-
-    Returns
-    -------
-    _Multiplets or Refusal
-        The record, or the refusal that ends the build.
+    ``model``, ``group``, ``assignment``, ``multiplets``, ``characters`` and
+    ``reference_orbital`` are as in :func:`_build_rep`, and ``ops`` is the
+    :class:`_Operations` of :func:`_represented_operations`.  ``_labeled`` says
+    whether the labeling is chosen; with ``_labeled=False`` and nothing
+    declared, the site tables are not read.  The declarations are read on the
+    multiplets, which they never change.  Returns the :class:`_Multiplets`, or
+    the refusal that ends the build: a declaration its site cannot read, or,
+    where something is declared, a site table that cannot be made.
     """
     au_pos = ops.au_pos
     kept = ops.kept
@@ -1264,7 +891,7 @@ def _multiplet_layout(model, group, assignment, ops, *, multiplets, characters,
     u_pos = ops.u_pos
     validated = ops.validated
 
-    # ---- 3. multiplets, their permutations and their orbits ----------------
+    # 3. Multiplets, their permutations and their orbits.
     # The multiplets are measured, or stated by `multiplets=`; `characters=`
     # never changes them: it states what each site holds, and step 3b reads it
     # on these multiplets.
@@ -1274,14 +901,14 @@ def _multiplet_layout(model, group, assignment, ops, *, multiplets, characters,
     nchan = int(layout._nchan)
     chan_states, chan_of = layout._chan_states, layout._chan_of
 
-    # ---- 3b. the declared characters, parsed before anything expensive runs --
+    # 3b. The declared characters, parsed before anything expensive runs.
     kept_u_ind = {int(syms[p].ind) for p in u_pos}
     kept_au_ind = {int(syms[p].ind) for p in au_pos}
     site_tables, decls, char_note = {}, [], ""
     try:
-        # the site tables read a declaration and name the labelling; a build
-        # whose matrices are wanted only up to that labelling, with nothing
-        # declared, needs neither (`_labeled=False`)
+        # the site tables read a declaration and name the labeling; a build whose
+        # matrices are wanted only up to that labeling, with nothing declared,
+        # needs neither (`_labeled=False`)
         if _labeled or characters is not None:
             site_tables = _site_tables(group, assignment, kept_u_ind, kept_au_ind,
                                        range(len(site_orbs)))
@@ -1289,8 +916,8 @@ def _multiplet_layout(model, group, assignment, ops, *, multiplets, characters,
         if characters is not None:
             gate = getattr(exc, "gate", "site_group")
             return Refusal(gate, str(exc), context={"multiplets": layout})
-        # nothing was declared: the echo record is a courtesy and must never
-        # break a build that would otherwise succeed.
+        # nothing was declared: the site tables only name what was read, and their
+        # failure never stops a build that would otherwise succeed
         site_tables, char_note = {}, f"site character tables unavailable: {exc}"
     if characters is not None:
         try:
@@ -1299,8 +926,8 @@ def _multiplet_layout(model, group, assignment, ops, *, multiplets, characters,
         except _sitechars.DeclarationError as exc:
             return Refusal(exc.gate, exc.message,
                            context=dict(exc.context, multiplets=layout))
-        # A DECLARATION STATES WHAT EACH SITE HOLDS, read on the multiplets
-        # above, which it never changes
+        # A declaration states what each site holds, read on the multiplets above,
+        # which it never changes.
         decls = _declared_blocks(decls, layout, assignment, site_tables, spin=spin)
         for d in decls:
             d["channels"] = tuple(sorted({int(chan_of[int(o)])
@@ -1310,10 +937,10 @@ def _multiplet_layout(model, group, assignment, ops, *, multiplets, characters,
     if isinstance(cperm, Refusal):
         return cperm
     classes, ncls = _channel_classes(cperm, u_pos, nchan)
-    # THE ANCHOR the representation is written against before any labelling is
+    # The anchor the representation is written against before any labeling is
     # chosen: orbital 0's multiplet, whichever orbital the lowest-angular-momentum
-    # rule reads the crystal from first (``reference_orbital``, the lead of its
-    # own coupled part when the labelling is chosen)
+    # rule reads first (``reference_orbital``, the lead of its own coupled part
+    # when the labeling is chosen).
     ref_orb = int(reference_orbital)
     ref_chan = int(chan_of[ref_orb])
     anchor = int(chan_of[0])
@@ -1329,30 +956,18 @@ def _measurement_read(model, group, assignment, ops, mul, *, internal_tol, max_c
                       _choices):
     """What the measurement reads on the multiplets, made once or handed in.
 
-    Parameters
-    ----------
-    model : pythtb.TBModel
-        As in :func:`_build_rep`.
-    group : ..groups.GroupData
-        As in :func:`_build_rep`.
-    assignment : ..groups.OrbitalAssignment
-        As in :func:`_build_rep`.
-    internal_tol : float
-        As in :func:`_build_rep`.
-    max_candidates : int
-        As in :func:`_build_rep`.
-    _choices : .._declaration._Verdict or None
-        A measurement made earlier on this group, used where it was made on the same unitary
-        operations, declarations, tolerance, orbits and anchor.
-    ops : _Operations
-        As :func:`_represented_operations` returns it.
-    mul : _Multiplets
-        As :func:`_multiplet_layout` returns it.
-
-    Returns
-    -------
-    _Measured or Refusal
-        The record, or the refusal that ends the build.
+    ``model``, ``group``, ``assignment``, ``internal_tol`` and ``max_candidates``
+    are as in :func:`_build_rep`; ``ops`` and ``mul`` are what
+    :func:`_represented_operations` and :func:`_multiplet_layout` return.
+    ``_choices`` is a measurement made earlier on this group, used where it was
+    made on the same unitary operations, declarations, tolerance, orbits and
+    anchor; the measurement is made here otherwise.  Returns the
+    :class:`_Measured`, or the refusal that ends the build:
+    ``declaration_breaks_group`` where the declared site irreps are not
+    covariant under every operation, ``rep_not_multiplicative`` where the copies
+    of a conserved pseudospin admit no representation, or
+    ``rep_search_too_large``, where the representations to weigh exceed
+    ``max_candidates``.
 
     Raises
     ------
@@ -1382,23 +997,21 @@ def _measurement_read(model, group, assignment, ops, mul, *, internal_tol, max_c
     ref_orb = mul.ref_orb
     site_tables = mul.site_tables
 
-    # ---- 4. THE MEASUREMENT, made once ----------------------------------------
-    # What each operation's solution space says about the orbitals, read once:
-    # the internal matrix S(g) of every multiplet -- the tables' lift on a
-    # one-dimensional multiplet, with the sign the model's transport gives it
-    # from site to site, and the block of the model's own intertwiner on a wider
-    # one, carried round the orbit -- what the declared content does to each
-    # operation, what each multiplet orbit carries relative to the anchor where
-    # the hoppings pin it, and the scalar time reversal carries on each orbit.
-    # Where `..groups.realized_group` made this reading on this same group it is
-    # handed in; otherwise it is made here, once, and nothing below reads a
-    # solution space for it again.
-    # HOW FAR OUTSIDE A SOLUTION SPACE still counts as inside it: the model's
-    # own defect, which for a numerical Hamiltonian is what `internal_tol`
-    # already states, and the declared tolerance the multiplets were measured
-    # at where that is larger.  An exact model leaves it at the read-off's own
-    # 1e-8.  The same declared tolerance reaches every threshold below that
-    # judges a solution space: a vanishing block or ratio, a sign read off one.
+    # 4. The measurement, made once.
+    # What each operation's solution space says about the orbitals: the internal
+    # matrix S(g) of every multiplet (the tables' lift on a one-dimensional
+    # multiplet, with the sign the model's transport gives it from site to site,
+    # and the block of the model's own solution space on a wider one, carried
+    # round the orbit), what the declared site irreps do to each operation, what
+    # each orbit of multiplets carries relative to the anchor where the hoppings
+    # pin it, and the scalar time reversal carries on each orbit.  A reading
+    # `..groups.realized_group` made on this same group is handed in; otherwise
+    # it is made here, and nothing below reads a solution space for it again.
+    # How far outside a solution space still counts as inside it: the largest of
+    # 1e-8, the declared tolerance the multiplets were measured at, and
+    # `internal_tol`.  The same declared tolerance sets every threshold below
+    # that judges a solution space: a vanishing block or ratio, a sign read off
+    # one.
     eps = layout._tol
     zero, snap = noise_floor(ZERO, eps), noise_floor(SNAP, eps)
     space_tol = max(noise_floor(IN_SPACE, eps), float(internal_tol))
@@ -1436,19 +1049,19 @@ def _measurement_read(model, group, assignment, ops, mul, *, internal_tol, max_c
             asked = sorted({len(chan_states[c]) for c in range(nchan)})
             raise InternalError(
                 f"no internal block of size {asked} could be obtained for operation "
-                f"#{syms[p].ind}: a measured multiplet's block comes from the model's own "
-                f"solution space, and the record of the operations measured holds none "
-                f"that reaches that multiplet's image.")
+                f"#{syms[p].ind}: the record of the operations measured holds none that "
+                f"reaches the multiplet's image under the operation. Report it, with the "
+                f"model and the call.")
         S_gen[p] = S
 
-    # WHAT TIME REVERSAL CARRIES ON EACH ORBIT OF MULTIPLETS, as the measurement
+    # What time reversal carries on each orbit of multiplets, as the measurement
     # read it: its internal factor on every multiplet, times one scalar per
-    # orbit -- one on orbitals that are real functions
+    # orbit, one on orbitals that are real functions.
     reversal = np.ones(ncls, dtype=complex)
     if T_pos is not None and verdict.reversal is not None:
         reversal = np.asarray(verdict.reversal, dtype=complex)
 
-    # THE CANDIDATE CHARACTERS: the one-dimensional characters of the group the
+    # The candidate characters: the one-dimensional characters of the group the
     # representation is blind to, single-valued on the orbital factor.  With
     # time reversal they are the real ones, each primed operation carrying its
     # unitary part's value; without it, every one-dimensional character of the
@@ -1465,9 +1078,9 @@ def _measurement_read(model, group, assignment, ops, mul, *, internal_tol, max_c
              for chi in _characters_of_subgroup(group, u_inds, roots=True)] or admissible)
 
     unpinned = verdict.free_classes
-    # WHAT THE DECLARATIONS ASK, as the verdict stage read it: one character per
+    # What the declarations ask, as the measurement read it: one character per
     # coupled part of the crystal, each part's declarations constraining its
-    # own.  A declared content not covariant on all of this group breaks
+    # own.  Declared site irreps not covariant on all of this group break
     # operations of it.
     if decls:
         sub = _covariant_subgroup(group, u_inds, verdict.requirements,
@@ -1479,10 +1092,9 @@ def _measurement_read(model, group, assignment, ops, mul, *, internal_tol, max_c
         if isinstance(sub, Refusal):
             return sub
         if sub.broken:
-            # THE DECLARED CONTENT IS NOT COVARIANT ON ALL OF THIS GROUP, and
-            # this call was handed a fixed group and cannot lower it.  So the
-            # honest answer is the subgroup it IS covariant on -- the group
-            # `realized_group` descends to, made by the same function there.
+            # The declared site irreps are not covariant on all of this group, which
+            # this call cannot lower: the refusal names the subgroup they are covariant
+            # on, the group `realized_group` descends to, made by the same function.
             return _declaration_breaks(
                 group, assignment, decls, verdict,
                 standing=[int(syms[p].ind) for p in kept], subgroup=sub.subgroup,
@@ -1491,12 +1103,12 @@ def _measurement_read(model, group, assignment, ops, mul, *, internal_tol, max_c
                              "cannot lower."),
                 site_tables=site_tables, admissible=admissible)
 
-    # ---- 4c. THE COUPLED PARTS OF THE CRYSTAL, as the measurement read them --
+    # 4c. The coupled parts of the crystal, as the measurement read them.
     # The hoppings fix every multiplet's block up to one one-dimensional
-    # character per coupled part -- the multiplets they connect, directly or
+    # character per coupled part, the multiplets they connect directly or
     # through others: the anchor's first, then the orbits the hoppings leave
     # free of it, grouped where they pin one another.  Inside a part the orbits
-    # carry the ratios the hoppings pin between them.  Derived once, here.
+    # carry the ratios the hoppings pin between them.
     coupled_parts = _coupled_parts(classes, unpinned, verdict.parts)
     part_of_class = {int(cls): i for i, part in enumerate(coupled_parts) for cls in part}
     free_lead = {int(cls): int(min(part)) for part in coupled_parts[1:] for cls in part}
@@ -1510,44 +1122,17 @@ def _candidate_battery(model, group, ops, mul, meas, *, k_pts, n_battery, seed, 
                        internal_tol, product_tol, phases, orientation_branch):
     """What each candidate representation is measured against, and the choices on offer.
 
-    Parameters
-    ----------
-    model : pythtb.TBModel
-        As in :func:`_build_rep`.
-    group : ..groups.GroupData
-        As in :func:`_build_rep`.
-    k_pts : array
-        As in :func:`_build_rep`.
-    n_battery : int
-        As in :func:`_build_rep`.
-    seed : int
-        As in :func:`_build_rep`.
-    tol : float
-        As in :func:`_build_rep`.
-    internal_tol : float
-        As in :func:`_build_rep`.
-    product_tol : float
-        As in :func:`_build_rep`.
-    phases : sequence of complex
-        As in :func:`_build_rep`.
-    orientation_branch : None or {+1, -1}
-        As in :func:`_build_rep`.
-    ops : _Operations
-        As :func:`_represented_operations` returns it.
-    mul : _Multiplets
-        As :func:`_multiplet_layout` returns it.
-    meas : _Measured
-        As :func:`_measurement_read` returns it.
-
-    Returns
-    -------
-    _Battery
-        What every candidate is measured against, and the choices on offer.
+    ``model``, ``group``, ``k_pts``, ``n_battery``, ``seed``, ``tol``,
+    ``internal_tol``, ``product_tol``, ``phases`` and ``orientation_branch`` are
+    as in :func:`_build_rep`; ``ops``, ``mul`` and ``meas`` are what
+    :func:`_represented_operations`, :func:`_multiplet_layout` and
+    :func:`_measurement_read` return.  The k-points and ``tol`` are filled
+    where they are ``None``.  Returns the :class:`_Battery`.
 
     Raises
     ------
     ValueError
-        An ``orientation_branch=`` that names nothing.
+        An ``orientation_branch=`` that names nothing, a boolean among them.
     """
     T_pos = ops.T_pos
     au_of = ops.au_of
@@ -1572,13 +1157,13 @@ def _candidate_battery(model, group, ops, mul, meas, *, k_pts, n_battery, seed, 
     tree = {"gens": gens, "words": words, "parent": parent, "spf": spf, "ident": ident,
             "nstate": nstate, "T_pos": T_pos, "au_of": au_of}
 
-    # ---- 5. the covariance battery ----------------------------------------
+    # 5. The covariance battery.
     k_pts = _covariance_battery(group, k_pts, n_battery, seed)
     bloch = _bloch.evaluator(model)
     H = np.asarray(bloch(k_pts))
     if tol is None:
         # the rounding this representation's own arithmetic and the Bloch
-        # phases carry, measured on the battery it is gated on, and never
+        # phases carry, measured on the battery it is checked on, and never
         # below the exact floor
         tol = covariance_gate(len(kept), nstate, float(np.abs(H).max()),
                               _phase_rounding(bloch, group, [syms[p] for p in kept], k_pts))
@@ -1590,53 +1175,32 @@ def _candidate_battery(model, group, ops, mul, meas, *, k_pts, n_battery, seed, 
 
     _gate_lifts = {p: _gate_lift(ops, mul, meas, p) for p in u_pos}
 
-    # ---- 5b. normalization, as a function of one candidate ------------------
-    # Phase-canonicalize the generators (canonical norm + antiunitary anchor +
-    # positivity) and propagate along the same BFS tree.  Written as a function
-    # of the candidate rather than of the winner so that the product-table gate
-    # can run on the matrices the object will carry: `search["product"]`
-    # and `SpaceGroupRep.numerical.product_residual` are then the same measurement rather
-    # than two drafts of it.  Cheap enough because it runs only on candidates
-    # that already closed the covariance and internal-factor gates.
+    # 5b. Normalization, as a function of one candidate.
+    # On each candidate that passed the covariance and internal-factor checks,
+    # the generators are brought to their canonical norm, antiunitary anchor and
+    # positivity, and the rest propagated along the same tree, so that the
+    # product-table check runs on the matrices returned.
     #
-    # THE EXACT REPRESENTATION NEAREST THE MODEL'S OWN BLOCKS.  A wider
-    # multiplet's block is the model's own, so a near-symmetric model's carries
-    # its noise and the candidate composes by the table only to that noise --
-    # no canonical norm can be read off it.  Where it misses by more than the
-    # norm's own gate it is replaced by the exact representation nearest it
-    # (:func:`.._matrices._settled`).  Only a miss the model's own noise explains is
-    # projected -- within a hundred times the internal factor's tolerance,
-    # which is the noise the build was told to expect: a candidate that misses
-    # the table by a sign misses it by order one, and the product-table gate is
-    # what refuses it.
+    # The exact representation nearest the model's own blocks.  A wider
+    # multiplet's block is the model's own and carries a near-symmetric model's
+    # noise.  Where a candidate misses the product table by more than the
+    # canonical norm's tolerance and by at most `reach`, a hundred times
+    # `internal_tol` and at most 1e-2, its matrices are replaced by the nearest
+    # exact representation (:func:`.._matrices._settled`).  A candidate that
+    # misses the table by a sign misses it by order one, and the product-table
+    # check refuses it.
     reach = min(1e-2, 100.0 * float(internal_tol))
 
-    # ---- 5c. THE SETTLING, one coupled part at a time --------------------------
-    # A part holding a one-dimensional multiplet is written in the tables' own
-    # lift: its blocks are that lift, carried round each orbit with the signs
-    # the hoppings give it, and a wider multiplet the hoppings couple to it is
-    # put in the same phase (`_multiplet_blocks`), so the parts that hold one
-    # are settled together, by one canonical norm.  A part of wider multiplets
-    # alone carries its blocks as the model's own, read off one member of a
-    # solution space, and so carries that member's free phase, which no other
-    # part shares.  So each such part is settled on its own, and a crystal of
-    # one part is one of them: its generators in their canonical norm and
-    # anchor at its own lead multiplet (the anchor's for the anchor's own part),
-    # the rest propagated, and -- wherever the signs positivity picks there do
-    # not multiply: no antiunitary operation and a multi-dimensional lead with
-    # no table lift behind it, or a one-dimensional lead whose character on its
-    # site group no one-dimensional character of the group restricts to -- the
-    # multiplication table choosing among the roots each canonical norm admits
-    # (:func:`.._matrices._table_phases`).  Spin-1/2 states read in
-    # single-valued tables arrive there: their matrices are a projective
-    # representation, and where its class is trivial the phases that make it a
-    # representation of the group are among these roots; a group with two
-    # perpendicular twofolds, whose spinor matrices anticommute, has none, and
-    # the refusal below says so.  The table anchor applies to a one-dimensional
-    # lead in a group with no antiunitary operation (:attr:`RepAnchor.internal`):
-    # there `sym.spinor_rotation` IS the internal factor, read from the shipped
-    # datum rather than from what was assembled.  What is left on each part is
-    # its one-dimensional character, which the labelling chooses.
+    # 5c. The settling, one coupled part at a time.
+    # The parts that hold a one-dimensional multiplet are written in the tables'
+    # own lift, and are settled together, by one canonical norm.  A part of wider
+    # multiplets alone carries the free phase of one member of a solution space,
+    # which no other part shares, and is settled on its own, at its own lead
+    # multiplet.  Each unit's generators are brought to their canonical norm and
+    # anchor and the rest propagated; where the signs positivity picks do not
+    # multiply, the multiplication table chooses among the roots each canonical
+    # norm admits (:func:`.._matrices._table_phases`).  What is left on each part
+    # is its one-dimensional character, which the labeling chooses.
     n_parts = len(coupled_parts)
     lifted = [any(layout._chan_kind[c] == "tables" for c in range(nchan)
                   if part_of_class.get(int(classes[c]), 0) == i) for i in range(n_parts)]
@@ -1654,58 +1218,45 @@ def _candidate_battery(model, group, ops, mul, meas, *, k_pts, n_battery, seed, 
                                orbitals=tuple(sorted(int(o) for c in its
                                                      for o in layout._chan_orbs[c]))))
 
-    # ---- 6. the search ----------------------------------------------------
+    # 6. The search.
     phases = tuple(complex(z) for z in phases)
     n_free = len(gens) * len(free_cls)
     if orientation_branch is None:
         orients = (1, -1)
     elif isinstance(orientation_branch, bool):
         # a boolean is not a branch: True would read as +1 through int(), silently
-        raise ValueError("orientation_branch must be None (both branches), +1 (the g "
-                         "branch) or -1 (the g^-1 branch), not a boolean; got "
-                         f"{orientation_branch!r}")
+        raise ValueError(f"_build_rep(): orientation_branch={orientation_branch!r} is a "
+                         "boolean. Pass None, +1 or -1.")
     elif int(orientation_branch) == 1:
         orients = (1,)
     elif int(orientation_branch) == -1:
         orients = (-1,)
     else:
-        raise ValueError("orientation_branch must be None (both branches), +1 (the g "
-                         "branch) or -1 (the g^-1 branch), got "
-                         f"{orientation_branch!r}")
+        raise ValueError(f"_build_rep(): orientation_branch={orientation_branch!r} names "
+                         "no branch. Pass None, +1 or -1.")
 
-    # WHERE THE CHOICE APPLIES: every block of the operation at once.  A
+    # Where the choice applies: every block of the operation at once.  A
     # relative character the Hamiltonian leaves open is assembled here as the
-    # trivial one (`_relative`), the labelling choosing its part's own in
-    # step 7b, and that is one statement about the whole matrix, not one per
-    # site.  Two sites the Hamiltonian couples to each other not at all are as
-    # free as two multiplets of one site, and `RealizedGroup.conserved` is
-    # where the decoupling is said.
+    # trivial one (`_relative`), the labeling choosing its part's own in step 7b,
+    # and that is one statement about the whole matrix, not one per site.  Two
+    # sites the Hamiltonian couples to each other not at all are as free as two
+    # multiplets of one site, and `RealizedGroup.conserved` is where the
+    # decoupling is said.
     all_blocks = [list(range(nchan))]
 
-    # ---- 6b'. the orientation branch, pinned by convention when the gates tie
-    # The internal-factor gate separates the two branches whenever
-    # `S(g)^dag != +-S(g)` -- every rotation of order three or more -- because
-    # the `g^-1` candidate carries `S(g)^dag` where the group says `S(g)`.  For a
-    # group of involutions only (`mm2`, `P-1`, a `2/m` on a spinful model) the
-    # lift satisfies `S(g)^dag = -S(g)`, the free per-block coefficient of that
-    # gate absorbs the sign, and all three gates are blind to the branch.  There
-    # is then nothing left to measure, and refusing would only demand a
-    # convention the build is in a better position to state: when the two
-    # branches' candidates both close all three gates AND are one representation
-    # up to a one-dimensional character on each coupled part of the crystal --
-    # so that the same labellings, and the same site irreps, are open on both --
-    # the read-off's own branch `+1` -- the intertwiner that carries `k -> gk` --
-    # is returned, and `branch_tie` says the choice was a convention rather than
-    # a measurement.  `rep_not_unique` remains the verdict for everything else:
-    # survivors that are not one representation up to such a character, more
-    # than two of them, or two on the same branch.
-    #
-    # It runs on the candidate SET, before the strategy dispatch, for the same
-    # reason `_gate` does: the read-off's two candidates are then accepted where
-    # the tie resolves, instead of being handed to an enumeration that would
-    # rediscover the identical pair -- and on a model whose enumeration is
-    # refused (`rep_search_too_large`) that is the difference between a returned
-    # representation and none at all.
+    # 6b'. The orientation branch, pinned by convention when the checks tie.
+    # The internal-factor check tells the two branches apart wherever
+    # `S(g)^dag` is not a multiple of `S(g)`, the factor being free on each
+    # block.  On a group of involutions alone `S(g)^2` is a multiple of the
+    # identity, so `S(g)^dag` is a multiple of `S(g)`, and all three checks are
+    # blind to the branch.  Where the two branches' candidates both pass all
+    # three checks and are one representation up to a one-dimensional
+    # character on each coupled part (`_one_labeling_apart`, on the
+    # multiplets of each part), the branch `+1`, the intertwiner that
+    # carries `k -> gk`, is returned with `branch_tie` set (`_pin_branch`).  Any
+    # other set of more than one survivor is refused `rep_not_unique`.  The tie
+    # is settled on the candidate set, before the strategy dispatch, so the
+    # read-off's two candidates are accepted where it resolves.
     part_chans = [[int(c) for c in range(nchan) if int(classes[c]) in part]
                   for part in coupled_parts]
     return _Battery(tree=tree, k_pts=k_pts, bloch=bloch, H=H, Hrot=Hrot, kact=kact, tol=tol,
@@ -1717,36 +1268,22 @@ def _candidate_battery(model, group, ops, mul, meas, *, k_pts, n_battery, seed, 
 
 def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
                         internal_tol, product_tol, _search_record):
-    """The candidate representation the three gates accept.
+    """The candidate representation the three checks accept.
 
-    Parameters
-    ----------
-    group : ..groups.GroupData
-        As in :func:`_build_rep`.
-    strategy : {"readoff", "enumerate"}
-        As in :func:`_build_rep`.
-    max_candidates : int
-        As in :func:`_build_rep`.
-    internal_tol : float
-        As in :func:`_build_rep`.
-    product_tol : float
-        As in :func:`_build_rep`.
-    _search_record : dict or None
-        Where given, the record of the search is put under its ``"search"`` key, beside a
-        refusal as well.
-    ops : _Operations
-        As :func:`_represented_operations` returns it.
-    mul : _Multiplets
-        As :func:`_multiplet_layout` returns it.
-    meas : _Measured
-        As :func:`_measurement_read` returns it.
-    bat : _Battery
-        As :func:`_candidate_battery` returns it.
-
-    Returns
-    -------
-    _Accepted or Refusal
-        The record, or the refusal that ends the build.
+    ``group``, ``strategy``, ``max_candidates``, ``internal_tol`` and
+    ``product_tol`` are as in :func:`_build_rep`; ``ops``, ``mul``, ``meas`` and
+    ``bat`` are what :func:`_represented_operations`, :func:`_multiplet_layout`,
+    :func:`_measurement_read` and :func:`_candidate_battery` return.
+    ``_search_record``, where given, receives the record of the search under
+    its ``"search"`` key, beside a refusal as well.  Under
+    ``strategy="readoff"`` the read-off runs first, and the enumeration runs
+    where it reads nothing or what it read does not give one representation,
+    unless none of what it read passes the covariance check and the best lies
+    between that check's tolerance and a larger declared tolerance, where the
+    call refuses ``rep_not_covariant``.  Returns the :class:`_Accepted`, or the refusal that
+    ends the build: ``rep_search_too_large``, ``rep_not_covariant``,
+    ``rep_internal_factor``, ``canonical_norm``, ``antiunitary_anchor``,
+    ``rep_not_multiplicative`` or ``rep_not_unique``.
     """
     gens = ops.gens
     kept = ops.kept
@@ -1764,7 +1301,7 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
     phases = bat.phases
     tol = bat.tol
 
-    # ---- 6c. the read-off, and the enumeration behind it --------------------
+    # 6c. The read-off, and the enumeration behind it.
     n_enumeration = int(len(phases) ** n_free * len(orients))
     read = _ReadOff(choices=(), branches={}, reason=None,
                     record={"n_enumeration": n_enumeration, "branches": {}, "reason": None,
@@ -1789,19 +1326,16 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
         if len(pin.survivors) == 1:
             strategy_used = "readoff"
         elif not outcome.covariant and declared_tol > tol and tol < best <= declared_tol:
-            # WHAT WAS READ IS NEAR-SYMMETRIC: the representation assembled from
-            # what the solution spaces measured at the declared tolerance closes
-            # it and misses only the exact gate.  That is the verdict -- the
-            # operations, or parts of the crystal coupled below the precision,
-            # obeyed within what was declared and not exactly -- and no other
-            # choice of signs, which the measurement never pinned, stands in for
-            # it; the projection is the route.
+            # What was read is near-symmetric: the representation assembled from what
+            # the solution spaces measured passes the covariance check at the declared
+            # tolerance and misses it only at the exact one.  No other choice of signs,
+            # which the measurement never pinned, stands in for it, so nothing is
+            # enumerated and the refusal below says so.
             strategy_used = "readoff"
         else:
-            # The read-off is a way to FIND the candidate, never to accept one:
-            # a read that the gates do not confirm is handed back to the
-            # enumeration of the phases on offer, whose refusal (or survivor) is
-            # the one returned, and what was read is said with it.
+            # The read-off finds the candidate and never accepts one: a read the checks
+            # do not confirm is handed to the enumeration of the phases on offer, whose
+            # refusal or survivor is the one returned, and what was read is said with it.
             said = "; ".join(
                 f"branch {orient:+d}: " + (", ".join(
                     f"generator #{ind} reads {_factor_said(z)} on orbit {c}"
@@ -1825,23 +1359,16 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
             except OverflowError:  # pragma: no cover - past 2**1024 choices
                 measured = float("inf")
             hint = ("" if fallback is None else
-                    f" The read-off deferred to it because {fallback}, which is the "
-                    f"thing to act on: a read that is not clean says the tensor "
-                    f"structure D(g) = O(g) (x) S(g) does not describe this operation "
-                    f"set on this orbital content, and enumerating it would not make it "
-                    f"one.")
+                    f" The choices were not read off the measurement because {fallback}.")
             return Refusal(
                 "rep_search_too_large",
-                f"the enumeration of this build's discrete choices would run "
-                f"{n_enumeration:,} candidates -- {len(phases)} phases on "
-                f"{len(gens)} generator(s) x {ncls - 1} free orbit(s) of multiplets of "
-                f"{ncls}, times {len(orients)} orientation branch(es) -- against "
-                f"max_candidates = {max_candidates:,}. At the few milliseconds a "
-                f"candidate costs that is hours, so it is refused rather than run."
-                f"{hint} A `site_multiplets=` stating a multi-orbital site as one multiplet "
-                f"cuts the class count sharply, and `realized_group(..., "
-                f"max_candidates=...)` with a larger ceiling runs the enumeration if it "
-                f"is worth waiting for.",
+                f"the enumeration of the representation's discrete choices would run "
+                f"{n_enumeration:,} candidates ({len(phases)} phases for each of "
+                f"{len(gens)} generator(s) on each of {ncls - 1} free orbit(s) of "
+                f"multiplets out of {ncls}, on {len(orients)} orientation branch(es)) "
+                f"against max_candidates = {max_candidates:,}.{hint} State a site of "
+                f"several orbitals as one multiplet with `site_multiplets=`, or pass a "
+                f"larger `max_candidates=` if the enumeration is worth waiting for.",
                 value=measured, threshold=float(max_candidates),
                 context={"n_generators": len(gens), "n_classes": int(ncls),
                          "n_free": int(n_free), "n_candidates": n_enumeration,
@@ -1867,14 +1394,9 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
     branch_tie, branch_note = pin.tie, pin.note
 
     search_record = dict(outcome.search)
-    # The headline read-off numbers describe **the read that produced the
-    # accepted representation** -- the surviving branch.  The losing branch's
-    # numbers are a measurement of a candidate nobody kept (on a generator whose
-    # multiplet permutation is not an involution the `g^-1` pattern is disjoint
-    # from the `g` one, and its tensor-structure defect is the whole norm of the
-    # solution),
-    # so they stay in `search["readoff"]["branches"]` rather than standing for
-    # the build.
+    # The read-off numbers at the head of the record describe the read that
+    # produced the accepted representation, the surviving branch.  The other
+    # branch's numbers stay in `search["readoff"]["branches"]`.
     accepted = {}
     if strategy_used == "readoff" and len(survivors) == 1:
         won = int(survivors[0][0]["orientation"])
@@ -1898,42 +1420,30 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
         # the record of the search, handed back where asked beside a refusal,
         # which carries only the number of candidates tried
         _search_record["search"] = search
-    # A declared spinor basis is a tensor structure the gates below test: a pairing that
-    # is well-formed but wrong (partners swapped, up and down exchanged, the
-    # wrong layout for this w90 file) is a different SU(2) placement, and it
-    # dies here rather than in a dedicated gate.  Say so, or the model gets
-    # debugged instead of the declaration.
+    # A declared spinor basis is named beside a refusal of the checks below.
     spin_hint = ("" if spin is None else
-                 f" A `spin=` declaration is in force ({spin._kind!r} spinor basis on "
-                 f"{spin._norb} orbitals); a wrong pairing -- partners swapped, up and down "
-                 f"exchanged, or the wrong layout for this wannier90 file -- fails exactly "
-                 f"here, so check the declaration against the file before the model.")
-    # WHAT THE READ-OFF COULD NOT USE, said beside the enumeration's verdict:
-    # what it read and why that was not a representation, or why it read
-    # nothing, which is the measurement to act on
+                 f" `spin=` declares the {spin._kind!r} spinor basis on {spin._norb} "
+                 f"orbitals.")
+    # What the read-off could not use, said beside the enumeration's verdict:
+    # what it read and why that was not a representation, or why it read nothing.
     n_ph = len(phases)
     read_hint = ("" if fallback is None else
                  f" The enumeration ran because {fallback}. The candidates counted above "
                  f"try {n_ph} phase{'' if n_ph == 1 else 's'} on each free orbit.")
 
     if not covariant:
-        # The detector's own declared tolerance is on its record.  When it lies
-        # ABOVE this gate and the best candidate lands between the two, the
-        # operations are *near*-symmetric -- obeyed within the declared
-        # tolerance, not to machine precision -- and that is the symmetrizing
-        # signal rather than a modelling error.  Stating it is factual: both
-        # numbers were measured, and neither gate moves.
+        # Where the tolerance declared on the detector's record lies above this
+        # check's and the best candidate lands between the two, the operations are
+        # near-symmetric, obeyed within the declared tolerance and not to machine
+        # precision, and the refusal says so.  Neither tolerance moves.
         near_hint = ""
         declared = float(getattr(validated, "tol", tol))
         if declared > tol and spectrum[0] <= declared:
             near_hint = (
-                f" The operations were measured at the declared tolerance {declared:.3g}, "
-                f"above the {tol:.3g} the representation is held to, and the best "
-                f"candidate's {spectrum[0]:.3g} lies between the two: these operations are "
-                f"near-symmetric, obeyed within the declaration and not to machine "
-                f"precision, or on parts of the crystal the measurement reads apart that "
-                f"the hoppings couple only below it, as a numerical (wannier90) "
-                f"Hamiltonian gives.")
+                f" The operations were kept at the declared tolerance {declared:.3g}, and "
+                f"the best candidate's {spectrum[0]:.3g} lies between it and the "
+                f"{tol:.3g} the representation is held to: these operations are "
+                f"near-symmetric, obeyed within the declared tolerance and not exactly.")
         # how far the best candidate carries H(k) under each operation, so that
         # an operation it misses can be read beside what it is held at alone
         nearest = min(distinct, key=lambda grp: float(grp[0]["residual"]))[0]["matrices"]
@@ -1942,14 +1452,10 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
         return Refusal(
             "rep_not_covariant",
             f"none of the {len(records)} candidate representations ({len(distinct)} distinct) "
-            f"carries H(k) onto itself within the tolerance: the best reaches "
-            f"{spectrum[0]:.3g} against {tol:.3g}. Either the operation set is not realized "
-            f"on this orbital content (a slab operation, or one the Hamiltonian breaks "
-            f"though a matrix with its action on k carries H(k) onto itself) or the tensor "
-            f"structure is too narrow for the multiplets it was given — "
-            f"a site whose orbitals mix under its site-symmetry group is one multiplet, "
-            f"which is what the measured multiplets read off the solution spaces and "
-            f"what a `site_multiplets=` states.{read_hint}{near_hint}{spin_hint}",
+            f"carries H(k) onto H(Rk) within the tolerance: the best reaches "
+            f"{spectrum[0]:.3g} against {tol:.3g}.{read_hint}{near_hint}{spin_hint} Where "
+            f"`site_multiplets=` states the multiplets, state each site whose orbitals mix "
+            f"under its site-symmetry group as one multiplet.",
             value=float(spectrum[0]), threshold=float(tol),
             context={"n_candidates": int(search["n_candidates"]), "multiplets": layout,
                      "indices": tuple(int(syms[p].ind) for p in kept),
@@ -1959,12 +1465,10 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
         return Refusal(
             "rep_internal_factor",
             f"{len(covariant)} of the {len(distinct)} distinct candidates carry H(k) onto "
-            f"itself within {tol:.3g}, but on none of them does a site block factorize into "
+            f"H(Rk) within {tol:.3g}, but on none of them does a site block factorize into "
             f"(character) x (the group's own internal factor): the best defect is "
-            f"{int_spectrum[0]:.3g} against {internal_tol:.3g}. These matrices commute with H "
-            f"the way the group says, but they are not the matrices of *these* operations — "
-            f"nothing here has a site character to be read off it, so no orbital could be "
-            f"declared or labeled.{read_hint}{spin_hint}",
+            f"{int_spectrum[0]:.3g} against {internal_tol:.3g}.{read_hint}{spin_hint} Where "
+            f"`site_multiplets=` states the multiplets, check the statement.",
             value=float(int_spectrum[0]), threshold=float(internal_tol),
             context={"n_candidates": int(search["n_candidates"]), "multiplets": layout,
                      "indices": tuple(int(syms[p].ind) for p in kept),
@@ -1976,12 +1480,12 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
             # normalize_rep's own diagnosis is sharper than anything said here.
             return replace(stuck[0], reason=stuck[0].reason + read_hint) if read_hint \
                 else stuck[0]
-        # WHY NO PHASE HELPS, where the matrices say so.  The candidate that came
+        # Why no phase helps, where the matrices say so.  The candidate that came
         # closest carries, where nothing anchored its phases, whether its matrices
         # form a projective representation at all and whether any roots the
         # canonical norms admit made it multiply.  Projective, and none did: two
-        # commuting operations whose matrices commute only up to a phase the
-        # table does not carry are the gauge-free statement of it.
+        # commuting operations whose matrices commute only up to a phase the table
+        # does not carry are the statement of it that no gauge changes.
         closest = min((grp[0] for grp in consistent if "normalized" in grp[0]),
                       key=lambda r: float(r["product"]))
         found = closest.get("roots")
@@ -2007,24 +1511,21 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
             return Refusal(
                 "rep_not_multiplicative",
                 f"{len(consistent)} of the {len(distinct)} distinct candidates carry H(k) onto "
-                f"itself within the tolerance and factorize on every site into (character) x "
+                f"H(Rk) within the tolerance and factorize on every site into (character) x "
                 f"(the group's own internal factor), and their matrices form a projective "
-                f"representation of {named}: every product D(g1)D(g2) is a phase times "
-                f"D(g1 g2). No choice among the phases the canonical norms admit turns those "
-                f"phases into the group's multiplication table -- the best product-table "
-                f"defect is {prod_spectrum[0]:.3g} against {product_tol:.3g} -- because the "
-                f"class is not the table's. Operations #{syms[a].ind} ({name_a}) and "
+                f"representation of {named} of a class the multiplication table does not "
+                f"carry: the best product-table defect is {prod_spectrum[0]:.3g} against "
+                f"{product_tol:.3g}. Operations #{syms[a].ind} ({name_a}) and "
                 f"#{syms[b].ind} ({name_b}) commute, the table asks "
                 f"D(a)D(b) = {asked:+d} D(b)D(a)"
                 + (" (spinor factors included)" if bool(group.spinor) else "")
-                + f", and on these states D(a)D(b) = {_fmt_char(asked * c)} D(b)D(a). A phase "
-                f"on either matrix cancels from that, so no rephasing removes it, and no "
+                + f", and on these states D(a)D(b) = {_fmt_char(asked * c)} D(b)D(a). No "
                 f"representation of {named} with its own factor system exists on these states."
                 + (f" It is the sign the spin-1/2 lifts of these two operations carry: the "
-                   f"states carry half-integer spin, and no single-valued representation of "
-                   f"this group exists on them. A spinor basis stored in the orbital index -- a "
-                   f"wannier90 import -- is read in the double group once its spin partners are "
-                   f"declared (`spin=`)." if spin_half else "") + read_hint,
+                   f"states carry half-integer spin. Where the orbital index holds the spin, "
+                   f"as in a spinor Wannier90 import, declare the spin partners with `spin=`, "
+                   f"and the states are read in the double group." if spin_half else "")
+                + read_hint,
                 value=float(prod_spectrum[0]), threshold=float(product_tol),
                 context={"n_candidates": int(search["n_candidates"]), "multiplets": layout,
                          "indices": tuple(int(syms[p].ind) for p in kept),
@@ -2034,13 +1535,10 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
         return Refusal(
             "rep_not_multiplicative",
             f"{len(consistent)} of the {len(distinct)} distinct candidates carry H(k) onto "
-            f"itself within the tolerance and factorize on every site into (character) x "
+            f"H(Rk) within the tolerance and factorize on every site into (character) x "
             f"(the group's own internal factor), but none of them reproduces the group's "
             f"multiplication table (spinor factors included): the best product-table defect is "
-            f"{prod_spectrum[0]:.3g} against {product_tol:.3g}. A Hamiltonian-covariant set of "
-            f"matrices that does not multiply is not a representation of this group — the "
-            f"operation set, the generators or the internal blocks are wrong, not the phases."
-            f"{read_hint}",
+            f"{prod_spectrum[0]:.3g} against {product_tol:.3g}.{read_hint}",
             value=float(prod_spectrum[0]), threshold=float(product_tol),
             context={"n_candidates": int(search["n_candidates"]), "multiplets": layout,
                      "indices": tuple(int(syms[p].ind) for p in kept)})
@@ -2048,22 +1546,16 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
         branches = sorted({int(g[0]["orientation"]) for g in survivors})
         orient_hint = (
             "" if branches != [-1, 1] or len(survivors) != 2 else
-            " The two are the two orientation branches, which is the one tie this "
-            "function settles by convention when it can — but only when both return "
-            "the same site labels under the same labeling, and these "
-            "do not, so the choice is a genuine second representation rather than a "
-            "gauge.")
+            " The two are the two orientation branches, and they give different site "
+            "labels under the same labeling.")
         return Refusal(
             "rep_not_unique",
             f"{len(survivors)} distinct representations of {len(records)} candidates carry "
-            f"H(k) onto itself within {tol:.3g}, factorize on every site into (character) x "
-            f"(the group's own internal factor) within {internal_tol:.3g} and reproduce the "
-            f"multiplication table within {product_tol:.3g}; the discrete choice is not "
-            f"pinned. Either the "
-            f"k-point grid the covariance is measured on is too small (it has "
-            f"{k_pts.shape[0]} k-points) or the model carries more symmetry than the group does."
-            f"{orient_hint}{read_hint} Open an issue on pythTQC's GitHub with the model "
-            "and the call: the measurement should have fixed this choice.",
+            f"H(k) onto H(Rk) within {tol:.3g} on {k_pts.shape[0]} k-points, factorize on "
+            f"every site into (character) x (the group's own internal factor) within "
+            f"{internal_tol:.3g} and reproduce the multiplication table within "
+            f"{product_tol:.3g}."
+            f"{orient_hint}{read_hint} Report it, with the model and the call.",
             value=float(len(survivors)), threshold=1.0,
             context={"n_candidates": int(search["n_candidates"])})
     winner = survivors[0][0]
@@ -2075,39 +1567,23 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
 
 def _returned_representation(model, group, assignment, ops, mul, meas, bat, acc, *,
                              _returned):
-    """The representation returned, its labelling put in and everything it claims measured.
+    """The representation returned, its labeling chosen and what it claims measured on it.
 
-    Parameters
-    ----------
-    model : pythtb.TBModel
-        As in :func:`_build_rep`.
-    group : ..groups.GroupData
-        As in :func:`_build_rep`.
-    assignment : ..groups.OrbitalAssignment
-        As in :func:`_build_rep`.
-    _returned : bool
-        Whether this is the representation returned: only then are the Bloch operators'
-        factor system and each orbit's band representation measured.
-    ops : _Operations
-        As :func:`_represented_operations` returns it.
-    mul : _Multiplets
-        As :func:`_multiplet_layout` returns it.
-    meas : _Measured
-        As :func:`_measurement_read` returns it.
-    bat : _Battery
-        As :func:`_candidate_battery` returns it.
-    acc : _Accepted
-        As :func:`_accepted_candidate` returns it.
-
-    Returns
-    -------
-    SpaceGroupRep
+    ``model``, ``group`` and ``assignment`` are as in :func:`_build_rep`;
+    ``ops``, ``mul``, ``meas``, ``bat`` and ``acc`` are what
+    :func:`_represented_operations`, :func:`_multiplet_layout`,
+    :func:`_measurement_read`, :func:`_candidate_battery` and
+    :func:`_accepted_candidate` return.  ``_returned`` says whether this is the
+    representation returned; only then are the Bloch operators' factor system
+    and each orbit's band representation measured.  The labeling is chosen
+    where the site tables were read.  Returns the
+    :class:`..symmetry.SpaceGroupRep`.
 
     Raises
     ------
     ..refusal.InternalError
-        The representation with its labelling in it does not carry ``H(k)`` onto itself
-        within the gate its candidates closed.
+        The representation with its labeling in it misses the covariance check
+        its candidates passed.
     """
     T_pos = ops.T_pos
     au_pos = ops.au_pos
@@ -2145,22 +1621,20 @@ def _returned_representation(model, group, assignment, ops, mul, meas, bat, acc,
     search = acc.search
     winner = acc.winner
 
-    # ---- 7. the winner's normalization, already measured by the gate -------
+    # 7. The winner's normalization, already measured by the checks.
     D, normalization, anchor_T, DT_n = winner["normalized"]
 
-    # ---- 7b. the labelling, chosen once, and put in --------------------------
-    # Everything above is blind to D(g) -> chi(g) D(g) on a coupled part, with
-    # chi a one-dimensional character, and to the representation a conserved
-    # pseudospin's copies carry: the hoppings fix how the orbitals transform
-    # relative to one another, not what they are.  The multiplets' characters
-    # are read once on the representation as settled
-    # (:func:`_multiplet_characters`); one chooser takes each part's candidates
-    # -- what its declarations leave -- to one labelling (:func:`_labeling`);
-    # and it is put in here (:func:`_assembled`), so that the matrices returned
-    # are the representation induced from the returned site content in the
-    # tables' convention, spin up along +z in a right-handed frame.  The record
-    # is then written off what was read and chosen (:func:`_atomic_limit_table`),
-    # nothing measured again.
+    # 7b. The labeling, chosen once, and put in.
+    # Everything above is blind to D(g) -> chi(g) D(g) on a coupled part, chi a
+    # one-dimensional character, and to the representation a conserved
+    # pseudospin's copies carry.  The multiplets' characters are read once on the
+    # representation as settled (:func:`_multiplet_characters`); one chooser
+    # takes each part's candidates, what its declarations leave, to one labeling
+    # (:func:`_labeling`); and it is put in here (:func:`_assembled`), so that
+    # the matrices returned are the representation induced from the site irreps
+    # returned, in the tables' convention, spin up along +z in a right-handed
+    # frame.  The atomic-limit table is then written off what was read and
+    # chosen (:func:`_atomic_limit_table`), nothing measured again.
     limits = None
     if site_tables:
         raw, worst = _multiplet_characters(D, syms, u_pos, cperm, layout, prod)
@@ -2183,13 +1657,13 @@ def _returned_representation(model, group, assignment, ops, mul, meas, bat, acc,
                                      syms=syms, kept=kept, checks=verdict.rows,
                                      pool=pool, site_tables=site_tables, ident=ident,
                                      note=char_note, spin=spin, ref_chan=ref_chan)
-        # A CONSERVED PSEUDOSPIN'S CHOICE, on the record: the site content
-        # chosen for its copies, and every content the group's table admits
-        # beside it, in the order the key ranks them.
+        # A conserved pseudospin's choice, on the record: the site irreps chosen for
+        # its copies, and every choice the group's table admits beside it, in the
+        # order the key ranks them.
         if choice.spaces:
             limits = _with_multiplicity_spaces(limits, choice.spaces, group, assignment)
 
-    # ---- 8. everything the object claims, re-measured ----------------------
+    # 8. Everything the representation claims, measured again.
     residuals, norm_res, anchor_res = {}, {}, {}
     for p in kept:
         ind = int(syms[p].ind)
@@ -2200,26 +1674,24 @@ def _returned_representation(model, group, assignment, ops, mul, meas, bat, acc,
         norm_res[ind] = float(np.abs(_power(U, bool(syms[p].time_reversal), n)
                                      - zeta * np.eye(nstate)).max())
         if anchor_T is not None and not syms[p].time_reversal:
-            # the time reversal returned, the labelling's own included
+            # the time reversal returned, the labeling's own included
             Tn = D[T_pos] if T_pos in D else (DT_n if DT_n is not None else anchor_T)
             anchor_res[ind] = float(np.abs(Tn @ np.conj(U) @ Tn.conj().T - U).max())
-    # THE REPRESENTATION RETURNED closes the gate its candidates closed: every
-    # labelling it is chosen among is one the hoppings leave open, a symmetry of
-    # H, so one that misses the gate is the package disagreeing with itself
+    # The representation returned passes the covariance check its candidates
+    # passed: every labeling it is chosen among is one the hoppings leave open, a
+    # symmetry of H, so one that fails it is the package disagreeing with itself.
     worst_ind = max(residuals, key=residuals.get) if residuals else None
     if worst_ind is not None and residuals[worst_ind] > tol:
         raise InternalError(
-            f"the representation of {group.name} #{group.number_str} with its labeling in "
-            f"it does not carry H(k) onto itself within the tolerance its candidates met: "
-            f"{residuals[worst_ind]:.3g} against {tol:.3g}, on operation {worst_ind}. Every "
-            "labeling chosen among is a "
-            "representation the hoppings leave open, a symmetry of the Hamiltonian; one "
-            "that is not is a defect in this package, not a tolerance to loosen.")
+            f"the representation of {group.name} #{group.number_str} with its labeling "
+            f"does not carry H(k) onto H(Rk) within the tolerance its candidates met: "
+            f"{residuals[worst_ind]:.3g} against {tol:.3g}, on operation {worst_ind}. "
+            "Report it, with the model and the call.")
 
     product_residual = _product_table_residual(D, kept, syms, prod, spf)
 
     # The Bloch operators' factor system and each orbit's band representation
-    # are what the representation RETURNED carries, measured once its matrices
+    # are what the representation returned carries, measured once its matrices
     # are final.  A representation built as the operators of a projection is
     # never returned, and carries neither (`_returned=False`).
     factor_residual = float("nan")
@@ -2286,7 +1758,17 @@ def _returned_representation(model, group, assignment, ops, mul, meas, bat, acc,
 
 
 def _internal(ops, mul, measured_of, p):
-    """``[S per channel]`` for one operation, or ``None`` where a block is missing."""
+    """The internal block ``S(g)`` of the operation at position ``p``, on each multiplet.
+
+    ``ops`` and ``mul`` are the build's :class:`_Operations` and
+    :class:`_Multiplets`, and ``p`` is the operation's position in ``ops.syms``.
+    ``measured_of`` holds each operation's measured block on each multiplet, by
+    the operation's index and the multiplet's.  A one-dimensional multiplet with
+    no block measured takes the operation's own lift
+    (:func:`.._matrices._lift_of`).  Returns one block per multiplet, or ``None``
+    where a wider multiplet has no block, or a block's size is not its
+    multiplet's number of states.
+    """
     syms = ops.syms
     chan_states = mul.chan_states
     layout = mul.layout
@@ -2308,11 +1790,14 @@ def _internal(ops, mul, measured_of, p):
 
 
 def _relative(ops, meas, p_gen, cls):
-    """The class scalar the build assembles with, at one generator.
+    """The factor on an orbit of multiplets that the build assembles a generator with.
 
-    What the measurement pinned relative to the anchor; and on an orbit the
-    hoppings leave free of it, the trivial relative character -- the
-    labelling chooses its part's own afterwards.
+    ``ops`` and ``meas`` are the build's :class:`_Operations` and
+    :class:`_Measured`; ``p_gen`` is the generator's position in ``ops.syms``
+    and ``cls`` the orbit.  Returns the factor the measurement pinned on the
+    orbit relative to the anchor's orbit, or ``None`` where it pinned none.  On
+    an orbit the hoppings leave free of the anchor it returns ``1``, the trivial
+    relative character; the labeling chooses that part's own character later.
     """
     syms = ops.syms
     unpinned = meas.unpinned
@@ -2340,7 +1825,14 @@ def _assemble(ops, mul, p, S, sign_of_class):
 
 
 def _propagate(bat, Dgen, DT):
-    """Propagate the generators along the word tree (:func:`_propagated`)."""
+    """Every represented operation's matrix, propagated from the generators'.
+
+    ``bat`` is the build's :class:`_Battery`, whose ``tree`` holds the words.
+    ``Dgen`` holds the generators' matrices, in the order of the build's
+    generators, and ``DT`` the matrix of its antiunitary operation, or ``None``
+    where it has none.  Returns each operation's matrix by its position
+    (:func:`.._matrices._propagated`).
+    """
     tree = bat.tree
 
     return _propagated(Dgen, DT, **tree)
@@ -2351,23 +1843,30 @@ def _covariance(ops, bat, D):
 
 
 def _covariance_of(ops, bat, D, p):
-    """``max_k |D(g) H(k) D(g)† − H(gk)|`` of one operation, at position ``p``, over the battery."""
+    """The covariance residual of the operation at position ``p``, over the battery.
+
+    ``ops`` and ``bat`` are the build's :class:`_Operations` and
+    :class:`_Battery`, and ``D`` maps each operation's position to its matrix.
+    Returns ``max_k |D(g) H(k) D(g)† − H(gk)|``, the largest modulus of an
+    entry over the battery's k-points, with ``H(k)*`` in place of ``H(k)`` for
+    an operation combined with time reversal, in the units of ``H``.
+    """
     U = D[p]
     src = bat.H.conj() if ops.syms[p].time_reversal else bat.H
     return float(np.abs(U @ src @ U.conj().T - bat.Hrot[p]).max())
 
 
 def _gate_lift(ops, mul, meas, p):
-    r"""``[S per channel]`` the closed gate below measures against.
+    r"""The blocks the internal-factor check holds the operation at position ``p`` to.
 
-    It is the block :func:`_multiplet_blocks` settled on — the one the
-    matrices were assembled from, so that the gate is the statement that
-    every multiplet carries its own block and not a comparison against
-    whichever member of the solution space a polar extraction happened to
-    return — and the operation's own lift, the tables'
-    (``sym.spinor_rotation``), on a one-dimensional multiplet no block was
-    read for.  An entry is ``None`` where no block could be measured, and
-    that multiplet is skipped: there is nothing to test it against.
+    ``ops``, ``mul`` and ``meas`` are the build's :class:`_Operations`,
+    :class:`_Multiplets` and :class:`_Measured`, and ``p`` is the operation's
+    position in ``ops.syms``.  A multiplet's block is the one
+    :func:`.._multiplets._multiplet_blocks` measured, from which the matrices
+    are assembled.  A one-dimensional multiplet with no block measured takes the
+    operation's own lift (:func:`.._matrices._lift_of`).  Returns one block per
+    multiplet, ``None`` for a wider multiplet with no block measured, which the
+    check skips.
     """
     syms = ops.syms
     layout = mul.layout
@@ -2383,40 +1882,19 @@ def _gate_lift(ops, mul, meas, p):
 
 
 def _internal_defect(ops, mul, bat, D):
-    r"""Worst factorization defect ``max ‖B(g) − χ·S(g)‖``, over **every** block.
+    r"""The internal-factor defect of a candidate: the largest ``‖B(g) − χ S(g)‖``.
 
-    The tensor structure behind the build is ``D(g) = O(g) ⊗ S(g)``, and
-    that is a statement about every multiplet block of ``D(g)`` — the block
-    carrying a multiplet to its *image* as much as the block of a multiplet
-    the operation fixes.  This measures it on every one of them, with the
-    per-block coefficient free (the tensor-structure subspace), so it is
-    blind to the one-dimensional character the labelling puts in
-    afterwards.  A candidate with a large defect carries no site
-    characters at all: its blocks are some *other* SU(2) element, so "the
-    ``d`` orbital at ``1a``" has nothing to be measured against.
-
-    **Why every block and not only the fixed ones.**  Tested on the fixed
-    multiplets alone the gate has a hole, and it is not a small one: the
-    ``σ_h``-partner ``σ_h·g`` of an operation has a *different* lift, so a
-    Hamiltonian written in the opposite spin convention can carry the
-    partner's lift on every site-swapping block and still close a gate that
-    never looks at one.  Measured: the SRSI paper's ``P41'`` model
-    transcribed raw admits a faithful representation of ``P-4m2`` under the
-    name ``P4mm1' #99.164`` — the two are isomorphic, so the product table
-    closes at ``5e-16`` too — with ``C4``, ``C4⁻¹`` and both diagonal
-    mirrors carrying ``S(σ_h)·S(g)``.  Closing the gate over every block
-    refuses that build instead of returning it.
-
-    This is also what separates the ``g``-versus-``g⁻¹`` orientation branch
-    on a spinful model, and neither of the other two gates can see it — the
-    covariance battery and the product table are both statements about the
-    ``D``'s among themselves, while this one is the statement that they are
-    the ``D``'s of *these* operations.  Measured on the search matrices: it
-    is invariant under ``D → λD``, so normalization cannot change it.
-
-    Vacuous where there is no internal factor to check: a spinless model
-    with no declared spinor basis, whose ``S`` is ``1×1`` and every block a
-    multiple of it by arithmetic.
+    ``ops``, ``mul`` and ``bat`` are the build's :class:`_Operations`,
+    :class:`_Multiplets` and :class:`_Battery`, and ``D`` maps each
+    operation's position to the candidate's matrix.  For every unitary
+    operation ``g`` and every multiplet, ``B(g)`` is the block of ``D(g)``
+    carrying the multiplet to its image, ``S(g)`` the block :func:`_gate_lift`
+    gives, and ``χ`` is fitted to each block.  A multiplet with no block
+    measured is skipped.  Returns the largest modulus of an entry of
+    ``B(g) − χ S(g)``.  The defect is blind to the one-dimensional character
+    the labeling puts in later, and unchanged under ``D → λD``.  On a
+    one-dimensional multiplet of a spinless model with no declared spinor
+    basis ``S(g)`` is ``[[1]]``, and the defect there vanishes by arithmetic.
     """
     u_pos = ops.u_pos
     chan_states = mul.chan_states
@@ -2439,7 +1917,18 @@ def _internal_defect(ops, mul, bat, D):
 
 
 def _part_anchor(ops, mul, unit):
-    """The :class:`RepAnchor` of one part's generators, at the part's own lead."""
+    """The anchor of one part's operations, at the part's own lead multiplet.
+
+    ``ops`` and ``mul`` are the build's :class:`_Operations` and
+    :class:`_Multiplets`, and ``unit`` is the :class:`_PartUnit` settled.
+    Returns a function of an operation's position ``p`` and the antiunitary
+    operation's matrix ``anchor_T`` (``None`` without one), which gives the
+    operation's :class:`.._matrices.RepAnchor` on the unit's states.  Its
+    reference block carries the lead multiplet to its image.  Where there is no
+    ``anchor_T`` and the lead is a one-dimensional multiplet, the anchor also
+    holds the operation's spin rotation in the tables, or ``[[1]]`` without
+    spin.
+    """
     syms = ops.syms
     chan_states = mul.chan_states
     cperm = mul.cperm
@@ -2461,7 +1950,16 @@ def _part_anchor(ops, mul, unit):
 
 
 def _part_unsettled(ops, bat, bad, unit):
-    """The refusal of a part whose own blocks settle into no representation, said as one."""
+    """The refusal of a unit whose matrices form no representation.
+
+    ``ops`` and ``bat`` are the build's :class:`_Operations` and
+    :class:`_Battery`.  ``unit`` is the :class:`_PartUnit` settled, one or
+    more coupled parts, and ``bad`` the refusal its settling returned.  Returns
+    ``bad`` itself where the crystal is settled as one unit.  Otherwise returns
+    a refusal of the same check, value and threshold, whose reason names the
+    unit's orbitals and the group before ``bad``'s own, and whose context adds
+    the unit's orbitals as ``part``.
+    """
     group = ops.group
     units = bat.units
 
@@ -2469,22 +1967,35 @@ def _part_unsettled(ops, bat, bad, unit):
         return bad
     return Refusal(
         bad.gate,
-        f"the coupled part of the crystal holding orbitals {unit.orbitals} -- the "
-        f"multiplets the hoppings connect to one another and to nothing else -- was "
-        f"settled on its own in {group.name} #{group.number_str}, and its own blocks do "
-        f"not settle into a representation of the group: {bad.reason}",
+        f"the matrices built for orbitals {unit.orbitals}, apart from the rest of the "
+        f"crystal, form no representation of {group.name} #{group.number_str}: "
+        f"{bad.reason}",
         value=bad.value, threshold=bad.threshold,
         context=dict(bad.context or {}, part=unit.orbitals))
 
 
 def _settled_by_part(ops, mul, bat, Dsearch):
-    """``(refusal, D, normalization, anchor_T, DT_n, defect, roots)``, part by part.
+    """A candidate's matrices, settled one unit of coupled parts at a time.
 
-    Each part is settled on its own by :func:`.._matrices._settled`, and by
-    :func:`.._matrices._table_phases` where nothing anchors its generators' phases; the
-    matrices are then the parts' side by side.  ``normalization`` is the
-    anchor's part's, written on the whole matrices, and ``roots`` is
-    ``(found, matrices)`` for the first part whose roots do not multiply.
+    ``ops``, ``mul`` and ``bat`` are the build's :class:`_Operations`,
+    :class:`_Multiplets` and :class:`_Battery`, and ``Dsearch`` maps each
+    represented operation's position to the candidate's matrix.  Each unit of
+    ``bat.units`` is settled on its own states by
+    :func:`.._matrices._settle_unit`, anchored at its own lead multiplet
+    (:func:`_part_anchor`).  Returns ``(refusal, D, normalization, anchor_T,
+    DT_n, defect, roots)``.  ``refusal`` is ``None``, or the refusal of the
+    first unit that settles into no representation (:func:`_part_unsettled`),
+    with ``None`` for every other entry but ``defect``.  ``D`` holds the
+    settled matrices by position.  ``normalization`` is the anchor's unit's
+    record for each operation it normalized, by index, written on the whole
+    matrices.  ``anchor_T`` is the antiunitary operation's matrix the anchors
+    were read with and ``DT_n`` that matrix in its canonical phase, both
+    ``None`` without one.  ``defect`` is the largest composition defect of the
+    units settled, how far their matrices are from composing by the
+    multiplication table up to a phase (:func:`.._matrices._composition_defect`).
+    ``roots`` is ``(found, matrices)`` for the first unit whose matrices no
+    choice of the roots the canonical norms allow brings onto the
+    multiplication table, and ``None`` where there is no such unit.
     """
     T_pos = ops.T_pos
     group = ops.group
@@ -2533,17 +2044,26 @@ def _settled_by_part(ops, mul, bat, Dsearch):
     return None, Dn, normalization, anchor_n, DT_all, worst, roots
 
 
-# ---- 6a. the read-off ---------------------------------------------------
-# The detector has already solved `X H(k) = H(Rk) X` for every operation
-# this build represents, and `validated._bases` carries the whole solution
-# space.  A realizable tensor structure `D(g) = O(g) (x) S(g)` is an element
-# of it, so the discrete choices are a *measurement* on that space rather than a
-# search through their product set.  Only the generators are read: the
-# antiunitary operator carries the scalars the measurement of step 4 read
-# once, and no sign left to search, in both strategies, and every other
-# operation is propagated along the BFS tree.
+# 6a. The read-off.
+# The detector has solved `X H(k) = H(Rk) X` for every operation the build
+# represents, and `validated._bases` holds the whole solution space.  A
+# representation of the form `D(g) = O(g) (x) S(g)` is a member of it, so the
+# factors are measured on that space and not searched through.  Only the
+# generators are read.  The antiunitary operation carries the scalars step 4
+# read, with no sign left to search under either strategy, and every other
+# operation is propagated along the tree of words.
 def _solution_space(ops, p):
-    """``(basis, note)`` — the detector's solution space for operation ``p``."""
+    """The detector's solution space for the operation at position ``p``, and a note.
+
+    ``ops`` is the build's :class:`_Operations`, whose ``validated`` holds the
+    spaces, and ``p`` is the operation's position in ``ops.syms``.  Returns
+    ``(basis, note)``: the space's basis, an array of shape
+    ``(dim, nstate, nstate)``, and a ``note`` of ``None``.  Where ``validated``
+    holds only the operation's measured intertwiner, ``basis`` is that one
+    matrix and ``note`` says so.  ``basis`` is ``None`` and ``note`` says why
+    where there is no intertwiner either, or where projecting the space onto
+    the tensor structure would allocate more than ``_READOFF_MAX_BYTES``.
+    """
     nstate = ops.nstate
     syms = ops.syms
     validated = ops.validated
@@ -2555,10 +2075,10 @@ def _solution_space(ops, p):
         if U is None:
             return None, (f"the validated group carries no measured intertwiner for "
                           f"generator #{ind}")
-        # A hand-built ValidatedGroup may carry only the polar-extracted
-        # member.  That IS the space when dim == 1, and when it is not the
-        # projection below has nothing to choose from and the block defects
-        # say so -- which is a fallback, not a wrong verdict.
+        # A hand-built ValidatedGroup may carry only the measured intertwiner.
+        # That is the whole space where the space is one-dimensional; where it
+        # is not, the read-off's projection has nothing to choose from, and its
+        # block defects say so.
         return np.asarray(U)[None, :, :], f"only `intertwiners[{ind}]`, not the whole space"
     B = np.asarray(B)
     if B.shape[0] * nstate * nstate * 16 > _READOFF_MAX_BYTES:
@@ -2570,7 +2090,22 @@ def _solution_space(ops, p):
 
 
 def _read_off(ops, mul, meas, bat):
-    """The discrete choices, measured off the solution spaces of the generators."""
+    """The orbits' factors, read off the generators' solution spaces.
+
+    ``ops``, ``mul``, ``meas`` and ``bat`` are the build's
+    :class:`_Operations`, :class:`_Multiplets`, :class:`_Measured` and
+    :class:`_Battery`.  On each orientation branch of ``bat.orients``, each
+    generator's solution space (:func:`_solution_space`) is projected onto the
+    form ``D(g) = O(g) ⊗ S(g)``, and the ratio of each orbit's block to
+    ``S(g)``, relative to the anchor's orbit, is the orbit's factor.  On the
+    branch ``+1``, where the measurement pinned a factor, its factor is taken
+    instead.  A factor within ``meas.snap`` of a root of unity of order dividing
+    twelve is read as that root.  A branch is not read where a space is
+    missing, where the anchor's block vanishes or a block misses a multiple of
+    ``S(g)`` by more than ``bat.internal_tol``, or where a factor is not a
+    phase.  Returns the :class:`_ReadOff`: the factors of each branch read, and
+    why none was where none was.
+    """
     gens = ops.gens
     syms = ops.syms
     anchor = mul.anchor
@@ -2610,11 +2145,10 @@ def _read_off(ops, mul, meas, bat):
                 # are the transposed ones and carry S(g)^dagger
                 lifts = [M.conj().T for M in lifts]
             blocks = _ansatz_blocks(chan_states, cperm[gp], orient)
-            # THE CHOSEN MEMBER.  Where the space leaves a block open, the
-            # member taken is the one carrying the scalar `_relative` gives
-            # there -- what the measurement pinned, or the trivial relative
-            # character, the labelling being chosen in step 7b -- rather
-            # than whichever direction a decomposition happened to return.
+            # The member chosen.  Where the space leaves a block open, the
+            # member taken is the one carrying the factor `_relative` gives
+            # there: what the measurement pinned, or the trivial relative
+            # character, the labeling being chosen in step 7b.
             want = {cls: _relative(ops, meas, gp, cls) for cls in range(ncls)}
             w_of = [(1.0 + 0.0j) if want[int(classes[c])] is None else
                     complex(np.conj(want[int(classes[c])]) if orient < 0
@@ -2649,10 +2183,9 @@ def _read_off(ops, mul, meas, bat):
                 break
             signs = {cls: (np.conj(r / lam) if orient < 0 else r / lam)
                      for cls, r in cls_ratio.items()}
-            # WHAT THE MEASUREMENT PINNED is taken from it: on the branch it
-            # read, every orbit's ratio to the anchor, rather than read again
-            # off the member above, which says only whether the tensor
-            # structure holds
+            # What the measurement pinned is taken from it, on the branch it
+            # read: every orbit's ratio to the anchor.  The member above says
+            # only whether the tensor structure holds.
             if orient > 0:
                 for cls in range(ncls):
                     got = verdict.chosen.get((ind, int(cls)))
@@ -2660,9 +2193,9 @@ def _read_off(ops, mul, meas, bat):
                             and got is not None):
                         signs[int(cls)] = complex(got)
             # An orbit the hoppings leave free of the anchor carries the
-            # trivial relative character (`_relative`; the labelling
-            # chooses its part's own in step 7b); the other orbits of its
-            # part are pinned to its first by the hoppings, at the ratio the
+            # trivial relative character (`_relative`), the labeling choosing
+            # its part's own in step 7b.  The other orbits of its part are
+            # pinned to the part's lead by the hoppings, at the ratio the
             # measurement read between them.
             led = sorted(unpinned, key=lambda c: (free_lead.get(int(c), int(c)) != int(c),
                                                   int(c)))
@@ -2696,10 +2229,9 @@ def _read_off(ops, mul, meas, bat):
                     # its part is settled with above
                     factors.append(complex(signs[c]))
                     continue
-                # THE FACTOR AS MEASURED, whatever it is: a root of unity
-                # where it is one within the noise, the measured phase
-                # otherwise; the three gates say whether it builds a
-                # representation
+                # The factor as measured: a root of unity where it is one
+                # within the noise, the measured phase otherwise.  The three
+                # checks say whether it builds a representation.
                 z = _orbit_factor(signs[c], snap)
                 if z is None:
                     why = (f"generator #{ind} reads {signs[c]:.6g} on orbit {c} of "
@@ -2728,7 +2260,22 @@ def _read_off(ops, mul, meas, bat):
 
 
 def _build(ops, mul, meas, bat, choices):
-    """One candidate record per ``(orientation, combo)``, covariance measured."""
+    """One candidate for each choice of branch and factors, its covariance measured.
+
+    ``ops``, ``mul``, ``meas`` and ``bat`` are the build's
+    :class:`_Operations`, :class:`_Multiplets`, :class:`_Measured` and
+    :class:`_Battery`.  ``choices`` yields ``(orientation, combo)``: the
+    branch, ``1`` or ``-1``, and the factors on the orbits other than the
+    anchor's, generator by generator.  Each generator's matrix carries each
+    multiplet onto its image with its orbit's factor times its internal block.
+    The antiunitary operation's matrix does the same with the scalar
+    ``meas.reversal`` holds on each orbit in place of the factor.  On the
+    branch ``-1`` their adjoints are taken.  Every other operation's matrix is
+    propagated from them.  Returns a list of records, each holding
+    ``"orientation"``, ``"combo"``, ``"residual"``, the largest covariance
+    residual over the operations (:func:`_covariance_of`), and ``"matrices"``,
+    each operation's matrix by position.
+    """
     T_pos = ops.T_pos
     gens = ops.gens
     free_cls = mul.free_cls
@@ -2758,28 +2305,28 @@ def _build(ops, mul, meas, bat, choices):
     return out
 
 
-# ---- 6b. the joint gate -------------------------------------------------
-# Three independent measurements, each of which a candidate must pass, run
-# cheapest first so the expensive ones see the fewest candidates:
+# 6b. The three checks together.
+# Three independent checks, each of which a candidate must pass, run cheapest
+# first, so that the costlier ones see the fewest candidates:
 #
-#   covariance      |kept| * n_battery triple products of size nstate;
-#                   kills a wrong relative sign inside a Wyckoff orbit.
-#   internal factor |kept_u| * nchan block proportionalities of size nspin
-#                   -- EVERY block, the site-swapping ones too; kills the
-#                   g-versus-g^-1 orientation branch, which is exactly
-#                   covariant AND exactly multiplicative, and a build whose
-#                   swapped blocks carry the sigma_h-partner's lift, which
-#                   is exactly covariant and multiplicative too whenever the
-#                   layer group and the one being named are isomorphic.
-#   product table   one normalize_rep pass + |kept|**2 products of size
-#                   nstate; kills a set that is not a representation.
+#   covariance       |kept| x n_battery triple products of size nstate;
+#                    removes a wrong relative sign inside a Wyckoff orbit.
+#   internal factor  |kept_u| x nchan block proportionalities, each of a
+#                    multiplet's size, on every block, those that swap sites
+#                    included; removes the wrong orientation branch, g against
+#                    g^-1, wherever S(g)^dag is not a multiple of S(g), a
+#                    branch that is covariant and multiplicative, and a build
+#                    whose swapped blocks carry the lift S(sigma_h) S(g) of the
+#                    operation's horizontal-mirror partner, covariant and
+#                    multiplicative too where the layer group and the group
+#                    named are isomorphic.
+#   product table    one normalization and |kept|^2 products of size nstate;
+#                    removes a set that is not a representation.
 #
-# The ordering is a cost choice only -- the gates are independent, and which
-# one fired is recorded per candidate, which is physics rather than
-# accounting.  Written as a function of the candidate *set* so that the
-# read-off's one-or-two candidates and the enumeration's thousands go
-# through the identical arithmetic: the read-off finds the candidate, this
-# accepts it, and nothing here knows which produced the input.
+# The checks are independent, so their order is one of cost, and the check
+# that removed each candidate is recorded with it.  The checks take the set of
+# candidates, so the read-off's one or two and the enumeration's thousands go
+# through the same arithmetic.
 def _gate(ops, mul, bat, records):
     kept = ops.kept
     prod = ops.prod
@@ -2807,8 +2354,8 @@ def _gate(ops, mul, bat, records):
     consistent = [grp for grp in covariant if grp[0]["internal"] <= internal_tol]
     for grp in consistent:
         rec = grp[0]
-        # each coupled part settled on its own (step 5c), a crystal of one
-        # part being one
+        # the coupled parts are settled unit by unit (step 5c); a crystal of
+        # one part is one unit
         bad, Dn, norm, anchor_T, DT_n, defect, roots = _settled_by_part(
             ops, mul, bat, rec["matrices"])
         rec["composition"] = float(defect)
@@ -2821,10 +2368,10 @@ def _gate(ops, mul, bat, records):
             rec["roots"], rec["roots_matrices"] = roots
     survivors = [grp for grp in consistent if grp[0]["product"] <= product_tol]
     if len(units) > 1 and len(survivors) > 1:
-        # A PART'S OWN PHASE IS ITS SETTLING'S, not a choice: candidates
-        # that differ only in the phase a part is settled out of are one
-        # representation once each part is settled, and are merged as the
-        # identical matrices are above
+        # A part's own phase is set by its settling and is not a choice:
+        # candidates that differ only in the phase a part is settled out of
+        # are one representation once each part is settled, and are merged as
+        # identical matrices are above.
         merged = []
         for grp in survivors:
             Dn = grp[0]["normalized"][0]
@@ -2892,8 +2439,14 @@ def _gate(ops, mul, bat, records):
 def _one_labeling_apart(ops, mul, bat, A, B, tol=1e-8):
     """Whether two settled candidates differ by one character on each coupled part.
 
-    Asked of the unitary operations, which the site irreps and the band
-    labels are characters of.
+    ``ops``, ``mul`` and ``bat`` are the build's :class:`_Operations`,
+    :class:`_Multiplets` and :class:`_Battery`, and ``A`` and ``B`` map each
+    operation's position to the two candidates' settled matrices.  Returns
+    ``True`` where, for every unitary operation and every coupled part, each
+    block of ``B`` carrying a multiplet of the part to its image is one phase
+    times ``A``'s block, the same phase over the part, within ``tol``; and
+    ``False`` otherwise.  Only the unitary operations are compared, since the
+    site irreps and the band labels are characters of them.
     """
     u_pos = ops.u_pos
     chan_states = mul.chan_states
@@ -2918,7 +2471,17 @@ def _one_labeling_apart(ops, mul, bat, A, B, tol=1e-8):
 
 
 def _pin_branch(ops, mul, bat, survivors):
-    """The :class:`_PinnedBranch` — the tie settled, or left alone."""
+    """The survivors of the checks, a tie between the two orientation branches settled.
+
+    ``ops``, ``mul`` and ``bat`` are the build's :class:`_Operations`,
+    :class:`_Multiplets` and :class:`_Battery`, and ``survivors`` holds the
+    candidates that pass the three checks, each a list of the records that build
+    the same matrices.  Where they are two, one on each branch, and, where the
+    site tables were read, one labeling apart (:func:`_one_labeling_apart`),
+    the branch ``+1`` is kept and the tie recorded with its note.  Returns the
+    :class:`_PinnedBranch`, holding ``survivors`` as handed in and no tie
+    where there is none to settle.
+    """
     site_tables = mul.site_tables
 
     out = _PinnedBranch(survivors=survivors, tie=False, note=None)
@@ -2944,16 +2507,18 @@ def _pin_branch(ops, mul, bat, survivors):
 
 
 def _with_multiplicity_spaces(table, chosen, group, assignment):
-    """``table`` with each conserved pseudospin's chosen content on it, and its rows marked.
+    """``table`` with each conserved pseudospin's chosen site irreps, its rows marked.
 
-    ``chosen`` is the chooser's record of each pseudospin (:func:`_labeling`):
-    the site content returned at the orbit's lead multiplet, and every content
-    the representations of its copies give there, in the order the key ranked
-    them, each named against the same site table.  A row of such an orbit that
-    nothing else left open reads ``lowest-l`` wherever the representations a
-    declaration leaves gave more than one content: its site irrep rests on the
-    choice.  A pseudospin whose copies a declaration speaks for is determined
-    by it.
+    ``table`` is the atomic-limit table, a :class:`..symmetry._OrbitalTable`,
+    and ``chosen`` holds the chooser's :class:`.._labeling._PseudospinChoice`
+    for each pseudospin (:func:`.._labeling._labeling`).  ``group`` and
+    ``assignment`` give the Wyckoff position of each pseudospin's site.  Each
+    pseudospin becomes a :class:`..symmetry._MultiplicitySpace`, its chosen
+    site irreps and every other choice named against its site's table.  A row
+    of a pseudospin's orbitals that reads ``hamiltonian`` reads ``lowest-l``
+    instead where the representations a declaration leaves give more than one
+    site irrep there.  Returns the table with its ``multiplicity_spaces`` and
+    these rows.
     """
     wyckoff = _wyckoff_sites(group, assignment)
     spaces, marked = [], set()
@@ -2988,9 +2553,11 @@ def _with_multiplicity_spaces(table, chosen, group, assignment):
 def _with_band_representations(rep):
     """``rep`` with each orbit's band representation on its atomic-limit table.
 
-    That band representation is read off the representation itself — the
-    content its states carry — so it is written once the matrices are
-    (:func:`..srsi._band_representations`).
+    ``rep`` is a :class:`..symmetry.SpaceGroupRep` whose matrices are final:
+    each orbit's band representation is read off them, from the little-group
+    representations its states carry (:func:`..srsi._band_representations`).
+    Returns ``rep`` as it is where it has no atomic-limit table or no orbit's
+    band representation is found.
     """
     table = rep._characters
     if table is None:
@@ -3003,13 +2570,17 @@ def _with_band_representations(rep):
 
 
 def _with_tables_unavailable(rep):
-    """``rep`` with every row saying the tables were unavailable, where they were.
+    """``rep``, where its group has no tables, with each row saying so.
 
-    A group whose cell ``irrep`` could not match to the tables' standard
-    setting is returned without tables (``GroupData._tables_ready``
-    false on a primitive cell), so no row of it takes a name from them.  Each
-    row's :attr:`_OrbitalRow.note` then says so, and why, in the words of the
-    group's own note, which carries ``irrep``'s message.
+    ``rep`` is a :class:`..symmetry.SpaceGroupRep`.  A group whose cell
+    ``irrep`` could not match to the standard setting of the tables the
+    irreptables package ships is returned without tables
+    (``GroupData._tables_ready`` false), so no row takes a name from them.
+    Each row's :attr:`..symmetry._OrbitalRow.note` then says so, with the
+    group's own note, which carries ``irrep``'s message.  Returns ``rep`` as it
+    is where the tables are available, where the cell is a supercell of the
+    crystal's primitive cell (``_lattice_index`` above one), or where ``rep``
+    has no atomic-limit table.
     """
     table, group = rep._characters, rep._group
     if (table is None or bool(group._tables_ready)
@@ -3024,9 +2595,9 @@ def _with_tables_unavailable(rep):
     return replace(rep, _characters=replace(table, orbitals=rows))
 
 
-#: What :func:`_build_rep` measures its covariance gate with when it is not told
-#: otherwise -- its battery, and the operations it represents -- read off its
-#: own signature rather than retyped.
+#: The defaults of :func:`_build_rep`, read off its own signature: among them
+#: the battery its covariance check is measured on and the operations it
+#: represents.
 _BUILD_DEFAULTS = {name: p.default
                    for name, p in inspect.signature(_build_rep).parameters.items()
                    if p.default is not inspect.Parameter.empty}
@@ -3038,17 +2609,20 @@ _BUILD_KEYWORDS = frozenset(name for name, p in inspect.signature(_build_rep).pa
 
 
 def _exact_gate(model, group, validated, build_kw=None) -> float:
-    r"""The covariance gate :func:`_build_rep` applies to this model and operation set.
+    r"""The tolerance of :func:`_build_rep`'s covariance check for ``model`` on ``group``.
 
-    The same :func:`covariance_gate`, measured the way the build measures it:
-    ``|G|`` the operations it represents, ``N`` the model's states and
-    ``max|H|`` and the rounding of the Bloch phases on its battery.
-    ``build_kw`` are the build's own keywords, of
-    which ``operations=``, ``include_vacuum_ops=``, ``k_pts=``, ``n_battery=``
-    and ``seed=`` bear on the gate.
-    A detection record carries neither ``N`` nor ``max|H|``, so
-    :func:`..groups.realized_group` and :func:`..symmetrization._symmetrized`
-    measure the gate here and classify operations against it.
+    ``validated`` is the measurement of ``group``'s operations, whose
+    operations are represented unless ``build_kw`` names others.
+    ``build_kw`` holds the build's own keywords; ``operations=``,
+    ``include_vacuum_ops=``, ``k_pts=``, ``n_battery=`` and ``seed=`` bear on
+    the tolerance, and the build's default stands for each one left out.
+    Returns :func:`.._matrices.covariance_gate` for ``|G|`` the number of
+    operations represented, ``N`` the number of the model's states, and
+    ``max|H|`` and the rounding of the Bloch phases on the build's battery, in
+    the units of ``H``.  A detection record carries neither ``N`` nor
+    ``max|H|``, so :func:`..groups.realized_group` and
+    :func:`..symmetrization._symmetrized` measure the tolerance here and
+    classify operations against it.
     """
     kw = dict(build_kw or {})
 

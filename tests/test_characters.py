@@ -725,10 +725,10 @@ def test_p4232_refuses_an_irrep_of_the_wrong_dimension_as_grammar(p4232_decorate
                          _search_record=record)
     assert not orb and orb.gate == "rep_not_covariant"
     assert orb.value > 1e-3
-    assert "the tensor structure is too narrow for the multiplets it was given" in \
+    assert "Where `site_multiplets=` states the multiplets" in \
         orb.reason
-    assert ("a site whose orbitals mix under its site-symmetry group is one multiplet"
-            in orb.reason), "and the message names the multiplet the physics has"
+    assert ("state each site whose orbitals mix under its site-symmetry group as one "
+            "multiplet" in orb.reason), "and the message names the multiplet the physics has"
     assert orb.context["multiplets"].determined_by == "declaration"
     search = record["search"]
     assert search["n_survivors"] == 0 and search["n_covariant"] == 0

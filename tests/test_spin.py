@@ -455,26 +455,26 @@ def test_the_declaration_grammar_raises_rather_than_refusing():
     km = kane_mele(1.0, 1.0, 0.6, 0.25)
     flat, sb = tqsp.spinless_presentation(km)
 
-    with pytest.raises(ValueError, match="spinless model"):
+    with pytest.raises(ValueError, match="is spinful"):
         tqsp.spin_basis(km)                       # a native spinful model
 
     odd = TBModel(Lattice([[1, 0], [0, 1]], [[0, 0], [0.5, 0.0], [0.0, 0.5]],
                           periodic_dirs=[0, 1]), spinful=False)
-    with pytest.raises(ValueError, match="even orbital count"):
+    with pytest.raises(ValueError, match="needs an even number"):
         tqsp.spin_basis(odd, order="interleaved")
     with pytest.raises(ValueError, match="'interleaved' or 'blocked'"):
         tqsp.spin_basis(flat, order="spin-fast")
 
-    with pytest.raises(ValueError, match="partition all orbital indices"):
+    with pytest.raises(ValueError, match="hold each orbital, 0..3, exactly once"):
         tqsp.spin_basis(flat, pairs=[(0, 1), (1, 2)])
-    with pytest.raises(ValueError, match=r"shape \(M, 2\)"):
+    with pytest.raises(ValueError, match=r"pass a sequence of \(up, down\) pairs"):
         tqsp.spin_basis(flat, pairs=[0, 1, 2, 3])
 
-    with pytest.raises(ValueError, match="takes a SpinBasis"):
+    with pytest.raises(ValueError, match="pass the SpinBasis"):
         tqsp.spin_operator("interleaved")
-    with pytest.raises(ValueError, match="must be nonzero"):
+    with pytest.raises(ValueError, match="pass a nonzero axis"):
         tqsp.spin_operator(sb, n=(0.0, 0.0, 0.0))
-    with pytest.raises(ValueError, match="length-3 vector"):
+    with pytest.raises(ValueError, match="pass a three-vector"):
         tqsp.spin_operator(sb, n=(0.0, 1.0))
 
 
@@ -769,21 +769,22 @@ def pmmm_spinor():
 def test_a_pair_split_across_two_sites_refuses(km_flat):
     """``pairs=[(0, 2), (1, 3)]`` on this layout is one sublattice paired with the other.
 
-    A pair whose two members have different centres is not one spinor Wannier
+    A pair whose two members have different centers is not one spinor Wannier
     function: ``bloch_operator`` would give them two different Bloch phases,
     and no amount of symmetrizing makes them one orbital.  Measured and named:
     the two sites, both reduced positions, and the ``0.57735`` between them --
-    the honeycomb nearest-neighbour distance in this cell -- and the two things
-    it means, a mislabelled pairing or a magnetic configuration.  ``_build_rep``
-    refuses it on the group it is handed, and ``realized_group`` from the
-    centres alone, before any group is identified: the same refusal, value,
-    context and reason, no group named, for the pairs as given and for
-    ``"blocked"``, which is the same pairing, with ``typat`` or without.
+    the honeycomb nearest-neighbor distance in this cell -- and the two
+    directions, the order of the spin states declared and, for a fitted model,
+    its precision.  ``_build_rep`` refuses it on the group it is handed, and
+    ``realized_group`` from the centers alone, before any group is identified:
+    the same refusal, value, context and reason, no group named, for the pairs
+    as given and for ``"blocked"``, which is the same pairing, with ``typat``
+    or without.
 
-    A pair apart only by the noise of a fitted model is neither, and the
-    reason says so: one member moved by ``2e-5`` is refused with nothing
-    declared, and under ``precision=1e-4``, which reads the two centres as one,
-    the model reads the native group and band labels.
+    A pair apart only by the noise of a fitted model is a matter of its
+    precision, and the reason says so: one member moved by ``2e-5`` is refused
+    with nothing declared, and under ``precision=1e-4``, which reads the two
+    centers as one, the model reads the native group and band labels.
     """
     from pythtb import Lattice, TBModel
 
@@ -796,9 +797,9 @@ def test_a_pair_split_across_two_sites_refuses(km_flat):
     assert out.threshold == 0.0
     assert out.context["pair"] == 0 and out.context["orbitals"] == (0, 2)
     assert out.context["sites"] == (0, 1)
-    assert "different sites" in out.reason and "share its center" in out.reason
-    assert "mislabeled" in out.reason and "magnetic configuration" in out.reason
-    assert "(`precision=`) reads two centers closer than it as one" in out.reason
+    assert "different sites" in out.reason and "0.57735 apart" in out.reason
+    assert "Check the order of the spin states declared with spin=" in out.reason
+    assert "declare its precision with precision=" in out.reason
     for spin, typat in ((split, None), ("blocked", None), ("blocked", [0, 0, 1, 1])):
         got = tqg.realized_group(flat, spin=spin, typat=typat)
         assert isinstance(got, Refusal) and got.gate == "spin_pair_split", str(got)
@@ -912,7 +913,7 @@ def test_a_pairing_is_read_pair_by_pair_and_a_wrong_one_descends(two_spinors_per
     site_of = np.asarray(assignment.site_of_orbital, dtype=int)
     for up, dn in crossed.pairs:
         assert site_of[up] == site_of[dn], "within a site: this is not a split pair"
-    with pytest.raises(InternalError, match="not realized on this orbital content"):
+    with pytest.raises(InternalError, match="not realized on these orbitals"):
         _build._build_rep(flat, group, assignment, validated=validated, spin=crossed,
                        n_battery=4)
 
@@ -1042,7 +1043,7 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     assignment = _tables._assign_orbitals(flat, single)
     validated = _measure._validate_group(flat, single, nk=6)
 
-    with pytest.raises(ValueError, match="declared to carry spin"):
+    with pytest.raises(ValueError, match="spin= declares the"):
         _build._build_rep(flat, single, assignment, validated=validated, spin=basis)
 
     flat_r, _basis_r = tqsp.spinless_presentation(tqc_models.r3m_s_6c())
@@ -1352,7 +1353,7 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
         record(self), n_admitted=0, candidates=()))
     none = tqg.realized_group(tqc_models.p1bar_s_copies())
     assert isinstance(none, Refusal) and none.gate == "rep_not_multiplicative", str(none)
-    assert none.context["n_candidates"] == 3 and "of the 3 sums of the group's" in none.reason
+    assert none.context["n_candidates"] == 3 and "none of the 3 sums of dimension 2 of the irreducible" in none.reason
     monkeypatch.undo()
     # ... declared four copies of A1g, which no representation of the copies
     # carries on P4/mmm: the group descends to Pmmm1', every operation left
@@ -1428,13 +1429,13 @@ def test_a_wrong_basis_size_is_a_grammar_error(km_flat):
     other = tqsp.spin_basis(
         tqsp.spinless_presentation(tqc_models.lin3g())[0], order="interleaved")
     assert other._norb == 8 != int(flat.norb)
-    with pytest.raises(ValueError, match="8 orbitals and this one has 4"):
+    with pytest.raises(ValueError, match="8 orbitals, and the model has 4"):
         _build._build_rep(flat, group, assignment, validated=validated, spin=other)
-    with pytest.raises(ValueError, match="SpinBasis, the shorthand"):
+    with pytest.raises(ValueError, match="pass a SpinBasis"):
         _build._build_rep(flat, group, assignment, validated=validated, spin=17)
 
     # the native spinful model, in the group of the same cell
-    with pytest.raises(ValueError, match="natively spinful"):
+    with pytest.raises(ValueError, match="spin= is passed with a spinful model"):
         _build._build_rep(km, group, _tables._assign_orbitals(km, group), spin="interleaved")
     with pytest.raises(ValueError, match="spinor=False"):
         tqg.realized_group(km, spin="interleaved", spinor=False)

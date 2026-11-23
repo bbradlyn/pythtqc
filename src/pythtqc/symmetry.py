@@ -1,24 +1,11 @@
-r"""The model's representation of its space group, and the atomic-limit table of its orbitals.
+r"""The model's representation of its space group, and the atomic-limit table.
 
-:func:`..groups.realized_group` measures, for each operation ``g = {R|t}`` of
-the cell, every matrix ``X`` with ``X H(k) = H(Rk) X`` at once on a grid of
-``k``, ``X H(k)* = H(−Rk) X`` for one combined with time reversal, assuming
-nothing about what ``g`` does to the orbitals: no solution is a proof that
-``g`` is broken, and at the identity the solutions are the operators the
-model conserves.  From the operations that hold it builds
-:class:`SpaceGroupRep`, one matrix per operation on the model's states in the
-tables' convention, spin along ``+z`` in a right-handed frame, through which
-every band label is read; and :class:`AtomicLimitTable`, what the orbitals
-carry at their sites, a row per Wyckoff orbit.
-
-The hoppings fix how the orbitals transform relative to one another, not what
-they are: one one-dimensional character of the group is left open on each part
-of the crystal the hoppings couple, real where the group has time reversal and
-any, complex ones included, where it has none: the spin–orbit ``I4_1`` model in
-its unitary group, its ``4a`` orbitals declared ``B``, is returned with
-``χ(4⁺) = −i``.  ``characters=`` declares it, and what the
-declarations leave open is assigned by the lowest-angular-momentum rule; each
-row of the table says which.
+``r.rep`` of what :func:`..groups.realized_group` returns is a
+:class:`SpaceGroupRep`: a matrix for each operation of the group, acting on the
+model's states.  The little-group representations a set of bands carries are
+read through it.  ``r.wyckoff_orbits`` is an :class:`AtomicLimitTable`: the
+site irreps the orbitals carry, a row per Wyckoff orbit.  The matrices are the
+representation induced from those site irreps.
 """
 
 from __future__ import annotations
@@ -55,8 +42,9 @@ __all__ = ["RepAnchor",
 # the atomic-limit table
 # --------------------------------------------------------------------------
 
-#: The one sentence :meth:`_OrbitalTable.summary` prints under the table
-#: wherever a row's site irrep rests on the lowest-``l`` rule.
+#: The one sentence the summaries of the per-orbital and the atomic-limit
+#: tables print under the rows wherever a row's site irrep rests on the
+#: lowest-angular-momentum rule.
 _LOWEST_L_LEGEND = (
     "the hoppings fix how the orbitals transform relative to one another, not what "
     "they are; where several site irreps fit, the one carried by the "
@@ -68,7 +56,7 @@ _NOT_CARRIED = "declaration not carried"
 
 @dataclass(frozen=True)
 class _OrbitalRow:
-    """One orbital's row of the atomic-limit table: its Wyckoff position, the site irrep it carries, and how that is known.
+    """One orbital's row of the per-orbital table, and how its site irrep is known.
 
     ``rep._characters[i]`` is orbital ``i``'s row, and ``row.summary()`` prints
     it.
@@ -76,42 +64,45 @@ class _OrbitalRow:
     Attributes
     ----------
     orbital, site : int
-        The orbital, and the site it sits on.
+        The orbital, and the site it sits on, by index.
     wyckoff : str
-        The site's Wyckoff position in the tables' setting, multiplicity and
-        letter (``"3c"``); ``""`` where the tables do not reach the cell.
+        The site's Wyckoff position, multiplicity and letter (``"3c"``), in
+        the conventional cell used by the irreptables package; ``""`` where
+        the model's cell could not be matched to that cell.
     site_symmetry : str
-        The Hermann–Mauguin symbol of the site-symmetry group (``"-42m"``).
+        The Hermann-Mauguin symbol of the unitary site-symmetry group
+        (``"-42m"``).
     function : str
-        The orbital function declared, as ``characters=`` was given it
-        (``"px"``, ``"dx2-y2"``, the shell ``"p"``); ``""`` where none was.
+        The orbital function ``characters=`` declared (``"px"``,
+        ``"dx2-y2"``, the shell ``"p"``); ``""`` where none was.
     multiplet : tuple of int
         The orbitals the Hamiltonian binds this one with, which carry its site
         irrep together.
     irrep : str
-        The site irrep the states carry, in the site group of the group
-        returned, and with spin the double-valued site corep: ``-E1`` for an
-        ``s`` orbital at diamond's ``8a``.  A multiplet holding several irreps
-        reads their sum, ``"2x-E1 + -1E2E"`` for a spin–orbit ``p`` shell at a
-        ``3m`` site, and one holding copies of one irrep reads it on each row;
-        ``""`` where nothing names it.
+        The site irrep the orbital's states carry, in the site group of the
+        group returned; double-valued with spin, ``-E1`` for an ``s`` orbital
+        at a ``3m`` site.  A multiplet holding several irreps reads their sum,
+        ``"2x-E1 + -1E2E"`` for a spin-orbit ``p`` shell at a ``3m`` site, and
+        one holding copies of one irrep reads that irrep on each row.  ``""``
+        where nothing names it.
     named_by : str
-        Where the name comes from: ``"tables"``, the tables' band
-        representations at this position; ``"invariants"``, for a spinless row
-        where the tables list no band representation at this position, the site
-        irrep the tables of the stable real-space invariants give the same
-        invariants; ``"point group"``, the site's point group at the origin of a
-        symmorphic group; ``"Mulliken"``, the row's Mulliken symbol; or
+        Where the name comes from: ``"tables"``, the elementary band
+        representations the tables list at this position; ``"invariants"``,
+        on a spinless row at a position the tables list no elementary band
+        representation at, the site irrep the tables of the stable real-space
+        invariants single out for the orbital's states; ``"point group"``, the
+        name the tables give that irrep of the site point group at the origin
+        of a symmorphic group; ``"Mulliken"``, the irrep's Mulliken symbol; or
         ``"unnamed"``.
     determined_by : str
         How the site irrep is known: ``"declaration"``; ``"declaration not
         carried"``, declared and not carried by the Hamiltonian's own blocks;
-        ``"hamiltonian"``, the same under every labelling the declarations
+        ``"hamiltonian"``, the same under every labeling the declarations
         leave open; or ``"lowest-l"``, chosen by the lowest-angular-momentum
-        rule, which ``characters=`` overrides.
+        rule.
     dim : int
-        The dimension of what ``irrep`` names: twice the orbital factor's with
-        spin.
+        The dimension of what ``irrep`` names, counting spin: twice the
+        orbital factor's in a spinful group.
     site_group : tuple of int
         The indices of the unitary operations that fix the site.
     character, generator_character : dict
@@ -119,24 +110,32 @@ class _OrbitalRow:
         every operation of the site group by index, and on one operation of each
         class by name.
     declared_as : object or None
-        Exactly what was written for this orbital.
+        What ``characters=`` held for this orbital, as written; ``None`` where
+        nothing was declared.
     declared_irrep, declared_in, reduced_in : str
         The irrep, or sum, that declaration resolved to; the site group and
         group it was read in (``"3m in P3m11' #156.50"``); and, where the
-        declared content lowered the cell first, the site group and group it
-        was resolved in (``"m in Cm1' #8.33"``).  ``""`` where nothing applies.
+        declared site irreps lowered the cell first, the site group and group
+        it was resolved in (``"m in Cm1' #8.33"``).  ``""`` where nothing
+        applies.
     declaration_broke : tuple of str
-        The operations the declared content breaks.
+        If nonempty, the operations the declared site irreps break.
     note : str
-        How a declaration was read; on a declared spinor basis, which member of
-        its pair the row is; for a name Mulliken's convention gives another
-        row, which row; what a declaration not carried stated; and where the
-        cell could not be matched to the tables' setting, why no name comes
-        from them.
+        If nonempty, how a declaration was read; on a declared spinor basis,
+        which member of its pair the row is; for a name Mulliken's convention
+        gives another irrep of the site group, which irrep; what a declaration
+        not carried stated; and where the cell could not be matched to the
+        tables' cell, why no name comes from them.
     residual : float
-        How far the orbital's block misses its character times its spin factor,
-        or, on a multiplet of several orbitals, misses multiplying as the site
-        group does: a large one says the irrep is not to be trusted.
+        The largest misfit over every multiplet of the table, the same on
+        every row.  On a multiplet of one orbital or one declared spinor pair,
+        the misfit is how far its block misses its character times its spin
+        factor; on a measured multiplet of several, how far its blocks miss
+        multiplying as its site group does.  A large one says the site irreps
+        are not to be trusted, except on a measured multiplet of several
+        orbitals with spin: its blocks multiply with the sign the double group
+        gives each product, and miss by as much as ``2`` with the site irreps
+        right.
     """
 
     orbital: int
@@ -203,18 +202,15 @@ class _OrbitalRow:
 
 @dataclass(frozen=True)
 class _OrbitBandRepresentation:
-    """The band representation an orbit of orbitals induces, as a sum of elementary band representations.
+    """The sum of elementary band representations an orbit of orbitals induces.
 
-    The sum is written at a position the orbitals can be moved to along their
-    variety, their own first.  Where none carries the content, as for ``E`` at
-    ``3c`` of ``P-43m``, it is the sum at other positions with the orbit's own
-    stable real-space invariants, or, where the group has none tabulated, the
-    sum at the first position on the closure of a variety through the site
-    that carries it; on a free-standing layer only positions within the layer
-    are read.  It is the band representation and nothing finer: which site
-    irrep goes to which term is a subduction the tables do not carry.
-    ``br.summary()`` prints it; it is one entry of
-    ``rep._characters.band_representations``.
+    The sum is the first of these to carry the orbit's symmetry data vector:
+    a sum at one position the orbitals can be moved to, their own first; the
+    sum with the orbit's own stable real-space invariants; a sum at a
+    position on the closure of a variety through the site; the one sum the
+    vector has (:func:`..srsi._band_representations`).  It does not say
+    which site irrep goes to which term.  It is one entry of
+    ``rep._characters.band_representations``, and ``br.summary()`` prints it.
 
     Attributes
     ----------
@@ -222,20 +218,20 @@ class _OrbitBandRepresentation:
         The orbitals on the orbit's sites.
     wyckoff, site_symmetry : str
         The orbit's Wyckoff position, multiplicity and letter (``"6c"``), and
-        its site-symmetry group (``"3m"``).
+        its unitary site-symmetry group (``"3m"``).
     terms : tuple
         ``(multiplicity, elementary band representation, position)`` for each
         term, the band representation and the position with its site groups
         written as the tables list them (``(1, "-E1g↑G(2)", "3a(-3m1',-3m)")``);
         empty where no sum is returned.
     alternatives : tuple
-        The other sums with the same content and the same stable real-space
-        invariants, which nothing here distinguishes from it, each written as
-        ``terms`` is; empty where the group has no tabulated invariants.
+        The other sums with the same symmetry data vector and the same stable
+        real-space invariants, each written as ``terms`` is; empty where the
+        group has no tabulated invariants.
     note : str
-        Where no sum is returned, why: none carries the content, several do and
-        nothing here says which is induced, or the content could not be
-        identified.
+        If nonempty, why no sum is returned: none carries the symmetry data
+        vector, several do and nothing read says which is induced, or the
+        symmetry data vector could not be identified.
     """
 
     orbitals: tuple
@@ -246,18 +242,21 @@ class _OrbitBandRepresentation:
     note: str = ""
 
     def spelled(self, terms=None) -> str:
-        """A sum on one line, written as the tables list it, ``"1 x -E1g↑G(2)@3a(-3m1',-3m) + 1 x -E1u↑G(2)@3a(-3m1',-3m)"``, or ``""``.
+        """A sum on one line, written as the tables list it.
 
-        :attr:`terms` by default, or one of :attr:`alternatives`.
+        ``terms`` is :attr:`terms` where ``None``, or one of
+        :attr:`alternatives`.  Returns ``"1 x A1↑G(2)@2b(3m1',3m)"`` for
+        graphene's orbit, terms joined by ``" + "``, and ``""`` for no terms.
         """
         terms = self.terms if terms is None else terms
         return " + ".join(f"{m} x {name}@{position}" for m, name, position in terms)
 
     def sentence(self) -> str:
-        """The sentence the atomic-limit table's summary prints for this orbit, where it prints one.
+        """The line the per-orbital table's summary prints for this orbit alone.
 
-        Orbits at one Wyckoff position that induce the same sums share one
-        line there instead, each orbit's orbitals named.
+        The sum it induces and those it is not distinguished from, or the
+        note where there is no sum.  Orbits at one Wyckoff position that
+        induce the same sums share one line instead (:func:`_orbits_sentence`).
         """
         one = len(self.orbitals) == 1
         who = _orbitals_named(self.orbitals)
@@ -283,45 +282,46 @@ class _OrbitBandRepresentation:
         return "\n".join(lines)
 
 def _fold(k) -> str:
-    """``"twofold"``, ``"threefold"``, ...: how many identical copies a pseudospin makes."""
+    """The count ``k`` of a pseudospin's copies as a word, ``"twofold"``.
+
+    Above four it is written ``"5-fold"``.
+    """
     return {2: "twofold", 3: "threefold", 4: "fourfold"}.get(int(k), f"{int(k)}-fold")
 
 def _in_words(n) -> str:
-    """A small count in words, ``"two"``; a larger one in figures."""
+    """The count ``n`` in words up to six, ``"two"``, and in figures above."""
     return {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}.get(int(n), str(int(n)))
 
 @dataclass(frozen=True)
 class _MultiplicitySpace:
-    """A pseudospin the Hamiltonian conserves on an orbit of orbitals, and the site content assigned its copies.
+    """A pseudospin the Hamiltonian conserves on an orbit, and what its copies carry.
 
-    Where the Hamiltonian holds identical copies of a part of the crystal that
-    nothing joins, every band there is as many times degenerate as there are
-    copies, and nothing the hoppings measure says what the copies carry, which
-    moves the site content itself.  A declaration on their orbitals states it,
-    and the lowest-angular-momentum rule assigns it otherwise, the copies read
-    copy by copy first.  ``space.summary()`` prints it; it is one entry of
-    ``rep._characters.multiplicity_spaces``.
+    It is one entry of ``rep._characters.multiplicity_spaces``, and
+    ``space.summary()`` prints it.  The site irreps are named at one site of
+    the orbit, as a row's ``irrep`` is, a sum written ``"2xA1"``.
 
     Attributes
     ----------
     orbitals : tuple of int
         The orbitals the copies are made of.
     wyckoff : str
-        The Wyckoff position of the site whose content is read; ``""`` where the
-        tables do not reach the cell.
+        The Wyckoff position of the site the site irreps are read at; ``""``
+        where the model's cell could not be matched to the conventional cell
+        used by the irreptables package.
     dim : int
         The number of copies, the degeneracy of every band on these orbitals.
     content : str
-        The site content returned.
+        The site irreps the copies carry, as returned.
     contents : tuple of str
-        The site contents the representations of the copies the group's own
-        table admits give, in the order the lowest-angular-momentum rule ranks
-        them; with spin, two can name one content.
+        The site irreps each representation of the copies that the group's own
+        table admits gives, in the order the lowest-angular-momentum rule ranks
+        them, ``"(unnamed)"`` where nothing names them; with spin, two can be
+        the same.
     n_representations : int
         How many representations of the copies the group's own table admits.
     determined_by : str
-        ``"declaration"``; ``"lowest-l"``, the rule's choice; or
-        ``"hamiltonian"``, where the table admits one representation.
+        ``"declaration"``; ``"lowest-l"``, the rule's choice among several;
+        or ``"hamiltonian"``, where the table admits one representation.
     """
 
     orbitals: tuple
@@ -331,18 +331,18 @@ class _MultiplicitySpace:
     contents: tuple
     n_representations: int = 1
     determined_by: str = "lowest-l"
-    # how many Wannier functions of the copies one site holds -- orbitals, or
-    # declared spinor pairs where ``_pairs`` -- which says what one copy is
+    # how many Wannier functions of the copies one site holds, orbitals or, where
+    # ``_pairs``, declared spinor pairs; it says what one copy is
     _per_site: int = field(default=0, repr=False, compare=False)
     _pairs: bool = field(default=False, repr=False, compare=False)
 
     def _distinct(self) -> tuple:
-        """The site contents admitted, each named once, in the rule's order.
+        """The entries of :attr:`contents`, each set of site irreps once, in order.
 
-        With spin, different orbital contents can lift to one site corep
-        content, ``2xA1`` and ``2xA2`` of ``3m`` both to ``2x-E1``, and a sum
-        can be spelled in either order of its terms, ``-E1 + -E2`` and
-        ``-E2 + -E1``: a content is the irreps it holds and how many of each.
+        Two entries are one set where they hold the same irreps the same
+        number of times, whatever the order of the terms: ``-E1 + -E2`` and
+        ``-E2 + -E1``, and with spin ``2x-E1`` lifted from both ``2xA1`` and
+        ``2xA2`` of ``3m``.
         """
         seen, out = set(), []
         for content in self.contents:
@@ -353,7 +353,7 @@ class _MultiplicitySpace:
         return tuple(out)
 
     def sentence(self) -> str:
-        """The sentence the atomic-limit table's summary prints for this pseudospin."""
+        """The line the per-orbital table's summary prints for this pseudospin."""
         head = (f"orbitals {tuple(self.orbitals)}"
                 + (f" at {self.wyckoff}" if self.wyckoff else "")
                 + f" carry a {_fold(self.dim)} pseudospin the Hamiltonian conserves")
@@ -375,7 +375,7 @@ class _MultiplicitySpace:
                 f"giving the site content {content}")
 
     def summary(self) -> str:
-        """The pseudospin, what its copies carry and how that was chosen, a line each."""
+        """The pseudospin, what its copies carry and how that is known, a line each."""
         how = {"declaration": "stated by the declaration",
                "lowest-l": "assigned by the lowest-angular-momentum rule",
                "hamiltonian": "the one content the group's own table admits"}.get(
@@ -406,11 +406,12 @@ class _MultiplicitySpace:
 
 @dataclass(frozen=True)
 class _OrbitalTable:
-    """What each orbital carries at its site: the table an atomic limit is written up in, a row per orbital.
+    """The site irrep each orbital carries, a row per orbital.
 
-    ``rep._characters`` is the table; ``table.summary()`` prints it, and
-    ``table[i]`` is orbital ``i``'s :class:`_OrbitalRow`.  The table is where
-    a mis-oriented declaration shows, in each row's orbital characters.
+    ``rep._characters``, the per-orbital table, from which the matrices are
+    induced and the rows of ``r.wyckoff_orbits`` are gathered.  ``table[i]``
+    is orbital ``i``'s :class:`_OrbitalRow`, and ``table.summary()`` prints
+    it.
 
     Attributes
     ----------
@@ -419,31 +420,32 @@ class _OrbitalTable:
     irreps : tuple of str
         Each orbital's site irrep, in the model's order.
     band_representations : tuple of _OrbitBandRepresentation
-        The band representation each orbit of orbitals induces, a sum of
-        elementary band representations, in the order of the orbits; empty
-        where the tables do not reach the cell.
+        The band representation each orbit of orbitals induces, in the order
+        of the orbits; empty where the model's cell could not be matched to
+        the conventional cell used by the irreptables package.
     multiplicity_spaces : tuple of _MultiplicitySpace
         One per orbit on which the Hamiltonian conserves a pseudospin, with the
-        site content assigned its copies; empty where none does.
+        site irreps its copies carry; empty where none does.
     declarations : tuple of dict
         Each declaration as it was read: ``orbitals``, ``declared_as`` and the
         ``declared_irrep`` it resolved to, ``dim``, ``note``, ``declared_in``,
         ``reduced_in``, the operations it ``broke``; ``mulliken``, each name
-        written that Mulliken's convention gives another row, with that row's
-        name; and ``returned``, what its multiplets carry together.
+        written that Mulliken's convention gives another irrep of the site
+        group, with that irrep's Mulliken name; and ``returned``, what its
+        multiplets carry together.
     checks : tuple of dict
         Each declaration against each operation of its site group the hoppings
         say something about, ``orbitals``, ``ind``, ``name``, ``measured`` and
         ``declared``: the table a ``declaration_breaks_group`` refusal prints.
-        ``measured`` is read against a multiplet of the declaration's own part
-        of the crystal, so the two differ by a one-dimensional character of
-        that part.
+        ``measured`` is read against a multiplet of the declaration's own
+        coupled part of the crystal, so the two can differ by a
+        one-dimensional character of the group on that part.
     frame : dict
-        ``{ind: name}``, every operation represented, named in the model's
-        frame.
+        ``{ind: name}``, every operation represented, named in the Cartesian
+        axes in which the pythtb Lattice is specified.
     spin : ..spin.SpinBasis or None
-        The declared spinor basis, where one was; the table then has a ``spin``
-        column, each row's member of its pair.
+        The declared spinor basis, where one was; the summary then has a
+        ``spin`` column, each row's member of its pair.
     residual : float
         The largest ``residual`` of any row.
     site_tables : dict
@@ -459,11 +461,11 @@ class _OrbitalTable:
     spin: Any = None
     band_representations: tuple = ()
     multiplicity_spaces: tuple = ()
-    # the chooser's own record of the labellings that give every orbital the
+    # the chooser's own record of the labelings that give every orbital the
     # site irrep the one returned gives it and label some band differently:
     # each coupled part's states, and per part the band labels of every energy
     # multiplet under the one returned and under each of those, with the key
-    # that set it aside -- read by `sewing.hsp_table` to say where a set of
+    # that set it aside; `sewing._labeling_note` reads it to say where a set of
     # bands' labels rest on that choice
     _labelings: dict = field(default_factory=dict, repr=False, compare=False)
 
@@ -479,18 +481,19 @@ class _OrbitalTable:
         return tuple(o.irrep for o in self.orbitals)
 
     def summary(self) -> str:
-        """The table, a row per orbital, and a line under it for each thing the rows do not say.
+        """The table, a row per orbital, and a line under it for what the rows omit.
 
-        The columns are the row's fields; ``orbital characters`` is the orbital
-        factor's character on one operation of each class, without spin.  Under
-        the rows, each line ending with the attribute that holds it: a
-        declaration that lowered the group, that the Hamiltonian's own blocks
-        do not carry, or that is written in a name Mulliken's convention gives
-        another row, with what was declared, where it was read and what is
-        returned in its place; an orbit whose band representation is not its
-        rows' own elementary band representations at its own position; and a
-        conserved pseudospin, with the site content assigned its copies.  Where
-        a row reads ``lowest-l``, a line says what that means.
+        The columns are the rows' fields; ``orbital characters`` is the orbital
+        factor's character on one operation of each class, without spin.  A
+        mis-oriented declaration shows in that column.  Each line under the
+        rows ends with the attribute that holds it, one for: a declaration that
+        lowered the cell, breaks operations, is not carried by the
+        Hamiltonian's own blocks, or is written in a name Mulliken's convention
+        gives another irrep of the site group; an orbit
+        whose band representation is not its rows' own elementary band
+        representations at its own position (:func:`_its_rows_own`); and a
+        conserved pseudospin.  Where a row reads ``lowest-l``, a last line
+        says what that means.
         """
         head = ["orbital", "Wyckoff", "site symmetry", "function"]
         spins = None
@@ -556,15 +559,14 @@ class _OrbitalTable:
                                        for o in self.orbitals) else "") + ")")
 
 def _its_rows_own(table, orbit) -> bool:
-    """Whether an orbit's band representation is its rows' own elementary ones.
+    """Whether an orbit's sum is its rows' own elementary band representations.
 
-    That is, every row of the orbit named by the tables' entries at its own
-    position, every term of the sum at that position, and no other sum at that
-    position beside it: the terms are then the elementary band representations
-    of the rows' own site irreps, and a line under the table would repeat them.
-    A sum at other positions with the same content and the same stable
-    real-space invariants is on the record
-    (:attr:`_OrbitBandRepresentation.alternatives`) and prints no line of its own.
+    ``table`` is the per-orbital table and ``orbit`` one of its
+    ``band_representations``.  True where every row of the orbit takes its
+    name from the tables (``named_by == "tables"``), the sum is nonempty with
+    every term at the orbit's own position, and no alternative is wholly at
+    that position.  A summary then prints no line under the table for the
+    orbit.
     """
     rows = [table.orbitals[int(a)] for a in orbit.orbitals]
 
@@ -577,11 +579,12 @@ def _its_rows_own(table, orbit) -> bool:
             and all(o.named_by == "tables" for o in rows))
 
 def _orbits_sentence(orbits) -> str:
-    """The line under the atomic-limit table for orbits that induce the same sums.
+    """The line under a summary's table for orbits that induce the same sums.
 
-    One orbit reads as :meth:`_OrbitBandRepresentation.sentence` writes it; several at
-    one Wyckoff position, inducing the same sums, read once, each orbit's
-    orbitals named.
+    ``orbits`` are entries of ``band_representations`` at one Wyckoff
+    position with the same terms, alternatives and note.  One orbit reads as
+    :meth:`_OrbitBandRepresentation.sentence` writes it; several read once,
+    each orbit's orbitals named.
     """
     first = orbits[0]
     if len(orbits) == 1:
@@ -594,11 +597,19 @@ def _orbits_sentence(orbits) -> str:
     return f"{who}, each induce {_ebrs_of(first.terms)}{_not_distinguished(first)}"
 
 def _no_sum(orbit) -> str:
-    """What an orbit's line says in place of a sum: its note, which says it whole."""
+    """What the line of ``orbit``, an orbit with no sum, says in its place.
+
+    Its note, or ``"no sum of elementary band representations"`` where the
+    note is empty.
+    """
     return orbit.note or "no sum of elementary band representations"
 
 def _not_distinguished(orbit) -> str:
-    """The orbit's alternatives on its line, ``", not distinguished by ... from the ... of A or of B"``, or ``""``."""
+    """The clause naming the alternatives of ``orbit`` on its line, or ``""``.
+
+    The clause reads ``", not distinguished by the stable real-space
+    invariants from"`` and the sums.
+    """
     others = orbit.alternatives
     if not others:
         return ""
@@ -611,14 +622,15 @@ def _not_distinguished(orbit) -> str:
     return f", not distinguished by the stable real-space invariants from {joined}"
 
 def _content_by_position(table, states_per_orbital) -> list:
-    """The orbitals at each Wyckoff position and what one site there holds, a line each.
+    """The orbitals at each Wyckoff position and the site irreps one site holds.
 
-    ``"2b (3m): orbitals 0-1, -E1"``.  The content is read at the position's
-    first site, each multiplet there once, and a multiplet of several
-    identical copies of one irrep counts that irrep as many times, its rows
-    each naming it (:attr:`_OrbitalRow.irrep`).  ``states_per_orbital`` is
-    two on a model whose orbitals carry their own spin, where a row's
-    dimension counts states and its multiplet orbitals, and one otherwise.
+    ``table`` is the per-orbital table.  ``states_per_orbital`` is ``2`` on
+    a model whose orbitals carry their own spin, where a row's ``dim`` counts
+    states and its ``multiplet`` orbitals, and ``1`` otherwise.  The site
+    irreps are read at the position's lowest-indexed site, each multiplet
+    there once, a multiplet of identical copies of one irrep counting that
+    irrep once per copy.  Returns a line per position, ``"2b (3m): orbitals
+    0-1, A1"`` for graphene.
     """
     by_position = {}
     for row in table.orbitals:
@@ -645,16 +657,20 @@ def _content_by_position(table, states_per_orbital) -> list:
 
 @dataclass(frozen=True, eq=False)
 class BandRepresentation:
-    """A sum of site irreps at Wyckoff positions: the band representation they induce, with its printed form.
+    """A sum of elementary band representations, each induced from a site irrep.
 
-    Iterating, indexing and ``len()`` go over :attr:`terms`.  Two sums are
-    equal where their terms are, whatever printed them.
+    The ``band_representation`` of each row of ``r.wyckoff_orbits`` is one, and
+    so is each candidate sum :func:`..ebr.decompose` returns.  Iterating,
+    indexing and ``len()`` go over :attr:`terms`.  Two sums are equal where
+    their terms are.
 
     Attributes
     ----------
     terms : tuple of ..groups.Term
-        The terms, each a whole number of copies of a site irrep at a Wyckoff
-        position; empty where no sum carries the content.
+        If nonempty, the terms of the sum.  Each term holds an integer
+        multiplicity, a site irrep, its Wyckoff position, and its
+        site-symmetry group with and without time reversal:
+        ``Term(1, "-E1", "2b", "3m1'", "3m")``.
     label : str
         The sum as printed, ``"-E1 at 1b (4mm1') + 2x-E2 at 1b (4mm1')"``;
         ``""`` where there are no terms.
@@ -685,33 +701,41 @@ class BandRepresentation:
 
 
 def _words_label(terms) -> str:
-    """A sum of terms in words with each site-symmetry group, ``-E1 at 1b (4mm1') + 2x-E2 at 1b (4mm1')``."""
+    """The sum of ``terms`` with each site-symmetry group, ``"A1 at 2b (3m1')"``."""
     return " + ".join(
         ("" if int(t.multiplicity) == 1 else f"{int(t.multiplicity)}x")
         + f"{t.irrep} at {t.wyckoff} ({t.site_symmetry})" for t in terms)
 
 
 def _paper_label(terms) -> str:
-    """A sum of terms as the tables of the stable real-space invariants print it, ``1 (-E2)_b + 1 (-E)_c``."""
+    """The sum ``terms`` as the tables of the stable real-space invariants write it.
+
+    Each term is its multiplicity, its site irrep and its Wyckoff letter,
+    ``"1 (-E2)_b + 1 (-E)_c"``.
+    """
     return " + ".join(f"{int(t.multiplicity)} ({t.irrep})_{t.wyckoff.lstrip('0123456789')}"
                       for t in terms)
 
 
 def _irreps_label(terms) -> str:
-    """The site irreps of one site, as a row prints them: ``-E1``, ``2xA1``, ``-E1u + -E3u``."""
+    """The site irreps of ``terms``, at one site, as a row prints them: ``"2xA1"``."""
     return " + ".join(("" if int(t.multiplicity) == 1 else f"{int(t.multiplicity)}x") + t.irrep
                       for t in terms)
 
 
 def _sum_of(terms) -> BandRepresentation:
-    """A sum of terms with its label in words."""
+    """The :class:`BandRepresentation` of ``terms``, labeled by :func:`_words_label`."""
     terms = tuple(terms)
     return BandRepresentation(terms=terms, label=_words_label(terms))
 
 
 @dataclass(frozen=True)
 class DeclarationCheck:
-    """A declaration held against one operation of its site group: what the hoppings measure there and what was declared.
+    """The character a declaration states for one operation, beside the one measured.
+
+    One entry of ``r.wyckoff_orbits.numerical.checks``: an operation of the
+    declared orbitals' site-symmetry group on which the hoppings fix their
+    character relative to the orbitals they couple them to.
 
     Attributes
     ----------
@@ -720,11 +744,17 @@ class DeclarationCheck:
     index : int
         The operation, by index.
     name : str
-        Its name in the model's frame.
-    measured, declared : complex or None
-        The character the hoppings measure for it, read against one multiplet
-        of the declaration's own part of the crystal, and the character
-        declared.
+        The operation's name, in the Cartesian axes in which the pythtb
+        Lattice is specified.
+    measured : complex
+        The character of the operation on the declared orbitals, as the
+        hoppings give it relative to the orbitals they couple them to.
+    declared : complex
+        The character the declaration states for the operation.  The hoppings
+        fix the representation on the orbitals they couple only up to a
+        one-dimensional character of the group.  So where the declaration
+        holds, ``declared`` is ``measured`` times the value one such character
+        takes on the operation.
     """
 
     orbitals: tuple
@@ -735,7 +765,12 @@ class DeclarationCheck:
 
 
 def _declaration_checks(rows) -> tuple:
-    """The measured-versus-declared rows, each as a :class:`DeclarationCheck`."""
+    """The declaration checks ``rows``, each as a :class:`DeclarationCheck`.
+
+    Each of ``rows`` is a mapping with the keys of
+    :attr:`_OrbitalTable.checks`: a declaration's measured and declared
+    character on one operation.
+    """
     return tuple(DeclarationCheck(orbitals=tuple(int(o) for o in r["orbitals"]),
                                   index=int(r["ind"]), name=str(r["name"]),
                                   measured=r.get("measured"), declared=r.get("declared"))
@@ -744,9 +779,10 @@ def _declaration_checks(rows) -> tuple:
 
 @dataclass(frozen=True)
 class WyckoffOrbitNumerical:
-    """How a Wyckoff orbit's row was read: its sites, each orbital's characters, and how a declaration was resolved.
+    """How a row of the atomic-limit table was read.
 
-    ``o.numerical`` of a row of ``r.wyckoff_orbits``.
+    ``o.numerical`` of a row ``o`` of ``r.wyckoff_orbits``: its sites, each
+    orbital's characters, and how each declaration was resolved.
 
     Attributes
     ----------
@@ -754,40 +790,75 @@ class WyckoffOrbitNumerical:
         Each site's position in reduced coordinates, in the order of
         ``o.site_multiplets``.
     residual : float
-        How far an orbital's block misses its character times its spin factor,
-        or a multiplet misses multiplying as the site group does, the largest
-        over the row's orbitals: a large one says the site irreps are not to be
-        trusted.
+        The largest misfit over every multiplet of the table, the same on
+        every row.  An operation that fixes a multiplet of one orbital acts on
+        its states as a number, the orbital's character, times the operation's
+        matrix on spin, the spin factor, which is ``1`` without spin.  On such
+        a multiplet, or on one declared spinor pair, the misfit is how far its
+        block misses that product.  On a multiplet of several orbitals it
+        is how far its blocks miss multiplying as the site-symmetry group
+        does.  Each misfit is the largest modulus of an entry of a difference
+        of unitary blocks, and one that is not small against ``1`` says the
+        site irreps are not to be trusted.  The one exception is a multiplet
+        of several orbitals with spin: its blocks multiply with the sign the
+        double group gives each product, and miss by as much as ``2`` with the
+        site irreps right.
     characters : dict
         For each orbital, its orbital factor's character on every operation of
-        its site group, by index, single-valued with spin or without.
+        its site-symmetry group, by index.  It is single-valued, with spin or
+        without.
     named_by : str
-        Where the row's site irreps take their names: ``"tables"``, the
-        elementary band representations at this position; ``"invariants"``,
-        the tables of the stable real-space invariants; ``"point group"``, the
-        site's point group at the origin of a symmorphic group;
-        ``"Mulliken"``, the Mulliken symbol; or ``"unnamed"``.
-    declared_irrep, declared_in, reduced_in, declaration_broke : dict
-        For each declared orbital: the site irreps its declaration resolved
-        to; the site group and group it was read in (``"3m in P3m11'
-        #156.50"``); where the declared content lowered the cell first, the
-        site group and group it was resolved in; and the operations the
-        declared content breaks.  Empty where nothing was declared.
+        Where the row's site irreps take their names.  ``"tables"``: the
+        tables of elementary band representations list the band representation
+        the row's orbitals induce at this Wyckoff position, and the name is the
+        site irrep those entries carry.  ``"invariants"``: those tables list
+        none at this position, and the tables of the stable real-space
+        invariants name the site irrep the row's orbitals carry there, which is
+        single-valued.  ``"point group"``: neither names it, and the name is
+        the one the tables give that irrep at the origin of a symmorphic space
+        group with the same point group, so that one irrep has one name at
+        every site.  ``"Mulliken"``: those point-group names rest on an
+        orientation no table fixes at this site, and the name is the irrep's
+        Mulliken symbol, read off its
+        characters on the site's rotations and mirrors in the Cartesian axes
+        in which the pythtb Lattice is specified.  ``"unnamed"``: nothing names
+        the row, and ``o.label`` is blank.
+    declared_irrep : dict
+        If nonempty, for each declared orbital, the site irreps its
+        declaration resolved to, ``{0: "A1"}``.
+    declared_in : dict
+        If nonempty, for each declared orbital, the site-symmetry group and
+        the group the declaration was read in,
+        ``{0: "3m in P6mm1' #183.186"}``.
+    reduced_in : dict
+        If nonempty, for each declared orbital, where its declared site irreps
+        lowered the group of the cell before any hopping was read, the
+        site-symmetry group and the group the declaration was resolved in;
+        ``""`` where they did not.
+    declaration_broke : dict
+        If nonempty, for each declared orbital, the names of the operations
+        the declared site irreps break.
     determined_by : dict
-        For each orbital, how its site irrep is known, as the row's
-        ``determined_by`` reads it.
+        For each orbital, how its site irrep is known, in the values of
+        ``o.determined_by``.
     alternatives : tuple of BandRepresentation
-        The other sums with the same symmetry content and the same stable
-        real-space invariants, which nothing measured tells from the row's
-        own.
+        If nonempty, the other sums of elementary band representations with
+        the same symmetry data vector and the same stable real-space invariants
+        as ``o.band_representation``, which no quantity measured distinguishes
+        from it.  Empty where the group has no tabulated invariants.
     contents : tuple of BandRepresentation
-        Where the Hamiltonian conserves a pseudospin on the row, every set of
-        site irreps the representations of its copies the group's own table
-        admits give, in the order the lowest-angular-momentum rule ranks them;
-        empty otherwise.
+        If nonempty, the sums of site irreps at the row's Wyckoff position
+        that the copies of a pseudospin the Hamiltonian conserves on the row
+        can carry, each sum once, ranked by the lowest-angular-momentum rule.
+        The Hamiltonian fixes how each operation acts within one copy, and
+        leaves open how it acts on the copies themselves.  Each sum comes from
+        one representation of the copies: a sum of irreps of the operations
+        that carry one copy's part of the crystal onto itself, whose product
+        with the action within a copy multiplies as the group returned does.
     n_representations : int
-        How many representations of the copies the group's own table admits;
-        ``1`` where no pseudospin is conserved.
+        How many representations of the copies there are, as ``contents``
+        defines them; several can give one sum.  ``1`` where no pseudospin
+        is conserved.
     """
 
     positions: tuple
@@ -810,50 +881,68 @@ class WyckoffOrbitNumerical:
 
 @dataclass(frozen=True)
 class WyckoffOrbit:
-    """One Wyckoff orbit of the model's orbitals: the orbitals the operations carry into one another, and the site irreps they carry.
+    """One Wyckoff orbit of the model's orbitals, and the site irreps they carry.
 
-    A row of ``r.wyckoff_orbits``; ``o.summary()`` prints it.  Its site irreps
-    are the orbit's, one name for the whole orbit: two of its sites that an
-    operation exchanging two site irreps carries into one another can carry
-    conjugate ones, ``B1`` at ``(1/2, 0)`` and ``B2`` at ``(0, 1/2)``, and the
-    row names the orbit as the tables of elementary band representations do.
+    A row ``o`` of ``r.wyckoff_orbits``: the orbitals the operations of the
+    group carry into one another.  ``o.summary()`` prints it.
 
     Attributes
     ----------
     wyckoff : str
-        The Wyckoff position, multiplicity and letter in the tables' setting,
-        ``"1a"``; ``""`` where the tables do not reach the cell.
+        The Wyckoff position, multiplicity and letter, ``"2b"``, in the
+        conventional cell used by the irreptables package; ``""`` where the
+        model's cell could not be matched to that cell.
     site_symmetry : str
-        The site-symmetry group, with its ``1'`` where the group returned has
-        time reversal, ``"4mm1'"``; ``"3"`` in ``P3``.
+        The Hermann-Mauguin symbol of the site-symmetry group, read off the
+        operations measured to fix a site, with its ``1'`` where the group
+        returned has time reversal: ``"3m1'"``, and ``"3"`` in ``P3``.
     orbitals : tuple of int
-        The orbitals of the orbit.
+        The model's orbitals on the orbit's sites.
     label : str
-        The site irreps one of its sites holds, as printed: ``"-E1"``,
-        ``"2xA1"``, ``"-E1u + -E3u"``.
+        The site irreps one site of the orbit holds, in the site-symmetry
+        group of the group returned, as printed: ``"-E1"``, ``"2xA1"``,
+        ``"-E1u + -E3u"``.  With spin they are double-valued, ``-E1`` for an
+        ``s`` orbital at a ``3m`` site.  They are read off the characters, so
+        are the same in any basis and whatever the spelling of a declaration.
+        Two sites of an orbit can carry conjugate site irreps, as ``B1`` at
+        ``(1/2, 0)`` and ``B2`` at ``(0, 1/2)`` in ``P4mm1'``.  The row names
+        them once, from the source ``numerical.named_by`` gives.
     terms : tuple of ..groups.Term
-        The same site irreps as terms, ``Term(1, "-E1", "1a", "4mm1'",
-        "4mm")``.
+        The same site irreps as terms, ``Term(1, "-E1", "2b", "3m1'", "3m")``.
     unitary_site_symmetry : str
-        The unitary part of the site-symmetry group, ``"4mm"``.
+        The unitary part of the site-symmetry group, ``"3m"``.
     determined_by : str
-        How the site irreps are known, the weakest ground among the orbitals:
-        ``"declaration not carried"``, declared and not carried by the
-        Hamiltonian's own blocks; ``"lowest-l"``, chosen by the
-        lowest-angular-momentum rule, which ``characters=`` overrides;
-        ``"declaration"``; or ``"hamiltonian"``, the same under every labeling
-        the declarations leave open.
+        How the site irreps are known: of the four values, listed here weakest
+        first, the weakest any of the row's orbitals reads.  The hoppings fix
+        the representation only up to a one-dimensional character of the group
+        on each set of orbitals they couple, and ``characters=`` can fix it.
+        ``"declaration not carried"``: ``characters=`` stated the site irreps,
+        and the Hamiltonian's own blocks do not carry them; ``label`` is what
+        the blocks carry.  ``"lowest-l"``: the choices the hoppings and the
+        declarations leave open give some orbital of the row different site
+        irreps, and the lowest-angular-momentum rule chose these.
+        ``"declaration"``: ``characters=`` stated them, and the matrices
+        returned carry them.  ``"hamiltonian"``: nothing was declared for the
+        row, and every choice left open gives the same site irreps.
     declared : str, tuple or None
-        What ``characters=`` declared for the row: one word where every
-        orbital was declared the same, otherwise one entry per orbital,
-        ``None`` for an orbital not declared; ``None`` where nothing was.
+        ``None`` where nothing was declared for the row.  Otherwise what
+        ``characters=`` declared: one word where every orbital was declared
+        the same, otherwise one entry per orbital, ``None`` for an orbital
+        not declared.
     band_representation : BandRepresentation
-        The sum of elementary band representations the orbit induces, written
-        at a position its orbitals can be moved to along their variety, their
-        own first; empty where none carries the content.
+        The sum of elementary band representations the orbit induces.  It is
+        written at the orbit's own Wyckoff position where a sum there carries
+        the orbit's symmetry data vector, and otherwise at other positions.
+        There its terms need not correspond one to one with the row's site
+        irreps.  Its terms are empty where no sum is found for the orbit: the
+        model's cell could not be matched to the conventional cell used by the
+        irreptables package, no sum carries the symmetry data vector, several
+        do and nothing read says which is induced, or the vector could not be
+        identified.
     site_multiplets : tuple of tuple of int
-        The orbitals the Hamiltonian binds together at each of the orbit's
-        sites, ``((2,), (3,))``.
+        For each of the orbit's sites, the orbitals of its multiplets there,
+        which carry the row's site irreps together: ``((0,), (1,))`` for an
+        orbit of two sites with one orbital each.
     numerical : WyckoffOrbitNumerical
         How the row was read.
     """
@@ -873,12 +962,15 @@ class WyckoffOrbit:
     _sites: tuple = field(default=(), repr=False, compare=False)
 
     def _line(self) -> str:
-        """The row in one line, as ``r.summary()`` prints it: ``1a (4mm1'): orbital 0, -E1``."""
+        """The row in one line, as ``r.summary()`` prints it.
+
+        ``"2b (3m1'): orbitals 0-1, A1"`` for graphene.
+        """
         return (f"{self.wyckoff or '?'} ({self.site_symmetry}): "
                 f"{_orbitals_named(self.orbitals)}, {self.label or 'unnamed'}")
 
     def summary(self) -> str:
-        """The row, a line for each part that applies, ending with the attribute that holds it."""
+        """The row, a line for each part that applies, with the attribute that holds it."""
         lines = [self._line() + "   (.wyckoff, .site_symmetry, .orbitals, .label)"]
         if self.declared is not None:
             lines.append(f"  declared {self.declared!r}"
@@ -908,18 +1000,29 @@ class WyckoffOrbit:
 
 @dataclass(frozen=True)
 class AccidentalDegeneracy:
-    """Two partitions of a site's orbitals into multiplets that are equally fine, an accidental degeneracy, and the one returned.
+    """A tie between ways of joining a site's orbitals into multiplets.
+
+    One entry of ``r.wyckoff_orbits.numerical.accidental``.  The multiplets
+    are found by joining a multiplet with another where the matrices of an
+    operation that carry H onto itself reach from the one to the other.  Here
+    they reach from one multiplet to several others, by an accidental
+    degeneracy of H.  The weight of each such partner, the largest modulus of
+    an entry of those matrices between it and the multiplet, is at least half
+    the largest weight.  The multiplet could be joined with any of them.  It
+    is joined with the lowest-indexed, and the tie is recorded where some of
+    the others stay apart.
 
     Attributes
     ----------
     operation : int
-        The operation, by index, at which the two partitions tie.
+        The operation at which the tie arose, by index.
     orbitals : tuple of int
-        The orbitals the two partitions concern.
+        The orbitals of the multiplet, of the partner it was joined with, and
+        of the partners that stay apart from it.
     chosen : tuple of int
-        The orbitals the multiplet returned binds, the lowest-indexed partners.
+        The orbitals of the multiplet and the partner it was joined with.
     note : str
-        The same in a sentence.
+        The entry, in a sentence.
     """
 
     operation: int
@@ -929,7 +1032,11 @@ class AccidentalDegeneracy:
 
 
 def _accidental(layout) -> tuple:
-    """The accidental degeneracies of a representation's multiplets, as :class:`AccidentalDegeneracy` rows."""
+    """Accidental degeneracies of ``layout``, as :class:`AccidentalDegeneracy` rows.
+
+    ``layout`` is a representation's multiplets, ``rep._multiplets``; a
+    layout with no ``accidental`` entries gives ``()``.
+    """
     from ._realized import _record
     return tuple(_record(AccidentalDegeneracy, entry)
                  for entry in (getattr(layout, "accidental", ()) or ()))
@@ -937,26 +1044,27 @@ def _accidental(layout) -> tuple:
 
 @dataclass(frozen=True)
 class AtomicLimitTableNumerical:
-    """How the atomic-limit table was read: each declaration against the hoppings, and the multiplets.
+    """How the atomic-limit table was read.
 
-    ``r.wyckoff_orbits.numerical``.
+    ``r.wyckoff_orbits.numerical``: each declaration against the hoppings, and
+    how the multiplets were found.
 
     Attributes
     ----------
     checks : tuple of DeclarationCheck
-        Each declaration against each operation of its site group the
-        hoppings say something about: the table a ``declaration_breaks_group``
-        refusal prints.  What is measured is read against one multiplet of the
-        declaration's own part of the crystal, so the two differ by a
-        one-dimensional character of that part.
+        If nonempty, for each declaration and each operation of its
+        site-symmetry group on which the hoppings fix the declared orbitals'
+        character, the character measured beside the character declared.
     residual : float
-        The largest residual of any row.
+        The largest ``o.numerical.residual`` over the rows ``o``.
     site_multiplets_determined_by : str
         How the multiplets each site's orbitals form were found:
-        ``"hamiltonian"``, measured; ``"declaration"``, stated.
+        ``"hamiltonian"``, measured; ``"declaration"``, stated with
+        ``site_multiplets=``.
     accidental : tuple of AccidentalDegeneracy
-        The multiplets the Hamiltonian binds by an accident of its numbers
-        rather than by the site group.
+        If nonempty, an entry for each tie between two ways of joining a
+        site's orbitals into multiplets, by an accidental degeneracy of H.
+        Each entry names the multiplet returned.
     """
 
     checks: tuple
@@ -971,16 +1079,19 @@ class AtomicLimitTableNumerical:
 
 @dataclass(frozen=True)
 class AtomicLimitTable:
-    """What the model's orbitals carry at their sites, a row per Wyckoff orbit: the table an atomic limit is written up in.
+    """The site irreps the model's orbitals carry, a row per Wyckoff orbit.
 
-    ``r.wyckoff_orbits``; ``table.summary()`` prints it.  ``table[j]`` is row
-    ``j``, a :class:`WyckoffOrbit`, in the order the orbits' first orbitals
-    come in the model, and iterating goes over the rows.
+    ``r.wyckoff_orbits`` of what :func:`..groups.realized_group` returns: the
+    site irreps at each Wyckoff position that specify an atomic limit.
+    ``table[j]`` is row ``j``, a :class:`WyckoffOrbit`, the rows in the order
+    the orbits' first orbitals come in the model.  Iterating and ``len()`` go
+    over the rows.  ``table.summary()`` prints it.
 
     Attributes
     ----------
     numerical : AtomicLimitTableNumerical
-        How the table was read.
+        How the table was read: each declaration against the hoppings, and how
+        the multiplets were found.
     """
 
     _rows: tuple
@@ -999,15 +1110,20 @@ class AtomicLimitTable:
         return iter(self._rows)
 
     def summary(self) -> str:
-        """The table, a row per Wyckoff orbit, and a line under it for each thing the rows do not say.
+        """The table, a row per Wyckoff orbit, and a line under it for what the rows omit.
 
-        The columns are the rows' fields.  Under the rows, each line ending with
-        the attribute that holds it: a row whose band representation is not
-        its own site irreps at its own position, with the sums nothing measured
-        tells from it; a conserved pseudospin, with the site irreps assigned
-        its copies; a declaration the Hamiltonian's own blocks do not carry or
-        written in a name Mulliken's convention gives another row; and where a
-        row reads ``lowest-l``, what that means.
+        The columns are the rows' fields; ``declared`` prints ``-`` for an
+        orbital not declared.  Under the rows, a row with no sum of elementary
+        band representations has a line saying why.  A row whose sum is not
+        its own site irreps at its own position has a line with that sum, and
+        with the sums the stable real-space invariants do not distinguish from
+        it.  A conserved pseudospin has a line with the site irreps assigned to
+        its copies, and how they were chosen.  A declaration the Hamiltonian's
+        own blocks do not carry has a line saying so, and so has a declaration
+        written in a name Mulliken's convention gives another irrep of the
+        site-symmetry group.  Each of these lines ends with the attribute that
+        holds it.  Where a row reads ``lowest-l``, a last line says what that
+        means.
         """
         head = ["Wyckoff", "site symmetry", "orbitals", "label", "determined by", "declared"]
         body = [[o.wyckoff or "?", o.site_symmetry, _index_ranges(o.orbitals),
@@ -1049,7 +1165,12 @@ class AtomicLimitTable:
 
 
 def _declared_text(declared) -> str:
-    """A row's ``declared`` in the table's column: the word, or one entry per orbital."""
+    """A row's ``declared`` as the summary's column prints it.
+
+    ``declared`` is :attr:`WyckoffOrbit.declared`.  Returns the word, the
+    entries joined by ``"/"`` with ``"-"`` for an orbital not declared, or
+    ``""`` for ``None``.
+    """
     if declared is None:
         return ""
     if isinstance(declared, tuple):
@@ -1058,7 +1179,11 @@ def _declared_text(declared) -> str:
 
 
 def _pseudospin_sentence(space) -> str:
-    """The line under the table for a pseudospin the Hamiltonian conserves."""
+    """The atomic-limit table's summary line for the pseudospin ``space``.
+
+    ``space`` is a :class:`_MultiplicitySpace`.  The line says what its
+    copies carry and how that is known.
+    """
     head = (f"{_orbitals_named(space.orbitals)}"
             + (f" at {space.wyckoff}" if space.wyckoff else "")
             + f" carry a {_fold(space.dim)} pseudospin the Hamiltonian conserves")
@@ -1081,7 +1206,12 @@ def _pseudospin_sentence(space) -> str:
 
 
 def _declaration_lines(table) -> list:
-    """The lines under the table for a declaration not carried, or written in a name Mulliken's convention gives another row."""
+    """The atomic-limit table's summary lines for the declarations of ``table``.
+
+    ``table`` is the per-orbital table, or ``None``, which gives ``[]``.  A
+    line is written for each declaration the Hamiltonian's own blocks do not
+    carry, or written in a name Mulliken's convention gives another row.
+    """
     if table is None:
         return []
     lines = []
@@ -1108,18 +1238,20 @@ def _declaration_lines(table) -> list:
     return lines
 
 
-#: The order a row's ``determined_by`` reads the grounds its orbitals rest on,
-#: the weakest first.
+#: The grounds a site irrep can rest on, the weakest first: a row reads the
+#: weakest among its orbitals'.
 _GROUNDS = (_NOT_CARRIED, "lowest-l", "declaration", "hamiltonian")
 
 
 def _wyckoff_orbits_of(rep) -> tuple:
-    """The Wyckoff orbits of a representation's orbitals: ``(sites, orbitals)`` for each.
+    """The Wyckoff orbits of the orbitals of ``rep``, a :class:`SpaceGroupRep`.
 
-    A Wyckoff orbit is the orbit of one multiplet under the group, read off the
-    build's orbits of multiplets; its sites are kept in the order of their
+    A Wyckoff orbit here is the orbit of one multiplet under the group.
+    Returns ``(sites, orbitals)`` for each, the sites in the order of their
     orbit of sites, and the orbits in the order their first orbitals come in
-    the model.
+    the model: ``(((0, 1), (0, 1)),)`` for graphene.  Raises
+    ``InternalError`` where an orbit of multiplets spans several orbits of
+    sites.
     """
     layout, assignment = rep._multiplets, rep._assignment
     classes = np.asarray(rep._classes, dtype=int)
@@ -1132,29 +1264,38 @@ def _wyckoff_orbits_of(rep) -> tuple:
         coarse = {int(orbit_of_site[s]) for s in sites}
         if len(coarse) != 1:
             raise InternalError(
-                f"the orbit of multiplets {c} spans the orbits of sites {sorted(coarse)}: "
-                "an orbit of one multiplet under the group lies in one orbit of sites, and "
-                "the two disagreeing is a defect in this package.")
+                f"the orbit of multiplets {c} spans the orbits of sites {sorted(coarse)}. "
+                "Report it, with the model and the call.")
         ordered = tuple(int(s) for s in assignment.orbits[coarse.pop()] if int(s) in sites)
         out.append((ordered, orbitals))
     return tuple(sorted(out, key=lambda w: min(w[1])))
 
 
 def _terms_of(old_terms) -> tuple:
-    """A sum written ``(multiplicity, elementary band representation, position)`` as terms."""
+    """The sum ``old_terms`` as :class:`..groups.Term` records, one per term.
+
+    ``old_terms`` holds ``(multiplicity, elementary band representation,
+    position)`` as the tables list them, ``(1, "A1↑G(2)", "2b(3m1',3m)")``,
+    which becomes ``Term(1, "A1", "2b", "3m1'", "3m")``.
+    """
     return tuple(replace(_tables._ebr_term(name, position), multiplicity=int(m))
                  for m, name, position in old_terms)
 
 
 def _wyckoff_orbit_table(rep) -> AtomicLimitTable:
-    """``r.wyckoff_orbits``: the per-orbital table's rows gathered by Wyckoff orbit.
+    """The atomic-limit table ``r.wyckoff_orbits`` of the representation ``rep``.
 
-    Each row's site irreps are the orbit's, read where the stable real-space
-    invariants read them: the terms of its band representation where that is
-    written at its own position, every term there and no other sum there; else
-    the site irreps the tables of the invariants give a composite band
-    representation; else the names its orbitals take at the site the carrying
-    to the position's own site leaves as it is.
+    The rows of ``rep._characters`` are gathered by Wyckoff orbit
+    (:func:`_wyckoff_orbits_of`).  A row's site irreps are the first of: the
+    terms of the orbit's band representation, where every term is at the
+    orbit's own position and no alternative is wholly there; the site irreps
+    the tables of the stable real-space invariants give a composite band
+    representation (:func:`..srsi._composite_localization`); and what the
+    orbitals carry at a site of the orbit that is carried to the position's
+    own site with its operations unchanged, or at the orbit's first site
+    where the orbit has no Wyckoff letter.  Returns a table with no rows
+    where ``rep._characters`` is ``None``.  Raises ``InternalError`` where an
+    orbit with a Wyckoff letter has no site carried so.
     """
     from . import srsi as _srsi
     from . import _site_names
@@ -1174,8 +1315,9 @@ def _wyckoff_orbit_table(rep) -> AtomicLimitTable:
     readings = _tables._sites_in_tables_setting(group, assignment.site_positions)
     readings = None if isinstance(readings, Refusal) else readings
     # the site-symmetry groups the list of elementary band representations
-    # writes, by position, with every bar; a position it does not name takes the
-    # name read off the operations, with its 1' in a group with time reversal
+    # writes, by position, both symbols, with and without 1', as the list writes
+    # them; a position it does not name takes the name read off the operations,
+    # with its 1' in a group with time reversal
     data = _tables._ebr_data(group)
     listed = {} if isinstance(data, Refusal) else {
         _tables._wyckoff_letter(position): (term.site_symmetry, term.unitary_site_symmetry)
@@ -1221,9 +1363,10 @@ def _wyckoff_orbit_table(rep) -> AtomicLimitTable:
                 if composite is not None:
                     terms = tuple(made(m, irrep)
                                   for irrep, m in composite["irreps"].items())
-            # 3. the names the orbitals take at the site the carrying leaves as it
-            # is; where the tables do not reach the cell there is no position's
-            # own site, and the orbit's sites are read as listed
+            # 3. the names the orbitals take at a site carried to the position's
+            # own site with its operations unchanged; where the tables do not
+            # reach the cell there is no position's own site, and the orbit's
+            # first site is read
             at = sites[0]
             letter = (wyckoff.lstrip("0123456789") if wyckoff else "")
             if letter:
@@ -1237,10 +1380,10 @@ def _wyckoff_orbit_table(rep) -> AtomicLimitTable:
                         break
                 if at is None:
                     raise InternalError(
-                        f"no site of the orbit of orbitals {list(orbitals)} at {wyckoff} is "
-                        "carried to the position's own site with its operations unchanged: "
-                        "one of an orbit's sites lies on the stretch of the position's own "
-                        "site, and none being found is a defect in this package.")
+                        f"no site of the orbitals {list(orbitals)} at {wyckoff} is carried "
+                        "onto the reference site the tables give that position with the "
+                        "same site-symmetry operations. Report it, with the model and the "
+                        "call.")
             mine = [o for o in table.orbitals if int(o.site) == int(at)
                     and int(o.orbital) in set(orbitals)]
             named_by = mine[0].named_by if mine else first.named_by
@@ -1315,23 +1458,29 @@ def _wyckoff_orbit_table(rep) -> AtomicLimitTable:
 
 @dataclass(frozen=True)
 class SpaceGroupRepNumerical:
-    """How closely the representation's matrices carry the Hamiltonian and multiply as the group does.
+    """How closely the matrices carry the Hamiltonian and multiply as the group does.
 
-    ``r.rep.numerical``; ``summary()`` prints it.
+    ``r.rep.numerical``.  ``summary()`` prints it.  Each residual is the
+    largest modulus of an entry of a difference of matrices.
 
     Attributes
     ----------
     residuals : dict
-        ``{index: max_k ‖D H(k) D† − H(Rk)‖}``, in the units of ``H``: how far
-        each matrix misses carrying the Hamiltonian onto itself.
+        ``{index: residual}``, in the units of H: how far each operation's
+        matrix ``D`` misses carrying the Hamiltonian onto itself.  The residual
+        is the largest over the k-points measured of ``D H(k) D† − H(gk)``,
+        ``gk`` the image of ``k``, with ``H(k)*`` in place of ``H(k)`` for an
+        operation combined with time reversal.
     product_residual : float
-        How far the matrices miss multiplying as the group does, ``D(g₁)``
-        times ``D(g₂)``, conjugated where ``g₁`` is antiunitary, against the
-        group's spinor factor times ``D(g₁g₂)``.
+        How far the matrices miss multiplying as the group does: ``D(g1)``
+        times ``D(g2)``, the second conjugated where ``g1`` is combined with
+        time reversal, against ``D(g1 g2)`` times the sign the double group
+        gives the product, ``1`` without spin, the largest over every pair of
+        operations.
     factor_residual : float
-        The same for the Bloch operators, whose products carry the
-        translations' phases (:func:`bloch_operator`); ``nan`` where not
-        measured.
+        The same for the Bloch operators of :func:`bloch_operator`, whose
+        products carry the phases of the operations' translations; ``nan``
+        where computing it failed with an error.
     """
 
     residuals: dict
@@ -1356,25 +1505,36 @@ class SpaceGroupRepNumerical:
 
 @dataclass(frozen=True)
 class SpaceGroupRep:
-    """The model's representation of its space group: one matrix per operation, on the model's states.
+    """The model's representation of its space group: a matrix for each operation.
 
-    ``r.rep`` of :func:`..groups.realized_group`.  The calls that label bands
-    read it through what ``realized_group`` returns, ``hsp_table(r,
-    bands=n)``; ``rep.summary()`` prints what it holds, and ``rep.numerical``
-    how closely its matrices hold.
+    ``r.rep`` of what :func:`..groups.realized_group` returns.  Each matrix
+    acts on the model's states and does not depend on ``k``; the Bloch
+    operator of an operation at a ``k`` is built from it.  The calls that label
+    bands, as ``hsp_table(r, bands=n)``, take ``r`` and read the
+    representation from it.  Its methods take an operation by its index, and
+    a k-point as a tabulated name, ``"GM"``, or as reduced coordinates;
+    :meth:`covariance` takes reduced coordinates only.  ``rep.summary()``
+    prints what it holds.
 
     Attributes
     ----------
     matrices : dict
-        ``{index: D(g)}``, each operation's ``k``-independent matrix on the
-        model's states, state ``2 × orbital + spin`` on a spinful model, up
-        first: the representation induced from the site irreps of
-        ``r.wyckoff_orbits``, in the tables' convention, spin along ``+z`` in a
-        right-handed frame.  Pure time reversal's matrix is
+        ``{index: D(g)}``, each operation's matrix, keyed on the operation's
+        index.  It is the representation induced from the site irreps of
+        ``r.wyckoff_orbits``, in the convention of the tables used by the
+        irreptables package: spin along ``+z`` in a right-handed frame.  On a
+        spinful model the states are each orbital's spin up then down, state
+        ``2 * orbital + spin``.  The hoppings can leave a multiplet's block
+        free up to a change of basis that leaves them unchanged, as on
+        identical copies or on uncoupled orbitals.  Such a block is the
+        operation on the lowest-angular-momentum functions of its site irreps,
+        one function an orbital in order, wherever such a change of basis
+        reaches that form: ``p_x, p_y`` for ``E`` at a ``4mm`` site.  Pure time
+        reversal's matrix is
         ``matrices[operation_index(r.group, "{1|0,0,0}'")]``.
     antiunitary : tuple of int
-        The operations combined with time reversal, each acting as its matrix
-        times complex conjugation.
+        The indices of the operations combined with time reversal, each of
+        which acts as its matrix times complex conjugation.
     numerical : SpaceGroupRepNumerical
         How far each matrix misses carrying the Hamiltonian onto itself, and
         how far the matrices and the Bloch operators miss multiplying as the
@@ -1418,9 +1578,10 @@ class SpaceGroupRep:
     _search: dict
     # which orbit of multiplets each multiplet belongs to, as the build indexes them
     _classes: np.ndarray
-    # `{"orbital", "multiplet", "orbit"}`: the orbital the lowest-l rule reads
-    # first, orbital 0 by default, the multiplet it sits in and that multiplet's
-    # orbit; on a declared spinor basis also `"spin_pair"`, its `(up, dn)` pair
+    # `{"orbital", "multiplet", "orbit"}`: the orbital the lowest-angular-momentum
+    # rule reads first, orbital 0 by default, the multiplet it sits in and that
+    # multiplet's orbit; on a declared spinor basis also `"spin_pair"`, its
+    # `(up, dn)` pair
     _reference: dict
     # the operations the Hamiltonian breaks, one entry each as the measurement
     # refuted it
@@ -1456,7 +1617,7 @@ class SpaceGroupRep:
     # a layer's indicator is completed on
     _model_key: str | None = field(default=None, repr=False, compare=False)
 
-    # -- lookups -----------------------------------------------------------
+    # lookups --------------------------------------------------------------
     def __len__(self) -> int:
         return len(self.matrices)
 
@@ -1464,36 +1625,86 @@ class SpaceGroupRep:
         return int(ind) in self.matrices
 
     def _operation(self, ind):
-        """The ``irrep`` operation record for ``ind``."""
+        """The ``irrep`` operation of index ``ind``.
+
+        Raises ``KeyError`` where the representation does not hold it.
+        """
         for op in self._operations:
             if int(op.ind) == int(ind):
                 return op
-        raise KeyError(f"operation #{ind} is not part of this representation")
+        raise KeyError(f"operation #{ind} is not an operation of the group. "
+                       "Pass an index that r.operations lists.")
 
     def _check_unedited(self, bloch) -> None:
-        """Raise ``ValueError`` where ``model`` has been edited since it was measured.
+        """Raise ``ValueError`` where the model was edited after it was measured.
 
-        ``bloch`` is the model's Bloch sum, which carries the hash of the
-        content it was summed from (:func:`.._bloch.evaluator`).
+        ``bloch`` is the model's Bloch sum (:func:`.._bloch.evaluator`), which
+        carries the hash of the model it was summed from.  Nothing is checked
+        where ``_model_key`` is ``None``.
         """
         if self._model_key is not None and bloch.key != self._model_key:
             raise ValueError(
-                "the model has been edited since realized_group measured it, and this "
-                "representation describes the model as it was: call realized_group on the "
-                "edited model and label its bands through what it returns.")
+                "the model has been edited since realized_group measured it. Call "
+                "realized_group on the edited model, and pass what it returns.")
 
     @cached_property
     def _scale(self) -> float:
-        """``max|H|`` of the model: the largest entry of ``H(k)`` once the mean on-site energy is subtracted, measured once."""
+        """``max|H − μ|`` of the model, ``μ`` its mean on-site energy.
+
+        In the units of H, measured once by :func:`.._measure._max_hamiltonian`.
+        """
         from ._measure import _max_hamiltonian
         return _max_hamiltonian(self._model)
 
     def _kpoint(self, call, k):
-        """``k`` as coordinates, a tabulated name read as the coordinates :func:`..groups.high_symmetry_points` gives it, or the refusal ``out_of_plane`` for a name out of a layer's plane."""
+        """The k-point ``k`` as reduced coordinates, or a refusal.
+
+        ``k`` is reduced coordinates, returned as they are, or a name of
+        :func:`..groups.high_symmetry_points`, returned as its coordinates.
+        ``call`` is the calling method's name, for the refusal or the error.
+        Returns ``out_of_plane`` for a name out of a layer's plane, and the
+        refusal of :func:`..groups.high_symmetry_points` where it refuses;
+        raises ``ValueError`` for a name the group does not tabulate
+        (:func:`.._tables._resolve_kpoint`).
+        """
         return _tables._resolve_kpoint(call, self._group, k)
 
     def transform_k(self, ind, k):
-        """The image of ``k``, a tabulated name or reduced coordinates, under one operation: ``Rk``, not folded back into the zone."""
+        """The image of a k-point under one operation, not folded back into the zone.
+
+        Parameters
+        ----------
+        ind : int
+            The operation, by index.
+        k : str or array_like
+            A tabulated name, ``"GM"``, or reduced coordinates in the model's
+            periodic directions: one point, or an array with a row for each
+            point.
+
+        Returns
+        -------
+        numpy.ndarray or Refusal
+            The image ``gk``, a row for each point, in reduced coordinates:
+            ``Rk`` for an operation ``{R|t}``, and ``−Rk`` for one combined
+            with time reversal.
+
+        Refusals
+        --------
+        ``out_of_plane``
+            ``k`` names a tabulated point out of the plane of a layer model's
+            zone.
+        ``tables_not_ready``
+            ``k`` is a name, and the model's cell could not be matched to the
+            conventional cell used by the irreptables package, so no tabulated
+            point can be carried into the model's.
+
+        Raises
+        ------
+        KeyError
+            ``ind`` is not an operation of the representation.
+        ValueError
+            ``k`` is a name the group does not tabulate.
+        """
         k = self._kpoint("transform_k", k)
         if isinstance(k, Refusal):
             return k
@@ -1501,10 +1712,46 @@ class SpaceGroupRep:
         return self._group._k_action_of(self._operation(ind))(k)
 
     def in_little_group(self, ind, k, *, _atol=1e-8):
-        """``(member, G)``: whether the operation carries ``k`` to itself up to a reciprocal lattice vector, and that vector, ``G = Rk − k``.
+        """Whether an operation fixes ``k``, and the reciprocal lattice vector ``gk − k``.
 
-        ``k`` is a tabulated name or reduced coordinates.  ``G`` is the
-        ``k' − k_out`` :meth:`bloch_operator` folds back at ``k``.
+        The operation fixes ``k`` where it carries it to a point ``gk``, the
+        image :meth:`transform_k` returns, that is ``k`` up to a reciprocal
+        lattice vector.
+
+        Parameters
+        ----------
+        ind : int
+            The operation, by index.
+        k : str or array_like
+            One point: a tabulated name, ``"GM"``, or reduced coordinates in
+            the model's periodic directions.
+        _atol : float, default 1e-8
+            How far each component of ``gk − k`` may miss an integer, in
+            reduced coordinates.
+
+        Returns
+        -------
+        tuple or Refusal
+            ``(member, G)``.  ``member`` is whether ``gk − k`` is a vector of
+            integers.  ``G`` is ``gk − k`` rounded to integers, the reciprocal
+            lattice vector :meth:`sewing_operator` folds the image back by.
+
+        Refusals
+        --------
+        ``out_of_plane``
+            ``k`` names a tabulated point out of the plane of a layer model's
+            zone.
+        ``tables_not_ready``
+            ``k`` is a name, and the model's cell could not be matched to the
+            conventional cell used by the irreptables package, so no tabulated
+            point can be carried into the model's.
+
+        Raises
+        ------
+        KeyError
+            ``ind`` is not an operation of the representation.
+        ValueError
+            ``k`` is a name the group does not tabulate.
         """
         k = self._kpoint("in_little_group", k)
         if isinstance(k, Refusal):
@@ -1515,7 +1762,45 @@ class SpaceGroupRep:
         return bool(np.abs(G - np.rint(G)).max() <= _atol), np.rint(G).astype(int)
 
     def little_group(self, k, *, _atol=1e-8):
-        """The operations represented that carry ``k``, a tabulated name or reduced coordinates, to itself up to a reciprocal lattice vector, by index."""
+        """The operations that fix a k-point up to a reciprocal lattice vector.
+
+        Parameters
+        ----------
+        k : str or array_like
+            One point: a tabulated name, ``"GM"``, or reduced coordinates in
+            the model's periodic directions.
+        _atol : float, default 1e-8
+            How far each component of ``gk − k`` may miss an integer, in
+            reduced coordinates, ``gk`` being the image :meth:`transform_k`
+            returns.
+
+        Returns
+        -------
+        tuple of int or Refusal
+            The indices of the operations represented that carry ``k`` to
+            itself up to a reciprocal lattice vector, in the group's order,
+            those combined with time reversal included.
+
+        Refusals
+        --------
+        ``out_of_plane``
+            ``k`` names a tabulated point out of the plane of a layer model's
+            zone.
+        ``tables_not_ready``
+            ``k`` is a name, and the model's cell could not be matched to the
+            conventional cell used by the irreptables package, so no tabulated
+            point can be carried into the model's.
+
+        Raises
+        ------
+        ValueError
+            ``k`` is a name the group does not tabulate.
+
+        See Also
+        --------
+        ..groups.little_group : the little group of ``k`` read off the group
+            alone, as a record.
+        """
         k = self._kpoint("little_group", k)
         if isinstance(k, Refusal):
             return k
@@ -1523,9 +1808,62 @@ class SpaceGroupRep:
                      if self.in_little_group(ind, k, _atol=_atol)[0])
 
     def bloch_operator(self, ind, k, *, k_out=None, **kwargs):
-        """One operation's Bloch operator at ``k``, by index: :func:`bloch_operator` on this representation.
+        """The Bloch operator ``U(g;k)`` of one operation at a k-point.
 
-        ``k`` and ``k_out`` are tabulated names or reduced coordinates.
+        It carries the Hamiltonian at ``k`` onto the Hamiltonian at ``k_out``,
+        ``U H(k) U† = H(k_out)``, with ``H(k)*`` in place of ``H(k)`` for an
+        operation combined with time reversal.  It is :func:`bloch_operator`
+        evaluated on this representation's model, group and matrix
+        ``matrices[ind]``.
+
+        Parameters
+        ----------
+        ind : int
+            The operation, by index.
+        k : str or array_like
+            A tabulated name, ``"GM"``, or reduced coordinates in the model's
+            periodic directions: one point, or an array with a row for each
+            point.
+        k_out : str, array_like or None, default None
+            Where the Hamiltonian is read: the image ``gk`` that
+            :meth:`transform_k` returns, or a point a reciprocal lattice vector
+            from it, as a name or reduced coordinates.  ``None`` reads it at
+            ``gk`` itself.
+        **kwargs
+            ``tol`` and ``check``, passed to :func:`bloch_operator`.
+
+        Returns
+        -------
+        numpy.ndarray or Refusal
+            ``U(g;k)``, of shape ``(nstate, nstate)`` for one point and
+            ``(Nk, nstate, nstate)`` for ``Nk`` points, ``nstate`` being the
+            number of the model's states.
+
+        Refusals
+        --------
+        ``out_of_plane``
+            ``k`` or ``k_out`` names a tabulated point out of the plane of a
+            layer model's zone.
+        ``tables_not_ready``
+            ``k`` or ``k_out`` is a name, and the model's cell could not be
+            matched to the conventional cell used by the irreptables package,
+            so no tabulated point can be carried into the model's.
+
+        Raises
+        ------
+        KeyError
+            ``ind`` is not an operation of the representation.
+        ValueError
+            ``k`` or ``k_out`` is a name the group does not tabulate, or ``k``
+            does not have one component for each periodic direction.  Also
+            where ``k_out`` is not ``gk`` up to a reciprocal lattice vector.
+            With ``check=False``, nothing is raised, and the difference is
+            rounded to a reciprocal lattice vector.
+
+        See Also
+        --------
+        sewing_operator : the Bloch operator folded back to ``k``, at a
+            ``k`` the operation fixes.
         """
         k = self._kpoint("bloch_operator", k)
         if isinstance(k, Refusal):
@@ -1539,11 +1877,34 @@ class SpaceGroupRep:
                               k_out=k_out, **kwargs)
 
     def sewing_operator(self, ind, k, *, _atol=1e-8, **kwargs):
-        """The Bloch operator of an operation that leaves ``k`` invariant, folded back to ``k``.
+        """The Bloch operator of an operation that fixes ``k``, folded back to ``k``.
 
-        ``k`` is a tabulated name or reduced coordinates.  The operator
-        commutes with ``H(k)``, and between the eigenvectors of a set of bands
-        it is the sewing matrix of that set.
+        It is :meth:`bloch_operator` with ``k_out = k``, and so carries the
+        Hamiltonian at ``k`` onto itself: ``U H(k) U† = H(k)``, with ``H(k)*``
+        in place of ``H(k)`` for an operation combined with time reversal.
+        For the eigenvectors ``V`` of a set of bands at ``k``, ``V† U V`` is
+        the sewing matrix of that set, with ``V*`` in place of the last ``V``
+        for an operation combined with time reversal.
+
+        Parameters
+        ----------
+        ind : int
+            The operation, by index.
+        k : str or array_like
+            One point: a tabulated name, ``"GM"``, or reduced coordinates in
+            the model's periodic directions.
+        _atol : float, default 1e-8
+            How far each component of ``gk − k`` may miss an integer, in
+            reduced coordinates, ``gk`` being the image :meth:`transform_k`
+            returns.
+        **kwargs
+            ``tol`` and ``check``, passed to :func:`bloch_operator`.
+
+        Returns
+        -------
+        numpy.ndarray or Refusal
+            ``U(g;k)``, of shape ``(nstate, nstate)``, ``nstate`` being the
+            number of the model's states.
 
         Refusals
         --------
@@ -1551,7 +1912,24 @@ class SpaceGroupRep:
             the operation does not carry ``k`` to itself up to a reciprocal
             lattice vector.
         ``out_of_plane``
-            ``k`` names a tabulated point out of a layer's plane.
+            ``k`` names a tabulated point out of the plane of a layer model's
+            zone.
+        ``tables_not_ready``
+            ``k`` is a name, and the model's cell could not be matched to the
+            conventional cell used by the irreptables package, so no tabulated
+            point can be carried into the model's.
+
+        Raises
+        ------
+        KeyError
+            ``ind`` is not an operation of the representation.
+        ValueError
+            ``k`` is a name the group does not tabulate.
+
+        See Also
+        --------
+        ..sewing.sewing_matrix : the sewing matrix of a set of bands, with its
+            eigenvalues.
         """
         k = self._kpoint("sewing_operator", k)
         if isinstance(k, Refusal):
@@ -1561,9 +1939,10 @@ class SpaceGroupRep:
             kp = self.transform_k(ind, np.asarray(k, dtype=float).reshape(-1))[0]
             return Refusal(
                 "little_group",
-                f"operation #{ind} maps k = {np.round(np.asarray(k, float), 6).tolist()} to "
-                f"{np.round(kp, 6).tolist()}, which is not k modulo a reciprocal-lattice "
-                "vector: it has no sewing operator there.",
+                f"operation #{ind} carries k = {np.round(np.asarray(k, float), 6).tolist()} "
+                f"to {np.round(kp, 6).tolist()}, which is not k up to a reciprocal lattice "
+                "vector. Pass an operation of the little group of k, which little_group "
+                "lists.",
                 value=float(np.abs(kp - np.asarray(k, float).reshape(-1)
                                    - np.rint(kp - np.asarray(k, float).reshape(-1))).max()),
                 threshold=_atol, context={"operation_ind": int(ind), "k": np.asarray(k, float)})
@@ -1571,15 +1950,29 @@ class SpaceGroupRep:
                                    **kwargs)
 
     def covariance(self, kpoints=None):
-        """``{index: max_k ‖D H(k) D† − H(Rk)‖}``, each operation's covariance measured again, in the units of ``H``.
+        """Each operation's covariance residual, measured again, in the units of H.
 
-        At ``kpoints``, an array of reduced coordinates, a row each, or by
-        default at the k-points the representation was built at.
+        The residual of an operation with matrix ``D`` is the largest modulus
+        of an entry of ``D H(k) D† − H(gk)`` over the k-points, ``gk`` the image
+        of ``k``, with ``H(k)*`` in place of ``H(k)`` for an operation combined
+        with time reversal.
+
+        Parameters
+        ----------
+        kpoints : array_like or None, default None
+            Reduced coordinates in the model's periodic directions, a row for
+            each k-point.  ``None`` measures at the k-points
+            ``numerical.residuals`` was measured at.
+
+        Returns
+        -------
+        dict
+            ``{index: residual}``, an entry for each operation represented.
 
         Raises
         ------
         ValueError
-            ``r.model`` edited since the representation was measured on it.
+            The model has been edited since ``realized_group`` measured it.
         """
         kpoints = (self._battery if kpoints is None
                    else np.atleast_2d(np.asarray(kpoints, float)))
@@ -1596,14 +1989,18 @@ class SpaceGroupRep:
         return out
 
     def _states(self) -> str:
-        """What the matrices act on, as the summary says it."""
+        """What the matrices act on, in the summary's words.
+
+        ``"the 2 orbitals, by index"`` for graphene; on a spinful model, the
+        states, each orbital's spin up then down along z.
+        """
         norb, nspin = int(self._model.norb), int(self._model.nspin)
         return (f"the {norb * nspin} states, by index, each orbital's spin up then down "
                 "along z" if nspin == 2 else
                 f"the {norb} orbital{'s' if norb != 1 else ''}, by index")
 
     def summary(self) -> str:
-        """What the representation holds, a line for each part, with the attribute that holds it."""
+        """What the representation holds, a line each, with the attribute that holds it."""
         lines = [f"each operation's matrix on {self._states()}   (.matrices)"]
         if self.antiunitary:
             lines.append("  an operation with time reversal is its matrix times complex "

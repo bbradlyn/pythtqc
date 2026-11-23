@@ -332,7 +332,8 @@ def test_pxpy_one_channel_per_orbital_refuses_because_C3_mixes_px_into_py(pxpy_b
     # known to be the whole enumeration (measured 8 distinct channel groupings)
     assert len(search["candidates"]) == search["n_distinct"] == 8
     assert all(c["killed_by"] == "covariance" for c in search["candidates"])
-    assert "what the measured multiplets read off the solution spaces" in out.reason
+    assert ("state each site whose orbitals mix under its site-symmetry group as one "
+            "multiplet" in out.reason)
 
     assert search["strategy"] == "enumerate" and search["requested"] == "readoff"
     assert "do not give one representation" in search["fallback_reason"]
