@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.0a1 — the third public version
+
 In this version what the calls return is held in records read by name, whose fields name
 the physics, and many calls, records, fields, arguments and checks are renamed or gone:
 a script written for 0.1.0a3 needs editing wherever it reads them. `realized_group`

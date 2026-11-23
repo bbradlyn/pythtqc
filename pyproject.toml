@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pythtqc"
-version = "0.1.0a3"
+version = "0.2.0a1"
 description = "Crystalline-symmetry diagnostics for PythTB v2.0 tight-binding models."
 readme = "README.md"
 requires-python = ">=3.12"

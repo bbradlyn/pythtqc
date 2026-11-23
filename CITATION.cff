@@ -8,15 +8,15 @@ message: >-
 title: pythTQC
 abstract: >-
   Crystalline-symmetry diagnostics for PythTB tight-binding models: the space
-  group a Hamiltonian obeys, the corep content of its bands, whether that
-  content could be an atomic limit, and its symmetry indicator and stable
-  real-space invariants.
+  group a Hamiltonian obeys, the little-group representations its bands
+  carry, whether their symmetry data vector could be an atomic limit's, and
+  the bands' symmetry indicator and stable real-space invariants.
 type: software
 authors:
   - family-names: Bradlyn
     given-names: Barry
     affiliation: University of Illinois Urbana-Champaign
-version: 0.1.0a3
+version: 0.2.0a1
 license: GPL-3.0-or-later
 repository-code: "https://github.com/bbradlyn/pythtqc"
 keywords:
