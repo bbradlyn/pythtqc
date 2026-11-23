@@ -530,7 +530,7 @@ The whole model's SRSIs are read off its orbitals, as `srsi_of_model` reads
 them. The valence bands' ZSRSIs are read off their symmetry data vector, and the
 conduction bands' are the difference. The gap is taken as given: only the
 symmetry data vectors at the high-symmetry points are read. An enumeration that
-reaches its cap of 256 realizations is refused with
+finds more than 256 realizations is refused with
 `srsi_realizations_truncated`. A realization that uses a member of a pair of
 site irreps no SRSI distinguishes holds the pair in its record
 ([Site irreps no invariant distinguishes](#site-irreps-no-invariant-distinguishes)),
@@ -708,9 +708,9 @@ The checks these calls meet:
   time reversal for a Hamiltonian that breaks it
   ([Time reversal is measured](group.md#time-reversal-is-measured)).
 - [`srsi_realizations_truncated`](../reference/refusals.md#srsi_realizations_truncated):
-  the enumeration reached its cap, and the criterion is applied only to a
-  complete enumeration. `atomic_realizations` takes a larger `cap=`.
-  `splitting` and `nsit_criterion` run it at its default, 256
+  the enumeration found more realizations than its cap, and the criterion is
+  applied only to a complete enumeration. `atomic_realizations` takes a larger
+  `cap=`. `splitting` and `nsit_criterion` run it at its default, 256
   ([Budgets, meshes and lengths](../reference/glossary.md#budgets-meshes-and-lengths)).
 - [`wyckoff_orbit_content_incomplete`](../reference/refusals.md#wyckoff_orbit_content_incomplete):
   a Wyckoff orbit's symmetry data vector could not be read at some

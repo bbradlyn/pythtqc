@@ -933,6 +933,12 @@ def test_srsi_tables_takes_a_number_or_a_group_and_serves_the_same_table(
                  lambda: _srsitables.name_correspondence(211)):
         with pytest.raises(TypeError, match=r"srsi_tables\(211, spinor=True\)"):
             call()
+    # ... and anything else is named in the call that was made
+    for name, call in (("canonical_determinism", tqr.canonical_determinism),
+                       ("name_correspondence", _srsitables.name_correspondence)):
+        with pytest.raises(TypeError,
+                           match=rf"^{name}\(\): got an object of type str; pass r\.group"):
+            call("x")
 
 
 #: The SRSI names ``pythtqc`` exports at the top level, frozen in wave C1:
@@ -1341,6 +1347,16 @@ def test_theta_refuses_an_unknown_key_by_naming_the_known_ones():
         table.theta({("-E", "1z"): 1})
     with pytest.raises(ValueError, match="is not a pair"):
         table.theta({"-E": 1})
+    # what the package reads from its own tables is no argument: a mismatch
+    # there is a defect, and raises InternalError
+    from pythtqc import InternalError
+    for defect in (lambda: table._theta_at({"Q": 1}, "a"),
+                   lambda: _srsitables._as_fractions([1], 2),
+                   lambda: _srsitables._ebr_key("-E↑G(2)", "1z"),
+                   lambda: _srsitables._ebr_dimension("-E↑G"),
+                   lambda: _srsitables._maximal_basis(1, True)):
+        with pytest.raises(InternalError, match="Report it, with the model and the call"):
+            defect()
 
 
 @pytest.mark.data

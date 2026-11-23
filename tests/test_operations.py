@@ -45,7 +45,8 @@ raises ``TypeError`` naming ``r.group``.  A k-point is taken by its tabulated
 name as by its coordinates.
 
 **The verdicts.**  A symbol no operation is written as is refused
-``unknown_operation`` with the nearest spellings the group does carry; a group
+``unknown_operation``, naming up to three of the group's symbols, the nearest
+in spelling where any is close; a group
 whose reference setting was never determined is refused ``tables_not_ready``.
 
 The census
@@ -303,11 +304,12 @@ def test_a_symbol_is_read_as_the_operation_it_names_and_not_as_a_string(realized
 # ---------------------------------------------------------------------------
 
 def test_a_symbol_no_operation_is_written_as_is_refused(realized):
-    """``unknown_operation``, naming the nearest spellings the group carries.
+    """``unknown_operation``, naming up to three of the group's symbols.
 
-    ``P3m1`` has no fourfold axis, so a fourfold symbol names no operation of
-    it; what a reader is handed back is the threefold that is nearest to what
-    was written, not a bare failure.
+    They are the nearest in spelling where any is close.  ``P3m1`` has no
+    fourfold axis, so a fourfold symbol names no operation of it; what a reader
+    is handed back is the threefold that is nearest to what was written, not a
+    bare failure.
     """
     group = record(realized, "km_odd").group
     got = tqg.operation_index(group, "{4+_001|0,0,0}")
@@ -316,8 +318,23 @@ def test_a_symbol_no_operation_is_written_as_is_refused(realized):
     assert all(name in {row.seitz for row in tqg.operations(group).values()}
                for name in got.context["nearest"])
     assert "{3+_001|0,0,0}" in got.context["nearest"]
-    # text that is no symbol at all is the same verdict, not an exception
-    assert tqg.operation_index(group, "C4(z)").gate == "unknown_operation"
+    assert "nearest in spelling are" in got.reason, got.reason
+    # text that is no symbol at all is the same verdict, not an exception, and
+    # where nothing is close the symbols listed are not called the nearest
+    far = tqg.operation_index(group, "C4(z)")
+    assert far.gate == "unknown_operation"
+    assert "nearest" not in far.reason and "carries include" in far.reason, far.reason
+    # a group of one operation shows that one symbol, in the singular
+    from pythtb import Lattice, TBModel
+    generic = TBModel(Lattice([[1.0, 0.1, 0.0], [0.2, 1.1, 0.0], [0.1, 0.3, 1.3]],
+                              [[0.0, 0.0, 0.0], [0.31, 0.17, 0.43]], periodic_dirs=[0, 1, 2]))
+    p1 = _spacegroup._group_of(generic, typat=[0, 1], include_TR=False)
+    assert p1._size == 1, p1.name
+    alone = tqg.operation_index(p1, "zzzz")
+    assert "The symbol it carries is `{1|0,0,0}`." in alone.reason, alone.reason
+    # so is a translation no operation carries, a fraction of no small denominator
+    for odd in ("{1|0.37,0,0}", "{1|1/25,0,0}"):
+        assert tqg.operation_index(group, odd).gate == "unknown_operation", odd
 
 
 def test_a_group_whose_reference_setting_is_unknown_is_refused(realized):

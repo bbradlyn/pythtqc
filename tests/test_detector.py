@@ -661,6 +661,18 @@ def test_the_cut_finds_the_space_and_the_gate_judges_it(near_symmetry):
     assert entry.residual == pytest.approx(2.0 * delta, rel=0.1, abs=0.0)
     assert refused._records[ind]["cut"] == 1e-6 and refused._records[ind]["tol"] == 1e-8
 
+    # the verdict in the words of the refusal that counts broken operations by
+    # cause, the verb following the count
+    import dataclasses
+    from pythtqc import _realized
+    alone = dataclasses.replace(refused, discrepancies=(entry,))
+    said = _realized._cell_group_not_realized(group, alone).reason
+    assert "; 1 is broken, for a covariance residual above the tolerance." in said, said
+    if len(refused.discrepancies) > 1:
+        said = _realized._cell_group_not_realized(group, refused).reason
+        assert f"; {len(refused.discrepancies)} are broken" in said, said
+        assert "for the cause" not in said, said
+
     from pythtqc import _tables, models
     from test_symmetrize import jitter
 

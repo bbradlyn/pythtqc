@@ -281,7 +281,11 @@ def stack_presentation(model, *, c=STACK_C, params=None):
     ``Λ(k_z)`` is diagonal, with the entry ``exp(2πi k_z z)`` for an orbital
     at height ``z`` from the layer's middle plane, in units of the third
     lattice vector.  So the crystal's bands at every ``k_z`` are the layer's
-    bands at ``k``, whatever ``c``.
+    bands at ``k``, whatever ``c``.  A slab whose non-periodic lattice vector
+    is tilted off the normal has its orbitals kept where they are: each one's
+    reduced coordinates in the plane change by ``Δ``, its reduced coordinate
+    along that vector times the vector's part in the plane, and ``Λ`` carries
+    the entry ``exp(2πi (k·Δ + k_z z))``.
 
     Parameters
     ----------
@@ -397,16 +401,18 @@ def stack_presentation(model, *, c=STACK_C, params=None):
     # one correction is for the in-plane part of a slab's non-periodic third
     # vector, zero for every slab this package builds: each orbital's in-plane
     # coordinates move by its reduced coordinate along that vector times the
-    # vector's in-plane part.  The comparison below does not carry H(k)
-    # through that move, so where an orbital off the plane moves it raises.
+    # vector's in-plane part.  The comparison below carries H(k) through that
+    # move, as _slab_presentation does.
     orb = np.asarray(model.orb_vecs, dtype=float)
     orb3 = np.zeros((int(model.norb), 3))
     orb3[:, :2] = orb[:, list(per)]
+    move = None
     if stack_dir is not None:
         overlap = plane @ np.asarray(lat[stack_dir], dtype=float)
         if np.any(overlap != 0.0):
-            orb3[:, :2] += np.outer(orb[:, stack_dir],
-                                    np.linalg.solve(plane @ plane.T, overlap))
+            move = np.outer(orb[:, stack_dir], np.linalg.solve(plane @ plane.T, overlap))
+            orb3[:, :2] += move
+    moved = move is not None and bool(np.any(move))
     if extent > 0.0:
         # each orbital's height from the layer's middle plane, the frame the
         # layer's group is identified in; a flat layer's are all exactly zero
@@ -428,25 +434,38 @@ def stack_presentation(model, *, c=STACK_C, params=None):
     rng = np.random.default_rng(_bloch.CHECK_SEED)
     k2 = rng.uniform(-0.5, 0.5, size=(_bloch.CHECK_K, 2))
     a = np.asarray(_bloch.hamiltonian(model, k2))
+    gate = _PRESENTATION_RELATIVE * float(np.abs(a).max())
+    if moved:
+        # the layer's H(k) carried through the in-plane move, Λ(k)† H(k) Λ(k)
+        # with Λ(k) = diag(exp(2πi k·Δ)): the stack's at k_z = 0, to the
+        # rounding of the moved phases
+        shift = np.exp(2j * np.pi * (k2 @ move.T))
+        if int(model.nspin) == 2:
+            shift = np.repeat(shift, 2, axis=1)
+        a = np.conj(shift)[:, :, None] * a * shift[:, None, :]
     stack = _bloch.evaluator(out)
     phase = 2j * np.pi * orb3[:, 2]
     if int(model.nspin) == 2:
         phase = np.repeat(phase, 2)
-    # the phases round where the heights are not zero, and nowhere else
-    gate = 0.0 if extent == 0.0 else _PRESENTATION_RELATIVE * float(np.abs(a).max())
+    # the phases round where the heights are not zero or an orbital moved in
+    # the plane, and nowhere else
+    if extent == 0.0 and not moved:
+        gate = 0.0
     for kz in (0.0, 0.25, 0.5, *rng.uniform(-0.5, 0.5, size=3)):
         k3 = np.concatenate([k2, np.full((_bloch.CHECK_K, 1), float(kz))], axis=1)
         b = np.asarray(stack(k3))
         lam = np.exp(phase * float(kz))
         d = float(np.abs(np.conj(lam)[None, :, None] * a * lam[None, None, :] - b).max())
-        held = 0.0 if float(kz) == 0.0 else gate
+        held = 0.0 if float(kz) == 0.0 and not moved else gate
         if d > held:
             raise InternalError(
                 "the decoupled stack is not the layer: max|H_stack(k, k_z) - "
                 f"Lambda^dagger H_layer(k) Lambda| = {d:.3g} at k_z = {float(kz)}, "
                 f"held to {held:.3g}, over {_bloch.CHECK_K} random k, with "
-                "Lambda = diag(e^{2 pi i k_z z}) and z each orbital's reduced height. "
-                "Report it, with the model and the call.")
+                + ("Lambda = diag(e^{2 pi i (k.Delta + k_z z)}), Delta each orbital's "
+                   "move in the plane and z its reduced height. " if moved else
+                   "Lambda = diag(e^{2 pi i k_z z}) and z each orbital's reduced height. ")
+                + "Report it, with the model and the call.")
     return out
 
 

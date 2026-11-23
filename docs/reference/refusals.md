@@ -236,9 +236,12 @@ Returned by `realized_group`.
 
 - **What it means.** `spinor=False` was asked of a spinful model. Its states carry the
   electron's spin one-half, so the little-group representations of its bands are
-  double-valued, and single-valued tables do not describe them. The converse,
-  `spinor=True` for a spinless model, is not this refusal: the group is identified, and
-  its representation is refused [`rep_double_valued_spinless`](#rep_double_valued_spinless).
+  double-valued, and single-valued tables do not describe them. A crystal is refused
+  before its group is identified and names none. A layer, or a crystal given
+  `decorations=`, is refused once the group its cell allows is identified, and names
+  that group, carried in `context["group"]`. The converse, `spinor=True` for a spinless
+  model, is not this refusal: the group is identified, and its representation is refused
+  [`rep_double_valued_spinless`](#rep_double_valued_spinless).
 - **Usual cause.** `spinor=False` on a model built with spin.
 - **What to do.** Leave `spinor` at its default, which reads it off the model.
 
@@ -361,7 +364,8 @@ Returned by `decompose`, `symmetry_indicator`,
 - **Usual cause.** Bands asked for that do not make a full set at every `k`, as when they
   cut through a crossing between two high-symmetry points, or labels read in another group.
 - **What to do.** Check that the set of bands is isolated everywhere and that its labels
-  came from this group; `context["violations"]` lists the coordinates that do not vanish.
+  came from this group; `context["violations"]` lists the coordinates that do not vanish,
+  each as `(index, value)`, the index that of the coordinate in `context["y_prime"]`.
 
 #### `indicator_not_evaluable`
 
@@ -532,9 +536,10 @@ Returned by `realized_group`.
 
 Returned by `atomic_realizations`, and by `nsit_criterion` and `splitting` through it.
 
-- **What it means.** The enumeration of atomic realizations of `theta_Z` reached its cap. A
-  no-go is asserted only on a complete enumeration, so with the list truncated neither
-  "no pair adds up" nor "none exists" may be claimed.
+- **What it means.** The enumeration of atomic realizations of `theta_Z` found more than its
+  cap. A no-go is asserted only on a complete enumeration, so with the list truncated neither
+  "no pair adds up" nor "none exists" may be claimed. The refusal's `value` is `cap + 1`,
+  the fewest realizations the search showed, and its `threshold` the cap.
 - **Usual cause.** Many bands, or a group with many band representations.
 - **What to do.** Only `atomic_realizations` takes `cap=`, `256` by default: called
   directly, raise it. `nsit_criterion` and `splitting` take no `cap=` and enumerate at

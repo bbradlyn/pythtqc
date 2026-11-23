@@ -273,6 +273,13 @@ def test_kane_mele_declared_a1_a2_descends_to_p3(realized):
     assert d.dropped_by == {"declaration": 6}
     assert _names(d) == {"m(x)", "m([010])", "m([1-10])",
                          "m(x)'", "m([010])'", "m([1-10])'"}
+    # each dropped operation carries the declarations checked against it, or
+    # against its unitary part: A1 even and A2 odd under the mirror, where the
+    # hoppings measure the two sublattices alike
+    for b in d.dropped:
+        assert b.rows and {row.orbitals for row in b.rows} == {(0,), (1,)}, b
+        assert {row.name for row in b.rows} == {b.name.rstrip("'")}, b
+        assert sorted(round(row.declared.real) for row in b.rows) == [-1, 1], b
     assert "the declared orbital content broke 6 of them" in d.note
     assert ("(6 of 12 coset representatives of the lattice translations broken by the "
             "declared content") in repr(out)
@@ -1709,6 +1716,13 @@ def test_a_declaration_on_either_sublattice_states_the_same_crystal(realized):
     assert max(float(np.abs(np.asarray(one.rep.matrices[i])
                             - np.asarray(two.rep.matrices[i])).max())
                for i in one.rep._indices) < 1e-14, "one crystal, one representation"
+    # the other complex irrep of 3, declared alone where the Hamiltonian breaks
+    # time reversal, is a declaration as good as the first: the same group, the
+    # rows named by it
+    other = tqg.realized_group(haldane(0.5, 1.0, 0.15), typat=[0, 1], characters={0: "2E"})
+    assert other and (other.group.number_str, other.group.name) == ("143", "P3"), str(other)
+    assert [(o.label, o.determined_by, o.declared) for o in other.wyckoff_orbits] == \
+        [("2E", "declaration", "2E"), ("2E", "hamiltonian", None)]
 
 
 def test_a_site_group_with_no_rotation_axis_is_named_by_its_own_parity():

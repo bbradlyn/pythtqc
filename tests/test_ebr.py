@@ -211,6 +211,14 @@ def test_lin3g_P6_decomposes_and_the_raw_passthrough_refuses(lin3g_declared_cros
     assert len(d.candidate_sums) == 3
     assert sorted(_positions(d)) == sorted([("1b", "2c"), ("1b", "1b", "1b"),
                                             ("1a", "1a", "1b")])
+    # a cap equal to the number of sums lists them all, and says so
+    for cap, listed, cut in ((3, 3, False), (2, 2, True)):
+        e = tqe.decompose(table, cap=cap).numerical.enumeration
+        assert (e.n_solutions, e.truncated) == (listed, cut), cap
+    # a cap below 1 asks for nothing, and is an error in the call
+    with pytest.raises(ValueError, match=r"^decompose\(\): cap=0; a cap is a positive "
+                                         "whole number"):
+        tqe.decompose(table, cap=0)
 
     # the contrast: the thin passthrough, on the same numbers
     raw = tqg.decompose_ebrs(group, table.symmetry_data)
@@ -748,6 +756,18 @@ def test_the_shipped_smith_basis_is_the_convention_and_a_de_novo_snf_verifies_it
     elements = [(a, b) for a in range(div[0]) for b in range(div[1])]
     assert {_act(y) for y in elements} == set(elements), "an automorphism, not a map"
     assert _act(si.values) == v.values_denovo, "the same class, in the other basis"
+
+    # Pm-3m1' with spin-orbit coupling, Z4 x Z8: the two bases differ, and an
+    # entry from Z4 into Z8 is fixed modulo 8, the divisor of its row.  The
+    # vector whose class is (1, 0) in the shipped basis is read in both.
+    data = _tables._ebr_data(_srsitables._TableKey("221.93", True))
+    u, sv, d, m = _smith._smith_system(data, "221.93")
+    slots = tuple(i for i, x in enumerate(d) if x > 1)
+    y = [row[slots[0]] for row in _smith._unimodular_inverse(u)]
+    got = _smith._verify_smith("221.93", m, u, sv, d, y, slots, (4, 8), (1, 0), 4)
+    div, cob = got["divisors_denovo"], got["change_of_basis"]
+    assert div == (4, 8) and not got["change_of_basis_is_identity"]
+    assert _act((1, 0)) == got["values_denovo"]
 
     # the hand-rolled Smith normal form is exact and unimodular, on a matrix
     # whose divisors are not all 1
@@ -1385,10 +1405,34 @@ def test_the_declared_slab_reaches_the_same_class_through_the_layer_route(monkey
     assert isinstance(stopped, Refusal) and stopped.gate == "indicator_not_evaluable"
     assert stopped.context["stack"]["stopped_at"] == "stack_presentation"
     assert stopped.context["stack"]["outcome"] == "stopped"
+    # a stack never built has no period and no extent
+    assert stopped.context["stack"]["stack_period"] is None
+    assert stopped.context["stack"]["stack_extent"] is None
     # what was found, in its own words; where it stopped stays on the record
     assert "stopped: the stack is not built for this layer; " \
         "synthetic" in stopped.reason
     assert "stopped at" not in stopped.reason
+    # the little-group representations named in ascending order at each point
+    assert ("['-A7', '-A8', '-A9', '-A10', '-A11', '-A12', '-H8', '-H9', '-L5', '-L6'] "
+            "of P6/mmm1' #191.234") in stopped.reason
+    # a representation with no matrix for one operation, and for three
+    rep, full = content._rep, tuple(content._rep._indices)
+    for dropped, words in ((1, "operation 48 of"), (3, "operations 46-48 of")):
+        object.__setattr__(rep, "_indices", full[:-dropped])
+        try:
+            short = tqe.symmetry_indicator(content)
+        finally:
+            object.__setattr__(rep, "_indices", full)
+        assert short.context["stack"]["stopped_at"] == "representation"
+        assert f"has no matrix for {words} P6/mmm1' #191.234." in short.reason
+    # the restriction refusing once the group's tables were read is a defect,
+    # and it names the group
+    with monkeypatch.context() as mp:
+        mp.setattr(tqe, "_restriction",
+                   lambda *a, **k: Refusal("ebr_tables", "synthetic", value=1.0))
+        with pytest.raises(InternalError,
+                           match=r"^P6/mmm1' #191\.234: in_plane_restriction refused"):
+            tqe.symmetry_indicator(content)
 
 
 @pytest.mark.slow
@@ -1715,6 +1759,10 @@ def test_the_indicator_refuses_on_physics_and_raises_on_a_broken_convention(
     out = tqe.symmetry_indicator({"-GM9": 1}, fkm_strong)
     assert isinstance(out, Refusal) and out.gate == "not_a_band_structure"
     assert out.context["violations"] and out.value > 0
+    # each violation is a Smith coordinate and its value, no row's label
+    y_prime = out.context["y_prime"]
+    assert all(len(pair) == 2 and y_prime[pair[0]] == pair[1] != 0
+               for pair in out.context["violations"])
     # ... the check a decomposition runs before it solves, the same one
     told = tqe.decompose({"-GM9": 1}, fkm_strong)
     assert isinstance(told, Refusal) and told.gate == "not_a_band_structure"

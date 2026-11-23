@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+- `atomic_realizations` and `decompose` list every solution when there are exactly
+  `cap` of them, where they marked the list cut at the cap. `atomic_realizations` with
+  `cap=4` returns the four realizations of `(B3)_12d`'s invariants in `I4321'`, where it
+  refused `srsi_realizations_truncated`, and a decomposition with as many sums as its
+  `cap` has `numerical.enumeration.truncated` `False`. The refusal and the flag now mean
+  that there are more solutions than the cap, and the refusal's `value` is `cap + 1`.
+  Both calls raise a `ValueError` for a `cap` below 1, which asks for no solution.
+- `atomic_realizations` and `nsit_criterion` return a refusal handed in as `tables`, such
+  as `srsi_tables(1, spinor=True)`, where they raised `AttributeError`.
+- `splitting` with `bands=` outside the model's bands, or naming none, raises a
+  `ValueError` that opens `splitting():`, where the message named no call or
+  `hsp_table()`. It raises before the group's tables are read, where a group whose
+  tables refuse returned that refusal. `canonical_determinism` handed something that is
+  neither a group nor its tables raises a `TypeError` that opens
+  `canonical_determinism():`, where it opened `srsi_tables():`.
+- In `symmetry_indicator`'s record, `numerical.verification.change_of_basis` holds each
+  entry modulo the elementary divisor of its row, the cyclic factor the entry maps into,
+  where it was reduced modulo that of its column. The matrix changes in 31 of the 170
+  grey tables with a nontrivial indicator group; in 16 of them the old matrix carried some
+  class wrongly, as in `Pm-3m1'` with spin-orbit coupling, `Z4 x Z8`, whose entry from `Z4`
+  into `Z8` is `6` where it read `2`. In 8 spinful tables
+  `change_of_basis_is_identity` read `True` and now reads `False`.
+- The refusal `not_a_band_structure` holds each entry of `context["violations"]` as
+  `(index, value)`, where it held a label between them: the label of the matrix's row of
+  that index, which does not name the coordinate.
+- `indicator_not_evaluable` lists the little-group representations out of a layer's
+  plane in ascending order at each point, `-A7` before `-A10`, and its reason says
+  "no matrix for operation 48" for one operation. In `context["stack"]`, a stack that
+  was never built has `stack_period` `None`, where it held the vacuum between the copies.
+- The reason of `srsi_table_absent` no longer ends in a parenthetical on the caption of
+  the supplement's tables.
 - The check `regular_content_not_integral` is gone. One copy of the regular band
   representation holds every little-group representation a whole number of times in
   every group of the tables, so a copy that does not is a defect of the package, and
@@ -15,6 +46,18 @@
   the Kramers pair of the other parity. `lin3g`'s
   one copy is 16 bands, where it was 8. Spinless models and groups without time reversal
   count as before.
+- `operation_index` refuses `unknown_operation` for a Seitz symbol with a translation
+  component that is no fraction of denominator 24 or less, `{1|0.37,0,0}` or
+  `{1|1/25,0,0}`, where it raised `InternalError`. Its reason calls the symbols it lists
+  the nearest in spelling only where some symbol is close.
+- `realized_group(model, spinor=False)` on a spinful layer, or on a spinful crystal given
+  `decorations=`, returns the refusal `single_valued_spinful`, naming the group the cell
+  allows, where it raised `ValueError` after the group was measured.
+- `stack_presentation` builds the stack of a slab whose non-periodic lattice vector is
+  tilted off the layer's normal, with an orbital off the plane through the origin, such
+  as pythtb's `fu_kane_mele(1.0, 0.1).cut_piece(1, 2)`, where it raised `InternalError`.
+- An operation the declared site irreps dropped, in `r.descent.dropped`, holds in `rows`
+  each declaration checked against it, where `rows` was always `None`.
 - `realized_group` refuses a model whose asymmetry is close to its tolerance,
   `rep_not_covariant`, naming the group, where it raised `InternalError`: the spinless
   `p_x, p_y` honeycomb with a relative noise of `3e-9` on every term, each operation of

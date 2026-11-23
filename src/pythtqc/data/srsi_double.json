@@ -21,7 +21,7 @@
   169,
   170
  ],
- "omitted_reason": "space groups with only one site-symmetry irrep in a unit cell, for which the unique SRSI is determined by the number of bands (the caption of the supplement's SRSI tables states the omission and this reason)",
+ "omitted_reason": "space groups with only one site-symmetry irrep in a unit cell, for which the unique SRSI is determined by the number of bands",
  "label_map": {
   "\\bar{A}\\bar{A}": "-AA",
   "\\bar{A}_g\\bar{A}_g": "-AgAg",

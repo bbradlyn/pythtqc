@@ -1009,7 +1009,8 @@ class SRSITables:
         :attr:`_ebrs`.  The invariants returned are those of the site-symmetry
         vector with that multiplicity on the site irrep inducing each
         elementary band representation, and zero on every other site irrep.
-        Raises ``ValueError`` where ``p`` has another length.
+        ``p`` is built by the package, so another length raises
+        :class:`~.refusal.InternalError`.
         """
         return self._invariants(self._theta_of_columns(p))
 
@@ -1149,17 +1150,19 @@ class SRSITables:
 
         ``irreps`` is ``{site irrep: multiplicity}``, each site irrep in either
         spelling, and ``letter`` the position's Wyckoff letter alone, ``"c"``.
-        Returns the :class:`Invariants`.  Raises ``ValueError`` on a site irrep
-        the tables do not carry at that letter.
+        Returns the :class:`Invariants`.  The site irreps are read from the
+        tables themselves, so one the tables do not carry at that letter
+        raises :class:`~.refusal.InternalError`.
         """
         lookup = self._site_lookup()
         vector: dict = {}
         for irrep, value in dict(irreps).items():
             resolved = lookup.get((str(irrep), str(letter)))
             if resolved is None:
-                raise ValueError(
+                raise InternalError(
                     f"#{self._number_str} ({_valuedness(self._spinor)}): the tables carry "
-                    f"no site irrep {str(irrep)!r} at the Wyckoff letter {str(letter)!r}.")
+                    f"no site irrep {str(irrep)!r} at the Wyckoff letter {str(letter)!r}. "
+                    "Report it, with the model and the call.")
             vector[resolved] = vector.get(resolved, Fraction(0)) + Fraction(value)
         return self._invariants(self._raw_of(vector))
 
@@ -1332,9 +1335,9 @@ def _refuse_no_data(status) -> Refusal:
 def _as_fractions(p, n) -> tuple:
     values = list(p)
     if len(values) != n:
-        raise ValueError(f"the vector over the elementary band representations has "
-                         f"{len(values)} entries, and the group lists {n}. Pass one "
-                         "multiplicity for each, in the group's order.")
+        raise InternalError(f"the vector over the elementary band representations has "
+                            f"{len(values)} entries, and the group lists {n}. Report it, "
+                            "with the model and the call.")
     return tuple(Fraction(v) for v in values)
 
 
@@ -1628,14 +1631,15 @@ def _ebr_key(name, position) -> tuple:
     representations, ``("-E2↑G(2)", "1b(4mm1',4mm)")``.  Returns the site
     irrep before the induction arrow and the letter of the position,
     ``("-E2", "b")``, as :attr:`SRSITables._ebrs` holds each column.  Raises
-    ``ValueError`` where ``position`` is not written
+    :class:`~.refusal.InternalError` where ``position`` is not written
     ``<multiplicity><letter>(<site symmetries>)``.
     """
     match = _POSITION.match(str(position))
     if match is None:
-        raise ValueError(f"the position {position!r} in the list of elementary band "
-                         "representations is not written "
-                         "'<multiplicity><letter>(<site symmetries>)'.")
+        raise InternalError(f"the position {position!r} in the list of elementary band "
+                            "representations is not written "
+                            "'<multiplicity><letter>(<site symmetries>)'. Report it, "
+                            "with the model and the call.")
     return str(name).split("↑")[0], match.group(2)
 
 
@@ -1683,6 +1687,18 @@ def _no_bare_number(group_or_tables, call) -> None:
             f"{call}(): {n} is a space-group number. Pass srsi_tables({n}, spinor=True) "
             f"or srsi_tables({n}, spinor=False), or the group realized_group returns, "
             "r.group.")
+
+
+def _require_tables_or_group(group_or_tables, call) -> None:
+    """Raise ``TypeError`` unless ``group_or_tables`` is tables, a group or a refusal.
+
+    ``call`` is the name of the public call, which opens the message, as
+    :func:`.._spacegroup._require_group` writes it.
+    """
+    if isinstance(group_or_tables, SRSITables) or _spacegroup._is_number_group(
+            group_or_tables):
+        return
+    _spacegroup._require_group(call, group_or_tables)
 
 
 @functools.lru_cache(maxsize=None)
@@ -1976,6 +1992,7 @@ def name_correspondence(group_or_tables):
         ``spinor=``.  Or anything that is neither a group nor its tables.
     """
     _no_bare_number(group_or_tables, "name_correspondence")
+    _require_tables_or_group(group_or_tables, "name_correspondence")
     gate = _spacegroup._lattice_not_descended(group_or_tables)
     if gate is not None:
         return gate
@@ -2185,6 +2202,7 @@ def canonical_determinism(group_or_tables) -> dict | Refusal:
         group nor its tables.
     """
     _no_bare_number(group_or_tables, "canonical_determinism")
+    _require_tables_or_group(group_or_tables, "canonical_determinism")
     gate = _spacegroup._lattice_not_descended(group_or_tables)
     if gate is not None:
         return gate
@@ -2372,12 +2390,14 @@ def _ebr_dimension(name) -> int:
 
     ``name`` is the name in the list of elementary band representations,
     ``"-E1↑G(2)"``.  Returns the count in its closing parentheses, ``2``.
-    Raises ``ValueError`` where the name does not end in one.
+    Raises :class:`~.refusal.InternalError` where the name does not end in
+    one.
     """
     match = re.search(r"\((\d+)\)\s*$", str(name))
     if match is None:
-        raise ValueError(f"the name {name!r} in the list of elementary band "
-                         "representations does not end in its number of bands, '(n)'.")
+        raise InternalError(f"the name {name!r} in the list of elementary band "
+                            "representations does not end in its number of bands, "
+                            "'(n)'. Report it, with the model and the call.")
     return int(match.group(1))
 
 
@@ -2434,10 +2454,8 @@ def _maximal_basis(sg: int, spinor: bool) -> tuple:
 
     Raises
     ------
-    ValueError
-        No table of ``sg`` is returned: ``sg`` is outside 1 to 230 or left
-        out, or the tables are not installed.
     ..refusal.InternalError
+        No table of ``sg`` is returned, which every caller has read already.
         The installed list of elementary band representations cannot be read,
         or is not the one the tables were converted against
         (:func:`srsi_tables` refuses ``srsi_ebr_basis`` there).  The formulas
@@ -2450,7 +2468,10 @@ def _maximal_basis(sg: int, spinor: bool) -> tuple:
 
     tables = _table_of_number(int(sg), bool(spinor))
     if not tables:                            # pragma: no cover - gated above
-        raise ValueError(f"no SRSI table is returned for space group {sg}: {tables}")
+        raise InternalError(
+            f"no SRSI table is returned for space group {sg} ({_valuedness(spinor)}), "
+            f"whose tables were read before: {tables.gate}. Report it, with the model "
+            "and the call.")
     data = _tables._ebr_data(_TableKey(tables._number_str, spinor))
     if not data:                              # pragma: no cover - install-dependent
         raise InternalError(

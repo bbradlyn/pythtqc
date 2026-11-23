@@ -1250,8 +1250,8 @@ class RealizationsNumerical:
         band count allows, so that no realization is missed.  ``0`` where
         nothing was enumerated.
     cap : int
-        The ``cap=`` of :func:`atomic_realizations`, the number of
-        realizations at which the enumeration stops and the call refuses.
+        The ``cap=`` of :func:`atomic_realizations`, the largest number of
+        realizations listed.  The call refuses where there are more.
     """
 
     bound: int
@@ -1521,7 +1521,7 @@ def atomic_realizations(tables, theta_Z, *, cap=256) -> "Realizations | Refusal"
         integer-valued invariants.  Pass the ``theta_Z`` of what
         :func:`srsi_of_bands` returns.
     cap : int, default 256
-        The number of realizations at which the enumeration stops.
+        The largest number of realizations listed.
 
     Returns
     -------
@@ -1546,9 +1546,11 @@ def atomic_realizations(tables, theta_Z, *, cap=256) -> "Realizations | Refusal"
 
     Refusals
     --------
+    A refusal handed in as ``tables`` is returned as it is.
+
     ``srsi_realizations_truncated``
-        the enumeration reached ``cap`` realizations.  A ``cap=`` above their
-        number lists them all.
+        the enumeration found more than ``cap`` realizations.  A ``cap=`` at
+        or above their number lists them all.
 
     Raises
     ------
@@ -1556,13 +1558,16 @@ def atomic_realizations(tables, theta_Z, *, cap=256) -> "Realizations | Refusal"
         ``theta_Z`` is not a mapping.
     ValueError
         ``theta_Z`` does not hold one entry for each of the tables'
-        integer-valued invariants.
+        integer-valued invariants, or ``cap`` is not a positive whole number.
 
     See Also
     --------
     .ebr.decompose : the sums of elementary band representations that carry a
         symmetry data vector.
     """
+    _ebr._require_cap("atomic_realizations", cap)
+    if isinstance(tables, Refusal):
+        return tables
     values = _by_name("atomic_realizations", "theta_Z=", tables, theta_Z)
     group = tables.group
     if _fractional(values):
@@ -1591,10 +1596,11 @@ def atomic_realizations(tables, theta_Z, *, cap=256) -> "Realizations | Refusal"
         return Refusal(
             "srsi_realizations_truncated",
             f"#{tables._number_str}: the enumeration of atomic realizations of "
-            f"{_invariants_text(values)} at {total} bands reached the cap of {cap}. "
-            "atomic_realizations(tables, theta_Z, cap=...) with a cap above their number "
+            f"{_invariants_text(values)} at {total} bands found more than the cap of "
+            f"{cap}. atomic_realizations(tables, theta_Z, cap=...) with a cap at or above "
+            "their number "
             "lists them all, theta_Z being context['theta_Z'].",
-            value=float(len(solutions)), threshold=float(cap),
+            value=float(int(cap) + 1), threshold=float(cap),
             context={"number_str": str(tables._number_str), "cap": int(cap),
                      "n_bands": total, "bound": int(bound), "theta_Z": dict(values)})
 
@@ -1668,9 +1674,11 @@ def nsit_criterion(tables, theta_total, theta_Z_v, theta_Z_c) -> "Splitting | Re
 
     Refusals
     --------
+    A refusal handed in as ``tables`` is returned as it is.
+
     ``srsi_realizations_truncated``
-        the enumeration of one side reached the default ``cap`` of
-        :func:`atomic_realizations`.
+        the enumeration of one side found more realizations than the default
+        ``cap`` of :func:`atomic_realizations`.
 
     Raises
     ------
@@ -1687,6 +1695,8 @@ def nsit_criterion(tables, theta_total, theta_Z_v, theta_Z_c) -> "Splitting | Re
     --------
     splitting : the same criterion on a model and its valence bands.
     """
+    if isinstance(tables, Refusal):
+        return tables
     if not (hasattr(theta_total, "theta_Z") and hasattr(theta_total, "theta_Zn")):
         raise TypeError("nsit_criterion(): theta_total= is of type "
                         f"{type(theta_total).__name__}; "
@@ -1820,8 +1830,8 @@ def splitting(realized, *, bands=None) -> "Splitting | Refusal":
         the integer-valued SRSIs of the valence bands could not be read, as
         :func:`srsi_of_bands` says.
     ``srsi_realizations_truncated``
-        the enumeration of one side reached the default ``cap`` of
-        :func:`atomic_realizations`.
+        the enumeration of one side found more realizations than the default
+        ``cap`` of :func:`atomic_realizations`.
 
     Raises
     ------
@@ -1841,7 +1851,14 @@ def splitting(realized, *, bands=None) -> "Splitting | Refusal":
                         "their number or their indices.")
     if isinstance(realized, Refusal):
         return realized
-    _model, group, _assignment, rep = _unpack_realized(realized, "splitting")
+    model, group, _assignment, rep = _unpack_realized(realized, "splitting")
+    try:
+        _sewing._band_block(int(model.nstate), bands, "splitting")
+    except ValueError as exc:
+        # the bands are checked here, so that the message names this call
+        text = str(exc)
+        raise ValueError(text if text.startswith("splitting(): ")
+                         else "splitting(): " + text) from None
     gate = _spacegroup._lattice_not_descended(group)
     if gate is not None:
         return gate

@@ -582,6 +582,21 @@ def test_the_decoupled_stack_is_the_layer_in_three_periodic_directions():
         gauged = np.conj(lam)[None, :, None] * layer_h * lam[None, None, :]
         assert np.abs(stack_h - gauged).max() <= (0.0 if kz == 0.0 else 1e-12)
         assert (np.abs(stack_h - layer_h).max() > 1e-3) == (kz != 0.0)
+
+    # a slab whose non-periodic vector is tilted off the normal, with an orbital
+    # off the plane through the origin: each orbital also moves in the plane, the
+    # stack's H is the slab's carried through that move, and the bands are the
+    # slab's at every k_z
+    from pythtb.models import fu_kane_mele
+    tilted = fu_kane_mele(1.0, 0.1).cut_piece(1, 2)
+    assert np.asarray(tilted.orb_vecs, dtype=float)[:, 2].max() > 0.0
+    leaning = G.stack_presentation(tilted)
+    assert leaning, str(leaning)
+    bands = np.linalg.eigvalsh(np.asarray(tilted.hamiltonian(k_pts=k2, flatten_spin_axis=True)))
+    for kz in (0.0, 0.25, 0.5):
+        k3 = np.concatenate([k2, np.full((6, 1), kz)], axis=1)
+        assert np.abs(bands - np.linalg.eigvalsh(np.asarray(
+            leaning.hamiltonian(k_pts=k3, flatten_spin_axis=True)))).max() < 1e-12
     cell = _spacegroup._group_of(slab)
     carried, _sites = _layers._layer_on_stack(cell, _tables._assign_orbitals(slab, cell), two)
     found = _spacegroup._group_of(two)

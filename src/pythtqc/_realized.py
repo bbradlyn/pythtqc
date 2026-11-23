@@ -219,8 +219,10 @@ class DroppedOperation:
         ``S(b) S(a)``, with ``S`` the operations' spin-1/2 rotations, as for
         spinor states read without their spin.
     rows : tuple of ..symmetry.DeclarationCheck or None
-        Always ``None``.  The declared site irreps checked against each
-        operation are in the step's ``declaration.rows``.
+        Where the declared site irreps dropped it, each declaration checked
+        against it, or against its unitary part for an operation combined
+        with time reversal: the character declared and the one the hoppings
+        measure.  ``None`` for the other causes.
     """
 
     index: int
@@ -240,7 +242,8 @@ class DroppedOperation:
     names: Any = None
     commutation_phase: Any = None
     spin_half: Any = None
-    rows: Any = None
+    # the checks are many and printed elsewhere, so the record's repr leaves them out
+    rows: Any = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)
@@ -1479,8 +1482,8 @@ class RealizedGroupNumerical:
     validated: ValidatedGroup
     source: Any
 
-    def _lines(self, *, head=True) -> list:
-        """The lines :meth:`summary` prints, none of them indented.  ``head`` is not read."""
+    def _lines(self) -> list:
+        """The lines :meth:`summary` prints, none of them indented."""
         lines = []
         pr = self.precision
         if pr is not None:
@@ -2297,7 +2300,7 @@ def _at_the_edge(rep, validated):
                  "obeyed_alone": alone})
 
 
-def _raise_not_covariant(rep, group, validated, steps, *, where=""):
+def _raise_not_covariant(rep, group, steps, *, where=""):
     r"""Raise InternalError for a representation that misses the covariance check.
 
     Every operation of ``group`` was measured to hold, by the detector and by
@@ -2306,8 +2309,8 @@ def _raise_not_covariant(rep, group, validated, steps, *, where=""):
     itself.  ``rep`` is the ``rep_not_covariant`` refusal, and ``steps`` the
     mapping of each descent step that ran, empty where none ran.  ``where``
     names the build the refusal came from, where that is not the
-    representation returned.  ``validated`` is not read.  It is not called for
-    a miss close to the tolerance at the projection's provisional build, which
+    representation returned.  It is not called for a miss close to the
+    tolerance at the projection's provisional build, which
     :func:`_at_the_edge` returns as a refusal; nor at the final build for a
     residual within the declared tolerance, or where the centers account for
     the miss, each of which is returned as a refusal.
@@ -2971,13 +2974,9 @@ def _measured_selection(model, res, *, typat, cross_check, decorations, dz, c, c
         # centers, in the model's own frame wherever noise alone kept them from it.
         read = None
         if tolerances.center is not None:
-            got = _exact_centers(m3, cell, cell_typat, extras=extras, rebuild=rebuild,
-                                 tolerances=tolerances)
-            if isinstance(got, Refusal):
-                return got
-            m3, cell, cell_typat, read = got
-        got = _realized_core(m3, cell, cell_typat, fully_periodic=True,
-                             centers_read=read, **measured)
+            m3, cell, cell_typat, read = _exact_centers(
+                m3, cell, cell_typat, extras=extras, rebuild=rebuild, tolerances=tolerances)
+        got = _realized_core(m3, cell, cell_typat, centers_read=read, **measured)
         if isinstance(got, Refusal):
             return got
         sel, cross = got, None
@@ -3097,7 +3096,7 @@ def _representation_built(res, sld, *, selection_only, build_kw):
             # the consistency guard, whether or not a descent ran: a miss beyond
             # the declared tolerance raises, and a miss within it, an operation
             # near-symmetric that the exact gate refuses, is returned as a refusal
-            _raise_not_covariant(rep, group, validated, steps)
+            _raise_not_covariant(rep, group, steps)
         rep = _named_refusal(rep, group, validated)
         square = (time_reversal or {}).get("square")
         if (square is not None and time_reversal.get("outcome") == "measured broken"
@@ -3587,11 +3586,8 @@ def _layer_realized(model, *, environment, cross_check, typat, decorations, extr
     # then made on exact centers.
     read = None
     if tolerances.center is not None:
-        got = _exact_centers(m3, cell, cell_typat, extras=extras, rebuild=rebuild,
-                             tolerances=tolerances)
-        if isinstance(got, Refusal):
-            return got
-        m3, cell, cell_typat, read = got
+        m3, cell, cell_typat, read = _exact_centers(
+            m3, cell, cell_typat, extras=extras, rebuild=rebuild, tolerances=tolerances)
         extras = read.extras
 
     # What the declared content says the sites are, read in the layer's own
@@ -3620,7 +3616,7 @@ def _layer_realized(model, *, environment, cross_check, typat, decorations, extr
                          "symprec": tolerances.finder}
 
     got = _realized_core(m3, cell, cell_typat, tolerances=tolerances,
-                         fully_periodic=False, labels=labels, spinor=spinor,
+                         labels=labels, spinor=spinor,
                          nk=nk,
                          context=context, spin=spin, max_bytes=max_bytes,
                          build_kw=build_kw, returned=returned,
@@ -3924,7 +3920,7 @@ def _model_sectors(model, group, assignment, spin, validated, *, tolerances, con
 
 def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                    context, spin, max_bytes, build_kw,
-                   fully_periodic, returned, declared_wider=None, free_standing=None,
+                   returned, declared_wider=None, free_standing=None,
                    centers_read=None):
     r"""The group a Hamiltonian obeys, measured on a cell by one loop of three steps.
 
@@ -3981,9 +3977,6 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
     build_kw : dict
         The keywords of the build; ``characters``, ``multiplets``,
         ``reference_orbital`` and ``max_candidates`` are read here.
-    fully_periodic : bool
-        Whether the model is periodic in three directions.  It is handed to
-        :func:`_cell_group_not_realized`, which does not read it.
     returned : bool
         Whether the group is the one returned.  On the cross-check's
         selection, where it is false, no warning that time reversal is broken
@@ -4037,6 +4030,13 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
     # carries it: the assignment, the detector, and `rep._group`, which
     # `characters()` echoes
     group = replace(group, _provenance="realized")
+    if int(model.nspin) == 2 and not bool(spinor):
+        # A cell that holds points other than the orbitals, a layer's or a
+        # decorated crystal's, is built without spin, so its identification
+        # above did not refuse spinor=False for a spinful model, as a crystal's
+        # own cell does.  The same refusal, naming the group the cell allows.
+        asked = _group_of(model, spinor=False)
+        return _named_refusal(asked, group)
 
     # The cell every descent builds on: each rebuilds from this cell plus one
     # generic orbit, never from a previous descent's cell, so the last
@@ -4059,8 +4059,8 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
     def _refused(refusal, settled=False):
         """``refusal``, the group it was reached on named in it.
 
-        With ``settled`` false, the group named is the cell's group at this
-        point, an upper bound on what ``H`` obeys; with ``settled`` true, the
+        With ``settled`` false, the group named is the group the cell allows,
+        an upper bound on what ``H`` obeys; with ``settled`` true, the
         verdicts have kept every operation and it is the group identified
         (:func:`_named_refusal`).  A position defect measured and not removed
         is quoted (:func:`_quote_position_defect`).
@@ -4210,7 +4210,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                               assignment=assignment, _floor=tolerances.floor)
         if isinstance(got, Refusal):
             # the detector's memory limit: fired before the measurement settles,
-            # so what is named is the cell's group at this point, an upper bound
+            # so what is named is the group the cell allows, an upper bound
             return _refused(got)
         validated = got
         # Each operation's own form, read once, before anything reads a
@@ -4312,8 +4312,8 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                                            else centers.refuted),
                                   sectors=sectors, own_form=own_form)
         if isinstance(got, Refusal):
-            # fired before the group is settled: what is named is the cell's
-            # group at this point, an upper bound, which further rounds may lower
+            # fired before the group is settled: what is named is the group the
+            # cell allows, an upper bound, which further rounds may lower
             return _refused(got)
         refuted, lattice, declaration, choices, projective = got
         if lattice and lattice["realized"]:
@@ -4499,7 +4499,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
                         # is the consistency guard's case, as the final build's
                         # is, on a free-standing layer as anywhere.
                         _raise_not_covariant(
-                            got, group, validated, steps,
+                            got, group, steps,
                             where=(", built at the declared tolerance to project the "
                                    "Hamiltonian onto its symmetric part,"))
                     # the projection's own verdict, or its provisional build's:
@@ -4522,7 +4522,7 @@ def _realized_core(model, cell, cell_typat, *, labels, spinor, tolerances, nk,
             # only antiunitary operations can remain: the loop settles when every
             # unitary one is obeyed, and time reversal was measured before the
             # projection ran.
-            return _refused(_cell_group_not_realized(group, validated, fully_periodic))
+            return _refused(_cell_group_not_realized(group, validated))
         if pending is not None:
             if (wider and not contents
                     and _restricts_to(wider, group, assignment)):
@@ -5167,7 +5167,16 @@ def _tensor_structure_entry(record) -> dict:
             "residual": float(record.get("scaled", float("nan")))}
 
 
-def _cell_group_not_realized(group, validated, three_d, refuted=None) -> Refusal:
+#: Each cause the refusal cell_group_not_realized counts, as its reason says it.
+_BROKEN_BY_WORDS = {"no symmetry matrix": "with no symmetry matrix",
+                    "covariance": "for a covariance residual above the tolerance",
+                    "out of plane": "for turning the layer's plane out of itself",
+                    "tensor structure": "by tensor structure",
+                    "projective class": _DROPPED_BY_WORDS["projective class"],
+                    "centers": _DROPPED_BY_WORDS["centers"]}
+
+
+def _cell_group_not_realized(group, validated, refuted=None) -> Refusal:
     """The refusal cell_group_not_realized: operations the cell allows and H breaks.
 
     It is returned where operations combined with time reversal are broken
@@ -5184,8 +5193,6 @@ def _cell_group_not_realized(group, validated, three_d, refuted=None) -> Refusal
         The group the cell allows.
     validated : ValidatedGroup
         The detector's verdict on each operation of ``group``.
-    three_d : bool
-        Whether the model is periodic in three directions.  It is not read.
     refuted : dict or None, default None
         The operations the detector kept and a later verdict refuted, keyed
         by index: by their tensor structure (:func:`.._measure._own_form_read`,
@@ -5222,20 +5229,19 @@ def _cell_group_not_realized(group, validated, three_d, refuted=None) -> Refusal
     n_broken = len(set(validated.broken) | set(refuted))
     n_obeyed = len(set(validated._indices) - set(refuted))
     proven = reasons.get("no symmetry matrix", 0)
-    counts = [f"{n} {_DROPPED_BY_WORDS['centers']}" if why == "centers"
-              else f'{n} for the cause "{why}"'
-              for why, n in reasons.items()]
+    counts = [f"{n} {_BROKEN_BY_WORDS.get(why, why)}" for why, n in reasons.items()]
     by = (", ".join(counts[:-1]) + " and " + counts[-1]) if len(counts) > 1 else \
         "".join(counts)
     # a cause that broke every operation broken is said without a count, which
     # would only repeat the total
     if len(reasons) == 1 and sum(reasons.values()) == n_broken:
         why = next(iter(reasons))
-        by = ("every one " + (_DROPPED_BY_WORDS["centers"] if why == "centers"
-                              else f'for the cause "{why}"'))
+        by = ("" if n_broken == 1 else "every one ") + _BROKEN_BY_WORDS.get(why, why)
 
-    def the(n, said):
-        """The sentence ``said`` of the ``n`` broken one way: all of them, or that many."""
+    def the(n, said, said_of_one):
+        """The sentence of the ``n`` broken one way: all of them, that many, or the one."""
+        if n == 1:
+            return f" The one {said_of_one}"
         return f" Those {said}" if n == n_broken else f" The {n} {said}"
     lattice = ""
     if int(getattr(group, "_lattice_index", 1) or 1) > 1:
@@ -5246,29 +5252,26 @@ def _cell_group_not_realized(group, validated, three_d, refuted=None) -> Refusal
             f"under which the positions repeat, with its coset partners: the group the "
             f"cell allows is a lattice supergroup of index "
             f"{int(group._lattice_index)}.")
-    route = ("`typat=` where two sites are chemically inequivalent, or "
-             "`decorations=` where a distortion lowered the symmetry: a bond "
-             "distortion moves no atom, so no symmetry finder can see it in the "
-             "point set, and one non-orbital species where the distortion is "
-             "centered is how the cell is told about it"
-             if three_d else
-             "`typat=` for sublattices that are chemically inequivalent, or "
-             "`decorations=` for a crystal field the flat point set does not "
-             "carry")
     return Refusal(
         "cell_group_not_realized",
         f"the Hamiltonian obeys {n_obeyed} of the {group._size} operations the cell "
         f"allows ({group.name} #{group.number_str}), {_PER_COSET}"
         + (f" and {_DOUBLE_GROUP}" if group.spinor else "")
-        + f"; {n_broken} are broken, {by}."
+        + f"; {n_broken} {'is' if n_broken == 1 else 'are'} broken, {by}."
         + (the(proven, "with no symmetry matrix are broken: for each, no matrix "
-                       "carries H(k) onto H(gk).")
+                       "carries H(k) onto H(gk).",
+               "with no symmetry matrix is broken: no matrix carries H(k) onto "
+               "H(gk).")
            if proven else "")
         + (the(len(structural), "broken by tensor structure have matrices that carry "
                                 "H(k) onto its image under them, and none of them has "
                                 "the form O(g) (x) S(g) of a representation of the "
-                                "operation.")
-           + ((" For every one of them" if lifted == len(structural) else
+                                "operation.",
+               "broken by tensor structure has matrices that carry H(k) onto its "
+               "image under it, and none of them has the form O(g) (x) S(g) of a "
+               "representation of the operation.")
+           + ((" For it" if len(structural) == 1 else
+               " For every one of them" if lifted == len(structural) else
                f" For {lifted} of them")
               + " the hoppings carry the operation's action on k only through a spin "
               "factor other than its own lift S(g)." if lifted else "")
@@ -5277,10 +5280,16 @@ def _cell_group_not_realized(group, validated, three_d, refuted=None) -> Refusal
                              "obeyed by the hoppings, and their matrices carry the "
                              "sign of spin one-half: two commuting operations have "
                              "anticommuting matrices. Declare `spin=` to read these "
-                             "states in the double group.")
+                             "states in the double group.",
+               "broken by the projective class of the states is obeyed by the "
+               "hoppings, and its matrix carries the sign of spin one-half: two "
+               "commuting operations have anticommuting matrices. Declare `spin=` to "
+               "read these states in the double group.")
            if classed else "")
         + (the(len(centered), "broken by the centers would move an orbital center "
-                             "farther than the tolerance declared for the centers.")
+                             "farther than the tolerance declared for the centers.",
+               "broken by the centers would move an orbital center farther than the "
+               "tolerance declared for the centers.")
            if centered else "")
         + lattice
         + " "

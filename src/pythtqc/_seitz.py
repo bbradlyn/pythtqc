@@ -334,9 +334,9 @@ def _parse_seitz(text, centering) -> tuple | None:
     Spaces between the parts of the symbol are ignored.  The underscore
     before the axis may be left out, and the translation's components may be
     separated by spaces in place of commas.  Returns ``None`` where ``text``
-    is not a Seitz symbol.  A translation component that is no fraction of
-    denominator :data:`_SEITZ_DENOMINATOR` or less is not caught here: it
-    raises in :func:`_fraction_mod_one`.
+    is not a Seitz symbol, or where a translation component is no fraction of
+    denominator :data:`_SEITZ_DENOMINATOR` or less, which no operation of a
+    group carries.
     """
     body = str(text).strip()
     time_reversal = body.endswith("'")
@@ -380,6 +380,10 @@ def _parse_seitz(text, centering) -> tuple | None:
     try:
         values = [Fraction(p.strip()) for p in parts]
     except (ValueError, ZeroDivisionError):
+        return None
+    # a component is held as _fraction_mod_one holds a tabulated one
+    if any(abs(float(v.limit_denominator(_SEITZ_DENOMINATOR)) - float(v)) > _LATTICE_TOL
+           for v in values):
         return None
     return ((det, order, axis, sense,
              _reduced_translation([float(v) for v in values], centering)),
@@ -681,11 +685,16 @@ def operation_index(group, seitz) -> int | Refusal:
                         wanted, wanted_tr):
                 return int(sym.ind)
     carried = [row.seitz for row in rows.values()]
-    near = difflib.get_close_matches(str(seitz), carried, n=3, cutoff=0.4) or carried[:3]
+    close = difflib.get_close_matches(str(seitz), carried, n=3, cutoff=0.4)
+    near = close or carried[:3]
     return Refusal(
         "unknown_operation",
         f"`{str(seitz)}` names no operation of {rows._named()}. "
-        f"The symbols it carries include `{'`, `'.join(near)}`. `operations(group)` "
+        + ("The symbol it carries nearest in spelling is " if len(close) == 1 else
+           "The symbols it carries nearest in spelling are " if close else
+           "The symbol it carries is " if len(near) == 1 else
+           "The symbols it carries include ")
+        + f"`{'`, `'.join(near)}`. `operations(group)` "
         "lists every operation of the group with its index and Seitz symbol.",
         context={"number_str": str(rows.group.number_str), "seitz": str(seitz),
                  "nearest": tuple(near), "carried": tuple(carried)})

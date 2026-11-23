@@ -212,36 +212,35 @@ def _filled_content(counts, restriction, labels):
     return [int(filled.get(label, 0)) for label in labels], reconstructed
 
 
-def _compatibility(data, number_str, labels, y):
+def _compatibility(data, number_str, y):
     """The symmetry data vector in Smith coordinates, checked against the compatibility relations.
 
     ``data`` and ``number_str`` are as :func:`_smith_system` takes them.
     ``y`` is the symmetry data vector on every row of the EBR matrix, as
-    :func:`_filled_content` returns it.  ``labels`` lists the labels of those
-    rows; the refusal's context names the ``i``-th coordinate with the
-    ``i``-th of them.  With ``u`` and ``d`` as :func:`_smith_system` returns
-    them, the coordinates of ``y' = u y`` where ``d`` is zero vanish for
-    every band structure of the group: they are its compatibility relations.
+    :func:`_filled_content` returns it.  With ``u`` and ``d`` as
+    :func:`_smith_system` returns them, the coordinates of ``y' = u y`` where
+    ``d`` is zero vanish for every band structure of the group: they are its
+    compatibility relations.
     Returns ``(smith, y_prime, refusal)``: ``smith``, the
     ``(u, v, d, matrix)`` of :func:`_smith_system`; ``y_prime``, ``y'`` as a
     list; ``refusal``, ``not_a_band_structure`` naming each of those
-    coordinates that does not vanish, or ``None`` where all do.
+    coordinates that does not vanish, as ``(index, value)``, or ``None``
+    where all do.
     """
     u, v, d, matrix = _smith_system(data, number_str)
     y_prime = [sum(u[i][j] * y[j] for j in range(len(y))) for i in range(len(u))]
-    off = [(i, labels[i] if i < len(labels) else i, y_prime[i])
-           for i in range(len(y_prime)) if d[i] == 0 and y_prime[i]]
+    off = [(i, y_prime[i]) for i in range(len(y_prime)) if d[i] == 0 and y_prime[i]]
     if not off:
         return (u, v, d, matrix), y_prime, None
     return (u, v, d, matrix), y_prime, Refusal(
         "not_a_band_structure",
         f"the symmetry data vector violates #{number_str}'s compatibility relations: "
         f"{len(off)} of its Smith coordinates that vanish for every band structure, "
-        f"{[(i, int(v2)) for i, _l, v2 in off]} as (index, value), are nonzero. Check "
+        f"{[(i, int(v2)) for i, v2 in off]} as (index, value), are nonzero. Check "
         "that a gap separates the bands counted from the others at every k-point and "
         "that the labels came from this group.",
-        value=float(max(abs(int(v2)) for _i, _l, v2 in off)), threshold=0.0,
-        context={"violations": tuple((int(i), str(l), int(v2)) for i, l, v2 in off),
+        value=float(max(abs(int(v2)) for _i, v2 in off)), threshold=0.0,
+        context={"violations": tuple((int(i), int(v2)) for i, v2 in off),
                  "y_prime": tuple(int(x) for x in y_prime),
                  "number_str": str(number_str)})
 
@@ -281,7 +280,7 @@ def _verify_smith(number_str, matrix, u, v, d, y, slots, divisors, values,
     ``"performed"`` added.  Its ``change_of_basis`` is ``u0 u^(-1)``, for
     ``u0`` the left factor computed again, its rows on the slots of that
     form and its columns on ``slots``, each entry reduced modulo the divisor
-    of its column.
+    of its row, the divisor of the cyclic factor it maps into.
     """
     where = (f"#{number_str}")
     if _matmul(_matmul(u, matrix), v) != [[int(x) for x in row] for row in
@@ -315,12 +314,12 @@ def _verify_smith(number_str, matrix, u, v, d, y, slots, divisors, values,
             "the form the irreptables package ships. Report it, with the model and the "
             "call.")
 
+    # an entry maps Z_(d[b]) into Z_(d0[a]), so it is fixed modulo d0[a], its row's
     change = _matmul(u0, _unimodular_inverse(u))
-    restricted = tuple(tuple(int(change[a][b]) % int(divisors[k])
-                             for k, b in enumerate(slots))
+    restricted = tuple(tuple(int(change[a][b]) % int(d0[a][a]) for b in slots)
                        for a in slots0)
-    identity = all(restricted[i][j] == (1 % int(divisors[j]) if i == j else 0)
-                   for i in range(len(slots0)) for j in range(len(slots)))
+    identity = all(restricted[i][j] == (1 % int(d0[a][a]) if i == j else 0)
+                   for i, a in enumerate(slots0) for j in range(len(slots)))
     return {
         "performed": True,
         "divisors_denovo": tuple(sorted(divisors0)),

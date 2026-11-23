@@ -3227,7 +3227,7 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
         the centers, the declaration or the projective class broke it, the
         residual is ``nan`` and the entry holds what that verdict rests on:
         for the declaration, the orbitals, what they were declared and what
-        they measure.
+        they measure, with the declared site irreps checked against it.
         """
         rec = refuted[i]
         why = str(rec.get("refuted_by", "tensor structure"))
@@ -3242,7 +3242,7 @@ def _descend_once(base_cell, base_typat, group, validated, *, spinor, include_TR
             return dict(base, residual=float("nan"),
                         orbitals=tuple(int(o) for o in rec.get("orbitals", ())),
                         declared=rec.get("declared"), measured=rec.get("measured"),
-                        note=str(rec.get("note", "")))
+                        note=str(rec.get("note", "")), rows=rec.get("rows"))
         if why == "projective class":
             # a verdict about the states' class carries no residual either: the
             # sign it rests on sits a whole unit from the table's

@@ -1337,7 +1337,11 @@ keeps its height along the normal.  The crystal's Bloch Hamiltonian is
 `Λ(k_z)` is diagonal, with the entry `exp(2πi k_z z)` for an orbital
 at height `z` from the layer's middle plane, in units of the third
 lattice vector.  So the crystal's bands at every `k_z` are the layer's
-bands at `k`, whatever `c`.
+bands at `k`, whatever `c`.  A slab whose non-periodic lattice vector
+is tilted off the normal has its orbitals kept where they are: each one's
+reduced coordinates in the plane change by `Δ`, its reduced coordinate
+along that vector times the vector's part in the plane, and `Λ` carries
+the entry `exp(2πi (k·Δ + k_z z))`.
 
 **Parameters**
 
@@ -1591,8 +1595,8 @@ A refusal handed in as `realized` is returned as it is.
 - **`not_a_band_structure` / `indicator_not_evaluable`**: the integer-valued SRSIs of the valence bands could not be read, as
   [`srsi_of_bands`](#srsi_of_bands) says.
 
-- **`srsi_realizations_truncated`**: the enumeration of one side reached the default `cap` of
-  [`atomic_realizations`](#atomic_realizations).
+- **`srsi_realizations_truncated`**: the enumeration of one side found more realizations than the default
+  `cap` of [`atomic_realizations`](#atomic_realizations).
 
 ### `nsit_criterion`
 
@@ -1638,8 +1642,10 @@ adds up.
 
 **Refusals**
 
-- **`srsi_realizations_truncated`**: the enumeration of one side reached the default `cap` of
-  [`atomic_realizations`](#atomic_realizations).
+A refusal handed in as `tables` is returned as it is.
+
+- **`srsi_realizations_truncated`**: the enumeration of one side found more realizations than the default
+  `cap` of [`atomic_realizations`](#atomic_realizations).
 
 ### `atomic_realizations`
 
@@ -1670,7 +1676,7 @@ realization.
   integer-valued invariants.  Pass the `theta_Z` of what
   [`srsi_of_bands`](#srsi_of_bands) returns.
 
-- **`cap`** (`int, default 256`): The number of realizations at which the enumeration stops.
+- **`cap`** (`int, default 256`): The largest number of realizations listed.
 
 **Returns**
 
@@ -1681,5 +1687,7 @@ realization.
 
 **Refusals**
 
-- **`srsi_realizations_truncated`**: the enumeration reached `cap` realizations.  A `cap=` above their
-  number lists them all.
+A refusal handed in as `tables` is returned as it is.
+
+- **`srsi_realizations_truncated`**: the enumeration found more than `cap` realizations.  A `cap=` at
+  or above their number lists them all.

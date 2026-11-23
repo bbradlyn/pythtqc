@@ -561,6 +561,16 @@ def test_atomic_realizations_refuses_a_truncated_enumeration(sg211):
     # beside it is the keyword read back, so it is not asserted)
     assert out.context["n_bands"] == 6
     assert len(tqr.atomic_realizations(sg211, theta_z, cap=256).realizations) == 4
+    # a cap equal to their number lists them all; one below it refuses
+    assert len(tqr.atomic_realizations(sg211, theta_z, cap=4).realizations) == 4
+    cut = tqr.atomic_realizations(sg211, theta_z, cap=3)
+    assert cut.gate == "srsi_realizations_truncated"
+    assert (cut.value, cut.threshold) == (4.0, 3.0), "at least cap + 1 were seen"
+    # a cap below 1 asks for nothing, and is an error in the call
+    for cap in (0, -1, 2.5):
+        with pytest.raises(ValueError, match=r"^atomic_realizations\(\): cap=.*; a cap "
+                                             "is a positive whole number"):
+            tqr.atomic_realizations(sg211, theta_z, cap=cap)
 
 
 def test_the_grammar_mistakes_are_value_errors_not_refusals(sg211):
@@ -590,6 +600,13 @@ def test_the_grammar_mistakes_are_value_errors_not_refusals(sg211):
     with pytest.raises(ValueError, match="theta_total= holds the invariants valued modulo n "
                                          "theta_8, and #211.57 has"):
         tqr.nsit_criterion(sg211, wrong_moduli, theta_z, zeros)
+    # a refusal handed in as the tables is returned as it is
+    absent = tqr.srsi_tables(1, spinor=True)
+    assert absent.gate == "srsi_table_absent"
+    assert absent.reason.endswith("for which the unique SRSI is determined by the number "
+                                  "of bands.") and "caption" not in absent.reason
+    assert tqr.atomic_realizations(absent, theta_z) is absent
+    assert tqr.nsit_criterion(absent, theta_total, theta_z, zeros) is absent
 
 
 # ---------------------------------------------------------------------------
@@ -873,6 +890,12 @@ def test_the_band_set_is_one_keyword_on_both_routes(lin3g_declared_cross_checked
     with pytest.raises(TypeError, match=r"^splitting\(\): no bands= is passed; pass the "
                                         r"valence bands, as their number or their indices\.$"):
         tqr.splitting(record)
+    # bands outside the model's eight, or none, are named in this call
+    with pytest.raises(ValueError,
+                       match=r"^splitting\(\): the band count 9 is outside 1\.\.8$"):
+        tqr.splitting(record, bands=9)
+    with pytest.raises(ValueError, match=r"^splitting\(\): bands= names no band"):
+        tqr.splitting(record, bands=[])
 
     table = tqw.hsp_table(record, bands=[0, 1, 2, 3])
     by_list = tqr.srsi_of_bands(table)

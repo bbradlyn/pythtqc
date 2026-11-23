@@ -327,8 +327,8 @@ class Enumeration:
     n_solutions : int
         The number of sums listed.
     truncated : bool
-        Whether the search stopped at the cap, so that there may be more sums
-        than are listed.
+        Whether there are more sums than the cap, so that the list stops
+        short of them.
     """
 
     cap: int
@@ -353,8 +353,8 @@ class SignedCombinations:
         If nonempty, each combination found that carries the symmetry data
         vector, up to the cap on the list.
     truncated : bool
-        Whether the search stopped at the cap, so that there may be more
-        combinations than are listed.
+        Whether there are more combinations than the cap, so that the list
+        stops short of them.
     """
 
     sums: tuple
@@ -673,7 +673,7 @@ class SmithVerification:
         :attr:`SymmetryIndicator.values` to :attr:`values_denovo`: a matrix
         with a row for each entry of :attr:`values_denovo` and a column for
         each entry of :attr:`SymmetryIndicator.values`, each element modulo
-        the elementary divisor of its column.
+        the elementary divisor of its row.
     change_of_basis_is_identity : bool
         Whether that automorphism is the identity.
     note : str
@@ -1871,17 +1871,30 @@ def _as_block(bands, nstate):
     return tuple(sorted(int(b) for b in bands))
 
 
+def _require_cap(call, cap) -> None:
+    """Raise ``ValueError`` unless ``cap`` is a whole number of at least 1.
+
+    ``cap`` is the largest number of solutions a call lists, and ``call``
+    the name of that call, which opens the message.
+    """
+    if (isinstance(cap, bool) or not isinstance(cap, (int, np.integer))
+            or int(cap) < 1):
+        raise ValueError(f"{call}(): cap={cap!r}; a cap is a positive whole number, the "
+                         "largest number of solutions listed.")
+
+
 def _cpsat(matrix, y, lo, hi, cap):
     """Integer solutions of ``M x = y`` within bounds, up to ``cap``, by CP-SAT.
 
     ``matrix`` is ``M``, an integer array, and ``y`` an integer vector.  Each
     entry of ``x`` lies between ``lo`` and ``hi``, both included.  The search,
-    by OR-Tools' CP-SAT solver, stops after ``cap`` solutions.  Returns
-    ``(status, solutions, truncated)``: the solver's status by name,
+    by OR-Tools' CP-SAT solver, stops at the first solution past ``cap``.
+    Returns ``(status, solutions, truncated)``: the solver's status by name,
     ``"OPTIMAL"``, ``"FEASIBLE"``, ``"INFEASIBLE"``, ``"MODEL_INVALID"`` or
-    ``"UNKNOWN"``; the solutions found, the least sum of absolute values
-    first, then in lexicographic order; and whether the search stopped at
-    ``cap``.  ``"INFEASIBLE"`` says that no solution lies within the bounds.
+    ``"UNKNOWN"``; the solutions found, at most ``cap``, the least sum of
+    absolute values first, then in lexicographic order; and whether there
+    are more than ``cap``.  ``"INFEASIBLE"`` says that no solution lies
+    within the bounds.
     """
     from ortools.sat.python import cp_model
 
@@ -1899,10 +1912,12 @@ def _cpsat(matrix, y, lo, hi, cap):
             self.truncated = False
 
         def on_solution_callback(self):
-            found.append(tuple(int(self.Value(v)) for v in x))
+            # one past the cap shows that the list stops short of every solution
             if len(found) >= cap:
                 self.truncated = True
                 self.StopSearch()
+                return
+            found.append(tuple(int(self.Value(v)) for v in x))
 
     solver = cp_model.CpSolver()
     solver.parameters.enumerate_all_solutions = True
@@ -2064,12 +2079,15 @@ def decompose(symmetry_data, realized=None, *, allow_incomplete=False,
         without it, a ``realized`` that is not what
         :func:`.groups.realized_group` returned, or a ``symmetry_data`` that is
         neither a table nor a mapping.
+    ValueError
+        A ``cap`` that is not a positive whole number.
 
     See Also
     --------
     symmetry_indicator : the symmetry-indicator class of a band set.  A
         nonzero class rules out an atomic limit.
     """
+    _require_cap("decompose", cap)
     source = _read("decompose", symmetry_data, realized)
     if isinstance(source, Refusal):
         return source
@@ -2157,7 +2175,7 @@ def _decompose_in(source, symmetry_data, *, allow_incomplete=False,
     # completed on the rows left out, which an exact restriction determines.
     if restriction.exact:
         y_all, _sources = _filled_content(counts, restriction, labels_all)
-        _smith, _y_prime, wrong = _compatibility(data, group.number_str, labels_all, y_all)
+        _smith, _y_prime, wrong = _compatibility(data, group.number_str, y_all)
         if wrong is not None:
             return wrong
 
@@ -2435,22 +2453,21 @@ def _same_k(k_a, k_b, *, atol=1e-6) -> bool:
 #: The ``k_z`` at which the decoupled stack's Hamiltonian is held to the layer's.
 _KZ_PROBE = (0.0, 0.25, 0.5)
 
-def _stack_record(table, group, rep, restriction, *, c, environment, note) -> dict:
+def _stack_record(table, group, rep, restriction, *, environment, note) -> dict:
     """The mapping a layer's decoupled stack is recorded in, before the stack is built.
 
     ``table`` is the layer's :class:`.sewing.HSPTable`, ``group`` its group,
     ``rep`` its representation and ``restriction`` the :class:`Restriction`
-    read on its points.  ``c`` is the vacuum between the copies, in the
-    model's units of length, ``environment`` the layer's environment or
+    read on its points.  ``environment`` is the layer's environment or
     ``None``, and ``note`` the sentence the record carries.  Returns the
     mapping :func:`_completion_record` reads: its ``"outcome"``
     ``"stopped"``, its ``"input"`` the layer as handed in, its ``"stack"``
-    and ``"gates"`` empty, and its ``"stack_period"`` ``c`` until the stack
-    is built.
+    and ``"gates"`` empty, and its ``"stack_period"`` and ``"stack_extent"``
+    ``None`` until the stack is built.
     """
     return {
         "route": "decoupled stack", "outcome": "stopped",
-        "stopped_at": None, "stop_reason": None, "stack_period": float(c),
+        "stopped_at": None, "stop_reason": None, "stack_period": None,
         "stack_extent": None, "environment": environment,
         "input": {"number_str": str(group.number_str), "name": str(group.name),
                   "size": int(group._size), "dim_k": int(group._dim_k),
@@ -2677,7 +2694,7 @@ def _stack_in_group(table, group, rep, restriction, *, c, characters_tol):
     """
 
     record = _stack_record(
-        table, group, rep, restriction, c=c,
+        table, group, rep, restriction,
         environment=(None if getattr(rep, "_environment", None) is None
                      else str(rep._environment)),
         note=("the layer's plane has no coordinate for the k-points at k_z = 1/2, where "
@@ -2721,10 +2738,10 @@ def _stack_in_group(table, group, rep, restriction, *, c, characters_tol):
     unrepresented = tuple(sorted(int(s.ind) for s in group._symmetries
                                  if int(s.ind) not in represented))
     if unrepresented:
+        noun = "operation" if len(unrepresented) == 1 else "operations"
         return stop("representation",
-                    "the representation the table carries has no matrix for any "
-                    f"operation of {group.name} #{group.number_str} listed: "
-                    f"{_text._runs(unrepresented)}",
+                    f"the representation the table carries has no matrix for {noun} "
+                    f"{_text._runs(unrepresented)} of {group.name} #{group.number_str}",
                     unrepresented=unrepresented)
     g3, asg3 = _layers._layer_on_stack(group, rep._assignment, stack)
     by_ind = {int(s.ind): s for s in g3._symmetries}
@@ -2923,7 +2940,7 @@ def symmetry_indicator(symmetry_data, realized=None) -> SymmetryIndicator | Refu
 #: The message raised where the restriction refuses on a group whose tables
 #: were already read.
 _RESTRICTION_REFUSED = (
-    "#{}: in_plane_restriction refused with {} on a group whose elementary band "
+    "{} #{}: in_plane_restriction refused with {} on a group whose elementary band "
     "representations and high-symmetry points were read. Report it, with the model "
     "and the call.")
 
@@ -3005,7 +3022,8 @@ def _indicator_in(source, symmetry_data) -> SymmetryIndicator | Refusal:
         return points
     restriction = _restriction(group, points, require_exact=False)
     if isinstance(restriction, Refusal):     # pragma: no cover, its gates were read above
-        raise InternalError(_RESTRICTION_REFUSED.format(group.number_str, restriction.gate))
+        raise InternalError(_RESTRICTION_REFUSED.format(group.name, group.number_str,
+                                                        restriction.gate))
     layered = int(getattr(group, "_dim_k", 3)) < 3
 
     # ---- the rows out of the layer's own plane, measured on the stack -----
@@ -3031,19 +3049,20 @@ def _indicator_in(source, symmetry_data) -> SymmetryIndicator | Refusal:
         if layer is not None:
             restriction = _restriction(group, points, require_exact=False, layer=layer)
             if isinstance(restriction, Refusal):     # pragma: no cover, as above
-                raise InternalError(_RESTRICTION_REFUSED.format(group.number_str,
-                                                                restriction.gate))
+                raise InternalError(_RESTRICTION_REFUSED.format(
+                    group.name, group.number_str, restriction.gate))
 
     if restriction.orphans:
+        orphans = sorted(restriction.orphans, key=_tables.corep_order)
         reason = (
-            (f"the little-group representations {list(restriction.orphans)} of "
+            (f"the little-group representations {orphans} of "
              f"{group.name} #{group.number_str} are out of the layer's plane, and none "
              "of them occurs in every elementary band representation as often as one "
              "in the plane. "
              "Their measurement on the layer's decoupled stack stopped: "
              f"{str(completion['stop_reason']).rstrip('. ')}.")
             if completion is not None else
-            (f"the little-group representations {list(restriction.orphans)} of "
+            (f"the little-group representations {orphans} of "
              f"{group.name} #{group.number_str} are out of the layer's plane, and the "
              "vector gives none of them. None of them occurs in every elementary band "
              "representation as often as one in the plane, and the layer's own "
@@ -3062,7 +3081,7 @@ def _indicator_in(source, symmetry_data) -> SymmetryIndicator | Refusal:
     # name takes that one's multiplicity.  The compatibility relations are read
     # on the vector so completed.
     y, reconstructed = _filled_content(counts, restriction, labels)
-    (u, v, d, matrix), y_prime, wrong = _compatibility(data, group.number_str, labels, y)
+    (u, v, d, matrix), y_prime, wrong = _compatibility(data, group.number_str, y)
     if wrong is not None:
         return wrong
 

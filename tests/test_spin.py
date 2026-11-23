@@ -1439,6 +1439,14 @@ def test_a_wrong_basis_size_is_a_grammar_error(km_flat):
         _build._build_rep(km, group, _tables._assign_orbitals(km, group), spin="interleaved")
     with pytest.raises(ValueError, match="spinor=False"):
         tqg.realized_group(km, spin="interleaved", spinor=False)
+    # spinor=False alone, on the spinful layer: the crystal's refusal, the group
+    # its cell allows named and carried
+    single = tqg.realized_group(km, spinor=False)
+    assert isinstance(single, Refusal) and single.gate == "single_valued_spinful", str(single)
+    cell = single.context["group"]
+    assert not cell.spinor
+    assert single.reason.startswith(
+        f"the group the cell allows is {cell.name} #{cell.number_str}, an upper bound")
 
 
 # ---------------------------------------------------------------------------
