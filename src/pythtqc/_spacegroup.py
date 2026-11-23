@@ -1,14 +1,14 @@
-"""The space group of a cell, found on its point set and written in the model's
-own cell.
+"""The space group of a cell, and the records later measurements are written on.
 
-The records every later measurement is written on are here: the group, the
-little group of a k-point, a Wyckoff position, a site's position in the tables'
-setting, the orbitals' assignment to their sites, the coreps a measured
-multiplet carries, a k-mesh and the verdict on each operation of a group.  The
-group is identified by ``irrep`` from the cell's point set, its SU(2) lifts put
-in the tables' convention, its operations closed exactly, its pure translations
-read for the primitive lattice, its magnetic type read off its antiunitary
-operations, and each orbital assigned to the Wyckoff orbit its site lies on.
+The records are the group, the little group of a k-point, a site's Wyckoff
+position in spglib's setting and in the tables' setting, the orbitals' sites
+and their orbits, the little-group representations a measured multiplet
+carries, a k-mesh and a term of a sum of site irreps.  The group is identified
+by ``irrep`` on the cell's point set.  Its SU(2) lifts are put in the tables'
+convention, its operations closed exactly, its pure translations read for the
+primitive lattice and its magnetic type read off its antiunitary operations.
+The files ``irreptables`` ships are read here, and the group's multiplication
+table is computed here.
 """
 
 from __future__ import annotations
@@ -52,7 +52,12 @@ _PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 # --------------------------------------------------------------------------
 
 def _set_irreptables_version(info: dict[str, Any]) -> None:
-    """The installed ``irreptables`` version, written onto a status record."""
+    """Write the installed ``irreptables`` version into ``info``.
+
+    ``info`` is the mapping :func:`tables_status` builds.  Its
+    ``"irreptables_version"`` is set to the version, ``"unknown"`` where the
+    package names none, and left as it is where the package does not import.
+    """
     try:
         import irreptables
         info["irreptables_version"] = getattr(irreptables, "__version__", "unknown")
@@ -61,21 +66,26 @@ def _set_irreptables_version(info: dict[str, Any]) -> None:
 
 
 def tables_status() -> dict[str, Any]:
-    """Whether irrep's character tables are in place, and ``ortools`` installed.
+    """The state of ``irrep``'s character tables and of ``ortools``.
 
-    Without the ``irreptables`` package, or with it imported before ``irrep``
-    in the same process, ``irrep`` binds a stand-in that raises nothing and
-    names no label, and every call that reads the tables refuses
-    ``irrep_tables``.
+    The tables are loaded where the package ``irreptables`` is installed and
+    its module ``irreptables.irreps`` is not imported before ``irrep`` in the
+    same process.  Otherwise the tables are empty.  Every call that reads them
+    then refuses ``irrep_tables``.
 
     Returns
     -------
     dict
-        ``tables``: whether the real tables are in place, and ``reason``, where
-        they are not, which of the two causes it is and what to do;
-        ``ortools``: whether the integer solver a decomposition needs is
-        installed; ``irrep_version`` and ``irreptables_version``: the versions
-        installed, ``None`` where a package is absent.
+        Five keys.
+
+        - ``"tables"``: whether the tables are loaded.
+        - ``"reason"``: where the tables are not loaded, which cause it is
+          and what to do.  It is ``None`` where they are loaded.
+        - ``"ortools"``: whether ``ortools``, the integer solver
+          ``decompose`` needs, can be used.  It is ``True`` only where the
+          tables are loaded and ``ortools`` is installed.
+        - ``"irrep_version"`` and ``"irreptables_version"``: the versions
+          installed, ``None`` where a package is absent.
     """
     info: dict[str, Any] = {"tables": False, "ortools": False,
                             "irrep_version": None, "irreptables_version": None,
@@ -85,27 +95,23 @@ def tables_status() -> dict[str, Any]:
         from irrep import spacegroup_irreps as _sgi
         from irrep.utility import DummyMethodTables
     except ImportError as exc:  # pragma: no cover - environment without irrep
-        info["reason"] = f"irrep is not importable: {exc}"
+        info["reason"] = f"the package irrep cannot be imported: {exc}. Install it."
         return info
     info["irrep_version"] = getattr(irrep, "__version__", "unknown")
     bound = _sgi.IrrepTable
     if isinstance(bound, DummyMethodTables):
         import importlib.util
         if importlib.util.find_spec("irreptables") is None:
-            info["reason"] = ("irrep substituted its DummyMethodTables fallback for IrrepTable: "
-                              "the `irreptables` package is not installed, so every irrep "
-                              "identification would silently return 'None' labels. "
-                              "Install it: pip install 'irreptables>=3.1'")
+            info["reason"] = ("the package irreptables, which holds the character tables, "
+                              "is not installed. Install it: "
+                              "pip install 'irreptables>=3.1'")
             return info
         _set_irreptables_version(info)
         info["reason"] = (
-            "irrep substituted its DummyMethodTables fallback for IrrepTable: `irreptables` "
-            "is installed, but `irreptables.irreps` was imported before `irrep` in this "
-            "process. `irreptables.irreps` imports `irrep.utility`, so irrep's own `from "
-            "irreptables.irreps import IrrepTable` ran against a half-built module, failed "
-            "on that circular import and bound the fallback for the rest of the process, "
-            "and every irrep identification would silently return 'None' labels. Import "
-            "`pythtqc` (or `irrep`) before `irreptables`.")
+            "the package irreptables is installed, and its module irreptables.irreps "
+            "was imported before irrep in this process, so irrep holds no character "
+            "tables for the rest of this process. In a new process, import pythtqc "
+            "before irreptables.")
         return info
     _set_irreptables_version(info)
     info["tables"] = True
@@ -120,7 +126,7 @@ def tables_status() -> dict[str, Any]:
 def _refuse_no_tables(status: dict[str, Any]) -> Refusal:
     return Refusal(
         gate="irrep_tables",
-        reason=status["reason"] or "irrep did not load real character tables",
+        reason=status["reason"] or "irrep holds no character tables.",
         context={k: v for k, v in status.items() if k != "reason"},
     )
 
@@ -130,19 +136,14 @@ def _refuse_no_tables(status: dict[str, Any]) -> Refusal:
 # --------------------------------------------------------------------------
 
 def _irrep_table(number_str, spinor, magnetic):
-    """One group's table of little-group irreps, as ``irreptables`` ships it.
+    """One group's table of little-group representations, from ``irreptables``.
 
-    A table read is kept among the most recent, and the same one is returned
-    to every site that asks: nothing writes into it.
-
-    Parameters
-    ----------
-    number_str : str
-        The label the tables file the group under, ``"191"`` or ``"191.234"``.
-    spinor : bool
-        The double-valued table, of states with spin one-half.
-    magnetic : bool
-        The table of coreps of a magnetic group, a grey group among them.
+    ``number_str`` is the label the tables file the group under, ``"191"`` or
+    ``"191.234"``.  ``spinor`` asks for the double-valued table, of states
+    with spin one-half, and ``magnetic`` for the table of a magnetic group, a
+    grey group among them, whose entries are coreps.  Returns an
+    ``irreptables.irreps.IrrepTable``.  A table is shared by the calls that
+    ask for it, and is never written into.
     """
     from irreptables.irreps import IrrepTable
     return _read_irrep_table(IrrepTable, str(number_str), bool(spinor), bool(magnetic))
@@ -150,22 +151,19 @@ def _irrep_table(number_str, spinor, magnetic):
 
 @lru_cache(maxsize=32)
 def _read_irrep_table(reader, number_str, spinor, magnetic):
-    """The table ``reader`` reads for one group, kept for that reader."""
+    """The table ``reader(number_str, spinor, magnetic=magnetic)`` returns."""
     return reader(number_str, spinor, magnetic=magnetic)
 
 
 def _ebr_file(number_str, spinor):
-    """One group's elementary band representations, as ``irreptables`` ships them.
+    """One group's elementary band representations, from ``irreptables``.
 
-    A file read is kept among the most recent, and the same one is returned to
-    every site that asks: nothing writes into it.
-
-    Parameters
-    ----------
-    number_str : str
-        The label the tables file the group under, ``"191"`` or ``"191.234"``.
-    spinor : bool
-        The double-valued representations, of states with spin one-half.
+    ``number_str`` is the label the tables file the group under, ``"191"`` or
+    ``"191.234"``, and ``spinor`` asks for the double-valued representations,
+    of states with spin one-half.  Returns the mapping
+    ``irreptables.ebrs.load_ebr_data`` reads, with the keys ``"basis"``,
+    ``"ebrs"`` and ``"smith_form"``.  A file read is shared by the calls that
+    ask for it, and is never written into.
     """
     from irreptables.ebrs import load_ebr_data
     return _read_ebr_file(load_ebr_data, str(number_str), bool(spinor))
@@ -173,22 +171,18 @@ def _ebr_file(number_str, spinor):
 
 @lru_cache(maxsize=32)
 def _read_ebr_file(reader, number_str, spinor):
-    """The file ``reader`` reads for one group, kept for that reader."""
+    """The file ``reader(number_str, spinor)`` returns."""
     return reader(number_str, spinor)
 
 
 def _indicator_table(spinor, magnetic):
-    """``irreptables``' named symmetry-indicator formulas for every group of one table.
+    """The symmetry-indicator formulas ``irreptables`` ships, keyed by group.
 
-    Each table is read once, and the same one is returned to every site that
-    asks: nothing writes into it.
-
-    Parameters
-    ----------
-    spinor : bool
-        The double-valued table, of states with spin one-half.
-    magnetic : bool
-        The table keyed by a magnetic group's number, ``"166.98"``.
+    ``spinor`` asks for the double-valued table, of states with spin
+    one-half, and ``magnetic`` for the table keyed by a magnetic group's
+    number, ``"166.98"``, where the other is keyed by the space-group number,
+    ``"166"``.  Each table is read once, and the same object is returned to
+    every call, so it is read and never written.
     """
     from irreptables.symmetry_indicators import load_si_table
     return _read_indicator_table(load_si_table, bool(spinor), bool(magnetic))
@@ -196,7 +190,7 @@ def _indicator_table(spinor, magnetic):
 
 @lru_cache(maxsize=None)
 def _read_indicator_table(reader, spinor, magnetic):
-    """The table ``reader`` reads, kept for that reader."""
+    """The table ``reader(spinor=spinor, magnetic=magnetic)`` returns."""
     return reader(spinor=spinor, magnetic=magnetic)
 
 
@@ -207,37 +201,23 @@ def _read_indicator_table(reader, spinor, magnetic):
 def _product_table(sg, *, block_bytes: float = 6.4e7):
     r"""The multiplication table of the operations ``irrep`` lists in ``sg``.
 
-    The product of two operations is the listed operation with the product's
-    rotation, primed where exactly one of the two is, whose translation
-    differs from the product's by a lattice vector, to within
-    :data:`.._tolerance._SAME_TRANSLATION`.  Where the cell's point set allows
-    a pure translation, several listed operations share a rotation, and their
-    translations tell them apart.  In the double group the product's spin
-    matrix is the product of the two operations', negated where both are
-    primed, since time reversal commutes with a spin rotation and squares to
-    ``-1`` on spin one-half; its sign against the listed operation's spin
-    matrix is the product's spin sign.
-
-    Parameters
-    ----------
-    sg : irrep SpaceGroup
-        The group, its operations listed one per coset of the lattice
-        translations.
-    block_bytes : float, optional
-        The memory, in bytes, that sets how many rows of the table are built
-        at once.  Default ``6.4e7``.
-
-    Returns
-    -------
-    tuple of ndarray of int
-        ``(table, translations, signs)``, as
-        :meth:`GroupData._get_product_table` describes them.
+    ``sg`` is an ``irrep`` space group, its operations listed one per coset of
+    the lattice translations.  The product of two operations is matched to the
+    listed operation with the product's rotation, primed where exactly one of
+    the two is, whose translation differs from the product's by a lattice
+    vector, to within :data:`.._tolerance._SAME_TRANSLATION`.  In the double
+    group the product of the two spin matrices is compared with the listed
+    operation's.  It is negated where both operations are primed, since time
+    reversal squares to ``-1`` on spin one-half.  ``block_bytes`` is the
+    memory, in bytes, that sets how many rows of the table are built at once.
+    Returns ``(table, translations, signs)``, integer arrays as
+    :meth:`GroupData._get_product_table` describes them.
 
     Raises
     ------
     InternalError
-        The list does not close under multiplication, or the spin matrices do
-        not multiply as the operations do up to a sign.
+        The list does not close under multiplication, or a product's spin
+        matrix is neither sign of the listed operation's.
     """
     syms = sg.symmetries
     N = len(syms)
@@ -288,7 +268,7 @@ def _product_table(sg, *, block_bytes: float = 6.4e7):
             i, j = (int(x[0]) for x in np.nonzero(block < 0))
             raise InternalError(
                 f"the product of operations {syms[lo + i].ind} and {syms[j].ind} is not "
-                "in the group's list: the list does not close under multiplication")
+                "among the operations of the group. Report it, with the model and the call.")
         prod[lo:hi], diff[lo:hi] = block, dblock
         if spinor:
             Sij = np.einsum("iab,jbc->ijac", S[lo:hi], S)
@@ -299,9 +279,9 @@ def _product_table(sg, *, block_bytes: float = 6.4e7):
             if not np.all(plus | minus):
                 i, j = (int(x[0]) for x in np.nonzero(~(plus | minus)))
                 raise InternalError(
-                    f"the spin matrix of the product of operations {syms[lo + i].ind} and "
-                    f"{syms[j].ind} is neither sign of the listed operation's: the spin "
-                    "matrices do not multiply as the operations do")
+                    f"the product of the spin matrices of operations {syms[lo + i].ind} and "
+                    f"{syms[j].ind} is not plus or minus the spin matrix of their product. "
+                    "Report it, with the model and the call.")
             spf[lo:hi] = np.where(plus, 1, -1)
     return prod, diff, spf
 
@@ -317,30 +297,39 @@ _PRODUCT_TABLES: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 
 @dataclass(frozen=True)
 class GroupData:
-    """A space group, written in the model's own cell.
+    """A space group, written in the cell of the model's pythtb Lattice.
 
-    The group ``realized_group(model).group`` holds, and the one every lookup
-    takes: :func:`.._seitz.operations`, :func:`.._tables.high_symmetry_points`,
-    :func:`.._tables.corep_table`, :func:`.._tables.ebr_data`.  Its operations
-    are ``r.operations``.  ``summary()`` prints it.
+    The record held by ``realized_group(model).group``.  The calls that read
+    the tables take it, among them :func:`.._seitz.operations` and
+    :func:`.._tables.corep_table`.  Its operations, one per coset of the
+    lattice translations, are listed by ``realized_group(model).operations``,
+    each with an index counted from 1.  The group's three-dimensional cell is
+    the cell of the pythtb Lattice.  For a layer, the lattice vector out of
+    its plane lies along its normal and spans vacuum.  The group
+    :func:`..srsi.srsi_tables` reads from a space-group number has no cell.
+    ``summary()`` prints it.
 
     Attributes
     ----------
     name : str
-        The Hermann-Mauguin symbol, ``"P6/mmm1'"``, a trailing ``1'`` marking
+        The Hermann-Mauguin symbol, ``"P6/mmm1'"``.  A trailing ``1'`` marks
         time reversal as one of its operations.
     number_str : str
-        The label the tables file the group under, ``"191.234"``.
+        The group's number in the tables: the BNS number of the magnetic
+        space group, ``"191.234"``, for a grey group, and the space-group
+        number, ``"168"``, for a group without time reversal.
     spinor : bool
         Whether it is the double group, of states with spin one-half.
     magnetic_type : str
-        ``"II"`` for a grey group, which holds time reversal itself, and
-        ``"I"`` for a group none of whose operations is combined with time
-        reversal.
-    periodic_dirs : tuple of int
-        The lattice vectors along which the crystal is periodic, ``(0, 1)``
-        for a layer and ``(0, 1, 2)`` for a crystal periodic in three
-        directions.
+        The type of the magnetic space group: ``"II"`` for a grey group, which
+        contains time reversal as an operation of its own, and ``"I"`` for a
+        group with no operation combined with time reversal.
+    periodic_dirs : tuple of int or None
+        If not ``None``, the lattice vectors along which the crystal is
+        periodic, by their index in the group's three-dimensional cell:
+        ``(0, 1, 2)`` for a crystal periodic in three directions, and
+        ``(0, 1)`` for a layer whose vacuum is along the third.  ``None`` for
+        the group of a space-group number, which has no cell.
     """
 
     name: str
@@ -384,8 +373,8 @@ class GroupData:
     # invariants read from a number hold
     _provenance: str = "cell"
     # how far the operations as spglib found them missed closing into a group,
-    # reduced modulo the lattice -- 0.0 for a cell built from exact numbers,
-    # rounding for one whose centres a declared precision made exact -- and the
+    # reduced modulo the lattice: 0.0 for a cell built from exact numbers, and
+    # rounding for one whose centers a declared precision made exact; then the
     # largest translation the repair from the tabulated operations moved
     _closure_measured: float = 0.0
     _closure_repaired: float = 0.0
@@ -399,7 +388,7 @@ class GroupData:
     # defects measured; None for a spinless group
     _spin_frame: dict | None = field(default=None, repr=False, compare=False)
     _sg: Any = field(default=None, repr=False, compare=False)
-    #: Memo of :func:`_wyckoff_setting_audit` for this group — the check that
+    #: Memo of :func:`_wyckoff_setting_audit` for this group, the check that
     #: ``pyxtal``'s Wyckoff list is written in the same setting as the tables.
     #: It is a property of the group and not of a site, so it runs once.
     #: ``init=False``, so that a copy made by ``dataclasses.replace``, which may
@@ -415,26 +404,33 @@ class GroupData:
 
     @property
     def _au_symmetries(self) -> list:
-        """The operations of :attr:`_symmetries` combined with time reversal, none without it."""
+        """The operations of :attr:`_symmetries` combined with time reversal.
+
+        The list is empty for a group of magnetic type I.
+        """
         return self._sg.au_symmetries
 
     @property
     def _size(self) -> int:
-        """How many operations :attr:`_symmetries` lists, one per coset of the lattice translations."""
+        """The number of operations :attr:`_symmetries` lists."""
         return len(self._symmetries)
 
     # -- computed here, once for each ``irrep`` object ----------------------
     def _get_product_table(self, get_diff: bool = True):
-        """The group's multiplication table, with the lattice translation and spin sign of each product.
+        """The multiplication table of :attr:`_symmetries`.
 
-        These are what a representation of the group reproduces.  With
-        ``get_diff`` (default True), ``(table, translations, signs)``:
-        ``table[i, j]`` the position in :attr:`_symmetries` of the product of
-        the operations at positions ``i`` and ``j``; ``translations[i, j]`` the
-        lattice vector by which that product's translation exceeds the listed
-        operation's; and ``signs[i, j]`` the ``±1`` by which its spin matrix
-        differs from the listed operation's, ``1`` throughout for a spinless
-        group.  Without it, the table alone.
+        A representation of the group reproduces the table, its lattice
+        vectors and its spin signs.  ``get_diff`` is whether the lattice
+        vectors and spin signs are returned with the table.  Returns
+        ``(table, translations, signs)``: ``table[i, j]`` is the position in
+        :attr:`_symmetries` of the product of the operations at positions
+        ``i`` and ``j``; ``translations[i, j]`` the lattice vector
+        by which that product's translation exceeds the listed operation's, in
+        reduced coordinates of the group's three-dimensional cell; and
+        ``signs[i, j]`` the ``±1`` by which its spin matrix differs from the
+        listed operation's, ``1`` throughout for a spinless group.  With
+        ``get_diff=False``, the table alone.  Each is a copy of the table
+        kept for the group's ``irrep`` object.
         """
         got = _PRODUCT_TABLES.get(self._sg)
         if got is None:
@@ -446,15 +442,20 @@ class GroupData:
 
     # -- delegated to ``irrep`` --------------------------------------------
     def _get_inverse_table(self):
-        """The position in :attr:`_symmetries` of each operation's inverse, positions one less than the indices."""
+        """The position in :attr:`_symmetries` of each operation's inverse.
+
+        ``irrep`` computes it.  A position is one less than the operation's
+        index.
+        """
         return self._sg.get_inverse_table()
 
     # -- k between the model and the 3D cell -------------------------------
     def _k_to_3d(self, k) -> np.ndarray:
-        """The model's reduced k, shape ``(dim_k,)`` or ``(n, dim_k)``, as the same points of the three-dimensional cell, shape ``(n, 3)``.
+        """The model's reduced ``k`` as points of the three-dimensional cell.
 
-        A layer's cell has its vacuum along the layer's normal, so the
-        periodic components carry over and the one along the vacuum is zero.
+        ``k`` has shape ``(dim_k,)`` or ``(n, dim_k)``.  Returns shape
+        ``(n, 3)``: the periodic components carry over, and the component
+        along a layer's vacuum is zero.
         """
         k = np.atleast_2d(np.asarray(k, dtype=float))
         out = np.zeros((k.shape[0], 3))
@@ -462,24 +463,37 @@ class GroupData:
         return out
 
     def _k_from_3d(self, k3) -> np.ndarray:
-        """Points of the three-dimensional cell in the model's reduced coordinates, the vacuum's component dropped."""
+        """Points ``k3`` of the three-dimensional cell as the model's reduced k.
+
+        ``k3`` has shape ``(3,)`` or ``(n, 3)``.  Returns shape ``(n, dim_k)``,
+        the components along a layer's vacuum dropped.
+        """
         k3 = np.atleast_2d(np.asarray(k3, dtype=float))
         return k3[:, list(self.periodic_dirs)]
 
     def _in_plane(self, k3, atol: float = 1e-9) -> bool:
-        """Whether points of the three-dimensional cell lie in a layer's plane, within ``atol``."""
+        """Whether the points ``k3`` lie in a layer's plane.
+
+        ``k3`` holds points of the three-dimensional cell, shape ``(3,)`` or
+        ``(n, 3)``.  A point lies in the plane where each of its components
+        along the vacuum is at most ``atol`` in absolute value.  Always
+        ``True`` for a crystal periodic in three directions.
+        """
         k3 = np.atleast_2d(np.asarray(k3, dtype=float))
         if not self._vacuum_dirs:
             return True
         return bool(np.all(np.abs(k3[:, list(self._vacuum_dirs)]) <= atol))
 
     def _k_action_of(self, op):
-        """One operation's action on the model's reduced k, ``k -> R k``, as a callable.
+        """One operation's action on the model's reduced k, as a callable.
 
-        ``op`` is one of :attr:`_symmetries`.  The image is left unreduced:
-        ``H(k + G)`` is not ``H(k)`` in pythtb's convention, and an operation
-        carries ``H(k)`` to ``H`` at the image itself.  ``None`` for an
-        operation that turns a layer's plane out of itself.
+        ``op`` is one of :attr:`_symmetries`.  Returns ``k -> R k``, or
+        ``k -> -R k`` for an operation combined with time reversal, taking
+        points of shape ``(dim_k,)`` or ``(n, dim_k)`` to shape
+        ``(n, dim_k)``; ``None`` for an operation that turns a layer's plane
+        out of itself.  The image is left unreduced: in pythtb's convention
+        ``H(k + G)`` is not ``H(k)``, and an operation carries ``H(k)`` to
+        ``H`` at the image itself.
         """
         probe = np.eye(self._dim_k)
         rot = op.transform_k(self._k_to_3d(probe))
@@ -492,7 +506,10 @@ class GroupData:
         return action
 
     def summary(self) -> str:
-        """The group, a line for each part, with the attribute that holds it."""
+        """The group as text, a line for each quantity.
+
+        The attributes that hold each quantity are named beside it.
+        """
         lines = [f"{self.name} #{self.number_str}   (.name, .number_str)"]
         if self.magnetic_type == "II":
             lines.append("  a grey group, magnetic type II: time reversal is one of its "
@@ -527,28 +544,32 @@ class GroupData:
 class LittleGroup:
     """The operations that leave one k invariant up to a reciprocal lattice vector.
 
-    What :func:`.._tables.little_group` returns; ``summary()`` prints it, and
-    ``len`` is the number of its unitary operations.
+    The record :func:`.._tables.little_group` returns.  ``summary()`` prints
+    it, and ``len()`` is the number of its unitary operations.
 
     Attributes
     ----------
     k : ndarray, shape (dim_k,)
         The point, in the model's reduced coordinates.
     kpoint : str or None
-        The tables' name of the point, ``"X"``, where it is one of the
-        tabulated points of the group in the cell as written; ``None`` where it
-        is none.
+        If not ``None``, the tables' name of the point, ``"X"``.  ``None``
+        where ``k`` is none of the group's tabulated points, up to a
+        reciprocal lattice vector of the model's cell, or where the group has
+        no transformation to the tables' conventional cell.
     unitary : tuple of int
-        The indices of its unitary operations, in index order: the columns a
-        character vector at ``k`` is written in.
+        The indices of its unitary operations, ascending.  The characters of
+        a little-group representation at ``k`` are given on these
+        operations, in this order.
     antiunitary : tuple of int
-        The indices of its operations combined with time reversal, those whose
-        rotation carries ``k`` to ``-k``, in index order.  A corep table has
-        no characters for them.
+        If nonempty, the indices of its operations combined with time
+        reversal, ascending: those whose rotation carries ``k`` to ``-k``, up
+        to a reciprocal lattice vector.  The tables give no character on
+        them.
     G : dict
-        ``{index: G}`` for each unitary operation, the reciprocal lattice
-        vector ``R⁻ᵀk - k`` it moves ``k`` by, three components in reduced
-        coordinates of the three-dimensional cell, a layer's normal included.
+        ``{index: G}`` for each unitary operation ``g``, with ``G = gk - k``
+        the reciprocal lattice vector by which ``g`` moves ``k``.  Its three
+        components are in reduced coordinates of the group's
+        three-dimensional cell, the one along a layer's normal included.
     """
 
     k: np.ndarray
@@ -566,17 +587,20 @@ class LittleGroup:
 
     @property
     def operations(self):
-        """Its operations, unitary and antiunitary, by index, as ``r.operations`` writes them.
+        """Its operations, as ``realized_group(model).operations`` writes them.
 
         Returns
         -------
         OperationTable or Refusal
-            A row for each index of :attr:`unitary` and :attr:`antiunitary`.
+            A row for each operation of :attr:`unitary` and
+            :attr:`antiunitary`, all in ascending index.  A ``Refusal``
+            returned instead of the table is falsy.
 
         Refusals
         --------
         ``tables_not_ready``
-            The group has no conventional setting to write a Seitz symbol in.
+            The group has no transformation to the tables' conventional cell,
+            in which each Seitz symbol is written.
         """
         from ._seitz import _operation_rows
         return _operation_rows(self._group, tuple(self.unitary) + tuple(self.antiunitary))
@@ -585,7 +609,10 @@ class LittleGroup:
         return len(self.unitary)
 
     def summary(self) -> str:
-        """The little group at one k, a line for each part, with the attribute that holds it."""
+        """The little group as text, a line for each quantity.
+
+        The attributes that hold each quantity are named beside it.
+        """
         lines = [(f"{self.kpoint} {_point_text(self.k)}, in the model's reduced coordinates   "
                   "(.kpoint, .k)" if self.kpoint else
                   f"k = {_point_text(self.k)}, in the model's reduced coordinates   (.k)"),
@@ -609,14 +636,23 @@ class LittleGroup:
 
 @dataclass(frozen=True)
 class _WyckoffPosition:
-    """One Wyckoff position of the group, in the model's own cell, lettered in spglib's setting.
+    """One Wyckoff position of a group, lettered in spglib's setting.
 
-    One entry of what :func:`_wyckoff_positions_spglib` returns: its letter in
-    spglib's setting, which the tables' letter for the position may differ
-    from; ``expression``, the position as ``irrep`` writes it in ``x``, ``y``
-    and ``z``, in the model's reduced coordinates; ``jacobian`` and ``offset``,
-    ``A`` and ``b`` of the map ``A·(x, y, z) + b`` whose image is the
-    position; ``n_free``, the rank of ``A``.
+    One entry of what :func:`_wyckoff_positions_spglib` returns.  The
+    position is the image of the map ``A·(x, y, z) + b``, in reduced
+    coordinates of the group's three-dimensional cell.
+
+    Attributes
+    ----------
+    letter : str
+        Its letter in spglib's setting, which can differ from the tables'
+        letter for the position.
+    expression : str
+        The position as ``irrep`` writes it, in ``x``, ``y`` and ``z``.
+    offset, jacobian : ndarray, shapes (3,) and (3, 3)
+        ``b`` and ``A``.
+    n_free : int
+        The rank of ``A``, the number of free parameters of the position.
     """
 
     letter: str
@@ -626,10 +662,16 @@ class _WyckoffPosition:
     n_free: int
 
     def distance(self, position, metric: np.ndarray) -> float:
-        """The Cartesian distance from a point to this position, the nearest lattice translate of it.
+        """The distance from the point ``position`` to this position.
 
-        ``position`` is in reduced coordinates and ``metric`` is the lattice, a
-        row per lattice vector; the distance is in the lattice's length units.
+        ``position`` is in reduced coordinates of the cell whose lattice
+        vectors are the rows of ``metric``.  For each translate of the point by
+        a lattice vector with components in ``{-1, 0, 1}``, its residual from
+        the position is found by least squares in reduced coordinates and its
+        Cartesian length taken.  Returns the smallest, in the length units of
+        ``metric``.  At a position with no free parameter it is the Cartesian
+        distance; on a line or a plane it can exceed it, unless the cell's
+        vectors are orthogonal and of one length.
         """
         best = np.inf
         A, b = self.jacobian, self.offset
@@ -650,30 +692,35 @@ _NEIGHBOR_SHIFTS = np.array([[i, j, k] for i in (-1, 0, 1)
 
 @dataclass(frozen=True)
 class SiteReference:
-    """One site's Wyckoff position in the tables' setting, the one every table is read with.
+    """One site's Wyckoff position in the tables' setting.
 
-    One entry of what :func:`.._tables.wyckoff_sites_tables` returns, which
-    prints its position, its free parameters and the positions it slides onto
-    in a line.
+    The tables' setting is the conventional cell used by the irreptables
+    package.  The record is one entry of what
+    :func:`.._tables.wyckoff_sites_tables` returns.  It prints as one line:
+    its position, its free parameters and the positions it slides onto.
 
     Attributes
     ----------
     wyckoff : str
-        The most special Wyckoff position whose variety holds the point, the
-        fewest free parameters and then the smallest multiplicity, written
-        with its multiplicity in the conventional cell, ``"8a"``.
+        The Wyckoff position the site lies on, written with its multiplicity
+        in the conventional cell, ``"8a"``.  Where the site lies on several
+        positions, within the ``position_tol`` of
+        :func:`.._tables.wyckoff_sites_tables`, it is the one with the fewest
+        free parameters, and then the smallest multiplicity.
     slides_onto : tuple of str
-        The positions on the closure of the site's variety at which the
-        tables induce elementary band representations, where an orbital
-        confined to the variety can be moved: ``("3a", "3b")`` for the line
-        ``6c``, ``(0, 0, z)``, of ``R-3m``.
+        The Wyckoff positions at which the tables list elementary band
+        representations and whose points all lie on the site's own position,
+        that position included where the tables list it.  An orbital at the
+        site can be moved onto each of them without leaving its position.
+        For the line ``6c``, ``(0, 0, z)``, of ``R-3m`` they are
+        ``("3a", "3b")``, and for a site at ``3a`` they are ``("3a",)``.
     n_free : int
-        Its free parameters: 0 a point, 1 a line, 2 a plane, 3 the general
-        position.  A polar group's positions are lines at best, ``P4mm``'s
-        ``1a`` being ``(0, 0, z)``.
+        The number of its free parameters: 0 for a point, 1 a line, 2 a
+        plane, 3 the general position.  In a polar group no position is a
+        point: ``P4mm``'s ``1a`` is ``(0, 0, z)``.
     position : ndarray, shape (3,)
-        The site as handed in, in reduced coordinates of the model's
-        three-dimensional cell.
+        The site, in reduced coordinates of the group's three-dimensional
+        cell, not of the tables' conventional cell.
     """
 
     wyckoff: str
@@ -695,18 +742,30 @@ class SiteReference:
 
 @dataclass(frozen=True)
 class _SiteReading:
-    """One site's Wyckoff position in the tables' setting, as the package reads it.
+    """One point's Wyckoff position in the tables' setting.
 
-    What :func:`.._tables._sites_in_tables_setting` returns per point:
-    ``index``, its place in the list handed in; ``position`` and
-    ``reference``, the point in the model's three-dimensional cell and in the
-    tables' conventional cell, reduced into ``[0, 1)``; ``letter`` and
-    ``multiplicity`` of the most special position whose variety holds it;
-    ``n_free``; ``varieties``, the letters of every position whose variety
-    holds it, most special first; ``closure``, the letters on the closure of
-    its variety at which the tables induce elementary band representations;
-    ``residual``, how far it sits from its variety in reduced coordinates of
-    the conventional cell.
+    One entry of what :func:`.._tables._sites_in_tables_setting` returns.
+
+    Attributes
+    ----------
+    index : int
+        The point's place in the list handed in.
+    position, reference : ndarray, shape (3,)
+        The point, in reduced coordinates of the group's three-dimensional
+        cell, and of the tables' conventional cell reduced into ``[0, 1)``.
+    letter, multiplicity, n_free : str, int and int
+        The most special position whose variety holds the point: its letter,
+        its multiplicity in the conventional cell and the number of its free
+        parameters.
+    varieties : tuple of str
+        The letters of every position whose variety holds the point, most
+        special first.
+    closure : tuple of str
+        The letters on the closure of its variety at which the tables induce
+        elementary band representations.
+    residual : float
+        How far the point sits from its variety, the largest component in
+        reduced coordinates of the conventional cell.
     """
 
     index: int
@@ -722,43 +781,56 @@ class _SiteReading:
 
 @dataclass(frozen=True)
 class OrbitalAssignment:
-    """Where the orbitals sit: each one's site, the sites' Wyckoff orbits, and how the operations move the sites.
+    """Each orbital's site, the sites' orbits, and how the operations move them.
 
-    The record ``realized_group(model).assignment`` holds; ``summary()``
-    prints it by Wyckoff position.
+    Each operation ``{R|t}`` of the group carries each site ``τ`` to
+    ``R τ + t``, which is matched to the nearest site of the same species.
+    Two sites are of one species where their orbitals carry the same labels
+    of ``typat=``, as many of each.  With no ``typat=``, they are of one
+    species where they hold as many orbitals.  ``summary()`` prints it by
+    Wyckoff orbit.
 
     Attributes
     ----------
     site_of_orbital, orbit_of_orbital : ndarray, shape (norb,)
         The site each orbital sits on, and that site's orbit.
     site_positions, site_orbitals : ndarray and tuple
-        The sites, in reduced coordinates of the group's cell, and the
-        orbitals on each.
+        The sites, in reduced coordinates of the group's three-dimensional
+        cell, and the orbitals on each.
     orbits : tuple of tuple of int
         The sites, grouped into the orbits the operations carry them through.
     orbit_of_site : ndarray, shape (nsite,)
         The orbit each site is on.
     wyckoff_tables : tuple of str
-        Each site's Wyckoff letter in the tables' setting, the one every table
-        is read with; ``""`` where none could be read.
+        If nonempty, each site's Wyckoff letter in the tables' setting, the
+        conventional cell used by the irreptables package.  Empty where the
+        letters could not be read.
     site_symmetry : tuple of str
         Each site's site-symmetry group, the point group of the unitary
-        operations that fix it, by its Hermann–Mauguin symbol: ``"3m"``.
+        operations that fix it, by its Hermann-Mauguin symbol: ``"3m"``.
     site_group : tuple of tuple of int
-        The indices of the operations that fix each site.
+        The indices of the operations that fix each site, those combined with
+        time reversal included.
     permutations : ndarray, shape (nsym, nsite)
-        ``permutations[g, i]``, the site the operation at position ``g`` of
-        the group's list carries site ``i`` onto.
+        ``permutations[g, i]`` is the site onto which the operation of row
+        ``g`` carries site ``i``.  Row ``g`` is the operation of index
+        ``g + 1`` in ``realized_group(model).operations``.
     lattice_shift : ndarray, shape (nsym, nsite, 3)
-        The lattice vector that image lands in, ``R·τ_i + t − τ_{g(i)}``,
-        which sets the phases of a representation.
-    wyckoff_spglib, wyckoff_spglib_dataset : tuple of str
-        The letters in spglib's setting, one per orbit, and one per site read
-        on the positions alone: information about the geometry, never a table
-        key.
+        The lattice vector by which each image differs from the site it is
+        matched to, in reduced coordinates: ``R τ_i + t - τ_j`` for the
+        operation ``{R|t}`` of row ``g``, with ``τ_i`` the position of site
+        ``i`` and ``j = permutations[g, i]``.
+    wyckoff_spglib : tuple of str
+        The Wyckoff letter of each orbit in spglib's setting, ``""`` where
+        spglib finds none.  A letter can differ from the tables' letter for
+        the same position, in :attr:`wyckoff_tables`.
+    wyckoff_spglib_dataset : tuple of str
+        If nonempty, the Wyckoff letter of each site in spglib's setting,
+        read by spglib from the sites alone.  Their group can be larger than
+        the Hamiltonian's.  Empty where spglib gives no letters.
     max_distance : float
-        The largest Cartesian mismatch accepted in matching an image to a
-        site.
+        The largest Cartesian distance between an operation's image of a site
+        and the site it was matched to, in the model's length units.
     """
 
     orbits: tuple
@@ -777,7 +849,10 @@ class OrbitalAssignment:
     wyckoff_tables: tuple = ()
 
     def summary(self) -> str:
-        """Where the orbitals sit, a line for each part, with the attribute that holds it."""
+        """The orbitals' sites and orbits as text, a line for each quantity.
+
+        The attributes that hold each quantity are named beside it.
+        """
         norb, nsite = len(self.site_of_orbital), len(self.site_group)
         site_of = np.asarray(self.site_of_orbital, dtype=int)
         lines = [f"{norb} orbital{'' if norb == 1 else 's'} on {nsite} "
@@ -817,29 +892,35 @@ class OrbitalAssignment:
 
 @dataclass(frozen=True)
 class CorepIdentification:
-    """The coreps each measured multiplet carries at one high-symmetry point, read off its characters.
+    """The little-group representations each measured multiplet carries at one k.
 
-    What :func:`.._tables.identify_from_characters` returns, and what
-    ``coreps_at(...).numerical.identification`` holds; ``summary()`` prints
-    it.
+    The record :func:`.._tables.identify_from_characters` returns, and
+    ``coreps_at(...).numerical.identification`` holds.  The multiplicities
+    are read off each multiplet's characters at a high-symmetry point and
+    rounded to integers.  ``summary()`` prints it.
 
     Attributes
     ----------
     kpoint, k : str and ndarray
         The tabulated point, by name and in the model's reduced coordinates.
     labels : tuple of dict
-        Each multiplet's coreps, ``{corep: multiplicity}``, one per multiplet.
-    dims : ndarray, shape (nrow,)
-        Each multiplet's dimension as its coreps make it up: each multiplicity
-        times its corep's dimension, summed.
+        Each multiplet's little-group representations,
+        ``{name: multiplicity}``.
+    dims : ndarray
+        The dimension of each multiplet: each multiplicity times the
+        dimension of its representation, summed.
     indices : tuple of int
-        The indices of the little group's unitary operations, the characters'
-        columns.
-    multiplicities, label_order : ndarray and tuple
-        The multiplicities before rounding, a row per multiplet and a column
-        per corep, the coreps in the order of ``label_order``.
+        The indices of the little group's unitary operations, on which the
+        characters are given.
+    multiplicities : ndarray
+        The multiplicities before rounding, a complex array with a row per
+        multiplet and a column per little-group representation.
+    label_order : tuple of str
+        The little-group representations at the point, by name, in the order
+        of the columns of :attr:`multiplicities`.
     integrality : float
-        How far the furthest multiplicity sat from an integer.
+        The largest distance of a multiplicity before rounding from the
+        nearest integer.
     """
 
     kpoint: str
@@ -859,7 +940,10 @@ class CorepIdentification:
     _kind: str = field(default="coreps", repr=False, compare=False)
 
     def summary(self) -> str:
-        """The coreps at one k, a line for each part, with the attribute that holds it."""
+        """The multiplets as text, a line for each quantity.
+
+        The attributes that hold each quantity are named beside it.
+        """
         lines = [f"{self.kpoint} {_point_text(self.k)}, in the model's reduced coordinates   "
                  "(.kpoint, .k)",
                  f"  each multiplet's {self._kind}, and its dimension   (.labels, .dims)"]
@@ -877,29 +961,34 @@ class CorepIdentification:
 
 @dataclass(frozen=True)
 class KGrid:
-    """A Γ-centred mesh that respects the group, with the high-symmetry points it holds.
+    """A mesh of k-points that holds GM, with the high-symmetry points on it.
 
-    What :func:`.._tables.k_grid` returns; ``summary()`` prints it.  Its :attr:`mesh` is
-    pythtb's own, handed to a ``pythtb.WFArray`` as it is.
+    The record :func:`.._tables.k_grid` returns.  ``summary()`` prints it.
+    Its :attr:`mesh` is a ``pythtb.Mesh``, which ``pythtb.WFArray`` takes
+    directly.
 
     Attributes
     ----------
     divisions : tuple of int
-        The divisions along the three axes of the three-dimensional cell,
-        ``1`` along a layer's vacuum.
+        The number of k-points along each reciprocal lattice vector of the
+        group's three-dimensional cell, ``1`` along a layer's normal.
     symmetric : bool
         Whether the group carries the mesh onto itself.
     mesh : pythtb.Mesh
-        The mesh, ``k`` in ``[0, 1)`` along each periodic direction, one axis
-        per periodic direction.
+        The mesh, with ``k`` in ``[0, 1)`` along each periodic direction and
+        one axis per periodic direction.
     irreducible : ndarray, shape (n, dim_k), or None
-        The points the group carries onto all the others; ``None`` for a mesh
-        that is not symmetric.
+        If not ``None``, one point of the mesh from each orbit of the group,
+        in the model's reduced coordinates.  ``None`` for a mesh that is not
+        symmetric.
     contains : dict
-        ``{name: bool}``, whether the mesh holds each tabulated high-symmetry
-        point.  An odd mesh misses the zone boundary, and
-        :func:`.._tables.high_symmetry_points` gives the coordinates of a
-        point it misses.
+        If nonempty, ``{name: bool}``: whether the mesh holds each tabulated
+        high-symmetry point.  A point is on the mesh where each of its
+        reduced coordinates in the model's cell is a multiple of ``1/n``
+        along an axis of ``n`` divisions: ``1/2`` needs an even number of
+        divisions, and ``1/3`` a multiple of three.
+        :func:`.._tables.high_symmetry_points` gives the coordinates of each
+        point.  Empty where the high-symmetry points cannot be read.
     """
 
     divisions: tuple
@@ -914,7 +1003,10 @@ class KGrid:
         return np.asarray(self.mesh.flat)
 
     def summary(self) -> str:
-        """The mesh, a line for each part, with the attribute that holds it."""
+        """The mesh as text, a line for each quantity.
+
+        The attributes that hold each quantity are named beside it.
+        """
         sampled = [str(name) for name, hit in self.contains.items() if hit]
         missed = [str(name) for name, hit in self.contains.items() if not hit]
         lines = [f"{'x'.join(str(int(d)) for d in self.divisions)} mesh, "
@@ -943,26 +1035,30 @@ class KGrid:
 
 @dataclass(frozen=True)
 class Term:
-    """One term of a sum of site irreps: a whole number of copies of a site irrep at a Wyckoff position.
+    """An integer multiple of one site irrep at a Wyckoff position.
 
-    Two sums of terms are equal where their terms are.  The columns of
+    One term of a band representation written as a sum of band
+    representations induced from site irreps.  The columns of
     :func:`.._tables.ebr_data` are terms of multiplicity one, each an
     elementary band representation.
 
     Attributes
     ----------
     multiplicity : int
-        How many copies, never zero; negative only in a signed combination.
+        The integer that multiplies the site irrep, never zero.  It is
+        negative only in the signed combinations ``decompose`` returns.
     irrep : str
-        The site irrep, as the tables of elementary band representations name
-        it, ``"-E1"``.
+        The site irrep, ``"-E1"``, by the name the list of elementary band
+        representations gives it.  A site irrep the list does not name, one
+        whose induced band representation is composite, takes the name the
+        tables of the stable real-space invariants give it.
     wyckoff : str
         The Wyckoff position, with its multiplicity in the conventional cell,
         ``"1a"``.
     site_symmetry : str
-        The site-symmetry group of the position in the group returned,
-        ``"4mm1'"`` in a grey group and ``"3"`` in a group without time
-        reversal.
+        The site-symmetry group of the position in the space group whose
+        band representation the term belongs to, ``"4mm1'"`` in a grey group
+        and ``"3"`` in a group without time reversal.
     unitary_site_symmetry : str
         Its unitary part, ``"4mm"``.
     """
@@ -975,13 +1071,14 @@ class Term:
 
 
 def _written_site_symmetry(name: str) -> str:
-    """A site-symmetry group's name from the list of elementary band representations, with its cubic bar.
+    """A site-symmetry group's name as the space groups' names write it.
 
-    ``name`` is the name after :func:`.._tables._barred` has put back the bar
-    of an improper site group.  The list writes the cubic ``m3`` and ``m3m``
-    where the space groups' names write ``m-3`` and ``m-3m``; a leading ``m3``
-    is rewritten ``m-3``, ``m31'`` as ``m-31'``, and every other name is
-    returned as it is.
+    ``name`` is a name read from the list of elementary band representations,
+    after :func:`.._tables._barred` has put back the bar of an improper site
+    group.  The list writes the cubic ``m3`` and ``m3m`` where the space
+    groups' names write ``m-3`` and ``m-3m``.  Returns a name that starts
+    with ``m3`` with ``m-3`` in its place, so ``m31'`` becomes ``m-31'``, and
+    every other name as it is.
     """
     name = str(name)
     if name.startswith("m3"):
@@ -996,43 +1093,31 @@ def _written_site_symmetry(name: str) -> str:
 #: The name under which a cell :func:`.._layers._decorated_cell` builds carries how many of
 #: its points are the model's own orbitals, the leading ones.  The vacuum a slab
 #: is given is measured from those alone (:func:`_pad_cell`), so it is set
-#: once, by the model, and a species added to the cell -- a substrate's shadow,
-#: a decoration, the generic orbit of a descent -- never moves it.
+#: once, by the model.  No species added to the cell moves it: a substrate's
+#: shadow, a decoration, the generic orbit of a descent.
 _OWN_ORBITALS = "_pythtqc_own_orbitals"
 
 
 def _pad_cell(model, vacuum_length: float, *, lattice=None):
-    """Present a (possibly two-dimensional) pythtb cell as a 3D slab cell.
+    """A model's cell as a three-dimensional cell, in vacuum where not periodic.
 
-    A non-periodic lattice vector is **scaled** here and never turned: by the
-    time a layer's cell is given its vacuum, its vector lies along the layer's
-    normal, where the slab presentation puts a tilted one together with the
-    move of
-    the orbitals that goes with it (:func:`.._layers._slab_presentation`), so the
-    reciprocal vectors dual to the periodic directions — and therefore
-    pythtb's reduced k — are untouched; missing dimensions get orthogonal
-    vectors of length ``vacuum_length``.  Positions along a vacuum direction are
-    re-centred on the origin so that a horizontal mirror appears without a
-    translation.
-
-    The vacuum is measured from the **model's own orbitals**: a cell built on
-    a model (:func:`.._layers._decorated_cell`) is given the vacuum the model is, however
-    far out of the model's plane the species added to it sit, so every cell
-    built on one model shares that model's lattice, vacuum included.  Where the
-    model's own vector is shorter than its orbitals' spread plus
-    ``vacuum_length``, the vector's length follows that spread, and two models of
-    one layer whose centres differ along the normal by noise are given vacua
-    apart by as much.  So a model read **against a group** is set in the group's
-    own lattice
-    (``lattice``, :attr:`GroupData._lattice`): each of its non-periodic vectors
-    scaled to that lattice's length along it, the model then read in the frame
-    the group was identified in.
-
-    Returns
-    -------
-    lattice : ndarray (3, 3)
-    positions : ndarray (norb, 3), reduced, wrapped into [0, 1)
-    vacuum_dirs : tuple of int
+    ``model`` is a pythtb model, or a cell built on one by
+    :func:`.._layers._decorated_cell`, whose leading points are the model's
+    own orbitals.  Each non-periodic lattice vector of the model is scaled,
+    never turned, so the model's reduced k is unchanged.  A tilted one is put
+    along the layer's normal beforehand, by
+    :func:`.._layers._slab_presentation`.  Each is lengthened, where it is
+    shorter, to the extent of the model's own orbitals along it plus
+    ``vacuum_length``, in the model's units of length; the cell's other
+    points do not enter.  With ``lattice``, the group's three-dimensional
+    lattice (:attr:`GroupData._lattice`), each is scaled to that lattice's
+    length along it instead.  A missing dimension is filled with an
+    orthogonal vector of length ``vacuum_length``.  Along each vacuum
+    direction the points are centered on the origin, so that a horizontal
+    mirror carries no translation.  Returns
+    ``(lattice, positions, vacuum_dirs)``: the lattice vectors, a row each;
+    every point in reduced coordinates, wrapped into ``[0, 1)``; and the
+    vacuum directions, sorted.
     """
     dim_r = int(model.lattice.dim_r)
     per = tuple(int(d) for d in model.periodic_dirs)
@@ -1049,7 +1134,7 @@ def _pad_cell(model, vacuum_length: float, *, lattice=None):
     padded = [d for d in range(dim_r) if d not in per]
 
     # scale the model's own non-periodic vectors until the vacuum reaches
-    # vacuum_length -- or, read against a group, to the length its lattice has
+    # vacuum_length, or, read against a group, to the length its lattice has
     for d in padded:
         length = float(np.linalg.norm(lat3[d]))
         if lattice is not None:
@@ -1069,7 +1154,7 @@ def _pad_cell(model, vacuum_length: float, *, lattice=None):
             lat3[d] = comp[j] * vacuum_length
             padded.append(d)
 
-    # centre the slab on the origin along every vacuum direction
+    # center the slab on the origin along every vacuum direction
     for d in padded:
         if pos3.shape[0]:
             mid = 0.5 * (pos3[:, d].max() + pos3[:, d].min())
@@ -1079,14 +1164,23 @@ def _pad_cell(model, vacuum_length: float, *, lattice=None):
 
 
 def _sites_and_typat(positions, typat, symprec, lattice):
-    """Group orbitals sitting at the same position into sites, and label species.
+    """The points grouped into sites, and each site's species.
 
-    The default species label of a site is its orbitals' own labels, sorted,
-    so sites carrying different orbital *content* are never declared
-    equivalent while sites carrying the same content are — which is the
-    lattice-honest default.  It cannot know that two same-content sites are
-    chemically different: that is what ``typat=`` is for, and what
-    :func:`.._measure._validate_group` measures.
+    ``positions`` are the points, shape ``(n, 3)``, in reduced coordinates of
+    the cell whose lattice vectors are the rows of ``lattice``.  A point
+    joins the first site whose first point is within ``symprec`` of it, a
+    Cartesian distance modulo the lattice in the units of ``lattice``.
+    ``typat`` gives each point's label, and every point is ``0`` where it is
+    ``None``.  Sites whose points carry the same labels, sorted, are given one
+    species, numbered from 1 in order of first appearance, so that without
+    ``typat`` sites differ by their number of points alone.  Returns
+    ``(sites, site_points, species)``: each site's first point, the points of
+    each site, and each site's species.
+
+    Raises
+    ------
+    ValueError
+        ``typat`` does not have one entry per point.
     """
     n = positions.shape[0]
     labels = [0] * n if typat is None else list(typat)
@@ -1113,22 +1207,22 @@ def _sites_and_typat(positions, typat, symprec, lattice):
 
 
 # --------------------------------------------------------------------------
-# the spinor branch: irrep's fitted spin frame, replaced by the table's own,
-# and its per-operation lifts replaced by the tables' own lift SET
+# the spinor branch: the tables' own spin frame, and their lift set in place
+# of irrep's lift of each operation
 # --------------------------------------------------------------------------
 
 _PAULI = np.array([[[0, 1], [1, 0]],
                    [[0, -1j], [1j, 0]],
                    [[1, 0], [0, -1]]], dtype=complex)
 
-#: The Cartesian frame the shipped ``SymopTable.S`` matrices are written in,
-#: **relative to the conventional cell's standard orientation** (``a`` along
+#: The Cartesian frames the shipped ``SymopTable.S`` matrices are written in,
+#: relative to the conventional cell's standard orientation: ``a`` along
 #: ``+x``, ``b`` in the ``+y`` half of the ``xy`` plane, ``c`` with positive
-#: ``z`` — the lower-triangular Cholesky factor of the cell's Gram matrix).
-#: Tried in the order given; the first that reproduces every shipped ``S`` as a
-#: conjugate of the operation's own SU(2) lift, up to a sign, is the group's.
-#: These two frames between them cover all 460 unitary and all 460 grey shipped
-#: tables — see :func:`_canonical_spinor_signs`.
+#: ``z``.  That orientation is the lower-triangular Cholesky factor of the
+#: cell's Gram matrix.  Tried in the order given; the first that reproduces
+#: every shipped ``S`` as a conjugate of the operation's own SU(2) lift, up to
+#: a sign, is the group's (:func:`_canonical_spinor_signs`).  The two cover
+#: every shipped double-valued table.
 _TABLE_SPIN_FRAMES = (
     ("standard", np.eye(3)),
     ("hexagonal", np.array([[0.0, 1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, -1.0]])),
@@ -1136,13 +1230,14 @@ _TABLE_SPIN_FRAMES = (
 
 
 def _su2_lift(rot) -> np.ndarray:
-    """An SU(2) lift of a proper rotation ``rot``.
+    """An SU(2) lift of the proper rotation ``rot``, a Cartesian 3x3 matrix.
 
-    Either lift will do: this matrix is only ever used to **conjugate**, and the
-    two lifts differ by an overall sign that cancels there.  Closed form — the
-    axis and angle of a 3×3 rotation, then ``cos(θ/2) − i sin(θ/2) n·σ``.  No
-    eigen-decomposition and no optimizer, so the lift is a deterministic
-    function of the bits in ``rot``.
+    Returns ``cos(θ/2) - i sin(θ/2) n·σ`` for the axis ``n`` and angle ``θ``
+    of ``rot``, read in closed form with no optimizer, so the same ``rot``
+    always gives the same matrix.  At ``θ = π`` the axis is oriented so that
+    its first nonzero component is positive.  Which of the two lifts is
+    returned is fixed by no convention: the matrix is used to conjugate,
+    where their sign cancels.
     """
     rot = np.asarray(rot, dtype=float)
     cos = float(np.clip((np.trace(rot) - 1.0) / 2.0, -1.0, 1.0))
@@ -1150,7 +1245,7 @@ def _su2_lift(rot) -> np.ndarray:
     if ang < 1e-9:
         return np.eye(2, dtype=complex)
     if abs(ang - np.pi) < 1e-6:
-        # sin θ = 0: the axis comes from (R + 1)/2 = n nᵀ, not from the
+        # sin θ = 0: the axis comes from (R + 1)/2 = n n^T, not from the
         # antisymmetric part.  Pick the best-conditioned column and orient it by
         # its first non-negligible entry, so the branch is a function of `rot`.
         sym = (rot + np.eye(3)) / 2.0
@@ -1169,59 +1264,25 @@ def _su2_lift(rot) -> np.ndarray:
 
 
 def _lift_set_cocycle(rots, lifts, corrections):
-    r"""The ℤ₂ factor system of a lift set, and where a sign vector twists it.
+    r"""How far a set of SU(2) lifts is from closing, and where signs twist it.
 
-    A set of SU(2) matrices :math:`\{S(g)\}` indexed by the rotations
-    :math:`\{R_g\}` of a group is a *lift set*: since :math:`R_g R_h = R_{gh}`,
-    the two matrices :math:`S(g)S(h)` and :math:`S(gh)` lift the same rotation
-    and therefore differ by a sign,
-
-    .. math::  S(g)\,S(h) \;=\; \omega(g,h)\;S(gh), \qquad \omega \in \{\pm 1\},
-
-    which is the ℤ₂ half of the group's factor system (the translation half is
-    the ``e^{-2\pi i k\cdot t}`` phase, and it is a separate story — see
-    :func:`.._tables._transported_table`).  Twisting a lift set by a sign vector
-    :math:`b(g)` multiplies :math:`\omega` by the **coboundary**
-    :math:`(\delta b)(g,h) = b(g)b(h)b(gh)`, so two lift sets of the same
-    rotations related by :math:`b` carry the same :math:`\omega` **iff** ``b`` is
-    a homomorphism onto :math:`\{\pm1\}`.  That is the whole content of the
-    mismatch this machinery exists to repair: ``irrep`` orients each operation's
-    rotation axis from an eigenvector, one operation at a time, so its lift set
-    is a *per-operation* arbitrary sign away from the tables' — and a
-    per-operation sign vector is generically **not** a homomorphism.
-
-    Parameters
-    ----------
-    rots : sequence of integer arrays
-        One rotation per operation, in a basis in which composition is the
-        matrix product (any basis will do — the same one for all of them).
-    lifts : sequence of (2, 2) arrays
-        The lift set whose factor system is wanted.
-    corrections : sequence of int
-        A ``±1`` per operation.  The returned ``mixed`` counts the pairs at which
-        ``δ(corrections)`` is ``−1``, i.e. the pairs where the *uncorrected* set
-        disagrees with the corrected one as a factor system.
-
-    Returns
-    -------
-    tuple
-        ``(defect, mixed, pairs, worst_at)`` — the worst distance from ``±1``,
-        the number of composable pairs the correction twists, the number of
-        composable pairs examined, and the ``(g, h)`` 1-based indices of the
-        worst pair.
-
-    Notes
-    -----
-    Operations that share a rotation (a centred listing, or a screw and its
-    coset partner) share a lift, so keying by the rotation alone is
-    well-defined; the first index carrying each rotation is used.
-
-    The statement is about the SU(2) set indexed by **rotations**, so a grey
-    group's antiunitary half enters through the rotations of its unitary
-    partners (whose lifts it shares) and contributes no new content — it doubles
-    the pair count and nothing else.  That is as it should be: the bar is a
-    property of the *valuedness*, not of time reversal, and the antiunitary
-    branch ``iσ_y conj(S)`` is a function of the same ``S``.
+    ``rots`` holds an integer rotation matrix per operation, in any one basis
+    in which composition is the matrix product; ``lifts`` an SU(2) matrix
+    :math:`S(g)` lifting each; ``corrections`` a sign :math:`b(g) = \pm 1`
+    for each.  The product ``gh`` is read as the first operation listed with
+    its rotation.  Operations that share a rotation are assumed to share a
+    lift.  At each pair :math:`g, h` whose product rotation is in
+    ``rots``, a set that closes has
+    :math:`S(g) S(h) = \omega(g, h) S(gh)` with :math:`\omega = \pm 1`, and
+    multiplying the lifts by :math:`b` multiplies :math:`\omega` by
+    :math:`b(g) b(h) b(gh)`.  With
+    :math:`\lambda = \mathrm{tr}(S(g) S(h) S(gh)^\dagger)/2`, which is
+    :math:`\omega` for a set that closes, returns
+    ``(defect, mixed, pairs, worst_at)``: the largest of
+    :math:`||\lambda| - 1|` and :math:`|\mathrm{Im}\,\lambda|` over the pairs;
+    the number of pairs at which :math:`b(g) b(h) b(gh) = -1`; the number of
+    pairs read; and the positions, counted from 1, of the pair where the
+    largest is reached.  Returns ``(0.0, 0, 0, None)`` where no pair is read.
     """
     rot = np.round(np.asarray(rots, dtype=float)).astype(int)
     lift = np.asarray(lifts, dtype=complex)
@@ -1248,138 +1309,56 @@ def _lift_set_cocycle(rots, lifts, corrections):
 
 
 def _canonical_spinor_signs(sg, *, tol=1e-3):
-    r"""The ``±1`` per operation that carries ``irrep``'s lifts onto the tables'.
+    r"""The sign carrying each of ``irrep``'s SU(2) lifts onto the tables'.
 
-    *What the sign is.*  ``irreptables`` ships, with every tabulated operation,
-    the SU(2) matrix ``S`` its characters were computed in; ``irrep`` builds its
-    own lift ``sym.spinor_rotation`` from the operation's Cartesian axis and
-    angle in **this model's** frame.  The two are the same lift of the same
-    rotation seen in two Cartesian frames, so they are related by one spin-basis
-    conjugation and a sign per operation,
-
-    .. math::  S_\text{stored}(g) \;=\; b(g)\;
-               R\, S_\text{table}(g)\, R^{\dagger},
-
-    which ``irrep`` stores as ``sym.sign`` and this package instead **applies to
-    the lift** (:func:`_pin_spinor_branch`).  ``irrep`` obtains ``R`` by
-    ``scipy.optimize.minimize`` from an **unseeded** ``np.random.random`` start
-    (``match_spinor_rotations``), and the residual it minimises is blind to the
-    sign, so *both* branches of the fit are exact minima: the fitted branch — and
-    therefore which tabulated name lands on which measured level — changes from
-    run to run.
-
-    *Why the sign cannot be left on the character.*  ``b`` is fixed one operation
-    at a time (``irrep`` orients each rotation's axis from an eigenvector of the
-    Cartesian rotation matrix, ``_get_operation_type``; ``np.linalg.eig`` fixes
-    that eigenvector only up to a sign, and flipping the axis flips the lift for
-    **every** angle, since ``exp(iπ n·σ) = −1``).  A per-operation sign vector is
-    generically not a homomorphism, and a lift set twisted by a non-homomorphic
-    ``b`` carries a *different* ℤ₂ factor system: ``ω_stored = (δb)·ω_table`` with
-    ``(δb)(g,h) = b(g)b(h)b(gh)`` (see :func:`_lift_set_cocycle`).  Multiplying
-    the tabulated characters by ``b`` then prints a page in ``ω_stored`` rather
-    than in BCS's ``ω_table``, and the two differ element by element wherever
-    the bars mix — the cross-check is ``K`` of ``#183.186``, where BCS's ``−K4``
-    carries ``−i`` on all three mirrors and leaving the sign on the character
-    would return ``(+i, −i, −i)``.  What has to be solved instead is the
-    coboundary equation ``δc = ω_stored/ω_table``, whose solution is ``c = b`` up
-    to a ℤ₂ character and which the frame ``R`` pins outright; applying it to
-    the lifts leaves ``sym.sign`` ``+1`` on every operation and the returned page
-    BCS's own.
-
-    *Why there are exactly two.*  If ``R`` solves the system so does ``R U`` for
-    any ``U`` with ``U S_\text{table}(g) U^\dagger = \chi(g) S_\text{table}(g)``,
-    and ``χ`` is then a real linear character of the point group; the sign
-    vector picks up that twist.  ``χ`` is forced to ``+1`` on every operation
-    whose spinor lift has a non-zero trace (conjugation preserves traces), which
-    leaves only the operations whose *proper part* is a two-fold rotation —
-    mirrors, and the in-plane two-folds of an axial group.  For a group whose
-    improper operations are all mirrors (crystal classes ``m``, ``mm2``, ``3m``,
-    ``4mm``, ``6mm``) that twist is exactly the **determinant character**:
-    ``+1`` on the proper operations, ``−1`` on the improper ones.  SG 183's
-    ``P6mm1'`` is such a group — the two branches are
-    ``(1,1,1,−1,1,1,+1,+1,−1,−1,+1,+1)`` and
-    ``(1,1,1,−1,1,1,−1,−1,+1,+1,−1,−1)``, whose ratio is ``det R`` operation by
-    operation — and at ``K`` it exchanges the conjugate pair ``−K4 ↔ −K5``.
-
-    *How this pins it.*  ``R`` is not a free parameter: it is the SU(2) lift of
-    the **frame map** carrying the Cartesian frame the tables' ``S`` are written
-    in onto this cell's own, and that map is data.  The conventional cell in
-    this cell's Cartesian frame is ``A_c = refUCᵀ A``; the same cell in its standard
-    orientation is the lower-triangular Cholesky factor ``L`` of ``A_c A_cᵀ``
-    (``a`` along ``+x``, ``b`` in the ``+y`` half plane, ``c`` with positive
-    ``z``); so ``F = A_cᵀ L^{-T}`` is orthogonal and takes the standard
-    orientation to this cell's.  The tables' own frame sits at a fixed offset ``T``
-    from that standard orientation — ``T = 1`` for six of the seven lattice
-    systems and a single fixed rotation for the hexagonal one (see
-    :data:`_TABLE_SPIN_FRAMES`) — and ``R = _su2_lift(F T)``.  An improper
-    ``F T`` is lifted through its proper part, which is the same physical
-    convention that makes a spatial inversion act trivially on spinors.
-
-    *And it is checked, not assumed.*  Each candidate frame is **verified** on
-    the group in hand: it is accepted only if every shipped ``S``, so
-    conjugated, reproduces that operation's own ``sym.spinor_rotation`` up to a
-    real ``±1``.  A wrong frame fails by :math:`\mathcal{O}(1)`, so the offsets
-    in :data:`_TABLE_SPIN_FRAMES` are re-measured at every call rather than
-    trusted.  Where the frames the tables admit differ only by the two-fold
-    rotation about the principal axis — the residue the shipped data itself
-    cannot resolve, and the whole content of the branch — the ordered list
-    settles it, identically for every group and every model.
-
-    *That per-operation match is the solvability statement.*  ``c = b`` solves
-    the coboundary equation because every ``S_stored(g)`` is ``±`` the carried
-    table matrix; a frame under which some operation is **not** ``±`` the table's
-    is a frame under which the equation has no solution at all, and that is the
-    ``InternalError`` below.  What remains is a property of the *shipped data*
-    and is measured here rather than assumed: the tables' own ``S`` must close as
-    a lift set, ``S_t(g)S_t(h) = ω_table(g,h) S_t(gh)`` with ``ω_table = ±1``
-    (it does, at all 460 shipped double-valued instances, with a worst ``|½tr|``
-    deviation of ~1e-5 — the tables' own printed precision).
+    ``irreptables`` ships with each operation the SU(2) matrix ``S`` its
+    characters were computed with, written in a Cartesian frame fixed relative
+    to the conventional cell; ``irrep``'s lift ``sym.spinor_rotation`` is
+    written in the model's frame.  The frame map ``F``, orthogonal, carries the
+    conventional cell's standard orientation, the lower-triangular Cholesky
+    factor of its Gram matrix, onto the cell as the model writes it.  Each frame
+    ``T`` of :data:`_TABLE_SPIN_FRAMES` is tried in turn, with ``R`` the SU(2)
+    lift of ``F T``, an improper one through its proper part.  The first frame
+    under which every ``R S R†`` is ``±1`` times the operation's own lift,
+    within ``tol``, is the group's, and those signs are returned.
 
     Parameters
     ----------
     sg : irrep.spacegroup_irreps.SpaceGroupIrreps
-        A **spinor** group whose ``set_irreptables`` matching succeeded, i.e.
-        whose ``symmetries`` are sorted into table order.
-    tol : float, optional
-        Absolute tolerance on "the conjugated table matrix is ``±1`` times the
-        stored lift".  Default ``1e-3``: ``irreptables`` writes ``S`` to about five
-        decimals (worst 1.9e-5 over the shipped tables), and the competing
-        branch is off by order 1, so nothing in between is possible.
+        A double group whose operations ``irrep`` has sorted into the tables'
+        order.
+    tol : float, default 1e-3
+        The largest miss of ``sym.spinor_rotation = ±R S R†`` accepted, entry
+        by entry, and the largest ``defect`` of :func:`_lift_set_cocycle` the
+        tables' own lifts may close to.  ``irreptables`` writes ``S`` to about
+        five decimals, and a wrong frame misses by order one.
 
     Returns
     -------
     dict
-        ``{"frame": name, "correction": T, "spin_transf": R, "signs": tuple,
-        "defect": float, "cocycle": float, "mixed": int, "pairs": int}`` —
-        ``signs[i]`` is the ``±1`` carrying ``sg.symmetries[i]``'s stored lift
-        onto the tables'; ``cocycle`` is how far the tables' own lift set sits
-        from closing (``½ tr`` against ``±1``); ``mixed`` counts the composable
-        pairs at which ``δ(signs) = −1``, i.e. the pairs at which the stored
-        lifts realize a *different* factor system from the tables' — ``0`` means
-        the stored set was already ω_table-consistent and the correction is a
-        harmless character twist.
+        ``"frame"``, the name of the frame, ``"correction"``, its ``T``, and
+        ``"spin_transf"``, its ``R``; ``"signs"``, a tuple whose entry ``i``
+        carries the lift of ``sg.symmetries[i]`` onto the tables'; ``"defect"``,
+        the largest miss of that match; and ``"cocycle"``, ``"mixed"`` and
+        ``"pairs"``, what :func:`_lift_set_cocycle` returns on the tables' own
+        lifts with these signs.  ``"mixed"`` is ``0`` where the stored lifts
+        already closed with the tables' factor system.
 
     Raises
     ------
-    ..refusal.InternalError
-        When no shipped frame reproduces the tables' ``S`` (the coboundary
-        equation has no solution), or when the tables' own ``S`` do not close as
-        a lift set (there is no ``ω_table`` to solve against).  Both are
-        statements about *this package's* use of a convention the tables fix
-        outright — not measurements about a model — so they are raised and never
-        returned as a :class:`..refusal.Refusal`.
+    InternalError
+        The group and its table list different numbers of operations, the
+        conventional cell has no standard orientation or its frame map is not
+        orthogonal, no frame reproduces every ``S``, or the tables' own ``S`` do
+        not close.
     """
     table = _irrep_table(sg.number_str, True, sg.magnetic)
     tsyms = table.u_symmetries + table.au_symmetries
-    where = (f"group #{sg.number_str}: the tables fix the spin frame completely "
-             f"(the shipped SU(2) matrices are written in the conventional cell's "
-             f"own Cartesian frame). Failing to pin it is a bug in this package's "
-             f"application of that convention, not a property of the model")
+    where = f"the spin frame of the tables for group #{sg.number_str}"
     if len(tsyms) != len(sg.symmetries):
         raise InternalError(
-            f"{where}: the group carries {len(sg.symmetries)} operations against the "
-            f"table's {len(tsyms)}, so there is no operation-by-operation matching "
-            f"to write a spin frame against.")
+            f"{where}: the group lists {len(sg.symmetries)} operations, and its table "
+            f"{len(tsyms)}. Report it, with the model and the call.")
 
     lattice = np.asarray(sg.real_lattice, dtype=float)
     conv = np.asarray(sg.refUC, dtype=float).T @ lattice     # conventional cell, this frame
@@ -1388,16 +1367,16 @@ def _canonical_spinor_signs(sg, *, tol=1e-3):
         standard = np.linalg.cholesky(gram)                  # ... in standard orientation
     except np.linalg.LinAlgError as exc:                     # pragma: no cover - defensive
         raise InternalError(
-            f"{where}: the conventional cell refUCᵀ·lattice is singular "
-            f"(Gram determinant {np.linalg.det(gram):.3g}), so it has no standard "
-            f"orientation to write the tables' frame against: {exc}") from None
+            f"{where}: the conventional cell of the tables, written in this cell, is "
+            f"singular (Gram determinant {np.linalg.det(gram):.3g}): {exc}. Report it, "
+            f"with the model and the call.") from None
     frame = conv.T @ np.linalg.inv(standard.T)
     ortho = float(np.abs(frame @ frame.T - np.eye(3)).max())
     if ortho > 1e-6:                                         # pragma: no cover - defensive
         raise InternalError(
             f"{where}: the map from the standard orientation of the conventional cell "
-            f"to this one is not orthogonal (defect {ortho:.3g}), so it is not a change "
-            f"of Cartesian frame and no spin rotation corresponds to it.")
+            f"to this cell's is not orthogonal (defect {ortho:.3g}). Report it, with "
+            f"the model and the call.")
 
     ours = [np.asarray(s.spinor_rotation, dtype=complex) for s in sg.symmetries]
     theirs = [np.asarray(t.S, dtype=complex) for t in tsyms]
@@ -1418,19 +1397,18 @@ def _canonical_spinor_signs(sg, *, tol=1e-3):
             signs.append(sign)
         tried.append((name, defect, bad))
         if bad is None:
-            # The tables' own lift set is what the corrected lifts will BE, so
-            # its closure is the last thing between here and "the returned factor
-            # system is the tables'".  Checked on the rotations the tables list
-            # them under.
+            # The corrected lifts are the tables' own lift set, so the factor
+            # system returned is the tables' only where that set closes.  It is
+            # checked on the rotations the tables list the lifts under.
             cocycle, mixed, pairs, at = _lift_set_cocycle(
                 [t.R for t in tsyms], theirs, signs)
             if cocycle > tol:
                 raise InternalError(
-                    f"{where}: the shipped SU(2) matrices do not close as a lift set — "
-                    f"S(g)S(h) is not ±S(gh) at operations {at} (half the trace sits {cocycle:.3g} "
-                    f"from ±1, against a tolerance of {tol:.3g}). There is then no "
-                    f"tabulated Z2 factor system to write this group's lifts against, and "
-                    f"the coboundary equation δc = ω_ours/ω_table has no right-hand side.")
+                    f"{where}: the SU(2) matrices of the tables do not close. S(g)S(h) "
+                    f"is not plus or minus S(gh) at the operations {at}: half the trace "
+                    f"of S(g)S(h)S(gh)^-1 has a modulus that misses 1, or an imaginary "
+                    f"part that misses 0, by {cocycle:.3g}, against a tolerance of "
+                    f"{tol:.3g}. Report it, with the model and the call.")
             return {"frame": name, "correction": correction, "spin_transf": spin,
                     "signs": tuple(signs), "defect": defect, "cocycle": cocycle,
                     "mixed": int(mixed), "pairs": int(pairs)}
@@ -1438,44 +1416,24 @@ def _canonical_spinor_signs(sg, *, tol=1e-3):
         f"{name!r} off by {defect:.3g} (first at operation #{bad[0] + 1}, "
         f"ratio {bad[1]:+.4f})" for name, defect, bad in tried)
     raise InternalError(
-        f"{where}: none of the {len(tried)} shipped table frames reproduces this group's "
-        f"SU(2) matrices — {report} — against a tolerance of {tol:.3g}. The shipped S "
-        f"matrices and irrep's own lift are two descriptions of the same rotations, so one "
-        f"conjugation must carry either onto the other; that none does means the frame "
-        f"offsets recorded in _TABLE_SPIN_FRAMES do not describe the installed "
-        f"irreptables, and every transported character would be silently mis-signed.")
+        f"{where}: none of the {len(tried)} frames tried reproduces this group's SU(2) "
+        f"matrices within {tol:.3g}: {report}. Report it, with the model and the call.")
 
 
 def _pin_spinor_branch(sg) -> dict | None:
-    """Put this group's SU(2) lifts in the tables' own convention.
+    """The record of the SU(2) lifts of ``sg`` put in the tables' convention.
 
-    :func:`_canonical_spinor_signs` returns the ``±1`` per operation that carries
-    ``irrep``'s stored lift onto the tables'.  ``irrep`` keeps that number as
-    ``sym.sign`` and multiplies it into the *transported characters*; this
-    package instead multiplies it into the **lift** and leaves ``sym.sign`` at
-    ``+1``.  The two are the same arithmetic at one k-point and are not the same
-    convention at all:
-
-    * a per-operation sign vector is generically not a homomorphism, so a lift
-      set twisted by it carries a *different* ℤ₂ factor system
-      (:func:`_lift_set_cocycle`).  Correcting the characters leaves the lifts —
-      and therefore the whole projective structure everything downstream is built
-      on, from ``_build._build_rep``'s internal factor to the product table — in
-      that other convention, and the returned page then disagrees with BCS's
-      printed page element by element wherever the bars mix;
-    * correcting the **lift** makes ``S(g)S(h) = ω_table(g,h)·S(gh)`` hold on the
-      nose, so every consumer inherits the tables' convention at once and the
-      returned page is BCS's.
-
-    Multiplying ``irrep``'s own analytic lift by ``±1`` — rather than storing the shipped
-    ``S`` conjugated into this frame — is deliberate: the two agree to the
-    tables' five printed decimals, and keeping ``irrep``'s matrix preserves the
-    ``1e-16`` unitarity and covariance residuals every gate downstream reports.
-
-    The interception point is this package's own boundary — ``irrep`` is left
-    exactly as installed.  A spinless group is left alone (``irrep`` never fits
-    anything there: ``match_symmetries(signs=False)`` returns all ``+1`` and the
-    tables ship ``S = 1``), and ``None`` comes back to say so.
+    ``sg`` is an ``irrep`` group, its operations in the tables' order.  A
+    double group is changed in place: each operation's ``spinor_rotation`` is
+    multiplied by the sign :func:`_canonical_spinor_signs` returns for it, its
+    ``sign`` is set to ``+1``, and ``sg.spin_transf`` is set to the frame's
+    SU(2) matrix.  The lifts then
+    satisfy ``S(g) S(h) = ω(g, h) S(gh)`` with the tables' own ``ω``, so every
+    character built on them is the tables' own.  Returns the record of
+    :func:`_canonical_spinor_signs` without its two matrices, with ``"bars"``,
+    the number of lifts negated, ``"lifts": "table"`` and ``"source":
+    "table_frame"``.  Returns ``None`` for a spinless group, which is left as it
+    is.
     """
     if not bool(sg.spinor):
         return None
@@ -1493,50 +1451,21 @@ def _pin_spinor_branch(sg) -> dict | None:
 
 
 # --------------------------------------------------------------------------
-# magnetic scope: the validated universe is types I and II
+# the magnetic type, and the refusal of types III and IV
 # --------------------------------------------------------------------------
 
 def _magnetic_type(group) -> str:
-    r"""Which of the four magnetic-group types this operation list realizes.
+    r"""The magnetic type, ``"I"`` to ``"IV"``, of a group's operations.
 
-    ``"I"`` (unitary), ``"II"`` (grey), ``"III"`` or ``"IV"`` — **measured from
-    the operations**, never parsed out of a BNS number.  Takes anything that
-    carries an ``au_symmetries`` list: a :class:`GroupData` or ``irrep``'s own
-    ``SpaceGroup``, so the test can be made before the record is built.
-
-    The four cases are the standard Bravais–Heesch classification of a magnetic
-    space group :math:`M` over its unitary halving subgroup :math:`G`, read off
-    the antiunitary coset:
-
-    ===== =============================================================
-    type  what the antiunitary operations look like
-    ===== =============================================================
-    I     there are none — :math:`M = G`, an ordinary space group
-    II    the coset contains time reversal itself, :math:`\{1|0\}\cdot T`
-          (grey, :math:`M = G + G\,T`; ``include_TR=True`` builds these)
-    III   antiunitary operations exist, but none of them is a translation
-          times :math:`T` — every one carries a rotation or reflection
-    IV    the coset contains :math:`\{1|t\}\cdot T` with :math:`t` a
-          **fractional** translation (an anti-translation; the ``P_C``,
-          ``P_a``, … BNS symbols)
-    ===== =============================================================
-
-    ``t`` is read **modulo the lattice**, and the lattice meant is the integer
-    lattice of the cell handed in — which is the lattice of :math:`G` by
-    construction, since :func:`_group_of` returns the operations spglib found on
-    *that* cell.  A supercell's own fractional translations are **unitary**
-    operations of :math:`G` there (``GroupData._lattice_index``) and do not
-    enter this classification: measured on the ``2x1x1`` simple-cubic supercell,
-    the grey supergroup meets :math:`\{1|0\}\cdot T` and reads ``"II"``, not
-    ``"IV"``, exactly as a primitive grey cell does.
-
-    All four types come out of ordinary cells — one honeycomb cell and one
-    two-site square cell reach every one of them: no ``magmom`` →
-    ``191.234 P6/mmm1'`` (II); moments ``±z`` on the two sublattices →
-    ``191.236 P6'/mm'm`` (III, 12 antiunitary
-    operations, none with an identity rotation); a generic non-collinear pair →
-    ``1.1 P1`` (I); ``±z`` on ``(0,0)`` and ``(½,½)`` of a square cell →
-    ``127.397 P_C4/mbm`` (IV, the antiunitary ``{1|(½,½,0)}·T``).
+    ``group`` is anything that holds its antiunitary operations as
+    ``_au_symmetries`` or ``au_symmetries``: a :class:`GroupData`, ``irrep``'s
+    own space group before the record is built, or a :class:`_CosetView`.  The
+    type is read off those operations, never off a group's number.  It is
+    ``"I"`` where there are none.  It is ``"II"`` where one of them is
+    ``{1|0}`` with time reversal.  A translation is read modulo the lattice of
+    the cell handed in.  It is ``"IV"`` where one is ``{1|t}`` with time
+    reversal, ``t`` not a lattice vector, and none is ``{1|0}``, and ``"III"``
+    otherwise.
     """
     au = getattr(group, "_au_symmetries", None)
     if au is None:
@@ -1556,12 +1485,10 @@ def _magnetic_type(group) -> str:
 
 
 class _CosetView:
-    """The minimum :func:`_magnetic_type` reads: a list of antiunitary operations.
+    """A list of antiunitary operations in the form :func:`_magnetic_type` reads.
 
-    Its docstring says it takes "anything that carries an ``au_symmetries``
-    list", and a *measured survivor set* is exactly such a thing.  Wrapping it
-    is how the type of a realization is read with the same detector that types
-    a group, rather than with a second one written for the occasion.
+    ``operations`` are ``irrep`` operations combined with time reversal, such
+    as those measured to hold, and are kept as ``au_symmetries``.
     """
 
     def __init__(self, operations):
@@ -1586,30 +1513,14 @@ def _magnetic_scope_refusal(group) -> Refusal | None:
     if au is None:
         au = getattr(group, "au_symmetries", ())
     au = list(au or ())
-    kind = ("it carries antiunitary operations but no anti-translation and not "
-            "time reversal itself" if mtype == "III" else
-            "its antiunitary operations include an anti-translation {1|t}.T with t "
-            "a fractional translation, and not time reversal itself")
+    kind = ("it has antiunitary operations, and none of them is time reversal alone "
+            "or combined with a pure translation" if mtype == "III" else
+            "it has an anti-translation, time reversal combined with a pure "
+            "translation that is not a lattice vector, and not time reversal alone")
     return Refusal(
         "magnetic_type_out_of_scope",
-        f"#{number_str} ({name}) is a magnetic group of type {mtype}: {kind}. This "
-        "package is validated over magnetic types I and II only -- the 230 space "
-        "groups as unitary groups, and the 230 grey groups with time reversal "
-        "adjoined. Beyond them data are missing as well as "
-        "conventions: for types III and IV irreptables ships the elementary band "
-        "representations and the characters of the unitary part's irreps at the "
-        "maximal k-points, but not the corep type at a k-point -- how the "
-        "antiunitary operations glue those irreps -- nor the site-symmetry coreps, "
-        "and nothing this package reads carries the coordinates of the magnetic "
-        "Wyckoff positions; and "
-        "every convention this package applies -- the EBR and character transport, "
-        "the factor-system conjugation, the time-reversal re-gluing, the corep "
-        "naming and the SU(2) lift canonicalization -- is written for types I and "
-        "II, and none of it covers g.T pairings or anti-translations. Types I and "
-        "II are reachable from the same call: drop "
-        "`magmom=` (or hand it zero moments) for the grey group, and a magnetic "
-        "arrangement whose symmetry admits no antiunitary operation at all is "
-        "type I and is returned.",
+        f"{name} #{number_str} is a magnetic group of type {mtype}: {kind}. pythTQC "
+        "covers the magnetic groups of types I and II only.",
         context={"number_str": number_str, "name": name, "magnetic_type": mtype,
                  "n_antiunitary": len(au), "in_scope": ("I", "II"),
                  "record": "validated scope: magnetic types I and II"})
@@ -1620,16 +1531,16 @@ def _magnetic_scope_refusal(group) -> Refusal | None:
 # --------------------------------------------------------------------------
 
 def _pure_translations(symmetries, symprec, lattice) -> tuple:
-    r"""The non-zero pure translations among the unitary operations, reduced.
+    r"""The nonzero pure translations among the unitary operations, sorted.
 
-    A ``{1|τ}`` with ``τ`` fractional says the *point set* repeats inside the
-    cell handed in — the cell is a supercell of the crystal's own primitive
-    cell, and the operations that come with it are the whole lattice
-    supergroup.  Read modulo the lattice, which is the only sense in which a
-    space-group translation is defined, and sorted so that they form a
-    reproducible key.  A translation is zero when it is no longer than the
-    finder's distance ``symprec``, read as the length it is on ``lattice``
-    (rows the cell's vectors), in the units the finder's distance is in.
+    ``symmetries`` are ``irrep`` operations, their translations in reduced
+    coordinates of the cell whose lattice vectors are the rows of
+    ``lattice``.  The translation ``τ`` of each ``{1|τ}`` is reduced modulo
+    the lattice to components in ``[-1/2, 1/2]``, and is zero where its
+    Cartesian length is at most ``symprec``, in the units of ``lattice``.  A
+    nonzero one says the point set repeats inside the cell, a supercell of
+    its primitive cell.  Returns the nonzero ``τ``, each as three floats,
+    sorted, so that equal sets compare equal.
     """
     ident = np.eye(3, dtype=int)
     lat = np.asarray(lattice, dtype=float)
@@ -1648,12 +1559,17 @@ def _pure_translations(symmetries, symprec, lattice) -> tuple:
 
 
 def _hermite_basis(rows) -> np.ndarray:
-    """A basis of the integer lattice spanned by ``rows`` (row Hermite form).
+    """A basis of the integer lattice the integer vectors ``rows`` span.
 
-    Plain integer linear algebra — the row-style Hermite normal form of an
-    ``m x 3`` integer matrix of full column rank — used only to *report* the
-    finer lattice a supercell's fractional translations generate.  No group
-    data enters it.
+    ``rows`` is an ``m x 3`` integer array of rank 3.  Returns the basis as
+    the rows of a ``3 x 3`` integer array, upper triangular with a positive
+    diagonal, found by integer row reduction.  :func:`_primitive_lattice`
+    reads with it the finer lattice a supercell's pure translations generate.
+
+    Raises
+    ------
+    InternalError
+        ``rows`` does not span three dimensions.
     """
     M = [[int(x) for x in r] for r in np.asarray(rows, dtype=np.int64)]
     basis: list[list[int]] = []
@@ -1669,9 +1585,8 @@ def _hermite_basis(rows) -> np.ndarray:
         pivot = [r for r in M if r[col] != 0]
         if not pivot:                               # pragma: no cover - defensive
             raise InternalError(
-                "the generators of this cell's finer lattice do not span a rank-3 "
-                "lattice, which cannot happen for a set containing the cell's own "
-                "lattice vectors. This is arithmetic in this package failing.")
+                "the lattice vectors of this cell and its pure translations do not "
+                "span three dimensions. Report it, with the model and the call.")
         head = pivot[0] if pivot[0][col] > 0 else [-v for v in pivot[0]]
         basis.append(head)
         M = [r for r in M if r[col] == 0]
@@ -1681,12 +1596,17 @@ def _hermite_basis(rows) -> np.ndarray:
 def _primitive_lattice(lattice, translations, *, max_den=64) -> dict:
     r"""The finer lattice the cell's pure translations generate.
 
-    ``Z³ + span_Z(τ)`` in the model's reduced coordinates, and the Cartesian
-    vectors that go with it.  The translations are exact rationals for a typed
-    cell (``½``, ``⅓``, …); they are snapped to the nearest rational with
-    denominator at most ``max_den`` and the whole generating set is scaled by
-    the common denominator, so the reduction is integer arithmetic throughout.
-    Returns ``{"reduced", "cartesian", "index", "denominator"}``.
+    ``lattice`` holds the cell's lattice vectors as rows, Cartesian, and
+    ``translations`` the pure translations (:func:`_pure_translations`), in
+    reduced coordinates of that cell.  The finer lattice is the set of sums
+    of an integer vector and an integer combination of the translations.  Each
+    translation is snapped to the nearest rational with denominator at most
+    ``max_den``, so that its basis is found in integer arithmetic
+    (:func:`_hermite_basis`).  Returns a mapping: ``"reduced"``, the basis
+    vectors as rows in reduced coordinates of the cell; ``"cartesian"``, the
+    same vectors in Cartesian coordinates; ``"index"``, how many points of
+    the finer lattice the cell holds; and ``"denominator"``, the least common
+    denominator of the translations' components.
     """
     from fractions import Fraction
 
@@ -1708,16 +1628,18 @@ def _primitive_lattice(lattice, translations, *, max_den=64) -> dict:
 
 
 def _require_group(call: str, obj) -> None:
-    """Raise ``TypeError`` unless ``obj`` is a group, ``r.group``, or a refusal.
+    """Raise ``TypeError`` unless ``obj`` is a group with a cell, or a refusal.
 
-    ``call`` is the public call's name, which the message starts with.  A
-    refusal passes, so that the call returns it as it is; what
-    :func:`.._realized.realized_group` returns and a representation each get
-    a message of their own, since each holds the group.
+    ``call`` is the public call's name, which the message opens with, and
+    ``obj`` what that call was handed in place of a group.  A refusal passes,
+    and the call returns it as it is.  The group of a space-group number
+    (:func:`_group_of_number`), what :func:`.._realized.realized_group`
+    returns and a representation each get a message of their own, which
+    names what to pass.
     """
     if _is_number_group(obj):
-        raise TypeError(f"{call}(): the tables of a space-group number hold no cell; pass "
-                        "r.group of what realized_group returns.")
+        raise TypeError(f"{call}(): the group passed is read from a space-group number "
+                        "and has no cell; pass r.group of what realized_group returns.")
     if isinstance(obj, (GroupData, Refusal)):
         return
     from ._realized import RealizedGroup
@@ -1727,16 +1649,20 @@ def _require_group(call: str, obj) -> None:
                         "r.group.")
     if isinstance(obj, SpaceGroupRep):
         raise TypeError(f"{call}(): got a representation; pass the group, r.group.")
-    raise TypeError(f"{call}(): got a {type(obj).__name__}; pass a group, r.group of "
-                    "what realized_group returns.")
+    raise TypeError(f"{call}(): got an object of type {type(obj).__name__}; pass "
+                    "r.group of what realized_group returns.")
 
 
 def _group_of_number(sg: int, number_str: str, spinor: bool, name: str) -> GroupData:
-    """The grey group of a space-group number, with no cell: what the tables of a number hold as their group.
+    """The grey group of a space-group number, with no cell.
 
-    It holds the name, number, valuedness and magnetic type, ``periodic_dirs``
-    ``None``, and no operations or cell; a lookup handed it raises
-    ``TypeError`` (:func:`_require_group`).
+    ``sg`` is the space-group number, ``number_str`` the number of its grey
+    group and ``name`` that group's symbol; ``spinor`` says whether it is the
+    double group.  The record holds these and the magnetic type ``"II"``,
+    with ``periodic_dirs`` ``None`` and no operations or cell.  It is the
+    group the tables of the stable real-space invariants hold when they are
+    read from a number.  A call that reads a cell raises ``TypeError`` when
+    handed it (:func:`_require_group`).
     """
     return GroupData(
         name=str(name), number_str=str(number_str), spinor=bool(spinor),
@@ -1748,24 +1674,25 @@ def _group_of_number(sg: int, number_str: str, spinor: bool, name: str) -> Group
 
 
 def _is_number_group(obj) -> bool:
-    """Whether ``obj`` is the group of a space-group number, which holds no cell (:func:`_group_of_number`)."""
+    """Whether ``obj`` is the group of a space-group number, which has no cell.
+
+    That group is the one :func:`_group_of_number` returns.
+    """
     return isinstance(obj, GroupData) and obj._provenance == "number"
 
 
 def _lattice_not_descended(group) -> Refusal | None:
-    r"""The gate every table consumer applies to a lattice supergroup.
+    r"""The refusal of a table call handed the group of a supercell.
 
-    A record with ``GroupData._lattice_index`` above ``1`` is the group of a
-    **supercell**: its operations are honest — spglib found every one of them on
-    the model's own lattice — but its *tables* are the crystal's, written on the
-    finer lattice, and reading them here would label a folded Brillouin zone.
-    ``None`` when the record is primitive, which is every record a table
-    consumer normally sees.
-
-    A :class:`~.refusal.Refusal` handed in where a group belongs is returned
-    unchanged: the call that was meant to build the group refused, and that
-    verdict is the one to read, so every entry point applying this gate first
-    propagates it instead of reaching for a field a refusal does not carry.
+    ``group`` is a group, or a refusal handed in where a group belongs.  A
+    group whose ``_lattice_index`` is above 1 is the group of a cell that
+    repeats under a pure translation.  Its operations are the cell's.  Its
+    tables are written on the finer lattice, and read on this cell their
+    labels would name the k-points of a folded zone.  Returns
+    ``lattice_not_descended`` for such a group, naming its first fractional
+    translation, and ``None`` for any other.  A refusal handed in is returned
+    as it is, so that each table call that applies this first returns the
+    refusal it was handed.
     """
     if isinstance(group, Refusal):
         return group
@@ -1776,17 +1703,10 @@ def _lattice_not_descended(group) -> Refusal | None:
     tau = np.round(np.asarray(taus[0], dtype=float), 6) if taus else np.zeros(3)
     return Refusal(
         "lattice_not_descended",
-        f"this cell's point set allows the pure translation {tau.tolist()} (reduced), "
-        f"so what {group.name} #{group.number_str} describes is a lattice supergroup: "
-        f"the model's lattice is an index-{index} sublattice of the crystal's own, and "
-        "the group's tables -- k-points, coreps, EBR rows, indicators -- live on the "
-        "finer lattice and would label a folded zone here. Every label read off them "
-        "would be a label of the wrong Brillouin zone. `realized_group(model)` descends "
-        "to the model's own lattice by measuring the Hamiltonian: a Hamiltonian that "
-        "obeys the translation is a supercell and is refused (gate='supercell'), and "
-        "one that breaks it is returned the group it realizes. Alternatively reduce the "
-        "cell to its primitive one, or pass `typat=` to say that sites the default "
-        "treats as one species are chemically distinct.",
+        f"{group.name} #{group.number_str} was identified on a cell whose sites repeat "
+        f"under the pure translation {tau.tolist()}, in reduced coordinates, so "
+        f"the model's lattice is a sublattice of index {index} of the group's. Use what "
+        "realized_group returns for the model.",
         value=float(index), threshold=1.0,
         context={"number_str": str(group.number_str), "name": str(group.name),
                  "lattice_index": index, "translations": taus, "group": group})
@@ -1797,50 +1717,25 @@ def _lattice_not_descended(group) -> Refusal | None:
 # --------------------------------------------------------------------------
 
 def _translation_closure(symmetries) -> float:
-    r"""``max_{g,h} |t_g + A_g t_h − t_{gh}|`` modulo the lattice.
+    r"""How far the operations miss closing into a group, modulo the lattice.
 
-    **The question this answers is whether the identified operations are a
-    group at all**, and it is not rhetorical for a numerical cell.  spglib
-    derives each operation's translation from the atom pairs it maps onto each
-    other, so on positions carrying a Wannierization's noise every operation
-    picks that noise up *separately* — measured: one Kane-Mele centre displaced
-    by (+1e-8, −1e-8) gives translations of 0, 1e-8 and 2e-8 where the exact
-    cell gives 0, and this residual reads **2.0e-8** against exactly ``0.0``
-    for the exact cell.
-
-    Nothing downstream survives that quietly.  With operations that do not
-    close there is **no exactly symmetric configuration of positions** they
-    describe, and :func:`..symmetry.bloch_operator`'s integer-shift identity,
-    the product table's translation differences and the sewing phases at
-    nonsymmorphic points are all asserted against operations that are not
-    consistent with one another.  The centres themselves are moved onto an
-    exactly symmetric set without reading these translations at all
-    (:func:`.._centers._symmetric_sites`).
-
-    The product ``gh`` is found by its **rotation** (an exact integer matrix)
-    and its antiunitarity, never by comparing translations; the residual is
-    taken modulo the lattice, which is the only sense in which a space-group
-    translation is defined.
-
-    **A lattice supergroup carries several operations per rotation**, and the
-    residual is then the distance to the *nearest* of them: on a cell that is a
-    supercell of the crystal's own primitive cell the operations come in
-    ``_lattice_index`` cosets of the pure translations
-    (``GroupData._lattice_index``), every member of a coset has the same
-    rotation, and "which one is ``gh``" is settled by the translation.  Picking
-    one representative per rotation instead — which is what a rotation-keyed
-    lookup does — reads a perfectly exact group as not closing at all: measured
-    **0.5** for the ``2x1x1`` simple-cubic supercell's 64 operations, and
-    exactly ``0.0`` here.
+    ``symmetries`` are ``irrep`` operations, their translations in reduced
+    coordinates.  For each pair ``g``, ``h`` the product is found among the
+    operations by its rotation and whether it is antiunitary, and the miss is
+    ``t_g + R_g t_h − t_gh`` modulo the lattice, its largest component.
+    Where several operations share that rotation and antiunitarity, as on
+    the cell of a lattice supergroup, the miss is to the nearest of them.
+    Returns the largest miss over every pair: ``0.0`` for operations that
+    close exactly, and ``inf`` where the rotations do not close or a product
+    has no operation to match.
     """
     n = len(symmetries)
     R = np.array([np.asarray(s.rotation, dtype=np.int64) for s in symmetries])
     t = np.array([np.asarray(s.translation, dtype=float) for s in symmetries])
     tr = np.array([bool(s.time_reversal) for s in symmetries])
 
-    # the distinct rotations (48 even for a 27-fold supercell of a cubic cell),
-    # so the product's rotation is found in a table of that size rather than in
-    # an n x n one -- what keeps a supergroup's closure affordable at all
+    # the distinct rotations, at most 48 however large the supercell, so that
+    # the product's rotation is found in a table of that size
     rot_of, rots = {}, []
     rot_id = np.empty(n, dtype=int)
     for i in range(n):
@@ -1885,13 +1780,15 @@ def _translation_closure(symmetries) -> float:
 
 
 def _closure_gate(symmetries) -> float:
-    r"""The closure at or below which a cell's operations close to rounding, in its reduced coordinates.
+    r"""The closure at or below which a cell's operations close to rounding.
 
-    :data:`_EXACT_CLOSURE` times the largest row sum of the operations'
-    ``|R|``.  The closure ``t_g + R_g t_h − t_gh`` multiplies the rounding of
-    ``t_h``, and a defect of the positions alike, by the entries of ``R_g``,
-    which on a strongly skewed lattice basis reach hundreds; a row sum is at
-    least 1, and is 1 on a cell whose rotations are signed permutations.
+    ``symmetries`` are ``irrep`` operations, their translations in reduced
+    coordinates.  Returns :data:`_EXACT_CLOSURE` times the largest row sum
+    of any operation's ``|R|``, and at least :data:`_EXACT_CLOSURE`, in
+    reduced coordinates.  The closure ``t_g + R_g t_h − t_gh`` multiplies the
+    rounding of ``t_h``, and any miss of the positions, by the entries of
+    ``R_g``, which reach hundreds on a strongly skewed lattice basis.  The
+    row sum is 1 on a cell whose rotations are signed permutations.
     """
     size = max((float(np.abs(np.rint(np.asarray(s.rotation, dtype=float))).sum(axis=1).max())
                 for s in symmetries), default=1.0)
@@ -1899,16 +1796,17 @@ def _closure_gate(symmetries) -> float:
 
 
 def _site_miss(symmetries, site_pos, species) -> float:
-    r"""The most any site misses the image of a site of its species under the operations, reduced.
+    r"""The most any site misses the image of a site of its species.
 
-    ``|A_g x_a + t_g − x_b|``, modulo the lattice, for the site ``b`` of ``a``'s
-    species nearest the image, largest over every operation and site.  Where
-    the operations carry the sites onto one another one for one, the closure
-    :func:`_translation_closure` measures is made of these misses alone:
-    applying ``h`` and then ``g`` to a site and comparing with ``gh`` gives
-    ``t_g + A_g t_h − t_gh = e^g_{h(a)} + A_g e^h_a − e^{gh}_a`` modulo the lattice,
-    ``e^g_a`` the miss of site ``a`` under ``g``, so the closure is at most
-    ``2 + max|A|`` (the largest row sum) times what this returns.
+    ``symmetries`` are ``irrep`` operations, ``site_pos`` the sites in
+    reduced coordinates of the same cell, and ``species`` each site's
+    species.  The miss of site ``a`` under ``g`` is ``R_g x_a + t_g − x_b``
+    modulo the lattice, its largest component, ``x_b`` the site of ``a``'s
+    species nearest the image.  Returns the largest miss over every operation
+    and site, in reduced coordinates.  Where the operations carry the sites
+    onto one another one for one, the closure :func:`_translation_closure`
+    measures is at most ``2 + r`` times it, ``r`` the largest row sum of the
+    rotations' ``|R|`` (:func:`_closure_gate`).
     """
     pos = np.asarray(site_pos, dtype=float).reshape(-1, 3)
     kind = np.asarray([str(s) for s in species])
@@ -1924,15 +1822,15 @@ def _site_miss(symmetries, site_pos, species) -> float:
 
 
 def _rebuilt_translation(refUC, t_ref, shift, R, t_old) -> np.ndarray:
-    r"""``refUC·t_ref + s − R s``, moved by the lattice vector that puts it nearest ``t_old``.
+    r"""An operation's translation, rebuilt from the tabulated one.
 
-    Every term is an exact rational: ``R`` is an integer matrix, ``t_ref`` the
-    tabulated fraction and ``refUC`` and ``s`` the binary numbers they are
-    stored as.  The sum is formed exactly and rounded once, so the translation
-    carries one rounding of its own size.  Formed in floating point, the
-    products ``R s`` round at the size of the rotation's entries, which on a
-    strongly skewed lattice basis reach hundreds, and the closure multiplies
-    that by such entries again.
+    ``refUC`` and ``shift``, the origin shift ``s`` (``shiftUC``), carry the
+    tables' conventional cell into the cell, ``x = refUC·x_ref + s``.  ``R``
+    is the operation's rotation, ``t_ref`` the tabulated translation as an
+    exact fraction, and ``t_old`` the translation found on the cell.  Returns
+    ``refUC·t_ref + s − R s``, formed exactly in rational arithmetic on the
+    stored numbers and rounded once, plus the lattice vector that puts it
+    nearest ``t_old``.  Every vector is in reduced coordinates of the cell.
     """
     exact = [Fraction(float(x)) for x in np.ravel(shift)]
     out = []
@@ -1946,53 +1844,39 @@ def _rebuilt_translation(refUC, t_ref, shift, R, t_old) -> np.ndarray:
 
 
 def _exact_operations(sg, symprec, tables_ready, lattice) -> tuple | Refusal:
-    r"""Make the identified operations close **exactly** — and only if they do not.
+    r"""The cell's operations made to close exactly, where they do not.
 
-    Returns ``(closure_measured, closure_repaired)``, both reduced, on the cell
-    whose vectors are the rows of ``lattice``.  When the closure measures
-    exactly ``0.0`` — every cell built from exact numbers, which is every model
-    whose positions were typed rather than computed — this returns
-    ``(0.0, 0.0)`` and **changes nothing at all, bit for bit**.  The same is true
-    at machine precision where there is nothing to repair from: a cell ``irrep``
-    could not match whose closure is at or below :func:`_closure_gate` is
-    arithmetic, not noise, and is left alone with the measured number recorded.
+    ``sg`` is ``irrep``'s group of the cell, whose operations' translations
+    are rebuilt in place.  ``tables_ready`` says whether ``irrep`` matched the
+    cell to the tables' setting.  ``lattice`` holds the cell's vectors as
+    rows, in the units of ``symprec``, the symmetry finder's distance.  Where
+    the closure (:func:`_translation_closure`) is ``0.0``, as on every cell
+    built from exact numbers, nothing changes.  Otherwise, on a cell matched
+    to the tables' setting, each translation is rebuilt
+    (:func:`_rebuilt_translation`) from the tabulated operation with the same
+    rotation in the tables' conventional cell and the same antiunitarity, its
+    translation snapped to the rational it is.  A cell not matched is left as
+    it is where its closure is at most :func:`_closure_gate`, and refused
+    otherwise.  The rotations are never changed.
 
-    Otherwise each translation is rebuilt from the **tabulated** reference-cell
-    operation through the one origin shift.  ``irrep``'s own map is
-    ``t_ref = refUC⁻¹·(t + R·shiftUC − shiftUC)``
-    (``SymmetryOperation.translation_refUC``), so its inverse is
+    Returns ``(closure_measured, closure_repaired)``: the closure measured,
+    and the largest change of a component of a translation, ``0.0`` where
+    nothing was rebuilt, both in reduced coordinates.
 
-    .. math:: t = \mathrm{refUC}\cdot t_\text{ref} + s - R\,s,
-              \qquad s = \mathrm{shiftUC},
+    Refusals
+    --------
+    ``operations_not_consistent``
+        The cell is not matched to the tables' setting and its closure
+        exceeds :func:`_closure_gate`.
+    ``operations_not_nearly_consistent``
+        A rebuilt translation lies farther than ``symprec`` from the one
+        found, as a Cartesian length.
 
-    with ``t_ref`` read off ``irreptables`` and snapped to the
-    small-denominator rational it is, since the tables print it to five
-    decimals (``0.33333``), and the operation matched by its **reference-cell
-    rotation**
-    ``refUC⁻¹ R refUC`` (an integer matrix) together with its antiunitarity,
-    never by a float translation.  spglib's own integer part is kept:
-    ``t ← t + round(t_spglib − t)``.
-
-    **Why this is exact whatever spglib's origin refinement did.**  The
-    tabulated operations close exactly, and conjugating a group by a *single*
-    vector ``s`` — which is all ``shiftUC`` is — cannot break that: the closure
-    of the shifted set carries the extra term ``(R_{gh} − R_g R_h)·s``, and
-    ``R_{gh} = R_g R_h`` exactly, integer matrix by integer matrix.  So a
-    ``shiftUC`` sitting at a general point, as a wannier90 cell's does
-    ((−0.3333333233, −0.3333333433, 0) on the displaced Kane-Mele cell), costs
-    nothing and nothing has to be rationalized.  On that cell the closure goes
-    from 2.0e-8 to **0.0**, with every translation moved by at most 2.0e-8.
-
-    The rotations are never touched, and a rebuilt translation further than
-    ``symprec`` from spglib's, read as the length it is in the model's units as
-    the finder's distance is, is **refused** rather than made — at that distance
-    the tabulated operation is not the one this cell has, and what would come
-    back is a different cell rather than a repaired one.
-
-    A tabulated set that cannot be matched to this cell operation by operation,
-    or a rebuilt set that still does not close, is a defect in this package's own
-    use of the tables rather than anything measured about the model, and raises
-    :class:`..refusal.InternalError`.
+    Raises
+    ------
+    InternalError
+        The tabulated operations cannot be matched to the cell's one for one,
+        or the rebuilt ones still do not close.
     """
     before = _translation_closure(sg.symmetries)
     if before == 0.0:
@@ -2006,19 +1890,11 @@ def _exact_operations(sg, symprec, tables_ready, lattice) -> tuple | Refusal:
             return float(before), 0.0
         return Refusal(
             "operations_not_consistent",
-            f"the operations spglib found for this cell do not close: "
-            f"max |t_g + A_g t_h - t_gh| = {before:.3g} (reduced, modulo the lattice) "
-            f"against {gate:.3g}, the rounding of a cell built from exact numbers with "
-            "rotations of this size. spglib derives each "
-            "operation's translation from the atom pairs it maps, so numerically "
-            "determined positions give every operation its own share of the noise; "
-            "with operations that do not close there is no exactly symmetric "
-            "configuration at all, and every operation's verdict and every label after "
-            "it would be measured against a set that is not a group. The repair is to "
-            "rebuild the translations from the tabulated reference-cell operations -- and "
-            "`irrep` could not match this cell to the BCS standard setting, so there "
-            "is no tabulated operation to rebuild from. Hand a cell whose positions "
-            "carry less noise, or one irrep can match.",
+            f"the operations the symmetry finder reads off the orbital centers miss "
+            f"closing into a group by {before:.3g}, in reduced coordinates, where a cell "
+            f"built from exact numbers misses by at most {gate:.3g}. Pass a symprec= "
+            "smaller than the distance between the sites of one species that are "
+            "closest together.",
             value=float(before), threshold=float(gate),
             context={"number_str": str(sg.number_str), "closure": float(before)})
 
@@ -2035,11 +1911,9 @@ def _exact_operations(sg, symprec, tables_ready, lattice) -> tuple | Refusal:
                  for tb in tsyms}
     if len(tabulated) != len(tsyms) or len(tsyms) != len(sg.symmetries):
         raise InternalError(                         # pragma: no cover - guard
-            f"group #{sg.number_str}: the cell carries {len(sg.symmetries)} operations "
-            f"against the table's {len(tsyms)} ({len(tabulated)} distinct rotations), so "
-            "there is no operation-by-operation matching to rebuild the translations "
-            "from. This is a statement about this package's use of irreptables, not "
-            "about the model.")
+            f"{sg.name} #{sg.number_str}: the cell has {len(sg.symmetries)} operations, "
+            f"and the table {len(tsyms)} with {len(tabulated)} distinct rotations. "
+            "Report it, with the model and the call.")
 
     lat = np.asarray(lattice, dtype=float)
     rebuilt, defect, moved = [], 0.0, 0.0
@@ -2048,16 +1922,17 @@ def _exact_operations(sg, symprec, tables_ready, lattice) -> tuple | Refusal:
         Rref = inv @ R @ refUC
         if float(np.abs(Rref - np.rint(Rref)).max()) > 1e-6:
             raise InternalError(                     # pragma: no cover - guard
-                f"group #{sg.number_str}: the rotation refUC^-1 R refUC is not integer "
-                f"(defect {float(np.abs(Rref - np.rint(Rref)).max()):.3g}), so the "
-                "operation cannot be matched to a tabulated one. irrep's own "
-                "`rotation_refUC` asserts the same thing.")
+                f"{sg.name} #{sg.number_str}: the rotation of operation #{s.ind}, "
+                "written in the conventional cell of the tables, is not an integer "
+                f"matrix (defect {float(np.abs(Rref - np.rint(Rref)).max()):.3g}). "
+                "Report it, with the model and the call.")
         key = (np.rint(Rref).astype(int).tobytes(), bool(s.time_reversal))
         if key not in tabulated:                       # pragma: no cover - guard
             raise InternalError(
-                f"group #{sg.number_str}: operation #{s.ind}'s reference-cell rotation "
-                f"is not among the tabulated ones, so the shipped symmetry list and "
-                "the identified one are not the same group.")
+                f"{sg.name} #{sg.number_str}: the rotation of operation #{s.ind}, "
+                "written in the conventional cell of the tables, matches no operation of "
+                "the table in rotation and antiunitarity. Report it, with the model and "
+                "the call.")
         t_old = np.asarray(s.translation, dtype=float)
         t_new = _rebuilt_translation(refUC, tabulated[key], shiftUC, R, t_old)
         defect = max(defect, float(np.abs(t_new - t_old).max()))
@@ -2068,16 +1943,13 @@ def _exact_operations(sg, symprec, tables_ready, lattice) -> tuple | Refusal:
     if moved > float(symprec):
         return Refusal(
             "operations_not_nearly_consistent",
-            f"the operations spglib found for this cell do not close "
-            f"(max |t_g + A_g t_h - t_gh| = {before:.3g}, reduced), and rebuilding "
-            f"their translations from the tabulated ones would move one by "
-            f"{moved:.3g} in the model's length units -- further than the declared "
-            f"symprec = {float(symprec):.3g}. "
-            "A translation that far from spglib's is not the same operation: the "
-            "tabulated group is not the group these positions carry at this "
-            "tolerance, so repairing them would substitute a crystal the model does "
-            "not have. Identify again at a symprec the positions can support, or with "
-            "a cell (`typat=`, `decorations=`) that expresses what they do.",
+            f"the operations the symmetry finder reads off the orbital centers miss "
+            f"closing into a group by {before:.3g}, in reduced coordinates, and "
+            f"rebuilding their translations from the tables' operations would move one "
+            f"by {moved:.3g} in the model's units of length, more than symprec = "
+            f"{float(symprec):.3g}. Declare "
+            "the model's precision with precision=, pass a symprec= the centers "
+            "support, or say what the crystal is with typat= or decorations=.",
             value=float(moved), threshold=float(symprec),
             context={"number_str": str(sg.number_str), "closure": float(before)})
 
@@ -2086,46 +1958,45 @@ def _exact_operations(sg, symprec, tables_ready, lattice) -> tuple | Refusal:
     after = _translation_closure(sg.symmetries)
     if after > gate:
         raise InternalError(                         # pragma: no cover - guard
-            f"group #{sg.number_str}: the rebuilt operations still do not close "
-            f"(max |t_g + A_g t_h - t_gh| = {after:.3g} against {gate:.3g}), though every "
-            "translation came from a tabulated one through a single origin shift, "
-            "which cannot break a closure. This is arithmetic in this package "
-            "failing, not a measurement about the model.")
+            f"{sg.name} #{sg.number_str}: the operations rebuilt from the tables miss "
+            f"closing into a group by {after:.3g}, in reduced coordinates, more than "
+            f"{gate:.3g}. Report it, with the model and the call.")
     return float(before), float(defect)
 
 
 #: The identification memo: a bounded, process-level LRU of :func:`_group_of`
-#: records, keyed by the cell it was asked about.  An identification is spglib
-#: plus ``irrep``'s setting search plus the spinor-branch fit plus the table
-#: load — 5.4 s of the 9.2 s an unmemoized Kane-Mele ``realized_group``
-#: spends — and it is paid once for the cell, again for every descent step's
-#: re-identification and again for the other environment, on cells
-#: that are frequently the same one.  A hit never changes what is returned: what
-#: it hands back is the object the first call built.
+#: records, keyed by the cell it was asked about.  One call identifies the same
+#: cell several times: for the cell, again where a descent identifies the cell
+#: again, and again for a layer's other environment.  A hit never changes what
+#: is returned: it hands back the object the first call built.
 _IDENT_MEMO: "OrderedDict[tuple, GroupData]" = OrderedDict()
 
-#: How many identifications the memo keeps.  Modest on purpose: it is a memo for
-#: a pipeline and a suite, not a database, and a ``GroupData`` holds ``irrep``'s
-#: whole ``SpaceGroupIrreps`` object.
+#: How many identifications the memo keeps.  Each holds ``irrep``'s whole
+#: ``SpaceGroupIrreps`` object.
 _IDENT_MEMO_MAX = 64
 
 _IDENT_MEMO_STATS = {"hits": 0, "misses": 0, "stores": 0, "evictions": 0}
 
 #: The vacuum a layer's cell is given before the symmetry finder reads it,
 #: in the model's length units (:func:`_pad_cell`): geometry, read by no
-#: judgement.
+#: judgment.
 _PAD_LENGTH = 20.0
 
 #: The denominator every translation of a crystal's operations is a multiple of,
 #: in the model's own reduced coordinates, about an origin the tables can use:
 #: halves, thirds, quarters, sixths and eighths of a lattice vector, which 24
 #: holds.  A cell that repeats inside itself adds its pure translations' own.
-#: Exact arithmetic, read by no judgement of noise.
+#: Exact arithmetic, read by no judgment of noise.
 _TRANSLATION_DENOMINATOR = 24
 
 
 def _identification_memo_stats() -> dict:
-    """The memo's counters and its size — a copy, so nothing here is reachable."""
+    """The memo's counters and its size, in a new mapping.
+
+    Returns ``"hits"``, ``"misses"``, ``"stores"`` and ``"evictions"``, with
+    ``"size"``, the identifications held, and ``"maxsize"``,
+    :data:`_IDENT_MEMO_MAX`.
+    """
     return dict(_IDENT_MEMO_STATS, size=len(_IDENT_MEMO), maxsize=int(_IDENT_MEMO_MAX))
 
 
@@ -2148,15 +2019,18 @@ _SETTING_SEEDS = (0, 1, 2, 3)
 
 @lru_cache(maxsize=None)
 def _grey_symbols() -> dict:
-    """The number and symbol ``irrep`` gives each grey group, keyed by its space group.
+    """``irrep``'s number and symbol for the grey group of each space group.
 
-    Returns ``{n: (number_str, name)}`` for the 230 space groups, ``number_str``
-    the BNS number of the grey group of space group ``n`` (``"99.164"``) and
-    ``name`` its symbol (``"P4mm1'"``).  The grey groups are the magnetic
-    space groups of type II in spglib's numbering, and each is read from the
-    line of ``irrep``'s ``data/msg_numbers.data`` that ``from_cell`` reads for
-    that number.  Raises :class:`InternalError` where the two do not give one
-    grey group to each space group.
+    Returns a mapping from each space-group number ``n`` to
+    ``(number_str, name)``: the BNS number of its grey group, ``"99.164"``,
+    and the group's symbol, ``"P4mm1'"``.  Each is read from the line of
+    ``irrep``'s ``data/msg_numbers.data`` indexed by the UNI number spglib
+    gives that magnetic space group of type II, the line ``from_cell`` reads.
+
+    Raises
+    ------
+    InternalError
+        The two do not give one grey group to each of the 230 space groups.
     """
     import spglib
     from irrep import spacegroup as irrep_spacegroup
@@ -2180,10 +2054,8 @@ def _grey_symbols() -> dict:
     if sorted(symbols) != list(range(1, 231)) or any(
             s.split(".")[0] != str(n) for n, (s, _name) in symbols.items()):
         raise InternalError(
-            "the grey groups of spglib's magnetic space-group types and the numbers "
-            "irrep reads for them are not one grey group for each of the 230 space "
-            "groups. This is the installed spglib and irrep disagreeing, not a "
-            "measurement about the model.")
+            "the installed spglib and irrep do not give one grey group to each of the "
+            "230 space groups. Report it, with the versions of spglib and irrep.")
     return symbols
 
 
@@ -2193,26 +2065,26 @@ _NO_MAGNETIC_DATASET = "No magnetic space group could be detected!"
 
 
 def _irrep_group(**kwargs):
-    r"""``irrep``'s identification of a cell, as ``SpaceGroupIrreps.from_cell`` reads it.
+    r"""``irrep``'s group of a cell, as ``from_cell`` reads it.
 
-    ``kwargs`` are ``from_cell``'s, and ``from_cell`` is asked first with them
-    as they are: a cell it reads is returned as it reads it.  On some cells,
-    most of them written on a lattice basis that is not reduced, spglib's
-    magnetic routine returns no dataset and ``from_cell`` raises ``ValueError`` with
-    :data:`_NO_MAGNETIC_DATASET`, before it builds anything.  On that error
-    alone, for a cell asked with ``include_TR=True`` and no nonzero
-    ``magmom``, the group is the grey group of the cell's space group, built
-    from spglib's ordinary dataset as ``from_cell`` builds it from the magnetic
-    one: each operation once alone and then with time reversal, spglib's
-    transformation to the standard setting and origin shift with each entry
-    within rounding of zero set to zero, the number and symbol from
-    :func:`_grey_symbols`, then ``set_irreptables`` with ``from_cell``'s
-    arguments.
+    ``kwargs`` are those of ``SpaceGroupIrreps.from_cell``, and a cell
+    ``from_cell`` reads is returned as it reads it.  On some cells, most
+    written on a lattice basis that is not reduced, spglib's magnetic routine
+    finds no group and ``from_cell`` raises ``ValueError`` with
+    :data:`_NO_MAGNETIC_DATASET`.  For a cell asked with time reversal and no
+    nonzero ``magmom``, the group is then the grey group of the space group
+    spglib's ordinary routine finds: each of its operations alone and with
+    time reversal, its transformation to the standard setting and origin
+    shift with every entry at most :data:`_EXACT_CLOSURE` set to zero, the
+    number and symbol from :func:`_grey_symbols`, and the tables set as
+    ``from_cell`` sets them.  Every other error of ``from_cell`` propagates,
+    and that one too for a cell with a nonzero moment or asked without time
+    reversal.  Returns the ``SpaceGroupIrreps``.
 
-    Returns the ``SpaceGroupIrreps``.  Every other error of ``from_cell``
-    propagates unchanged, that one too for a cell with a nonzero moment or
-    asked without time reversal.  Raises :class:`InternalError` where the
-    ordinary dataset is empty too.
+    Raises
+    ------
+    InternalError
+        spglib's ordinary routine finds no group either.
     """
     from irrep.spacegroup_irreps import SpaceGroupIrreps
 
@@ -2241,10 +2113,9 @@ def _irrep_group(**kwargs):
                                           symprec=symprec, angle_tolerance=-1)
     if dataset is None:
         raise InternalError(
-            f"spglib found no space group for a cell of {len(positions)} sites at "
-            f"the symmetry finder's tolerance {symprec:g}. Every crystal has one, P1 "
-            f"at the least: this is the symmetry finder failing, not a measurement "
-            f"about the model.")
+            f"the symmetry finder, spglib, found no space group for a cell of "
+            f"{len(positions)} sites at symprec = {symprec:g}. Report it, with the model "
+            f"and the call.")
     if isinstance(dataset, dict):                     # spglib before 2.5
         fields = (dataset["rotations"], dataset["translations"], dataset["number"],
                   dataset["transformation_matrix"], dataset["origin_shift"])
@@ -2276,26 +2147,19 @@ def _irrep_group(**kwargs):
 
 
 def _setting_search(kwargs) -> tuple:
-    r"""``irrep``'s identification with the tables' setting, seeded and asked again.
+    r"""``irrep``'s group of a cell in the tables' setting, from fixed seeds.
 
-    ``SpaceGroupIrreps.from_cell(search_cell=True)`` is asked with ``numpy``'s
-    global random state at each of :data:`_SETTING_SEEDS` in turn, until one
-    search matches the cell to the tables' standard setting.  A search that
-    failed without drawing from that state -- no setting of the cell's
-    operations matches the tables' at all, which is arithmetic and no start
-    point -- fails the same way from every seed, and is not asked again.  The
-    state the call arrived with is restored afterwards, whatever happened, so
-    that nothing outside this identification sees a draw it made.  ``kwargs``
-    are ``from_cell``'s own.  Each search is asked through :func:`_irrep_group`,
-    which asks ``from_cell`` itself and, only where spglib's magnetic routine
-    returns nothing, builds the grey group from spglib's ordinary dataset.
-    ``from_cell`` raises that error before it draws anything, so the build is
-    made from the same seeded state.
-
-    Returns ``(sg, None, n)`` from the first search that succeeds, or
-    ``(None, error, n)`` with the ``RuntimeError`` the last one raised; ``n``
-    is how many searches ran.  An :class:`InternalError` is raised, not
-    caught.
+    ``kwargs`` are ``SpaceGroupIrreps.from_cell``'s own, asked with
+    ``search_cell=True`` through :func:`_irrep_group`.  The search is asked
+    with ``numpy``'s global random state set to each of
+    :data:`_SETTING_SEEDS` in turn, until one matches the cell to the tables'
+    standard setting.  A search that fails without drawing from that state
+    fails the same way from every seed, and is not asked again.  The state
+    the call arrived with is restored afterwards.  Returns ``(sg, None, n)``
+    from the first search that succeeds, or ``(None, error, n)`` with the
+    ``RuntimeError`` the last one raised, ``n`` the number of searches asked.
+    An ``InternalError`` propagates, as does any error that is not a
+    ``RuntimeError``.
     """
     state = np.random.get_state()
     error, asked = None, 0
@@ -2319,25 +2183,23 @@ def _setting_search(kwargs) -> tuple:
 
 
 def _origin_nearest(sg, lattice, vacuum_dirs, symprec):
-    r"""The tables' origin nearest the model's own, where ``irrep`` read another.
+    r"""The tables' origin nearest the model's own, if ``irrep`` read another.
 
-    The tables' origin sits at ``shiftUC`` in the cell's reduced coordinates,
-    and the same tables are read about every point ``shiftUC + v`` with
-    ``(R − 1)·v`` a lattice vector for each rotation ``R`` of the group: every
-    operation keeps its translation modulo the lattice there, while the
-    Wyckoff letter a site is named with and the irrep a k-point's states are
-    named with can change.  The point kept is the one nearest the model's own
-    origin, by Cartesian distance modulo the lattice and across the periodic
-    directions alone -- a layer's vacuum direction is the slab presentation's,
-    not the model's.  Along a direction every rotation fixes, the origin is
-    free and no name depends on it, so the distance is not measured along it.
-    Points nearer by less than the finder's distance ``symprec`` are equally
-    near, and among them ``irrep``'s own choice is kept; where it is not among
-    the nearest, the first of them on the grid of :data:`_TRANSLATION_DENOMINATOR`
-    is.
-
-    Returns the ``shiftUC`` to ask ``irrep`` for, or ``None`` where its own is
-    the one the rule keeps.
+    ``sg`` is ``irrep``'s group of the cell in the tables' setting, its
+    origin at ``shiftUC`` in reduced coordinates.  ``lattice`` holds the
+    cell's vectors as rows, and ``vacuum_dirs`` the directions along which it
+    is not periodic.  The tables can be read about every ``shiftUC + v`` with
+    ``(R − 1)·v`` a lattice vector for each rotation ``R``, since each
+    operation keeps its translation modulo the lattice there.  ``v`` is taken
+    on the grid of :data:`_TRANSLATION_DENOMINATOR` along the periodic
+    directions.  The Wyckoff letters and the little-group representations
+    named at the k-points can differ between these origins.  The distance to
+    the model's origin is Cartesian, modulo the lattice, along the periodic
+    directions, with the directions every rotation fixes left out.  Points
+    within ``symprec``, the symmetry finder's distance, of the nearest are
+    equally near.  Returns ``None``
+    where ``irrep``'s own origin is among them, and otherwise the
+    ``shiftUC`` of the first of them on the grid.
     """
     per = [d for d in range(3) if d not in tuple(vacuum_dirs)]
     if not per:                                     # pragma: no cover - a cell has a lattice
@@ -2388,9 +2250,13 @@ def _identification_key(lattice, site_pos, site_orbs, species, vacuum_dirs,
                         periodic_dirs, dim_k, dim_r) -> tuple:
     """Everything :func:`_group_of` reads before it asks ``irrep``, as one key.
 
-    Exact bytes, not rounded: two cells built by the same code produce
-    bit-identical arrays, and a near-miss is a *different* cell that the finder
-    is entitled to answer differently at the same ``symprec``.
+    ``lattice``, ``vacuum_dirs`` and ``vacuum_length`` are the cell and its
+    vacuum (:func:`_pad_cell`); ``site_pos``, ``site_orbs`` and ``species``
+    are its sites as :func:`_sites_and_typat` groups them; ``symprec``,
+    ``spinor``, ``include_TR`` and ``magmom`` are what the finder is asked;
+    ``periodic_dirs``, ``dim_k`` and ``dim_r`` are the model's.  An array
+    enters as its exact bytes, so that a cell that differs in the last bit
+    is another key.  Returns the key.
     """
     return (np.ascontiguousarray(np.asarray(lattice, dtype=float)).tobytes(),
             np.ascontiguousarray(np.asarray(site_pos, dtype=float)).tobytes(),
@@ -2405,78 +2271,61 @@ def _identification_key(lattice, site_pos, site_orbs, species, vacuum_dirs,
 
 def _group_of(model, *, spinor=None, include_TR=True, symprec=DEFAULT_FINDER, typat=None,
               magmom=None, vacuum_length=_PAD_LENGTH) -> GroupData | Refusal:
-    """Internal to :func:`.._realized.realized_group`: the space group the cell allows.
+    """The space group the cell allows, read from its points alone.
 
-    Read from the lattice and the orbital positions alone, so what comes back
-    is an upper bound on the group a Hamiltonian on this cell can obey, stamped
-    :attr:`GroupData._provenance` ``= "cell"``.  ``typat`` labels orbital
-    classes, ``include_TR=True`` asks the cell as a grey group — a point set
-    says nothing about a Hamiltonian's time reversal — ``spinor`` follows
-    ``model.nspin``, and ``symprec`` and ``vacuum_length`` are the finder's
-    tolerance, a length in the model's units at which every translation here
-    is compared, and the slab presentation's vacuum, which no identification
-    may depend on.  The cell is periodic in two or three directions:
-    :func:`.._realized.realized_group` refuses a model periodic in fewer before any cell is
-    identified, and a layer's cell is built on its slab presentation, whose
-    non-periodic vector lies along the layer's normal
-    (:func:`.._layers._slab_presentation`).
+    It is an upper bound on the group a Hamiltonian on the cell obeys, which
+    :func:`.._realized.realized_group` measures.  The cell is periodic in two
+    or three directions; a layer's is its slab presentation
+    (:func:`.._layers._slab_presentation`), set in vacuum by :func:`_pad_cell`.
+    The tables' setting is searched from fixed seeds (:func:`_setting_search`)
+    and read about the origin nearest the model's own
+    (:func:`_origin_nearest`).  Each identification is kept in a memo of
+    :data:`_IDENT_MEMO_MAX` entries, keyed by :func:`_identification_key`,
+    and a cell asked about again returns the record first built.
+
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        The model, or a cell built on one by
+        :func:`.._layers._decorated_cell`.
+    spinor : bool or None, default None
+        Whether the double group is asked for.  ``None`` reads it from
+        ``model.nspin``.
+    include_TR : bool, default True
+        Whether time reversal is adjoined.  Without a nonzero ``magmom``, the
+        group is then grey.
+    symprec : float, default 1e-5
+        The symmetry finder's distance, in the model's units of length, at
+        which points are grouped into sites and translations compared.
+    typat : sequence of int, default None
+        Each point's label (:func:`_sites_and_typat`).
+    magmom : array_like, default None
+        Each site's magnetic moment, as ``from_cell`` takes it.
+    vacuum_length : float, default 20.0
+        The vacuum given a direction that is not periodic, in the model's
+        units of length (:func:`_pad_cell`).
+
+    Returns
+    -------
+    GroupData or Refusal
+        The group, its ``_provenance`` ``"cell"``.  Where no search matches
+        the cell to the tables' setting, the group has no tables and its
+        ``_setup_note`` carries ``irrep``'s message.  For a cell that repeats
+        under a pure translation, the group returned is its whole lattice
+        supergroup, without tables, its ``_lattice_index`` above 1.
 
     Refusals
     --------
     ``irrep_tables``
-        ``irreptables`` is not installed, so every label downstream would come
-        back ``"None"``.
+        ``irrep``'s character tables are not loaded (:func:`tables_status`).
     ``single_valued_spinful``
-        ``spinor=False`` on a model whose states carry the electron's spin-1/2.
+        ``spinor=False`` on a model with ``nspin == 2``.
     ``magnetic_type_out_of_scope``
-        The operations found are of magnetic type III or IV, outside the 230
-        space groups and their grey extensions.  ``magmom`` is what reaches it.
+        The operations found are of magnetic type III or IV, which a nonzero
+        ``magmom`` can give.
     ``operations_not_nearly_consistent`` / ``operations_not_consistent``
-        The operations do not close and could not be rebuilt from the tabulated
-        ones — a **numerical** cell only (``GroupData._closure_measured``),
-        which :func:`.._realized.realized_group` hands here where no precision is declared
-        for its centres, or where they cannot be read as a symmetric set at all.
-
-    Notes
-    -----
-    **Under a declared precision the cell is exact.**  :func:`.._realized.realized_group`
-    reads the operations off the centres as they are, moves the centres onto
-    the nearest set those operations carry exactly and removes a shift of every
-    centre together that is noise, all before it asks here
-    (:func:`.._realized._exact_centers`): the setting, the tables' origin and the names are
-    read on exact centres, the operations close, and their repair from the
-    tabulated ones (:func:`_exact_operations`) is not reached.  The repair and
-    its two refusals are reached by a numerical cell with no precision
-    declared, and by one whose centres cannot be read as a symmetric set at
-    all -- two sites of one species closer together than the symmetry finder
-    can tell apart, so that an operation does not carry the sites onto one
-    another one for one -- which is identified as it is.
-
-    **The tables' setting is searched deterministically** (:func:`_setting_search`):
-    from a fixed random seed, so that a cell is identified the same way in every
-    process, and again from further fixed seeds where a search that drew from
-    it fails.  Where every one fails the group is returned without tables,
-    ``GroupData._setup_note`` carrying ``irrep``'s own message, and every row
-    of an atomic-limit table built on it says so.
-
-    **The tables' origin is the one nearest the model's own.**  The tables are
-    read the same way about every point the operations' translations allow as
-    an origin, and the Wyckoff letters and k-point irreps they give can differ
-    between them; the one read is the nearest to the model's own origin
-    (:func:`_origin_nearest`), so that an orbital the model writes at the origin
-    is named at the tables' origin wherever that point can be one.  Equally
-    near points are a tie, and ``irrep``'s own choice on the cell is kept.  On
-    every cell built from exact numbers measured, ``irrep``'s own choice is
-    that nearest point already.
-
-    **The Hamiltonian sets the primitive cell.**  A cell whose orbitals repeat
-    under a fractional translation ``τ`` gets the whole lattice supergroup —
-    ``{1|τ}`` and its coset partners included, ``_tables_ready = False``, every
-    table consumer refusing (``gate="lattice_not_descended"``) because the
-    tables are the crystal's and would label a folded zone.  Only
-    :func:`.._realized.realized_group` can say whether the model *is* a supercell: it
-    measures ``τ``, refuses ``supercell`` where the Hamiltonian obeys it, and
-    descends where it does not.
+        The operations do not close and cannot be rebuilt from the tabulated
+        ones (:func:`_exact_operations`).
     """
     status = tables_status()
     if not status["tables"]:
@@ -2485,38 +2334,25 @@ def _group_of(model, *, spinor=None, include_TR=True, symprec=DEFAULT_FINDER, ty
     if spinor is None:
         spinor = int(model.nspin) == 2
 
-    # `nspin == 2` invokes the double group at every level, and the inference
-    # above is the only route that ever sets `spinor` when it is not asked for
-    # -- so this fires exactly on an explicit `spinor=False` for a model
-    # whose states carry the electron's own spin-1/2.  There is no single-valued
-    # question to put to such a model, and returning it the single-valued tables
-    # anyway would let a build reach `_matrices._table_anchored` carrying a
-    # question the tables cannot answer.  Enforced here as well as in
-    # `_build_rep`, so the invalid pair cannot be constructed in the first place.
+    # Since `spinor` left out is read from `nspin`, this fires only on an
+    # explicit `spinor=False` for a model whose states carry spin one-half,
+    # which has no single-valued representation.  `_build._build_rep` refuses
+    # the same pair.
     if int(model.nspin) == 2 and not bool(spinor):
         return Refusal(
             "single_valued_spinful",
-            "spinor=False was asked for a spinful model (nspin=2). A spinful model's "
-            "states carry the electron's own spin-1/2, its little-group content is "
-            "double-valued, and there is no single-valued question to put to it. Use "
-            "spinor=True, or leave the default `spinor=None`, which infers it from "
-            "`nspin`. (The converse, `spinor=True` for a spinless model, is answered: "
-            "group data is a property of the crystal and of the valuedness asked for, "
-            "and its representation is refused `rep_double_valued_spinless`.)",
+            "spinor=False is passed for a model with spin, nspin=2. Leave spinor= out, "
+            "and it is read from the model.",
             context={"nspin": int(model.nspin), "spinor": bool(spinor),
                      "spinful": bool(getattr(model, "spinful", int(model.nspin) == 2))})
 
     lattice, positions, vacuum_dirs = _pad_cell(model, float(vacuum_length))
     site_pos, site_orbs, species = _sites_and_typat(positions, typat, symprec, lattice)
 
-    # THE IDENTIFICATION MEMO.  Everything below this point -- spglib, irrep's
-    # setting search, the spinor-branch fit, the closure repair and the table
-    # load -- is a pure function of the cell derived above and of the four flags,
-    # and the pipeline asks about the same cell repeatedly: once for it, again
-    # after a descent re-identifies a subgroup that turns out to be the cell
-    # again, and again for the other environment.  A hit returns the
-    # object the first call built, memos and all, which is also what makes the
-    # product table (`GroupData._get_product_table`) a once-per-cell cost.
+    # The identification memo.  Everything below, from spglib to the closure
+    # repair, depends on the cell above and the flags alone.  A hit returns
+    # the object the first call built, its own memos with it, so that the
+    # product table (`GroupData._get_product_table`) is built once a cell.
     memo_key = _identification_key(
         lattice, site_pos, site_orbs, species, vacuum_dirs, vacuum_length, symprec,
         spinor, include_TR, magmom, model.periodic_dirs,
@@ -2532,11 +2368,11 @@ def _group_of(model, *, spinor=None, include_TR=True, symprec=DEFAULT_FINDER, ty
                   spinor=bool(spinor), include_TR=bool(include_TR),
                   symprec=float(symprec), magmom=magmom)
     note = None
-    # THE TABLES' SETTING, searched from fixed seeds and asked again where a
+    # The tables' setting, searched from fixed seeds and asked again where a
     # search fails: irrep's spin-basis fit starts from a random point, and a
     # start it cannot converge from is no statement about the cell.  Only where
     # every seed fails is the group returned without tables, and then its note
-    # carries irrep's own message and every row built on it says so.
+    # carries irrep's own message, the reason every `tables_not_ready` gives.
     sg, failure, asked = _setting_search(kwargs)
     tables_ready = sg is not None
     if sg is None:
@@ -2545,14 +2381,13 @@ def _group_of(model, *, spinor=None, include_TR=True, symprec=DEFAULT_FINDER, ty
                 + (f" in {asked} searches from fixed seeds" if asked > 1 else "")
                 + f", so irrep tables are unavailable for it: {failure}")
 
-    # THE LATTICE.  A pure fractional translation says the point set repeats
-    # inside the cell handed in: the model's lattice is a sublattice of the
-    # crystal's own, and what this cell allows is the whole LATTICE SUPERGROUP.
-    # It is returned -- every operation of it, coset partners and translations
-    # included -- but never with tables: those are the crystal's, written on the
-    # finer lattice, and reading them here would label a folded zone.  The
-    # `search_cell` branch is forced off for the same reason, so that no record
-    # carrying a fractional translation ever claims a refUC/shiftUC.
+    # The lattice.  A pure fractional translation says the point set repeats
+    # inside the cell, and what the cell allows is the whole lattice
+    # supergroup, every operation of it, coset partners and translations
+    # included.  It is returned without tables, which are written on the finer
+    # lattice and would label a folded zone here.  A cell read with the
+    # setting search is read again without it, so that the record holds no
+    # setting the search matched to the tables.
     translations = _pure_translations(sg.symmetries, symprec, lattice)
     if translations:
         if tables_ready:
@@ -2565,7 +2400,7 @@ def _group_of(model, *, spinor=None, include_TR=True, symprec=DEFAULT_FINDER, ty
             f"(reduced), so the operations here are the lattice supergroup of index "
             f"{len(translations) + 1} and the tables live on the finer lattice.")
 
-    # THE TABLES' ORIGIN.  The same tables are read about any point the
+    # The tables' origin.  The same tables are read about any point the
     # operations' translations allow, and the names of sites and of k-points can
     # differ between them; the one nearest the model's own origin is the one
     # read, so that an orbital the model writes at the origin is named at the
@@ -2579,8 +2414,8 @@ def _group_of(model, *, spinor=None, include_TR=True, symprec=DEFAULT_FINDER, ty
             if again is not None:
                 sg = again
 
-    # irrep fits the spin-basis transformation from an unseeded random start and
-    # both branches of that fit are exact minima; replace it with the frame the
+    # irrep fits the spin-basis transformation from a random start, and both
+    # branches of that fit are exact minima; replace it with the frame the
     # tables' own SU(2) matrices are written in (see `_canonical_spinor_signs`).
     # Without tables there is nothing to match against and no sign was ever fitted.
     spin_frame = _pin_spinor_branch(sg) if tables_ready else None
@@ -2589,11 +2424,11 @@ def _group_of(model, *, spinor=None, include_TR=True, symprec=DEFAULT_FINDER, ty
     if out_of_scope is not None:
         return out_of_scope
 
-    # Are the operations a group?  On a cell built from exact numbers they are,
-    # exactly, and nothing below runs.  On a NUMERICAL cell spglib reads each
-    # translation off noisy atom pairs and they close only to that noise -- and
-    # then no exactly symmetric set of positions exists for anything downstream
-    # to be measured against.  See `_exact_operations`.
+    # Whether the operations close into a group.  On a cell built from exact
+    # numbers they close exactly and nothing is changed.  On a numerical cell
+    # spglib reads each translation off noisy atom pairs and they close only
+    # to that noise, so they are rebuilt from the tabulated ones.  See
+    # `_exact_operations`.
     consistent = _exact_operations(sg, symprec, tables_ready, lattice)
     if isinstance(consistent, Refusal):
         if consistent.gate == "operations_not_consistent":
@@ -2637,19 +2472,27 @@ def _group_of(model, *, spinor=None, include_TR=True, symprec=DEFAULT_FINDER, ty
 
 
 # --------------------------------------------------------------------------
-# Wyckoff data and orbital assignment
+# Wyckoff positions in spglib's setting
 # --------------------------------------------------------------------------
 
 def _wyckoff_positions_spglib(group: GroupData) -> tuple | Refusal:
-    """Every Wyckoff position of the group, in the model's own cell, lettered in spglib's setting.
+    """Every Wyckoff position of the group, lettered in spglib's setting.
 
-    Each is a :class:`_WyckoffPosition`, a map ``A·(x, y, z) + b`` that a site
-    can be tested against, the general position first and ``a`` last; its
-    letter is spglib's, which the tables' letter for the position may differ
-    from (:func:`.._tables.wyckoff_sites_tables` gives the tables').  The
-    group's cell and sites are read at spglib's own tolerance.  A refusal
-    handed in is returned as it is; ``wyckoff_enumeration`` where ``pyxtal``
-    and spglib disagree about the group.
+    ``group`` is a group, or a refusal handed in.  The positions are those of
+    the space group spglib finds on the group's cell and sites at its default
+    tolerance, as ``irrep`` writes them from ``pyxtal``'s list.  Returns each
+    as a :class:`_WyckoffPosition`, in reduced coordinates of the group's
+    three-dimensional cell, the general position first and ``a`` last.  Each
+    letter is spglib's, and the tables' letter for the position can differ
+    (:func:`.._tables.wyckoff_sites_tables` gives the tables').
+
+    Refusals
+    --------
+    ``lattice_not_descended``
+        The group is that of a supercell; a refusal handed in is returned as
+        it is (:func:`_lattice_not_descended`).
+    ``wyckoff_enumeration``
+        ``irrep`` raises while it writes the positions.
     """
     import sympy
     from irrep.spacegroup import SpaceGroup as _SG
@@ -2662,7 +2505,8 @@ def _wyckoff_positions_spglib(group: GroupData) -> tuple | Refusal:
         exprs = _SG.wyckoff_positions(cell)
     except Exception as exc:  # pragma: no cover - pyxtal/spglib disagreement
         return Refusal("wyckoff_enumeration",
-                       f"irrep could not enumerate Wyckoff positions for #{group.number_str}: {exc}",
+                       f"irrep could not list the Wyckoff positions of {group.name} "
+                       f"#{group.number_str}: {exc}",
                        context={"number_str": group.number_str})
 
     x, y, z = sympy.symbols("x y z")
@@ -2685,39 +2529,25 @@ def _wyckoff_positions_spglib(group: GroupData) -> tuple | Refusal:
 
 
 # --------------------------------------------------------------------------
-# Wyckoff letters in the TABLES' setting
+# Wyckoff letters in the tables' setting
 # --------------------------------------------------------------------------
 
 
 
 @lru_cache(maxsize=64)
 def _pyxtal_wyckoff(sg: int) -> tuple:
-    r"""``pyxtal``'s Wyckoff list of a space-group number, **in the tables' setting**.
+    r"""``pyxtal``'s Wyckoff positions of a group, in the tables' setting.
 
-    Returns ``(positions, centering)``.  Each position is
-    ``{"letter", "multiplicity", "n_free", "arms"}`` with ``arms`` the affine
-    maps :math:`x = A p + b` of the position's symmetry-equivalent copies — one
-    per operation of ``pyxtal``'s ``wp.ops`` — each carrying the projector
-    :math:`P = 1 - A A^+` onto the complement of its variety, which is what a
-    containment test needs.  ``centering`` is measured, not typed: the
-    **general** position's ops with an identity rotation are exactly the
-    conventional cell's centering translations
-    (``(0,0,0), (0,½,½), (½,0,½), (½,½,0)`` for an ``F`` lattice).
-
-    ``pyxtal`` is already this package's Wyckoff source —
-    :func:`_wyckoff_positions_spglib` reaches it through
-    ``irrep.spacegroup.SpaceGroup.wyckoff_positions`` — but *there* it
-    is composed with spglib's transformation into the calculation cell.  Here it
-    is read raw, in its own conventional setting, which is the setting the
-    tables use: for ``Fd-3m`` its ``8a`` is at ``(1/8, 1/8, 1/8)``, ITA origin
-    choice 2.  That the two settings agree is not assumed — it is
-    :func:`_wyckoff_setting_audit`, which measures the stabilizer of every
-    position the EBR list names against the group's *own* operations.
-
-    The class is taken off ``irrep.spacegroup``, which is where
-    :func:`_wyckoff_positions_spglib` already reaches it: ``irrep`` pins
-    ``pyxtal==1.1.1`` exactly, so this adds no dependency — it uses ``irrep``'s
-    own binding of the one it already has.
+    ``sg`` is the space-group number.  The list is ``pyxtal``'s in its own
+    conventional setting, which :func:`_wyckoff_setting_audit` measures to be
+    the tables'.  Returns ``(positions, centering)``.  Each position is a
+    mapping with ``"letter"``, ``"multiplicity"``, ``"n_free"`` and
+    ``"arms"``.  Its arms are one for each of ``pyxtal``'s operations of the
+    position: the affine map :math:`x = A p + b` and the projector
+    :math:`P = 1 - A A^+` onto the complement of its directions, :math:`A^+`
+    the pseudoinverse.  ``centering`` holds the conventional cell's
+    centering translations, the zero vector among them: the translations of
+    the general position's operations whose rotation is the identity.
     """
     from irrep.spacegroup import Group
 
@@ -2743,11 +2573,19 @@ def _pyxtal_wyckoff(sg: int) -> tuple:
 
 
 def _variety_residual(arms, points) -> np.ndarray:
-    """``min_arms min_n |P (x + n - b)|`` per point — 0 exactly on the variety."""
+    """How far each point lies off the variety of a Wyckoff position.
+
+    ``arms`` are the position's arms (:func:`_pyxtal_wyckoff`), and
+    ``points`` one point or an array of shape ``(n, 3)``, in reduced
+    coordinates of the tables' conventional cell.  Returns, for each point,
+    the least over the arms and over the lattice vectors ``n`` with
+    components in ``{-1, 0, 1}`` of the largest component of
+    ``P (x + n − b)``: zero on the variety.
+    """
     points = np.atleast_2d(np.asarray(points, dtype=float))
     best = np.full(points.shape[0], np.inf)
     for _A, b, P in arms:
-        # (n_point, 27, 3): every point, shifted by every neighbouring lattice
+        # (n_point, 27, 3): every point, shifted by every neighboring lattice
         # vector, projected onto the complement of this arm's variety
         delta = (points[:, None, :] - b[None, None, :] + _NEIGHBOR_SHIFTS[None, :, :])
         resid = np.abs(delta @ P.T).max(axis=2).min(axis=1)
@@ -2756,7 +2594,13 @@ def _variety_residual(arms, points) -> np.ndarray:
 
 
 def _variety_contains_variety(inner, outer, tol) -> bool:
-    """Is the whole of one arm's affine subspace inside another's, mod the lattice?"""
+    """Whether one arm's subspace lies inside another's, modulo the lattice.
+
+    ``inner`` and ``outer`` are arms ``(A, b, P)`` (:func:`_pyxtal_wyckoff`).
+    Returns ``True`` where every entry of ``P_out A_in`` is at most ``tol``,
+    and every component of ``P_out (b_in − b_out + n)`` is too for some
+    lattice vector ``n`` with components in ``{-1, 0, 1}``.
+    """
     A_in, b_in, _ = inner
     _A_out, b_out, P_out = outer
     if float(np.abs(P_out @ A_in).max()) > tol:
@@ -2766,14 +2610,14 @@ def _variety_contains_variety(inner, outer, tol) -> bool:
 
 
 def _in_tables_cell(group: GroupData, points) -> np.ndarray:
-    r"""Points of the model's cell written in the tables' conventional cell, reduced to it.
+    r"""Points of the model's cell, written in the tables' conventional cell.
 
-    :math:`x_\text{ref} = \mathrm{refUC}^{-1}(x - \mathrm{shiftUC}) \bmod 1`, a
-    coordinate within rounding of 1 written as 0, through the group's one stored
-    ``refUC`` and ``shiftUC``: the carrying every Wyckoff letter, every operation
-    in the reference cell and every name read at a site goes through.  ``points``
-    is one point or an array of shape ``(n, 3)`` in reduced coordinates of the
-    model's three-dimensional cell; an array of shape ``(n, 3)`` is returned.
+    ``points`` is one point or an array of shape ``(n, 3)``, in reduced
+    coordinates of ``group``'s three-dimensional cell.  Each is carried by
+    :math:`x_\text{ref} = \mathrm{refUC}^{-1}(x - \mathrm{shiftUC}) \bmod 1`
+    through the group's stored ``refUC`` and ``shiftUC``, which every Wyckoff
+    letter and every name read at a site goes through, and a coordinate
+    within rounding of 1 is written 0.  Returns an array of shape ``(n, 3)``.
     """
     raw = np.atleast_2d(np.asarray(points, dtype=float))
     inv = np.linalg.inv(np.asarray(group._refUC, dtype=float))
@@ -2783,19 +2627,21 @@ def _in_tables_cell(group: GroupData, points) -> np.ndarray:
 
 
 def _reference_operations(group: GroupData) -> tuple:
-    r"""The group's own unitary operations, written in the reference cell.
+    r"""The group's unitary operations, in the tables' conventional cell.
 
-    ``(R_ref, t_ref)`` per operation, with
-    :math:`R_\text{ref} = \mathrm{refUC}^{-1} R\,\mathrm{refUC}` (an integer
-    matrix, asserted) and
-    :math:`t_\text{ref} = \mathrm{refUC}^{-1}(t + R s - s)`, ``s = shiftUC`` —
-    ``irrep``'s own ``SymmetryOperation.translation_refUC``, the map
-    :func:`_exact_operations` inverts.  Translations are snapped to
-    small-denominator rationals the way :func:`.._tables._table_kpoints` snaps k-points,
-    and for the same reason: a reference-cell translation is a rational with a
-    small denominator, and ``irreptables`` prints its own to five decimals
-    (``0.33333``), which is 3.3e-6 away from ``1/3`` — enough to lose a
-    stabilizer at a 1e-6 gate.
+    ``group`` is a group matched to the tables' setting.  Returns
+    ``(R_ref, t_ref)`` for each operation, with
+    :math:`R_\text{ref} = \mathrm{refUC}^{-1} R\,\mathrm{refUC}`, an integer
+    matrix, and :math:`t_\text{ref} = \mathrm{refUC}^{-1}(t + R s - s)`,
+    ``s = shiftUC``, as ``irrep``'s
+    ``SymmetryOperation.translation_refUC`` writes it.  Each translation is
+    snapped to the nearest rational with a small denominator
+    (:func:`_snap_rational`).
+
+    Raises
+    ------
+    InternalError
+        Some ``R_ref`` is not an integer matrix.
     """
     refUC = np.asarray(group._refUC, dtype=float)
     shift = np.asarray(group._shiftUC, dtype=float)
@@ -2808,11 +2654,10 @@ def _reference_operations(group: GroupData) -> tuple:
         R_ref = inv @ R @ refUC
         if float(np.abs(R_ref - np.rint(R_ref)).max()) > 1e-6:
             raise InternalError(
-                f"#{group.number_str}: the reference-cell rotation refUC^-1 R refUC of "
-                f"operation #{sym.ind} is not an integer matrix (defect "
-                f"{float(np.abs(R_ref - np.rint(R_ref)).max()):.3g}), so this group's "
-                "operations cannot be written in the setting its own tables are written "
-                "in. irrep's `rotation_refUC` asserts the same thing.")
+                f"{group.name} #{group.number_str}: the rotation of operation "
+                f"#{sym.ind}, written in the conventional cell of the tables, is not an "
+                f"integer matrix (defect {float(np.abs(R_ref - np.rint(R_ref)).max()):.3g}). "
+                "Report it, with the model and the call.")
         t_ref = inv @ (np.asarray(sym.translation, dtype=float)
                        + R @ shift - shift)
         out.append((np.rint(R_ref).astype(int), _snap_rational(t_ref)))
@@ -2820,7 +2665,15 @@ def _reference_operations(group: GroupData) -> tuple:
 
 
 def _stabilizer_order(point, ops_ref, centering, tol=1e-6) -> int:
-    """How many reference-cell operations (centering included) fix ``point``."""
+    """How many operations of the conventional cell fix ``point``.
+
+    ``point`` is in reduced coordinates of the tables' conventional cell,
+    ``ops_ref`` holds the group's operations there
+    (:func:`_reference_operations`), and ``centering`` the cell's centering
+    translations, the zero vector among them.  Returns the number of pairs
+    of an operation and a centering translation that carry ``point`` onto
+    itself modulo the lattice, each component within ``tol``.
+    """
     count = 0
     for R, t in ops_ref:
         image = R @ point + t
@@ -2830,37 +2683,22 @@ def _stabilizer_order(point, ops_ref, centering, tol=1e-6) -> int:
 
 
 def _wyckoff_setting_audit(sg: int, ops_ref, ebr_positions) -> dict:
-    r"""**Is ``pyxtal``'s Wyckoff list written in the tables' setting for this group?**
+    r"""Whether ``pyxtal``'s Wyckoff list is written in the tables' setting.
 
-    The one thing the reference-cell letter rests on, measured rather than
-    assumed.  For every position the group's EBR list names —
-    ``"8a(43m1',43m)"`` gives the multiplicity ``8``, the letter ``a`` and the
-    site symbol — two statements must hold:
-
-    * ``pyxtal`` carries that letter with **that conventional multiplicity**;
-    * the **stabilizer** of ``pyxtal``'s own representative point under the
-      group's operations *written in the reference cell*, together with the
-      conventional cell's centering translations, has order
-      :math:`|P|\,n_\text{centering} / M`.  That is the orbit–stabilizer theorem
-      in the conventional cell, and it is the sharp test: the two sides come
-      from independent sources (``pyxtal`` supplies the point, ``irrep`` /
-      ``irreptables`` supply the operations), so an origin choice or an axis
-      convention that differed between them would move the point off its own
-      site-symmetry group and the order would collapse.
-
-    The representative is taken at a **generic** value of the free parameters,
-    which is where a position's site-symmetry group is the one its symbol names;
-    a special value would land on a *more* special position and measure that
-    one's group instead.
-
-    Returns ``{"ok": bool, "offenders": (...), "point_group": n, "centering": n,
-    "checked": n}``.  Over all 230 space groups, in both the unitary and the grey
-    (type-II) tables, there are **zero offenders**.
-
-    Notes
-    -----
-    Both valuednesses share the letters — a double-valued EBR list induces from
-    the same positions — so the sweep runs once per group.
+    ``sg`` is the space-group number, ``ops_ref`` the group's operations in
+    the tables' conventional cell (:func:`_reference_operations`), and
+    ``ebr_positions`` the positions the group's EBR list names, each
+    ``(M, letter, site symbol)`` with ``M`` the multiplicity.  Each letter is
+    checked once.  It passes where ``pyxtal`` lists it with multiplicity
+    ``M``, and where its point at a generic value of the free parameters
+    (:data:`_GENERIC_PARAMETER`) has a stabilizer of order
+    :math:`|P|\,n_\text{centering} / M` under ``ops_ref`` and the centering
+    translations (:func:`_stabilizer_order`), the orbit-stabilizer theorem in
+    the conventional cell, with :math:`|P|` the number of operations in
+    ``ops_ref``.  Returns a mapping: ``"ok"``, whether every letter passes;
+    ``"offenders"``, each letter that fails with what failed;
+    ``"point_group"``, :math:`|P|`; ``"centering"``, the number of centering
+    translations; and ``"checked"``, how many stabilizers were measured.
     """
     positions, centering = _pyxtal_wyckoff(int(sg))
     by_letter = {p["letter"]: p for p in positions}
@@ -2906,11 +2744,15 @@ _GENERIC_PARAMETER = np.array([0.13, 0.29, 0.41])
 @lru_cache(maxsize=256)
 def _letters_on_closure(sg: int, letter: str, listed: frozenset,
                         tol: float = WYCKOFF_REFERENCE_TOL) -> tuple:
-    """The letters of ``listed`` whose varieties lie on the closure of ``letter``'s, in order.
+    """The letters of ``listed`` whose varieties lie inside that of ``letter``.
 
-    A position whose variety lies inside another's is where an orbital confined
-    to the larger variety can be moved without leaving it; ``letter``'s own
-    variety lies inside itself, so it is among them wherever ``listed`` holds it.
+    ``sg`` is the space-group number, ``letter`` one of its Wyckoff letters
+    and ``listed`` the letters considered; ``tol`` is the containment
+    tolerance of :func:`_variety_contains_variety`, in reduced coordinates of
+    the tables' conventional cell.  An orbital confined to ``letter``'s
+    variety can be moved onto each of these positions without leaving it.
+    Returns the letters sorted, ``letter`` among them where ``listed`` holds
+    it, and none where ``pyxtal`` lists no ``letter``.
     """
     positions, _centering = _pyxtal_wyckoff(int(sg))
     own = next((p for p in positions if p["letter"] == str(letter)), None)
@@ -2924,15 +2766,14 @@ def _letters_on_closure(sg: int, letter: str, listed: frozenset,
 
 
 def _snap_rational(x, max_den=24, atol=1e-4):
-    """Snap a coordinate to the nearest small-denominator rational, if one is close.
+    """Coordinates snapped to the nearest rational with a small denominator.
 
-    ``irreptables`` stores high-symmetry k-points to six decimals, so a
-    tabulated ``K`` arrives as ``0.333333`` — 6.7e-7 away from ``1/3``.  That
-    is harmless for a table lookup and *not* harmless for evaluating a model
-    there: a Dirac point evaluated 7e-7 off K opens a spurious gap of the same
-    order, and a mesh-membership test at 1e-8 declares a mesh that does contain
-    K to miss it.  High-symmetry coordinates are rationals with small
-    denominators, so snapping is exact recovery, not rounding.
+    ``x`` is an array of coordinates.  Each entry is replaced by the nearest
+    ``p/q`` with ``q`` at most ``max_den``, where that lies closer than
+    ``atol``, and is kept otherwise.  ``irreptables`` prints high-symmetry
+    k-points to six decimals and translations to five, and the coordinates
+    they stand for are such rationals, so the snap recovers them.  Returns a
+    new array of the shape of ``x``.
     """
     x = np.asarray(x, dtype=float)
     out = x.copy()
@@ -2947,16 +2788,16 @@ def _snap_rational(x, max_den=24, atol=1e-4):
     return out
 
 
-#: Centering translations of each Bravais lattice, in the BCS **conventional**
-#: basis the tables use, keyed by the leading letter of the table's
-#: Hermann–Mauguin name (``IrrepTable.name``).  This is the one piece of
-#: crystallography that cannot be read off a character table, and it is needed
-#: because "``g`` fixes ``k``" and "``t`` is a lattice vector" are statements
-#: about the *primitive* lattice while the tables are written in the
-#: conventional one.  Checked, not trusted: the little groups it predicts are
-#: asserted equal to ``irreptables``' own tabulated little-group indices at all
-#: 2700 (space group, valuedness, k-point) entries by the sweep in
-#: ``tests/test_groups.py``.
+#: Centering translations of each Bravais lattice, in the conventional basis
+#: the tables use, that of the Bilbao Crystallographic Server, keyed by the
+#: leading letter of the table's Hermann-Mauguin name (``IrrepTable.name``).
+#: This is the one piece of crystallography that cannot be read off a character
+#: table, and it is needed because "``g`` fixes ``k``" and "``t`` is a lattice
+#: vector" are statements about the primitive lattice while the tables are
+#: written in the conventional one.  Checked, not trusted: the little groups
+#: it predicts are asserted equal to ``irreptables``' own tabulated
+#: little-group indices at all 2700 (space group, valuedness, k-point) entries
+#: by the sweep in ``tests/test_groups.py``.
 _CENTERINGS = {
     "P": (),
     "A": ((0.0, 0.5, 0.5),),
@@ -2969,18 +2810,34 @@ _CENTERINGS = {
 
 
 def _centering(table) -> tuple:
-    """The centering translations of ``table``'s Bravais lattice."""
+    """The centering translations of ``table``'s Bravais lattice.
+
+    ``table`` is an ``irreptables`` table, its name opening on the lattice's
+    letter.  Returns the nonzero centering translations in the tables'
+    conventional cell (:data:`_CENTERINGS`), none for ``P``.
+
+    Raises
+    ------
+    _EBRTransportError
+        The name does not open on a Bravais lattice letter.
+    """
     letter = str(table.name)[:1]
     if letter not in _CENTERINGS:
         raise _EBRTransportError(
-            f"#{table.number_str}'s tabulated name {table.name!r} does not start "
-            "with a Bravais lattice letter, so its centering translations — and "
-            "hence its little groups — cannot be determined.")
+            f"the name the tables give #{table.number_str}, {table.name!r}, does not "
+            "start with the letter of a Bravais lattice.")
     return _CENTERINGS[letter]
 
 
 def _is_translation(v, centering) -> bool:
-    """``v`` (conventional reduced) is a direct-lattice translation."""
+    """Whether ``v`` is a translation of the direct lattice.
+
+    ``v`` is in reduced coordinates of the tables' conventional cell, and
+    ``centering`` holds its centering translations (:func:`_centering`).
+    Returns ``True`` where ``v`` is an integer vector, or a centering
+    translation plus an integer vector, each component within
+    :data:`_LATTICE_TOL`.
+    """
     v = np.asarray(v, dtype=float)
     for c in ((0.0, 0.0, 0.0),) + tuple(centering):
         d = v - np.asarray(c, dtype=float)
@@ -2990,11 +2847,15 @@ def _is_translation(v, centering) -> bool:
 
 
 def _is_reciprocal(v, centering) -> bool:
-    """``v`` (conventional reduced) is a reciprocal-lattice vector.
+    """Whether ``v`` is a vector of the reciprocal lattice.
 
-    Integer *and* orthogonal to every centering translation — for ``I`` that is
-    the ``h+k+l`` even rule, which is exactly why ``P = (½,½,½)`` of a
-    body-centred group is **not** a TRIM.
+    ``v`` is in reduced coordinates of the reciprocal of the tables'
+    conventional cell, and ``centering`` holds that cell's centering
+    translations (:func:`_centering`).  Returns ``True`` where ``v`` is an
+    integer vector whose product with every centering translation is an
+    integer, each within :data:`_LATTICE_TOL`.  For an ``I`` lattice that is
+    the rule that ``h + k + l`` is even, so the point ``P = (1/2, 1/2, 1/2)``
+    of a body-centered group is not a time-reversal invariant momentum.
     """
     v = np.asarray(v, dtype=float)
     if np.abs(v - np.round(v)).max() > _LATTICE_TOL:
@@ -3008,7 +2869,13 @@ def _is_reciprocal(v, centering) -> bool:
 # --------------------------------------------------------------------------
 
 class _EBRTransportError(RuntimeError):
-    """The EBR rows cannot be carried into the physical convention (see below)."""
+    """The failure to carry a group's EBR rows out of the tables' convention.
+
+    Raised with a message and ``points``, the labels of the k-points where
+    the carrying fails, empty where no point is at fault.
+    :func:`.._tables.ebr_data` returns it as the refusal ``ebr_convention``,
+    its ``points`` in the context.
+    """
 
     def __init__(self, message, points=()):
         super().__init__(message)

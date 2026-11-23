@@ -153,7 +153,7 @@ def test_irreptables_imported_first_is_reported_as_the_import_order_it_is():
         print("STATUS", json.dumps(tqg.tables_status()))
     """)
     status = json.loads(out.split("STATUS", 1)[1])
-    assert status["tables"] is False and "DummyMethodTables" in status["reason"]
+    assert status["tables"] is False and "holds no character tables" in status["reason"]
     assert status["irreptables_version"] == TABLE_VERSIONS["irreptables_version"]
     assert "imported before" in status["reason"], status["reason"]
     assert "not installed" not in status["reason"], status["reason"]

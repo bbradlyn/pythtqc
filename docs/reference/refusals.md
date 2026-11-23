@@ -125,6 +125,10 @@ Returned by no public call: `realized_group` lowers the group to the subgroup th
 declared content is covariant on, each broken operation under
 `refuted_by = "declaration"`
 ([a declaration that lowers the group](../guide/orbitals.md#a-declaration-that-lowers-the-group)).
+A declaration says what the orbitals are, so hoppings that are not covariant under it
+describe a crystal with fewer operations, never a wrong declaration. Only a
+representation built on a group fixed in advance, which cannot be lowered, refuses
+instead, naming the subgroup `realized_group` descends to.
 
 #### `wyckoff_orbit`
 
@@ -158,24 +162,31 @@ left open by the centers' miss alone, with no precision declared, are refused
 - **What it means.** The operations the symmetry finder reads off the centers do not close
   into a group, and the cell could not be matched to the setting of the tables, from which
   exact operations would be rebuilt. Every check after it would be measured against a set
-  that is not a group.
+  that is not a group. The reason gives how far they are from closing: the largest miss of
+  `t_g + R_g t_h - t_gh` from a lattice vector, in reduced coordinates, where `R_g` and
+  `t_g` are the rotation and translation of operation `g`. It sets that against the most
+  a cell built from exact numbers misses by, `1e-12` times the largest row sum of any
+  `|R_g|`.
 - **Usual cause.** Sites of one species closer together than `symprec`, in a cell the
-  tables' setting search does not match.
+  tables' setting search does not match. The finder reads each operation's translation
+  off the pairs of sites the operation maps. Sites closer than `symprec` are paired
+  wrongly, so the translations read off them do not compose.
 - **What to do.** Identify at a `symprec` smaller than the distance between the sites, so
   that the finder tells them apart.
 
 #### `operations_not_nearly_consistent`
 
 Returned by `realized_group` where `operations_not_consistent` is: with no precision declared
-for the centres, or where they cannot be read as a symmetric set at all.
+for the centers, or where they cannot be read as a symmetric set at all.
 
 - **What it means.** The operations do not close, and rebuilding their translations from
   the tables' own would move one by more than `symprec`, a length in the model's units: the
-  tabulated group is not the one these centres carry at this tolerance.
-- **Usual cause.** Centres noisier than `symprec` allows for, or a `symprec` too large for
+  tabulated group is not the one these centers carry at this tolerance. Rebuilt, the
+  operations would describe a crystal the model does not have.
+- **Usual cause.** Centers noisier than `symprec` allows for, or a `symprec` too large for
   the cell, with no precision declared.
-- **What to do.** Declare the model's precision, `precision=`, which makes the centres exact
-  before the setting is read; identify again at a `symprec` the centres support; or state
+- **What to do.** Declare the model's precision, `precision=`, which makes the centers exact
+  before the setting is read; identify again at a `symprec` the centers support; or state
   what the crystal is with `typat=` or `decorations=`.
 
 #### `positions_not_nearly_symmetric`
@@ -222,8 +233,10 @@ Returned by `realized_group`.
 Returned by `realized_group`.
 
 - **What it means.** `spinor=False` was asked of a spinful model. Its states carry the
-  electron's spin ½, so their content is double-valued and there is no single-valued
-  question to put to them.
+  electron's spin one-half, so the little-group representations of its bands are
+  double-valued, and single-valued tables do not describe them. The converse,
+  `spinor=True` for a spinless model, is not this refusal: the group is identified, and
+  its representation is refused [`rep_double_valued_spinless`](#rep_double_valued_spinless).
 - **Usual cause.** `spinor=False` on a model built with spin.
 - **What to do.** Leave `spinor` at its default, which reads it off the model.
 
@@ -459,13 +472,17 @@ Returned by `realized_group`.
 
 - **What it means.** The representation's discrete choices, which the measurement does not
   fix, had to be enumerated, and there were more than `max_candidates` of them: a limit on
-  the search.
+  the search. A declaration on orbitals whose states come in identical copies is compared
+  with every representation the hoppings leave open on the copies, all at once, and that
+  comparison has the same limit.
 - **Usual cause.** A conserved operator, or accidental degeneracy, inside a multiplet of
   several orbitals with nothing declared, so the multiplet's block is fixed only up to the
-  conserved part.
+  conserved part; or a declaration on orbitals that carry such a conserved operator.
 - **What to do.** Declare what the orbitals are (`characters=`), which states what the
   search would otherwise choose among; or run the same call with a larger
-  `max_candidates=`, as in `realized_group(..., max_candidates=...)`.
+  `max_candidates=`, as in `realized_group(..., max_candidates=...)`, which runs a longer
+  search. Where the reason names a declaration being compared, declare fewer of the
+  orbitals it names, which leaves fewer representations to compare.
   `context["fallback_reason"]`, where present, says why the choices could not be read off
   the measurement, and is the thing to act on first.
 
@@ -521,10 +538,11 @@ Returned by `realized_group`, `ebr_data`, `ebr_rows`, `decompose`, `symmetry_ind
 - **What it means.** The character tables were not loaded, so no label can be read; or the
   tables carry no irrep table for this group, so its band representations cannot be carried
   into this package's convention.
-- **Usual cause.** `irreptables` not installed, or imported before `irrep` in the process,
-  which leaves `irrep` with a stand-in that labels nothing.
-- **What to do.** `tables_status()` says which: install `irreptables`, or import `pythtqc`
-  before `irreptables`.
+- **Usual cause.** `irreptables` not installed, or its module `irreptables.irreps`
+  imported before `irrep` in the process, which leaves `irrep` with a stand-in that labels
+  nothing for the rest of the process.
+- **What to do.** `tables_status()` says which: install `irreptables`, or, in a new
+  process, import `pythtqc` before `irreptables`.
 
 #### `tables_not_ready`
 
@@ -623,36 +641,51 @@ Returned by `realized_group`, `decompose`, `symmetry_indicator`, `srsi_of_bands`
 
 - **What it means.** From `realized_group`, a declaration names nothing at the orbital's
   site: a word that is not an irrep of its site group, a sum of irreps, a shell or a
-  shorthand, or an operation the site group does not hold. A declaration outside the
-  grammar of `characters=`, such as an orbital out of range or a list of the wrong length,
-  raises `ValueError` before anything is measured. From `decompose`,
-  `symmetry_indicator` and `srsi_of_bands`, the symmetry data vector holds labels that no
-  elementary band representation of the group holds. From `regular_completion`, one copy of the regular
+  shorthand, or an operation the site group does not hold. On a spinful site, a sum of
+  double-valued site irreps is refused where no sum of single-valued site irreps becomes
+  it with spin. A shorthand is refused where its function and its images under the site
+  group span more than one site irrep, counted with multiplicity. Generator characters
+  are refused where a key matches operations of more than one conjugacy class. Generator
+  matrices are refused where a key names more than one operation, where a matrix is not
+  unitary, or where the matrices do not multiply as their operations do. A declaration
+  outside the grammar of `characters=`, such as an orbital out of range or a list of the
+  wrong length, raises `ValueError` before anything is measured. From `decompose`,
+  `symmetry_indicator` and `srsi_of_bands`, the symmetry data vector holds labels that
+  no elementary band representation of the group holds. From `regular_completion`, one copy of the regular
   band representation, computed from the group's characters, holds a label that no
   elementary band representation holds.
 - **Usual cause.** A word of another site group, such as `B1` at a site of symmetry `3m`;
-  for a symmetry data vector, one labeled in another
-  group, or a mistyped label.
-- **What to do.** For a declaration, the reason prints the site group, its valid words and
-  the frame its operations are named in; declare one of them. A word the cell's group has
-  no name for is asked again on the group the Hamiltonian settles to, and refused only
-  where nothing on the way names it
-  ([saying what the orbitals are](../guide/orbitals.md#when-it-refuses)). For a symmetry
-  data vector, pass one read in this group. Met from `regular_completion`, it is the
-  package disagreeing with itself: report it, with the model and the call.
+  for generator characters or matrices, a name such as `m`, which at a `4mm` site
+  matches four mirrors in two classes; for a symmetry data vector, one labeled in
+  another group, or a mistyped label.
+- **What to do.** For a declaration, the reason prints the frame the site group's
+  operations are named in, and for an unknown word also the site group and its valid
+  words; it says what to declare. A word the cell's group has no name for is asked again
+  on the group the Hamiltonian settles to, and refused only where nothing on the way
+  names it ([saying what the orbitals are](../guide/orbitals.md#when-it-refuses)). For a
+  symmetry data vector, pass one read in this group. Met from `regular_completion`, it is
+  the package disagreeing with itself: report it, with the model and the call.
 
 #### `ambiguous_multiplet`
 
 Returned by `realized_group`.
 
-- **What it means.** A declaration does not say which orbitals hold a content: a joint
-  form whose irrep is not as wide as the orbitals it names, or a word wider than one
-  orbital written on orbitals that make no whole number of copies of it. Orbitals of two
-  sites written as one key raise `ValueError` before anything is measured.
+- **What it means.** A declaration does not say which orbitals hold a site irrep, or
+  gives generator matrices that do not stand on whole multiplets the hoppings measure. A
+  key of several orbitals names the site irreps those orbitals hold together, so the
+  orbitals its word holds are as many as the key names. The orbitals of one site
+  declared with a word wider than one orbital add up to whole copies of it; where they do
+  not, which orbitals hold it is not said. Generator matrices fix the basis of the site
+  irrep a measured multiplet carries, so they are refused on part of a multiplet, mixing
+  two multiplets, or at a site whose declarations are read as one sum over its multiplets.
+  A site's declarations are read as one sum where they do not each name one whole
+  multiplet, or where one of them is a double-valued site irrep at a site of several
+  multiplets. Orbitals of two sites written as one key raise `ValueError` before anything
+  is measured.
 - **Usual cause.** `{(0, 1): "A"}` written for two `A` orbitals, whose spelling is
   `{0: "A", 1: "A"}`; a two-dimensional irrep declared on one orbital.
 - **What to do.** The reason gives the spelling that says it, or, where the site holds too
-  few orbitals for the content, the contents that fit it.
+  few orbitals for the site irrep, the words that fit it.
 
 #### `spin_pair_split`
 
@@ -900,8 +933,13 @@ Returned by `coreps_at`.
 Returned by `realized_group`, through a declaration.
 
 - **What it means.** A site's operations are not closed under the group's product, or the
-  character table computed for the site group fails its own orthogonality check.
-- **What to do.** Report it.
+  character table computed for the site group departs from orthogonality by more than
+  `1e-6` times the site group's order. For each pair of rows, orthogonality requires the
+  sum over the site group of one row's characters times the other's conjugate to be the
+  site group's order for a row with itself and zero for two different rows. The
+  departure the reason prints is the largest amount by which such a sum misses its
+  required value. Neither leaves a table on which site irreps can be named.
+- **What to do.** Report it, with the model and the call.
 
 ### The projection, and the tables' setting
 
@@ -943,8 +981,10 @@ Two checks complete the list, and no group a call returns reaches either.
 ### `lattice_not_descended`
 
 A group whose lattice is a supergroup of the model's, as a supercell's would be, handed to
-a call that reads the tables. `realized_group` never returns one: it refuses `supercell`,
-or descends to the model's own lattice.
+a call that reads the tables. Its tables are written on the finer lattice, so every label
+read from them would name a k-point of that lattice's Brillouin zone, folded onto the
+model's. `realized_group` never returns one: it refuses `supercell`, or descends to the
+model's own lattice.
 
 ### `magnetic_type_out_of_scope`
 

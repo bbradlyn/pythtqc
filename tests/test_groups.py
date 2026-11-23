@@ -284,7 +284,7 @@ def test_tables_tripwire_refuses_on_the_dummy_fallback(monkeypatch):
 
     monkeypatch.setattr(spacegroup_irreps, "IrrepTable", DummyMethodTables("IrrepTable"))
     st = G.tables_status()
-    assert st["tables"] is False and "DummyMethodTables" in st["reason"]
+    assert st["tables"] is False and "holds no character tables" in st["reason"]
     assert "irreptables" in st["reason"]
 
     r = _spacegroup._group_of(square())
@@ -717,7 +717,7 @@ def test_magnetic_types_iii_and_iv_are_refused_at_the_constructor(monkeypatch):
     assert three.context["n_antiunitary"] == 12
     assert three.context["in_scope"] == ("I", "II")
     assert "types I and II" in three.reason
-    assert "not the corep type at a k-point" in three.reason
+    assert "P6'/mm'm #191.236 is a magnetic group of type III" in three.reason
 
     four = _spacegroup._group_of(square_two_orbitals(0.0), **AFM)
     assert not four and four.gate == "magnetic_type_out_of_scope"
@@ -4627,9 +4627,9 @@ def test_an_undecidable_spinor_frame_raises_an_internal_error_not_a_refusal():
     finally:
         _spacegroup._TABLE_SPIN_FRAMES = saved
     text = str(exc.value)
-    assert "the tables fix the spin frame completely" in text, text
+    assert "the spin frame of the tables" in text, text
     assert "#183" in text and "'standard-only'" in text, text
-    assert "_TABLE_SPIN_FRAMES" in text, text
+    assert "reproduces this group's SU(2) matrices" in text, text
     assert not isinstance(exc.value, Refusal) and isinstance(exc.value, RuntimeError)
 
     sg.symmetries[7].spinor_rotation = np.array([[0.6, 0.8], [-0.8, 0.6]], dtype=complex)
@@ -4981,7 +4981,7 @@ def test_a_shipped_lift_set_that_does_not_close_raises_an_internal_error(monkeyp
     with pytest.raises(InternalError) as exc:
         _spacegroup._canonical_spinor_signs(sg)
     text = str(exc.value)
-    assert "do not close as a lift set" in text, text
-    assert "S(g)S(h) is not ±S(gh)" in text, text
-    assert "coboundary equation" in text, text
+    assert "the SU(2) matrices of the tables do not close" in text, text
+    assert "S(g)S(h) is not plus or minus S(gh)" in text, text
+    assert "against a tolerance of" in text, text
     assert not isinstance(exc.value, Refusal) and isinstance(exc.value, RuntimeError)

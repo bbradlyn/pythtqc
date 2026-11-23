@@ -973,7 +973,7 @@ def test_several_maximal_readings_of_a_declaration_name_the_first_by_the_tie_rul
                           characters=["s", "A2"])
     assert not wide and wide.gate == "declaration_breaks_group", str(wide)
     assert wide.context["relative_character"] == "A2"
-    assert "several readings are maximal" in wide.reason
+    assert "several subgroups the declaration is covariant on are maximal" in wide.reason
     assert len(wide.context["tied"]) == 2
     assert set(wide.context["tied"][0]) <= set(wide.context["subgroup"])
     assert len(wide.context["subgroup"]) < 24
@@ -1507,9 +1507,8 @@ def test_a_joint_shorthand_of_the_wrong_dimension_suggests_a_valid_spelling():
     """
     out = tqg.realized_group(_rect_pair(), characters={(0, 1): "px"})
     assert not out and out.gate == "ambiguous_multiplet", str(out)
-    assert "the joint form names the site irreps its orbitals hold together" in out.reason
-    assert "1-dimensional against the 2 orbitals named" in out.reason
-    assert "{0: 'B1', 1: 'B1'}" in out.reason
+    assert "Write {0: 'B1', 1: 'B1'} for 2 separate B1 orbitals." in out.reason
+    assert "orbitals (0, 1): 'B1' is 1-dimensional, and the key names 2 orbitals" in out.reason
     assert tqg.realized_group(_rect_pair(), cross_check=False,
                               characters={0: "B1", 1: "B1"}), \
         "the offered spelling is one this package accepts"
@@ -1520,25 +1519,26 @@ def test_a_joint_shorthand_of_the_wrong_dimension_suggests_a_valid_spelling():
     single = tqg.realized_group(_km(), typat=[0, 1], characters={0: "E"})
     assert not single and single.gate == "ambiguous_multiplet", str(single)
     assert "{(0,)" not in single.reason, "that was never a spelling"
-    assert ("no 2-dimensional multiplet sits on it at all: name a content of one orbital "
-            "instead (A1, A2, -E1).") in single.reason
-    for word in single.reason.split("instead (")[1].split(")")[0].split(", "):
+    assert ("too few for a multiplet of 2 orbitals. Declare a word for one orbital, "
+            "such as A1, A2, -E1.") in single.reason
+    for word in single.reason.split("such as ")[1].split(".")[0].split(", "):
         assert tqg.realized_group(_km(), typat=[0, 1], cross_check=False,
                                   characters={0: word}), f"the offered {word!r} is accepted"
     # ... and -1E2E, which E becomes only beside -E1, is no content of one orbital
     lone = tqg.realized_group(_km(), typat=[0, 1], characters={0: "-1E2E"})
     assert not lone and lone.gate == "unknown_label", str(lone)
-    assert "'-1E2E' is not a site irrep times the spinor, or a sum of them." in lone.reason
+    assert ("'-1E2E' is not what any sum of the site's single-valued irreps becomes "
+            "with spin." in lone.reason)
     # ... and E in its coreps is named as written, counted in orbitals
     doublet = tqg.realized_group(_km(), typat=[0, 1], characters={0: "-1E2E + -E1"})
     assert not doublet and doublet.gate == "ambiguous_multiplet", str(doublet)
-    assert "orbital 0: '-1E2E + -E1' holds 2 orbitals, and the 1 orbital" in doublet.reason
+    assert "orbital 0: '-1E2E + -E1' holds 2 orbitals, and 1 orbital" in doublet.reason
 
     # generator matrices on part of the square's measured pair, and mixing the
     # rectangle's two multiplets
     part = tqg.realized_group(_square_pxpy(), characters={0: {"C2(z)": [[-1]]}})
     assert not part and part.gate == "ambiguous_multiplet", str(part)
-    assert "read on whole multiplets the hoppings measure" in part.reason
+    assert "The hoppings bind these orbitals as (0, 1)." in part.reason
     mixed = tqg.realized_group(_rect_pair(), characters={(0, 1): {"C2(z)": [[0, 1], [1, 0]]}})
     assert not mixed and mixed.gate == "ambiguous_multiplet", str(mixed)
     assert "mix (0,) and (1,), which the hoppings measure as separate multiplets" in mixed.reason
@@ -1551,9 +1551,9 @@ def test_a_joint_shorthand_of_the_wrong_dimension_suggests_a_valid_spelling():
         out = tqg.realized_group(flat, typat=[0, 0, 1, 1], spin="interleaved",
                                  characters=words)
         assert not out and out.gate == "ambiguous_multiplet", str(out)
-        assert ("Site 0 carries 1 Wannier function, the spin pair (0, 1), so no multiplet "
-                "of 2 Wannier functions sits on it at all: name a content of one Wannier "
-                "function instead (A1, A2, -E1).") in out.reason, out.reason
+        assert ("Site 0 holds 1 Wannier function, the spin pair (0, 1), too few for a "
+                "multiplet of 2 Wannier functions. Declare a word for one Wannier "
+                "function, such as A1, A2, -E1.") in out.reason, out.reason
         assert "{0: 'E'}" not in out.reason and "{(0, 1): 'E'}" not in out.reason
     # ... and where the site holds two, the joint form names one orbital of each:
     # one site of a square lattice carrying two spinor Wannier functions
@@ -1567,7 +1567,7 @@ def test_a_joint_shorthand_of_the_wrong_dimension_suggests_a_valid_spelling():
         one.set_hop(0.2, 1, 0, R, mode="add")
     two = tqsp.spinless_presentation(one)[0]
     pair = tqg.realized_group(two, spin="interleaved", characters={0: "E"})
-    assert not pair and "e.g. {(0, 2): 'E'}" in pair.reason, str(pair)
+    assert not pair and "as {(0, 2): 'E'}" in pair.reason, str(pair)
     assert tqg.realized_group(two, spin="interleaved", cross_check=False,
                               characters={(0, 2): "E"}), "the offered spelling is accepted"
 

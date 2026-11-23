@@ -1,22 +1,29 @@
 r"""Site irreps named by the tables of the stable real-space invariants.
 
-At a Wyckoff position the list of elementary band representations names no
-band representation at, a row of a site's character table is named by the site
-irrep the tables of the stable real-space invariants (Hwang et al., Nat.
-Commun. 17, 8564 (2026)) give the same invariants: the row and that site irrep
-induce band representations that can be deformed into one another.  The names
-are worked out once, by inducing each row and matching its invariants, and
-shipped in ``data/site_irrep_names.json``; reading them induces nothing.
+Where the list of elementary band representations has no entry at a Wyckoff
+position, a row of a site's character table is named by a site irrep of the
+tables of the stable real-space invariants (Hwang et al., Nat. Commun. 17,
+8564 (2026)).  It is the one whose band representation has the same
+invariants as the row's.  Where the row's multiplicities decompose into
+elementary band representations, every invariant is compared, and the two
+band representations can then be deformed into one another once the same
+orbitals are added to both.  Where no decomposition is found, only the
+integer-valued invariants are compared.  The names are computed once, by
+inducing each row and matching its invariants (:func:`_name_by_invariants`),
+and shipped in ``data/site_irrep_names.json``.  Reading a name induces
+nothing.
 
-A name is read at a site by carrying the site to the position's own site, the
-point the tables list first, in the tables' conventional cell.  The points of a
-position with free parameters form a line or a plane, cut into stretches by the
-more special positions on it; a site is carried, by an operation of the group,
-onto the stretch holding a reference point without crossing a more special
-position, and its operations are carried with it.  The characters of a row on
-the carried operations are what the shipped table is keyed by, so every site of
-an orbit reads one name, whichever site a model lists first, and a group with
-time reversal and the same space group without it read the same names.
+A name is read at a site by carrying the site to its position's own site: the
+position's first point in pyxtal's list, in the conventional cell used by the
+irreptables package, at a fixed generic value of its free parameters.  The
+points of a position with free parameters form a line or a plane, cut into
+stretches by the more special positions on it.  A site is carried, by an
+operation of the group, onto the stretch holding a reference point without
+crossing a more special position, and its operations are carried with it.
+The shipped table is keyed by a row's characters on the carried operations.
+So every site of an orbit reads one name, whichever site a model lists first,
+and a group with time reversal and the same space group without it read the
+same names.
 """
 
 from __future__ import annotations
@@ -51,7 +58,11 @@ _PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data",
 
 @lru_cache(maxsize=None)
 def _document():
-    """The shipped table of names, read once; ``None`` where it is missing or unreadable."""
+    """The shipped table of names, read once.
+
+    Returns the contents of ``data/site_irrep_names.json``, or ``None`` where
+    the file is missing or unreadable.
+    """
     try:
         with open(_PATH, encoding="utf-8") as handle:
             return json.load(handle)
@@ -61,13 +72,14 @@ def _document():
 
 @lru_cache(maxsize=None)
 def _operations(sg: int) -> tuple:
-    """``((R, t), ...)``: the space group's operations in the tables' conventional cell.
+    """The operations of space group ``sg`` in the tables' conventional cell.
 
-    The tables' own list of the space group's operations, each rotation an
-    integer matrix and each translation snapped to a small-denominator
-    rational, times every centering vector of ``pyxtal``'s list in the tables'
-    setting.  A property of the space group alone, read alike for a group with
-    time reversal and without.
+    They are the operations the irreptables package lists for the space group,
+    each times every centering vector of pyxtal's list in the same setting.
+    Each rotation is an integer matrix, and each translation is snapped to a
+    rational of small denominator.  They depend on the space group alone, and
+    so are the same for a group with time reversal and without.  Returns
+    ``((R, t), ...)``.
     """
     table = _spacegroup._irrep_table(str(int(sg)), False, False)
     _positions, centering = _spacegroup._pyxtal_wyckoff(int(sg))
@@ -82,7 +94,14 @@ def _operations(sg: int) -> tuple:
 
 @lru_cache(maxsize=None)
 def _first_arm(sg: int, letter: str):
-    """``(A0, b0, P0)`` of the first arm of a position in the tables' setting, or ``None``."""
+    """The first arm of position ``letter`` of space group ``sg``.
+
+    The arm is ``(A0, b0, P0)`` in the tables' setting: the points of the
+    position are ``A0 p + b0`` for its free parameters ``p``, and ``P0``
+    projects onto the directions off them
+    (:func:`.._spacegroup._pyxtal_wyckoff`).  Returns ``None`` where ``sg`` has
+    no position ``letter``.
+    """
     positions, _centering = _spacegroup._pyxtal_wyckoff(int(sg))
     for position in positions:
         if position["letter"] == str(letter):
@@ -100,11 +119,14 @@ def _fixed_by(ops, point) -> int:
 
 
 def _path_clear(z, p0, ops) -> bool:
-    """Whether the segment from ``z`` to ``p0`` meets no point fixed by more than its own fixers.
+    """Whether the segment from ``z`` to ``p0`` meets no more special position.
 
-    For each operation :math:`(R, t)` the points of the segment it fixes are
-    those where :math:`(R - 1) z(s) + t` is an integer vector; an operation that
-    fixes the whole segment is one of the variety's own fixers.
+    ``ops`` are the operations ``(R, t)`` of :func:`_operations`, and the
+    segment's points are ``z(s) = z + s (p0 - z)`` for ``0 <= s <= 1``.  An
+    operation fixes ``z(s)`` where :math:`(R - 1) z(s) + t` is an integer
+    vector.  One for which that vector does not vary along the segment fixes
+    all of it or none of it, and is passed over.  Returns ``False`` where
+    another operation fixes a point of the segment, its ends included.
     """
     one = np.eye(3)
     for R, t in ops:
@@ -125,11 +147,16 @@ def _path_clear(z, p0, ops) -> bool:
 
 
 def _carrier(ops, arm, p0, x, tol):
-    """The index in ``ops`` of the first operation carrying ``x`` onto ``p0``'s stretch, or ``None``.
+    """The first operation carrying ``x`` onto the stretch of ``p0``.
 
-    The image :math:`R x + t + n`, ``n`` a lattice vector, has to lie within
-    ``tol`` of the arm's variety; it is placed on the variety, and the segment
-    from it to ``p0`` must cross no more special position.
+    ``ops`` are the operations of :func:`_operations`, ``arm`` the position's
+    first arm (:func:`_first_arm`), ``p0`` a reference point on it and ``x`` a
+    point, all in the tables' conventional cell.  An operation carries ``x``
+    there where an image :math:`R x + t + n`, ``n`` a lattice vector of
+    :data:`_NEAR`, lies within ``tol`` of the arm's points, and the segment
+    from it, placed on them, to ``p0`` crosses no more special position
+    (:func:`_path_clear`).  Returns the operation's index in ``ops``, or
+    ``None`` where none carries ``x`` there.
     """
     _A0, b0, P0 = arm
     for k, (R, t) in enumerate(ops):
@@ -144,11 +171,14 @@ def _carrier(ops, arm, p0, x, tol):
 
 @lru_cache(maxsize=None)
 def _stretch_parameters(sg: int, letter: str) -> tuple:
-    """The parameters, among :data:`_CANDIDATES`, of each stretch's reference point, in order.
+    """The parameters of the reference point of each stretch of a position.
 
-    A candidate is kept when it places a point of the position itself, fixed
-    by as many operations as the generic point is, that no operation carries
-    onto a stretch already kept.
+    The position is ``letter`` of space group ``sg``, and the parameters are
+    tried in the order of :data:`_CANDIDATES`.  A candidate is kept where its
+    point is fixed by as many operations as the generic point is, and no
+    operation carries it onto a stretch already kept (:func:`_carrier`).
+    Returns the parameters kept, in order, or ``()`` where ``sg`` has no
+    position ``letter``.
     """
     arm = _first_arm(int(sg), str(letter))
     if arm is None:
@@ -170,9 +200,12 @@ def _stretch_parameters(sg: int, letter: str) -> tuple:
 
 @lru_cache(maxsize=None)
 def _stretches(sg: int, letter: str) -> tuple:
-    """The reference point of each stretch of a position, in the tables' conventional cell.
+    """The reference point of each stretch of a position, in the tables' cell.
 
-    Stretch ``0``'s is the position's own site.
+    The position is ``letter`` of space group ``sg``.  Stretch ``0``'s point is
+    the position's own site.  Returns the points in the order of
+    :func:`_stretch_parameters`, or ``()`` where ``sg`` has no position
+    ``letter``.
     """
     arm = _first_arm(int(sg), str(letter))
     if arm is None:
@@ -184,7 +217,15 @@ def _stretches(sg: int, letter: str) -> tuple:
 
 @lru_cache(maxsize=4096)
 def _carry(sg: int, letter: str, x_ref: tuple):
-    """``(stretch, k)``: the stretch a point of the tables' cell lies in, and the carrying operation."""
+    """The stretch a site lies in, and the operation carrying it there.
+
+    ``x_ref`` is a site of position ``letter`` of space group ``sg``, in the
+    tables' conventional cell.  It is carried within ``WYCKOFF_REFERENCE_TOL``
+    of the position's points (:func:`_carrier`), the stretches tried in order.
+    Returns ``(stretch, k)``, ``k`` the operation's index in
+    :func:`_operations`, or ``None`` where ``sg`` has no position ``letter`` or
+    nothing carries the site onto a stretch.
+    """
     arm = _first_arm(int(sg), str(letter))
     if arm is None:
         return None
@@ -198,19 +239,23 @@ def _carry(sg: int, letter: str, x_ref: tuple):
 
 
 def carry_to_own_site(group, letter, position, indices):
-    r"""``(stretch, carried)``: a site carried to its position's own site in the tables' cell.
+    r"""A site carried to its position's own site, with its operations.
 
-    ``group`` is the group a site was measured in, ``letter`` the site's
+    ``group`` is the group the site was measured in, ``letter`` the site's
     Wyckoff letter in the tables' setting, ``position`` the site in reduced
     coordinates of the model's cell, and ``indices`` the ``.ind`` of operations
-    fixing it, unitary and antiunitary.  Returned: the stretch of the position
-    the site lies in, and ``carried[k]``, the ``.ind`` of the operation
-    :math:`g h_k g^{-1}` fixing that stretch's reference point, :math:`g` the
-    carrying operation.  An operation is found by its rotation and whether it
-    is antiunitary, which name one operation of a site group.  ``None`` where
-    the group has no transformation to the tables' cell, the letter is not one
-    of the group's positions, or the site reaches no stretch.  Reads no table of
-    names and needs no tables of the invariants.
+    fixing it, unitary and antiunitary.  An operation :math:`g` of the space
+    group, in the tables' cell, carries the site onto a stretch of its position
+    (:func:`_carry`).  Each operation :math:`h_k` of ``indices`` is carried to
+    :math:`g h_k g^{-1}`, which fixes that stretch's reference point.  It is
+    found among the operations of ``group`` by its rotation and whether it is
+    antiunitary, which name one operation of a site group, and where several
+    match, by which fixes the reference point most nearly.  Returns
+    ``(stretch, carried)``, ``carried[k]`` the ``.ind`` :math:`h_k` is carried
+    to.  Returns ``None`` where the tables are not set up for ``group``, the
+    letter is not one of its positions, the site reaches no stretch, or an
+    operation has no image.  Reads no table of names and needs no tables of
+    the invariants.
     """
     if not getattr(group, "_tables_ready", False):
         return None
@@ -251,13 +296,15 @@ def carry_to_own_site(group, letter, position, indices):
 
 
 def _keyed_rows(group, table, carried):
-    r"""``(rotations, rows)``: a site table's rows as the shipped table keys them.
+    r"""A site table's rows as the shipped table keys them.
 
-    ``carried`` is aligned with ``table.indices``.  ``rotations`` are the
-    carried unitary operations' rotations in the tables' cell,
+    ``table`` is a site table of ``group``, and ``carried`` the ``.ind`` each
+    of ``table.indices`` is carried to (:func:`carry_to_own_site`).  The key
+    is the carried unitary operations' rotations in the tables' cell,
     :math:`\mathrm{refUC}^{-1} R\,\mathrm{refUC}`, each as its nine integers,
-    sorted; ``rows[r]`` is row ``r``'s characters on them in that order, as
-    integers, or ``None`` for a row with a character that is not a real integer.
+    sorted.  Returns ``(rotations, rows)``, ``rows[r]`` row ``r``'s characters
+    on those rotations in that order as integers, or ``None`` for a row with a
+    character that is not a real integer.
     """
     refUC = np.asarray(group._refUC, dtype=float)
     inv = np.linalg.inv(refUC)
@@ -282,16 +329,19 @@ def _keyed_rows(group, table, carried):
 
 
 def table_names(group, assignment, site, table) -> tuple:
-    """The shipped table's name of every row of one site's table, ``""`` where it has none.
+    """The shipped table's name of every row of one site's table.
 
-    Read at the site by its own carrying to the position's own site, never at
-    another site of its orbit.  Every name is ``""`` where the table of names
-    is missing, holds no entry at the group's space group and the site's
-    letter, the group has no transformation to the tables' cell, the site
-    reaches no stretch, or its carried operations are not those the entry is
-    written on; a row with a character that is not a real integer, a member of
-    a pair time reversal does not join, has none, and so has a row two site
-    irreps tie at.
+    ``site`` is a site of ``assignment``, the orbitals' assignment to
+    ``group``, and ``table`` its site table.  The names are read at the site
+    itself, carried to its position's own site (:func:`carry_to_own_site`),
+    never at another site of its orbit.  Returns one name per row, ``""`` for a
+    row the entry does not name, such as a row two site irreps tie at, or a
+    row with a character that is not a real integer (a member of a pair time
+    reversal does not join).  Every name is ``""`` where the table of
+    names is missing or holds no entry at the group's space group and the
+    site's letter, the site has no letter, the site is not carried onto a
+    stretch the entry lists (:func:`carry_to_own_site`), or its carried
+    operations are not those the entry is written on.
     """
     blank = ("",) * len(table.labels)
     document = _document()
@@ -319,7 +369,10 @@ def table_names(group, assignment, site, table) -> tuple:
 
 
 def _holds(group, letter) -> bool:
-    """Whether the shipped table has an entry at the group's space group and ``letter``."""
+    """Whether the shipped table of names has an entry for a position.
+
+    The position is ``letter`` of the space group of ``group``.
+    """
     document = _document()
     if document is None or not letter:
         return False
@@ -327,27 +380,32 @@ def _holds(group, letter) -> bool:
 
 
 def _name_by_invariants(group, assignment, site, table, row, *, context=None) -> tuple:
-    r"""The site irreps at a site's position with the invariants of one row's band representation.
+    r"""The site irreps with the invariants of one row's band representation.
 
-    The row is induced to every high-symmetry point the tables list; the
-    multiplicities found are decomposed into elementary band representations at
-    every listed position on the closure of the site's, and each
-    decomposition's stable real-space invariants are read; the integer-valued
-    ones are also read by the rational route, from the Smith form, and the two
-    must agree.  They are compared with the invariants of each single site
+    ``row`` indexes ``table``, the site table of ``site``, a site of
+    ``assignment``, the orbitals' assignment to ``group``.  The row, times the
+    spin-1/2 lift on a spinful group, is induced to every high-symmetry point
+    the tables list.  Its multiplicities are decomposed into elementary band
+    representations at every listed position on the closure of the site's,
+    and the stable real-space invariants of each decomposition are read.  The
+    integer-valued ones are also read off the rational solution through the
+    Smith form.  They are compared with the invariants of each single site
     irrep the tables of the invariants hold at the site's letter with the
-    row's number of bands.  Returned: the names that match, sorted; one name
-    is the row's, two or more a tie, none a row no single site irrep matches.
-    ``context`` is a mapping kept across calls on one group and assignment.
-    Never called while a model is measured; the table of names is made with it,
-    and its test reads it.
+    row's number of bands.  Where no decomposition is found, only the
+    integer-valued invariants are compared.  ``context`` is a mapping kept
+    across calls on one group and assignment, holding what they share.
+    Returns the names that match, sorted, in the paper's spelling: one name is
+    the row's, two or more a tie, none a row no single site irrep matches.
+    The shipped table of names is made with it, and no measurement of a model
+    calls it.
 
     Raises
     ------
     ..refusal.InternalError
-        The tables of the invariants or the list of elementary band
-        representations are not read for the group, or the decompositions
-        disagree on the invariants.
+        The tables of the invariants, the list of elementary band
+        representations, or the sites or points in the tables' setting are not
+        read for the group, or the decompositions and the Smith form disagree
+        on the invariants.
     """
     from fractions import Fraction
 
@@ -366,8 +424,8 @@ def _name_by_invariants(group, assignment, site, table, row, *, context=None) ->
     for part in (tables, data, sites, points):
         if isinstance(part, Refusal):
             raise InternalError(
-                f"#{group.number_str}: the tables a site irrep is named from are not "
-                f"read ({part.gate}: {part.reason})")
+                f"{group.name} #{group.number_str}: a table a site irrep is named from "
+                f"is refused, {part.gate}: {part.reason}")
     here = sites[int(site)]
     letter = here.letter
     lift = None
@@ -411,10 +469,9 @@ def _name_by_invariants(group, assignment, site, table, row, *, context=None) ->
     z_rational = tuple(tables._theta_columns(_rational_p(u, v, d, y)).theta_Z.values())
     if len(found) > 1 or any(z != z_rational for z, _zn in found):
         raise InternalError(
-            f"#{group.number_str}: the band representation a row of the site table at "
-            f"{letter} induces has invariants {sorted(found)} by its decompositions and "
-            f"integer-valued invariants {z_rational} by the Smith form; the readings of "
-            "one band representation have to agree")
+            f"{group.name} #{group.number_str}: the band representation a site irrep at "
+            f"{letter} induces has the invariants {sorted(found)} by its decompositions, "
+            f"and the integer-valued invariants {z_rational} by the Smith form. Report it.")
     target = next(iter(found)) if found else None
     form = tables._band_count_form
     out = []

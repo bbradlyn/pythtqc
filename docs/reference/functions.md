@@ -384,7 +384,7 @@ It is a trusted model to hold a real import against.
 - [`wyckoff_sites_tables`](#wyckoff_sites_tables) — The Wyckoff position of each site in the tables' setting, the one every table is read with.
 - [`k_grid`](#k_grid) — A Γ-centred mesh that respects the group, with the high-symmetry points it holds.
 - [`ebr_data`](#ebr_data) — Every elementary band representation of the group: the bands each site irrep at each Wyckoff position induces.
-- [`tables_status`](#tables_status) — Whether irrep's character tables are in place, and `ortools` installed.
+- [`tables_status`](#tables_status) — The state of `irrep`'s character tables and of `ortools`.
 
 ### `high_symmetry_points`
 
@@ -632,20 +632,25 @@ A refusal handed in as `group` is returned as it is.
 tables_status()
 ```
 
-Whether irrep's character tables are in place, and `ortools` installed.
+The state of `irrep`'s character tables and of `ortools`.
 
-Without the `irreptables` package, or with it imported before `irrep`
-in the same process, `irrep` binds a stand-in that raises nothing and
-names no label, and every call that reads the tables refuses
-`irrep_tables`.
+The tables are loaded where the package `irreptables` is installed and
+its module `irreptables.irreps` is not imported before `irrep` in the
+same process.  Otherwise the tables are empty.  Every call that reads them
+then refuses `irrep_tables`.
 
 **Returns**
 
-- `dict`: `tables`: whether the real tables are in place, and `reason`, where
-  they are not, which of the two causes it is and what to do;
-  `ortools`: whether the integer solver a decomposition needs is
-  installed; `irrep_version` and `irreptables_version`: the versions
-  installed, `None` where a package is absent.
+- `dict`: Five keys.
+
+  * `"tables"`: whether the tables are loaded.
+  * `"reason"`: where the tables are not loaded, which cause it is
+    and what to do.  It is `None` where they are loaded.
+  * `"ortools"`: whether `ortools`, the integer solver
+    `decompose` needs, can be used.  It is `True` only where the
+    tables are loaded and `ortools` is installed.
+  * `"irrep_version"` and `"irreptables_version"`: the versions
+    installed, `None` where a package is absent.
 
 ## Labeling the bands
 

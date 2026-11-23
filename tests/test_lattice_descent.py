@@ -706,9 +706,8 @@ _TABLE_CONSUMERS = {
 def test_every_table_consumer_refuses_a_lattice_supergroup():
     """One gate, ``lattice_not_descended``, wherever a table would be read.
 
-    The refusal names ``τ``, says the tables live on the finer lattice and would
-    label a folded zone, and points at ``realized_group`` (which measures the
-    Hamiltonian), at reducing the cell, and at ``typat=``.  Asked of the
+    The refusal names ``τ`` and the index of the model's lattice in the
+    group's, and points at ``realized_group``.  Asked of the
     ``2x1`` square supercell's lattice supergroup, whose ``τ = (½,0,0)`` is the
     ``2x1x1`` chain's.
     """
@@ -721,8 +720,8 @@ def test_every_table_consumer_refuses_a_lattice_supergroup():
         assert r.gate == "lattice_not_descended", name
         assert r.value == 2.0 and r.threshold == 1.0, name
         assert "[0.5, 0.0, 0.0]" in r.reason, name
-        assert "folded zone" in r.reason, name
-        assert "realized_group" in r.reason and "typat" in r.reason, name
+        assert "sublattice of index 2" in r.reason, name
+        assert "realized_group" in r.reason, name
         assert r.context["lattice_index"] == 2, name
         assert r.context["translations"] == ((0.5, 0.0, 0.0),), name
 

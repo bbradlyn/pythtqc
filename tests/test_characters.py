@@ -456,17 +456,18 @@ def test_unknown_label_names_the_site_group_and_prints_the_frame(lin3g_undeclare
                       ({"0": "s"}, "a str"),
                       ({(): "s"}, "names no orbital"),
                       ({0: 5}, "given the int 5"),
-                      ({0: None}, "leaves out an orbital"),
+                      ({0: None}, "leave the orbital out"),
                       ({0: {}}, "empty mapping"),
-                      ({0: {"C4(z)": "minus"}}, "a character is a finite number"),
-                      ({(0, 1): {"C4(z)": [[1.0]]}}, "a matrix on 2 orbitals is 2x2"),
+                      ({0: {"C4(z)": "minus"}}, "give it a finite number"),
+                      ({(0, 1): {"C4(z)": [[1.0]]}}, "on 2 orbitals; give a 2x2 matrix"),
                       ({(0, 1): {"C4(z)": [[1, 0], [0, 1]], "m(x)": 1}},
-                       "gives every operation a character or every operation a matrix"),
-                      ({0: {1.5: 1}}, "named by its index or its name"),
+                       "give every operation a character, or every operation a matrix"),
+                      ({0: {1.5: 1}}, "by its index or its name"),
                       (["s", "s", "s", 5], "entry 3 is given the int 5")):
         with pytest.raises(ValueError, match=re.escape(says)) as raised:
             rebuild(lin3g_undeclared, characters=bad)
-        assert str(raised.value).startswith("`characters=` is a list with one entry per orbital")
+        assert str(raised.value).startswith(
+            "realized_group(): `characters=` is a list with one entry per orbital")
 
     def measured(*args, **kwargs):
         raise AssertionError("the declaration's grammar is read before any group")
@@ -497,7 +498,7 @@ def test_unknown_label_names_the_site_group_and_prints_the_frame(lin3g_undeclare
     # generator matrices the site group cannot read: a fourfold whose fourth
     # power is not one, a matrix that is not unitary, and a key naming four mirrors
     for matrices, says in (({"C4(z)": [[np.exp(0.25j * np.pi)]]},
-                            "no representation of this site group"),
+                            "not a representation of this site group"),
                            ({"C4(z)": [[2.0]]}, "is not unitary"),
                            ({"m": [[1.0]]}, "names 4 operations of this site group")):
         refused = rebuild(lin3g_undeclared, characters={0: matrices})
@@ -586,7 +587,7 @@ def test_the_flat_list_refuses_when_it_cannot_group_a_multiplet(lin3g_undeclared
     """
     out = rebuild(lin3g_undeclared, characters=["E", None, None, None])
     assert not out and out.gate == "ambiguous_multiplet"
-    assert "mapping form" in out.reason and "2-dimensional" in out.reason
+    assert "in one key" in out.reason and "2-dimensional" in out.reason
     assert out.context["dim"] == 2 and out.context["orbitals"] == (0,)
 
     with pytest.raises(ValueError, match=re.escape("the key (0, 2) names orbitals of "
@@ -683,7 +684,7 @@ def test_p4232_declares_a_two_dimensional_multiplet_jointly(p4232_decorated):
         "the joint form names the content its orbitals hold together, and a "
         "one-dimensional irrep is not what two orbitals hold -- grammar about "
         "the declaration, never a measurement about the model")
-    assert "{0: 'A', 1: 'A'} is the spelling" in wrong.reason
+    assert "Write {0: 'A', 1: 'A'} for" in wrong.reason
     assert wrong.context["dim"] == 1 and wrong.context["orbitals"] == (0, 1)
 
 
@@ -707,7 +708,7 @@ def test_p4232_refuses_an_irrep_of_the_wrong_dimension_as_grammar(p4232_decorate
 
     out = rebuild(p4232_decorated, n_battery=4, characters={(0, 1): "T"})
     assert not out and out.gate == "ambiguous_multiplet"
-    assert "3-dimensional against the 2 orbitals named" in out.reason
+    assert "3-dimensional, and the key names 2 orbitals" in out.reason
     assert out.context["dim"] == 3 and out.context["orbitals"] == (0, 1)
 
     # And the same physics one level down: with the layout STATED to be one

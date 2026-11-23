@@ -1553,7 +1553,7 @@ def test_a_pair_given_two_different_characters_is_a_grammar_error(km_flat, monke
         with pytest.raises(ValueError, match="spin pair 0") as raised:
             _build._build_rep(flat, group, assignment, validated=validated, spin=basis,
                            characters=characters)
-        assert "one Wannier function" in str(raised.value)
+        assert "give both the same value" in str(raised.value)
         assert "'s' and 'pz'" in str(raised.value) and "Orbitals 0 and 1" in str(raised.value)
     # ... and the two spellings that are not a contradiction still build
     assert _build._build_rep(flat, group, assignment, validated=validated, spin=basis,

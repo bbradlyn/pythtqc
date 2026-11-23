@@ -1777,7 +1777,7 @@ def test_a_spinful_model_cannot_be_asked_for_single_valued_tables():
         out = _spacegroup._group_of(model, spinor=False, include_TR=include_TR)
         assert isinstance(out, Refusal) and not out, str(out)
         assert out.gate == "single_valued_spinful"
-        assert "no single-valued question to put to it" in out.reason
+        assert "Leave spinor= out" in out.reason
         assert out.context["nspin"] == 2 and out.context["spinor"] is False
 
     # the second enforcement point, reached without the constructor's help

@@ -823,6 +823,6 @@ def test_a_table_that_cannot_be_matched_to_the_cell_is_an_internal_error(
     with pytest.raises(InternalError) as exc:
         _spacegroup._exact_operations(group._sg, 1e-5, True, group._lattice)
     text = str(exc.value)
-    assert "no operation-by-operation matching" in text, text
-    assert "not about the model" in text, text
+    assert "distinct rotations" in text, text
+    assert "Report it, with the model and the call" in text, text
     assert isinstance(exc.value, RuntimeError) and not isinstance(exc.value, Refusal)

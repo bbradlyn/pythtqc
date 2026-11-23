@@ -582,8 +582,8 @@ def test_pxpy_declares_its_two_dimensional_multiplet_jointly(pxpy_bare):
     # of them, and nothing about the model is consulted to say it.
     as_s = rebuild({(0, 1): "s"})
     assert not as_s and as_s.gate == "ambiguous_multiplet"
-    assert "the joint form names the site irreps its orbitals hold together" in as_s.reason
-    assert "1-dimensional against the 2 orbitals named" in as_s.reason
+    assert "orbitals (0, 1): " in as_s.reason and "Write {0: " in as_s.reason
+    assert "1-dimensional, and the key names 2 orbitals" in as_s.reason
     assert as_s.context["orbitals"] == (0, 1) and as_s.context["dim"] == 1
 
     # ``E'`` at one site of the orbit and ``E''`` at the other: no labelling of
@@ -3028,11 +3028,11 @@ def test_a_stated_layout_that_is_not_a_partition_is_a_grammar_error(monkeypatch)
     assert assignment.site_orbitals == ((0, 1), (2, 3))
     validated = _measure._validate_group(model, group)
 
-    malformed = (([[(0, 1)]], "partitions every orbital"),
+    malformed = (([[(0, 1)]], "no multiplet holds orbitals (2, 3)"),
                  ([[(0,)], [(1, 2, 3)]], "spreads over sites"),
-                 ([[(0, 1)], [(2, 2)]], "partitions every orbital"),
+                 ([[(0, 1)], [(2, 2)]], "orbital 2 is named twice"),
                  ([[(0, 1)], [(2, 7)]], "out of range"),
-                 ([[(0, 1)], [()], [(2, 3)]], "no empty multiplet"),
+                 ([[(0, 1)], [()], [(2, 3)]], "holds an empty multiplet"),
                  ([(0, 1), (2, 3)], "one list per site, [[(0, 1)], [(2, 3)]] states"),
                  ("nonsense", "given the str 'nonsense'"),
                  ([[(0, 1)], [(2, 3.0)]], "by the float 3.0"),

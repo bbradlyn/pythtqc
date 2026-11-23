@@ -914,8 +914,8 @@ def test_srsi_tables_takes_a_number_or_a_group_and_serves_the_same_table(
     assert [sg211.moduli[name] for name in sg211.invariants] == [None] * 7 + [2] * 3
     # a lookup that needs a cell does not take that group, and srsi_tables does
     # not take what realized_group returns
-    with pytest.raises(TypeError, match=r"^operations\(\): the tables of a space-group "
-                                        "number hold no cell; pass r.group"):
+    with pytest.raises(TypeError, match=r"^operations\(\): the group passed is read from a "
+                                        "space-group number and has no cell; pass r.group"):
         tqg.operations(sg211.group)
     with pytest.raises(TypeError, match=r"^srsi_tables\(\): got what realized_group "
                                         r"returns; pass its group, r.group\.$"):

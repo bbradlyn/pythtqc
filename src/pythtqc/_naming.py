@@ -1,9 +1,13 @@
-"""Site irreps named off the tables: each row of a measured site-group character
-table by the elementary band representation it induces from the site's Wyckoff
-position; where the list of elementary band representations has no entry
-there, by the site irrep the tables of the stable real-space invariants give
-the same invariants; otherwise by the name the tables' origins give its point
-group; and the site tables a declaration is read on, the rows named that way.
+"""Names of site irreps, read off the tables.
+
+Each row of a measured site group's character table is named by the
+elementary band representation it induces from the site's Wyckoff position.
+Where the list of elementary band representations has no entry there, a
+single-valued row takes the name of the site irrep that the tables of the
+stable real-space invariants give the same invariants. Otherwise a row takes
+the name the tables give that irrep of the site point group, read at the
+origin of a symmorphic group. Failing that, a single-valued row keeps its
+Mulliken symbol. The site tables a declaration is read on carry these names.
 """
 
 from __future__ import annotations
@@ -27,25 +31,20 @@ from ._matrices import _primed_partners
 
 
 def _site_tables(group, assignment, kept_u, kept_au, sites):
-    """``{site: SiteGroupTable}`` for the measured site groups of ``sites``.
+    """The named table of the measured site group of each of ``sites``.
 
-    Sites that share a site group (every site of one orbit does, up to
-    conjugation, and symmetry-equivalent sites often literally do) share one
-    computed table.  Each row is then named by the band representation it
-    induces (:func:`.._naming._site_irrep_labels`), which is a statement about the
-    site's Wyckoff position as well as about its group, so two sites share a
-    table only when they share both.  At a position whose names are read from
-    the tables of the stable real-space invariants, two sites share a table only
-    where they also lie in one stretch of the position and their carrying to
-    the position's own site acts alike on their operations
-    (:func:`.._site_names.carry_to_own_site`), so that no site takes another's
-    names by the order the sites are listed in.
-
-    A row is named in the valuedness the model's own states carry: a spinless
-    model's site irreps are the single-valued ones the EBR entries at that
-    position are keyed by, and a spinful model's are the double-valued site
-    coreps the group's own double-valued entries are keyed by
-    (:func:`.._naming._site_corep_labels`).
+    ``assignment`` is the orbitals' assignment to ``group``, and ``kept_u`` and
+    ``kept_au`` are the ``.ind`` of the unitary and antiunitary operations kept.
+    A site's group is the operations of ``assignment.site_group`` among them.
+    Each table is computed by :func:`_site_group_table` and named by
+    :func:`_named_from_tables`: under single-valued site irreps, or, on a group
+    with double-valued tables, under the double-valued site irreps the states
+    carry.  Sites with the same operations and the same Wyckoff letter share one
+    table.  Where the shipped table of site-irrep names holds the letter, the
+    sites must also lie in one stretch of the position and have their
+    operations carried onto the same ones at the position's own site
+    (:func:`.._site_names.carry_to_own_site`).  Returns a mapping from each site
+    to its :class:`.._sitechars.SiteGroupTable`.
     """
     letters = tuple(getattr(assignment, "wyckoff_tables", ()) or ())
     out, cache = {}, {}
@@ -66,20 +65,19 @@ def _site_tables(group, assignment, kept_u, kept_au, sites):
 
 
 def _site_group_table(group, indices, antiunitary=()):
-    """A site group's character table, each row under the tables' name for that irrep.
+    """A site group's character table, each row under its point-group name.
 
-    :func:`.._sitechars.site_group_table` computes the table, and each row is
-    named by one rule.  The tables' name for that irrep of the site's point
-    group, read at the origin of a symmorphic group
-    (:func:`.._naming._point_group_irreps`), comes first, so that one irrep has one
-    name at every site of a model (``named_by = "point group"``).  Where those
-    names leave the row open, because they follow an orientation no table fixes
-    at this site, the row keeps the name its Mulliken symbol gives it
-    (``"Mulliken"``), where that is a name rather than a placeholder
-    (:func:`.._sitechars.is_placeholder`).  A row neither names is unnamed.
-    These are the names a row keeps where neither the elementary band
-    representations at its position nor the tables of the stable real-space
-    invariants name it (:func:`_named_from_tables`).
+    ``indices`` are the ``.ind`` of the site group's unitary operations in
+    ``group``, and ``antiunitary`` those of its antiunitary ones, under which a
+    complex-conjugate pair of rows is merged.  The table is computed by
+    :func:`.._sitechars.site_group_table`.  A row takes the name the tables give
+    that irrep of the site point group, read at the origin of a symmorphic group
+    (:func:`_point_group_irreps`), so that one irrep has one name at every site
+    (``named_by = "point group"``).  Where those names leave the row open, it
+    keeps its Mulliken symbol (``"Mulliken"``), unless that is a placeholder
+    (:func:`.._sitechars.is_placeholder`) or another row's name.  A row neither
+    names is left with an empty label (``"unnamed"``).  Returns the table with
+    ``labels`` and ``named_by`` set.
     """
 
     table = _sitechars.site_group_table(group, indices, antiunitary=antiunitary)
@@ -100,16 +98,22 @@ def _site_group_table(group, indices, antiunitary=()):
 
 
 class _SiteTableOf:
-    """The character table of one site's group inside a subgroup, built once per subgroup.
+    """One site's character table within any subgroup, built once per subgroup.
 
-    What part of a site's content is read against on a smaller group
-    (:func:`.._declaration._covariant_subgroup`): a containment is a decomposition on the site
-    group the subgroup leaves, which needs only its characters.  A content
-    written in the site coreps is compared as coreps, and that needs the rows
-    named as the coreps the states carry (:func:`_site_tables`), the
-    antiunitary operations the subgroup keeps at the site gluing their
-    complex pairs.  Called with the ``.ind`` of the site group's unitary
-    operations inside the subgroup; ``None`` where they carry no table.
+    ``site`` is a site of ``assignment``, the orbitals' assignment to ``group``.
+    Called with the ``.ind`` of a subgroup's unitary operations, it returns the
+    table of the site group's operations among them, or ``None`` where they do
+    not close into a group.  With ``corep=False`` the table is a plain character
+    table under point-group names (:func:`_site_group_table`), which is all a
+    decomposition reads.  With ``corep=True``, for a declaration written in the
+    names of double-valued site irreps, the table is named as
+    :func:`_site_tables` names it, with the antiunitary partner of each kept
+    operation merging complex-conjugate pairs.
+
+    See Also
+    --------
+    .._declaration._covariant_subgroup : the largest subgroup that carries a
+        declaration, which reads a site's multiplicities on these tables.
     """
 
     def __init__(self, group, assignment, site, *, corep=False):
@@ -136,49 +140,40 @@ class _SiteTableOf:
 
 
 def _named_from_tables(group, assignment, site, table):
-    """``table`` with the rows the EBR entries at the site's position name.
+    """``table`` with each of its rows named off the tables at ``site``.
 
-    A row the tables reach is named by the band representation it induces: the
-    entry at the site's own Wyckoff position whose content it reproduces
-    (``named_by = "tables"``).  A single-valued row at a position the list of
-    elementary band representations has no entry at takes the name of the
-    site irrep the tables of the stable real-space invariants give the same
-    invariants, read at this site by its own carrying to the position's own
-    site (``named_by = "invariants"``, :mod:`.._site_names`).  A row neither
-    names keeps the site point group's own name, ``named_by = "point group"``:
-    the tables' own name for that irrep of the point group, read at the origin
-    of a symmorphic group, single-valued for a spinless row
-    (:func:`.._naming._point_group_irreps`) and double-valued for a spinful one
-    (:func:`.._naming._point_group_names`).  A
-    spinless row those names leave open keeps its Mulliken symbol, ``named_by =
-    "Mulliken"``, where that is a name (:func:`_site_group_table`).  A row
-    nothing names is left **empty**, ``named_by = "unnamed"``, and its generator
-    characters are the whole statement: naming is a reading of the tables and
-    never a condition for a build.
-
-    Where the states carry spin the returned name is the double-valued site
-    corep, and the row's **orbital** factor — single-valued, and what a
-    declaration states — is named at the same position by the same group's
-    single-valued entries, or where those have none by the tables of the
-    stable real-space invariants, as a spinless row is
-    (:attr:`.._sitechars.SiteGroupTable.declarable`).  Both come off the
-    tables; the second is never returned.
+    ``table`` is the site group's table from :func:`_site_group_table`, and
+    ``site`` a site of ``assignment``, the orbitals' assignment to ``group``.  A
+    single-valued row is named by :func:`_site_irrep_labels`: by the EBR entry
+    at the site's Wyckoff position whose band representation it induces
+    (``named_by = "tables"``), else by the tables of the stable real-space
+    invariants (``"invariants"``), else by the name it has (``"point group"``,
+    ``"Mulliken"``, or ``"unnamed"`` with an empty label).  On a group with
+    double-valued tables a row is named by :func:`_site_corep_labels` as the
+    double-valued representation the states carry, a site irrep or a sum of
+    them, which is the row times the operations' spin-1/2 lift.  Its orbital
+    factor's single-valued name (:func:`_site_orbital_labels`), or else the
+    name the row has in ``table`` (point-group or Mulliken), is then a second
+    spelling a declaration may be written in, and is never a label returned.
+    A row nothing names keeps its characters as the whole statement, and
+    nothing here refuses.  Returns the table with ``labels``, ``named_by`` and
+    ``declarable`` set, each entry of ``declarable`` ``""`` on a single-valued
+    group.
     """
 
     if group.spinor:
         # The states at this site carry the row times the operations' spin-1/2
-        # lift, and it is that -- the double-valued site corep -- the tables
-        # name.  A declaration states the ORBITAL factor instead, which is the
-        # row itself: single-valued, and named at the same position by the same
-        # group's single-valued entries.  Both names are read from the tables,
-        # from the group's two table files; only the corep is ever returned.
+        # lift, a double-valued site irrep or a sum of them, and its name is the
+        # one returned.  A declaration states the orbital factor, the row
+        # itself, named by the same group's single-valued entries at the same
+        # position.
         labels, named_by = _site_corep_labels(group, assignment, int(site), table)
         orbital = _site_orbital_labels(group, assignment, int(site), table)
         return replace(table, labels=labels, named_by=named_by,
                        declarable=tuple(name or own for name, own
                                         in zip(orbital, table.labels)))
-    # the single-valued names: one tables entry per row, and the tables' own
-    # name for the point group's irrep where the entries do not name the row,
+    # the single-valued names: the EBR entry, else the name the stable
+    # real-space invariants give the row, else the name the row has in table,
     # so a row needs no second spelling
     labels, named_by = _site_irrep_labels(group, assignment, int(site), table)
     return replace(table, labels=labels, named_by=named_by,
@@ -186,14 +181,18 @@ def _named_from_tables(group, assignment, site, table):
 
 
 def _contained(tab, held, want, *, corep=False, asked=None):
-    """Whether the content ``held`` contains the content ``want``, both given class by class of ``tab``.
+    """Whether one representation of a site group contains another.
 
-    What is left of ``held`` once ``want`` is taken away has to be a content of
-    the site group.  A content written in the site coreps (``corep``) is
-    compared as the coreps it lifts to, and where a row's lift has no name,
-    ``held`` has to contain an orbital content whose characters are
-    ``want``'s on the classes ``asked``, those whose spin-1/2 lift has a
-    nonzero trace.
+    ``held`` and ``want`` are their characters, given class by class of the site
+    table ``tab``.  The one contains the other where ``held`` less ``want`` is a
+    representation of the site group, every multiplicity a nonnegative integer.
+    With ``corep=True``, ``want`` is declared in the names of double-valued site
+    irreps; both must then be representations of the site group, and they are
+    compared by the double-valued site irreps their rows lift to
+    (:func:`.._sitechars.corep_counts`).  Where a row's lift has no name,
+    ``held`` must contain a representation whose characters equal ``want``'s on
+    the classes ``asked`` marks, those on which the spin-1/2 lift has a nonzero
+    trace; ``asked=None`` marks every class.
     """
     if not corep:
         return _rows_of(tab, np.asarray(held, dtype=complex)
@@ -217,7 +216,12 @@ def _contained(tab, held, want, *, corep=False, asked=None):
 
 
 def _rows_of(tab, chi):
-    """``{row: copies}`` of a content of ``tab``, given class by class, or ``None`` where it is none."""
+    """The multiplicity of each row of ``tab`` in the character ``chi``.
+
+    ``chi`` is given class by class.  Returns a mapping from row to
+    multiplicity, the zeros dropped, or ``None`` where a multiplicity is not a
+    nonnegative integer within ``CHARACTER``.
+    """
     out = {}
     for p, n in enumerate(_sitechars.decompose(tab, np.asarray(chi, dtype=complex))):
         n = complex(n)
@@ -233,20 +237,19 @@ def _rows_of(tab, chi):
 # naming a site irrep by the band representation it induces
 # --------------------------------------------------------------------------
 #
-# A site irrep of a measured site group has no name of its own: the names a
-# physicist looks up are the tables' names for the irreps of the Wyckoff
-# positions of the identified space group.  What connects the two is the band
-# representation the site irrep induces, which is exactly what an EBR column
-# holds -- so the name is read by inducing and matching, never by a character
-# lookup that would need an orientation convention no measurement carries.
+# A row of a measured site group's table is named by the band representation
+# it induces, matched against the EBR columns at the site's Wyckoff position of
+# the identified space group.  Inducing and matching needs no convention for
+# how the site group is oriented.
 
 
 def _unitary_frame(group):
-    """``(positions, inverse, product table, position of each .ind)``.
+    """The unitary operations of ``group`` and their products.
 
-    The product table comes back as nested lists: the conjugations below run
-    ``|P|^2`` times per site and an element of a numpy array is an object to
-    build, while an element of a list is one to read.
+    Returns ``(unitary, inverse, prod, pos_of)``: the positions in
+    ``group._symmetries`` of the unitary operations; a mapping from each to the
+    position of its inverse; the product table of positions, as nested lists;
+    and a mapping from each operation's ``.ind`` to its position.
     """
     prod, _, _ = group._get_product_table(get_diff=True)
     prod = np.asarray(prod, dtype=int).tolist()
@@ -261,30 +264,17 @@ def _unitary_frame(group):
 
 
 def _decompose_against_coreps(table, chi, *, where, tol=_INT_TOL):
-    """Multiplicity of every corep of ``table`` in the character ``chi``.
+    """The multiplicities of the little-group representations in ``chi``.
 
-    Orthogonality over the little group's unitary operations, with the
-    tabulated characters' own rounding absorbed by ``tol``.  A multiplicity
-    that is not an integer is a defect in this package and raises, since the
-    character being decomposed is a character of that little group by
-    construction.
-
-    Parameters
-    ----------
-    table : dict
-        ``{corep label: {ind: character}}``, as :func:`..groups.corep_table`
-        holds it.
-    chi : dict
-        ``{ind: character}`` over the same operations.
-    where : str
-        What was being decomposed, for the message of a defect.
-    tol : float, optional
-        Integrality tolerance.
-
-    Returns
-    -------
-    dict
-        ``{corep label: multiplicity}``, the zeros dropped.
+    ``table`` maps each little-group representation's name to its characters
+    by operation index, as :func:`..groups.corep_table` returns it, and ``chi``
+    is a character on the same unitary operations.  The multiplicities are
+    found by orthogonality, and ``tol`` absorbs the rounding of the tabulated
+    characters.  A character induced from a site group is a character of the
+    little group, so a multiplicity off an integer by more than ``tol`` raises
+    :class:`..refusal.InternalError`.  ``where`` names what is decomposed, for
+    its message.  Returns a mapping from each representation's name to its
+    multiplicity, the zeros dropped.
     """
     inds = sorted(next(iter(table.values())))
     out = {}
@@ -293,44 +283,27 @@ def _decompose_against_coreps(table, chi, *, where, tol=_INT_TOL):
         m = sum(complex(chi[i]) * np.conj(complex(char[i])) for i in inds) / norm
         if abs(m.imag) > tol or abs(m.real - round(m.real)) > tol:
             raise InternalError(
-                f"the induced content of {where} contains {label} with multiplicity "
-                f"{m:.6g}, which is not an integer: a character induced from a site "
-                "group is a character of the little group and decomposes over its "
-                "coreps with whole multiplicities. That is arithmetic in this package "
-                "failing, not a tolerance to loosen.")
+                f"{where} induces {label} with multiplicity {m:.6g}, which is not an "
+                "integer. Report it, with the model and the call.")
         if round(m.real):
             out[label] = int(round(m.real))
     return out
 
 
 def _induction_plan(group, assignment, site, fixers, *, k=None, kpname=None):
-    r"""Everything the induction at one point needs except the character itself.
+    r"""The induction's weights at one point, for every row of a site table.
 
-    The weight of the site group's operation :math:`h` in the induced character
-    of the little group's operation :math:`g` does not depend on which site
-    irrep is being induced, so it is built once for a site and used for every
-    row of its table — which is what keeps the naming group-sized rather than
-    row-times-group-sized.
-
-    Parameters
-    ----------
-    group : ..groups.GroupData
-    assignment : ..groups.OrbitalAssignment
-    site : int
-    fixers : sequence of int
-        ``.ind`` of the site's unitary fixers.
-    k : array, optional
-        The point in the model's reduced coordinates; ``None`` is
-        :math:`\Gamma`.
-    kpname : str, optional
-        Forced tabulated label, forwarded to :func:`..groups.corep_table`.
-
-    Returns
-    -------
-    tuple or None
-        ``(corep table, {ind of g: {ind of h: weight}})``, and ``None`` where
-        the tabulated characters at that point are unavailable or the site's
-        fixers are a proper subgroup of what fixes it.
+    ``fixers`` are the ``.ind`` of the unitary operations fixing ``site``, a site
+    of ``assignment``, the orbitals' assignment to ``group``.  ``k`` is the point
+    in the model's reduced coordinates, ``None`` for ``GM``, and ``kpname`` its
+    tabulated name, passed to :func:`.._tables._corep_table`.  The weight of the
+    site group's operation :math:`h` in the induced character on the little
+    group's operation :math:`g` does not depend on the character induced.
+    Returns ``(table, weights)``: the little group's character table, and
+    ``weights[g][h]``, both keyed by ``.ind``, which :func:`_induced_content`
+    reads.  Returns ``None`` where ``fixers`` is empty or the tables at the
+    point refuse, and, away from ``GM``, where the induction meets an operation
+    fixing the site that ``fixers`` leave out.
     """
     fixer_inds = {int(i) for i in fixers}
     if not fixer_inds:
@@ -379,52 +352,47 @@ def _induction_plan(group, assignment, site, fixers, *, k=None, kpname=None):
 
 def _induced_content(group, assignment, site, chi, *, k=None, kpname=None,
                      plan=None) -> dict:
-    r"""The band representation a site character induces, as corep multiplicities.
+    r"""The band representation a site character induces, at one point.
 
-    ``chi`` is one character of the site group of ``site`` — the operations of
-    ``group`` that fix it, measured by ``.._tables._assign_orbitals`` — and what
-    comes back is the content of the band representation it induces, at ``k``.
-
-    At :math:`\Gamma` the induction is the real-space one,
+    At ``GM`` the induction is the real-space one,
     :math:`\chi_{\rm ind}(g) = |H|^{-1}\sum_{x\in P}[x^{-1}gx\in H]\,
-    \chi(x^{-1}gx)` over the unitary operations :math:`P` modulo the lattice,
-    taken through the group's own product table.  Away from it the sum is the
-    Frobenius one over the sites the operation fixes, each carrying the phase
-    :math:`e^{-2\pi i\,k\cdot m}` of its own displacement
-    :math:`m = R\tau_j + t - \tau_j`, the integer vector
-    ``assignment.lattice_shift`` holds; that phase carries the operation's
-    fractional translation and any reciprocal-lattice vector the little group
-    needs, so no further factor enters.  The sign is the one the EBR rows are
-    transported into (:func:`..groups.ebr_data`) and is what makes an induced
-    content comparable with them at a point away from a TRIM.
+    \chi(x^{-1}gx)`, over the unitary operations :math:`P` of ``group`` modulo
+    the lattice, :math:`H` the site group, through the group's product table.
+    Away from ``GM`` it is the Frobenius sum over the sites :math:`j` of the
+    orbit that :math:`g` fixes, each weighted by :math:`e^{-2\pi i\,k\cdot m}`.
+    For :math:`g = \{R|t\}` and :math:`\tau_j` the position of site :math:`j`,
+    :math:`m = R\tau_j + t - \tau_j` is the lattice vector by which :math:`g`
+    returns site :math:`j` (``assignment.lattice_shift``).  The phase carries
+    the operation's fractional translation, and its sign is the one the rows of
+    :func:`..groups.ebr_data` are written in.
 
     Parameters
     ----------
     group : ..groups.GroupData
+        The group the site was measured in.
     assignment : ..groups.OrbitalAssignment
-        The orbit and the displacements the phases are read from.
+        The orbitals' assignment to ``group``, which holds the orbit and the
+        lattice shifts.
     site : int
-        Which site of ``assignment`` the character belongs to.
+        The site of ``assignment`` the character belongs to.
     chi : dict
-        ``{ind: character}`` over the site's **unitary** fixers, which are its
-        keys.  For a group with double-valued tables the character already
-        carries the operations' spin-½ lift.
-    k : array, optional
-        The point, in the model's reduced coordinates.  ``None`` is
-        :math:`\Gamma`.
-    kpname : str, optional
-        Forced tabulated label, forwarded to :func:`..groups.corep_table`.
-    plan : tuple, optional
-        :func:`_induction_plan` for this site and point, to be shared across the
-        rows of one table instead of rebuilt for each.
+        ``{ind: character}`` on the site's unitary fixers, which are its keys.
+        On a group with double-valued tables it includes the operations'
+        spin-1/2 lift.
+    k : array, default None
+        The point, in the model's reduced coordinates.  ``None`` is ``GM``.
+    kpname : str, default None
+        The point's tabulated name, passed to :func:`.._tables._corep_table`.
+    plan : tuple, default None
+        :func:`_induction_plan` for this site and point, shared by the rows of
+        one table.  ``None`` builds it here.
 
     Returns
     -------
     dict
-        ``{corep label: multiplicity}`` at that point, the zeros dropped.
-        Empty where the transported character cannot be read on the orbit —
-        the site's fixers are a proper subgroup of what fixes it — or where the
-        tabulated characters at that point are unavailable.
+        A mapping from the name of each little-group representation at the
+        point to its multiplicity, the zeros dropped.  Empty where
+        :func:`_induction_plan` returns ``None``.
     """
     if plan is None:
         plan = _induction_plan(group, assignment, int(site), tuple(chi),
@@ -435,11 +403,15 @@ def _induced_content(group, assignment, site, chi, *, k=None, kpname=None,
     chi_ind = {ind: sum(w * complex(chi[h]) for h, w in row.items())
                for ind, row in weights.items()}
     return _decompose_against_coreps(
-        table, chi_ind, where=f"a site irrep of the site group of site {int(site)}")
+        table, chi_ind, where=f"a site irrep at site {int(site)}")
 
 
 def _gamma_point(group):
-    """The tabulated :math:`\\Gamma` in the model's own reduced coordinates."""
+    """The tabulated ``GM`` of ``group``, in the model's reduced coordinates.
+
+    Returns the refusal of :func:`.._tables._high_symmetry_points` where it
+    refuses.
+    """
     points = _tables._high_symmetry_points(group)
     if isinstance(points, Refusal):
         return points
@@ -447,34 +419,30 @@ def _gamma_point(group):
 
 
 def _rows_at_letter(rows, letter) -> dict:
-    """``{EBR name: content}`` of the entries of ``rows`` at one Wyckoff letter."""
+    """The EBR entries of ``rows`` at one Wyckoff letter.
+
+    ``rows`` is what :func:`.._tables._ebr_rows` returns, and ``letter`` a
+    Wyckoff letter without its multiplicity.  Returns a mapping from the name
+    of each entry at that letter, ``"B1↑G(2)"``, to its multiplicities.
+    """
     return {name.split("@")[0]: content for name, content in rows.items()
             if _letter_only(name.split("@")[1]) == str(letter)}
 
 
 def _gamma_ties(group) -> dict | Refusal:
-    r"""Which EBRs of one group share their :math:`\Gamma` content at a position.
+    r"""The positions where two EBRs have equal multiplicities at ``GM``.
 
-    Two site irreps at one Wyckoff position can induce the same coreps at
-    :math:`\Gamma` and part only away from it — ``B1↑G`` and ``B2↑G`` at ``2c``
-    of P4mm are both ``GM5`` there and differ at X, M, A, R and Z — so a
-    :math:`\Gamma` content alone names a site irrep at every position except
-    these.  The list is a property of the group's EBR file and needs no model.
-
-    Parameters
-    ----------
-    group : ..groups.GroupData
-
-    Returns
-    -------
-    dict or Refusal
-        ``{Wyckoff position: (tied EBR names, ...)}``, holding only the
-        positions where two or more EBRs share a :math:`\Gamma` content.
+    Two site irreps at one Wyckoff position can induce the same little-group
+    representations at ``GM`` and differ only away from it: ``B1↑G`` and
+    ``B2↑G`` at ``2c`` of ``P4mm1'`` both induce ``GM5`` and differ at ``X``,
+    ``M``, ``R`` and ``A``.  The positions are read off the EBR list of
+    ``group``, with no model.  Returns a mapping from each such position,
+    ``"2c(mm21',mm2)"``, to the sets of EBR names tied there.
 
     Refusals
     --------
-    ``"ebr_tables"``, ``"irrep_tables"``, ``"ebr_convention"``, ``"lattice_not_descended"``
-        propagated from :func:`.._tables._ebr_rows`.
+    ``ebr_tables`` / ``irrep_tables`` / ``ebr_convention`` / ``lattice_not_descended``
+        those of :func:`.._tables._ebr_rows`.
     """
     rows = _ebr_rows(group)
     if isinstance(rows, Refusal):
@@ -483,7 +451,10 @@ def _gamma_ties(group) -> dict | Refusal:
 
 
 def _gamma_ties_of(rows) -> dict:
-    """:func:`_gamma_ties` on EBR rows already in hand."""
+    """:func:`_gamma_ties` of EBR rows already read.
+
+    ``rows`` is what :func:`.._tables._ebr_rows` returns.
+    """
     by_position: dict = {}
     for name, content in rows.items():
         base, position = name.split("@")
@@ -499,41 +470,25 @@ def _gamma_ties_of(rows) -> dict:
 
 
 def _site_irrep_names(group, assignment, site, table) -> tuple:
-    r"""The tables' name of every row of one computed site-group character table.
+    r"""The EBR entry that names each row of one site table.
 
-    Each row is induced to the group's high-symmetry points and matched against
-    the EBR entries at the site's Wyckoff letter in the tables' setting
-    (``assignment.wyckoff_tables``): :math:`\Gamma` first, and, where the
-    entries at that position leave more than one candidate there, the remaining
-    points in the tables' own order (:func:`.._tables._points_in_table_order`)
-    until one entry is left.  Which positions of a group that can happen at is
-    :func:`_gamma_ties`, read from the EBR file with no model in hand, and the
-    list is checked against the induction: candidates that survive
-    :math:`\Gamma` together must be entries that list holds as sharing a
-    content, and a disagreement raises rather than naming a row on it.  A row of
-    a group with double-valued tables is induced together with the operations'
-    spin-½ lift, so what it matches is a double-valued EBR entry.
+    ``table`` is the character table of the measured group of ``site``, a site
+    of ``assignment``, the orbitals' assignment to ``group``.  Each row is
+    induced to the high-symmetry points and matched against the EBR entries at
+    the site's Wyckoff letter in the tables' setting
+    (``assignment.wyckoff_tables``): at ``GM`` first, then at the other points
+    in the tables' own order (:func:`.._tables._points_in_table_order`) while
+    more than one entry is left.  On a group with double-valued tables the
+    row's character times the operations' spin-1/2 lift is induced, and
+    matched against the double-valued entries.  Returns, for each row, the
+    full name of the one entry it matches, ``"B1↑G(2)"``, and ``""`` where no
+    single entry matches, the tables refuse, or two rows match one entry.
 
     Raises
     ------
     ..refusal.InternalError
-        The induction leaves two entries at :math:`\Gamma` that the group's own
-        tie list does not carry as tied.
-
-    Parameters
-    ----------
-    group : ..groups.GroupData
-    assignment : ..groups.OrbitalAssignment
-    site : int
-    table : .._sitechars.SiteGroupTable
-        The computed character table of that site's measured group.
-
-    Returns
-    -------
-    tuple
-        One entry per row of ``table``: the EBR entry's full name where the
-        match is unique, and ``""`` where the position is not tabulated, the
-        induced content is reducible, or two rows claim one entry.
+        Where entries left together after ``GM`` are not listed as tied by
+        :func:`_gamma_ties`.
     """
     blank = ("",) * len(table.labels)
     letters = tuple(assignment.wyckoff_tables or ())
@@ -583,44 +538,31 @@ def _site_irrep_names(group, assignment, site, table) -> tuple:
                 break
             if not any(left <= set(names) for names in tied_here):
                 raise InternalError(
-                    f"the induced content of a site irrep at {letters[int(site)]} of "
-                    f"#{group.number_str} matches {sorted(left)} at {point}, which the "
-                    "tie list the EBR file itself carries does not hold as sharing a "
-                    "content. Those are two readings of one table and have to agree; "
-                    "the two disagreeing is a defect in this package.")
+                    f"{group.name} #{group.number_str}: a site irrep at "
+                    f"{letters[int(site)]} induces the multiplicities that each of "
+                    f"{sorted(left)} has at {point}, and the EBR list's grouping of its "
+                    "entries by their multiplicities at GM does not put them together. "
+                    "Report it, with the model and the call.")
         named.append(next(iter(left)) if len(left) == 1 else "")
     claimed = [name for name in named if name]
     return tuple(name if name and claimed.count(name) == 1 else "" for name in named)
 
 
 def _site_irrep_labels(group, assignment, site, table) -> tuple:
-    r"""The site-irrep labels of one computed table, and where each name comes from.
+    r"""The single-valued label of each row of one site table, and its source.
 
-    A name the tables carry at the position is the part of the EBR entry
-    before ``↑G``, which is what a Wyckoff position is looked up by.  A row the
-    entries there do not reach takes the name the tables of the stable
-    real-space invariants give it, read at this site by its own carrying to the
-    position's own site (:func:`.._site_names.table_names`).  A row neither
-    reaches keeps the table's own name and where it came from
-    (``.._naming._site_group_table``): the tables' name for that irrep of the
-    site's point group, its Mulliken symbol, or none.  Labels have to be unique
-    within one table: names from the invariants that collide with another
-    row's are dropped for the whole table, and a name from the entries that
-    still collides with a kept one leaves the whole table on its own names.
-
-    Parameters
-    ----------
-    group : ..groups.GroupData
-    assignment : ..groups.OrbitalAssignment
-    site : int
-    table : .._sitechars.SiteGroupTable
-
-    Returns
-    -------
-    tuple
-        ``(labels, named_by)``, one entry of each per row: the label, and
-        ``"tables"``, ``"invariants"``, ``"point group"``, ``"Mulliken"`` or,
-        for a row nothing names, ``"unnamed"``.
+    ``table`` is the site group's table from :func:`_site_group_table`, at
+    ``site``, a site of ``assignment``, the orbitals' assignment to ``group``.
+    A row takes the site irrep of the EBR entry it matches
+    (:func:`_site_irrep_names`), the part of the entry's name before ``↑G``
+    (``"tables"``).  A row no entry matches takes the name the tables of the
+    stable real-space invariants give it at this site
+    (:func:`.._site_names.table_names`, ``"invariants"``).  A row neither names
+    keeps its label and ``named_by`` from ``table``.  Labels are unique within a
+    table: where a name from the invariants repeats another row's, every name
+    from the invariants is dropped, and where a name from the entries still
+    repeats one, every row keeps its label from ``table``.  Returns
+    ``(labels, named_by)``, one entry of each per row.
     """
     names = _site_irrep_names(group, assignment, int(site), table)
     own = tuple(table.labels)
@@ -648,17 +590,16 @@ def _site_irrep_labels(group, assignment, site, table) -> tuple:
 
 
 # --------------------------------------------------------------------------
-# naming a site rep by the entries its induced content is the sum of
+# naming a site representation by the sum of EBR entries it induces
 # --------------------------------------------------------------------------
 #
-# A row of the computed table of a spinful model's site group carries the
-# *orbital* factor; what the model's states carry there is that row times the
-# operations' spin-1/2 lift, which is a double-valued representation of the site
-# group and need not be irreducible -- a ``T`` row of a tetrahedral site times
-# the lift is a double-valued pair.  Its name is therefore the sum of the
-# double-valued site irreps it contains, and those are read the same way a
-# single one is: by the band representation the whole thing induces, matched
-# against the EBR entries at the position.
+# A row of the computed table of a spinful model's site group is the orbital
+# factor.  What the model's states carry there is that row times the
+# operations' spin-1/2 lift, a double-valued representation of the site group
+# that need not be irreducible: a ``T`` row of a tetrahedral site times the
+# lift is a sum of two.  Its name is the sum of the double-valued site irreps
+# it contains, read as a single one is: by the band representation it induces,
+# matched against the EBR entries at the position.
 
 #: Largest multiplicity of one EBR entry a site representation is searched for,
 #: and the most matching combinations kept before the search gives up.  Both are
@@ -671,17 +612,14 @@ _MAX_COMBINATIONS = 64
 
 
 def _entry_combinations(contents, target, *, cap=_MAX_COMBINATIONS):
-    """Which multisets of ``contents`` sum to ``target``.
+    """Every multiset of EBR entries whose multiplicities sum to ``target``.
 
-    ``contents`` is ``{entry name: {corep label: multiplicity}}`` at one point
-    and ``target`` the induced content there.  What comes back is every multiset
-    of entry names that sums to it, each in ``contents``' own order and with its
-    repeats written out, and an empty list where nothing does.
-
-    The search is exhaustive with two ceilings (:data:`_MAX_ENTRY_MULTIPLICITY`,
-    ``cap``), which is what keeps a pathological table from turning a naming
-    into a search: reaching either is reported as "no name", never as a wrong
-    one.
+    ``contents`` maps each entry's name to its multiplicities at one point, and
+    ``target`` holds the induced multiplicities there.  The search is
+    exhaustive up to :data:`_MAX_ENTRY_MULTIPLICITY` copies of one entry and
+    ``cap`` multisets found.  Returns a list of the multisets, each in the order
+    of ``contents`` with its repeats written out, empty where none sums to
+    ``target``.
     """
     names = list(contents)
     labels = sorted({lab for c in contents.values() for lab in c} | set(target))
@@ -696,7 +634,7 @@ def _entry_combinations(contents, target, *, cap=_MAX_COMBINATIONS):
         if i >= len(names) or len(out) >= cap or not any(rest[j] > 0 for j in range(len(rest))):
             return
         here = vecs[i]
-        if not any(here):                     # an entry with no content at this point
+        if not any(here):                     # an entry with nothing at this point
             walk(i + 1, rest, acc)
             return
         left = rest
@@ -710,7 +648,12 @@ def _entry_combinations(contents, target, *, cap=_MAX_COMBINATIONS):
 
 
 def _spelled(names) -> str:
-    """``("-E1", "-E1", "-F") → "2x-E1 + -F"`` — a multiset of entries as one label."""
+    """A multiset of EBR entry names, spelled as one label.
+
+    The part of each name from ``↑G`` on is dropped, and each name stands in the
+    order it first appears in ``names``: ``("-E1", "-E1", "-F")`` returns
+    ``"2x-E1 + -F"``.
+    """
     order, count = [], {}
     for name in names:
         base = str(name).split("↑G")[0]
@@ -722,44 +665,31 @@ def _spelled(names) -> str:
 
 
 def _names_by_content(group, assignment, site, table, letter) -> tuple:
-    r"""Each row of ``table``, named by the EBR entries at ``letter`` it induces.
+    r"""Each row's label, as a sum of the EBR entries at ``letter``.
 
-    The row's character is taken with the operations' spin-1/2 lift where the
-    group's tables are double-valued, so that what is matched is what the
-    model's states carry at the site.  A site representation that is not
-    irreducible is honestly the sum of the site irreps it contains, so a row may
-    be named by several entries.  It is induced at :math:`\Gamma` first and at
-    the other high-symmetry points while more than one multiset of entries
-    reproduces it: the tie-break by which :func:`_site_irrep_names` names a
-    single row, in the form a sum needs.
-
-    Parameters
-    ----------
-    group : ..groups.GroupData
-    assignment : ..groups.OrbitalAssignment
-    site : int
-    table : .._sitechars.SiteGroupTable
-    letter : str
-        The site's own Wyckoff letter, whose entries are the vocabulary.
-
-    Returns
-    -------
-    tuple
-        One label per row: the entries' names summed (``"-E1 + -F"``), and
-        ``""`` where the entries at that letter reproduce the row's content in
-        no way or in more than one way.
+    ``table`` is the computed table of the measured group of ``site``, a site of
+    ``assignment``, the orbitals' assignment to ``group``, and ``letter`` the
+    site's own Wyckoff letter.  On a group with double-valued tables a row's
+    character is taken times the operations' spin-1/2 lift, which can make it
+    reducible, so a row may be named by several entries.  The row is induced at
+    ``GM`` first, and at the other points in the tables' order while more than
+    one multiset of entries reproduces it (:func:`_entry_combinations`).
+    Returns one label per row, the entries' site irreps summed
+    (``"-1E2E + -E1"``), and ``""`` where no multiset or more than one
+    reproduces the row, or where the site's represented operations are only
+    part of the operations fixing it.
     """
     blank = ("",) * len(table.labels)
     if not letter:
         return blank
-    # The tables' entries at a position are keyed by the irreps of the site
-    # group that position HAS.  Where the represented operations are a proper
-    # subgroup of what fixes the site -- a free-standing layer, whose
-    # Hamiltonian leaves the sigma_h family undetermined -- a row of the
-    # computed table is an irrep of the smaller group, and inducing it gives a
-    # sum of entries that is a true statement about the band representation and
-    # no name for the row.  So the naming declines, rather than spelling the
-    # sum.  (:func:`_induction_plan` makes the same check away from Gamma.)
+    # The tables' entries at a position are keyed by the irreps of the whole
+    # site group of that position.  Where the represented operations are only
+    # part of what fixes the site, as on a free-standing layer whose
+    # Hamiltonian does not fix how the orbitals transform under the horizontal
+    # mirror and its products, a row is an irrep of the smaller group, and the
+    # sum of entries it induces names no row.  So every row of the table is
+    # left unnamed.  (:func:`_induction_plan` makes the same check away from
+    # GM.)
     fixers = {int(i) for i in assignment.site_group[int(site)]}
     unitary = {int(s.ind) for s in group._symmetries if not s.time_reversal}
     if fixers & unitary != {int(i) for i in table.indices}:
@@ -808,13 +738,13 @@ def _names_by_content(group, assignment, site, table, letter) -> tuple:
 
 
 def _induced_bands(group, assignment, site, chi) -> int:
-    r"""How many bands the site character ``chi`` induces, or ``0``.
+    r"""The number of bands the site character ``chi`` induces, or ``0``.
 
-    The dimension of the band representation, read off its own :math:`\Gamma`
-    content: the multiplicity of each corep times that corep's dimension.  It
-    is the one number a **composite** site irrep — one no EBR column carries,
-    so that no name can be matched — still shares with the SRSI tables, which
-    carry it as the band count of each maximal site irrep (``tables._maximal_keys``).
+    ``chi`` maps the ``.ind`` of each unitary operation fixing ``site``, a site
+    of ``assignment``, the orbitals' assignment to ``group``, to its character.
+    The number is read off the induced multiplicities at ``GM``, each times the
+    dimension of its little-group representation.  Returns ``0`` where
+    :func:`_induction_plan` returns ``None``.
     """
     plan = _induction_plan(group, assignment, int(site), tuple(chi))
     if plan is None:
@@ -832,27 +762,21 @@ def _induced_bands(group, assignment, site, chi) -> int:
 
 
 def _site_corep_labels(group, assignment, site, table) -> tuple:
-    r"""``(labels, named_by)`` for one site of a model whose states carry spin.
+    r"""The double-valued label of each row of one site table, and its source.
 
-    Each row of the computed (single-valued) table stands for the
-    double-valued site representation the model's states carry there — the
-    row times the operations' lift — and takes the name the group's own
-    double-valued EBR entries give it at the site's Wyckoff position,
-    ``named_by = "tables"``: a sum there is a site representation that is not
-    irreducible, which a row times the spin-1/2 lift can be.  Two rows can
-    legitimately take **one** name, because two orbital characters differing by
-    a character the lift's trace vanishes on are one site corep; that is the
-    physics and not a collision.
-
-    A row those entries do not name — the tables list none at the position, or
-    none whose band representation is the row's, the row's being composite —
-    takes the site point group's own double-valued name
-    (:func:`_point_group_names`), ``named_by = "point group"``, as a
-    single-valued row keeps the point group's own name.  One name for two rows
-    whose states carry different characters would be two conventions meeting in
-    one table, and the whole table then takes the point group's names.  A row
-    nothing names reads ``""`` and ``"unnamed"``, which leaves its generator
-    characters as the whole statement.
+    ``table`` is the site group's table from :func:`_site_group_table`, at
+    ``site``, a site of ``assignment``, the orbitals' assignment to ``group``.
+    Each row stands for the double-valued representation the states carry, the
+    row times the operations' spin-1/2 lift.  It is named by the double-valued
+    EBR entries at the site's Wyckoff letter whose sum is the band
+    representation it induces (:func:`_names_by_content`, ``"tables"``).  Two
+    rows may take one name, since two orbital characters that differ only where
+    the lift's trace vanishes lift to one site irrep.  A row the entries do not
+    name takes the site point group's double-valued name
+    (:func:`_point_group_names`, ``"point group"``), or none (``""`` and
+    ``"unnamed"``).  Where one name then stands on rows whose lifted characters
+    differ, every row takes its point-group name instead.  Returns
+    ``(labels, named_by)``, one entry of each per row.
     """
     letters = tuple(assignment.wyckoff_tables or ())
     letter = letters[int(site)] if int(site) < len(letters) else ""
@@ -879,35 +803,26 @@ def _site_corep_labels(group, assignment, site, table) -> tuple:
 # the orbital factor's own name, from the single-valued tables
 # --------------------------------------------------------------------------
 #
-# A row of a computed site table is the ORBITAL factor of what sits at the site,
-# and it is single-valued whether or not the states carry spin: the spin is the
-# other factor.  So a row has a single-valued name at the position too -- the one
-# the group's single-valued EBR entries give the band representation the orbital
-# alone induces -- and that name is what a declaration states.  It is read here
-# exactly as a spinless model's rows are named, against the group's
-# single-valued tables instead of its double-valued ones.
+# A row of a computed site table is the orbital factor of what sits at the
+# site, single-valued whether or not the states carry spin.  Its single-valued
+# name at the position, the one the group's single-valued EBR entries give the
+# band representation the orbital alone induces, is what a declaration states.
+# It is read as a spinless model's rows are, against the group's single-valued
+# tables.
 
 
 def _single_valued_view(group):
-    r"""``group`` as its own **single-valued** tables read it.
+    r"""``group`` read through its single-valued tables.
 
-    Which of the two table files a query loads — the irrep table, the EBR file,
-    the transport record — is chosen by one flag, ``GroupData.spinor``, and
-    nothing else: the tables are a property of the crystal and of the valuedness
-    asked for.  So the view is this record with that flag turned over. Every
-    other field is the same object — the same operations in the same order, the
-    same lattice, the same ``refUC``/``shiftUC`` — and the multiplication table
-    is the same table.
-
-    **What may be asked of it.** A character and a Wyckoff letter: the view is
-    consumed by :func:`_site_orbital_labels` alone, which induces the orbital
-    factor of a site's rows and compares the multiplicities that come out with
-    the single-valued entries at the letter. No representation is built on it,
-    no lift is taken from it, and it is never returned or stored. That is what
-    keeps it a reading of the tables rather than a single-valued question put to
-    a spinful model, which is a question with no answer: a spinful model's
-    *states* carry the electron's own spin-1/2 and its little-group content is
-    double-valued, and that is what the returned label stays.
+    Which table files a query loads, the irrep table, the EBR file and its
+    transport record, is chosen by ``group.spinor`` alone.  The view is
+    ``group`` with that flag set to ``False``, every other field the same
+    object: the same operations in the same order, the same cell and the same
+    product table.  It is read only by :func:`_site_orbital_labels`, which
+    induces a character and matches it against the single-valued entries at a
+    Wyckoff letter.  No representation is built on it, no lift is taken from it,
+    and it is never returned or stored.  Returns ``group`` itself where
+    ``group.spinor`` is ``False``.
     """
     if not group.spinor:
         return group
@@ -915,32 +830,20 @@ def _single_valued_view(group):
 
 
 def _site_orbital_labels(group, assignment, site, table) -> tuple:
-    r"""The single-valued name of every row of one computed site table.
+    r"""The single-valued name of each row of one site table.
 
-    The row's *orbital* name at the site's Wyckoff position: what the tables
-    call the site irrep the orbital factor carries, which is the word a
-    declaration of that orbital is written in
-    (:attr:`.._sitechars.SiteGroupTable.declarable`). For a model whose states
-    carry spin that is a different name from the one the row is returned under
-    — the returned one is the double-valued site corep the states carry — and
-    the two are read from the two table files of the one group.
-
-    Parameters
-    ----------
-    group : ..groups.GroupData
-    assignment : ..groups.OrbitalAssignment
-    site : int
-    table : .._sitechars.SiteGroupTable
-
-    Returns
-    -------
-    tuple
-        One entry per row: the single-valued entry's name at the site's own
-        Wyckoff position; for a row those entries do not reach, the name the
-        tables of the stable real-space invariants give it
-        (:func:`.._site_names.table_names`), unless one of those names would
-        repeat another row's word, when none of them is taken; and ``""`` for
-        a row neither reaches.
+    ``table`` is the site group's table, at ``site``, a site of ``assignment``,
+    the orbitals' assignment to ``group``.  A row is the orbital factor of what
+    the states carry, and its single-valued name is the word a declaration of
+    the orbital is written in (:attr:`.._sitechars.SiteGroupTable.declarable`).
+    On a group with double-valued tables it differs from the label returned,
+    which names the double-valued representation the states carry, a site
+    irrep or a sum of them.  Returns, for each row, the site irrep of the
+    single-valued EBR entry it matches at the site's Wyckoff position
+    (:func:`_site_irrep_names` on :func:`_single_valued_view`).  A row no entry
+    matches takes the name the tables of the stable real-space invariants give
+    it (:func:`.._site_names.table_names`), unless one of those names would
+    repeat another row's, when none is taken.  A row neither names is ``""``.
     """
     names = _site_irrep_names(_single_valued_view(group), assignment, int(site), table)
     bases = tuple(str(name).split("↑G")[0] if name else "" for name in names)
@@ -960,22 +863,22 @@ def _site_orbital_labels(group, assignment, site, table) -> tuple:
 # The tables name a point group's double-valued irreps only through the
 # elementary band representations those induce, so a site irrep whose band
 # representation is composite, or a site at a position the tables list no
-# entries at, has no double-valued name there.  Every
-# crystallographic point group is, though, the site group of the origin of a
-# symmorphic space group, and at a position whose site group is the whole point
-# group the band representation a site irrep induces is, at Gamma, that irrep
-# itself.  So each symmorphic group's own tables hold its point group's
-# double-valued names -- the EBR entries at the origin -- and their characters
-# -- the Gamma corep each entry induces -- on every operation, together with the
+# entries at, has no double-valued name there.  Every crystallographic point
+# group is the site group of the origin of a symmorphic space group, and at a
+# position whose site group is the whole point group the band representation a
+# site irrep induces is, at GM, that irrep itself.  So each symmorphic group's
+# tables hold its point group's double-valued names, which are the EBR entries
+# at the origin.  The characters of each name on every operation are those of
+# the representation its entry induces at GM, and the tables hold them with the
 # SU(2) matrix every character is written against.  That is the point group's
 # own vocabulary, read and not typed, in the tables' convention.
 #
 # A site row is named by comparing characters with it, operation by operation.
 # The site group and the reference are one point group in orientations that
 # can differ, so the comparison runs through a rotation carrying the one onto
-# the other, and each character follows the operation it belongs to -- its axis,
-# its sense, and the sign of the SU(2) matrix the tables lift it by -- never its
-# place in a list.
+# the other.  Each character follows the operation it belongs to, by its axis,
+# its sense and the sign of the SU(2) matrix the tables lift it by, and never
+# by its place in a list.
 
 
 #: The order of a proper rotation, from its trace, which is ``1 + 2 cos θ`` and
@@ -984,12 +887,12 @@ _ORDER_OF_TRACE = {3: 1, 2: 6, 1: 4, 0: 3, -1: 2}
 
 
 def _orthogonal_of(S, det) -> np.ndarray:
-    r"""The Cartesian matrix of an operation, read off its SU(2) matrix.
+    r"""The Cartesian matrix of an operation, read off its SU(2) matrix ``S``.
 
     :math:`R_{ij} = \tfrac12\,\mathrm{tr}(\sigma_i S \sigma_j S^\dagger)` is the
-    rotation ``S`` lifts, in the frame the tables write their SU(2) matrices in,
-    and an improper operation is that rotation times ``det = -1``: the tables
-    lift an improper operation by its proper part.
+    rotation ``S`` lifts, in the frame the tables write their SU(2) matrices in.
+    The tables lift an improper operation by its proper part, so the matrix
+    returned is that rotation times ``det``, the operation's determinant.
     """
     S = np.asarray(S, dtype=complex)
     pauli = _spacegroup._PAULI
@@ -999,19 +902,22 @@ def _orthogonal_of(S, det) -> np.ndarray:
 
 @lru_cache(maxsize=None)
 def _tabulated_operations(number_str: str, magnetic: bool) -> tuple:
-    """``(R, O, S)`` per operation of one group's double-valued table.
+    """``(R, O, S)`` for each operation of one group's double-valued table.
 
-    ``R`` is the integer matrix the table writes the operation in (its lattice
-    basis), ``O`` the Cartesian matrix in the frame of the table's own SU(2)
-    matrix ``S``.  The unitary operations come first and the antiunitary ones
-    after them, in the table's own order: the order :attr:`..groups.GroupData._symmetries`
-    is indexed in, so operation ``ind`` is entry ``ind - 1``.
+    ``number_str`` is the group's number, and ``magnetic`` whether the table is
+    read among the magnetic groups, as a grey group's is.  ``R`` is the integer
+    matrix the table writes the operation in, in its lattice basis, ``S`` the
+    table's SU(2) matrix, and ``O`` the Cartesian matrix in the frame of ``S``.
+    The unitary operations come first and the antiunitary ones after them, each
+    in the table's own order.  That is the order of
+    :attr:`..groups.GroupData._symmetries`, so operation ``ind`` is entry
+    ``ind - 1``.
     """
     return _operations_of(_spacegroup._irrep_table(number_str, True, magnetic))
 
 
 def _operations_of(table) -> tuple:
-    """:func:`_tabulated_operations` of a table already read."""
+    """:func:`_tabulated_operations` of a ``table`` already read."""
     out = []
     for sym in list(table.u_symmetries) + list(table.au_symmetries):
         R = np.rint(np.asarray(sym.R, dtype=float)).astype(int)
@@ -1021,12 +927,12 @@ def _operations_of(table) -> tuple:
 
 
 def _magnetic_numbers() -> dict:
-    """``{symbol: number}`` of every magnetic space group, as ``irrep`` itself lists them.
+    """The BNS number of every magnetic space group, by its symbol.
 
-    ``irrep`` numbers a magnetic group by the line of this list the group sits
-    on, which is how a grey group read off a model gets its number; the grey
-    group of a space group is the one spelled as the space group's own symbol
-    with ``1'`` appended.
+    The numbers are read from ``irrep``'s own list, ``msg_numbers.data``.  The
+    grey group of a space group is the one whose symbol is the space group's
+    with ``1'`` appended.  Returns a mapping from symbol to number,
+    ``"P4mm1'"`` to ``"99.164"``.
     """
     import irrep
 
@@ -1041,11 +947,13 @@ def _magnetic_numbers() -> dict:
 
 
 def _origin_letter(raw, centering) -> str:
-    """The first position of an EBR list whose site group is the whole point group.
+    """The first letter in an EBR list with one site per primitive cell.
 
-    That is the position with one site per primitive cell — conventional
-    multiplicity one more than the centering translations — and in a symmorphic
-    group the first such is the origin.
+    ``raw`` is a group's EBR file as ``irreptables`` ships it, and ``centering``
+    its centering translations.  The position sought has a conventional
+    multiplicity one more than the number of centering translations, and its
+    site group is the whole point group.  In a symmorphic group the first such
+    position is the origin.  Returns ``""`` where the list has none.
     """
     per_cell = 1 + len(tuple(centering))
     for entry in raw["ebrs"]:
@@ -1057,49 +965,57 @@ def _origin_letter(raw, centering) -> str:
 
 @lru_cache(maxsize=None)
 def _origin_coreps(grey: bool) -> dict:
-    """``{point group: references}`` — every symmorphic group's origin, in its tables' words.
+    """Each point group's double-valued site irreps, read at symmorphic origins.
 
-    A space group is symmorphic where every operation its table lists is a pure
-    rotation, its translation a lattice or centering vector.  For each such
-    group, in the order of its number, the reference holds the table's number,
-    its unitary operations ``(R, O, S)`` (:func:`_tabulated_operations`), and
-    every double-valued EBR entry at its origin: the site irrep's name, and the
-    characters on those operations of the one Gamma corep that entry induces.
-    ``grey`` reads the grey tables, where a complex-conjugate pair is one corep
-    under time reversal.
+    A space group is taken as symmorphic where every translation its table lists
+    is a lattice or centering vector.  For each such group, in the order of its
+    number, the reference holds the table's number, its unitary operations
+    ``(R, O, S)`` (:func:`_tabulated_operations`), and each double-valued EBR
+    entry at its origin: the site irrep's name, and the characters on those
+    operations of the one representation the entry induces at ``GM``.  With
+    ``grey=True`` the grey groups' tables are read, where time reversal joins a
+    complex-conjugate pair into one corep.  Returns a mapping from each point
+    group's symbol to its references.
 
     Raises
     ------
     ..refusal.InternalError
-        An entry at the origin induces anything but one corep at Gamma of the
-        entry's own dimension, or a grey group's operations are not the space
-        group's own with time reversal: the tables disagreeing with themselves.
+        Where ``irrep``'s list names no grey group of a symmorphic group, a grey
+        group's table does not carry each operation once with time reversal and
+        once without, or an entry at the origin induces anything but one
+        representation at ``GM`` of the entry's own dimension.
     """
     return _origin_references(grey, True)
 
 
 @lru_cache(maxsize=None)
 def _origin_irreps(grey: bool) -> dict:
-    """:func:`_origin_coreps`, read in the single-valued tables.
+    """Each point group's single-valued site irreps, read at symmorphic origins.
 
-    The same symmorphic origins, each single-valued EBR entry there with the
-    characters of the one Gamma irrep it induces, on the same operations: the
-    double-valued table of the same group orients them, since a single-valued
-    table carries no SU(2) matrix, and it lists them in the same order, which is
-    checked.  ``grey`` reads the grey tables, where a complex-conjugate pair is
-    one corep under time reversal (``1E2E``).
+    The references of :func:`_origin_coreps`, each with the single-valued EBR
+    entries at the origin and the characters of the one ``GM`` representation
+    each induces, on the same operations.  The double-valued table of the same
+    group orients the operations, since a single-valued table carries no SU(2)
+    matrix.  With ``grey=True`` the grey groups' tables are read, where time
+    reversal joins a complex-conjugate pair into one corep (``1E2E``).  Returns
+    a mapping from each point group's symbol to its references.
 
     Raises
     ------
     ..refusal.InternalError
-        As :func:`_origin_coreps`, or the two tables of one group list different
-        operations.
+        As :func:`_origin_coreps`, or where the single- and double-valued tables
+        of one group list different operations, or the same ones in another
+        order.
     """
     return _origin_references(grey, False)
 
 
 def _origin_references(grey: bool, double: bool) -> dict:
-    """The body of :func:`_origin_coreps` (``double``) and :func:`_origin_irreps`."""
+    """The references of :func:`_origin_coreps` or :func:`_origin_irreps`.
+
+    ``double`` chooses the double-valued entries, as :func:`_origin_coreps` reads
+    them, and ``grey`` the grey groups' tables.
+    """
     named = _magnetic_numbers() if grey else {}
     out: dict = {}
     for sg in range(1, 231):
@@ -1111,9 +1027,8 @@ def _origin_references(grey: bool, double: bool) -> dict:
         number = (named.get(str(plain.name).strip() + "1'", "") if grey else str(sg))
         if not number or number.split(".")[0] != str(sg):
             raise InternalError(
-                f"irrep's own list of magnetic groups names no grey group of space group "
-                f"{sg} ({plain.name}), so its point-group names cannot be read with time "
-                "reversal.")
+                f"irrep's list of magnetic groups names no grey group of space group "
+                f"{sg} ({plain.name}). Report it, with what tables_status() returns.")
         table = _spacegroup._irrep_table(number, True, grey) if grey else plain
         unitary = [(i + 1, sym) for i, sym in enumerate(table.symmetries)
                    if not sym.time_reversal]
@@ -1122,7 +1037,7 @@ def _origin_references(grey: bool, double: bool) -> dict:
             raise InternalError(
                 f"#{number} is listed as the grey group of space group {sg}, and its "
                 "table does not carry each operation once with time reversal and once "
-                "without.")
+                "without. Report it, with what tables_status() returns.")
         ops = tuple(_operations_of(table)[:len(unitary)])
         # the characters: the double-valued table's own, or the single-valued
         # table of the same group, which has to list the same operations
@@ -1133,9 +1048,9 @@ def _origin_references(grey: bool, double: bool) -> dict:
                 or bool(a.time_reversal) != bool(b.time_reversal)
                 for a, b in zip(source.symmetries, table.symmetries))):
             raise InternalError(
-                f"#{number}'s single- and double-valued tables list different operations "
-                "in one order, so a single-valued character cannot be read on the "
-                "operations the double-valued table orients.")
+                f"the single- and double-valued tables of #{number} do not list the "
+                "same operations in the same order. Report it, with what "
+                "tables_status() returns.")
         gamma = {str(irr.name): {int(k): complex(v) for k, v in irr.characters.items()}
                  for irr in source.irreps if str(irr.kpname) == "GM"}
         raw = _spacegroup._ebr_file(number, double)
@@ -1156,10 +1071,10 @@ def _origin_references(grey: bool, double: bool) -> dict:
                     or degeneracy[at_gamma[0][0]] != bands
                     or at_gamma[0][0] not in gamma):
                 raise InternalError(
-                    f"at the origin of #{number} the site irrep {name} induces "
-                    f"{at_gamma} at Gamma, where a position whose site group is the whole "
-                    "point group induces each site irrep as itself: the EBR list and the "
-                    "irrep table do not agree.")
+                    f"at the origin of #{number}, the EBR list has the site irrep {name} "
+                    f"induce {at_gamma} at GM, which is not one little-group "
+                    "representation of its dimension in the irrep table. Report it, with "
+                    "what tables_status() returns.")
             chars = gamma[at_gamma[0][0]]
             names.append((name, tuple(chars[i] for i, _sym in unitary)))
         symbol = _sitechars.point_group_of(R for R, _O, _S in ops)
@@ -1168,16 +1083,19 @@ def _origin_references(grey: bool, double: bool) -> dict:
 
 
 def _matrix_key(M) -> tuple:
-    """A hashable reading of one Cartesian matrix, to the tables' precision."""
+    """A matrix ``M``, rounded to three decimals, as a hashable key."""
     return tuple(float(x) + 0.0 for x in np.round(np.asarray(M, dtype=float), 3).ravel())
 
 
 def _proper_axis(R, O) -> tuple:
-    """``(axis, order, det)`` of one operation's proper rotation; ``axis`` ``None`` for ``±1``.
+    """``(axis, order, det)`` of one operation.
 
-    The order and the determinant are read off the integer matrix ``R``,
-    exactly; the axis off the Cartesian ``O``, oriented so that the rotation
-    turns counterclockwise about it, a twofold's either way.
+    ``axis`` and ``order`` are those of the operation's proper rotation, and
+    ``det`` is its determinant.  ``R`` is the operation's integer matrix and
+    ``O`` its Cartesian matrix.  The order and the determinant are read off
+    ``R`` exactly, and the unit axis off ``O``, oriented so that the rotation
+    turns counterclockwise about it, a twofold's either way.  ``axis`` is
+    ``None`` for the identity and inversion.
     """
     det = int(round(float(np.linalg.det(np.asarray(R, dtype=float)))))
     order = _ORDER_OF_TRACE.get(int(round(det * float(np.trace(R)))), 0)
@@ -1194,7 +1112,11 @@ def _proper_axis(R, O) -> tuple:
 
 
 def _frame(x, y) -> np.ndarray:
-    """The right-handed orthonormal frame whose first axis is ``x`` and whose second lies towards ``y``."""
+    """The right-handed orthonormal frame whose first axis lies along ``x``.
+
+    Its second axis is the part of ``y`` orthogonal to ``x``, normalized.
+    Returns the three axes as the columns of a 3 by 3 matrix.
+    """
     x = np.asarray(x, dtype=float) / np.linalg.norm(x)
     y = np.asarray(y, dtype=float) - float(np.asarray(y, dtype=float) @ x) * x
     y = y / np.linalg.norm(y)
@@ -1218,22 +1140,32 @@ def _rotation_between(a, b) -> np.ndarray:
 
 
 def _carries(Q, source, target) -> bool:
-    """Whether the rotation ``Q`` carries the operations ``source`` onto ``target``, as sets."""
+    """Whether the rotation ``Q`` carries ``source`` onto ``target``.
+
+    ``source`` and ``target`` are ``(R, O)`` per operation, and only the
+    Cartesian matrices ``O`` are read.  The two are compared as sets, each
+    ``Q @ O @ Q.T`` of ``source`` against the ``O`` of ``target``, to three
+    decimals (:func:`_matrix_key`).
+    """
     Q = np.asarray(Q, dtype=float)
     return ({_matrix_key(Q @ np.asarray(O, dtype=float) @ Q.T) for _R, O in source}
             == {_matrix_key(O) for _R, O in target})
 
 
 def _conjugators(source, target, tol=_TABLE_MATRIX_TOL) -> tuple:
-    """Every proper rotation ``Q`` with ``Q·source·Qᵀ = target``, the two taken as sets.
+    """The proper rotations carrying the operations ``source`` onto ``target``.
 
     ``source`` and ``target`` are ``(R, O)`` per operation, as
-    :func:`_proper_axis` reads them.  A candidate carries an axis of the highest
+    :func:`_proper_axis` reads them, and a rotation carries the one onto the
+    other as :func:`_carries` says.  A candidate takes an axis of the highest
     order in ``source`` onto an axis of the same order and determinant in
-    ``target``, and, where ``source`` has a second axis, that one onto one at the
-    same angle; each candidate is kept only where it carries the whole set onto
-    the other.  A group with one axis admits any turn about it, which commutes
-    with every operation and so changes nothing a character sees.
+    ``target``, either way along it.  Where ``source`` has a second axis, the
+    candidate also takes it onto one at the same angle to the first.  Where it
+    has one axis, one turn about it stands for all, since every turn about that
+    axis commutes with every operation.  ``tol`` is how far two cosines, or the
+    entries of two rotations, may differ and be equal.  Returns each rotation
+    that carries the whole set, once, as a Cartesian matrix: the identity alone
+    where ``source`` has no axis and is ``target``, none where nothing carries.
     """
     src = [info for info in (_proper_axis(R, O) for R, O in source) if info[0] is not None]
     dst = [info for info in (_proper_axis(R, O) for R, O in target) if info[0] is not None]
@@ -1271,12 +1203,13 @@ def _conjugators(source, target, tol=_TABLE_MATRIX_TOL) -> tuple:
 
 
 def _su2_of(Q) -> np.ndarray:
-    r"""An SU(2) matrix lifting the proper rotation ``Q``, read off its quaternion.
+    r"""An SU(2) matrix lifting the proper rotation ``Q``.
 
-    ``cos(θ/2) − i sin(θ/2) n·σ`` for a turn by ``θ`` about ``n``, the
-    quaternion taken from the largest of its four squares so that no turn —
-    a half turn included — divides by a small number.  Which of the two lifts
-    comes back does not matter: the matrix is only ever used to conjugate.
+    ``Q`` is a Cartesian matrix, replaced first by the nearest orthogonal one.
+    The matrix returned is ``cos(θ/2) − i sin(θ/2) n·σ`` for a turn by
+    ``θ`` about the unit axis ``n``, read off the rotation's quaternion.
+    Which of the two lifts is returned is not fixed, so the matrix is used only
+    to conjugate.
     """
     U, _s, Vt = np.linalg.svd(np.asarray(Q, dtype=float))
     Q = U @ Vt
@@ -1307,16 +1240,24 @@ def _su2_of(Q) -> np.ndarray:
 
 
 def _carried_characters(reference, here, Q, tol=_TABLE_MATRIX_TOL, *, double=True):
-    """The reference's characters, carried by ``Q`` onto the site's operations.
+    """The characters of a reference, carried by ``Q`` to a site's operations.
 
-    ``here`` is ``(R, O, S)`` per operation of the site.  Each is the image under
-    ``Q`` of one reference operation, and its SU(2) matrix the image of that
-    operation's under the lift of ``Q`` up to a sign: the sign is the tables'
-    own choice of lift for the two, and a double-valued character carries it,
-    since the other lift is the operation times the rotation by ``2π``.  A
-    single-valued character (``double=False``) is the operation's own and
-    carries no sign.  Returns ``[(name, [character per site operation])]``, or
-    ``None`` where some operation has no image.
+    ``reference`` is one reference of :func:`_origin_coreps` or
+    :func:`_origin_irreps`: its table's number, its operations ``(R, O, S)``,
+    and its names with their characters.  ``here`` is ``(R, O, S)`` per
+    operation of the site, as :func:`_tabulated_operations` gives them, and
+    ``Q`` a proper rotation in the tables' frame.  Each operation of the site
+    is matched to the reference operation ``Q`` carries onto it, by its
+    Cartesian matrix to three decimals.  With ``double=True``, the default, a
+    character also takes the sign relating the site operation's SU(2) matrix
+    to the reference operation's carried by the lift of ``Q``
+    (:func:`_su2_of`).  The two lifts of one operation differ by the rotation
+    through 2π, on which a double-valued character changes sign.  With
+    ``double=False`` a character is carried as it is.  ``tol`` is how far the
+    relating factor may be from 1 or -1.  Returns
+    ``[(name, [character per site operation])]``, one pair per name of the
+    reference.  Returns ``None`` where an operation of the site is the image of
+    none, or its SU(2) matrix is not the carried one up to a sign.
     """
     _number, ops, names = reference
     by_key = {_matrix_key(O): i for i, (_R, O, _S) in enumerate(ops)}
@@ -1338,60 +1279,63 @@ def _carried_characters(reference, here, Q, tol=_TABLE_MATRIX_TOL, *, double=Tru
 
 
 def _point_group_names(group, table) -> tuple:
-    r"""Each row of a site table, with the spin, named by the site point group's own irreps.
+    r"""The double-valued point-group name of each row of a site table.
 
-    The row times the operations' spin-½ lift is the double-valued site
-    representation the states carry; it is decomposed over the double-valued
-    irreps of the site's point group as the tables name them at the origin of a
-    symmorphic group (:func:`_origin_coreps`), grey where the group carries time
-    reversal, and spelled as the sum of what it holds (``"-1E2E + -E1"``).
-
-    **Which reference, and how the characters are carried.**  Where the site's
-    operations are, as Cartesian matrices in the tables' own frame, exactly the
-    operations of a symmorphic group's origin — the same axes, the same senses —
-    the lowest-numbered such group is the reference and each character is read
-    off the operation it is of, its sign the tables' own lift.  Otherwise the
-    reference is the lowest-numbered group of the point group and the
-    characters are carried by every rotation taking its origin's operations
-    onto the site's: a row takes a name where all of them agree on it.  They
-    agree on every double-valued name of a grey group, and where they part —
-    the ``1``/``2`` members of a complex-conjugate pair of a group without time
-    reversal, whose names follow a sense of rotation no table fixes at an axis
-    no symmorphic origin shares — the row is left unnamed.
-
-    Returns
-    -------
-    tuple
-        One label per row of ``table``, ``""`` where nothing names it.
+    ``table`` is a site table of ``group``, its rows the orbital characters.
+    A row times the operations' spin-1/2 lift is the double-valued site
+    representation the states carry.  It is named by the double-valued irreps
+    of the site's point group, as the tables name them at the origin of a
+    symmorphic group (:func:`_origin_coreps`), grey where ``group`` carries
+    time reversal.  A reducible one is spelled as the sum of what it holds
+    (``"-1E2E + -E1"``).  The names are carried onto the site by
+    :func:`_point_group_reading`.  Returns one name per row of ``table``,
+    ``""`` where nothing names it, and every name ``""`` where
+    :func:`_point_group_reading` returns ``None``.
     """
     names = _point_group_reading(group, table, double=True)
     return ("",) * len(table.labels) if names is None else names
 
 
 def _point_group_irreps(group, table):
-    r"""Each row of a site table named by the site point group's own single-valued irreps.
+    r"""The single-valued point-group name of each row of a site table.
 
-    :func:`_point_group_names` without the spin: the row itself, the orbital
-    character, decomposed over the single-valued irreps of the site's point
-    group as the tables name them at the origin of a symmorphic group
-    (:func:`_origin_irreps`), grey where the table's rows are glued by time
-    reversal.  The same irrep then has the tables' name at every position, the
-    ones their entries list and the ones they do not; a ``1``/``2`` member of a
-    complex-conjugate pair whose name follows a sense of rotation no table
-    fixes at this site is left unnamed.
-
-    Returns
-    -------
-    tuple or None
-        One label per row, ``""`` where the references do not agree on one, and
-        ``None`` where no reference reads the site at all, the tables not set up
-        for the group.
+    ``table`` is a site table of ``group``.  Each row, an orbital character, is
+    named by the single-valued irreps of the site's point group, as the tables
+    name them at the origin of a symmorphic group (:func:`_origin_irreps`),
+    grey where time reversal joins the table's rows (``table.antiunitary``
+    nonempty).  So one irrep has the tables' name at every position, the ones
+    their entries list and the ones they do not.  The names are carried onto
+    the site by :func:`_point_group_reading`.  Returns one name per row,
+    ``""`` where nothing names it, or ``None`` where
+    :func:`_point_group_reading` returns ``None``.
     """
     return _point_group_reading(group, table, double=False)
 
 
 def _point_group_reading(group, table, *, double):
-    """:func:`_point_group_names` (``double``) or :func:`_point_group_irreps`; ``None`` where unread."""
+    """The point-group names of a site table's rows, single- or double-valued.
+
+    They are what :func:`_point_group_names` and :func:`_point_group_irreps`
+    return.  ``group`` is the measured group and ``table`` one of its site
+    tables.  ``double`` chooses the double-valued names, of each row times the
+    spin-1/2 lift, over the single-valued ones.  The reference is a symmorphic
+    group of the site's point group, read at its origin.  Where the site's
+    operations, as Cartesian matrices in the tables' frame, are those of such
+    an origin, the lowest-numbered one is the reference and each character is
+    read off the operation it belongs to.  Otherwise the reference is the
+    lowest-numbered group of the point group, and its characters are carried
+    by every rotation taking its origin's operations onto the site's
+    (:func:`_conjugators`).  A row is named where it is a sum of the
+    reference's irreps with nonnegative integer multiplicities, not all zero,
+    and every rotation gives the same sum.  Where they give different sums the
+    row is left unnamed.  This happens to the two members of a
+    complex-conjugate pair at an axis no symmorphic origin shares, in a group
+    without time reversal.  Returns one name per row, ``""`` for a row not
+    named.  Returns ``None`` where the tables are not set up for ``group``,
+    ``double`` is asked of a group without spin, no reference holds the point
+    group, the group's table does not list as many operations as the group
+    holds, or the reference's operations are not all carried onto the site's.
+    """
     if not getattr(group, "_tables_ready", False) or (double and not group.spinor):
         return None
     symbol = _sitechars.point_group_symbol(group, table.indices)

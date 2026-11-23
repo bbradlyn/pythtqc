@@ -1,7 +1,10 @@
-"""What a declaration states, read on the multiplets the Hamiltonian measures:
-each site's declared content in its site group, the operations that carry it,
-one verdict per operation with the scalars it pins, and the refusal where the
-declared content breaks the group.
+"""What ``characters=`` declares, read on the multiplets the Hamiltonian measures.
+
+Each site's declared site irreps are read in its site group, and the operations
+that carry them are kept.  Each operation's solution space then gives a verdict
+on the declaration, with the scalars the hoppings pin.  Where the declaration
+breaks the group and the group cannot be lowered, the refusal is
+``declaration_breaks_group``.
 """
 
 from __future__ import annotations
@@ -36,7 +39,10 @@ from ._multiplets import (
 
 @dataclass(frozen=True, eq=False)
 class _Row:
-    """One row of the measured-versus-declared table: a declared multiplet under one operation.
+    """One row of the measured-versus-declared table.
+
+    A row is one declaration under one operation.  A declaration over several
+    multiplets is read as the sum of their characters.
 
     Attributes
     ----------
@@ -45,16 +51,20 @@ class _Row:
     ind : int
         The operation's index in the group.
     name : str
-        The operation's name in the generator frame.
+        The operation's name from its Cartesian rotation
+        (:func:`.._sitechars.operation_name`).
     measured : complex
-        The character the hoppings carry the orbitals with, against their part's scale.
+        The character the hoppings give the orbitals, read against the scale
+        of their coupled part.
     declared : complex
         The character the declaration states.
     part : int
-        The coupled part of the crystal the declaration is read in.
+        The coupled part of the crystal the declaration is read in: the
+        multiplets the hoppings connect, directly or through others.
     required : complex or None
         The value the part's one-dimensional character has to take for the
-        declaration to hold; ``None`` where no value does.
+        declaration to hold.  ``None`` where the measured character vanishes,
+        or where the declared matrices are not proportional to the measured.
     matrices : tuple of ndarray or None
         The declared and the measured generator matrix, where the declaration
         states matrices; ``None`` otherwise.
@@ -72,23 +82,26 @@ class _Row:
 
 @dataclass(frozen=True)
 class _ReadTogether:
-    """A declared content read over several multiplets at once, operation by operation.
+    """A declaration read over several multiplets at once, operation by operation.
 
     Attributes
     ----------
     decl : dict
-        The declaration read.
+        The declaration, as :func:`_normalize_declaration` returns it.
     theta : dict
-        What each of its multiplets carries, ``{multiplet: {ind: character}}``,
-        against its own part's scale, or under the representation an orbit
-        built by induction is assembled with.
+        The character each of its multiplets carries at each operation,
+        ``{multiplet: {ind: character}}``, read against the multiplet's own
+        coupled part's scale.  On an orbit of sectors built by induction, it
+        is read under the representation that orbit is assembled with.
     part : dict or None
         The coupled part each multiplet is in, ``{multiplet: part}``; ``None``
-        on an orbit built by induction, which the sectors alone weigh.
+        on an orbit of sectors built by induction, which the sectors alone
+        weigh.
     site_group : tuple of int or None
         The indices of the operations kept that fix the declaration's site.
     table_of : _SiteTableOf or None
-        The site's character table on any subgroup of its site group.
+        Called with a subgroup of the site group, the site's character table
+        on it.
     lift_trace : dict or None
         The trace of each operation's spin-1/2 lift, by index.
     """
@@ -103,15 +116,15 @@ class _ReadTogether:
 
 @dataclass(frozen=True)
 class _CovariantSubgroup:
-    """The largest subgroup a declared content is covariant on, and what it leaves out.
+    """The largest subgroup a declaration is covariant on, and what it leaves out.
 
     Attributes
     ----------
     subgroup : frozenset of int
         The indices of the subgroup returned.
     candidates : tuple
-        The maximal subgroups in the tie rule's order where several tie, the
-        one returned first; empty otherwise.
+        If nonempty, the subgroups of the largest order that tie, in the tie
+        rule's order, the one returned first.
     broken : tuple of int
         The indices of the operations asked about that the subgroup leaves out.
     """
@@ -123,14 +136,15 @@ class _CovariantSubgroup:
 
 @dataclass(frozen=True, eq=False)
 class _Verdict:
-    """The one reading of the solution spaces: a verdict per operation, and what the hoppings pin.
+    """A verdict per operation off the solution spaces, and what the hoppings pin.
 
     Attributes
     ----------
     rows : tuple of _Row
         The measured-versus-declared table.
     parts : tuple of frozenset
-        The coupled parts of the crystal as sets of multiplet orbits, the anchor's first.
+        The coupled parts of the crystal as sets of multiplet orbits, the
+        anchor's first.
     requirements : tuple of dict
         Per part, what each operation asks of its one-dimensional character,
         ``{ind: value}``, ``None`` where the declaration breaks the operation.
@@ -140,9 +154,9 @@ class _Verdict:
         Per part, the requirements at the operations declared generator
         matrices were read at.
     joint : tuple of _ReadTogether
-        The contents read over several coupled parts, or stating part of a site.
+        The declarations read over several coupled parts, or on part of a site.
     by_sectors : tuple of _ReadTogether
-        The contents declared on orbits built by induction.
+        The declarations on orbits of sectors built by induction.
     reasons : dict
         One sentence per broken operation, by index.
     classes : ndarray of int
@@ -165,9 +179,10 @@ class _Verdict:
     reference_orbital : int
         The orbital the lowest-angular-momentum rule reads the crystal from first.
     declared : tuple
-        What was declared, in the form a later reading is compared against.
+        What was declared, as :func:`_declared_key` writes it.
     space_tol : float
-        How far outside the blocks a member may sit and count as inside, dimensionless.
+        How far outside the blocks a member may sit and count as inside,
+        dimensionless.
     indices : frozenset of int
         The indices of the operations read.
     blocks : _MultipletBlocks
@@ -206,75 +221,60 @@ class _Verdict:
 
 def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=CHARACTER,
                         joint=(), search=None, matrices=()):
-    r"""The largest subgroup the declared orbital content is covariant on.
-
-    Read off the sectors of the Hamiltonian's conserved matrices wherever they
-    read the round (``search``, :class:`.._sectors.SectorSearch`): a subgroup
-    carries the declaration where one representation per orbit of sectors under
-    **that subgroup**, of those the hoppings leave open, gives every declared
-    site its content (:func:`_subgroup_read`).  A smaller group splits the
-    orbits by itself -- three uncoupled lines a threefold axis exchanges are one
-    orbit of ``6mm`` and two of ``mm2``, each with a character of its own -- so
-    nothing is ruled out on the larger group's orbits before the smaller one is
-    asked.  Where the sectors read nothing the requirements below decide.
-    ``matrices`` holds what declared generator matrices ask, one mapping per
-    part as ``requirements`` holds it; the sectors read contents, so where a
-    subgroup they keep has no character meeting it, the requirements decide,
-    the matrices' among them.
+    r"""The largest subgroup the declared site irreps are covariant on.
 
     The hoppings fix every multiplet's block up to one one-dimensional
-    character per **coupled part** of the crystal — the multiplets they
-    connect, directly or through others — so each part's declarations are
-    read against a scale of its own and ask for a character of their own.
-    ``requirements`` holds what the measurement left, one mapping per part,
-    with one entry per unitary operation it could speak about: ``None`` where
-    the operation is *individually* disallowed — two declared multiplets of
-    the part it fixes need different scalars, or the scalar one of them needs
-    is not ``±1`` — and otherwise the scalar ``λ(g)`` the part's character has
-    to take there.  An operation absent from a mapping constrains nothing
-    there.  A single mapping is one part.
+    character per coupled part of the crystal, the multiplets they connect
+    directly or through others.  A subgroup ``S`` keeps the declaration where
+    every part has a one-dimensional character of ``S`` that meets all of its
+    requirements.  The representation on each part is then the declared one
+    restricted to ``S``, times that character.  Where ``search`` is given and
+    complete, every operation having a reading on the sectors, the sectors
+    decide (:func:`_subgroup_read`).  The requirements decide where the sectors
+    read nothing, or where the subgroup they keep fails the declared matrices.
+    Where several subgroups of the largest order tie, the first by the tie rule
+    (:func:`.._subgroups._tie_ranked`) is returned and all are recorded.  The
+    identity always keeps the declaration.
 
-    Every declaration is such a constraint, wherever it sits: an undeclared
-    orbital, the reference orbital included, imposes none.  The declared content
-    is then a representation covariant with ``H`` on a subgroup ``S`` exactly
-    when every part has a one-dimensional **real** character of ``S`` meeting
-    all of its requirements inside it, and the returned representation on each
-    part is ``λ·D|_S``; which of the characters left the crystal is assigned is
-    the lowest-angular-momentum rule's to choose, and the build chooses it once.
-    Those subgroups are closed under intersection but not under join, so the
-    largest is not always unique; where several of the largest order tie, each
-    a consistent reading on its own, the one returned is the first by the tie
-    rule every such choice is made by (:func:`.._subgroups._tie_ranked`) — never
-    their intersection, which would keep less than any of them carries — and
-    all of them are recorded in the rule's order, because which readings were
-    possible is the physics of what was declared.  The floor is the identity,
-    which is always consistent: a descent by declaration never refuses.
+    Parameters
+    ----------
+    group : ..groups.GroupData
+        The group the operations belong to.
+    kept_u : iterable of int
+        The indices of the unitary operations the measurement kept.
+    requirements : dict or sequence of dict
+        Per coupled part, ``{ind: value}``, the value the part's character has
+        to take at each unitary operation for its declarations to hold,
+        ``None`` where the operation is broken on its own.  An operation absent
+        from a mapping constrains nothing.  A single mapping is one part.
+    unitary_only : bool, default False
+        Whether the group keeps no antiunitary operation.  With
+        ``unitary_only=True`` every one-dimensional character of a subgroup,
+        the complex ones included, is a candidate; otherwise only the real
+        ones are.
+    tol : float, default CHARACTER
+        How far a character may sit from the value a requirement asks and
+        still meet it (:func:`_meets`).  Callers pass the declared tolerance
+        where that is larger.
+    joint : sequence of _ReadTogether, default ()
+        The declarations read over several coupled parts, or on part of a
+        site (:attr:`_Verdict.joint`).  A subgroup keeps each where one
+        character for each part it spans carries it (:func:`_joint_holds`).
+    search : _sectors.SectorSearch or None, default None
+        What the declaration asks of the sectors on any subgroup; ``None``
+        where the sectors read nothing.
+    matrices : sequence of dict, default ()
+        Per coupled part, the requirements at the operations declared
+        generator matrices were read at (:attr:`_Verdict.matrices`).
 
-    ``unitary_only`` is a group with no antiunitary operation represented,
-    where the residual freedom is larger than the real characters: **every**
-    one-dimensional character of a subgroup is a candidate labelling there —
-    roots of unity per generator — so those are what is searched, and a declared
-    content met only by a complex character is **returned** with it rather than
-    descended on.  Nothing in such a group's measurement forbids one: it
-    preserves the covariance, the canonical norm and the whole product table.
-
-    ``joint`` holds the contents read together (:func:`_verdicts_and_choices`):
-    one spread over several coupled parts, or one stating part of what its
-    site holds.  Each asks something of several parts at once, so a subgroup
-    keeps it only where one character of the subgroup for each part it spans
-    carries what was declared: the same content where the whole site was
-    declared, and a content containing it where part of the site was
-    (:func:`_joint_holds`).
-
-    ``tol`` is how far a character may sit from the value a requirement asks
-    and still meet it (:func:`_meets`): the requirements are read off the
-    solution spaces, so it is the declared tolerance where that is larger than
-    its exact default.
-
-    Returns the :class:`_CovariantSubgroup` — the returned set of
-    ``.ind``, the maximal candidates in the rule's order where several tie, the
-    one returned first, and the operations of ``kept_u`` outside ``S`` — or the
-    :class:`..refusal.Refusal` of a search past its ceiling.
+    Returns
+    -------
+    _CovariantSubgroup
+        The subgroup, the subgroups that tie, and the operations of ``kept_u``
+        left out.  Where ``kept_u`` is no group and holds several largest
+        subgroups, only the operations the declaration breaks on their own are
+        left out.  The ``rep_search_too_large`` refusal :func:`_subgroup_read`
+        can return is not handled, and raises ``AttributeError``.
     """
 
     def _carries_matrices(sub):
@@ -299,12 +299,13 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
     def _barred(i):
         return any(part.get(int(i), "free") is None for part in parts)
 
-    # WHAT THE GROUP WOULD BE WITHOUT THE DECLARATION.  The survivors of a
-    # measurement need not compose -- a sigma_h fiber partner whose lift
-    # coincides with a kept operation's survives beside it, and the closure step
-    # is what removes those -- so the question is asked inside the group they
-    # DO form, and such a fiber partner is neither kept by the declaration nor
-    # blamed on it: it leaves by the closure resolution, which is its own verdict.
+    # The group the survivors form without the declaration.  The operations a
+    # measurement keeps need not compose: on a layer, the partner of a kept
+    # operation under the mirror through the plane (sigma_h), whose lift
+    # coincides with the kept one's, survives beside it until the closure step
+    # removes it.  So the declaration is read inside the group the survivors
+    # do form, and such a partner is neither kept by the declaration nor
+    # charged to it.
     closes = _closes(group, keep)
     if closes:
         # the survivors are a group, the one largest inside them
@@ -314,13 +315,12 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
         widest = sorted((s for s in plain if len(s) == max(len(t) for t in plain)),
                         key=sorted) if plain else []
     if len(widest) != 1:
-        # THE SURVIVORS ARE NOT A GROUP AND NO LARGEST SUBGROUP OF THEM IS
-        # UNIQUE.  A declaration is read on a *group*, and there is not one here
-        # yet -- the closure resolution speaks first, and where the candidates
-        # tie it keeps the one the tie rule ranks first.  So only the operations
-        # the declaration disallows *individually* are its own, and the
-        # character question is asked again on the next round, on whatever
-        # group that resolution lands on.
+        # The survivors are not a group, and no largest subgroup of them is
+        # unique.  A declaration is read on a group, and the closure resolution
+        # finds that group first, keeping the candidate the tie rule ranks
+        # first.  So only the operations the declaration breaks on their own
+        # are charged to it here, and the declaration is read again on the
+        # group that resolution keeps.
         bad = {i for i in keep if _barred(i)}
         return _CovariantSubgroup(subgroup=frozenset(keep - bad), candidates=(),
                                   broken=tuple(sorted(bad)))
@@ -330,8 +330,9 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
     def _met(sub):
         """Whether every coupled part has a character of ``sub`` meeting its requirements.
 
-        And, where contents read together speak inside ``sub``, whether one
-        character of each part they span meets those and its own part's at once.
+        Where declarations read together (``joint``) speak inside ``sub``, one
+        character for each part they span meets its own part's requirements
+        and carries those declarations at once.
         """
         inside = {int(i) for i in sub}
         asked = [i for i, wants in enumerate(parts) if any(int(g) in inside for g in wants)]
@@ -366,12 +367,12 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
     if not consistent:                   # pragma: no cover - {E} always is
         return _CovariantSubgroup(subgroup=frozenset(), candidates=(),
                                   broken=tuple(sorted(keep)))
-    # The LARGEST consistent subgroup, and the tie rule only where the largest
-    # is not unique.  Maximality by inclusion alone would let a small subgroup
-    # nothing constrains -- the sigma_h fiber partners that survive beside a kept
-    # operation, which the closure step removes for exactly this reason -- stand
-    # beside the group the declaration reaches as a candidate.  A tie needs two consistent subgroups
-    # of the SAME size, which is the case the record names.
+    # The largest consistent subgroup, with the tie rule only where several
+    # share the largest order.  Maximality by inclusion alone would let a
+    # small subgroup nothing constrains, such as the one generated by a
+    # sigma_h partner the closure step removes, stand as a candidate beside the
+    # group the declaration reaches.  A tie is two consistent subgroups of the
+    # same order, and those are the candidates returned.
     top = max(len(s) for s in consistent)
     ranked = _tie_ranked(group, [s for s in consistent if len(s) == top])
     best = frozenset(ranked[0])
@@ -381,7 +382,7 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
 
 
 def _cyclic(group, ind):
-    """The operations one unitary operation generates, by ``.ind``."""
+    """The cyclic group of the operation ``ind`` in ``group``, by index."""
     prod = group._get_product_table(get_diff=False)
     at = {int(s.ind): p for p, s in enumerate(group._symmetries)}
     ind_of = [int(s.ind) for s in group._symmetries]
@@ -394,20 +395,27 @@ def _cyclic(group, ind):
 
 
 def _subgroup_read(group, kept_u, search):
-    r"""The largest subgroup the declared content is carried on, read off the sectors.
+    r"""The largest subgroup the declaration is carried on, read off the sectors.
 
-    The subgroups inside the group the survivors form are asked from the
-    largest down (:meth:`.._sectors.SectorSearch.met`), and the first order at
-    which any carries the declaration is the one kept, the tie rule choosing
-    among several (:func:`.._subgroups._tie_ranked`); the identity alone always
-    carries it.  Where the survivors form no one largest group, the closure
-    resolution speaks first and the declaration is asked again on the group it
-    lands on: only an operation the declaration rules out on its own -- whose
-    own cyclic group carries no representation that holds it -- is refuted
-    here.  Returns what :func:`_covariant_subgroup` does; ``None`` where the
-    sectors do not read the group, and the ``rep_search_too_large``
-    :class:`..refusal.Refusal` where the representations to weigh at once are
-    more than the search's ``max_candidates``.
+    ``kept_u`` holds the indices of the unitary operations the measurement
+    kept, and ``search`` what the declaration asks of the sectors of the
+    Hamiltonian's conserved matrices (:class:`.._sectors.SectorSearch`).
+    Where ``kept_u`` is a group, or holds one largest subgroup, that group's
+    subgroups are asked from the largest order down
+    (:meth:`.._sectors.SectorSearch.met`).  The first order at which any
+    carries the declaration is kept, the tie rule choosing among several
+    (:func:`.._subgroups._tie_ranked`).  Where ``kept_u`` holds several
+    largest subgroups, only the operations whose own cyclic group does not
+    carry the declaration are left out, and the declaration is read again on
+    the group the closure resolution keeps.  Returns the
+    :class:`_CovariantSubgroup`; ``None`` where the sectors do not read the
+    group; the ``rep_search_too_large`` refusal where the representations to
+    weigh at once are more than ``search.max_candidates``.
+
+    Raises
+    ------
+    InternalError
+        Where no subgroup carries the declaration, not even the identity alone.
     """
 
     keep = frozenset(int(i) for i in kept_u)
@@ -439,21 +447,20 @@ def _subgroup_read(group, kept_u, search):
     except _sectors._TooMany as many:
         return Refusal(
             "rep_search_too_large",
-            f"the declared content of orbitals {many.orbitals} is weighed against every "
-            f"representation the hoppings leave open on the sectors those orbitals lie on -- "
-            f"{many.copies} identical cop{'y' if many.copies == 1 else 'ies'} of each -- and the "
-            f"{many.count:,} to weigh at once are more than max_candidates = "
-            f"{search.max_candidates:,}. Declare less of what the copies hold, or raise "
-            "`max_candidates=` if the search is worth waiting for.",
+            f"comparing the declaration of orbitals {many.orbitals} with the "
+            f"{many.count:,} representations the hoppings leave open on "
+            f"{many.copies} identical cop{'y' if many.copies == 1 else 'ies'} of their "
+            f"states exceeds max_candidates = {search.max_candidates:,}. Declare fewer "
+            "of these orbitals, or pass a larger `max_candidates=`.",
             value=float(many.count), threshold=float(search.max_candidates),
             context={"orbitals": many.orbitals, "copies": many.copies,
                      "n_candidates": many.count, "max_candidates": search.max_candidates})
     if not carried:
         raise InternalError(
-            f"no subgroup of {group.name} #{group.number_str}, the identity alone included, "
-            "carries the declared content on the sectors of the Hamiltonian's conserved "
-            "matrices, where the identity always carries it: the copies as they stand hold "
-            "every declared dimension.")
+            f"no subgroup of {group.name} #{group.number_str}, not even the identity "
+            "alone, "
+            "carries the declaration on the sectors of the Hamiltonian's conserved "
+            "matrices. Report it, with the model and the call.")
     ranked = _tie_ranked(group, carried)
     best = frozenset(ranked[0])
     return _CovariantSubgroup(subgroup=best, candidates=ranked if len(ranked) > 1 else (),
@@ -462,25 +469,49 @@ def _subgroup_read(group, kept_u, search):
 
 def _declaration_breaks(group, assignment, decls, verdict, *, standing, subgroup, broken,
                         readings, not_lowered, site_tables=None, admissible=None):
-    r"""The ``declaration_breaks_group`` refusal, made in one place.
+    r"""The ``declaration_breaks_group`` refusal.
 
-    The verdict is made once, per operation, on the detector's own solution
-    spaces, the declaration read on the measured multiplets
-    (:func:`_verdicts_and_choices` and
-    :func:`_covariant_subgroup`, which is also what
-    :func:`..groups.realized_group` descends on).  This writes it down for the
-    call that does not lower the group, :func:`.._build._build_rep` handed a fixed
-    group, ``not_lowered`` being its sentence on why: which operations the declared content
-    is not covariant under, which subgroup it **is** covariant on, the maximal
-    readings where several tie, that subgroup the first of them by the tie rule,
-    and in irrep names what the failing declaration measured.
+    :func:`.._build._build_rep`, handed a fixed group it cannot lower, returns
+    it.  The verdict is the one :func:`..groups.realized_group` descends on.
+    The reason names the unitary operations the declaration is not covariant
+    under and their primed partners, the subgroup it is covariant on, the
+    subgroups that tie, what the failing declaration measured in site-irrep
+    names, and the measured-versus-declared rows of the broken operations.
 
-    ``standing`` are the operations the verdict was read on, unitary and
-    antiunitary.  ``subgroup`` and ``broken`` are the verdict, as unitary
-    operations or with their primed partners already added; the partners are
-    added here wherever they are missing.  ``site_tables`` and ``admissible``
-    — the site character tables and the real one-dimensional characters of
-    the group read — are computed here when they are not handed in.
+    Parameters
+    ----------
+    group : ..groups.GroupData
+        The group the representation was asked for on.
+    assignment : ..groups.OrbitalAssignment
+        The orbitals' sites in ``group``.
+    decls : sequence of dict
+        The declarations, as :func:`_normalize_declaration` returns them.
+    verdict : _Verdict
+        As :func:`_verdicts_and_choices` returns it.
+    standing : iterable of int
+        The indices of the operations the verdict was read on, unitary and
+        antiunitary.
+    subgroup : iterable of int
+        The indices of the operations the declaration is covariant on
+        (:func:`_covariant_subgroup`), unitary alone or with their primed
+        partners; the partners are added here.
+    broken : iterable of int
+        The indices of the operations it breaks, in the same form.
+    readings : sequence of tuple of int
+        The subgroups that tie, in the tie rule's order; empty where none do.
+    not_lowered : str
+        The sentence of the reason that says why the group is not lowered.
+    site_tables : dict or None, default None
+        The site character tables of ``group``
+        (:func:`.._naming._site_tables`); ``None`` computes them here.
+    admissible : list of dict or None, default None
+        The real one-dimensional characters of the unitary operations,
+        ``{ind: value}`` each; ``None`` computes them here.
+
+    Returns
+    -------
+    Refusal
+        ``declaration_breaks_group``, its context carrying ``group``.
     """
 
     lattice = np.asarray(group._lattice, dtype=float)
@@ -492,10 +523,10 @@ def _declaration_breaks(group, assignment, decls, verdict, *, standing, subgroup
     frame = {i: (_sitechars.operation_name(by_ind[i], lattice)
                  + ("'" if by_ind[i].time_reversal else "")) for i in standing}
     unitary = [i for i in standing if not by_ind[i].time_reversal]
-    # A site character is a character of the UNITARY site group, so the verdict
-    # is about unitary operations -- but the group returned is the grey one they
+    # A site character is a character of the unitary site group, so the verdict
+    # is about unitary operations.  The group returned is the grey group they
     # generate, and the primed copy of an operation stands or falls with it.  A
-    # primed partner is counted as what it is, and never as a unitary operation.
+    # primed partner is counted as what it is, never as a unitary operation.
     partners = _primed_partners(group, names)
     broken_u = sorted({int(i) for i in broken if not by_ind[int(i)].time_reversal})
     kept_u = sorted({int(i) for i in subgroup if not by_ind[int(i)].time_reversal})
@@ -515,8 +546,8 @@ def _declaration_breaks(group, assignment, decls, verdict, *, standing, subgroup
                 f"the primed copy of #{i} {names[i]}: a site character is a character "
                 "of the unitary site group, so the two stand or fall together")
 
-    # WHAT THE FAILING DECLARATION MEASURED, in irrep names: the same naming on
-    # both calls, from the site tables and the readings of the group read
+    # What the failing declaration measured, in site-irrep names, read off the
+    # site tables and the one-dimensional characters of the group
     if site_tables is None:
         try:
             site_tables = _site_tables(group, assignment, set(unitary),
@@ -535,10 +566,11 @@ def _declaration_breaks(group, assignment, decls, verdict, *, standing, subgroup
     read = ""
     if readings:
 
-        read = ("\n  several readings are maximal and none contains the others -- "
+        read = ("\n  several subgroups the declaration is covariant on are maximal, and none "
+                "contains the others: "
                 + "; ".join("{" + ", ".join(f"#{i}" for i in r) + "}" for r in readings)
-                + " -- and the subgroup named above is the first by the tie rule "
-                f"`realized_group` states: {_tie_rule_words(group)}. It is first since "
+                + ". The one named above is the first by the tie rule of "
+                f"`realized_group`: {_tie_rule_words(group)}. It is first since "
                 f"{_tie_reason(group, readings)}.")
     why = "\n".join(f"    #{i} {names[i]}: {why_of[i]}" for i in every)
     table = "\n".join(
@@ -548,21 +580,18 @@ def _declaration_breaks(group, assignment, decls, verdict, *, standing, subgroup
         for r in rows if int(r.ind) in set(broken_u))
     return Refusal(
         "declaration_breaks_group",
-        f"the declared orbital content is not covariant under {len(broken_u)} of the "
+        f"the declaration is not covariant under {len(broken_u)} of the "
         f"{len(unitary)} unitary operations of {group.name} #{group.number_str}, "
         f"{_counted_as(group.spinor)}: "
         + (_listed(broken_u) or "(none)")
         + (f", nor under their primed partners {_listed(primed)}" if primed else "")
-        + ". A declaration says what the orbitals are, so a Hamiltonian whose hoppings "
-        "do not respect it is not a wrong declaration -- it is a crystal with less "
-        f"symmetry. The declared content is covariant on the {len(kept)} operations "
+        + f". It is covariant on the {len(kept)} operations "
         + _listed(kept)
-        + ", and `realized_group` descends to them and returns that group, with its own "
-        f"labels, EBR rows and indicators. {not_lowered}"
+        + f", the subgroup of {group.name} that `realized_group` descends to. {not_lowered}"
         + read
         + (f"\n{named['verdict']}" if named else "")
-        + (f"\n  why the declared content is not carried by each:\n{why}" if why else "")
-        + (f"\n  measured vs declared:\n{table}" if table else "")
+        + (f"\n  why each is broken:\n{why}" if why else "")
+        + (f"\n  measured and declared characters:\n{table}" if table else "")
         + "\n  frame: " + "; ".join(f"#{i} = {frame[i]}" for i in standing),
         value=float(len(every)), threshold=0.0,
         context=dict({
@@ -581,11 +610,11 @@ def _declaration_breaks(group, assignment, decls, verdict, *, standing, subgroup
 
 
 def _joint_reason(joint, ind):
-    """Why a content read together breaks one operation, in words; ``None`` where none speaks there.
+    """The sentence saying why a declaration read together breaks one operation.
 
-    ``joint`` holds the contents the verdict stage reads over several
-    multiplets at once (:func:`_verdicts_and_choices`); the first measured at
-    ``ind`` is named.
+    ``joint`` holds the declarations read over several multiplets at once
+    (:class:`_ReadTogether`), and the first measured at the operation of
+    index ``ind`` is named.  Returns ``None`` where none was measured there.
     """
     for j in joint:
         if not any(int(ind) in row for row in j.theta.values()):
@@ -604,11 +633,12 @@ def _joint_reason(joint, ind):
 
 
 def _declared_key(decls):
-    """A comparable identity for one set of declared contents.
+    """A comparable key for the declarations ``decls``.
 
-    What a reading of the solution spaces was made *about*, so that a reading
-    handed down from :func:`..groups.realized_group` is used only where it
-    answers the same question.
+    The key holds each declaration's orbitals, its characters rounded to
+    twelve decimals, and whether it is written in double-valued site irreps.
+    A verdict handed down from :func:`..groups.realized_group` is reused only
+    where its key equals this one.
     """
     return tuple(sorted(
         (tuple(int(o) for o in d["orbitals"]),
@@ -620,35 +650,50 @@ def _declared_key(decls):
 
 def _multiplet_scale(group, layout, positions, cperm, classes, ref, blocks, *,
                      reversal=None, reversal_image=None, reach):
-    r"""``{position: block}`` — one multiplet's own transport block, its phase settled.
+    r"""One multiplet's blocks round its orbit, settled into a representation.
 
-    The scale a part of the crystal holding no one-dimensional multiplet reads
-    its declared characters against, taken at the multiplet ``ref`` of that
-    part, and the scale of a one-dimensional multiplet whose tables' lift is
-    no representation of the group (:func:`_lifted_scale`).  The Hamiltonian
-    fixes an operation's block of the multiplet, carried round its Wyckoff
-    orbit (:func:`_multiplet_blocks`), only up to the free phase of the
-    solution space it was read from, and a declared character is a statement
-    about the representation, not about one member of a space.  So the orbit's
-    own blocks are settled exactly as the build settles its matrices
-    (:func:`_settle_unit`): each generator in its canonical norm and the
-    time-reversal anchor, the rest propagated along the generators' word tree,
-    and the multiplication table choosing the roots where positivity's choice
-    does not multiply.  What is left is a representation of the group on the
-    orbit, fixed up to one one-dimensional character, and that character is the
-    part's to choose: its declarations are read against this scale with every
-    character admitted (:func:`_covariant_subgroup`), so the frame the numbers
-    are written in, the settling's own, constrains nothing.
+    This is the scale a coupled part reads its declared characters against
+    where it holds no one-dimensional multiplet, or where the lift of its
+    one-dimensional multiplet is no representation (:func:`_lifted_scale`).
+    The Hamiltonian fixes each operation's block on the orbit of ``ref`` only
+    up to the phase of the solution space it was read from.  The blocks are
+    settled as the build settles its matrices
+    (:func:`.._matrices._settle_unit`): each generator in its canonical norm,
+    the time reversal anchored, the rest propagated along the generators'
+    words.  What is left is fixed up to one one-dimensional character, which
+    the part chooses.
 
-    ``positions`` are the unitary operations read, ``cperm`` where each
-    carries each multiplet, ``blocks`` the multiplets' blocks by ``.ind``;
-    ``reversal`` is the position of the time reversal kept, with
-    ``reversal_image`` its multiplet permutation, and ``reach`` the composition
-    defect up to which noisy blocks are projected onto the nearest exact
-    representation.  Returns ``{position: block}`` -- the block at the
-    multiplet's image and the multiplet -- or ``None`` where the operations are
-    no group, a block is missing, or the blocks settle into no representation
-    of the operations: nothing is measured on this scale then.
+    Parameters
+    ----------
+    group : ..groups.GroupData
+        The group the operations belong to.
+    layout : SiteMultiplets
+        The multiplets of each site.
+    positions : iterable of int
+        The positions in ``group`` of the unitary operations read.
+    cperm : mapping
+        Per position, where the operation carries each multiplet.
+    classes : ndarray of int
+        The multiplet orbit of each multiplet.
+    ref : int
+        The multiplet whose orbit is settled.
+    blocks : mapping
+        Each operation's block on each multiplet, ``{ind: {multiplet: block}}``.
+    reversal : int or None, default None
+        The position of the time reversal that anchors the phases; ``None``
+        where the group keeps none.
+    reversal_image : sequence of int or None, default None
+        Where that time reversal carries each multiplet.
+    reach : float
+        The composition defect up to which noisy blocks are projected onto the
+        nearest exact representation.
+
+    Returns
+    -------
+    dict or None
+        ``{position: block}``, each block from ``ref`` to its image under the
+        operation.  ``None`` where the operations are no group, a block is
+        missing, or the blocks settle into no representation.
     """
     syms = group._symmetries
     prod, _tdiff, spf = group._get_product_table(get_diff=True)
@@ -672,7 +717,12 @@ def _multiplet_scale(group, layout, positions, cperm, classes, ref, blocks, *,
         return np.asarray([local[int(a)] for a in layout._chan_states[int(c)]], dtype=int)
 
     def _raw(p, image):
-        """One operation's matrix on the reference orbit, off the model's own blocks."""
+        """The matrix of the operation at position ``p`` on the orbit of ``ref``.
+
+        ``image`` is where the operation carries each multiplet.  The matrix
+        is assembled from ``blocks``; ``None`` where one is missing or has the
+        wrong shape.
+        """
         got = blocks.get(int(syms[p].ind), {})
         M = np.zeros((n, n), dtype=complex)
         for c in members:
@@ -717,28 +767,25 @@ def _multiplet_scale(group, layout, positions, cperm, classes, ref, blocks, *,
 
 def _lifted_scale(group, layout, positions, cperm, classes, ref, blocks, *, bases,
                   intertwiners, reversal=None, reversal_image=None, reach):
-    r"""``{position: block}`` -- a one-dimensional multiplet's scale, where its lift is no representation.
+    r"""The scale of a one-dimensional multiplet whose lift is no representation.
 
-    A part holding a one-dimensional multiplet reads its declared characters
-    against that multiplet's lift, the tables' own, carried round its Wyckoff
-    orbit with the signs the hoppings give it (:func:`_transported_lifts`): the
-    multiplet's own character is then the part's one-dimensional character,
-    which the labelling chooses.  That holds wherever its character on its site
-    group is the restriction of a one-dimensional character of the group.
-    Where it is not, the lift is no representation, and the multiplet's
-    character is measured: ``p_y`` at a ``3c`` site of ``P23``, whose three
-    twofolds are carried onto one another by the threefolds while ``p_y`` is
-    odd under two of them, is the ``B2`` of ``222`` that no character of ``T``
-    restricts to.  The orbit's blocks are then settled into a representation
-    as the build settles its matrices (:func:`_multiplet_scale`), the
-    multiplication table choosing the signs, and that is the scale the
-    declared characters are read against.
+    A coupled part holding a one-dimensional multiplet reads its declared
+    characters against that multiplet's lift, carried round its Wyckoff orbit
+    with the signs the hoppings give it
+    (:func:`.._multiplets._transported_lifts`).  Where the multiplet's
+    character on its site group is the restriction of no one-dimensional
+    character of the group, those blocks are no representation, and they are
+    settled into one by :func:`_multiplet_scale`.
 
-    ``ref`` is the multiplet, ``blocks`` the multiplets' blocks by ``.ind`` as
-    the build assembles them, ``bases`` and ``intertwiners`` the measured
-    solution spaces, the rest as for :func:`_multiplet_scale`.  Returns
-    ``None`` where the lift is a representation of the operations or the
-    orbit's blocks settle into none, and the settled blocks otherwise.
+    ``ref`` is the multiplet, and ``blocks`` the multiplets' blocks handed
+    down, ``{ind: {multiplet: block}}``.  ``bases`` holds the measured solution
+    spaces and ``intertwiners`` one member of each, by index; they carry the
+    lift round the orbit where ``blocks`` holds no block.  ``group``,
+    ``layout``, ``positions``, ``cperm``, ``classes``, ``reversal``,
+    ``reversal_image`` and ``reach`` are as for :func:`_multiplet_scale`.
+    Returns the settled blocks, ``{position: block}``.  Returns ``None`` where
+    the lift is a representation of the operations, where the blocks settle
+    into none, or where ``reversal`` is given without ``reversal_image``.
     """
     syms = group._symmetries
     prod, _tdiff, spf = group._get_product_table(get_diff=True)
@@ -787,7 +834,7 @@ def _lifted_scale(group, layout, positions, cperm, classes, ref, blocks, *, base
 
 @dataclass(frozen=True, eq=False)
 class _Anchor:
-    """The multiplets' permutations, their orbits, the anchor and the blocks.
+    """The multiplets' permutations and orbits, the anchor, and their blocks.
 
     Attributes
     ----------
@@ -796,11 +843,12 @@ class _Anchor:
     cperm : dict
         Where each operation carries each multiplet, by position.
     layout : SiteMultiplets
-        As in :func:`_verdicts_and_choices`.
+        The multiplets of each site (:func:`_verdicts_and_choices`).
     measured_of : dict
         Each operation's internal block on each multiplet, by index.
     multiplicity : tuple
-        The orbits of sectors the blocks were built for, each with its candidates.
+        The orbits of sectors the blocks were built for, each with its
+        candidates.
     nchan : int
         The number of multiplets.
     nclass : int
@@ -859,12 +907,12 @@ class _OperationsRead:
     lattice : ndarray
         The group's lattice vectors.
     rows : list
-        The measured-versus-declared table, filled by the character verdict.
+        The measured-versus-declared table, filled by :func:`_characters_read`.
     seen : dict
         The classes measured at each operation, ``{ind: set}``.
     spaces : dict
-        The in-block solution space of each operation the character verdict reads, by
-        position.
+        The in-block solution space of each operation, by position, which
+        :func:`_characters_read` reads.
     spread_tol : float
         The spread within which a ratio counts as pinned.
     su2 : bool
@@ -907,20 +955,21 @@ class _PartsRead:
     induced_classes : list of frozenset
         The orbits of each orbit of sectors built by induction.
     joint_decls : list
-        The declarations read over several parts, or stating part of a site.
+        The declarations read over several parts, or on part of a site.
     on_induced : list
         The declarations on an orbit of sectors built by induction.
     part_of : dict
         The coupled part of each orbit.
     part_of_decl : dict
-        The part each declaration is read in, ``None`` where it is read with others.
+        The part each declaration is read in, ``None`` where it is read with
+        others.
     parts : list of frozenset
         The coupled parts as sets of orbits, the anchor's first.
     spoken : set of int
         The parts some declaration is read in.
     within : dict
-        The ratio an orbit of a part free of the anchor holds to that part's first, ``{(ind,
-        class): value}``.
+        The ratio an orbit of a part free of the anchor holds to that part's
+        first, ``{(ind, class): value}``.
     """
 
     free_classes: object
@@ -941,7 +990,8 @@ class _Scales:
     Attributes
     ----------
     reversal_image : list or None
-        Where time reversal carries each multiplet; ``None`` where it is not read.
+        Where time reversal carries each multiplet; ``None`` where it is not
+        read.
     roots : dict
         Per part, whether its character may take any unit phase.
     scales : dict
@@ -955,13 +1005,13 @@ class _Scales:
 
 @dataclass(frozen=True, eq=False)
 class _CharactersRead:
-    """The contents read over several parts, multiplet by multiplet.
+    """The declarations read over several parts, multiplet by multiplet.
 
     Attributes
     ----------
     joint_theta : dict
-        Per declaration, each multiplet's character at each operation, ``{id: {multiplet:
-        {ind: value}}}``.
+        Per declaration, by its ``id``, each multiplet's character at each
+        operation, ``{id: {multiplet: {ind: value}}}``.
     """
 
     joint_theta: object
@@ -973,108 +1023,89 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
                           max_candidates=2 ** 20, reversal=None, sectors=None):
     r"""One verdict per operation, and the scalars it pins, off the solution spaces.
 
-    The second step of the pipeline, and the only place a solution space is read
-    for what it says about the orbitals.  Everything downstream — the descent by
-    declaration, the representation's own discrete choices, the characters
-    record — is written from what comes back here, so that a measurement is made
-    once and read once.
+    This is the one place a solution space is read for what it says about the
+    orbitals.  The descent by declaration, the representation's choices and the
+    table of what each orbital carries at its site (``rep._characters``) are
+    written from what is returned.  Each unitary operation is read inside the
+    site blocks its own permutation of the sites allows, and three things are
+    read there.
 
-    Per operation, inside the site blocks its own permutation allows (a member
-    carrying one site's orbitals onto a site the operation does not send them to
-    is evidence about the *operation*, which is :func:`.._multiplets._ansatz_defects`'s
-    business, and no partition into multiplets absorbs it):
+    * The multiplet verdict.  Where no member of the space is block-diagonal
+      on the multiplets and nonsingular there, the hoppings mix multiplets.
+      Where ``decls`` is not empty and the multiplets themselves were declared
+      (``layout.determined_by == "declaration"``), the operation is then
+      broken by the declaration.
+    * The scalar of each multiplet orbit relative to the anchor, orbital 0's
+      multiplet.  The hoppings pin it where every member of the space carries
+      the same ratio, and leave it free where the ratio varies.
+    * The character of each declared multiplet the operation fixes, read
+      against a scale in its own coupled part (:func:`_lifted_scale`,
+      :func:`_multiplet_scale`).  Two multiplets of one part that need
+      different scalars break the operation.  So does a scalar other than
+      ``±1`` where the group keeps an antiunitary operation, or other than a
+      unit phase where it keeps none.  A declaration written in double-valued
+      site irreps is not read at an operation whose spin-1/2 lift has zero
+      trace.
 
-    * **the multiplet verdict.**  No member block-diagonal on the multiplets
-      and nonsingular there means the Hamiltonian *mixes* multiplets that are
-      said to be separate, and where a ``multiplets=`` states them beside a
-      declaration, the operation is broken by the declaration.  Measured
-      multiplets a space cannot carry are the operation's own tensor
-      structure, which :func:`.._multiplets._ansatz_defects` reads.
-    * **the relative scalar, per multiplet orbit.**  The scalar relating the
-      member's block at the class's representative multiplet to that
-      multiplet's own internal factor, against the anchor's — orbital 0's
-      multiplet — which is exactly the freedom :func:`.._build._build_rep` reads the
-      representation off with, one scalar per multiplet orbit per
-      generator.  Where every member of the space carries the same ratio the
-      hoppings **pin** it and the number is measured; where the ratio varies
-      over the space they leave it **free**, which is a multiplet decoupled from
-      the rest, and nothing was measured there at all.
-    * **the character verdict**, for every declared multiplet the operation fixes:
-      the scalar relating the member's block to the multiplet's internal factor,
-      normalized by the transport block of a multiplet whose factor is fixed
-      beyond the member's free phase, so that what is read is in the canonical
-      induced gauge the record is written in.  The hoppings fix every block up
-      to one one-dimensional character per **coupled part** of the crystal —
-      the multiplets they connect, directly or through others: the anchor's
-      part, and the orbits of multiplets they leave free of it,
-      one part where they pin one another — so a declared multiplet is read
-      against a scale inside its own part.  Where the part has a
-      one-dimensional multiplet that scale is its lift, the tables' own, or,
-      where that lift carried round its orbit is no representation of the
-      group, the multiplet's own character, its blocks settled into one
-      (:func:`_lifted_scale`).  In a part of wider multiplets it is one of
-      them, its blocks settled into a representation of the group as the build
-      settles its matrices (:func:`_multiplet_scale`); ``reversal`` is the position of the
-      time reversal that anchors those phases, ``None`` where the group keeps
-      none.  The scale's own one-dimensional character is the part's to choose:
-      each part's declarations ask for one character of their own, and every
-      character is admitted against them (:func:`_covariant_subgroup`).  A free
-      block imposes nothing, because nothing was measured.  Two multiplets of
-      one part needing different scalars break the operation, and so does a
-      scalar no one-dimensional character can take: not ``±1`` where the group
-      keeps an antiunitary operation, which leaves only a sign, and not a unit
-      phase where it keeps none, every one-dimensional character, the complex
-      ones included, being a labelling there.  A declaration written in the
-      site coreps states the corep content and nothing finer, so it is not read
-      at an operation whose spin-1/2 lift has zero trace, where every orbital
-      content lifting to it reads zero.
-    * **the contents read together**: one declared over multiplets of several
-      coupled parts, and one stating part of what its site holds.  Each is
-      read multiplet by multiplet, against its own part's scale, at every
-      operation fixing all of them, and is one requirement on those parts'
-      labellings together: the declared content carried by them, or contained
-      in what they carry where part of a site was declared
-      (:func:`_covariant_subgroup`).  A multiplet free at an operation leaves
-      that operation unread.
+    A declaration over several coupled parts, or on part of a site, is read
+    multiplet by multiplet, as one requirement on those parts together.
+    Antiunitary operations are not read.  Whoever reads the verdict breaks the
+    primed copy of a broken operation with it.
 
-    An antiunitary operation is not asked: a site character is a character of
-    the site group's unitary operations, and the primed copy of a broken
-    operation is broken with it, which the records downstream carry.
+    Parameters
+    ----------
+    model : pythtb.TBModel
+        The model.
+    group : ..groups.GroupData
+        The group whose operations are read.
+    assignment : ..groups.OrbitalAssignment
+        The orbitals' sites in ``group``.
+    spin : ..spin.SpinBasis or None
+        The declared spin basis; ``None`` where none is declared.
+    validated : ..groups.ValidatedGroup
+        The operations measured, with their solution spaces.
+    layout : SiteMultiplets
+        The multiplets of each site.  The thresholds on the blocks, the
+        scalars and the ratios read the tolerance the multiplets were measured
+        at where that is larger than their exact defaults
+        (:func:`.._tolerance.noise_floor`).
+    decls : sequence of dict
+        The declarations, as :func:`_normalize_declaration` returns them.
+    positions : iterable of int
+        The positions in ``group`` of the operations read; the antiunitary
+        ones are dropped.
+    classes : ndarray of int or None, default None
+        The multiplet orbit of each multiplet; ``None`` reads them off the
+        multiplets' permutations.
+    ref_orb : int, default 0
+        The reference orbital, which the lowest-angular-momentum rule reads
+        first.  It is recorded on the verdict.
+    blocks : _MultipletBlocks or None, default None
+        The multiplets' blocks.  ``None`` builds them here where the
+        multiplets were measured (:func:`.._multiplets._multiplet_blocks`).
+    space_tol : float, default IN_SPACE
+        How far a member may sit outside the blocks and still count as in
+        them (:func:`.._matrices._in_blocks`), dimensionless.
+    tol : float, default CHARACTER
+        How far a character read off the spaces may sit from a value and
+        still be read as it; pass the declared tolerance where that is larger.
+    max_candidates : int, default 2**20
+        The most representations tried for an orbit of sectors where the
+        blocks are built here.  It also bounds the representations the
+        sectors' search on the declaration weighs at once, past which
+        :func:`_subgroup_read` refuses ``rep_search_too_large``.
+    reversal : int or None, default None
+        The position of the time reversal that anchors the scales' phases;
+        ``None`` where the group keeps none.
+    sectors : .._sectors.SectorReading or None, default None
+        The sectors read earlier on the same model by
+        :func:`..groups.realized_group`; ``None`` reads them here.
 
-    ``max_candidates`` bounds the one enumeration this reading can run, the
-    representations tried for an orbit of sectors where the blocks are built
-    here, none having been handed down (:func:`_multiplet_blocks`), exactly as
-    it bounds the build's.
-
-    ``space_tol`` is how far a member may sit outside the blocks and still
-    count as being in them (:func:`_in_blocks`).  It is a *statement about the
-    model*, not a knob: an exactly symmetric Hamiltonian's solution space is in
-    block form to machine precision, and a numerical one's is in block form to
-    its own defect.  :func:`.._build._build_rep` therefore hands down its
-    ``internal_tol`` — the same dimensionless "how far from the ideal block"
-    the near-symmetric recipe loosens — so that a declaration read on a
-    wannier90-scale model is measured rather than silently found unmeasurable.
-    The multiplet verdict reads the declared tolerance the multiplets were
-    measured at as well, where it is larger (:func:`.._tolerance.noise_floor`): the blocks
-    a declared multiplet is tested in are the blocks of that measurement, so a
-    frame off the ideal one by less than the declared precision holds a
-    declared multiplet as it holds a measured one.  ``tol`` is how far a
-    character read off the spaces may sit from a value and still be read as
-    it: :data:`.._tolerance.CHARACTER` for a model built from exact numbers,
-    and the declared tolerance where that is larger.  Every other threshold
-    here -- a scalar that vanishes, a ratio the hoppings pin -- reads the
-    declared tolerance the multiplets were measured at in the same way.
-
-    Returns the :class:`_Verdict`: the measured-versus-declared table in
-    :attr:`_OrbitalTable.checks`'s own shape, the coupled parts, what each
-    operation asks of each part's character, the contents read together, the
-    scalars the hoppings pin and the ones they leave open, the multiplets' own
-    blocks (:func:`_multiplet_blocks`), what time reversal carries on each
-    orbit (:func:`_reversal_scalars`), and what the reading was made about, so
-    that one handed down can be checked against the question being asked --
-    or the :class:`..refusal.Refusal` the multiplet permutation or the block
-    enumeration made.  ``spin`` is the declared :class:`..spin.SpinBasis`
-    itself, or ``None``.
+    Returns
+    -------
+    _Verdict or Refusal
+        The verdict, or the refusal the multiplets' permutation or the block
+        enumeration made.
     """
     anc = _anchor_read(model, group, assignment, spin, validated, layout, positions,
                        classes=classes, blocks=blocks, max_candidates=max_candidates)
@@ -1093,35 +1124,15 @@ def _verdicts_and_choices(model, group, assignment, spin, validated, layout, dec
 
 def _anchor_read(model, group, assignment, spin, validated, layout, positions, *, classes, blocks,
                  max_candidates):
-    """The multiplets' permutations, their orbits, the anchor and the blocks.
+    """The multiplets' permutations and orbits, the anchor, and their blocks.
 
-    Parameters
-    ----------
-    model : pythtb.TBModel
-        As in :func:`_verdicts_and_choices`.
-    group : ..groups.GroupData
-        As in :func:`_verdicts_and_choices`.
-    assignment : ..groups.OrbitalAssignment
-        As in :func:`_verdicts_and_choices`.
-    spin : ..spin.SpinBasis or None
-        As in :func:`_verdicts_and_choices`.
-    validated : ..groups.ValidatedGroup
-        As in :func:`_verdicts_and_choices`.
-    layout : SiteMultiplets
-        As in :func:`_verdicts_and_choices`.
-    positions : sequence of int
-        As in :func:`_verdicts_and_choices`.
-    classes : ndarray of int or None
-        As in :func:`_verdicts_and_choices`.
-    blocks : _MultipletBlocks or None
-        As in :func:`_verdicts_and_choices`.
-    max_candidates : int
-        As in :func:`_verdicts_and_choices`.
-
-    Returns
-    -------
-    _Anchor or Refusal
-        The record, or the refusal the multiplet permutation or the block enumeration made.
+    ``model``, ``group``, ``assignment``, ``spin``, ``validated``, ``layout``,
+    ``positions``, ``classes``, ``blocks`` and ``max_candidates`` are as for
+    :func:`_verdicts_and_choices`.  The anchor is orbital 0's multiplet.  The
+    blocks are built here where the multiplets were measured and none are
+    handed in.  Returns the :class:`_Anchor`, or the refusal that the
+    multiplets' permutation (:func:`.._multiplets._channel_perms`) or the
+    block enumeration (:func:`.._multiplets._multiplet_blocks`) made.
     """
     syms = group._symmetries
     positions = [p for p in positions if not bool(syms[p].time_reversal)]
@@ -1133,9 +1144,9 @@ def _anchor_read(model, group, assignment, spin, validated, layout, positions, *
                              tuple((tuple(orbs),) for orbs in site_orbs))
     nchan = int(layout._nchan)
     chan_of = np.asarray(layout._chan_of, dtype=int)
-    # THE ANCHOR every scalar is read against: orbital 0's multiplet, whichever
-    # orbital the lowest-angular-momentum rule later reads the crystal from, so
-    # that every build of this group reads the one reading
+    # The anchor every scalar is read against is orbital 0's multiplet,
+    # whichever orbital the lowest-angular-momentum rule reads the crystal
+    # from, so that every build of this group reads the same verdict
     ref = int(chan_of[0])
     if classes is None:
         classes, nclass = _channel_classes(cperm, positions, nchan)
@@ -1167,29 +1178,21 @@ def _anchor_read(model, group, assignment, spin, validated, layout, positions, *
 def _operations_read(model, group, assignment, validated, layout, decls, anc, *, space_tol):
     """The multiplet verdict and the relative scalars, operation by operation.
 
-    Parameters
-    ----------
-    model : pythtb.TBModel
-        As in :func:`_verdicts_and_choices`.
-    group : ..groups.GroupData
-        As in :func:`_verdicts_and_choices`.
-    assignment : ..groups.OrbitalAssignment
-        As in :func:`_verdicts_and_choices`.
-    validated : ..groups.ValidatedGroup
-        As in :func:`_verdicts_and_choices`.
-    layout : SiteMultiplets
-        As in :func:`_verdicts_and_choices`.
-    decls : list
-        As in :func:`_verdicts_and_choices`.
-    space_tol : float
-        As in :func:`_verdicts_and_choices`.
-    anc : _Anchor
-        As :func:`_anchor_read` returns it.
-
-    Returns
-    -------
-    _OperationsRead
-        What each operation's solution space says of the multiplets.
+    ``model``, ``group``, ``assignment``, ``validated``, ``layout``, ``decls``
+    and ``space_tol`` are as for :func:`_verdicts_and_choices`, and ``anc`` is
+    what :func:`_anchor_read` returns.  Each operation at ``anc.positions`` is
+    read inside the site blocks its own permutation of the sites allows.  Where
+    no member of the space inside those blocks is block-diagonal on the
+    multiplets and nonsingular, the operation is broken by the declaration if
+    ``decls`` is not empty and the multiplets were declared
+    (``layout.determined_by == "declaration"``), with a sentence naming the
+    multiplets the hoppings mix; otherwise it is not read.  Where a member is,
+    the scalar of each multiplet orbit relative to the anchor is pinned where
+    every member carries the same ratio, and free where the ratio varies.  An
+    operation with no solution space held, one whose solution space is too
+    large to read (``_READOFF_MAX_BYTES``), or one with no member inside its
+    site blocks is not read.  Returns the :class:`_OperationsRead`, its
+    ``rows`` empty for :func:`_characters_read` to fill.
     """
     cperm = anc.cperm
     measured_of = anc.measured_of
@@ -1261,7 +1264,7 @@ def _operations_read(model, group, assignment, validated, layout, decls, anc, *,
                                    None if layout._chan_kind[int(c)] == "measured" else lift)
                    for c in range(nchan)]
 
-        # ---- the choice, one scalar per multiplet orbit -----------------------
+        # One scalar per multiplet orbit, relative to the anchor
         S_ref = lift_of[ref]
         if S_ref is not None:
             rrows = np.asarray(chan_states[int(image[ref])], dtype=int)
@@ -1298,19 +1301,19 @@ def _operations_read(model, group, assignment, validated, layout, decls, anc, *,
 def _parts_read(decls, anc, ops):
     """The coupled parts of the crystal and the part each declaration reads in.
 
-    Parameters
-    ----------
-    decls : list
-        As in :func:`_verdicts_and_choices`.
-    anc : _Anchor
-        As :func:`_anchor_read` returns it.
-    ops : _OperationsRead
-        As :func:`_operations_read` returns it.
-
-    Returns
-    -------
-    _PartsRead
-        The coupled parts and the declarations' parts.
+    ``decls`` is as for :func:`_verdicts_and_choices`, and ``anc`` and ``ops``
+    are what :func:`_anchor_read` and :func:`_operations_read` return.  A
+    coupled part is the multiplet orbits the hoppings connect, directly or
+    through others: the anchor's part, and the orbits free of the anchor
+    joined where their blocks keep one ratio across a solution space.  An
+    orbit of sectors built by induction is one part, and the anchor's where it
+    holds the anchor's multiplet; its orbits are then set to ``1`` in
+    ``ops.chosen`` and taken out of ``ops.free``.  A declaration on the
+    multiplets of one part, stating all its site holds, is read in that part.
+    One over several parts, or on part of a site, is read multiplet by
+    multiplet, as one requirement on the parts it spans (``joint_decls``).
+    One on an orbit built by induction is left to the sectors.  Returns the
+    :class:`_PartsRead`.
     """
     classes = anc.classes
     multiplicity = anc.multiplicity
@@ -1323,25 +1326,26 @@ def _parts_read(decls, anc, ops):
     spread_tol = ops.spread_tol
     zero = ops.zero
 
-    # A class is free where NOTHING measured it: free at every operation whose
-    # solution space spoke about it.  That is a decoupled multiplet -- what it
-    # carries relative to the anchor is a question this Hamiltonian cannot
-    # answer, on this site or any other -- and it is the labelling's to settle
-    # (:func:`.._labeling._labeling`), as a declaration states it.
+    # An orbit is free where nothing measured it: free at every operation whose
+    # solution space spoke about it.  That is a decoupled multiplet.  This
+    # Hamiltonian does not fix what it carries relative to the anchor, on this
+    # site or any other, and the labeling settles it
+    # (:func:`.._labeling._labeling`), as a declaration on it states it where
+    # there is one.
     free_classes = frozenset(
         cls for cls in range(nclass)
         if any(cls in got for got in seen.values())
         and all((ind, cls) in free for ind, got in seen.items() if cls in got))
-    # IDENTICAL COPIES, and uncoupled orbitals a symmetry exchanges that the
-    # group's characters do not carry, are one part of the crystal each, an
-    # orbit of sectors the hoppings couple to nothing else: its multiplets are
+    # Identical copies, and uncoupled orbitals a symmetry exchanges that the
+    # group's characters do not carry, are one part of the crystal each: an
+    # orbit of sectors the hoppings couple to nothing else.  Its multiplets are
     # assembled with the blocks of one representation of it
-    # (:func:`.._multiplets._induced_blocks`), and which one it carries is the labelling's
-    # choice among all of them.  So no scalar is read between its multiplets,
-    # which carry those blocks as they stand -- a scalar read at one multiplet
-    # of an orbit of multiplets lying on several sectors says nothing of the
-    # others -- and it is pinned to the anchor where it holds the anchor's
-    # multiplet and free of it otherwise.
+    # (:func:`.._multiplets._induced_blocks`), and the labeling chooses which
+    # among all of them.  So no scalar is read between its multiplets, which
+    # carry those blocks as they stand, since a scalar read at one multiplet of
+    # an orbit lying on several sectors says nothing of the others.  The orbit
+    # is pinned to the anchor where it holds the anchor's multiplet, and free
+    # of it otherwise.
     induced_classes = []
     for rec in multiplicity:
         if rec.induced is None or not rec.n_admitted:
@@ -1357,14 +1361,14 @@ def _parts_read(decls, anc, ops):
         else:
             free_classes = free_classes | own
 
-    # THE COUPLED PARTS.  The hoppings fix every multiplet's block up to one
+    # The coupled parts.  The hoppings fix every multiplet's block up to one
     # one-dimensional character per part of the crystal they connect: the
-    # anchor's part, every orbit they pin to it, and the orbits
-    # they leave free of it, which are one part where they pin one another --
-    # two orbits whose blocks keep one ratio across a solution space.  A
-    # declaration is a constraint on its own part's character, read against a
-    # scale inside that part, so a part the hoppings never reach measures
-    # nothing about it.
+    # anchor's part, with every orbit they pin to it, and the orbits they
+    # leave free of it, which are one part where they pin one another.  Two
+    # orbits pin one another where their blocks keep one ratio across a
+    # solution space.  A declaration is a constraint on its own part's
+    # character, read against a scale inside that part, so a part the hoppings
+    # never reach measures nothing about it.
     joined = {int(cls): int(cls) for cls in free_classes}
 
     for got in carried.values():
@@ -1410,19 +1414,19 @@ def _parts_read(decls, anc, ops):
                 if int(cls) != int(lead_cls) and int(cls) in got:
                     within[(int(ind), int(cls))] = complex(
                         np.vdot(t0, got[int(cls)]) / np.vdot(t0, t0))
-    # EVERY DECLARATION IS READ ONCE, in one of two ways.  One content on the
+    # Every declaration is read once, in one of two ways.  One on the
     # multiplets of one coupled part is a requirement on that part's
     # one-dimensional character, operation by operation.  One spread over
     # several parts, or one stating part of what its site holds, is one
     # requirement on what those parts carry together: read here per multiplet,
-    # at every operation fixing its site, and met where one labelling of each
+    # at every operation fixing its site, and met where one labeling of each
     # part it spans carries it (:func:`_covariant_subgroup`).
     part_of_decl, joint_decls, on_induced = {}, [], []
     induced = frozenset(cls for own in induced_classes for cls in own)
     for d in decls:
         held = {part_of.get(int(classes[int(c)])) for c in d["channels"]}
         if any(int(classes[int(c)]) in induced for c in d["channels"]):
-            # a content declared on an orbit built by induction: what it
+            # a declaration on an orbit built by induction: what the orbit
             # carries is no measurement, so nothing is read here, and the
             # sectors' own reading of every representation of it is the verdict
             part_of_decl[id(d)] = None
@@ -1445,33 +1449,23 @@ def _parts_read(decls, anc, ops):
 def _scales_read(model, group, assignment, spin, validated, layout, anc, ops, prt, *, reversal):
     """The scale each part's characters are read against.
 
-    Parameters
-    ----------
-    model : pythtb.TBModel
-        As in :func:`_verdicts_and_choices`.
-    group : ..groups.GroupData
-        As in :func:`_verdicts_and_choices`.
-    assignment : ..groups.OrbitalAssignment
-        As in :func:`_verdicts_and_choices`.
-    spin : ..spin.SpinBasis or None
-        As in :func:`_verdicts_and_choices`.
-    validated : ..groups.ValidatedGroup
-        As in :func:`_verdicts_and_choices`.
-    layout : SiteMultiplets
-        As in :func:`_verdicts_and_choices`.
-    reversal : int or None
-        As in :func:`_verdicts_and_choices`.
-    anc : _Anchor
-        As :func:`_anchor_read` returns it.
-    ops : _OperationsRead
-        As :func:`_operations_read` returns it.
-    prt : _PartsRead
-        As :func:`_parts_read` returns it.
-
-    Returns
-    -------
-    _Scales
-        The scale of each part some declaration is read in.
+    ``model``, ``group``, ``assignment``, ``spin``, ``validated``, ``layout``
+    and ``reversal`` are as for :func:`_verdicts_and_choices`, and ``anc``,
+    ``ops`` and ``prt`` are what the three stages before it return.  A scale
+    is sought for each part some declaration is read in.  A part holding a
+    one-dimensional multiplet, whose block is the tables' own lift, reads
+    against one such multiplet, the part's lead (:func:`_lead_of`) where the
+    lead is one.  It reads against the blocks :func:`_lifted_scale` returns,
+    and against the lift itself where that returns ``None``, which it does
+    where the lift is a representation, where the blocks settle into none, or
+    where time reversal's image of the multiplets cannot be read.  Any other
+    part reads against its lead multiplet's blocks, settled into a
+    representation (:func:`_multiplet_scale`), where the multiplets were
+    measured; none of these has a scale where ``reversal`` is given and time
+    reversal's image of the multiplets cannot be read.  A part's character may
+    take any unit phase where ``reversal`` is ``None``, and a sign otherwise.
+    Returns the :class:`_Scales`.  A part with no scale is absent from it, and
+    nothing is read in that part.
     """
     classes = anc.classes
     cperm = anc.cperm
@@ -1485,26 +1479,28 @@ def _scales_read(model, group, assignment, spin, validated, layout, anc, ops, pr
     part_of = prt.part_of
     spoken = prt.spoken
 
-    # THE SCALE each part's characters are read against.  A member of a
+    # The scale each part's characters are read against.  A member of a
     # solution space is a representation matrix times one free complex number,
-    # and the scalar a declared multiplet needs is only a statement about the
-    # physics once that number is fixed -- in the gauge the record is written
-    # in, which is the canonical induced form: one multiplet's transport block
-    # carries that multiplet's own internal factor and nothing more.  A
-    # one-dimensional multiplet's factor is PINNED, the tables' own lift, and
-    # where the part has one that is its scale -- unless that lift, carried
-    # round its orbit, is no representation of the group, where the
-    # multiplet's own character is measured and its settled blocks are the
-    # scale (:func:`_lifted_scale`).  A wider multiplet's block is
-    # the model's own and carries the member's free phase, so in a part of
-    # multiplets the scale is one of its own multiplets' blocks, settled into
-    # a representation of the group; with no antiunitary operation to anchor
-    # them they are fixed only up to a unit phase per generator, which the
-    # part's one-dimensional character can then carry.  Either way, what the
-    # part's character may take is a unit phase where the group keeps no
-    # antiunitary operation -- every one-dimensional character, the complex
-    # ones included, is then a labelling nothing measured tells apart -- and a
-    # sign where it keeps one.
+    # and the scalar a declared multiplet needs says something about the
+    # physics only once that number is fixed.  It is fixed in the gauge the
+    # representation returned is written in, the canonical induced form: one
+    # multiplet's transport block carries that multiplet's own internal factor
+    # and nothing more.  A one-dimensional multiplet's factor is pinned, the
+    # tables' own lift, and where the part has one that is its scale.  Where
+    # that lift, carried round its orbit, is no representation of the group,
+    # the multiplet's own character is measured and its settled blocks are the
+    # scale (:func:`_lifted_scale`).  Where those blocks settle into no
+    # representation, or time reversal's image cannot be read, the lift itself
+    # is the scale.  A wider multiplet's block is the model's own and carries
+    # the member's free phase, so in a part of such multiplets the scale is one
+    # of its multiplets' blocks, settled into a representation of the group.
+    # With no antiunitary operation to anchor them, those blocks are fixed only
+    # up to a unit phase per generator, which the part's one-dimensional
+    # character can then carry.  Either way the part's character may take any
+    # unit phase where the group keeps no antiunitary operation, and a sign
+    # where it keeps one.  Where it keeps none, every one-dimensional
+    # character, the complex ones included, is a labeling nothing measured
+    # tells apart.
     reversal_image = None
     if reversal is not None:
         got = _channel_perms(model, assignment, syms, [int(reversal)], layout, spin)
@@ -1516,8 +1512,9 @@ def _scales_read(model, group, assignment, spin, validated, layout, anc, ops, pr
                   and layout._chan_kind[c] == "tables"]
         if tables:
             scale_chan = lead if lead in tables else int(tables[0])
-            # the lift, where it is a representation; the one-dimensional
-            # multiplet's own character, settled, where it is not
+            # the one-dimensional multiplet's own character, settled, where its
+            # lift is no representation; the lift itself where it is one, or
+            # where nothing settles (``None``)
             scales[i] = (scale_chan, _lifted_scale(
                 group, layout, positions, cperm, classes, scale_chan, measured_of,
                 bases=bases, intertwiners=validated._intertwiners, reversal=reversal,
@@ -1542,25 +1539,21 @@ def _scales_read(model, group, assignment, spin, validated, layout, anc, ops, pr
 def _characters_read(model, anc, ops, prt, scl, *, tol):
     """The character verdict for every declared multiplet the operations fix.
 
-    Parameters
-    ----------
-    model : pythtb.TBModel
-        As in :func:`_verdicts_and_choices`.
-    tol : float
-        As in :func:`_verdicts_and_choices`.
-    anc : _Anchor
-        As :func:`_anchor_read` returns it.
-    ops : _OperationsRead
-        As :func:`_operations_read` returns it.
-    prt : _PartsRead
-        As :func:`_parts_read` returns it.
-    scl : _Scales
-        As :func:`_scales_read` returns it.
-
-    Returns
-    -------
-    _CharactersRead
-        The contents read over several parts; the rows are added to ``ops.rows``.
+    ``model`` and ``tol`` are as for :func:`_verdicts_and_choices`, and
+    ``anc``, ``ops``, ``prt`` and ``scl`` are what the four stages before it
+    return.  At each operation, each declared multiplet the operation fixes is
+    read against its part's scale (:func:`_theta`); a multiplet the hoppings
+    leave free, or a part with no scale at that operation, gives nothing.  A
+    declaration read in one part gives one :class:`_Row` per operation,
+    appended to ``ops.rows``: the character measured, summed over its
+    multiplets, the one declared, and the value the part's character has to
+    take, ``None`` where the measured character is within ``tol`` of zero.
+    Declared generator matrices are read as matrices (:func:`_matrix`), the
+    value being the scalar that carries the measured matrix onto the declared
+    one, ``None`` where none does within ``tol``.  A declaration in
+    double-valued site irreps is not read where the operation's spin-1/2 lift
+    has zero trace.  Returns the :class:`_CharactersRead`, the declarations
+    over several parts, or on part of a site, read multiplet by multiplet.
     """
     classes = anc.classes
     positions = anc.positions
@@ -1576,7 +1569,7 @@ def _characters_read(model, anc, ops, prt, scl, *, tol):
     part_of_decl = prt.part_of_decl
     scales = scl.scales
 
-    # ---- the character verdict, for what was declared -----------------------
+    # The character verdict, for what was declared
 
     nspin = int(getattr(model, "nspin", 1) or 1)
 
@@ -1605,12 +1598,12 @@ def _characters_read(model, anc, ops, prt, scl, *, tol):
             if floor > zero:
                 nus[i] = (nu, floor)
         silent = abs(complex(np.trace(lift))) <= zero
-        # ONE CONTENT OVER SEVERAL PARTS, OR PART OF A SITE'S: per multiplet,
-        # what it carries against its own part's scale, at every operation that
-        # fixes all of its multiplets
+        # A declaration over several parts, or on part of a site: per
+        # multiplet, what it carries against its own part's scale, at every
+        # operation that fixes all of its multiplets
         for d in joint_decls:
             if ind not in d["constraints"] or (d.get("corep") and silent):
-                continue                  # a corep content says nothing here
+                continue                  # double-valued site irreps say nothing here
             if any(int(image[int(x)]) != int(x) for x in d["channels"]):
                 continue
             got = {}
@@ -1633,18 +1626,18 @@ def _characters_read(model, anc, ops, prt, scl, *, tol):
             if int(image[int(c)]) != int(c):
                 continue
             d = want_of[int(c)]
-            # a content declared over several multiplets is read once, as the
-            # sum of theirs
+            # a declaration over several multiplets is read once, as the sum of
+            # their characters
             if id(d) in read or part_of_decl[id(d)] is None:
                 continue
             read.add(id(d))
             if part_of_decl[id(d)] not in nus:
                 continue                  # no scale in its part at this operation
             if ind not in d["constraints"] or (d.get("corep") and silent):
-                continue                  # a corep content says nothing here
+                continue                  # double-valued site irreps say nothing here
             nu, floor = nus[part_of_decl[id(d)]]
             if ind in (d.get("matrices") or {}):
-                # GENERATOR MATRICES are read as matrices: the declared one is
+                # generator matrices are read as matrices: the declared one is
                 # the measured one times the value the part's character has to
                 # take here, or no multiple of it
                 if any(int(image[int(x)]) != int(x) for x in d["channels"]):
@@ -1688,51 +1681,22 @@ def _characters_read(model, anc, ops, prt, scl, *, tol):
 
 def _verdict_made(model, group, assignment, spin, validated, layout, decls, anc, ops, prt, scl,
                   chv, *, ref_orb, space_tol, tol, max_candidates, reversal, sectors):
-    """The verdict: what each operation asks of each part, with everything it was read from.
+    """The verdict, what each operation asks of each coupled part.
 
-    Parameters
-    ----------
-    model : pythtb.TBModel
-        As in :func:`_verdicts_and_choices`.
-    group : ..groups.GroupData
-        As in :func:`_verdicts_and_choices`.
-    assignment : ..groups.OrbitalAssignment
-        As in :func:`_verdicts_and_choices`.
-    spin : ..spin.SpinBasis or None
-        As in :func:`_verdicts_and_choices`.
-    validated : ..groups.ValidatedGroup
-        As in :func:`_verdicts_and_choices`.
-    layout : SiteMultiplets
-        As in :func:`_verdicts_and_choices`.
-    decls : list
-        As in :func:`_verdicts_and_choices`.
-    ref_orb : int
-        As in :func:`_verdicts_and_choices`.
-    space_tol : float
-        As in :func:`_verdicts_and_choices`.
-    tol : float
-        As in :func:`_verdicts_and_choices`.
-    max_candidates : int
-        As in :func:`_verdicts_and_choices`.
-    reversal : int or None
-        As in :func:`_verdicts_and_choices`.
-    sectors : Sectors or None
-        As in :func:`_verdicts_and_choices`.
-    anc : _Anchor
-        As :func:`_anchor_read` returns it.
-    ops : _OperationsRead
-        As :func:`_operations_read` returns it.
-    prt : _PartsRead
-        As :func:`_parts_read` returns it.
-    scl : _Scales
-        As :func:`_scales_read` returns it.
-    chv : _CharactersRead
-        As :func:`_characters_read` returns it.
-
-    Returns
-    -------
-    _Verdict
-        As :func:`_verdicts_and_choices` returns it.
+    ``model``, ``group``, ``assignment``, ``spin``, ``validated``, ``layout``,
+    ``decls``, ``ref_orb``, ``space_tol``, ``tol``, ``max_candidates``,
+    ``reversal`` and ``sectors`` are as for :func:`_verdicts_and_choices`, and
+    ``anc``, ``ops``, ``prt``, ``scl`` and ``chv`` are what the five stages
+    before it return.  Each part's rows become one requirement per operation
+    (:func:`_needs_per_operation`), starting from the operations the
+    multiplets break, and the sentence for each operation broken is added to
+    ``ops.why``.  The declarations over several parts, or on part of a site,
+    and those on an orbit of sectors built by induction, are kept as
+    :class:`_ReadTogether`.  Time reversal's scalar on each multiplet orbit is
+    read where ``reversal`` is given and its solution space and its image of
+    the multiplets can be read; the verdict's ``reversal`` is ``None``
+    otherwise.  The sectors' search (:func:`_declaration_search`) is read
+    where ``decls`` is not empty.  Returns the :class:`_Verdict`.
     """
     classes = anc.classes
     cperm = anc.cperm
@@ -1765,11 +1729,11 @@ def _verdict_made(model, group, assignment, spin, validated, layout, decls, anc,
     roots = scl.roots
     joint_theta = chv.joint_theta
 
-    # EVERY DECLARATION CONSTRAINS ITS OWN PART'S CHARACTER, wherever it sits:
+    # Every declaration constrains its own part's character, wherever it sits:
     # what each operation asks of that character, part by part.  An operation
-    # the multiplets break is broken in every part, and one two declarations
-    # of a part ask different values of is broken there; which characters meet
-    # the rest is the subgroup search's question, never an anchor's.
+    # the multiplets break is broken in every part, and one that two
+    # declarations of a part ask different values of is broken there; which
+    # characters meet the rest is the subgroup search's question.
     requirements, scalars, by_matrices = [], [], []
     for i in range(len(parts)):
         req, raw, said = dict(broken), {}, {}
@@ -1778,14 +1742,15 @@ def _verdict_made(model, group, assignment, spin, validated, layout, decls, anc,
         requirements.append(req)
         scalars.append(raw)
         # ... and what the part's declared matrices ask, which a reading of
-        # contents alone does not hear (:func:`_covariant_subgroup`)
+        # characters alone does not hear (:func:`_covariant_subgroup`)
         asked = {int(r.ind) for r in rows if r.part == i and r.matrices is not None}
         by_matrices.append({ind: req[ind] for ind in sorted(asked) if ind in req})
         for ind, sentence in said.items():
             why.setdefault(int(ind), sentence)
-    # ... and every content read together over its multiplets, per multiplet,
-    # with what reads it on a smaller group: the site group the operations
-    # kept leave it, and the trace of each operation's own spin-1/2 lift
+    # ... and every declaration read together over its multiplets, per
+    # multiplet, with what reads it on a smaller group: the site group the
+    # operations kept leave it, and the trace of each operation's own
+    # spin-1/2 lift
     kept_inds = {int(syms[p].ind) for p in positions}
     lift_trace = {int(syms[p].ind): complex(np.trace(_lift_of(syms[p], su2)))
                   for p in positions}
@@ -1802,7 +1767,7 @@ def _verdict_made(model, group, assignment, spin, validated, layout, decls, anc,
                              if int(i) in kept_inds),
             table_of=_SiteTableOf(group, assignment, site, corep=bool(d.get("corep"))),
             lift_trace=lift_trace))
-    # ... and every content declared on an orbit built by induction, which the
+    # ... and every declaration on an orbit built by induction, which the
     # sectors alone weigh: what its multiplets carry under the representation
     # they are assembled with, at every operation fixing all of them, so that
     # an operation it breaks is said of its own orbitals
@@ -1820,7 +1785,7 @@ def _verdict_made(model, group, assignment, spin, validated, layout, decls, anc,
                                                    for x in d["channels"]):
                 continue
             if d.get("corep") and abs(complex(np.trace(_lift_of(syms[p], su2)))) <= zero:
-                continue                  # a corep content says nothing here
+                continue                  # double-valued site irreps say nothing here
             for x in d["channels"]:
                 got = held_by[int(x)].candidates[0]["contents"].get(int(x), {})
                 if ind in got:
@@ -1828,10 +1793,10 @@ def _verdict_made(model, group, assignment, spin, validated, layout, decls, anc,
         if theta:
             by_sectors.append(_ReadTogether(decl=d, theta=theta))
 
-    # WHAT TIME REVERSAL CARRIES ON EACH ORBIT OF MULTIPLETS, read here once: its
-    # own internal factor on every multiplet, times the scalar its solution space
-    # pins on each orbit -- one on orbitals that are real functions
-    # (:func:`_reversal_scalars`)
+    # What time reversal carries on each orbit of multiplets, read here once:
+    # its own internal factor on every multiplet, times the scalar its
+    # solution space pins on each orbit, which is one on orbitals that are
+    # real functions (:func:`_reversal_scalars`)
     reversal_scalars = None
     if reversal is not None and reversal_image is not None:
         t_ind = int(syms[int(reversal)].ind)
@@ -1855,7 +1820,7 @@ def _verdict_made(model, group, assignment, spin, validated, layout, decls, anc,
                     for own in induced_classes:
                         for cls in own:
                             reversal_scalars[int(cls)] = 1.0 + 0.0j
-    # WHAT A DECLARATION ASKS OF THE SECTORS, on any subgroup: read off the
+    # What a declaration asks of the sectors, on any subgroup: read off the
     # conserved matrices the multiplets carry and what this round's operations
     # do to them (:class:`.._sectors.SectorSearch`)
     search = None
@@ -1885,7 +1850,18 @@ def _joined(joined, cls):
 
 
 def _theta(anc, ops, x, V, lift, nu, floor):
-    """Multiplet ``x``'s character against its part's scale ``nu``, or ``None`` where it is free."""
+    """Multiplet ``x``'s character at one operation, against its part's scale.
+
+    ``V`` holds the members of the operation's in-block solution space,
+    ``lift`` is the operation's own internal factor
+    (:func:`.._matrices._lift_of`), ``nu`` the scale's coefficient in each
+    member and ``floor`` the largest of their moduli; ``anc`` and ``ops`` are
+    what :func:`_anchor_read` and :func:`_operations_read` return.  On a
+    measured multiplet the character is the orbital one, the spinor divided
+    out atom by atom.  Returns the character, or ``None`` where its ratio to
+    ``nu`` varies across the members beyond ``ops.spread_tol``: the hoppings
+    leave it free.
+    """
     layout = anc.layout
     chan_states = ops.chan_states
     spread_tol = ops.spread_tol
@@ -1893,7 +1869,7 @@ def _theta(anc, ops, x, V, lift, nu, floor):
 
     cols = np.asarray(chan_states[int(x)], dtype=int)
     if layout._chan_kind[int(x)] == "measured":
-        # the multiplet's ORBITAL character: the block's trace with the
+        # the multiplet's orbital character: the block's trace with the
         # spinor divided out, atom by atom, which is what the declared
         # single-valued irrep is a statement about
         atoms = _atom_blocks(chan_states[int(x)], su2)
@@ -1910,12 +1886,16 @@ def _theta(anc, ops, x, V, lift, nu, floor):
 
 
 def _matrix(ops, nspin, d, V, lift, nu, floor):
-    """Declaration ``d``'s orbital matrix against its part's scale ``nu``, or ``None`` where it is free.
+    """The orbital matrix of declaration ``d`` at one operation, on its scale.
 
-    The orbital factor of the block the operation carries its orbitals
-    with, the spinor divided out atom by atom, one row and one column per
-    atom in the order the declaration names them: what declared generator
-    matrices are a statement about.
+    The matrix is the orbital factor of the block the operation carries
+    ``d``'s orbitals with: the spinor divided out atom by atom, one row and
+    one column per atom in the order ``d`` names them
+    (:func:`_declared_atoms`).  Declared generator matrices are compared with
+    it.  ``ops``, ``V``, ``lift``, ``nu`` and ``floor`` are as for
+    :func:`_theta`, and ``nspin`` is the model's number of spin states per
+    orbital.  Returns the matrix, or ``None`` where its ratio to ``nu`` varies
+    across the members beyond ``ops.spread_tol``: the hoppings leave it free.
     """
     chan_states = ops.chan_states
     spread_tol = ops.spread_tol
@@ -1933,13 +1913,20 @@ def _matrix(ops, nspin, d, V, lift, nu, floor):
 
 def _declaration_search(model, group, assignment, spin, validated, layout, decls, positions,
                         *, reversal=None, sectors=None, tol=CHARACTER, max_candidates=2 ** 20):
-    r"""What a declaration asks of the sectors on any subgroup, or ``None`` where they read nothing.
+    r"""What the declarations ask of the sectors on any subgroup, or ``None``.
 
-    The sectors read where the model entered (``sectors``, read here where none
-    is handed in), as the round's multiplets carry them
-    (:func:`.._sectors.carried_reading`), and what the round's operations do to
-    them (:func:`.._sectors.sector_action`); ``reversal`` is time reversal's
-    position, which the search reads only where it is the pure one.
+    ``model``, ``group``, ``assignment``, ``spin``, ``validated``, ``layout``,
+    ``decls``, ``tol`` and ``max_candidates`` are as for
+    :func:`_verdicts_and_choices`, and ``positions`` holds the positions in
+    ``group`` of the unitary operations read.  The sectors are ``sectors``
+    where it is handed in, and are read here otherwise
+    (:func:`.._sectors.read_sectors`), at the tolerance the multiplets were
+    measured at.  They are carried onto the multiplets
+    (:func:`.._sectors.carried_reading`), with what the operations do to them
+    (:func:`.._sectors.sector_action`).  ``reversal`` is time reversal's
+    position, read only where it is the pure time reversal.  Returns the
+    :class:`.._sectors.SectorSearch`, or ``None`` where no sectors are read or
+    an operation has no reading on them.
     """
 
     eps = getattr(layout, "_tol", None) or None
@@ -1961,40 +1948,33 @@ def _declaration_search(model, group, assignment, spin, validated, layout, decls
 
 
 def _reference_declaration(decls, ref_orb):
-    """The declaration made **about the reference orbital**, or ``None``.
+    """The declaration in ``decls`` naming the reference orbital ``ref_orb``.
 
-    The reference orbital (:func:`.._build._build_rep`'s ``reference_orbital``) is where
-    the lowest-angular-momentum rule reads the crystal first, and its own
-    declaration is read first among the declarations for the same reason; it
-    constrains the one-dimensional character as every declaration does, and no
-    more.  A declaration that names the reference orbital inside a multiplet is
-    one of them — what the multiplet is *is* what the reference orbital is.
+    The reference orbital is the one the lowest-angular-momentum rule reads
+    first.  A declaration that names it inside a multiplet counts.  Returns
+    the first such declaration, or ``None`` where none names it.
     """
     return next((d for d in decls if int(ref_orb) in
                  {int(o) for o in d["orbitals"]}), None)
 
 
 def _needs_per_operation(rows, req, raw, why, *, tol=CHARACTER, roots=False):
-    """Which operations the declared content is carried by, read off the measured table.
+    """What a coupled part's declarations ask of its character, per operation.
 
-    One reading of the measured-versus-declared table ``rows`` of one coupled
-    part of the crystal, written into ``req`` (the scalar ``λ(g)`` the part's
-    one-dimensional character has to take for its declared content to be what
-    the hoppings carry, ``None`` where the declaration breaks the operation
-    outright), ``raw`` (that scalar before it is rounded onto ``±1``) and
-    ``why`` (one sentence per broken operation, in the words of the physics:
-    what was declared, and what the hoppings carry).  An operation already in
-    ``req`` was broken by the multiplets and is left alone.
-
-    ``roots`` is a table read in a group with no antiunitary operation, where
-    every one-dimensional character, the complex ones included, is a labelling
-    nothing measured tells apart: a scalar of unit modulus is then the value of
-    one and kept as it is, where an antiunitary operation leaves only a sign.
-
-    Nothing is decided here and nothing is measured: the comparison was made on
-    the solution spaces (:func:`_verdicts_and_choices`), and this turns those
-    numbers into one number per operation.  Which characters meet them is
-    :func:`_covariant_subgroup`'s question.
+    ``rows`` is the measured-versus-declared table of one part.  For each
+    operation, ``req`` receives the value ``λ(g)`` the part's one-dimensional
+    character has to take for the declarations to hold, or ``None`` where no
+    value does; ``raw`` that value before it is rounded onto a sign or a
+    phase; and ``why`` one sentence per operation broken, saying what was
+    declared and what the hoppings carry.  An operation already in ``req``,
+    broken by the multiplets, is left alone.  Two rows asking values more than
+    ``tol`` apart break the operation, as does a row whose measured character
+    vanishes where its declared one does not, or a declared matrix that no
+    scalar carries the measured one onto.  A value other than a sign breaks
+    it too; with ``roots=True``, for a group with no antiunitary operation, a
+    value of unit modulus is kept as a phase instead.  Returns ``req``,
+    ``raw`` and ``why``, filled in place.  Which characters meet these values
+    is :func:`_covariant_subgroup`'s to read.
     """
     by_ind: dict = {}
     for r in rows:
@@ -2075,10 +2055,11 @@ def _needs_per_operation(rows, req, raw, why, *, tol=CHARACTER, roots=False):
 
 
 def _stated(row, which) -> str:
-    """What one row of the measured-versus-declared table says, ``"declared"`` or ``"measured"``.
+    """What one row of the measured-versus-declared table states, as text.
 
-    A character, or for a declaration of generator matrices the matrix itself,
-    which is what was declared and what the hoppings carry.
+    ``row`` is a :class:`_Row`, and ``which`` is ``"declared"`` or
+    ``"measured"``.  Returns that character, or for a declaration of generator
+    matrices that matrix, formatted for a sentence.
     """
     if row.matrices is not None:
         return _sitechars._fmt_matrix(row.matrices[0 if which == "declared" else 1])
@@ -2086,14 +2067,16 @@ def _stated(row, which) -> str:
 
 
 def _declared_atoms(d, chan_states, su2, nspin):
-    """The states of each atom a declaration names, in the order it names them.
+    """The states of each atom declaration ``d`` names, in its order.
 
     An atom is one orbital, or the two states of one Wannier function, which
-    carry an operation's spin-1/2 lift together (:func:`.._matrices._atom_blocks`);
-    declared generator matrices have one row and one column per atom, in the
-    order the declaration's orbitals were written.  ``nspin`` is the model's
-    number of spin states per orbital, which a state's index is divided by to
-    read its orbital.
+    carry an operation's spin-1/2 lift together
+    (:func:`.._matrices._atom_blocks`).  ``chan_states`` holds each
+    multiplet's states, ``su2`` says whether the states carry the spin-1/2
+    lift, and ``nspin`` is the model's number of spin states per orbital.
+    Returns one array of state indices per atom of ``d``'s multiplets that
+    ``d``'s orbitals name, in the order they first name them: the rows and
+    columns of declared generator matrices.
     """
     atoms = [a for c in d["channels"] for a in _atom_blocks(chan_states[int(c)], su2)]
     out, taken = [], set()
@@ -2107,33 +2090,22 @@ def _declared_atoms(d, chan_states, su2, nspin):
 
 
 def _measure_channel_characters(D, syms, kept_u, cperm, layout, chan):
-    """``({ind: chi(g)}, residual)`` of one multiplet over the operations that fix it.
+    """The orbital character of multiplet ``chan`` at each operation fixing it.
 
-    This reads **the representation**, not the Hamiltonian: ``D`` is what
-    :func:`.._build._build_rep` settled on the scalars the verdict stage pinned, before
-    any labelling is chosen, so the number that comes back is the character
-    a labelling then multiplies, with the product table anchoring it.  No
-    verdict is made here — the declaration's verdict was made once, on the
-    solution spaces (:func:`_verdicts_and_choices`), and this writes the
-    record.
-
-    On a **one-dimensional** multiplet the block of a fixed multiplet is ``chi(g)``
-    times the operation's own internal (spin) factor, and ``chi`` is extracted
-    by least-squares proportionality — the spinor part is *divided out*, which
-    is what makes the declaration a statement about the **orbital** factor and
-    what makes ``chi`` a single-valued character of the site point group.  On a
-    **multi-dimensional** multiplet the block *is* the site representation and
-    the character is its trace — read the same way, atom by atom
-    (:func:`_atom_blocks`), so that the spinor is divided out there too and the
-    character stays a single-valued character of the site point group.  On a
-    spinless model the two are the same number.
-
-    ``layout._spinful`` says whether a one-dimensional multiplet carries the
-    operations' SU(2) lift: true for a native spinful model, and equally true
-    for a spinless model whose orbital index was **declared** to encode spin
-    (:class:`..spin.SpinBasis`), where the multiplet is a declared ``(up, dn)``
-    pair and the block is the same ``2x2`` object.  It is that flag, not
-    ``nspin``, that decides.
+    ``D`` is the representation :func:`.._build._build_rep` built on the
+    scalars the verdict pinned, before any labeling is chosen, ``D[p]`` the
+    matrix of the operation at position ``p``; the Hamiltonian is not read.
+    ``syms`` are the group's operations, ``kept_u`` the positions of the
+    unitary ones read, ``cperm[p][c]`` the multiplet the operation at ``p``
+    carries ``c`` onto, and ``layout`` the multiplets.  A one-dimensional
+    multiplet's block is ``chi(g)`` times the operation's own spin-1/2 lift,
+    and ``chi`` is read by least squares; a wider multiplet's character is the
+    trace of its block, read atom by atom the same way.  The lift is divided
+    out where ``layout._spinful`` says the states carry it, a declared spin
+    pair as much as a native spinful model, so ``chi`` is a single-valued
+    character of the site group.  Returns ``({ind: chi}, residual)``,
+    ``residual`` the worst least-squares defect of a one-dimensional block,
+    ``0.0`` for a wider multiplet.
     """
     chi, worst = {}, 0.0
     states = np.asarray(layout._chan_states[chan], dtype=int)
@@ -2155,24 +2127,27 @@ def _measure_channel_characters(D, syms, kept_u, cperm, layout, chan):
 
 
 def _declaration_entries(characters, model, assignment, *, spin=None):
-    r"""``characters=`` parsed into ``(entries, atom_of, atom_orbs)`` — grammar only.
+    r"""``characters=`` parsed into its entries and the atoms they name.
 
-    The first half of :func:`_normalize_declaration`, kept on its own because
-    **step 1** reads the same declaration before any site group has been
-    reduced and before any multiplet has been measured
-    (:func:`_declared_site_contents`): one parse, so the two can never
-    disagree about which orbitals were named.
-
-    ``entries`` is one ``(orbitals, spec, joint)`` per declaration in the order
-    it was written; ``atom_of`` and ``atom_orbs`` are the **atoms** — one
-    orbital, or the two states of one declared spinor pair, which is one
-    Wannier function and never split.
+    ``characters`` is the declaration as written, on the orbitals of
+    ``model``, whose sites ``assignment`` gives; ``spin`` is the declared spin
+    basis, or ``None``.  Step 1 (:func:`_declared_site_contents`), before any
+    multiplet is measured, and :func:`_normalize_declaration` read this one
+    parse, so the two name the same orbitals.  In the list form, the orbitals
+    of one site written with the same word are one entry, and a per-operation
+    declaration is one entry per orbital.  An atom is one orbital, or the two
+    of a declared spin pair, one Wannier function.  Returns
+    ``(entries, atom_of, atom_orbs)``: ``entries`` one
+    ``(orbitals, spec, joint)`` per declaration in the order written,
+    ``joint`` true for a key naming several orbitals; ``atom_of`` maps each
+    orbital to its atom's key, ``(site, lowest orbital)``; and ``atom_orbs``
+    maps that key to the atom's orbitals.
 
     Raises
     ------
     ValueError
-        Where the declaration is malformed (:func:`_declaration_grammar`), which
-        every call that takes one has asked before anything was measured.
+        Where the declaration is malformed
+        (:func:`.._grammar._declaration_grammar`).
     """
     _declaration_grammar(int(model.norb), characters=characters, spin=spin)
     site_of = np.asarray(assignment.site_of_orbital, dtype=int)
@@ -2210,43 +2185,45 @@ def _declaration_entries(characters, model, assignment, *, spin=None):
 
 
 def _declared_site_contents(model, group, assignment, characters, *, spin=None):
-    r"""What each site was declared to carry — read in the **cell group**'s site tables.
+    r"""What each site was declared to hold, read in ``group``'s site tables.
 
-    Step 1's reading of ``characters=``, made before any Hamiltonian is: per
-    site, the Cartesian polynomials the declared shorthands are
-    (:data:`.._sitechars.SHORTHANDS`) and the characters the declared labels
-    are, each on the site group the cell allows.  A shorthand is a *function*
-    and a label an abstract *content*, and the difference is the whole of
-    step 1: a function's span need not be invariant under the site group, a
-    label's is invariant by construction.
+    Step 1's reading of ``characters``, made before any Hamiltonian is read.
+    ``model``, ``assignment`` and ``spin`` are as for
+    :func:`_declaration_entries`.  Each word is read on the site group
+    ``group`` gives its site: a shorthand as its Cartesian polynomial
+    (:data:`.._sitechars.SHORTHANDS`), a label as its characters, and a
+    declaration already read (:class:`.._sitechars.DeclaredContent`) as the
+    characters it carries.  A shorthand names a function, whose span need not
+    be invariant under the site group; a label names site irreps, invariant
+    by construction.
 
-    Returns ``(contents, read_in)`` — ``contents`` keyed by site with
-    ``"polys"``, ``"chars"`` (one ``{ind: chi}`` per declaration, the span's
-    own character standing in for a function), ``"entries"``, and ``"whole"``
-    and ``"corep"``: the whole content the site was declared to hold, and
-    whether any of it was written in the site coreps; ``read_in``
-    keyed by the declaration's orbitals with the site group and group its word
-    was read in, which is what :attr:`.._sitechars.DeclaredContent.declared_in`
-    then says however far the cell is afterwards reduced.
+    Returns ``(contents, read_in)``.  ``contents`` maps each declared site to
+    ``"polys"``, the declared functions' polynomials, emptied where their
+    orbit under the site group is no wider than the atoms they are written
+    on; ``"atoms"``, the atoms the functions are written on; ``"chars"``, one
+    ``{ind: chi}`` per declaration, a span's own character standing for a
+    function; ``"entries"``, the site's entries
+    (:func:`_declaration_entries`); ``"corep"``, whether any of them is
+    written in double-valued site irreps; and ``"whole"``, the characters of
+    all the site was declared to hold.  ``read_in`` maps each declaration's
+    sorted orbitals to the site group and group its word was read in.
 
-    **The whole content** is the sum of what the site's declarations state,
-    however they partition its orbitals: ``"p"`` on a ``p`` shell and ``pz``
-    beside ``E`` on its orbitals are one content, ``A1 + E`` at a ``3m`` site.
-    A word naming a content wider than the orbitals it is written on names part
-    of it, and the parts written with one content at one site add up to whole
-    copies of it -- ``px`` and ``py`` are one ``E`` -- counted as one copy where
-    they make no whole number of them, since a word says which content its
-    orbital belongs to.  A declared spinor pair counts once.
+    ``"whole"`` sums the site's declarations, however they partition its
+    orbitals, on the operations they all state: ``"p"`` on a ``p`` shell, and
+    ``pz`` beside ``E`` on its orbitals, are both ``A1 + E`` at a ``3m`` site.
+    Words that name parts of one wider irrep add up to whole copies of it
+    (``px`` and ``py`` are one ``E``), the count rounded up where they make no
+    whole number.  A declared spin pair counts once.
 
     Raises
     ------
     _sitechars.DeclarationError
-        ``gate="unknown_label"`` where a declared word names nothing in this
-        cell's site groups.  On a free-standing layer it says that the group to
-        read the word in is two operations away, and the declaration is carried
-        (``groups.py``).
+        ``gate="unknown_label"`` where a declared word names nothing in its
+        site group, ``gate="site_group"`` where a site's character table
+        cannot be built.
     ValueError
-        Where the declaration is malformed (:func:`_declaration_grammar`).
+        Where the declaration is malformed
+        (:func:`.._grammar._declaration_grammar`).
     """
     entries, atom_of, _atom_orbs = _declaration_entries(
         characters, model, assignment, spin=spin)
@@ -2290,9 +2267,9 @@ def _declared_site_contents(model, group, assignment, characters, *, spin=None):
         rec["chars"].append(chi)
         rec["entries"].append((orbs, spec, joint))
         rec["corep"] = rec["corep"] or bool(corep)
-        # the orbitals written with one content at this site, pooled: parts of
-        # a wider content add up to copies of it, and a declared spinor pair
-        # written twice, once per member, is one atom
+        # the orbitals written with the same characters at this site, pooled:
+        # parts of a wider irrep add up to copies of it, and a declared spinor
+        # pair written twice, once per member, is one atom
         part = rec["pool"].setdefault(_declared_character_key(chi),
                                       {"chi": chi, "dim": max(1, int(dim)), "atoms": set()})
         part["atoms"].update(named)
@@ -2306,15 +2283,14 @@ def _declared_site_contents(model, group, assignment, characters, *, spin=None):
             for ind in asked:
                 whole[int(ind)] = whole.get(int(ind), 0.0) + copies * complex(p["chi"][ind])
         rec["whole"] = whole
-    # WHICH OF THE TWO the declared functions name, read exactly as
-    # :func:`_normalize_declaration` reads them.  The functions declared at a
-    # site generate an orbit under its site group; where that orbit is as wide
-    # as the orbitals they were declared for, the content declared IS the
-    # orbit -- the doublet `px` and `py` span at a `3m` site, or the `1E2E`
-    # pair one `dz2` names at a `23` site -- and an orbit is invariant, so it
-    # reduces nothing.  Where the orbit is wider than the orbitals named, what
-    # was declared is the functions themselves, and a span of those is exactly
-    # what a site group need not preserve.
+    # Whether the declared functions name their orbit or themselves.  The
+    # functions declared at a site generate an orbit under its site group.
+    # Where that orbit is as wide as the atoms they were declared for, what
+    # was declared is the orbit, such as the doublet `px` and `py` span at a
+    # `3m` site, or the `1E2E` pair one `dz2` names at a `23` site, and an
+    # orbit is invariant, so it reduces nothing.  Where the orbit is wider than
+    # the atoms named, what was declared is the functions themselves, and a
+    # site group need not preserve their span.
     for site, rec in contents.items():
         if not rec["polys"]:
             continue
@@ -2325,66 +2301,32 @@ def _declared_site_contents(model, group, assignment, characters, *, spin=None):
 
 
 def _content_compatible(group, assignment, contents):
-    r"""Step 1: which operations of the cell the **declared content** leaves.
+    r"""Step 1: the operations of the cell that carry the declaration.
 
-    A declaration is a statement about the crystal, made before any
-    Hamiltonian is read, so an operation the declared content is not carried
-    by is not an operation of the cell at all.  Two halves, measured over the
-    unitary operations and inherited by their primed partners (a site
-    character is a character of the *unitary* site group, so ``m(x)`` and
-    ``m(x)'`` stand or fall together):
+    ``contents`` is the first of what :func:`_declared_site_contents` returns,
+    and ``assignment`` holds the orbitals' sites in ``group``.  A unitary
+    operation ``g`` is compatible where, at every declared site ``a`` whose
+    image ``b`` is declared too, both of these hold.
 
-    **The functions.**  The declared shorthands at site ``a`` span ``V_a``
-    (:func:`.._sitechars.span_basis`).  An operation carrying ``a`` onto ``b``
-    is compatible when it carries ``V_a`` **onto** ``V_b``
-    (:func:`.._sitechars.carries_span`) — with ``b = a`` that is the
-    stabilizer of a declared function, which is why a single ``px`` at a
-    ``3m`` site is a crystal with one mirror and nothing more.
+    * Where both sites keep declared functions (``"polys"``), ``g`` carries
+      the span of ``a``'s onto the span of ``b``'s
+      (:func:`.._sitechars.carries_span`).  With ``b = a`` this is the
+      stabilizer of a declared function.
+    * ``chi_b(g h g^-1) = chi_a(h)`` for every ``h`` fixing ``a`` that both
+      sites' characters state, ``chi`` being each site's ``"whole"`` and the
+      conjugation taken in the group's product table modulo lattice
+      translations.  Where either site is declared in double-valued site
+      irreps, the operations whose spin-1/2 lift has zero trace are not
+      compared.
 
-    **The characters.**  Sites ``a`` and ``b = g·a`` carry the same declared
-    content when ``chi_b(g h g⁻¹) = chi_a(h)`` for every ``h`` fixing ``a``,
-    the conjugation taken through the group's own product table, modulo
-    lattice translations, which is the sense in which a site group is
-    measured.  ``chi`` is each site's **whole** declared content, whatever
-    partition of its orbitals the words were written on (``"whole"`` of
-    :func:`_declared_site_contents`): a ``p`` shell declared ``"p"`` at one
-    site and ``p_z`` beside its doublet at the next is one content.  What is
-    compared is characters, never words: an irrep label, the shorthand whose
-    orbit it is and the shell or sum that holds the same content are one
-    declaration wherever their characters are one.  A function's own span
-    character stands in where one end names a function and the other a label.
-    Where either site's content was written in the site coreps it states the
-    corep content alone, and the two are compared as corep content: on the
-    operations whose spin-1/2 lift has a nonzero trace, where every orbital
-    content lifting to one corep content has its characters, and not on the
-    twofolds and mirrors, where every one of them lifts to zero.
-
-    A site nothing was declared about imposes nothing: its content is the
-    transported one, which is the inference a partial declaration rests on.
-
-    **The largest group.**  Where the declaration states every site of each
-    orbit it touches, and in the same terms at each -- a function at all of
-    them or at none -- compatibility is a relation between the sites' declared
-    contents and the compatible operations are a group.  Otherwise they need
-    not be one: an operation carrying a declared site onto one with nothing to
-    compare there -- left undeclared, or declared a content where the first
-    holds a function -- is compatible whatever it carries the declared content
-    onto, and two such can compose into one the declared content is not
-    carried by: ``p_y`` declared at one ``3c`` site of ``Pm-3m`` and nothing at
-    the other two, where a fourfold axis and a threefold one together carry
-    ``p_y`` onto ``p_z`` at its own site.  The declared crystal's operations
-    form a group, so the operations kept are the largest subgroup of the
-    cell's group inside the compatible ones, the first by the tie rule every
-    such choice is made by where several of that order exist
-    (:func:`_largest_compatible_group`), and an undeclared site carries what it
-    transports onto it: there ``m-3``, the twelve rotations of the
-    tetrahedron and their products with inversion, which carries ``p_y`` onto
-    ``p_z`` and ``p_x`` at the other two sites.  The compatible operations it
-    leaves out are excluded beside the others, each with its reason.
-
-    Returns ``(kept, excluded)`` — the ``.ind`` kept as a frozenset over
-    **all** operations, and ``{ind: {"reason", "note", "orbitals", "sites"}}``
-    for the rest.
+    An operation carrying a declared site onto an undeclared one is compatible
+    there.  A primed operation stands or falls with its unitary partner, a
+    site character being a character of the unitary site group.  The
+    operations kept are the largest subgroup inside the compatible ones
+    (:func:`_largest_compatible_group`).  Returns ``(kept, excluded)``: the
+    indices kept, a frozenset over all operations, and for each operation left
+    out a record of its ``"reason"``, ``"sites"``, ``"orbitals"``, ``"ind"``,
+    ``"name"`` and ``"note"`` (:func:`_excluded_named`).
     """
     syms = group._symmetries
     at = {int(s.ind): p for p, s in enumerate(syms)}
@@ -2396,31 +2338,33 @@ def _content_compatible(group, assignment, contents):
     fixed = {s: tuple(int(i) for i in assignment.site_group[s] if int(i) in at
                       and not syms[at[int(i)]].time_reversal)
              for s in contents}
-    # the inverse of each UNITARY operation, read off the group's own product
-    # table modulo lattice translations -- never `get_inverse_table`, which is
-    # asked about the antiunitary coset too and warns that it has no inverse
+    # the inverse of each unitary operation, read off the group's own product
+    # table modulo lattice translations; `get_inverse_table` is not used, since
+    # it is asked about the antiunitary coset too and warns that it has no
+    # inverse
     ident = _identity_position(group)
     inverse = {a: b for a in unitary for b in unitary
                if int(prod[at[a], at[b]]) == ident}
 
     def _conjugate(g, h):
-        """``g h g⁻¹`` as an ``.ind``, modulo lattice translations."""
+        """``g h g^-1`` as an index, modulo lattice translations."""
         gi = inverse[int(g)]
         return int(syms[int(prod[at[int(g)], int(prod[at[int(h)], at[gi]])])].ind)
 
-    # the operations a content written in the site coreps states nothing under:
-    # those whose spin-1/2 lift has zero trace
+    # the operations a declaration in double-valued site irreps states nothing
+    # under: those whose spin-1/2 lift has zero trace
     silent = ({ind for ind, v in _sitechars.lift_squares(
                   {ind: syms[at[ind]].rotation_cart for ind in unitary}).items() if v <= 1e-9}
               if any(rec.get("corep") for rec in contents.values()) else set())
 
     def _matched(g, a, b):
-        """Does ``a``'s whole declared content transport onto ``b``'s?
+        """Whether ``g`` carries site ``a``'s declaration onto site ``b``'s.
 
-        ``chi_b(g h g⁻¹) = chi_a(h)`` on every ``h`` fixing ``a`` both state --
-        a relation between the two sites' whole contents, so it is symmetric,
-        and among declared sites what it keeps is closed under products.  Two
-        sites declared contents of different dimensions differ on the identity.
+        The two sites' whole declarations are compared:
+        ``chi_b(g h g^-1) = chi_a(h)`` on every ``h`` fixing ``a`` that both
+        state.  The relation is symmetric, and among declared sites the
+        operations it keeps are closed under products.  Two sites declared
+        different dimensions differ on the identity.
         """
         chi_a, chi_b = contents[a]["whole"], contents[b]["whole"]
         coreps = bool(contents[a].get("corep") or contents[b].get("corep"))
@@ -2429,8 +2373,8 @@ def _content_compatible(group, assignment, contents):
                 continue
             c = _conjugate(g, h)
             if c not in chi_b:
-                # the smaller group no longer asks this question, and that
-                # dropping IS the restriction of the declared content
+                # b's declaration states nothing at this operation: leaving it
+                # out restricts the comparison to the operations both state
                 continue
             if abs(complex(chi_b[c]) - complex(chi_a[int(h)])) > 1e-6:
                 return False
@@ -2472,7 +2416,7 @@ def _content_compatible(group, assignment, contents):
     return _largest_compatible_group(group, assignment, _orbitals(*contents), excluded)
 
 
-#: Why step 1 leaves out an operation the declared content is carried by on its
+#: Why step 1 leaves out an operation that carries the declaration on its
 #: own: the operations kept are the largest group inside the compatible ones
 #: (:func:`_largest_compatible_group`).  ``_OUTSIDE_THE_GROUP`` is said where
 #: no subgroup of that order holds the operation, ``_OUTSIDE_THE_TIE`` where
@@ -2485,12 +2429,24 @@ _OUTSIDE_THE_TIE = ("the declared content is carried by a group holding this ope
 
 
 def _outside_the_group(rec) -> bool:
-    """Whether a step 1 exclusion is the largest group's, rather than the declared content's own."""
+    """Whether step 1 excluded an operation only for the largest group's sake.
+
+    ``rec`` is the operation's record in step 1's exclusions.  Returns true
+    where its reason is ``_OUTSIDE_THE_GROUP`` or ``_OUTSIDE_THE_TIE``: the
+    operation carries the declaration on its own.
+    """
     return rec.get("reason") in (_OUTSIDE_THE_GROUP, _OUTSIDE_THE_TIE)
 
 
 def _excluded_named(group, ind, rec, *, said=""):
-    """One step 1 exclusion given its operation's ``ind``, ``name`` and the ``note`` saying it in words."""
+    """A step 1 exclusion with its operation's index, name and note added.
+
+    ``rec`` is the record of the operation ``ind`` of ``group``, holding its
+    ``"reason"``, ``"sites"`` and ``"orbitals"``, and ``said`` is appended to
+    its note.  Sets ``rec["ind"]``, ``rec["name"]``
+    (:func:`.._seitz._record_name`) and ``rec["note"]``, the sentence saying
+    it in words, and returns ``rec``.
+    """
 
     sym = next(s for s in group._symmetries if int(s.ind) == int(ind))
     rec["ind"] = int(ind)
@@ -2503,36 +2459,25 @@ def _excluded_named(group, ind, rec, *, said=""):
 
 
 def _largest_compatible_group(group, assignment, declared, excluded):
-    r"""Step 1's kept operations: the largest group inside the ones the declared content is carried by.
+    r"""Step 1's operations kept: the largest group inside the compatible ones.
 
-    ``excluded`` holds the operations the declared content is not carried by,
-    unitary and primed alike (:func:`_content_compatible`), and ``declared``
-    the orbitals the declaration names.  The compatible operations are
-    whatever is left, and they need not compose: a declared site carried onto
-    an undeclared one constrains nothing there, nor does a declared function
-    carried onto a site declared a content alone, so two compatible operations
-    can make one the declared content is not carried by.  The crystal declared
-    has a group of operations, and it is the largest subgroup of ``group``
-    whose unitary operations all lie among the compatible ones -- the question
-    the descent asks of operations measured to hold that do not compose, asked
-    here of the operations the declared content is carried by, and answered by
-    the same enumeration and the same tie rule
-    (:func:`.._subgroups._resolve_closure`).  A primed operation stands or falls
-    with its unitary partner, as a site character is a character of the unitary
-    site group.
-
-    Where the compatible operations already compose, which they do wherever
-    the declaration states every site of an orbit, as a function at all of
-    them or at none, nothing is added.  Otherwise each operation left out is
-    excluded with ``_OUTSIDE_THE_GROUP`` as its reason, or
-    ``_OUTSIDE_THE_TIE`` where a subgroup of the largest order holds it and
-    the tie rule keeps another, whose note then names the subgroups that tie
-    and why the first is kept.  Its ``sites`` are a declared site and its
-    image, the first declared site carried onto an undeclared one where there
-    is one, and its ``orbitals`` the declared ones there.
-
-    Returns ``(kept, excluded)`` -- the ``.ind`` kept as a frozenset over all
-    operations, and ``excluded`` with the operations left out added.
+    ``excluded`` holds the operations that do not carry the declaration,
+    unitary and primed alike (:func:`_content_compatible`), ``declared`` the
+    orbitals the declaration names, and ``assignment`` the orbitals' sites in
+    ``group``.  The compatible operations are the unitary ones left.  Where
+    they compose, as they do wherever the declaration states every site of each
+    orbit it touches, as a function at all of them or at none, nothing is
+    added.  Where they do not, the operations kept are the largest subgroup of
+    ``group`` inside them, found by the enumeration and the tie rule the
+    descent uses (:func:`.._subgroups._resolve_closure`), each primed operation
+    with its unitary partner.  Each operation left out is added to ``excluded``
+    with the reason ``_OUTSIDE_THE_GROUP``, or ``_OUTSIDE_THE_TIE`` where a
+    subgroup of the largest order holds it and the tie rule keeps another, the
+    note then naming the subgroups that tie and why the first is kept.  Its
+    ``"sites"`` are a declared site and its image, an undeclared image where
+    there is one, and its ``"orbitals"`` the declared ones there.  Returns
+    ``(kept, excluded)``: the indices kept, a frozenset over all operations,
+    and ``excluded`` with those added.
     """
 
     syms = group._symmetries
@@ -2572,49 +2517,50 @@ def _largest_compatible_group(group, assignment, declared, excluded):
 
 def _normalize_declaration(characters, model, assignment, group, tables, layout,
                            *, spin=None, read_in=None):
-    """Parse ``characters=`` into the declared contents, each with the orbitals it is declared on (grammar only).
+    """The declarations of ``characters``, each resolved in its site's table.
 
-    A declaration names **what a set of orbitals holds**.  The piece the
-    grammar counts is the **atom** — one orbital, or the two states of one
-    declared spinor pair, which is one Wannier function and never split — and
-    a content's dimension is a number of atoms: ``{(0, 2): "E"}`` on an
-    interleaved spinor basis with pairs ``(0, 1)`` and ``(2, 3)`` declares the
-    two *pairs* jointly as a doublet, while ``{(0, 1): "s"}`` is one atom.
-    The joint form names the content its orbitals hold together -- an irrep,
-    a sum of irreps or a shell -- and that content's dimension has to be the
-    number of atoms it names.
+    ``characters`` is the declaration as written; ``model``, ``assignment``
+    and ``spin`` are as for :func:`_declaration_entries`; ``group`` is the
+    group the words are resolved in, ``tables`` the character table of each
+    site (:func:`.._naming._site_tables`), and ``layout`` the multiplets the
+    Hamiltonian measures.  ``read_in`` is step 1's reading
+    (:func:`_declared_site_contents`), which says where each word was read
+    before step 1 lowered the cell; without it a word is recorded as read
+    where it resolves.
 
-    A word whose content is wider than the one orbital it is written on --
-    ``px`` at a ``3m`` site, whose orbit is the doublet ``E`` -- names that
-    orbital's part of the content.  Where the multiplet measured there (in
-    ``layout``) has the content's own dimension, the part is that whole
-    multiplet (``{0: "E'"}`` on a ``p_x, p_y`` pair).  Elsewhere the parts
-    written with one content at one site add up, and have to make whole
-    copies of it: ``["pz", "px", "py"]`` on a ``p`` shell whose orbitals are
-    turned inside the site is ``A1`` on ``p_z`` and one ``E`` on the other
-    two, however the Hamiltonian binds them.  How the declared contents are
-    then read against the measured multiplets is :func:`_declared_blocks`'.
+    The piece counted is the atom: one orbital, or the two of a declared spin
+    pair, one Wannier function, never split.  A joint key names what its atoms
+    hold together, an irrep, a sum of irreps or a shell, whose dimension is
+    the number of atoms: ``{(0, 2): "E"}`` on spin pairs ``(0, 1)`` and
+    ``(2, 3)`` is a doublet of the two pairs.  A word whose irrep is wider
+    than the one orbital it is written on names that orbital's part of it:
+    the whole multiplet measured there where that has the irrep's dimension
+    (``{0: "E'"}`` on a ``p_x, p_y`` pair), and otherwise the parts written
+    with one irrep at one site add up to whole copies of it.  Generator
+    matrices are read on whole measured multiplets, one declaration per
+    multiplet where they are block-diagonal on several.
 
-    Each declaration comes back with the :class:`.._sitechars.DeclaredContent`
-    it resolved to — the constraint ``{ind: chi(g)}``, the label, the dimension,
-    the Cartesian polynomials a shorthand names and the group it was read in —
-    which is what every later re-identification re-keys rather than resolving
-    the label again.
-
-    ``read_in`` is step 1's own reading, keyed by the declaration's orbitals:
-    where the word was read before the declared content reduced the cell, and
-    what site group it resolves in now (:func:`_declared_site_contents`).
-    Without it the two are one place, written once.
+    Returns a list of the declarations, each a mapping holding its
+    ``"orbitals"``, ``"channels"`` (its multiplets), ``"site"``, ``"spec"``,
+    ``"label"``, ``"dim"``, ``"note"``, ``"constraints"`` (``{ind: chi}``),
+    ``"joint"``, ``"corep"``, ``"matrices"`` and ``"content"``, the
+    :class:`.._sitechars.DeclaredContent` it resolved to, which a later group
+    re-keys rather than resolving the word again.  :func:`_declared_blocks`
+    then reads them on the measured multiplets.
 
     Raises
     ------
     _sitechars.DeclarationError
-        ``gate="ambiguous_multiplet"`` for a joint declaration whose content
-        is not the dimension of the orbitals it names, or parts of a content
-        that make no whole number of copies of it at their site;
-        ``gate="unknown_label"`` from the label resolution itself.
+        ``gate="ambiguous_multiplet"`` for a joint key whose irrep's dimension
+        is not the number of atoms it names, for parts of an irrep that make no
+        whole number of copies at their site, and for generator matrices on
+        part of a measured multiplet, mixing two, at a site whose declarations
+        do not each name a whole measured multiplet, or at a site of several
+        measured multiplets with a declaration in double-valued site irreps;
+        ``gate="unknown_label"`` from resolving a word.
     ValueError
-        Where the declaration is malformed (:func:`_declaration_grammar`).
+        Where the declaration is malformed
+        (:func:`.._grammar._declaration_grammar`).
     """
     site_of = np.asarray(assignment.site_of_orbital, dtype=int)
     paired = spin is not None              # each atom a declared (up, dn) pair
@@ -2624,7 +2570,7 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
                                                    spin=spin)
 
     def _atoms_named(orbs):
-        """The distinct indivisible pieces a declaration names, order-preserving."""
+        """The distinct atoms of the orbitals ``orbs``, in the order named."""
         out = []
         for a in orbs:
             k = atom_of[int(a)]
@@ -2633,18 +2579,18 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
         return tuple(out)
 
     def _members(keys):
-        """Every orbital of those pieces, each piece in its own order."""
+        """The orbitals of the atoms ``keys``, atom by atom."""
         return tuple(int(o) for k in keys for o in atom_orbs[k])
 
-    # THE WORD WRITTEN FOR EACH ORBITAL, whichever declaration it came in: both
+    # The word written for each orbital, whichever declaration it came in: both
     # states of a declared spinor pair, one Wannier function, and every orbital
-    # of a content already resolved.  A multiplet the Hamiltonian glued and
-    # declared orbital by orbital (``{0: "px", 1: "py"}`` on a ``p_x, p_y``
-    # pair) resolves once per orbital to the whole multiplet, and each of those
-    # contents carries every word its orbitals were written with, so that the
-    # one a later round keeps still says all of them.  A shell is a function
-    # word of every orbital it was written on (``"p"``); an irrep or a sum of
-    # irreps names a content and no function.
+    # of a declaration already resolved.  A multiplet the Hamiltonian glued
+    # and declared orbital by orbital (``{0: "px", 1: "py"}`` on a
+    # ``p_x, p_y`` pair) resolves once per orbital to the whole multiplet, and
+    # each of those declarations carries every word its orbitals were written
+    # with, so that the one a later round keeps still says all of them.  A
+    # shell is a function word of every orbital it was written on (``"p"``);
+    # an irrep or a sum of irreps names site irreps and no function.
     said = {}
     for orbs, spec, _joint in raw:
         if isinstance(spec, _sitechars.DeclaredContent):
@@ -2656,9 +2602,9 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
             for a in orbs:
                 for o in atom_orbs[atom_of[int(a)]]:
                     said.setdefault(int(o), w)
-    # ... and WHAT WAS WRITTEN for each orbital, word or not: one declaration can
-    # cover orbitals written as different words, `px` on one and `py` on its
-    # partner, and each row says its own
+    # ... and what was written for each orbital, word or not: one declaration
+    # can cover orbitals written as different words, `px` on one and `py` on
+    # its partner, and each row says its own
     written = {}
     for orbs, spec, _joint in raw:
         if isinstance(spec, _sitechars.DeclaredContent):
@@ -2714,9 +2660,10 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
             note = (note + "; " if note else "") + _sitechars.mulliken_clause(mulliken)
         site_symbol = _sitechars.point_group_symbol(group, table.indices)
         here = f"{site_symbol} in {group.name} #{group.number_str}"
-        # WHERE THE DECLARED WORD WAS READ, which is not always where it
+        # Where the declared word was read, which is not always where it
         # resolves: step 1 reads it in the cell's own site groups and may lower
-        # the cell before anything is resolved, and the record has to say both.
+        # the cell before anything is resolved, and the declaration keeps both,
+        # as declared_in and reduced_in.
         first = (read_in or {}).get(tuple(sorted(int(a) for a in orbs)))
         read_where = (base.declared_in if base is not None else
                       (first if first is not None else here))
@@ -2725,12 +2672,13 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
         key = _sitechars.shorthand_key(spec)
         functions = ((base.functions if base is not None else ())
                      if key is None else (_sitechars.SHORTHANDS[key],))
-        # a sum written in the site coreps states the corep content and nothing
-        # finer, which every comparison with the Hamiltonian's blocks reads
+        # a sum written in double-valued site irreps states their
+        # multiplicities and nothing finer, which every comparison with the
+        # Hamiltonian's blocks reads
         corep = (base.corep if base is not None
                  else _sitechars.named_in_coreps(table, spec))
-        # GENERATOR MATRICES, on every operation the declared ones generate:
-        # which basis of the content the orbitals are
+        # generator matrices, on every operation the declared ones generate:
+        # which basis of the declared site irreps the orbitals are
         here_inds = {int(i) for i in table.indices}
         matrices = ({int(k): M for k, M in base.matrices.items() if int(k) in here_inds}
                     if base is not None
@@ -2743,29 +2691,28 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
         if joint and dim != len(keys):
             n = len(keys)
             noun = "Wannier function" if paired else "orbital"
-            # a content in the site coreps is counted in what holds it, each
-            # orbital with both its spin states
+            # a declaration in double-valued site irreps is counted in what
+            # holds it, each orbital with both its spin states
             wide = (f"holds {dim} {noun}{'' if dim == 1 else 's'}" if paired or corep
                     else f"is {dim}-dimensional")
-            # the spelling to offer: separate words for a content of one, and
-            # otherwise what the site holds says what fits it
-            fix = (("; {" + ", ".join(f"{int(min(atom_orbs[k]))}: {label!r}" for k in keys)
-                    + f"}} is the spelling for {n} separate {label} {noun}s.")
+            # the spelling to offer: separate words for a declaration of
+            # dimension one, and otherwise what the site holds says what fits
+            fix = ((". Write {" + ", ".join(f"{int(min(atom_orbs[k]))}: {label!r}" for k in keys)
+                    + f"}} for {n} separate {label} {noun}s.")
                    if dim == 1 else
                    ". " + _multiplet_spelling(site, _site_atoms(atom_orbs, site), dim, spec,
                                               table, paired=paired))
             raise _sitechars.DeclarationError(
                 "ambiguous_multiplet",
-                f"{where}: the joint form names the site irreps its {noun}s hold together, and "
-                f"{label!r} {wide} against the {n} {noun}{'' if n == 1 else 's'} named, "
-                "so it is not what they hold jointly" + fix,
+                f"{where}: {label!r} {wide}, and the key names "
+                f"{n} {noun}{'' if n == 1 else 's'}" + fix,
                 {"orbitals": orbs, "site": site, "declared_irrep": label, "dim": dim,
                  "multiplet": tuple(atom_orbs[k] for k in keys)})
         if matrices:
-            # MATRICES ARE READ ON WHOLE MULTIPLETS, the orbitals the hoppings
-            # bind together at the site; block-diagonal on several, they are
-            # one declaration per multiplet, as a declaration carried down to a
-            # smaller group whose multiplets have come apart reads
+            # Matrices are read on whole multiplets, the orbitals the hoppings
+            # bind together at the site.  Block-diagonal on several, they are
+            # one declaration per multiplet.  A declaration carried down to a
+            # smaller group, whose multiplets have come apart, is read so too.
             members = _members(keys)
             touched = sorted({int(chan_of[int(o)]) for o in members})
             bound = " and ".join(str(tuple(int(o) for o in chan_orbs[c])) for c in touched)
@@ -2774,9 +2721,9 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
             if any(not set(int(o) for o in chan_orbs[c]) <= set(members) for c in touched):
                 raise _sitechars.DeclarationError(
                     "ambiguous_multiplet",
-                    f"{where}: generator matrices are read on whole multiplets the hoppings "
-                    f"measure, their orbitals named together, and the hoppings bind these "
-                    f"orbitals as {bound}: name every orbital of a multiplet in one key.",
+                    f"{where}: the generator matrices name part of a multiplet the hoppings "
+                    f"measure. The hoppings bind these orbitals as {bound}. Name every "
+                    "orbital of a multiplet in one key.",
                     context)
             place = [[i for i, k in enumerate(keys) if int(chan_of[int(atom_orbs[k][0])]) == c]
                      for c in touched]
@@ -2785,9 +2732,9 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
                        for M in matrices.values() for a in place for b in place if a is not b):
                     raise _sitechars.DeclarationError(
                         "ambiguous_multiplet",
-                        f"{where}: the matrices declared mix {bound}, which the hoppings "
-                        "measure as separate multiplets: give each of those multiplets its "
-                        "own key and its own matrices.", context)
+                        f"{where}: the generator matrices mix {bound}, which the hoppings "
+                        "measure as separate multiplets. Give each multiplet its own key "
+                        "and its own matrices.", context)
                 for idx in place:
                     part = {int(i): M[np.ix_(idx, idx)] for i, M in matrices.items()}
                     chi = {int(i): complex(np.trace(M)) for i, M in part.items()}
@@ -2806,15 +2753,15 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
             _one(rec, _members(keys), keys)
             continue
         if len(keys) == 1 and dim > 1:
-            # a content wider than the one orbital it is written on, where the
-            # HAMILTONIAN glued a multiplet of its dimension: the declaration is
-            # about the whole multiplet measured there
+            # a declaration wider than the one orbital it is written on, where
+            # the Hamiltonian glued a multiplet of its dimension: the
+            # declaration is about the whole multiplet measured there
             c = int(chan_of[int(orbs[0])])
             if int(layout._dim(c)) == int(dim):
                 _one(rec, tuple(int(o) for o in chan_orbs[c]), keys)
                 continue
-        # A PART OF A CONTENT: the orbitals written with it at one site add up,
-        # below, to the copies of it they hold together
+        # Part of a declaration: the orbitals written with it at one site are
+        # pooled, and add up, below, to the copies of it they hold together
         pool = parts.setdefault((site, _declared_character_key(cons)),
                                 {"rec": rec, "keys": [], "orbs": []})
         for k in keys:
@@ -2834,9 +2781,8 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
                 "ambiguous_multiplet",
                 f"orbital{'s' if len(orbs) > 1 else ''} "
                 f"{orbs if len(orbs) > 1 else orbs[0]}: {rec['label']!r} {wide}, "
-                f"and the {len(keys)} {noun}{'s' if len(keys) > 1 else ''} of site {site} "
-                f"written with it make{'s' if len(keys) == 1 else ''} no whole number of "
-                f"copies of it, so which {noun}s hold it is not said. "
+                f"and {len(keys) % dim} {noun}{'s' if len(keys) % dim > 1 else ''} of site "
+                f"{site} declared with it {'is' if len(keys) % dim == 1 else 'are'} left over. "
                 + _multiplet_spelling(site, _site_atoms(atom_orbs, site), dim, rec["spec"],
                                       table, paired=paired),
                 {"orbitals": orbs, "site": site, "declared_irrep": rec["label"],
@@ -2850,9 +2796,9 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
             named = _sitechars.corep_label if rec["corep"] else _sitechars.content_label
             label = named(table, chi) or f"{copies}x{label}"
         _one(dict(rec, cons=cons, label=label, dim=len(keys)), _members(keys), keys)
-    # A SITE WITH DECLARED MATRICES is read multiplet by multiplet: a declaration
-    # there naming no whole measured multiplet would make it one content
-    # (:func:`_site_reading`)
+    # A site with declared matrices is read multiplet by multiplet: a
+    # declaration there naming no whole measured multiplet would make its
+    # declarations one (:func:`_site_reading`)
     measured = tuple(tuple(tuple(int(o) for o in m) for m in site) for site in layout.by_site)
     for site in sorted({int(d["site"]) for d in decls if d["matrices"]}):
         here = [d for d in decls if int(d["site"]) == site]
@@ -2862,100 +2808,94 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
                 or (any(d["corep"] for d in here) and len(measured[site]) > 1)):
             raise _sitechars.DeclarationError(
                 "ambiguous_multiplet",
-                f"site {site}: generator matrices are read on the multiplet they name, and "
-                f"the declarations at this site do not each name a whole multiplet the "
-                f"hoppings measure there ({', '.join(str(m) for m in measured[site])}), "
-                "so the site is read as one content over all of them: give each multiplet "
-                "its own key.",
+                f"site {site}: generator matrices are declared here, and the declarations "
+                f"at this site do not each name one whole multiplet the hoppings measure "
+                f"there, {' and '.join(str(m) for m in measured[site])}, or one of them is a "
+                "double-valued site irrep. Give each multiplet its own key, naming its "
+                "orbital factor where the model has spin.",
                 {"site": site, "orbitals": tuple(sorted(named)),
                  "multiplets": measured[site]})
     return decls
 
 
 def _declared_character_key(cons):
-    """A comparable identity for one declared character, ``{ind: chi(g)}``."""
+    """A hashable key for the declared character ``cons``, ``{ind: chi}``.
+
+    The key holds each operation's index with the real and imaginary parts of
+    its character rounded to nine decimals, in the order of the indices.
+    Declarations pooled at one site with equal keys are counted as parts of
+    one declaration.
+    """
     return tuple(sorted((int(k), round(complex(v).real, 9), round(complex(v).imag, 9))
                         for k, v in cons.items()))
 
 
 def _site_atoms(atom_orbs, site) -> tuple:
-    """The atoms of one site, each its orbitals: its orbitals, or its declared spin pairs."""
+    """The atoms of site ``site``, each given by its orbitals.
+
+    ``atom_orbs`` maps each atom, keyed by its site and its lowest orbital, to
+    its orbitals (:func:`_declaration_entries`).  An atom is one orbital, or a
+    declared spin pair.  Returns the atoms in the order of their lowest
+    orbitals.
+    """
     return tuple(atom_orbs[k] for k in sorted(k for k in atom_orbs if int(k[0]) == int(site)))
 
 
 def _multiplet_spelling(site, atoms, dim, spec, table, *, paired) -> str:
-    """The spelling to suggest for a ``dim``-dimensional content at one site.
+    """The spelling an ``ambiguous_multiplet`` message suggests, as a sentence.
 
-    ``atoms`` are the site's own: its orbitals, or, where ``paired``, its
-    declared spin pairs, each one Wannier function, and ``dim`` counts them.  A
-    suggestion has to be a declaration this package accepts, so the joint form
-    is offered only where the site holds enough of them to make one, each named
-    by one of its orbitals; where it does not, the message says what the site
-    holds and lists the contents that fit it (:func:`.._sitechars.fitting_words`).
+    ``site`` is the site's index and ``atoms`` its atoms, each given by its
+    orbitals (:func:`_site_atoms`): its orbitals, or with ``paired`` its
+    declared spin pairs, each one Wannier function.  ``spec`` is the word
+    declared, ``dim`` its dimension counted in atoms, and ``table`` the site's
+    character table.  Where ``dim > 1`` and the site holds at least ``dim``
+    atoms, the sentence offers the joint form on its first ``dim`` atoms, each
+    named by its lowest orbital.  Otherwise it says what the site holds and
+    lists the site irreps that fit it (:func:`.._sitechars.fitting_words`).
     """
     n, dim = len(atoms), int(dim)
     if n >= dim > 1:
         joint = tuple(int(min(a)) for a in atoms[:dim])
-        return ("Use the mapping form and name the partners jointly, e.g. "
+        return ("Name the orbitals that hold it together in one key, as "
                 f"{{{joint}: {spec!r}}}.")
     if paired:
         held = (f"{n} Wannier function{'' if n == 1 else 's'}, the spin "
                 f"pair{'' if n == 1 else 's'} " + " and ".join(str(tuple(a)) for a in atoms))
-        wide = f"no multiplet of {dim} Wannier functions"
+        wide = f"a multiplet of {dim} Wannier functions"
         room = "one Wannier function" if n == 1 else f"at most {n} Wannier functions"
     else:
         held = f"{n} orbital{'' if n == 1 else 's'} {tuple(int(a[0]) for a in atoms)}"
-        wide = f"no {dim}-dimensional multiplet"
+        wide = f"a multiplet of {dim} orbitals"
         room = "one orbital" if n == 1 else f"at most {n} orbitals"
     words = _sitechars.fitting_words(table, n)
-    return (f"Site {site} carries {held}, so {wide} sits on it at all: name a content of "
-            f"{room} instead" + (f" ({', '.join(words)})" if words else "") + ".")
+    return (f"Site {site} holds {held}, too few for {wide}. Declare a word for "
+            f"{room}" + (f", such as {', '.join(words)}" if words else "") + ".")
 
 
 def _declared_blocks(decls, layout, assignment, tables, *, spin=None):
-    r"""``decls`` — a declaration read on the multiplets the Hamiltonian measures.
+    """The declarations ``decls`` read on the multiplets the hoppings measure.
 
-    A declaration states what each site holds; how the model's orbitals are
-    partitioned inside a site is its basis, which a Wannier basis turned inside
-    its site need not honour.  So the multiplets are always the measured ones,
-    and each site's declarations are read on them one of two ways:
+    ``decls`` are as :func:`_normalize_declaration` returns them, ``layout``
+    holds each site's measured multiplets, ``assignment`` each site's orbitals,
+    and ``tables`` the site character tables the declarations were read in, by
+    site.  ``spin`` is the declared :class:`..spin.SpinBasis`, whose
+    ``(up, dn)`` pairs are each one atom of two orbitals, or ``None``.  A site
+    whose declarations are exactly the measured multiplets they touch keeps
+    them, each read on its own multiplet.  At any other site, and at a site of
+    several multiplets with a declaration in double-valued site irreps, the
+    declarations become one, their sum, read on all of the site's multiplets
+    (:func:`_site_reading`).  Whether the multiplets carry it is the verdict's
+    comparison of characters (:func:`_verdicts_and_choices`).
 
-    * where the declared contents *are* the measured multiplets they touch, each
-      is read on its own multiplet: those multiplets are the Hamiltonian's own
-      subspaces, not a choice of basis;
-    * otherwise the site's declarations are one content over all of its
-      measured multiplets, the sum of what was declared there
-      (:func:`_site_reading`) -- a content declared orbital by orbital on a
-      multiplet the Hamiltonian binds whole, one declared whole over several
-      multiplets, a word on one orbital of a multiplet.  Where some of the
-      site's orbitals were declared nothing, what was declared is part of what
-      the site holds.
-
-    **A content written in the site coreps** states the corep content alone,
-    and which of a site's multiplets holds which of its coreps is the basis's,
-    so it is read over the site's multiplets whole wherever the site holds
-    several: ``2x-E1`` on a ``(p_x, p_y)`` pair measured apart from its
-    ``p_z`` is part of the site's ``2x-E1 + -1E2E``.
-
-    Whether the content is what the site's multiplets carry is then the
-    verdict's comparison of characters (:func:`_verdicts_and_choices`): one
-    content spread over several coupled parts of the crystal is one
-    requirement on their characters together, and a part of what a site holds
-    has to be contained in it.  ``layout`` holds the measured multiplets,
-    ``tables`` the site tables the declarations were read in, and ``spin`` --
-    the declared :class:`..spin.SpinBasis`, whose ``(up, dn)`` pairs are each
-    one atom of two orbitals, or ``None`` -- is what the contents were read
-    with.
-
-    Returns the declarations to read, in the order written, a site's one
-    content in the place of its first.
+    Returns the declarations in the order written, a site's one declaration in
+    the place of its first.
     """
     site_orbs = tuple(tuple(int(o) for o in orbs) for orbs in assignment.site_orbitals)
     pair = 1 if spin is None else 2
     measured = tuple(tuple(tuple(int(o) for o in ch) for ch in site) for site in layout.by_site)
-    # each declared content once, and the SAME orbitals declared twice (a
-    # check on itself, which is how a carried record spells a measured pair)
-    # are one content, not two
+    # each declaration once, and the same orbitals declared twice (a check on
+    # itself, which is how a carried record spells a measured pair) are one
+    # declaration, not two
     groups_of = {}
     for d in decls:
         groups_of.setdefault(int(d["site"]), {})[tuple(int(o) for o in d["orbitals"])] = d
@@ -2975,17 +2915,17 @@ def _declared_blocks(decls, layout, assignment, tables, *, spin=None):
 
 
 def _site_reading(orbitals, measured, groups, table, pair):
-    """``{(site, orbitals): content}`` -- one site's declarations, read on its measured multiplets.
+    """One site's declarations read on its measured multiplets.
 
-    ``orbitals`` are the site's, ``measured`` its multiplets and ``groups`` its
-    declared contents keyed by their orbitals (:func:`_declared_blocks`), and
-    ``pair`` how many orbitals make one atom.  Where the declared contents are
-    exactly the measured multiplets they touch, each is read on its own
-    multiplet and nothing comes back -- unless one was written in the site
-    coreps over a site of several multiplets, which states the site's corep
-    content.  Otherwise every declared content of the site comes back as the
-    one content they add up to over all of its multiplets
-    (:func:`_block_content`).
+    ``orbitals`` are the site's orbitals, ``measured`` its measured multiplets,
+    each given by its orbitals, and ``groups`` its declarations keyed by their
+    orbitals.  ``table`` is the site's character table and ``pair`` the number
+    of orbitals in one atom.  Where the declarations are exactly the measured
+    multiplets they touch, and none is in double-valued site irreps at a site
+    of several multiplets, each stays on its own multiplet and ``{}`` is
+    returned.  Otherwise returns ``{(site, orbitals): declaration}``, every
+    declaration's orbitals keyed to the one declaration they add up to, read
+    on all of the site's multiplets (:func:`_block_content`).
     """
     if not groups:
         return {}
@@ -2998,25 +2938,30 @@ def _site_reading(orbitals, measured, groups, table, pair):
     one = _block_content([groups[g] for g in groups], list(measured), table, pair)
     if one is None:                       # pragma: no cover - a guard, not a path
         raise InternalError(
-            f"the declarations at the site of orbitals {tuple(sorted(orbitals))} were each "
-            "resolved in its site group, and their sum is no content of that group as wide "
-            "as the orbitals they name. A content resolved in a site table is a sum of its "
-            "irreps by construction, so the two disagreeing is a defect in this package, "
-            "not a tolerance to loosen.")
+            f"the declarations at the site of orbitals {tuple(sorted(orbitals))} do not add "
+            "up to site irreps as wide as the orbitals they name. Report it, with the "
+            "model and the call.")
     site = int(next(iter(groups.values()))["site"])
     return {(site, tuple(int(o) for o in g)): one for g in groups}
 
 
 def _block_content(groups, multiplets, table, pair):
-    r"""One declared content over a site's measured multiplets, or ``None`` where it is none.
+    """A site's declarations as one, their sum, read on its measured multiplets.
 
-    ``groups`` are the site's declarations, ``multiplets`` its measured
-    multiplets and ``pair`` how many orbitals make one atom.  What was declared
-    is the sum of the groups' contents, each a sum of the site's irreps as wide
-    as the orbitals it names; narrower than the multiplets, it is part of what
-    they hold.  Whether they carry it is the verdict's comparison of
-    characters (:func:`_verdicts_and_choices`).  ``None`` where a declaration is
-    no such sum, or the content is wider than the multiplets.
+    ``groups`` are the site's declarations, as :func:`_normalize_declaration`
+    returns them, ``multiplets`` its measured multiplets, ``table`` its
+    character table and ``pair`` the number of orbitals in one atom.  Each
+    declaration is decomposed into the site irreps of ``table``, and their sum
+    is what was declared.  Where the sum is narrower than the multiplets, it is
+    part of what they hold.  Returns a declaration of the same form, without
+    ``"matrices"``, with ``"partial"`` set where it is part, ``"orbitals"`` the
+    orbitals named where it is part and every orbital of the multiplets
+    otherwise, ``"block"`` every orbital of the multiplets, ``"groups"`` the
+    declarations summed, ``"joint"`` true, and ``"channels"`` empty until the
+    multiplets of ``"block"`` are written there.  Returns ``None`` where
+    ``table`` is ``None``, where a declaration lacks a character on a class, is
+    no sum of site irreps with nonnegative integer multiplicities, or is not as
+    wide as the atoms it names, and where the sum is wider than the multiplets.
     """
     if table is None:
         return None
@@ -3072,19 +3017,31 @@ def _block_content(groups, multiplets, table, pair):
 
 
 def _mismatch_named(decls, rows, admissible, site_tables, *, ref_orb=0):
-    """The ``verdict=`` and ``named=`` halves of a ``declaration_breaks_group`` message.
+    """The lines and context naming the declaration a refusal is to act on.
 
-    Which declaration is the one a reader has to act on: reading the
-    declarations in the order the lowest-angular-momentum rule reads the
-    crystal — the reference orbital's own first where it has one, then the
-    others as written — the first that no one-dimensional character meets
-    together with those before it in its coupled part of the crystal.  So
-    which declaration is named does not depend on where the reference's own
-    was written.  Nothing is measured here and nothing is decided;
-    :func:`_name_the_mismatch` turns those numbers into irrep names.
+    The refusal is ``declaration_breaks_group``.  ``decls`` are the
+    declarations (:func:`_normalize_declaration`), ``rows`` the
+    measured-versus-declared rows (:class:`_Row`), ``admissible`` the
+    one-dimensional characters of the unitary operations, ``{ind: value}``
+    each, and ``site_tables`` the site character tables, by site.
+    ``ref_orb`` is the reference orbital.  The declarations are read in the
+    order the lowest-angular-momentum rule reads the crystal: the reference
+    orbital's own first where it has one, then the others as written.  The
+    one named is the first that no character of ``admissible`` meets
+    together with those before it in its coupled part.  So which declaration
+    is named does not depend on where the reference orbital's own was written.
+
+    Returns ``{}`` where every declaration is met.  Otherwise returns
+    ``{"verdict": text, "named": context}``, the lines and the context
+    :func:`_name_the_mismatch` makes, the context with the failing
+    declaration's ``orbitals``, ``declared_as`` and ``declared_irrep`` added.
     """
     def _needs(d):
-        """What the rows measured for one declaration ask of its part's character."""
+        """What the rows of the declaration ``d`` ask of its part's character.
+
+        Returns ``{ind: value}``: each row's required value, and ``None`` for a
+        row that has none and whose declared character is not zero.
+        """
         out = {}
         for r in rows:
             if tuple(r.orbitals) != tuple(d["orbitals"]):
@@ -3124,45 +3081,28 @@ def _mismatch_named(decls, rows, admissible, site_tables, *, ref_orb=0):
 
 
 def _name_the_mismatch(failed, measured, still_free, decls, site_tables, tol=1e-6):
-    r"""What a ``declaration_breaks_group`` measured, said *in irrep names*.
+    """The lines naming what a ``declaration_breaks_group`` measured.
 
-    The numeric measured-vs-declared table below the message is complete but
-    unreadable; what a reader needs is "the declaration said A1, the hoppings
-    say B1".  Both halves of that are computable here:
+    ``failed`` is the declaration named (:func:`_mismatch_named`), ``measured``
+    the character measured on each declaration's orbitals,
+    ``{orbitals: {ind: value}}``, and ``still_free`` the one-dimensional
+    characters its coupled part could still carry when it was read.
+    ``decls`` holds every declaration in the order written, ``site_tables``
+    the site character tables by site, and ``tol`` the size below which a
+    declared character counts as zero.  Two names are read off the site table
+    of ``failed``.  The measured irrep is the measured character times each
+    character of ``still_free``, named as the record returns labels,
+    double-valued where the states carry spin; where the names differ, all
+    are listed.  The relative character, measured over declared at each
+    operation, is the one-dimensional character the declaration would need,
+    named in the orbital-factor spelling (:func:`_label_character`); for a
+    declaration in double-valued site irreps it is read only where a
+    character was measured.  Where declared matrices are not carried but
+    their irrep is, the lines say so.
 
-    * the **measured label** of the failing multiplet — its character times
-      each one-dimensional character still admissible when the declaration was
-      tested,
-      named against its own site table and so in the vocabulary the record
-      **returns** its labels in: the double-valued site corep where the states
-      carry spin, the single-valued site irrep where they do not.  When the
-      earlier declarations already pinned the one-dimensional character there is
-      exactly one such name; otherwise the alternatives are all listed, because the
-      ambiguity is real.
-    * the **relative character** ``θ_measured / θ_declared``, which is a
-      character of the site group in its own right — it is exactly the
-      one-dimensional character the declaration would need and no labelling
-      can supply.  It is a one-dimensional character and not a
-      site representation, so it is named in the orbital-factor vocabulary
-      rather than the returned one.  For the standing example (lin3g's two
-      ``1a`` orbitals, both declared ``s``) it is ``B1``, and it stays ``B1``
-      when the two declarations are written the other way round, because both
-      are read in the gauge the *earlier* declarations already pinned rather
-      than in the reference orbital's.
-
-    Nothing about the spin frame is said here.  A declaration is what the
-    declaration states the orbitals are, and a Hamiltonian that does not respect it
-    is a crystal with less symmetry rather than a transcription to check: the
-    verdict is the smaller group, and the message is about which operations it
-    keeps.
-
-    This names; it never decides.  Every number it reads was measured once, by
-    :func:`_verdicts_and_choices`, and the verdict it is spelling out was made
-    by :func:`_covariant_subgroup`.
-
-    Returns ``(text, context)``: the block to splice into the message, and the
-    machine-readable half (``measured_irrep``, ``relative_character``,
-    ``declared_irreps``) for the ``Refusal``'s context.
+    Returns ``(text, context)``: the lines, and for the refusal's context a
+    mapping of ``measured_irrep``, ``relative_character`` and
+    ``declared_irreps`` (each declaration's orbitals with its label).
     """
     tab = site_tables.get(int(failed["site"]))
     theta = measured[tuple(failed["orbitals"])]
@@ -3174,8 +3114,8 @@ def _name_the_mismatch(failed, measured, still_free, decls, site_tables, tol=1e-
         lab = _label_character(tab, gauged)
         if lab and lab not in meas:
             meas.append(lab)
-        # a content written in the coreps states nothing where the spin-1/2
-        # lift has zero trace, and nothing was measured there
+        # a declaration in double-valued site irreps states nothing where the
+        # spin-1/2 lift has zero trace, and nothing was measured there
         rel = {ind: complex(gauged.get(int(ind), 0.0)) / complex(want)
                for ind, want in failed["constraints"].items() if abs(complex(want)) > tol
                and (not failed.get("corep") or int(ind) in gauged)}
@@ -3186,7 +3126,12 @@ def _name_the_mismatch(failed, measured, still_free, decls, site_tables, tol=1e-
     rel_label = " or ".join(rels)
 
     def _declared(d):
-        """A declaration named as the record returns its irrep, against its own site."""
+        """The name of the declaration ``d``, read off its characters.
+
+        It is named against its site's table as the record returns labels, a
+        sum by its terms; where that names nothing, by its label, else by the
+        word written.
+        """
         return (_label_character(site_tables.get(int(d["site"])), d["constraints"],
                                  sums=True) or d["label"] or d["spec"])
 
@@ -3201,16 +3146,15 @@ def _name_the_mismatch(failed, measured, still_free, decls, site_tables, tol=1e-
         # declared matrices whose traces the hoppings carry, in another basis
         lines.append(
             f"  measured: orbital(s) {tuple(failed['orbitals'])} carry {measured_irrep}, "
-            "as declared, and no one-dimensional character the hoppings leave open gives "
-            "them the declared matrices: the hoppings carry that content in another basis.")
+            "as declared, in another basis than the declared matrices.")
     else:
         lines.append(
             f"  measured: orbital(s) {tuple(failed['orbitals'])} carry "
             f"{measured_irrep or 'a character matching no single irrep of this site group'}"
             f", not the declared {wanted or 'character'}"
             + (f"; relative character {rel_label}." if rel_label else
-               "; the ratio measured/declared is not a character of this site group either, "
-               "so no other labeling accommodates it."))
+               "; the measured character over the declared one is no character of this "
+               "site group."))
     return "\n".join(lines), {"measured_irrep": measured_irrep,
                               "relative_character": rel_label,
                               "declared_irreps": tuple(
@@ -3218,13 +3162,12 @@ def _name_the_mismatch(failed, measured, still_free, decls, site_tables, tol=1e-
 
 
 def _label_character(table, chi, tol=1e-6, *, sums=False, orbital=False):
-    """Name a character against a table's rows — ``""`` when no row matches it.
+    """The name of the character ``chi`` in ``table``, or ``""`` where none.
 
-    The label :func:`_named_content` gives, without where it comes from.
-    ``sums`` names a **reducible** character as the sum of the irreps it
-    decomposes into; off by default, because a relative character is
-    one-dimensional by construction and a sum there would name an object that
-    cannot exist.
+    It is the label :func:`_named_content` returns for the same ``table``,
+    ``chi``, ``tol``, ``sums`` and ``orbital``, without where the name comes
+    from.  ``sums`` is off by default: a relative character is
+    one-dimensional, and no sum names one.
     """
     return _named_content(table, chi, tol, sums=sums, orbital=orbital)[0]
 
@@ -3235,36 +3178,28 @@ _NAMED_BY_RANK = {"tables": 0, "invariants": 1, "point group": 2, "Mulliken": 3}
 
 
 def _named_content(table, chi, tol=1e-6, *, sums=True, orbital=False):
-    """``(label, named_by)`` — the site irreps a character holds, and where their name comes from.
+    """The name of the site irreps ``chi`` holds, and where it comes from.
 
-    A character one row of the table matches is that row, with the row's own
-    name and provenance.  With ``sums``, a **reducible** character is named by
-    the irreps it decomposes into, which are fixed by the character alone
-    whatever basis the orbitals are written in: a ``p`` shell whose orbitals
-    are turned inside a ``3m`` site so that no subset of them carries the site
-    group is ``A1 + E`` all the same, one row of the table per term.  Where the
-    states carry spin a row's own name can already be a sum -- ``E ⊗ ½`` at a
-    ``3m`` site is ``-1E2E + -E1`` -- and the terms are counted across the
-    rows, so the same shell with its spin is ``2x-E1 + -1E2E``: the site
-    content an aligned basis spreads over two multiplets, ``-E1`` and
-    ``-1E2E + -E1``, spelled once.  An irrep subduced to a smaller site group
-    is named the same way (``E`` of ``4mm`` restricted to ``mm2`` is
-    ``B1 + B2``).
+    ``table`` is a site character table (:class:`.._sitechars.SiteGroupTable`)
+    and ``chi`` a character, ``{ind: value}``.  A row of ``table`` that matches
+    ``chi`` within ``tol`` on every operation ``chi`` gives is returned with
+    its own name and its ``named_by``.  ``sums`` says whether a reducible
+    character, given on every operation of the table, is named by the site
+    irreps it decomposes into.  The terms are counted across rows, since a
+    row's own name can be a sum on a spinful site, so a ``p`` shell with spin
+    at a ``3m`` site is ``2x-E1 + -1E2E``.  A sum is named as directly as its
+    least direct part (:data:`_NAMED_BY_RANK`).  ``orbital`` asks for a row's
+    orbital-factor spelling where it has one
+    (:attr:`.._sitechars.SiteGroupTable.declarable`), for a one-dimensional
+    character that is not a site representation, such as a measured character
+    over a declared one.
 
-    A sum is named from the tables only as far as its least direct part is --
-    ``tables``, then ``invariants``, then ``point group``, then ``Mulliken``
-    -- and a sum one of whose rows has no name
-    is not named at all, ``("", "unnamed")``, since naming it would claim a
-    name for that row too.  The generator characters stay the whole statement
-    there.
-
-    ``orbital`` asks for the row's **orbital-factor** spelling where it has one
-    (:attr:`.._sitechars.SiteGroupTable.declarable`).  That is what a character
-    which is not a site representation at all wants — the ratio of a measured
-    character to a declared one is a one-dimensional character of the site
-    group, the character the declaration would need, and naming it after the
-    double-valued corep of the row with those values would name the wrong kind
-    of object.
+    Returns ``(label, named_by)``.  Returns ``("", "unnamed")`` where
+    ``table`` is ``None``, where the row matched or a term of the sum has no
+    name, and where no row matches and ``chi`` is not named as a sum: with
+    ``sums`` off, with an operation of the table missing from ``chi``, or
+    where ``chi`` is no sum of site irreps with nonnegative integer
+    multiplicities.
     """
     if table is None:
         return "", "unnamed"
@@ -3304,15 +3239,15 @@ def _named_content(table, chi, tol=1e-6, *, sums=True, orbital=False):
 
 
 def _copies_of_one_irrep(table, chi, tol=1e-6):
-    """``(chi_one, m)`` — a character that is ``m`` copies of one irrep, split.
+    """The character ``chi`` as ``m`` copies of one site irrep, split.
 
-    A multiplet the Hamiltonian binds can hold several copies of one site
-    irrep, written in a basis no orbital subset splits (``A'`` and ``A'`` at a
-    mirror site, rotated into one another), and every vector of such an
-    isotypic component carries that irrep.  So its rows are the irrep's:
-    ``chi_one`` is the character of one copy and ``m`` how many the multiplet
-    holds.  Anything else — an irrep, or a sum of different ones that the
-    site's own operations glue — comes back unchanged with ``m = 1``.
+    ``table`` is the site character table and ``chi`` a character
+    ``{ind: value}``; ``tol`` bounds a multiplicity read as zero and a
+    multiplicity's distance from an integer.  Where ``chi`` is ``m`` copies of
+    one site irrep, ``m`` at least 2, returns ``(chi / m, m)``, so that each
+    orbital of a multiplet holding copies of one irrep is labeled with that
+    irrep.  Returns ``(chi, 1)`` otherwise, and where ``table`` is ``None`` or
+    ``chi`` lacks a class.
     """
     if table is None or any(int(cls[0]) not in chi for cls in table.classes):
         return chi, 1
@@ -3329,10 +3264,13 @@ def _copies_of_one_irrep(table, chi, tol=1e-6):
 
 
 def _one_copy(table, chi, k, tol=CHARACTER):
-    """``chi / k`` where the content ``chi`` is ``k`` copies of one content, and ``None`` otherwise.
+    """``chi`` divided by ``k``, where it is ``k`` copies of one character.
 
-    Read on the site table: every irrep's multiplicity a multiple of ``k``.  A
-    content the table cannot read is taken as it stands, divided.
+    ``table`` is the site character table and ``chi`` a character
+    ``{ind: value}``.  Returns ``chi / k`` where every site irrep's
+    multiplicity in ``chi`` is a multiple of ``k`` within ``tol``, and
+    ``None`` otherwise.  Where ``table`` is ``None`` or ``chi`` lacks a class,
+    returns ``chi / k`` unchecked.
     """
     if table is None or any(int(cls[0]) not in chi for cls in table.classes):
         return {int(ind): complex(v) / k for ind, v in chi.items()}
@@ -3346,17 +3284,15 @@ def _one_copy(table, chi, k, tol=CHARACTER):
 
 
 def _distance_from_trivial(chi):
-    """Sort key ordering one-dimensional characters by their distance from the trivial one.
+    """A sort key putting one-dimensional characters nearest the trivial first.
 
-    First how many operations the character is not ``+1`` on; then, operation by
-    operation in ``.ind`` order, the largest real part and — where a group with
-    no antiunitary operation admits complex characters and two of them are
-    conjugate — the largest imaginary part.  That last clause puts
-    ``λ(4⁺) = +i`` before ``−i`` on a unitary-only fourfold axis, the two being
-    equally far from trivial and equally real: the one turning with the axis
-    first.  As the labelling's last key it decides only where the content,
-    the letter and the band labels all tie; on the spin-orbit ``I4_1`` model
-    the band labels decide, for ``−i``.
+    ``chi`` is a character, ``{ind: value}``.  The key is first the number of
+    operations on which ``chi`` is not ``+1``.  Then, operation by operation
+    in index order, the larger real part comes first, and then the larger
+    imaginary part.  So on a fourfold axis of a group with no antiunitary
+    operation, ``+i`` at ``4+`` comes before ``-i``.  It is the last key of
+    the labeling's choice (:func:`.._labeling._labeling`), read only where
+    the keys before it tie.
     """
     vals = [complex(v) for _, v in sorted(chi.items())]
     return (sum(1 for v in vals if abs(v - 1.0) > 1e-9),
@@ -3364,14 +3300,16 @@ def _distance_from_trivial(chi):
 
 
 def _meets(chi, needs, *, over=None, tol=CHARACTER):
-    r"""Whether a one-dimensional character meets what declarations ask of it.
+    """Whether the character ``chi`` meets what declarations ask of it.
 
-    Every reading of a declaration comes to this one test.  ``needs`` maps an
-    operation's ``.ind`` to the value the character of the declared
-    multiplets' coupled part has to take there for the declared content to be
-    what the Hamiltonian carries, ``None`` where no value does; an operation it
-    does not name asks nothing.  ``over`` asks the question on those operations
-    alone -- a subgroup, or the operations a declaration was measured at.
+    ``chi`` is a one-dimensional character, ``{ind: value}``, an operation it
+    does not name taking ``1``.  ``needs`` maps an operation's index to the
+    value the coupled part's character must take there for the Hamiltonian to
+    carry the declaration, ``None`` where no value does; an operation it does
+    not name asks nothing.  ``over``, where given, holds the indices the test
+    is read on alone: a subgroup, or the operations a declaration was measured
+    at.  ``tol`` is the largest difference from a value that meets it.  Every
+    reading of a declaration comes to this test.
     """
     for ind, want in needs.items():
         if over is not None and int(ind) not in over:
@@ -3382,15 +3320,19 @@ def _meets(chi, needs, *, over=None, tol=CHARACTER):
 
 
 def _declared_needs(d, raw, lift_trace, *, tol=1e-6):
-    r"""``{ind: value}`` -- what one declaration asks of its part's character, on the matrices.
+    """What the declaration ``d`` asks of its coupled part's character.
 
-    ``raw`` holds each multiplet's orbital character on the representation
-    built before any labelling is chosen (:func:`_multiplet_characters`); the
-    declared multiplets carry the declared content under a character ``chi``
-    exactly where ``chi(g)`` times the sum of their characters is the declared
-    one, at every operation the declaration speaks about.  A content written in
-    the site coreps states nothing at an operation whose spin-1/2 lift has zero
-    trace, and an operation that moves one of the multiplets asks nothing.
+    ``raw`` holds each multiplet's orbital character, ``{ind: value}`` by
+    multiplet (:func:`_multiplet_characters`), with or without a candidate
+    character of its part multiplied in, and ``lift_trace`` the trace of each
+    operation's spin-1/2 lift.  The declared multiplets carry the declaration
+    under a character ``chi`` where ``chi(g)`` times the sum of their
+    characters is the declared character.  Returns ``{ind: value}``, the
+    declared character over that sum, or ``None`` where the sum is below
+    ``tol`` and the declared character is not.  An operation is left out
+    where both are below ``tol``, where a multiplet has no character there,
+    as under an operation that moves it, and, for a declaration in
+    double-valued site irreps, where the spin-1/2 lift has zero trace.
     """
     out = {}
     for ind, want in d["constraints"].items():
@@ -3409,20 +3351,23 @@ def _declared_needs(d, raw, lift_trace, *, tol=1e-6):
 
 
 def _holds_part(d, assigned, raw, site_tables, lift_trace, *, unread=False):
-    """Does a block, its multiplets under ``assigned(c)``, hold what was declared on part of it?
+    """Whether the multiplets of a declaration on part of a site hold it.
 
-    What is left of the block's content once the declared content is taken
-    away has to be a content of the site group, the part nothing was declared
-    about.  A content written in the site coreps states the corep content
-    alone, so what the block holds has to contain it as coreps
-    (:func:`.._sitechars.corep_counts`): ``2x-E1`` is part of the spin-orbit
-    ``p`` shell's ``2x-E1 + -1E2E`` at a ``3m`` site although no orbital
-    content lifting to it is part of the shell's ``A1 + E``.  Where a row's
-    lift has no name, what the block holds has to contain an orbital content
-    lifting to it.  ``assigned(c)`` is the character multiplet ``c``'s coupled
-    part carries, so the blocks of several parts are read together; ``unread``
-    is what comes back where a class of the site group was not measured on
-    every multiplet of the block, and so says nothing either way.
+    ``d`` is a declaration on part of what its site holds
+    (:func:`_block_content`).  ``raw`` holds each multiplet's character,
+    ``{ind: value}`` by multiplet, and ``assigned(c)`` the one-dimensional
+    character multiplet ``c``'s coupled part carries, so that the multiplets
+    of several parts are read together.  ``site_tables`` gives the site
+    character tables by site, and ``lift_trace`` the trace of each
+    operation's spin-1/2 lift.  The multiplets hold the declaration where
+    what they carry contains it (:func:`.._naming._contained`).  A
+    declaration in double-valued site irreps is compared in them: ``2x-E1``
+    is part of the ``2x-E1 + -1E2E`` of a ``p`` shell with spin at a ``3m``
+    site, although no sum of single-valued site irreps lifting to it is part
+    of the shell's ``A1 + E``.
+    Returns ``unread`` where a class of the site group has no operation both
+    declared and measured on every multiplet, and ``False`` where the site
+    has no table.
     """
     tab = site_tables.get(int(d["site"]))
     if tab is None:
@@ -3441,17 +3386,17 @@ def _holds_part(d, assigned, raw, site_tables, lift_trace, *, unread=False):
 
 
 def _joint_holds(j, pick, inside, *, tol=CHARACTER):
-    """Whether one content read together is carried under one labelling of the parts it spans.
+    """Whether a declaration read together is carried under ``pick``.
 
-    ``j`` is one of the contents the verdict stage reads together
-    (:func:`_verdicts_and_choices`): what each of its multiplets carries, per
-    operation, against its own coupled part's scale.  ``pick`` gives each part
-    it spans a character, and ``inside`` is the subgroup asked about.  A
-    content declared on the whole of its site is carried where its
-    multiplets together carry exactly it; one declared on part of the site
-    where what they carry contains it, on the site group the subgroup leaves
-    (:func:`_holds_part`), an operation of that site group nothing measured
-    leaving the question open.
+    ``j`` is a declaration read over several multiplets at once
+    (:class:`_ReadTogether`).  ``pick`` gives each coupled part it spans a
+    one-dimensional character, ``{ind: value}`` by part, ``inside`` holds the
+    indices of the subgroup asked about, and ``tol`` is as for
+    :func:`_meets`.  A declaration on the whole of its site is carried where
+    its multiplets together carry exactly what it declares.  One on part of
+    its site is carried where what they carry contains it, on the site group
+    within ``inside`` (:func:`_holds_part`); a class of that site group
+    nothing measured does not count against it.
     """
     d = j.decl
     raw = {int(c): {int(g): v for g, v in row.items() if int(g) in inside}
@@ -3472,14 +3417,18 @@ def _joint_holds(j, pick, inside, *, tol=CHARACTER):
 
 
 def _multiplet_characters(D, syms, u_pos, cperm, layout, prod):
-    r"""``(raw, residual)`` -- every multiplet's orbital character on one representation.
+    """Each multiplet's orbital character on ``D``, and the reading's defect.
 
-    Read once, on the representation built before any labelling is chosen:
-    ``raw[c]`` is multiplet ``c``'s character over the operations that fix it
-    (:func:`_measure_channel_characters`), and ``residual`` the worst defect of
-    that reading -- on a measured multiplet also how far its blocks are from
-    closing as a single-valued representation of the site group, which a
-    spinful model's are not (the block carries the spinor too).
+    ``D``, ``syms``, ``cperm`` and ``layout`` are as for
+    :func:`_measure_channel_characters`, which reads each multiplet, and
+    ``u_pos`` is its ``kept_u``, the positions of the unitary operations
+    read; ``prod`` is the product table of ``syms``, by position.  Returns
+    ``(raw, residual)``: ``raw[c]`` is multiplet ``c``'s character over the
+    operations that fix it, ``{ind: value}``, and ``residual`` the largest
+    defect of those readings.  On a measured multiplet the residual also
+    holds how far its blocks are from multiplying as the operations do; a
+    spinful model's blocks carry the spinor and so can differ from it by a
+    sign.
     """
     raw, worst = {}, 0.0
     chan_states = layout._chan_states
@@ -3503,18 +3452,21 @@ def _multiplet_characters(D, syms, u_pos, cperm, layout, prod):
 
 
 def _lead_of(chans, first):
-    """A coupled part's lead multiplet: ``first`` where the part holds it, its first otherwise."""
+    """The lead multiplet of the coupled part whose multiplets are ``chans``.
+
+    It is ``first`` where the part holds it, and the part's lowest-numbered
+    multiplet otherwise.
+    """
     return int(first) if int(first) in {int(c) for c in chans} else int(min(chans))
 
 
 def _returned_rows(rows):
-    """The measured-versus-declared rows as a record returns them.
+    """The measured-versus-declared rows ``rows`` as a record returns them.
 
-    What each operation would have needed of the one-dimensional character,
-    which coupled part of the crystal it was read in, and the matrices a row
-    of declared generator matrices was read off, are the package's own reading
-    of the row and stay inside it; a returned row says what was measured and
-    what was declared, as characters.
+    ``rows`` holds :class:`_Row` records.  Returns one mapping a row, in
+    order, each holding its ``orbitals``, ``ind``, ``name``, ``measured`` and
+    ``declared``; a row's ``part``, ``required`` and ``matrices`` are not
+    returned.
     """
     return tuple({"orbitals": r.orbitals, "ind": r.ind, "name": r.name,
                   "measured": r.measured, "declared": r.declared} for r in rows)

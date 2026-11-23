@@ -271,7 +271,7 @@ try:
                        characters=["A1", "A2", None, None])
 except ValueError as error:
     print(str(error).split(". ")[-1])
-#  Orbitals 0 and 1, spin pair 0, are given 'A1' and 'A2'; give both the same word, or declare only one of them.
+#  Orbitals 0 and 1, spin pair 0, are given 'A1' and 'A2'; give both the same value, or declare only one of them.
 split = tqc.spin_basis(flat, pairs=[(0, 2), (1, 3)])    # each pair across two sites
 print(tqc.realized_group(flat, typat=[0, 0, 1, 1], spin=split).gate)
 #  spin_pair_split

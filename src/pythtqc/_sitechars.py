@@ -1,105 +1,21 @@
-r"""Site-symmetry character mathematics, computed from the *measured* group.
+r"""The character tables of measured site groups, and declarations on them.
 
-A ``characters=`` declaration of :mod:`.symmetry` is resolved against these
-tables.  The site groups come from
-:attr:`..groups.OrbitalAssignment.site_group` (which
-:func:`.._tables._assign_orbitals` measured from the operations' action on the
-model's own orbital positions), the multiplication comes from
-``GroupData._get_product_table``, and the irreducible characters are computed
-from that multiplication by the **class-sum** construction below: arithmetic on
-a measured table.
+A site group's irreducible characters are computed from the product table of
+the operations that fix the site
+(:meth:`.._spacegroup.GroupData._get_product_table`), by the class-sum
+construction of :func:`_character_table`, so a table exists at every site of
+every model.  Its rows come out under their Mulliken symbols
+(:func:`_mulliken`), and :mod:`.._naming` renames them with the tables' names
+for the site irreps, where the tables name them.  Each operation is named in
+the Cartesian axes in which the pythtb Lattice is specified
+(:func:`operation_name`), and a message on a declaration prints every
+operation's name (:func:`generator_frame`).
 
-A declaration is resolved against the character table of exactly the group that
-was measured to fix that site, so a table exists for every site of every model.
-The **names** of its rows are the tables' own: a row is named by the band
-representation it induces, matched against the EBR entries at the site's Wyckoff
-position (:mod:`.._naming`), which is physics and needs no orientation convention —
-and it is the name a position is tabulated under, so a declaration may be
-written in it.  For a model whose states carry spin the match is against the
-group's **double-valued** entries, and what a row is named is the double-valued
-site corep the states carry there.  Where the tables list no band
-representation at the position, a single-valued row takes the name of the site
-irrep the tables of the stable real-space invariants give the same invariants,
-read at each site by its own carrying to the position's own site
-(:mod:`.._site_names`), so that every site of an orbit reads one name.  Where
-neither names the row, because the band representation it induces is composite
-or the invariants do not single out one site irrep, it keeps the site point
-group's own name: for a single-valued row the names of section 3 below, and for a
-double-valued one the name the tables give that irrep of the point group at the
-origin of a symmorphic space group, the one position where every point group is
-a site group whole (:mod:`.._naming`).  A row nothing names has **no name** — an
-empty label, :attr:`..symmetry._OrbitalRow.named_by` reading ``"unnamed"``,
-and the generator characters as the whole statement.  Every label is echoed
-together with those characters (:func:`generator_frame`), which no naming
-convention touches.
-
-The generator frame (read this before writing a declaration)
-------------------------------------------------------------
-Operations are named from their **Cartesian** rotation matrix
-(``irrep``'s ``SymmetryOperation.rotation_cart``), measured, never typed:
-
-* ``E`` identity, ``i`` inversion;
-* ``C{n}({axis})`` a proper rotation by ``2π/n`` about ``{axis}``, and
-  ``C{n}^-1({axis})`` its inverse -- a half turn ``C2({axis})`` is its own
-  inverse and has none;
-* ``S{n}({axis})`` an improper operation (``n > 2``), **named by its proper
-  rotation part**: a counterclockwise turn by ``2π/n`` about ``{axis}``
-  followed by the inversion, which is the Seitz ``-n+`` — ``S3(z)`` is
-  ``-3+_001``, ``S4(z)`` is ``-4+_001`` and ``S6(z)`` is ``-6+_001``, and
-  ``S{n}^-1({axis})`` is ``-n-``;
-* ``m({axis})`` a mirror — and **the axis of a mirror is its normal**, the
-  Hermann-Mauguin convention: ``m(x)`` is the operation
-  ``(x, y, z) -> (-x, y, z)``, i.e. the plane ``x = 0``.  Mulliken notation
-  names the same plane after the axes it *contains*, so
-
-      ``m(x)`` here **is** Mulliken's ``sigma_v(yz)``,
-      ``m(y)`` here **is** Mulliken's ``sigma_v(xz)``.
-
-  Both spellings are accepted as keys (``"m(x)"``, ``"sigma_v(x)"``,
-  ``"sigma(x)"``, ``"mx"``), and all of them mean *normal along x*.
-* ``{axis}`` is ``x``, ``y`` or ``z`` when the direction is along a Cartesian
-  axis, otherwise the direction in **lattice** coordinates, ``[uvw]``.
-
-The **point group's own names** are read off the operations' Cartesian
-geometry, Mulliken-style.  They are what the represented group's own table is
-written in — its rows sit at no Wyckoff position and no EBR entry names them —
-and what a single-valued site row keeps where neither the tables' entries at
-its position nor the tables' names for the point group settle it, and the
-symbol is a name rather than a placeholder
-(:attr:`..symmetry._OrbitalRow.named_by` reading ``"Mulliken"``):
-
-* dimension 1 gives ``A`` when ``chi`` of the principal rotation (the proper
-  rotation of highest order; ties broken towards ``z``) is ``+1`` and ``B``
-  when it is ``-1``; dimension 2 gives ``E``, dimension 3 ``T``, and anything
-  larger ``L{dim}`` with an index;
-* a complex-conjugate pair of one-dimensional irreps is **merged** into one
-  physically irreducible character where time reversal is among the site's
-  operations, since time reversal glues them, and is named ``1E2E``;
-* the subscript ``1``/``2`` is the character of the **secondary reference
-  element**: the ``C2'`` axis perpendicular to the principal axis that is
-  closest to ``+x`` if the group has one, otherwise the vertical mirror whose
-  *plane contains* ``+x`` (normal perpendicular to ``x``).  This is the
-  convention that makes ``C2v`` come out as Mulliken's
-  ``B1 = sigma_v(xz)-even``;
-* ``g``/``u`` follows ``chi(i)`` when the group contains the inversion, and
-  ``'``/``''`` follows ``chi`` of the horizontal mirror when it contains one
-  and no inversion — and in the group ``m`` itself, which has no rotation axis
-  for a mirror to be horizontal *to*, of its one reflection: ``m`` reads ``A'``
-  and ``A''``, ``-1`` reads ``Ag`` and ``Au``, and the trivial group ``A``.
-
-Where two characters would still collide the labels are suffixed ``_a``,
-``_b``, … in a deterministic order.
-
-None of this names a **site** row the tables reach.  A declaration at a site
-of a model whose states carry spin states the *orbital* factor — ``s``,
-``px``, ``A2`` — while the label that row is returned under is the
-double-valued site corep the states carry, and the two are read from the two
-table files of the one group:
-the orbital factor is single-valued whether or not the states carry spin, so
-it has a name at the position in the single-valued tables
-(:attr:`SiteGroupTable.declarable`) exactly as the same orbital on a spinless
-model does.  Both words are accepted; neither is ever returned in place of the
-other.
+A ``characters=`` entry is resolved on the table of its site
+(:func:`resolve_spec`).  On a model whose states carry spin, a row is
+returned under the double-valued site irrep, or sum of them, that its orbital
+factor times the spin-1/2 lift is, and a declaration may name either
+(:attr:`SiteGroupTable.declarable`).
 """
 
 from __future__ import annotations
@@ -115,20 +31,21 @@ import numpy as np
 from ._tolerance import ASSEMBLED, CHARACTER, ZERO
 
 # --------------------------------------------------------------------------
-# the declaration error, turned into a Refusal by `_build._build_rep`
+# the declaration error, which the build and realized_group return as a Refusal
 # --------------------------------------------------------------------------
 
 
 class DeclarationError(ValueError):
     """A ``characters=`` declaration its site cannot read.
 
-    A word that names no site irrep there, a multiplet an ordered list cannot
-    express, or a site whose character table could not be built to declare
-    against.  It never leaves
-    the package: the ``gate``, ``message`` and ``context`` it carries are what
-    :func:`.._build._build_rep` and :func:`..groups.realized_group` return as
-    a :class:`..refusal.Refusal`.  A declaration outside the grammar raises
-    ``ValueError`` where the call starts
+    Raised for a word that names no site irrep there (``unknown_label``), a
+    declaration that does not say which orbitals hold a multiplet
+    (``ambiguous_multiplet``), or a site whose character table cannot be built
+    (``site_group``).  ``gate`` is that name, ``message`` the reason and
+    ``context`` what was measured.  It never leaves the package:
+    :func:`.._build._build_rep` and :func:`..groups.realized_group` return the
+    three as a :class:`..refusal.Refusal`.  A declaration outside the grammar
+    raises ``ValueError`` before any site is read
     (:func:`.._grammar._declaration_grammar`).
     """
 
@@ -147,7 +64,13 @@ _AXIS_NAMES = {(1, 0, 0): "x", (0, 1, 0): "y", (0, 0, 1): "z"}
 
 
 def _axis_name(v_cart, lattice) -> str:
-    """Name a direction: ``x``/``y``/``z`` when Cartesian, else ``[uvw]``."""
+    """The name of the direction ``v_cart``, a Cartesian vector.
+
+    ``x``, ``y`` or ``z`` along a Cartesian axis, in either sense; otherwise
+    ``[uvw]`` in the lattice vectors, the rows of ``lattice``, as integers with
+    the first nonzero one positive, else as the three ratios to three figures.
+    ``?`` for a zero vector.
+    """
     v = np.asarray(v_cart, dtype=float)
     n = float(np.linalg.norm(v))
     if n < 1e-12:
@@ -181,14 +104,17 @@ def _axis_name(v_cart, lattice) -> str:
 
 
 def classify(sym) -> dict:
-    r"""``{kind, order, angle, axis, det, name}`` of one operation, from its matrix.
+    r"""The kind, order, turn and axis of one operation, read off its matrix.
 
-    The angle is the turn ``φ`` of the proper part ``det·R``, from the trace
-    (``tr R = det·(1 + 2 cos φ)``), and the axis is that part's own — so the
-    classification is a measurement of ``rotation_cart``, with nothing assumed
-    about the setting.  An improper operation is that turn followed by the
-    inversion, the Seitz ``-n+``, and its ``order`` is the turn's ``n``:
-    ``-3+`` is ``S3``, ``-4+`` is ``S4`` and ``-6+`` is ``S6``.
+    ``sym`` is an operation with ``rotation_cart``.  Returns a mapping with
+    ``kind`` (``"E"``, ``"i"``, ``"m"``, ``"C"`` or ``"S"``), ``order``,
+    ``angle``, ``axis``, ``det`` and ``name``, and ``sense``, ``+1`` or ``-1``,
+    for ``"C"`` and ``"S"``.  There the angle is the turn ``φ`` of the proper
+    part ``det·R``, from ``tr R = det·(1 + 2 cos φ)``, and the axis is that
+    part's.  An improper operation is that turn followed by the inversion, the
+    Seitz ``-n+``, and ``order`` holds the turn's ``n``: ``-3+`` is ``S3``,
+    ``-4+`` is ``S4``.  A mirror's axis is its normal.  ``name`` is set for
+    ``E`` and ``i`` alone.
     """
     return _classified(sym.rotation_cart)
 
@@ -228,7 +154,11 @@ def _classified(matrix) -> dict:
 
 
 def _eigen_axis(M, value) -> np.ndarray:
-    """Unit eigenvector of ``M`` for eigenvalue ``value``, sign-canonicalized."""
+    """The unit eigenvector of ``M`` for its eigenvalue nearest ``value``.
+
+    Its sign makes the last nonzero component positive: ``+z`` first, then
+    ``+y``, then ``+x``.
+    """
     w, V = np.linalg.eig(np.asarray(M, dtype=float))
     k = int(np.argmin(np.abs(w - value)))
     v = np.real(V[:, k])
@@ -243,7 +173,16 @@ def _eigen_axis(M, value) -> np.ndarray:
 
 
 def operation_name(sym, lattice) -> str:
-    """Canonical name of one operation in the frame documented at module top."""
+    """The name of the operation ``sym`` in the model's Cartesian axes.
+
+    ``E`` and ``i``; ``C{n}`` a counterclockwise turn by ``2π/n`` and
+    ``C{n}^-1`` its inverse, a half turn being written ``C2`` alone; ``S{n}``
+    that turn followed by the inversion, the Seitz ``-n+``, and ``S{n}^-1``
+    the Seitz ``-n-``; ``m`` a mirror, named by its normal.  The axis follows
+    in parentheses, ``C3(z)``, ``m(x)``: ``x``, ``y`` or ``z`` along a
+    Cartesian axis, and otherwise ``[uvw]`` in the lattice vectors, the rows
+    of ``lattice`` (:func:`_axis_name`).
+    """
     info = classify(sym)
     if info["name"] is not None:
         return info["name"]
@@ -257,7 +196,12 @@ def operation_name(sym, lattice) -> str:
 
 
 def _key(text) -> str:
-    """Normalize a user-supplied operation key: case, spaces, mirror spellings."""
+    """The operation's name ``text`` in one spelling, for comparison.
+
+    It is lowercased, spaces and underscores are dropped, ``sigma_v``,
+    ``sigma_d``, ``sigma_h`` and ``sigma`` read as ``m``, and ``mx`` reads as
+    ``m(x)``.
+    """
     s = str(text).strip().lower().replace(" ", "").replace("_", "")
     for pre in ("sigmav", "sigmad", "sigmah", "sigma"):
         if s.startswith(pre):
@@ -274,68 +218,58 @@ def _key(text) -> str:
 
 @dataclass(frozen=True)
 class SiteGroupTable:
-    """Everything a declaration is resolved against, for one site group.
+    r"""The character table of one site group, with the names of its rows.
+
+    Operations are given by their ``.ind`` in the represented group.
 
     Attributes
     ----------
     indices : tuple of int
-        ``.ind`` of the **unitary, represented** operations that fix the site —
-        the group the labels below belong to.
+        The unitary operations of the represented group that fix the site.
     order : int
+        How many operations :attr:`indices` holds.
     classes : tuple of tuple of int
-        Conjugacy classes, as ``.ind`` tuples.
+        The conjugacy classes.
     class_names : tuple of str
-        ``"2C4(z)"``-style names (multiplicity + representative).
+        Each class's name, its size where above one and its representative's
+        name: ``2C4(z)``.
     class_reps : tuple of int
-        ``.ind`` of the representative each class name was built from.
+        The representative each class is named by.
     class_of : dict
-        ``{ind: class number}``.
-    characters : ndarray, shape (n_irrep, n_class)
-        The physically irreducible characters — complex-conjugate pairs merged
-        where the site carries time reversal, which glues them.
+        The class number of each operation.
+    characters : ndarray, shape (n_row, n_class)
+        The irreducible characters, row by row and class by class.  A
+        complex-conjugate pair is merged into one row where an antiunitary
+        operation fixes the site.
     labels : tuple of str
-        The rows' names, unique within the table where present: the tables'
-        own names for the point group's irreps wherever a site table is read
-        (``.._naming._site_group_table``), the Mulliken-style names of section
-        3 where it is not, and empty for a row nothing names.
+        Each row's name, empty for a row nothing names.  On a spinful site it
+        is the double-valued site irrep, or sum of them, that the row times the
+        spin-1/2 lift is, so two rows can carry one label.
     dims : ndarray
-        ``characters[:, class of identity]``, real.
+        Each row's dimension.
     names : dict
-        ``{ind: operation name}`` — the generator frame, echoed everywhere.
+        Each operation's name in the model's Cartesian axes
+        (:func:`operation_name`).
     orthogonality : float
-        ``max |X diag(|C|) X† − |G| 1|`` — the table's own self-check.
+        The largest entry of :math:`|X \mathrm{diag}(|C|) X^\dagger - |G| 1|`
+        for the characters :math:`X` before any pair is merged, zero for an
+        exact table.
     merged : tuple of bool
-        Which rows came from merging a complex-conjugate pair.
+        Whether each row is a merged complex-conjugate pair.
     antiunitary : tuple of int
-        ``.ind`` of the antiunitary operations that also fix the site (they do
-        not enter the characters; time reversal among them is what merges a
-        complex-conjugate pair).
+        The antiunitary operations that fix the site.  They do not enter the
+        characters.
     named_by : tuple of str
-        Where each row's label comes from: ``"tables"`` when the band
-        representation it induces is the EBR entries at the site's own Wyckoff
-        position, ``"invariants"`` when the tables list no band representation
-        at the position and the tables of the stable real-space invariants give
-        a single-valued row the name of one site irrep, ``"point group"`` when
-        neither names the row and the name is the point group's own (the tables'
-        names at the origin of a
-        symmorphic group, single- or double-valued), ``"Mulliken"`` when those
-        names leave a single-valued row open and its Mulliken symbol of section
-        3 names it, and ``"unnamed"`` when nothing reaches the row and the label
-        is empty.
+        Where each row's label comes from: ``"tables"``, ``"invariants"``,
+        ``"point group"``, ``"Mulliken"`` or ``"unnamed"``, as
+        :attr:`..symmetry._OrbitalRow.named_by` reads them.
     declarable : tuple of str
-        A second spelling of each row a declaration may also be written in,
-        empty where there is only one.  It holds the **orbital-factor** name of
-        a site whose states carry spin: :attr:`labels` is then the
-        double-valued site corep the states carry and a declaration states what
-        the orbital is (``A2``), so both have to resolve.  It is the name the
-        group's **single-valued** entries give that row at the position —
-        the same word the same orbital would be returned under on a spinless
-        model — and for a row those entries do not reach, the name the tables
-        of the stable real-space invariants give it, or else the tables' name
-        for that irrep of the point group, which a row nothing names lacks.
-        Never a returned name — :attr:`..symmetry._OrbitalRow.irrep` is always
-        from :attr:`labels`, and what the caller wrote is kept verbatim in
-        :attr:`..symmetry._OrbitalRow.declared_as`.
+        On a spinful site, the single-valued name of each row, the word that
+        declares its orbital factor (``A2``); empty elsewhere.  It is the name
+        the group's single-valued entries give the row at the position, else
+        the name the tables of the stable real-space invariants give it, else
+        the row's point-group name or Mulliken symbol, where it has one.  It is
+        never the name a row is returned under.
     """
 
     indices: tuple
@@ -355,24 +289,17 @@ class SiteGroupTable:
     declarable: tuple = ()
 
     def index_of(self, label) -> int:
-        """Row of ``label`` (case-insensitive), or ``-1``.
+        """The row named ``label``, whatever its case, or ``-1`` where none is.
 
-        ``"E"`` also answers for a time-reversal-glued complex pair
-        (``1E2E``) when the table has no row of its own by that name — the
-        friendly spelling of the same two-dimensional object.
-
-        :attr:`declarable` answers too, where a row has a second spelling a
-        declaration may be written in.
-
-        Several rows can carry **one** label, and legitimately: where the
-        states carry spin the label is the double-valued site corep, and two
-        orbital characters differing by one the lift's trace vanishes on are
-        the same corep.  The row answered is then the one closest to the
-        trivial character — the fewest operations it is not ``+1`` on.  That is
-        this lookup's own order and no reading of a declaration: a declaration
-        written in a corep's name states the corep content alone, and
-        :func:`resolve_spec` reads it so (:func:`named_in_coreps`) before it asks
-        here.  An empty label names nothing and is never answered.
+        The labels are searched first, then the :attr:`declarable` names.
+        ``"E"`` also names the one merged complex pair of dimension two,
+        ``1E2E``, where no row is named ``E``.  Where several rows carry
+        ``label``, as two rows that become one double-valued site irrep with
+        spin do on a spinful site, the row returned is the one whose character
+        differs from ``+1`` on the fewest operations, the first on a tie.  An
+        empty label names no row.  :func:`resolve_spec` reads a declaration
+        written in double-valued site irreps as a sum, and does not look it up
+        here (:func:`named_in_coreps`).
         """
         want = str(label).strip().lower()
         for names in (self.labels, self.declarable):
@@ -389,12 +316,22 @@ class SiteGroupTable:
         return -1
 
     def character_on(self, row, ind) -> complex:
-        """``chi_row(g)`` for the operation ``.ind = ind``."""
+        """The character of one row on one operation.
+
+        ``row`` is the row, and ``ind`` the operation's ``.ind``.
+        """
         return complex(self.characters[row, self.class_of[int(ind)]])
 
 
 def _local_table(prod, positions):
-    """Multiplication of ``positions`` in local indices, or ``None`` if not closed."""
+    """The multiplication table of the operations at ``positions``.
+
+    ``prod`` is the group's product table, indexed by position in its list of
+    operations, and ``positions`` sets the order of the rows.  Entry
+    ``[i, j]`` is the index in ``positions`` of the product of the ``i``-th
+    and the ``j``-th.  Returns ``None`` where a product lies outside
+    ``positions``.
+    """
     idx = {int(p): i for i, p in enumerate(positions)}
     n = len(positions)
     T = np.full((n, n), -1, dtype=int)
@@ -408,7 +345,11 @@ def _local_table(prod, positions):
 
 
 def _classes(T):
-    """Conjugacy classes of a group given by its multiplication table."""
+    """The conjugacy classes of the group whose multiplication table is ``T``.
+
+    Returns ``(classes, e, inverse)``: each class as its elements' indices in
+    ``T``, sorted, the identity's index, and each element's inverse.
+    """
     n = T.shape[0]
     e = next(i for i in range(n) if all(int(T[i, j]) == j for j in range(n)))
     inv = {i: next(j for j in range(n) if int(T[i, j]) == e) for i in range(n)}
@@ -423,17 +364,18 @@ def _classes(T):
 
 
 def _character_table(T, seed=101):
-    r"""Irreducible characters from the multiplication table (class-sum method).
+    r"""The irreducible characters of the group whose product table is ``T``.
 
-    The class sums span the centre of the group algebra; their structure
-    constants :math:`c_{ijk}` give commuting matrices :math:`(M_i)_{kj} =
-    c_{ijk}` whose simultaneous eigenvectors are the central characters
-    :math:`\omega_i = |C_i| \chi(C_i)/\chi(1)`.  A random real combination is
-    diagonalized once (a genuine group has a simple spectrum for generic
-    coefficients), the eigenvalues of each :math:`M_i` are read back off the
-    eigenvector, and the dimension follows from
-    :math:`\sum_i |\omega_i|^2/|C_i| = |G|/\chi(1)^2`.  Nothing is tabulated,
-    and the row-orthogonality defect is returned as the self-check.
+    The structure constants :math:`c_{ijk}` of the class sums give commuting
+    matrices :math:`(M_i)_{kj} = c_{ijk}`, whose common eigenvectors are the
+    central characters :math:`\omega_i = |C_i| \chi(C_i)/\chi(1)`.  One real
+    combination of them, its coefficients drawn with ``seed``, is
+    diagonalized, and each dimension follows from
+    :math:`\sum_i |\omega_i|^2/|C_i| = |G|/\chi(1)^2`.  Returns
+    ``(classes, class_of, e, chars, defect)``: the classes of :func:`_classes`
+    and each element's class, the identity, the characters row by row in
+    order of dimension, and the largest entry of
+    :math:`|X \mathrm{diag}(|C|) X^\dagger - |G| 1|`.
     """
     cls, e, _ = _classes(T)
     n, r = T.shape[0], len(cls)
@@ -467,7 +409,13 @@ def _character_table(T, seed=101):
 
 
 def _merge_conjugate_pairs(chars, tol=1e-8):
-    """Glue complex-conjugate character pairs into physically irreducible rows."""
+    """The rows of ``chars`` with each complex-conjugate pair merged into one.
+
+    A row is complex where an imaginary part exceeds ``tol``, and its partner
+    is the row equal to its conjugate within ``tol``; the two are added.  A
+    complex row with no partner is kept as it is.  Returns ``(rows, merged)``,
+    ``merged`` saying which rows are pairs.
+    """
     r = chars.shape[0]
     used, rows, merged = set(), [], []
     for p in range(r):
@@ -493,17 +441,19 @@ def _merge_conjugate_pairs(chars, tol=1e-8):
 
 
 # --------------------------------------------------------------------------
-# 3.  Mulliken naming -- for the represented group's own one-dimensional
-#     characters only.  A SITE irrep is named by the band representation it
-#     induces (`..ebr`), which is what the tables key a Wyckoff position by;
-#     the geometric reconstruction below reads a principal axis and a secondary
-#     reference off the operations' Cartesian matrices, and that is an
-#     orientation convention the tables carry per position and a measurement
-#     cannot supply.
+# 3.  Mulliken symbols, read off the operations' Cartesian matrices.  A site
+#     irrep keeps one only where the tables' names leave its row open
+#     (`.._naming`).
 # --------------------------------------------------------------------------
 
 def _class_info(group, cls):
-    """Classification of a class, plus its preferred representative."""
+    """The representative of the class ``cls`` of ``group``, and its members.
+
+    ``cls`` holds ``.ind`` values.  The representative turns in the positive
+    sense where it turns, and has its axis nearest a Cartesian axis.  Returns
+    ``(ind, info, infos)``: the representative and its :func:`classify`, and
+    ``(ind, classify)`` for every member.
+    """
     pos_of = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     infos = [(ind, classify(group._symmetries[pos_of[int(ind)]])) for ind in cls]
     # representative: prefer a positive rotation sense, then an axis near +x/+y/+z
@@ -517,7 +467,12 @@ def _class_info(group, cls):
 
 
 def _principal_axis(class_infos):
-    """Axis of the highest-order proper rotation; ties broken towards ``+z``."""
+    """The proper rotation of highest order among the classes' representatives.
+
+    ``class_infos`` holds :func:`_class_info` of each class.  A tie goes to the
+    axis nearest ``z``, then nearest ``y``.  Returns the rotation's
+    :func:`classify`, or ``None`` where no class holds a proper rotation.
+    """
     best = None
     for _, info, _ in class_infos:
         if info["kind"] != "C" or info["order"] < 2:
@@ -530,12 +485,16 @@ def _principal_axis(class_infos):
 
 
 def _secondary_reference(class_infos, principal):
-    """Class index of the ``C2'``/``sigma_v`` the ``1``/``2`` subscript follows.
+    """The class that sets the subscript ``1`` or ``2`` of a Mulliken symbol.
 
-    The comparison runs over **every member** of a class, not its representative:
-    in ``C4v`` the class ``{m(x), m(y)}`` contains the mirror whose plane holds
-    ``x`` while the diagonal class contains none, and it is that class
-    Mulliken's subscript follows.
+    ``class_infos`` holds :func:`_class_info` of each class and ``principal``
+    the principal rotation (:func:`_principal_axis`).  The class is the one of
+    twofold axes perpendicular to the principal axis that holds the axis
+    closest to ``x``.  With no such class, it is the one of mirrors containing
+    the principal axis that holds the plane closest to containing ``x``.
+    ``y`` stands for ``x`` where the principal axis lies along ``x``.  Every
+    member of a class is compared, not its representative alone.  Returns the
+    class's index, or ``None``.
     """
     if principal is None:
         return None
@@ -559,12 +518,13 @@ def _secondary_reference(class_infos, principal):
 
 
 def is_placeholder(label) -> bool:
-    """Whether a name of this section holds a place rather than naming an irrep.
+    """Whether ``label``, written by :func:`_mulliken`, is a placeholder.
 
     :func:`_mulliken` writes a placeholder where its rules cannot tell rows
-    apart: a ``_a``, ``_b``, ... subscript, and an ``L`` base for a row that is
-    no ``A``, ``B``, ``E`` or ``T`` (a complex one-dimensional row without time
-    reversal, ``L1``).  Every other name is one a table prints.
+    apart, a subscript ``_a``, ``_b``, ..., and ``L`` with the row's
+    dimension for a row that is no ``A``, ``B``, ``E`` or ``T``: ``L1`` for a
+    complex one-dimensional row without time reversal.  Every other name is
+    one a table prints.
     """
     label = str(label)
     head = label[1:2]
@@ -573,7 +533,23 @@ def is_placeholder(label) -> bool:
 
 
 def _mulliken(chars, merged, class_infos, cls_of_identity):
-    """Names for every row of the character table (see the module docstring)."""
+    """The Mulliken symbol of every row of a character table.
+
+    ``chars`` holds the characters class by class, ``merged`` which rows are
+    merged complex pairs, ``class_infos`` :func:`_class_info` of each class and
+    ``cls_of_identity`` the identity's class.  A one-dimensional row is ``A``
+    where the principal rotation (:func:`_principal_axis`) has character
+    ``+1``, ``B`` where it has ``-1`` and ``L1`` otherwise; in a cubic group,
+    which has several principal axes, it is ``A``.  A row of dimension two is
+    ``E``, ``1E2E`` where it is a merged pair, and of dimension three ``T``;
+    any other row is ``L`` and its dimension.  ``g`` or ``u`` follows the
+    inversion's character, and in a group without the inversion ``'`` or
+    ``''`` follows the horizontal mirror's, or in the group ``m`` its one
+    mirror's.  Rows that would still share a name take the subscript ``1`` or
+    ``2`` from the class :func:`_secondary_reference` gives, else ``1``,
+    ``2``, ... in decreasing order of the principal rotation's character,
+    else ``_a``, ``_b``, ....  Returns the names in the order of the rows.
+    """
     principal = _principal_axis(class_infos)
     sec = _secondary_reference(class_infos, principal)
     prin_cls = None
@@ -590,14 +566,10 @@ def _mulliken(chars, merged, class_infos, cls_of_identity):
                         if abs(abs(float(class_infos[i][1]["axis"]
                                          @ principal["axis"])) - 1.0) < 1e-6), None)
     else:
-        # A GROUP WITH NO ROTATION AXIS AT ALL, which for a site group means `m`:
-        # the identity and one reflection.  There is no principal axis for that
-        # reflection to be *horizontal* to, and yet it is the only thing the two
-        # rows differ on, so it is the parity reference and the group reads `A'`
-        # and `A''` as every table prints it.  (`-1` is named by `inv_cls` above
-        # and the trivial group has one row, `A`.)  Without this the subscript
-        # rule below has nothing to separate two rows with and falls back to a
-        # generic `_a`/`_b`, which names no irrep anyone could look up.
+        # With no rotation axis the group is `1`, `-1` or `m`.  In `m` the one
+        # mirror is all the two rows differ on, so it sets the parity and the
+        # rows read `A'` and `A''`; `-1` takes its parity from the inversion
+        # above, and `1` has the one row `A`.
         hor_cls = mirrors[0] if len(mirrors) == 1 else None
 
     # A cubic group has several axes of its highest-order rotation, and then
@@ -638,9 +610,9 @@ def _mulliken(chars, merged, class_infos, cls_of_identity):
         bases.append(base)
         parities.append(parity)
 
-    # The subscript exists only to separate rows that would otherwise collide —
-    # which is why `T` of a tetrahedral site comes out plain `A`, `1E2E`, `T`
-    # while `C4v` needs the full `A1 A2 B1 B2 E`.
+    # A subscript is given only to rows that would otherwise share a name, so
+    # the group `23` with time reversal reads `A`, `1E2E` and `T`, and `4mm`
+    # reads `A1`, `A2`, `B1`, `B2` and `E`.
     subs = [""] * len(bases)
     groups = {}
     for p, key in enumerate(zip(bases, parities)):
@@ -674,25 +646,25 @@ def _mulliken(chars, merged, class_infos, cls_of_identity):
 # --------------------------------------------------------------------------
 
 def site_group_table(group, indices, antiunitary=(), seed=101) -> SiteGroupTable:
-    """Character table of the measured site group ``indices`` (``.ind`` values).
+    """The character table of the site group whose operations are ``indices``.
 
-    The rows come back with the Mulliken names of section 3, which only the
-    **represented group's own** table keeps, for its characters.  A **site**
-    table is renamed by :func:`.._naming._site_group_table`, each row under the
-    tables' own name for that irrep of the point group, and then by
-    :func:`.._naming._site_tables`, which reads every name a row has off the
-    tables: the one it is returned under, and — where the states carry spin, so
-    that the returned one is the double-valued corep — the single-valued name
-    of its orbital factor, which is what a declaration is written in
-    (:attr:`SiteGroupTable.declarable`).
+    ``indices`` holds the ``.ind`` in ``group`` of the unitary operations that
+    fix the site, and ``antiunitary`` of the antiunitary ones; ``seed`` seeds
+    :func:`_character_table`.  The characters are computed from ``group``'s
+    product table, and a complex-conjugate pair is merged where
+    ``antiunitary`` is nonempty.  Returns the :class:`SiteGroupTable` with each
+    row under its Mulliken symbol (:func:`_mulliken`), ``named_by`` reading
+    ``"point group"`` and no :attr:`SiteGroupTable.declarable` names.
+    :func:`.._naming._site_group_table` and :func:`.._naming._site_tables`
+    rename the rows with the tables' names.
 
     Raises
     ------
     DeclarationError
-        ``gate="site_group"`` when the operations are not closed under the
-        group's own product table (they always are for a measured site group;
-        the check is a self-check, not a policy), or when the computed table
-        fails its orthogonality self-check.
+        ``gate="site_group"`` where the operations are not closed under the
+        product table, or where the table's deviation from orthogonality
+        (:attr:`SiteGroupTable.orthogonality`) exceeds ``1e-6`` times the
+        site group's order.
     """
     prod, _, _ = group._get_product_table(get_diff=True)
     pos_of = {int(s.ind): i for i, s in enumerate(group._symmetries)}
@@ -702,14 +674,14 @@ def site_group_table(group, indices, antiunitary=(), seed=101) -> SiteGroupTable
         raise DeclarationError(
             "site_group",
             f"the site-symmetry operations {tuple(int(i) for i in indices)} are not closed "
-            "under the group's own product table, so they have no character table.",
+            "under the group's product. Report it, with the model and the call.",
             {"indices": tuple(int(i) for i in indices)})
     cls_local, cls_of_local, e_local, chars, defect = _character_table(T, seed=seed)
     if defect > 1e-6 * max(1, len(positions)):
         raise DeclarationError(
             "site_group",
-            f"the computed character table of the site group failed its own orthogonality "
-            f"self-check (defect {defect:.3g}); labels built on it would be meaningless.",
+            f"the character table computed for the site group departs from orthogonality "
+            f"by {defect:.3g}. Report it, with the model and the call.",
             {"indices": tuple(int(i) for i in indices), "orthogonality": defect})
     chars, merged = _merge_conjugate_pairs(chars) if antiunitary else (chars, (False,) * len(chars))
 
@@ -733,14 +705,12 @@ def site_group_table(group, indices, antiunitary=(), seed=101) -> SiteGroupTable
         named_by=("point group",) * len(labels))
 
 
-#: Every crystallographic point group, keyed by the multiset of operation kinds
-#: it holds — ``E``, ``i``, a mirror ``m``, a proper rotation ``Cn``, a
-#: rotoinversion ``Sn`` (a turn by ``2π/n``, then the inversion: ``-n``).
-#: That multiset separates all thirty-two, so naming a
-#: measured site group is arithmetic on :func:`classify`'s verdicts and not a
-#: table of groups: nothing here says which operations a group *has*, only what
-#: a group holding these is called.  The spelling is Hermann-Mauguin, which is
-#: what a Wyckoff position's site symmetry is written in.
+#: Every crystallographic point group, keyed by how many operations of each
+#: kind and order it holds: ``E``, ``i``, a mirror ``m``, a proper rotation
+#: ``Cn`` and a rotoinversion ``Sn`` (a turn by ``2π/n``, then the inversion:
+#: ``-n``).  Those counts separate all thirty-two, so a measured site group is
+#: named from :func:`classify` alone.  The names are Hermann-Mauguin symbols,
+#: as a Wyckoff position's site symmetry is written.
 _POINT_GROUP_SYMBOLS = {
     frozenset({("E", 1, 1)}): "1",
     frozenset({("E", 1, 1), ("i", 2, 1)}): "-1",
@@ -788,14 +758,10 @@ _POINT_GROUP_SYMBOLS = {
 
 
 def point_group_symbol(group, indices) -> str:
-    """Hermann-Mauguin name of the measured point group ``indices`` fix.
+    """The Hermann-Mauguin symbol of the operations ``indices`` of ``group``.
 
-    The operations are classified from their own Cartesian matrices
-    (:func:`classify`) and the multiset of kinds is looked up: that multiset
-    separates all thirty-two crystallographic point groups, so the name is
-    arithmetic on the measurement rather than a stored group.  A set of
-    operations that is not one of the thirty-two — which a measured site group
-    never is — reads as its order instead.
+    ``indices`` holds the operations' ``.ind`` values, and their Cartesian
+    matrices are read by :func:`point_group_of`.
     """
     pos_of = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     return point_group_of([group._symmetries[pos_of[int(ind)]].rotation_cart
@@ -803,12 +769,13 @@ def point_group_symbol(group, indices) -> str:
 
 
 def point_group_of(matrices) -> str:
-    """Hermann-Mauguin name of the point group whose operations are ``matrices``.
+    """The Hermann-Mauguin symbol of the point group of the ``matrices``.
 
-    An operation's kind and order are its trace and determinant, which no
-    change of basis moves, so the matrices may be written in any one basis —
-    the Cartesian one, or the lattice basis a table writes its operations in —
-    and a set that is not one of the thirty-two reads as its order.
+    An operation's kind and order are read from its trace and determinant
+    (:func:`_classified`), so the matrices may be written in any one basis,
+    the Cartesian one or a lattice basis.  The counts of each kind and order
+    are looked up in :data:`_POINT_GROUP_SYMBOLS`.  Returns
+    ``"a group of order n"`` for a set that is none of the thirty-two.
     """
     counts: dict = {}
     matrices = list(matrices)
@@ -822,94 +789,79 @@ def point_group_of(matrices) -> str:
 
 @dataclass(frozen=True)
 class DeclaredContent:
-    """What one multiplet of orbitals was declared to **be**.
+    """A multiplet's declared site irreps, in the group they were read in.
 
-    A ``characters=`` entry, resolved once against the site tables of the group
-    it was written in, and carried from there: the constraint it puts on the
-    representation is ``{ind: chi(g)}`` over the operations that fixed the site
-    *there*, and every later re-identification re-keys those ``.ind`` rather
-    than resolving the label again.  Operations a smaller group no longer has
-    drop out of :attr:`constraints`, and that dropping **is** the restriction of
-    the declared irrep to the smaller site group — which is why a restriction
-    that has become reducible (``E`` of ``3m`` subduced to ``3``) is still
-    carried and named as a sum, where a fresh resolution would refuse it.
+    The declaration is carried as characters keyed by operation, and each
+    later group re-keys them (:meth:`rekeyed`) rather than reading the
+    declaration again.  Operations a smaller group lacks drop out, which
+    restricts the declared irrep to the smaller site group, so a restriction
+    that has become reducible, ``E`` of ``3m`` on ``3``, is still carried.
 
     Attributes
     ----------
     orbitals : tuple of int
-        The orbitals this content is carried by jointly — one multiplet.
+        The orbitals that carry the declared site irreps together, one
+        multiplet.
     spec : object
-        Exactly what the caller wrote.
+        The declaration's value as written.
     label : str
-        The irrep it resolved to, in the site group it was read in.
+        The site irrep, or sum of them, the declaration resolved to, named in
+        the site group it was read in.
     dim : int
-        That irrep's dimension, i.e. the multiplet's.
+        The multiplet's dimension, that of its orbital factor on a spinful
+        site.
     declared_in : str
-        ``"3m in P3m11' #156.50"`` — the site group and the group it was read
-        in, so a label the returned group no longer has a name for still says
-        where it came from.
+        The site group and the group the declaration was read in,
+        ``"3m in P3m11' #156.50"``.
     constraints : dict
-        ``{ind: chi(g)}`` over the operations that fix the site, keyed by the
-        ``.ind`` of the group this record is currently on.
+        The declared character on each operation that fixes the site, keyed
+        by its ``.ind`` in the group the record is now on.
     note : str
-        How a shorthand or a generator mapping was resolved, echoed back, and
-        which row Mulliken's convention calls each name of :attr:`mulliken`.
+        If nonempty, how the declaration was resolved, and which row
+        Mulliken's convention calls each name of :attr:`mulliken`.
     broke : tuple of str
-        The operations this declaration was measured to break, named in the
-        generator frame — empty until a verdict has been made on it.
+        The operations the declaration was measured to break, named in the
+        model's Cartesian axes.  Empty until the group is settled.
     functions : tuple of dict
-        The Cartesian polynomials the declaration was made **of**, as
-        :data:`SHORTHANDS` writes them, and empty for an irrep label.  A
-        shorthand names a *function*; a label names an abstract content.  The
-        difference is what step 1 reads: a function's span at a site need not
-        be invariant under that site's symmetry, and where it is not, the
-        operations that carry it out of itself are not symmetries of the
-        crystal that was declared (:func:`.._declaration._content_compatible`).
+        If nonempty, the Cartesian polynomial of each orbital function
+        declared by name, ``px`` or ``dxy``, as :data:`SHORTHANDS` writes it.
+        A shell, a site irrep, a sum and generator characters or matrices
+        leave it empty.
     reduced_in : str
-        ``"m in Pm1' #6.4"`` — the site group this content was **resolved** in
-        after a step 1 reduction, and the group it was reduced to.  Empty where
-        the declared content left the cell alone, in which case
-        :attr:`declared_in` is where it was both read and resolved.
+        If nonempty, the site group and the group the declaration was resolved
+        in after it lowered the cell's group, ``"m in Pm1' #6.4"``.  Empty
+        where the declaration left the cell's group alone, and
+        :attr:`declared_in` is then where it was both read and resolved.
     words : tuple
-        ``(orbital, word)`` for every orbital of :attr:`orbitals` a function
-        word was written for, spelled as ``characters=`` spells it
-        (``(0, "px")``): the declared function each of them is, whichever entry
-        of ``characters=`` wrote it, so a multiplet declared orbital by orbital
-        holds one per orbital, and a shell (``"p"``) is the word of every
-        orbital it was written on.  Empty where no orbital of it was given a
-        function word, as for an irrep label, a sum of irreps or generator
-        characters alone.
+        If nonempty, ``(orbital, word)`` for each orbital of :attr:`orbitals`
+        declared as an orbital function, the word in its canonical spelling
+        (:func:`canonical_shorthand`): ``(0, "px")`` where ``"p_x"`` was
+        written, which :attr:`written` holds.  A shell, ``"p"``, is the word
+        of every orbital it was written on.
     written : tuple
-        ``(orbital, spec)`` for every orbital of :attr:`orbitals`: exactly what
-        ``characters=`` wrote for it, whatever it was written as -- ``"px"``
-        for one orbital and ``"py"`` for its partner, where :attr:`spec` is one
-        entry's.
+        ``(orbital, spec)`` for every orbital of :attr:`orbitals`, what
+        ``characters=`` wrote for it: ``"px"`` for one orbital and ``"py"``
+        for its partner, where :attr:`spec` is one entry's.
     corep : bool
-        Whether the content was written in the site coreps the rows are
-        returned as, one corep or a sum of them (:func:`named_in_coreps`).  It
-        then states the corep content and nothing finer: several orbital
-        contents can lift to it, and which of them the orbitals hold is chosen
-        by the rules that assign anything undeclared.  :attr:`constraints` and
-        :attr:`label` hold the one the lowest-angular-momentum rule puts lowest,
-        a representative for the record to print: every comparison reads it
-        where the spin-1/2 lift has a nonzero trace, where every orbital
-        content lifting to the same corep content has its characters, or as the
-        coreps it lifts to (:func:`corep_counts`).  Under an operation whose
-        lift has zero trace every one of them lifts to zero, so the content
-        states nothing there.
+        Whether the declaration was written in the double-valued site irreps
+        the rows are returned as (:func:`named_in_coreps`); such a
+        declaration states their multiplicities alone.  :attr:`label` then
+        names those double-valued site irreps.  :attr:`constraints` holds the
+        orbital characters that become them with spin and rank lowest under
+        the lowest-angular-momentum rule (:func:`_resolve_sum`).  Every
+        orbital character that becomes them with spin is the same wherever
+        the spin-1/2 lift has a nonzero trace.
     mulliken : tuple
-        ``((name, Mulliken's name), ...)`` for each name the declaration wrote
-        that the tables give a row Mulliken's convention calls by another
+        If nonempty, ``(name, Mulliken's name)`` for each name whose row
+        Mulliken's convention names differently at this site
         (:func:`mulliken_names`): ``(("A1''", "A2'"),)`` at ``2c`` of
-        ``P6/mmm``.  Empty everywhere else.
+        ``P6/mmm``.
     matrices : dict
-        ``{ind: matrix}``, keyed as :attr:`constraints` is, where the
-        declaration was **generator matrices**: each operation's matrix on the
-        orbital factor of :attr:`orbitals`, in their order, for every operation
-        of the site group the declared ones generate (:func:`generator_matrices`),
-        which says which basis of the site irrep the orbitals are;
-        :attr:`constraints` holds their traces.  Empty for every other
-        declaration.
+        If nonempty, the declared generator matrices: each operation's matrix
+        on the orbital factor of :attr:`orbitals`, in their order, for every
+        operation of the site group the declared ones generate
+        (:func:`generator_matrices`), keyed as :attr:`constraints` is.
+        :attr:`constraints` holds their traces.
     """
 
     orbitals: tuple
@@ -929,12 +881,11 @@ class DeclaredContent:
     matrices: dict = field(default_factory=dict)
 
     def rekeyed(self, pairs) -> "DeclaredContent":
-        """The same content on a re-identified group, through ``(old, new)`` pairs.
+        """The same declaration on another group, re-keyed through ``pairs``.
 
-        Operations the new group does not carry drop out: a declaration
-        is a statement about the orbitals, and a group with fewer operations
-        asks it fewer questions.  Declared matrices are re-keyed with the
-        characters they are the traces of.
+        ``pairs`` holds an ``(old, new)`` pair of ``.ind`` values for each
+        operation the two groups share.  An operation with no pair drops out
+        of :attr:`constraints` and :attr:`matrices`.
         """
         out, matrices = {}, {}
         for old, new in pairs:
@@ -946,18 +897,19 @@ class DeclaredContent:
 
 
 def generator_frame(table) -> str:
-    """One-line, human-checkable statement of what every operation is called."""
+    """Each operation of the site group whose table is ``table``, on one line.
+
+    ``#1 = E; #2 = C3(z); #3 = C3^-1(z); ...``, each operation by its ``.ind``
+    and its name.
+    """
     return "; ".join(f"#{ind} = {table.names[ind]}" for ind in table.indices)
 
 
 def _declared_name(table, row) -> str:
-    """What a declaration resolving to ``row`` is echoed as.
+    """The name a declaration resolving to ``row`` of ``table`` is echoed as.
 
-    The row's **orbital-factor** spelling where it has one, because that is what
-    a declaration states and the word it was written in; the returned label
-    otherwise.  :attr:`..symmetry._OrbitalRow.irrep` is the row's returned
-    name either way, so the two sit side by side in the record and a spinful
-    declaration can be read back in the words it was written in.
+    The row's :attr:`SiteGroupTable.declarable` name where it has one, the
+    orbital factor's word on a spinful site, and its label otherwise.
     """
     if row < len(table.declarable) and table.declarable[row]:
         return table.declarable[row]
@@ -965,12 +917,12 @@ def _declared_name(table, row) -> str:
 
 
 def _listed(table) -> tuple:
-    """The rows in the order the tables list a site's irreps, the order of their names.
+    """The rows of ``table`` in the order the tables list a site's irreps.
 
-    The tables' own EBR entries list the site irreps of every Wyckoff position
-    in the order of their names, ``A1, A2, B1, B2`` at an ``mm2`` site.  Each
-    row is placed by the single-valued name a declaration writes it in, and a
-    row nothing names comes after the named ones.
+    The tables list the site irreps of a Wyckoff position in the order of
+    their names, ``A1, A2, B1, B2`` at an ``mm2`` site.  Each row is placed by
+    its single-valued name, the :attr:`SiteGroupTable.declarable` one on a
+    spinful site, and rows with no name come last.  Returns the row indices.
     """
     own = table.declarable if any(table.declarable) else table.labels
     return tuple(sorted(range(len(table.labels)),
@@ -978,14 +930,12 @@ def _listed(table) -> tuple:
 
 
 def declaration_words(table) -> tuple:
-    """Every label a declaration at this site group may be written in.
+    """Every name a declaration at the site group ``table`` may be written in.
 
-    The rows' returned names, and — where a row has a second spelling a
-    declaration may use (:attr:`SiteGroupTable.declarable`) — that one beside
-    it, the rows in the order the tables list them.  A row nothing named
-    contributes only its declarable spelling, and a row with neither
-    contributes nothing: it is then reachable by its generator characters
-    alone.
+    Each row's label, and beside it its :attr:`SiteGroupTable.declarable`
+    name where it has one, the rows in the order :func:`_listed` gives and
+    each name once.  A row with neither name is declared by its generator
+    characters.
     """
     out: list = []
     for row in _listed(table):
@@ -997,16 +947,17 @@ def declaration_words(table) -> tuple:
 
 
 def fitting_words(table, n) -> tuple:
-    """The words for one irrep each that a site holding ``n`` orbitals can carry.
+    """The names of the site irreps that fit on a site holding ``n`` orbitals.
 
-    ``n`` counts the site's orbitals, or, where the states carry spin, its
-    Wannier functions, two states each.  The site irreps of dimension at most
-    ``n``, by the name a declaration writes them in -- the orbital factor's
-    where the states carry spin -- and there each of them times the spinor
-    too, a site corep or a sum: at a ``3m`` site holding one Wannier function,
-    ``A1``, ``A2`` and ``-E1``.  The irreps come in order of dimension, the one
-    nearest the trivial character first and otherwise in the order the tables
-    list them, and the coreps after them.
+    ``table`` is the site's table.  ``n`` counts the site's orbitals, or on a
+    spinful site its Wannier functions.  The site irreps of dimension at most
+    ``n`` come first, by the name a declaration writes them in
+    (:func:`_declared_name`), in order of dimension, the one nearest the
+    trivial character first (:func:`_row_distance`), then in the order
+    :func:`_listed` gives.  On a spinful site their labels follow, the
+    double-valued site irrep, or sum of them, each irrep becomes with spin:
+    ``A1``, ``A2`` and ``-E1`` at a ``3m`` site holding one Wannier function.
+    Each name stands once.
     """
     rank = {p: i for i, p in enumerate(_listed(table))}
     rows = sorted((p for p in range(len(table.labels)) if int(table.dims[p]) <= int(n)),
@@ -1026,13 +977,12 @@ def fitting_words(table, n) -> tuple:
 
 
 def table_summary(table) -> str:
-    """The site group's character table as text, for refusal messages.
+    """The character table ``table`` as text, for a refusal's reason.
 
-    One row per irrep, in the order the tables list them, named as a
-    declaration names it -- the orbital factor's irrep where the states carry
-    spin -- with its own characters on each class; where the states carry
-    spin, a last column says which site corep, or sum of them, the row becomes
-    with spin.
+    One line a row, in the order :func:`_listed` gives, under its
+    :func:`_declared_name` and with its character on each class.  On a spinful
+    site a last column, ``with spin``, gives the double-valued site irrep, or
+    sum of them, the row becomes with spin.  A row with no name reads ``?``.
     """
     spinful = any(table.declarable)
     rows = _listed(table)
@@ -1052,7 +1002,10 @@ def table_summary(table) -> str:
 
 
 def _fmt(z) -> str:
-    """A character as text: a value within rounding of zero reads ``0``."""
+    """The character ``z`` as text, to three significant figures.
+
+    A real or imaginary part below ``1e-8`` reads ``0``.
+    """
     z = complex(z)
     re, im = (0.0 if abs(x) < 1e-8 else x for x in (z.real, z.imag))
     if im == 0.0:
@@ -1085,10 +1038,10 @@ SHORTHANDS = {
 CANONICAL_SHORTHANDS = ("s", "px", "py", "pz", "dxy", "dyz", "dzx", "dx2-y2", "dz2")
 
 #: The shells a declaration may name whole, each by its angular momentum ``l``:
-#: the content the real harmonics of degree ``l`` carry at the site, whatever
-#: their orientation inside it -- ``"p"`` is ``A1 + E`` at a ``3m`` site and
-#: ``T2`` at a ``-43m`` one.  ``"s"`` is also the one ``s`` function, and is
-#: read as that shorthand.
+#: the site irreps the real harmonics of degree ``l`` carry at the site,
+#: whatever their orientation inside it.  ``"p"`` is ``A1 + E`` at a ``3m``
+#: site and ``T2`` at a ``-43m`` one.  ``"s"`` is also the one ``s`` function,
+#: and is read as that shorthand.
 SHELLS = {"s": 0, "p": 1, "d": 2, "f": 3}
 
 
@@ -1100,12 +1053,18 @@ def _monomials(degree):
 
 @lru_cache(maxsize=None)
 def _monomial_index(degree):
-    """``{exponents: column}`` of the monomial basis of one degree."""
+    """The column of each monomial of degree ``degree``, by its exponents."""
     return {m: i for i, m in enumerate(_monomials(degree))}
 
 
 def _apply(R_inv, poly, degree):
-    """``(g.f)(r) = f(R^-1 r)`` expanded in the monomial basis of ``degree``."""
+    """The polynomial ``f(R^-1 r)``, for ``f`` the polynomial ``poly``.
+
+    ``R_inv`` is the inverse of the operation's Cartesian matrix.  ``poly`` is
+    of degree ``degree`` and maps exponents to coefficients, as
+    :data:`SHORTHANDS` writes a polynomial.  Returns the coefficients in the
+    columns :func:`_monomial_index` gives.
+    """
     idx = _monomial_index(degree)
     out = np.zeros(len(idx))
     for expo, coef in poly.items():
@@ -1129,11 +1088,11 @@ def _apply(R_inv, poly, degree):
 
 
 def shorthand_key(spec):
-    """The :data:`SHORTHANDS` key ``spec`` names, or ``None``.
+    """The :data:`SHORTHANDS` key the word ``spec`` names, or ``None``.
 
-    The one place a declared word is tested for being a **function** rather
-    than a label: spelling is normalized exactly as :func:`resolve_spec`
-    normalizes it, so the two never disagree about what a shorthand is.
+    The spelling is normalized as :func:`resolve_spec` normalizes it:
+    lowercased, with spaces and underscores dropped.  ``None`` also for
+    anything not a string.
     """
     if not isinstance(spec, str):
         return None
@@ -1142,10 +1101,11 @@ def shorthand_key(spec):
 
 
 def canonical_shorthand(spec) -> str:
-    """The spelling :data:`CANONICAL_SHORTHANDS` gives the orbital ``spec`` names, or ``""``.
+    """The canonical spelling of the orbital function ``spec``, or ``""``.
 
-    ``"p_x"`` and ``"x"`` are ``"px"``, ``"dxz"`` is ``"dzx"``: one function, one
-    word, the one a returned row prints.
+    The spelling is the one :data:`CANONICAL_SHORTHANDS` gives the same
+    polynomial: ``"p_x"`` and ``"x"`` are ``"px"``, and ``"dxz"`` is
+    ``"dzx"``.  It is the word a returned row prints as its function.
     """
     key = shorthand_key(spec)
     if key is None:
@@ -1155,13 +1115,12 @@ def canonical_shorthand(spec) -> str:
 
 
 def span_basis(polys):
-    """``{degree: orthonormal row basis}`` of the span of Cartesian polynomials.
+    """An orthonormal basis of the span of the Cartesian polynomials ``polys``.
 
-    Every shorthand is **homogeneous**, and an operation of O(3) preserves the
-    degree, so a span of several of them is the direct sum of its
-    degree-graded pieces and every question about it is asked degree by
-    degree.  Rows are orthonormal in the monomial basis of their own degree
-    (:func:`_monomials`).
+    Each polynomial maps exponents to coefficients and is homogeneous, and an
+    operation preserves the degree, so the span is the direct sum of its
+    pieces of each degree.  Returns ``{degree: rows}``, the rows orthonormal
+    in the monomial basis of their degree (:func:`_monomials`).
     """
     by_degree: dict = {}
     for poly in polys:
@@ -1181,13 +1140,15 @@ def span_basis(polys):
 
 
 def carries_span(group, ind, source, target, tol=1e-8) -> bool:
-    r"""Does operation ``ind`` carry the span ``source`` **onto** ``target``?
+    r"""Whether one operation carries the span ``source`` onto ``target``.
 
-    ``(g·f)(r) = f(R⁻¹r)`` on every basis function of ``source``
-    (:func:`_apply`), and it does when every image lies in ``target`` and the
-    two have the same dimension in every degree — onto, not merely into, so
-    that the relation is symmetric and the operations it keeps are closed
-    under products.  Both spans come from :func:`span_basis`.
+    The operation is the one of ``group`` whose ``.ind`` is ``ind``, acting
+    as ``f(r) -> f(R^-1 r)`` (:func:`_apply`).  ``source`` and ``target`` are
+    spans as :func:`span_basis` returns them.  The operation carries one onto
+    the other where the two have the same degrees and the same dimension in
+    each, and the image of every basis function of ``source`` lies in
+    ``target``, its residual at most ``tol`` times ``max(1, |image|)``.  Onto,
+    not into, so that the operations it keeps are closed under products.
     """
     if set(source) != set(target):
         return False
@@ -1207,16 +1168,16 @@ def carries_span(group, ind, source, target, tol=1e-8) -> bool:
 
 
 def span_character(group, table, polys):
-    """Character of the smallest site-group-invariant span containing ``polys``.
+    """The character of the smallest invariant span holding the ``polys``.
 
-    The site group's operations are applied to the Cartesian polynomials
-    (:func:`_apply`), the span of the whole orbit is orthonormalized, and the
-    character is the trace of each operation on that span — so the resolution
-    is a *measurement* on the site group, not a lookup.  Degrees are summed:
-    an operation preserves each graded piece, so the character of the whole is
-    the sum of the characters of the pieces.
-
-    Returns ``(chi over the table's classes, dimension)``.
+    ``polys`` are Cartesian polynomials, each homogeneous and written as
+    :data:`SHORTHANDS` writes one.  ``table`` is the site's table, and
+    ``group`` the represented group its operations belong to.  Each operation
+    of the site group is applied to each polynomial (:func:`_apply`), and the
+    images span the smallest invariant space holding the ``polys``.  The
+    polynomials of each degree are read apart and their characters added.
+    Returns ``(chi, dim)``: ``chi`` each operation's trace on the span, one
+    value per class of ``table``, and ``dim`` the span's dimension.
     """
     pos_of = {int(s.ind): i for i, s in enumerate(group._symmetries)}
     mats = {int(ind): np.linalg.inv(np.asarray(
@@ -1243,12 +1204,20 @@ def span_character(group, table, polys):
 
 
 def shorthand_character(group, table, name):
-    """Character of the span the shorthand ``name`` generates at this site."""
+    """The character of the span the shorthand ``name`` generates at a site.
+
+    ``name`` is a key of :data:`SHORTHANDS`.  ``group`` and ``table`` are as
+    :func:`span_character` takes them, and it returns what that call returns.
+    """
     return span_character(group, table, [SHORTHANDS[name]])
 
 
 def shell_key(spec):
-    """The :data:`SHELLS` key ``spec`` names, or ``None``, spelled as :func:`shorthand_key` reads it."""
+    """The :data:`SHELLS` key the word ``spec`` names, or ``None``.
+
+    The spelling is normalized as :func:`shorthand_key` normalizes it.
+    ``None`` also for anything not a string.
+    """
     if not isinstance(spec, str):
         return None
     key = str(spec).strip().lower().replace(" ", "").replace("_", "")
@@ -1256,12 +1225,14 @@ def shell_key(spec):
 
 
 def shell_character(group, table, degree) -> np.ndarray:
-    """Character of the degree-``l`` real harmonics at this site, over the table's classes.
+    """The character of the real harmonics of one degree at a site.
 
-    The harmonics of degree ``l`` are the polynomials of that degree less
-    ``r²`` times those of degree ``l − 2``, so their character is the
-    difference of the two spans' own (:func:`span_character`, measured on the
-    site group's operations): ``A1 + E`` for ``l = 1`` at a ``3m`` site.
+    The harmonics of degree ``degree`` are the polynomials of that degree
+    less ``r^2`` times those of degree ``degree - 2``, so their character is
+    the difference of the two spans' characters (:func:`span_character`).
+    ``group`` and ``table`` are as that call takes them.  Returns the
+    character, one value per class of ``table``: at a ``3m`` site, degree 1
+    gives the character of ``A1 + E``.
     """
     def _degree(d):
         if d < 0:
@@ -1273,13 +1244,13 @@ def shell_character(group, table, degree) -> np.ndarray:
 
 
 def content_label(table, chi) -> str:
-    """A site content spelled as the sum of its irreps, in the words a declaration uses.
+    """The name of a sum of site irreps, as a declaration writes it.
 
-    ``chi`` is over the table's classes.  Each irrep is named as a declaration
-    names it (:func:`_declared_name`, the orbital factor's word where the
-    states carry spin), once with its multiplicity (``"A1 + E"``,
-    ``"2xE"``).  ``""`` where the character is no sum of the table's rows, or
-    holds a row nothing names.
+    ``chi`` is the sum's character, one value per class of ``table``.  Each
+    irrep is named by :func:`_declared_name`, with the single-valued name on
+    a spinful site.  Each appears once, its multiplicity before it where
+    above one: ``"A1 + E"``, ``"2xE"``.  Returns ``""`` where ``chi`` is no
+    sum of the table's rows, or holds a row with no name.
     """
     rows = _content_rows(table, chi)
     if rows is None:
@@ -1294,13 +1265,16 @@ def content_label(table, chi) -> str:
 
 
 def corep_label(table, chi) -> str:
-    """A site content spelled as the site coreps it becomes with spin, as a returned row spells them.
+    """The name of the double-valued site irreps a sum becomes with spin.
 
-    ``chi`` is an orbital content over the table's classes.  Each row's corep
-    content is read off its label, and the coreps are counted across the rows:
-    ``A1 + E`` at a ``3m`` site is ``2x-E1 + -1E2E``, and ``A1`` and ``A2`` are
-    both ``-E1``.  ``""`` where the character is no sum of the table's rows, or
-    holds a row nothing names.
+    ``chi`` is the orbital character of a sum of site irreps, one value per
+    class of ``table``, a spinful site's table.  Each row's label is the
+    double-valued site irrep, or sum of them, that the row becomes with spin,
+    and the double-valued irreps are counted across the rows: ``A1 + E`` at a
+    ``3m`` site is ``"2x-E1 + -1E2E"``, and ``A1`` and ``A2`` are both
+    ``"-E1"``, as an orbital's row of the atomic-limit table writes them
+    (:attr:`..symmetry._OrbitalRow.irrep`).  Returns ``""`` where ``chi`` is
+    no sum of the table's rows, or holds a row with no label.
     """
     rows = _content_rows(table, chi)
     if rows is None:
@@ -1315,7 +1289,11 @@ def corep_label(table, chi) -> str:
 
 
 def _content_rows(table, chi):
-    """``{row: copies}`` of a site content given over the table's classes, or ``None`` where it is no sum of rows."""
+    """The rows of ``table`` a character holds, ``{row: copies}``, or ``None``.
+
+    ``chi`` is the character, one value per class.  Returns ``None`` where
+    its multiplicities (:func:`decompose`) are not non-negative integers.
+    """
     rows = {}
     for p, n in enumerate(decompose(table, np.asarray(chi, dtype=complex))):
         n = complex(n)
@@ -1327,10 +1305,13 @@ def _content_rows(table, chi):
 
 
 def _sum_terms(spec):
-    """``[(word, copies), ...]`` for a declared sum of irreps, or ``None`` for one word.
+    """The terms of a declared sum of irreps, ``[(word, copies), ...]``.
 
-    ``"A1 + E"`` is two terms, and ``"2x-E1 + -1E2E"`` -- the spelling a
-    returned row is written in -- is ``-E1`` twice and ``-1E2E`` once.
+    ``spec`` is the declared value.  ``"A1 + E"`` is two terms, ``"2xE"``
+    one term of two copies, and ``"2x-E1 + -1E2E"``, as an orbital's row of
+    the atomic-limit table writes it, ``-E1`` twice and ``-1E2E`` once.
+    Returns ``None`` for one word of one copy, for a sum with an empty term,
+    and for anything not a string.
     """
     if not isinstance(spec, str):
         return None
@@ -1350,15 +1331,17 @@ def _sum_terms(spec):
 
 
 def named_in_coreps(table, spec) -> bool:
-    """Whether ``spec`` is written in the site coreps the rows are returned as.
+    """Whether ``spec`` names the double-valued site irreps of ``table``.
 
-    Where the states carry spin a content can be written in the orbital
-    factor's names (``A1``, ``A1 + E``) or in the coreps the rows are returned
-    as (``-E1``, ``2x-E1 + -1E2E``).  The second states the corep content and
-    nothing finer, one word or a sum alike: several orbital contents can lift
-    to it -- ``A1`` and ``A2`` of a ``3m`` site both lift to ``-E1`` -- and
-    which of them the orbitals hold is chosen by the rules that assign anything
-    undeclared.
+    On a spinful site a declaration can name the orbital factor (``A1``,
+    ``A1 + E``) or the double-valued site irreps the rows are returned as
+    (``-E1``, ``2x-E1 + -1E2E``).  ``spec`` is of the second kind where a
+    word of it is no single-valued name (:func:`_orbital_row`) and is a
+    double-valued irrep some row becomes with spin.  Such a declaration
+    states the multiplicities of the double-valued irreps alone: ``A1`` and
+    ``A2`` of a ``3m`` site both become ``-E1``.  Returns ``False`` for
+    anything not a string, and where the table has no single-valued names
+    (:attr:`SiteGroupTable.declarable`), as on a spinless site.
     """
     if not isinstance(spec, str) or not any(table.declarable):
         return False
@@ -1369,7 +1352,10 @@ def named_in_coreps(table, spec) -> bool:
 
 
 def _corep_words(table) -> frozenset:
-    """Every site corep a row of ``table`` lifts to, by name and in lower case."""
+    """The double-valued site irreps the rows of ``table`` become with spin.
+
+    Returns their names, in lower case.
+    """
     out = set()
     for label in table.labels:
         if label:
@@ -1379,15 +1365,15 @@ def _corep_words(table) -> frozenset:
 
 
 def lift_squares(rotations) -> dict:
-    """``{ind: |tr S(g)|²}`` -- how much of each operation a site corep's character sees.
+    """The squared trace of each operation's spin-1/2 lift.
 
-    ``rotations`` is ``{ind: Cartesian matrix}``.  The spin-1/2 lift of a turn
-    by ``θ`` has trace ``2 cos(θ/2)``, and an improper operation's lift is its
-    proper part's, so ``|tr S(g)|² = 2 + 2 cos θ = 1 + tr(det(R) R)``: ``4`` on
-    the identity and the inversion, ``1`` on a threefold, and ``0`` on a
-    twofold and on a mirror, where every orbital content lifts to a zero
-    character.  The sign of a lift is a convention, and nothing read here
-    depends on it.
+    ``rotations`` maps each operation's ``.ind`` to its Cartesian matrix
+    ``R``.  The lift of a turn by ``θ`` has trace ``±2 cos(θ/2)``, its sign a
+    convention, and an improper operation's lift is its proper part's.  So
+    ``|tr S(g)|^2 = 2 + 2 cos θ = 1 + tr(det(R) R)``.  It is ``4`` on the
+    identity and the inversion, ``1`` on a threefold, and ``0`` on a twofold
+    and on a mirror, where every orbital character times the lift vanishes.
+    Returns ``{ind: |tr S(g)|^2}``, never below zero.
     """
     out = {}
     for ind, R in rotations.items():
@@ -1398,10 +1384,13 @@ def lift_squares(rotations) -> dict:
 
 
 def _corep_matrix(table):
-    """``(names, N)`` -- the site coreps, and how often row ``p``'s lift holds corep ``c``.
+    """The double-valued site irreps each row of ``table`` holds with spin.
 
-    Read off the rows' own labels, each a corep or a sum of them; ``None``
-    where a row has no name, which leaves its lift unspelled.
+    They are read off the rows' labels, each a double-valued irrep or a sum
+    of them.  Returns ``(names, N)``: ``names`` the double-valued irreps in
+    lower case, in the order the rows first name them, and ``N[p, c]`` how
+    often row ``p`` with spin holds ``names[c]``.  Returns ``None`` where a
+    row of ``table`` has no label.
     """
     names, rows = [], []
     for label in table.labels:
@@ -1418,13 +1407,14 @@ def _corep_matrix(table):
 
 
 def corep_counts(table, rows):
-    """``{corep: copies}`` -- the site coreps an orbital content lifts to, or ``None``.
+    """The double-valued site irreps a sum of site irreps becomes with spin.
 
-    ``rows`` is the content as ``{row: copies}`` of ``table``; each row's lift
-    is spelled by its label, so a ``p`` shell at a ``3m`` site, ``A1 + E``,
-    lifts to ``{-e1: 2, -1e2e: 1}``.  Two contents lifting to one corep content
-    count alike, which is what a content written in the coreps states.
-    ``None`` where a row the content holds has no name.
+    ``rows`` is the sum as ``{row: copies}`` of ``table``, a spinful site's
+    table.  Each row's double-valued irreps are read off its label
+    (:func:`_corep_matrix`): a ``p`` shell at a ``3m`` site, ``A1 + E``,
+    gives ``{"-e1": 2, "-1e2e": 1}``.  Returns ``{name: copies}``, the names
+    in lower case.  Returns ``None`` where any row of ``table`` has no label,
+    whether or not ``rows`` holds it.
     """
     got = _corep_matrix(table)
     if got is None:
@@ -1441,24 +1431,21 @@ def corep_counts(table, rows):
 
 
 def _resolve_sum(table, terms, *, rotations=None):
-    """``{row: copies}`` -- a sum of irreps, as rows of the site table; ``{}`` where none.
+    """The rows of ``table`` a declared sum names, ``{row: copies}``.
 
-    A sum written in the orbital factor's names is read row by row.  Where the
-    states carry spin a sum can instead be written in the site coreps the rows
-    are returned as -- ``2x-E1 + -1E2E`` for a ``p`` shell at a ``3m`` site,
-    whose ``-1E2E`` is half of the ``E`` row's ``-1E2E + -E1``, or ``-E1``
-    alone, a sum of one -- and then the coreps are counted and the rows that
-    lift to exactly those counts are found.  Several orbital contents can lift
-    to one sum (``A1 + E`` and ``A2 + E`` above, ``A1`` and ``A2`` for ``-E1``,
-    and at a ``-43m`` site the ``E + T2`` of a ``d`` shell and ``A2 + 2xE``).
-    Such a sum states the corep content alone
-    (:func:`named_in_coreps`), which every comparison with the Hamiltonian
-    reads and the record names (:func:`corep_label`), and the orbital content
-    read here stands for it: the one the lowest-angular-momentum rule puts
-    lowest -- the lowest single shell of real harmonics holding it, then the
-    per-orbital sum (:func:`_content_shells`, over ``rotations``, the Cartesian
-    matrix of each operation of the site group) -- then the one of the fewest
-    irreps, then the one closest to the trivial character.
+    ``terms`` is a list of ``(word, copies)``, as :func:`_sum_terms` returns
+    for a sum, and ``rotations`` maps each operation of the site group to its
+    Cartesian matrix.  A sum written in single-valued names is read row by
+    row.  On a spinful site a sum written in the double-valued site irreps,
+    ``2x-E1 + -1E2E`` or ``-E1`` alone, is read by finding every sum of rows
+    that becomes exactly those double-valued irreps with spin: ``A1 + E`` and
+    ``A2 + E`` of a ``3m`` site both become ``2x-E1 + -1E2E``.  Of these, the
+    sum returned is the lowest under the lowest-angular-momentum rule
+    (:func:`_content_shells`, read only where ``rotations`` is given), then
+    the one of fewest irreps counted with multiplicity, then the one whose
+    rows, each counted with its copies, differ from ``+1`` on the fewest
+    operations in all (:func:`_row_distance`), then the first by row.
+    Returns ``{}`` where no sum of rows fits.
     """
     spinful = any(table.declarable)
     rows = {}
@@ -1483,7 +1470,11 @@ def _resolve_sum(table, terms, *, rotations=None):
     shells, lowest = {}, {}
 
     def _shells(chosen):
-        """``(single shell, per orbital)`` of one orbital content (:func:`_content_shells`)."""
+        """The two numbers :func:`_content_shells` gives the rows ``chosen``.
+
+        ``chosen`` is ``{row: copies}``.  Returns ``()`` where no
+        ``rotations`` were given.
+        """
         if rotations is None:
             return ()
         chi = sum(n * np.asarray(table.characters[q], dtype=complex) for q, n in chosen.items())
@@ -1512,13 +1503,25 @@ def _resolve_sum(table, terms, *, rotations=None):
 
 
 def _row_distance(table, row) -> int:
-    """How many operations of the site group a row's character is not ``+1`` on."""
+    """How many operations a row's character is not ``+1`` on.
+
+    ``row`` is a row of ``table``, and every operation of its site group is
+    counted.
+    """
     return sum(len(table.classes[c]) for c in range(len(table.classes))
                if abs(complex(table.characters[row, c]) - 1.0) > 1e-9)
 
 
 def _orbital_row(table, word) -> int:
-    """The row an orbital factor's own name (:attr:`SiteGroupTable.declarable`) names, or ``-1``."""
+    """The row whose single-valued name is ``word``, or ``-1``.
+
+    ``word`` is compared, without regard to case, with the
+    :attr:`SiteGroupTable.declarable` names of ``table``.  Where several rows
+    carry it, the row returned is the one whose character differs from
+    ``+1`` on the fewest operations (:func:`_row_distance`), the first on a
+    tie.  ``"E"`` also names the one merged complex-conjugate pair of
+    dimension two, where no row is named ``E``.
+    """
     want = str(word).strip().lower()
     hits = [p for p, name in enumerate(table.declarable) if name and name.lower() == want]
     if hits:
@@ -1537,17 +1540,13 @@ def _poly_of(vec, degree):
 
 @lru_cache(maxsize=None)
 def _shell_weights(degree):
-    r"""The inner product a rotation preserves, on the polynomials of one degree.
+    r"""The weights of the inner product every rotation keeps, on one degree.
 
-    Two Cartesian monomials of the same degree are not orthonormal as functions
-    on the sphere, and a rotation written in the monomial basis is therefore not
-    an orthogonal matrix there: measured, a turn by ``theta`` about ``z`` takes
-    ``xy`` to a vector of plain monomial norm ``sqrt(cos^2 2t + sin^2 2t / 2)``.
-    The inner product it does preserve gives ``x^a y^b z^c`` the weight
-    ``a! b! c! / (a+b+c)!``, which is the one real spherical harmonics of a
-    degree are orthonormal in.  Working in ``sqrt(weight)``-scaled coordinates
-    turns it into the ordinary Euclidean one, and that is what makes an
-    operation's matrix on them orthogonal.
+    Each monomial ``x^a y^b z^c`` of degree ``degree`` has the weight
+    ``a! b! c! / (a+b+c)!``, in the order :func:`_monomials` lists them.  In
+    the coordinates scaled by the square roots of these weights, every
+    orthogonal operation's matrix on the polynomials of that degree is
+    orthogonal.  Returns the weights, read only.
     """
     w = np.array([float(factorial(a) * factorial(b) * factorial(c))
                   / float(factorial(int(degree)))
@@ -1557,7 +1556,13 @@ def _shell_weights(degree):
 
 
 def _shell_vector(name, degree, scale):
-    """One orbital function as a unit vector in the scaled monomial coordinates."""
+    """The orbital function ``name`` as a unit vector in scaled coordinates.
+
+    ``name`` is a key of :data:`SHORTHANDS` whose polynomial has degree
+    ``degree``, and ``scale`` holds the square roots of
+    :func:`_shell_weights` for that degree.  Returns the polynomial's
+    coefficients times ``scale``, normalized.
+    """
     idx = _monomial_index(int(degree))
     v = np.zeros(len(idx))
     for m, c in SHORTHANDS[name].items():
@@ -1569,12 +1574,14 @@ def _shell_vector(name, degree, scale):
 def shell_operator(group, ind, degree):
     r"""One operation's matrix on the polynomials of one degree.
 
-    ``(g.f)(r) = f(R^-1 r)`` (:func:`_apply`) on every monomial, written in the
-    ``sqrt(weight)``-scaled coordinates of :func:`_shell_weights`, where a
-    rotation is orthogonal, so that everything an orbital function does under an
-    operation is read off this one matrix.  It is the same matrix for an
-    antiunitary operation as for its unitary partner, because complex
-    conjugation does nothing to a real function.
+    The operation is the one of ``group`` whose ``.ind`` is ``ind``, acting
+    as ``(g f)(r) = f(R^-1 r)`` (:func:`_apply`) on the polynomials of degree
+    ``degree``.  The matrix is written in the coordinates scaled by the
+    square roots of :func:`_shell_weights`, where it is orthogonal: column
+    ``j`` is the image of the ``j``-th scaled monomial, in the order
+    :func:`_monomials` lists them.  An antiunitary operation has the matrix
+    of its rotation, since complex conjugation leaves a real function as it
+    is.
     """
     degree = int(degree)
     scale = np.sqrt(_shell_weights(degree))
@@ -1598,12 +1605,15 @@ _SHELL_FUNCTIONS = {0: ("s",), 1: ("px", "py", "pz"),
 
 @lru_cache(maxsize=None)
 def _harmonic_functions(degree):
-    r"""The real harmonics of one degree, one unit column each, in :func:`shell_operator`'s coordinates.
+    r"""The real harmonics of one degree, as orthonormal columns.
 
-    ``s``, ``p`` and ``d`` are the shorthands' own functions, in the order they
-    are listed.  A higher shell names none, and its functions are the monomials
-    in their own order with the part ``r²`` times the degree below removed, made
-    orthonormal one after another.
+    The columns are written in :func:`shell_operator`'s coordinates.  For
+    ``degree`` 0, 1 and 2 they are the shorthands' own functions, in the
+    order :data:`_SHELL_FUNCTIONS` lists them.  For a higher degree they are
+    the monomials in their own order, each less its part along ``r^2`` times
+    the polynomials of degree ``degree - 2``, made orthonormal one after
+    another, the first ``2 degree + 1`` that are independent.  Returns them
+    read only, one column per harmonic.
     """
     degree = int(degree)
     scale = np.sqrt(_shell_weights(degree))
@@ -1637,7 +1647,12 @@ def _harmonic_functions(degree):
 
 
 def function_of(word):
-    """``(degree, unit column)`` -- the orbital a shorthand names, in :func:`shell_operator`'s coordinates."""
+    """The orbital function a shorthand names, ``(degree, unit column)``.
+
+    ``word`` is the shorthand, spelled as :func:`shorthand_key` reads it.
+    The column is in :func:`shell_operator`'s coordinates.  Returns ``None``
+    where ``word`` names no shorthand.
+    """
     key = shorthand_key(word)
     if key is None:
         return None
@@ -1646,15 +1661,20 @@ def function_of(word):
 
 
 def irrep_functions(group, table, row, rotations):
-    r"""``(degree, columns)`` -- the functions the tables write one site irrep on, or ``None``.
+    r"""The lowest-angular-momentum functions of one site irrep, or ``None``.
 
-    They are the irrep's lowest-angular-momentum real harmonics (the shell
-    :func:`_lowest_l` finds it in): the shell's own functions
-    (:func:`_harmonic_functions`) projected onto the irrep, kept in their order
-    where independent, as many as its dimension -- ``(p_x, p_y)`` for ``E`` at a
-    ``4mm`` site, ``d_{x²−y²}`` for its ``B1``.  ``None`` where the projections
-    span no invariant space of that dimension, as where the shell holds the irrep
-    more than once and its first functions straddle two copies.
+    ``row`` is a row of ``table``, ``group`` the represented group, and
+    ``rotations`` maps each operation of the site group to its Cartesian
+    matrix.  The functions are taken in the shell :func:`_lowest_l` finds the
+    irrep in: the shell's own functions (:func:`_harmonic_functions`) are
+    projected onto the irrep and kept in their order where independent, as
+    many as its dimension.  At a ``4mm`` site ``E`` gets ``(px, py)``, and
+    the row even under ``m(x)`` and odd under ``C4(z)`` gets ``dx2-y2``.
+    Returns ``(degree, columns)``, the columns in :func:`shell_operator`'s
+    coordinates.  Returns ``None`` where no shell up to ``_L_MAX`` holds the
+    irrep, or where the projections span no invariant space of its
+    dimension, as where the shell holds the irrep more than once and its
+    first functions straddle two copies.
     """
     chi = {int(i): table.character_on(row, i) for i in table.indices}
     degree = _lowest_l(table, chi, rotations)
@@ -1685,17 +1705,13 @@ def irrep_functions(group, table, row, rotations):
 
 
 def decompose(table, chi):
-    """Multiplicity of every irrep in a character (``n_p`` by orthogonality).
+    """The multiplicity of each row of ``table`` in the character ``chi``.
 
-    Each row is normalized by **its own** inner product rather than by
-    ``table.order`` alone.  For an ordinary irrep that norm is 1 and nothing
-    changes; for a **merged** time-reversal pair (``1E2E``) the row is the
-    *sum* of two inequivalent characters, so its self inner product is 2, and
-    dividing by it is what makes a span carrying the pair once come back as
-    multiplicity 1 instead of 2.  Measured on P4_232's ``2a`` site (group
-    ``23``): the ``d_z2`` span has ``chi = (2, 2, -1, -1)``, which *is* the
-    ``1E2E`` row -- without the normalization it reported ``2x1E2E`` and
-    :func:`resolve_spec` refused the paper's own orbital name.
+    ``chi`` is given one value per class.  The multiplicities are read by
+    orthogonality, each row normalized by its own inner product, so a merged
+    complex-conjugate pair such as ``1E2E``, whose inner product with itself
+    is 2, counts once in a span that carries the pair once.  Returns one
+    complex multiplicity per row.
     """
     sizes = np.array([len(c) for c in table.classes], dtype=float)
     n = float(table.order)
@@ -1710,18 +1726,21 @@ def decompose(table, chi):
 
 #: How far the search for the lowest degree of real harmonics carrying a site
 #: irrep goes.  Every irrep of a crystallographic point group occurs by degree
-#: nine (``A1u`` of ``m-3m`` is the last, at nine), so a content still missing at
-#: twelve is no character of the site group and ranks after every one that is.
+#: nine (``A1u`` of ``m-3m`` is the last, at nine).  A sum of irreps that no
+#: degree up to twelve holds ranks, under the lowest-angular-momentum rule,
+#: after every sum that one does.
 _L_MAX = 12
 
 
 def _shell_trace(rotation_cart, degree) -> float:
     r"""The character of the degree-``l`` real harmonics under one operation.
 
-    ``det^l · sin((2l+1)θ/2) / sin(θ/2)``, with ``θ`` the rotation angle of
-    ``det·R`` — the proper rotation an improper operation is followed by the
-    inversion of — and ``2l + 1`` at ``θ = 0``.  The harmonics of degree ``l``
-    have parity ``(−1)^l``, which is the ``det^l``.
+    ``rotation_cart`` is the operation's Cartesian matrix ``R``, and ``l`` is
+    ``degree``.  The character is ``det^l sin((2l+1)θ/2) / sin(θ/2)``, with
+    ``θ`` the angle of the proper rotation ``det·R`` and the ratio ``2l + 1``
+    at ``θ = 0``.  On an improper operation ``det^l`` is ``(-1)^l``, the
+    parity of the harmonics under the inversion.  Returns the character, a
+    float.
     """
     R = np.asarray(rotation_cart, dtype=float)
     det = 1.0 if float(np.linalg.det(R)) > 0.0 else -1.0
@@ -1734,16 +1753,18 @@ def _shell_trace(rotation_cart, degree) -> float:
 
 
 def _lowest_l(table, chi, rotations, *, cache=None, tol=1e-6) -> int:
-    """The lowest degree of real harmonics among which a site content occurs.
+    """The lowest degree of real harmonics that holds a sum of site irreps.
 
-    ``chi`` is the content's orbital character, ``{ind: chi(g)}`` over the site
-    group ``table`` is the table of, and ``rotations`` the Cartesian matrix of
-    each of those operations.  The content occurs at degree ``l`` when every
-    irrep it holds is held by the degree-``l`` harmonics at least as often,
-    read from the two characters by :func:`decompose`.  A content that is no
-    character of the site group — multiplicities that are not non-negative
-    integers — returns ``_L_MAX + 1``, and so does one no degree up to
-    ``_L_MAX`` holds.
+    ``chi`` maps each operation's ``.ind`` to the sum's orbital character,
+    and ``rotations`` maps each to its Cartesian matrix, over the site group
+    of ``table``.  The sum is held at degree ``l`` where the real harmonics
+    of degree ``l`` hold every irrep of it at least as often
+    (:func:`_shell_content`).  A multiplicity within ``tol`` of an integer is
+    read as that integer, and ``cache`` is passed on to
+    :func:`_shell_content`.  Returns ``_L_MAX + 1`` where no degree up to
+    ``_L_MAX`` holds the sum, where its multiplicities are not non-negative
+    integers, where it is empty, and where ``table`` is ``None`` or ``chi``
+    misses a class.
     """
     if table is None or any(int(cls[0]) not in chi for cls in table.classes):
         return _L_MAX + 1
@@ -1765,12 +1786,14 @@ def _lowest_l(table, chi, rotations, *, cache=None, tol=1e-6) -> int:
 
 
 def _shell_content(table, degree, rotations, *, cache=None) -> list:
-    """How often the degree-``l`` real harmonics hold each irrep of a site group.
+    """How often the real harmonics of one degree hold each site irrep.
 
-    One count per row of ``table``, read off the shell's own character
-    (:func:`_shell_trace`) by :func:`decompose`: the ``d`` shell at a ``-3m``
-    site holds ``A1g`` once and ``Eg`` twice.  ``rotations`` is the Cartesian
-    matrix of each operation of the site group.
+    The harmonics are those of degree ``degree``, and ``rotations`` maps each
+    operation of the site group of ``table`` to its Cartesian matrix.  The
+    counts are read off the shell's character (:func:`_shell_trace`) by
+    :func:`decompose`: the ``d`` shell at a ``-3m`` site holds ``A1g`` once
+    and ``Eg`` twice.  ``cache`` keeps the counts across calls, by table and
+    degree.  Returns one count per row of ``table``.
     """
     cache = {} if cache is None else cache
     key = (id(table), int(degree))
@@ -1782,17 +1805,21 @@ def _shell_content(table, degree, rotations, *, cache=None) -> list:
 
 
 def _content_shells(table, theta, rotations, *, shells=None, lowest=None):
-    """``(single shell, per orbital)`` — the angular momentum a site content sits at.
+    """The angular momentum a sum of site irreps sits at, as two numbers.
 
-    The two numbers the lowest-angular-momentum rule compares contents by, in
-    that order: the lowest single shell of real harmonics holding the whole
-    content (:func:`_lowest_l`), and the sum over its irreps of multiplicity ×
-    dimension × the lowest shell holding each.  A lone ``d`` shell at a
-    ``-3m`` site is ``2`` taken whole, where one ``p`` shell and a second ``p``
-    pair would be ``1`` orbital by orbital, and a content of mixed parity,
-    which no single shell holds, is scored orbital by orbital alone.
-    ``shells`` and ``lowest`` keep what earlier comparisons measured, the
-    shells' own contents and each irrep's lowest shell.
+    ``theta`` maps each operation's ``.ind`` to the sum's orbital character,
+    and ``rotations`` maps each to its Cartesian matrix, over the site group
+    of ``table``.  The first number is the lowest degree of real harmonics
+    that holds the whole sum (:func:`_lowest_l`).  The second is the sum over
+    its irreps of multiplicity times dimension times the lowest degree that
+    holds the irrep.  The lowest-angular-momentum rule compares the first,
+    then the second: five ``d`` orbitals at a ``-3m`` site, ``A1g + 2xEg``,
+    give ``(2, 8)``, and a ``p`` shell with a second ``p`` pair,
+    ``A2u + 2xEu``, gives ``(3, 5)`` and ranks after them.  ``shells`` and
+    ``lowest`` keep what earlier calls measured, the shells' counts and each
+    row's lowest degree.  Returns ``(_L_MAX + 1, 10**6)`` where the
+    multiplicities are not non-negative integers, and ``(_L_MAX + 1, 0)``
+    where ``table`` is ``None``, or ``theta`` is empty or misses a class.
     """
     if (table is None or not theta
             or any(int(cls[0]) not in theta for cls in table.classes)):
@@ -1816,17 +1843,18 @@ def _content_shells(table, theta, rotations, *, shells=None, lowest=None):
 
 
 def _mulliken_name(group, table, row) -> str:
-    """Mulliken's name of one row at a ``-6m2``, ``-42m``, ``6`` or ``6/m`` site, or ``""``.
+    """Mulliken's name of one row of a site's table, or ``""``.
 
-    Mulliken's letters and marks, read off the row's characters on operations
-    no choice of axes moves.  At ``-6m2``, ``1``/``2`` follow the twofolds
-    perpendicular to the threefold axis and ``'``/``''`` the horizontal
-    mirror; at ``-42m``, ``A``/``B`` follow the ``-4`` and ``1``/``2`` the
-    twofolds perpendicular to its axis; at ``6`` and ``6/m``, ``A``/``B`` and
-    ``E1``/``E2`` follow the twofold along the sixfold axis, ``-1`` on each
-    state of ``E1``, and ``g``/``u`` the inversion.  A complex row, or a pair
-    of them glued by time reversal, is named by its pair.  Every other site
-    group returns ``""``.
+    ``row`` is a row of ``table``, and ``group`` the represented group.  At a
+    ``-6m2``, ``-42m``, ``6`` or ``6/m`` site the name is read off the row's
+    characters on operations no choice of axes moves.  At ``-6m2``, ``1`` or
+    ``2`` follows the twofolds perpendicular to the threefold axis, and
+    ``'`` or ``''`` the horizontal mirror.  At ``-42m``, ``A`` or ``B``
+    follows the ``-4``, and ``1`` or ``2`` the twofolds perpendicular to its
+    axis.  At ``6`` and ``6/m``, ``A`` or ``B`` and ``E1`` or ``E2`` follow
+    the twofold along the sixfold axis, ``-1`` on each state of ``E1``, and
+    ``g`` or ``u`` the inversion.  A complex row, or a merged pair of them,
+    is named as its pair.  Returns ``""`` at every other site group.
     """
     symbol = point_group_symbol(group, table.indices)
     if symbol not in ("-6m2", "-42m", "6", "6/m"):
@@ -1836,10 +1864,12 @@ def _mulliken_name(group, table, row) -> str:
     dim = float(chi[next(c for c, info in enumerate(infos) if info["kind"] == "E")].real)
 
     def find(kind, order, axis=None, along=True):
-        """The class of this kind and order, along ``axis`` or perpendicular to it.
+        """The first class of one kind and order, placed by its axis.
 
-        In these four groups an operation's axis lies along the principal axis
-        or perpendicular to it, so the cosine between the two is one or zero.
+        ``kind`` and ``order`` are as :func:`classify` gives them.  With
+        ``axis``, the class's axis lies along it, or with ``along=False``
+        perpendicular to it; in these four groups every axis is one or the
+        other.  Returns the class's index, or ``None`` where none fits.
         """
         for c, info in enumerate(infos):
             if info["kind"] != kind or int(info["order"]) != order:
@@ -1874,10 +1904,10 @@ def _mulliken_name(group, table, row) -> str:
 
 
 def _mulliken_spelling(name) -> str:
-    """``name`` as Mulliken's convention spells it.
+    """The site irrep ``name`` as Mulliken's convention spells it.
 
-    A pair of complex rows glued by time reversal, or one member of it, is
-    spelled by its pair.
+    A merged pair of complex rows, ``1E2E``, or one member of it, ``1E``, is
+    spelled by its pair, ``E``.  Any other name is returned as it is.
     """
     pair = re.fullmatch(r"1(E.*)2\1", name)
     if pair is not None:
@@ -1887,18 +1917,19 @@ def _mulliken_spelling(name) -> str:
 
 
 def mulliken_names(group, table, spec) -> tuple:
-    """``((name, Mulliken's name), ...)``: names ``spec`` writes that the tables give another row.
+    """The names ``spec`` writes that Mulliken's convention gives another row.
 
-    At four kinds of site the tables' single-valued names break a mark no
-    choice of axes moves: at a ``-6m2`` site whose band-representation key
-    writes ``-6m2`` their ``A1''`` is the row Mulliken's convention calls
-    ``A2'``, and the reverse; at a ``-42m`` site keyed ``-4m2`` their ``B2``,
-    ``A2`` and ``B1`` are Mulliken's ``A2``, ``B1`` and ``B2``; and at ``6``
-    and ``6/m`` sites ``E1`` and ``E2`` are exchanged.  A declaration written
-    in such a name states the tables' row.  Each name ``spec`` writes, alone
-    or in a sum, is compared with Mulliken's name of the row it names
-    (:func:`_mulliken_name`); a content written in the site coreps, a
-    function and generator characters name no row by its name.
+    ``spec`` is a declaration's value, ``table`` its site's table and
+    ``group`` the represented group.  At some sites of four kinds, ``-6m2``,
+    ``-42m``, ``6`` and ``6/m``, the tables' single-valued names exchange
+    rows against Mulliken's convention, and a declaration written in such a
+    name states the tables' row.  Each name ``spec`` writes, alone or in a
+    sum, is compared with Mulliken's name of its row (:func:`_mulliken_name`).
+    Returns ``((name, Mulliken's name), ...)``, each pair once, its first
+    name as :func:`_declared_name` writes it: ``(("A1''", "A2'"),)`` for
+    ``"A1''"`` at ``2c`` of ``P6/mmm``.  Returns ``()`` where no name
+    differs, for a value written in the double-valued site irreps, and for
+    anything not a string.
     """
     if not isinstance(spec, str) or named_in_coreps(table, spec):
         return ()
@@ -1915,7 +1946,14 @@ def mulliken_names(group, table, spec) -> tuple:
 
 
 def mulliken_clause(names) -> str:
-    """The clause a declaration's record carries for :func:`mulliken_names`' pairs."""
+    """The clause a declaration's record carries for pairs of names.
+
+    ``names`` holds ``(name, Mulliken's name)`` pairs, as
+    :func:`mulliken_names` returns them.  Each pair reads "the tables' A1''
+    at this site is the row Mulliken's convention calls A2'", with "a member
+    of the pair" for "the row" where the name is one member of a merged
+    pair.  Returns the clauses joined by ``"; "``.
+    """
     parts = []
     for name, mulliken in names:
         member = (re.fullmatch(r"[12]E.*", name) is not None
@@ -1927,39 +1965,50 @@ def mulliken_clause(names) -> str:
 
 
 def resolve_spec(group, table, spec, where):
-    """Turn one declaration value into ``(constraints, label, dim, note)``.
+    """The characters, name, dimension and note a ``characters=`` value fixes.
 
-    ``constraints`` is ``{ind: required character value}`` over the site
-    group's operations; ``label`` is what the echo record reports.
+    ``spec`` is the value, ``table`` the table of its site, ``group`` the
+    represented group, and ``where`` the words that open every message,
+    ``"orbital 0"``.  The value is one of:
 
-    A value is an irrep of the site group, by its name or, where the states
-    carry spin, by its orbital factor's (:meth:`SiteGroupTable.index_of`); a
-    shorthand, which names one function and so one irrep; a **shell**
-    (:data:`SHELLS`), the content the real harmonics of one angular momentum
-    carry here, ``A1 + E`` for ``"p"`` at a ``3m`` site; a **sum of irreps**,
-    ``"A1 + E"``; a content written in the site coreps the rows are returned
-    as, one corep or a sum of them, ``"-E1"`` or a returned row's own
-    ``"2x-E1 + -1E2E"``, which states the corep content alone
-    (:func:`named_in_coreps`), is named in the coreps (:func:`corep_label`) and
-    is represented by the orbital content lifting to it that the
-    lowest-angular-momentum rule puts lowest (:func:`_resolve_sum`); generator
-    characters; or generator matrices, whose traces are the constraints
-    (:func:`generator_matrices`).  A shell or a sum is a content of several
-    irreps, and its ``dim`` is theirs together.
+    - a site irrep by its name: its label on a spinless site, its
+      single-valued name on a spinful one (:meth:`SiteGroupTable.index_of`);
+    - a shorthand, which names the one site irrep the span of its function
+      carries (:func:`shorthand_character`);
+    - a shell (:data:`SHELLS`), the site irreps the real harmonics of one
+      angular momentum carry here, ``A1 + E`` for ``"p"`` at a ``3m`` site;
+    - a sum of site irreps, ``"A1 + E"``;
+    - on a spinful site, a double-valued site irrep or a sum of them,
+      ``"-E1"`` or ``"2x-E1 + -1E2E"``, which states their multiplicities
+      alone (:func:`named_in_coreps`) and is read as the sum of rows
+      :func:`_resolve_sum` chooses;
+    - generator characters or generator matrices, a mapping from operations
+      (:func:`_resolve_generator_dict`);
+    - a :class:`DeclaredContent` read in a larger group, whose characters
+      are kept on the operations of this site group alone.
 
-    A :class:`DeclaredContent` passes through unchanged but **restricted**: its
-    constraints were resolved in a larger group and the operations this site
-    group no longer has are dropped, which is the subduction of the declared
-    irrep.  The label it carries is the one it was declared as, in the group it
-    was read in; naming what the restriction is *here* belongs to
-    (:func:`.._declaration._label_character`), since a subduced irrep can be
-    reducible and has a sum for a name rather than a row of this table.
+    Returns ``(constraints, label, dim, note)``: ``constraints`` the
+    character on each operation of the site group the value fixes, keyed by
+    ``.ind``; ``label`` the name the value resolved to, ``""`` where no name
+    fits; ``dim`` the dimension of its orbital factor, the number of orbitals
+    it describes; ``note`` how it was resolved, ``""`` for a site irrep named
+    directly.  A sum or a shell is named by :func:`content_label`, and a sum
+    of double-valued irreps by :func:`corep_label`.  A
+    :class:`DeclaredContent` keeps the label, dimension and note it was
+    declared with.
 
     Raises
     ------
     DeclarationError
-        ``gate="unknown_label"`` when the value names no irrep of *this* site
-        group, no sum of them, no shell, no shorthand and no operation.
+        ``unknown_label`` where the value names no site irrep, sum, shell,
+        shorthand or operation of this site group, where a shorthand's span
+        holds more than one site irrep or one more than once, and as
+        :func:`_resolve_generator_dict` raises for a mapping.
+
+    See Also
+    --------
+    .._declaration._label_character : the name a restricted declaration
+        takes at this site.
     """
     if isinstance(spec, DeclaredContent):
         keep = {int(i) for i in table.indices}
@@ -1968,8 +2017,8 @@ def resolve_spec(group, table, spec, where):
     if isinstance(spec, dict):
         return _resolve_generator_dict(table, spec, where, group)
 
-    # A CONTENT WRITTEN IN THE SITE COREPS, one word or a sum, states the corep
-    # content alone and is read as a sum below; any other word names a row
+    # A value written in the double-valued site irreps, one word or a sum, is
+    # read as a sum below; any other word is first looked up as a row
     corep = named_in_coreps(table, spec)
     row = -1 if corep else table.index_of(spec)
     if row >= 0:
@@ -1992,9 +2041,9 @@ def resolve_spec(group, table, spec, where):
                 for p in rows) or "nothing"
             raise DeclarationError(
                 "unknown_label",
-                f"{where}: the shorthand {spec!r} spans {parts} at this site "
-                f"({', '.join(words)}), so it does not name one site irrep. "
-                f"Name the irrep directly.\n  frame: {generator_frame(table)}",
+                f"{where}: the shorthand {spec!r} spans {parts} at this site. "
+                f"Declare a site irrep by its name: {', '.join(words)}."
+                f"\n  frame: {generator_frame(table)}",
                 {"declared_as": spec, "decomposition": parts, "irreps": words})
         p = rows[0]
         return ({int(ind): complex(table.characters[p, table.class_of[int(ind)]])
@@ -2002,8 +2051,8 @@ def resolve_spec(group, table, spec, where):
                 _declared_name(table, p), int(table.dims[p]),
                 f"{spec!r} resolved to {_declared_name(table, p)} on this site group")
 
-    # A SHELL: the content the real harmonics of one degree carry here, which
-    # no orientation of the functions inside the site moves
+    # A shell: the site irreps the real harmonics of one degree carry here,
+    # which no orientation of the functions inside the site moves
     shell = shell_key(spec)
     if shell is not None:
         chi = shell_character(group, table, SHELLS[shell])
@@ -2012,8 +2061,8 @@ def resolve_spec(group, table, spec, where):
                 label, 2 * SHELLS[shell] + 1,
                 f"{spec!r} resolved to {label} on this site group")
 
-    # A SUM OF IRREPS, written in either vocabulary: the content they add up to,
-    # and a single corep as the sum of one
+    # A sum of irreps, in single-valued or double-valued names, and a single
+    # double-valued irrep as a sum of one
     terms = _sum_terms(spec) or ([(str(spec).strip(), 1)] if corep else None)
     rows = {}
     if terms:
@@ -2023,8 +2072,8 @@ def resolve_spec(group, table, spec, where):
             for ind in table.indices})
     if rows:
         chi = sum(n * np.asarray(table.characters[p], dtype=complex) for p, n in rows.items())
-        # a content written in the site coreps is named in them: the orbital
-        # content standing for it is one of several that lift to it
+        # a sum written in the double-valued irreps is named in them: the
+        # rows standing for it are one of several sums that become it
         label = corep_label(table, chi) if corep else content_label(table, chi)
         return ({int(ind): complex(chi[table.class_of[int(ind)]]) for ind in table.indices},
                 label, int(sum(n * int(round(float(np.real(table.dims[p]))))
@@ -2033,15 +2082,17 @@ def resolve_spec(group, table, spec, where):
                  "assigned as for an undeclared orbital" if corep else
                  f"{spec!r} resolved to {label} on this site group"))
 
-    said = (f"{spec!r} is not a site irrep times the spinor, or a sum of them" if corep else
+    said = (f"{spec!r} is not what any sum of the site's single-valued irreps becomes "
+            "with spin"
+            if corep else
             f"{spec!r} is not an irrep of this site group, a sum of its irreps, "
-            f"a shell or a known shorthand")
+            f"a shell or a shorthand")
     raise DeclarationError(
         "unknown_label",
-        f"{where}: {said}.\n"
+        f"{where}: {said}. Declare one of the words listed below.\n"
         f"  site group: order {table.order}, classes "
         f"{', '.join(table.class_names)}\n"
-        f"  valid labels: {', '.join(declaration_words(table)) or '(none: name the '
+        f"  valid labels: {', '.join(declaration_words(table)) or '(none: declare '
         f'generator characters instead)'}\n"
         f"  shells:       {', '.join(SHELLS)}\n"
         f"  shorthands:   {', '.join(CANONICAL_SHORTHANDS)}\n"
@@ -2052,10 +2103,27 @@ def resolve_spec(group, table, spec, where):
 
 
 def _resolve_generator_dict(table, spec, where, group=None):
-    """The naming-free path: ``{operation: character}`` straight to constraints.
+    """The characters, name, dimension and note a mapping of generators fixes.
 
-    Generator matrices are read through their traces on every operation they
-    generate (:func:`generator_matrices`), and their dimension is the matrices'.
+    ``spec`` maps operations of the site group of ``table``, each by its
+    name or its ``.ind``, to a character or to a matrix.  ``where`` opens
+    every message, and ``group`` is the represented group, without which
+    matrices are not read.  Generator matrices give their trace to every
+    operation they generate (:func:`generator_matrices`), their size as the
+    dimension, and a label (:func:`content_label`) where they reach the whole
+    site group.  Generator characters give each value to every operation of
+    the class its key names, and the label and dimension of the one row that
+    matches every value within ``1e-6``; where not exactly one row matches,
+    the label is ``""`` and the dimension 1.  Returns
+    ``(constraints, label, dim, note)`` as :func:`resolve_spec` does.
+
+    Raises
+    ------
+    DeclarationError
+        ``unknown_label`` where a key names no operation of the site group
+        (:func:`_match_operation`), where a character's key matches
+        operations of more than one class, and as
+        :func:`generator_matrices` raises.
     """
     matrices = generator_matrices(group, table, spec, where) if group is not None else {}
     if matrices:
@@ -2078,8 +2146,8 @@ def _resolve_generator_dict(table, spec, where, group=None):
             raise DeclarationError(
                 "unknown_label",
                 f"{where}: the key {key!r} matches operations in more than one conjugacy "
-                f"class ({sorted(cls)}), and a character is a class function. Name one "
-                f"operation.\n  frame: {generator_frame(table)}",
+                f"class ({sorted(cls)}). Name one operation listed in the frame below."
+                f"\n  frame: {generator_frame(table)}",
                 {"key": key, "matched": inds})
         c = cls.pop()
         for ind in table.indices:
@@ -2098,26 +2166,27 @@ def _resolve_generator_dict(table, spec, where, group=None):
 
 
 def generator_matrices(group, table, spec, where) -> dict:
-    r"""``{ind: matrix}`` -- the matrix of every operation declared generator matrices generate, or ``{}``.
+    r"""The matrix of each operation the declared generator matrices generate.
 
-    ``spec`` is one ``characters=`` value, and any but a mapping from
-    operations to matrices returns ``{}``.  Each key names one operation of
-    the site group ``table`` is the table of, by its index or its name, and
-    each matrix is that operation's on the orbital factor of the orbitals
-    declared, in the order written: column ``j`` is the image of orbital
-    ``j``, as every matrix the package returns is written
-    (:meth:`..symmetry.SpaceGroupRep.sewing_operator`).  The products of the
-    declared operations reach a subgroup of the site group, and the products
-    of their matrices are the matrices there.  A site group holds no
-    translation, so each of its operations is found by its rotation.
+    ``spec`` is one ``characters=`` value, ``table`` the site's table,
+    ``group`` the represented group, and ``where`` the words that open every
+    message.  Each key of ``spec`` names one operation of the site group, by
+    its ``.ind`` or its name, and each matrix is that operation's on the
+    orbital factor of the orbitals declared, in the order written: column
+    ``j`` is the image of orbital ``j``, as
+    :meth:`..symmetry.SpaceGroupRep.sewing_operator` writes a matrix.  The
+    products of the declared matrices give the matrix of every operation the
+    declared ones generate, the identity included.  A site group holds no
+    translation, so each operation is found by its Cartesian rotation.
+    Returns ``{ind: matrix}``, or ``{}`` where ``spec`` is not a nonempty
+    mapping whose every value is a matrix.
 
     Raises
     ------
     DeclarationError
-        ``gate="unknown_label"`` where a key names no operation of the site
-        group, or several, where a matrix is not unitary, and where two
-        products reaching one operation give it two matrices: matrices that
-        are no representation of the site group.
+        ``unknown_label`` where a key names no operation of the site group or
+        several, where a matrix is not unitary, and where two products
+        reaching one operation give it two matrices.
     """
     if not isinstance(spec, dict) or not spec or not all(
             np.ndim(v) == 2 for v in spec.values()):
@@ -2132,16 +2201,16 @@ def generator_matrices(group, table, spec, where) -> dict:
             raise DeclarationError(
                 "unknown_label",
                 f"{where}: the key {key!r} names {len(inds)} operations of this site group "
-                f"({', '.join(table.names[int(i)] for i in inds)}), and a matrix is the "
-                f"matrix of one operation. Name one.\n  frame: {generator_frame(table)}",
+                f"({', '.join(table.names[int(i)] for i in inds)}). Name one operation "
+                f"listed in the frame below.\n  frame: {generator_frame(table)}",
                 {"key": key, "matched": inds})
         M = np.asarray(value, dtype=complex)
         if float(np.abs(M @ M.conj().T - np.eye(len(M))).max()) > CHARACTER:
             raise DeclarationError(
                 "unknown_label",
                 f"{where}: the matrix given {table.names[int(inds[0])]}, {_fmt_matrix(M)}, "
-                "is not unitary, and an operation carries orthonormal orbitals onto "
-                f"orthonormal orbitals.\n  frame: {generator_frame(table)}",
+                "is not unitary. Declare a unitary matrix for it."
+                f"\n  frame: {generator_frame(table)}",
                 {"key": key, "matrix": M})
         gens.append((int(inds[0]), M))
     ident = next(int(i) for i in table.indices if np.allclose(rotation[int(i)], np.eye(3)))
@@ -2154,7 +2223,7 @@ def generator_matrices(group, table, spec, where) -> dict:
                 R = rotation[g] @ rotation[a]
                 c = next((int(i) for i in table.indices
                           if np.allclose(rotation[int(i)], R, atol=ASSEMBLED)), None)
-                if c is None:                    # pragma: no cover - a site group closes
+                if c is None:                    # pragma: no cover (a site group closes)
                     continue
                 M = Mg @ got[a]
                 if c not in got:
@@ -2163,9 +2232,10 @@ def generator_matrices(group, table, spec, where) -> dict:
                 elif float(np.abs(got[c] - M).max()) > CHARACTER:
                     raise DeclarationError(
                         "unknown_label",
-                        f"{where}: the matrices declared are no representation of this "
-                        f"site group: two of their products reach {table.names[c]} and "
-                        f"give it {_fmt_matrix(got[c])} and {_fmt_matrix(M)}.\n"
+                        f"{where}: the matrices declared are not a representation of "
+                        f"this site group. Two of their products reach {table.names[c]} "
+                        f"and give it {_fmt_matrix(got[c])} and {_fmt_matrix(M)}. "
+                        "Declare matrices that multiply as their operations do.\n"
                         f"  frame: {generator_frame(table)}",
                         {"declared_as": spec, "operation": c})
         frontier = reached
@@ -2173,19 +2243,37 @@ def generator_matrices(group, table, spec, where) -> dict:
 
 
 def _fmt_matrix(M) -> str:
-    """A matrix as text, row by row, each entry as :func:`_fmt` writes a character."""
+    """The matrix ``M`` as text, row by row.
+
+    Each entry is written as :func:`_fmt` writes a character.
+    """
     return "[" + ", ".join("[" + ", ".join(_fmt(x) for x in row) + "]"
                            for row in np.asarray(M)) + "]"
 
 
 def _match_operation(table, key, where):
-    """Operations of the site group a user key names (canonical name or ``.ind``)."""
+    """The operations of a site group that a declaration's key names.
+
+    ``key`` is an operation's ``.ind`` or its name, ``table`` the site's
+    table, and ``where`` the words that open the message.  A name is
+    compared with each operation's name in the spelling :func:`_key` reads.
+    Where none matches exactly and ``key`` holds no axis in parentheses,
+    every operation whose name agrees before its parenthesis matches:
+    ``"m"`` is every mirror.  Returns the ``.ind`` of each operation matched.
+
+    Raises
+    ------
+    DeclarationError
+        ``unknown_label`` where an ``.ind`` is no operation of the site
+        group, and where a name matches none.
+    """
     if isinstance(key, (int, np.integer)):
         if int(key) not in table.class_of:
             raise DeclarationError(
                 "unknown_label",
-                f"{where}: operation #{int(key)} does not fix this site, so it is not part "
-                f"of its site group ({', '.join(str(i) for i in table.indices)}).\n"
+                f"{where}: #{int(key)} names no operation of this site group, which holds "
+                f"operations ({', '.join(str(i) for i in table.indices)}). Name one operation "
+                "listed in the frame below.\n"
                 f"  frame: {generator_frame(table)}",
                 {"key": int(key), "site_group": table.indices})
         return [int(key)]
@@ -2200,6 +2288,7 @@ def _match_operation(table, key, where):
         return loose
     raise DeclarationError(
         "unknown_label",
-        f"{where}: {key!r} names no operation of this site group.\n"
+        f"{where}: {key!r} names no operation of this site group. Name one operation "
+        "listed in the frame below.\n"
         f"  frame: {generator_frame(table)}",
         {"key": key, "frame": dict(table.names)})

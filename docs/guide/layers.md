@@ -309,7 +309,7 @@ refused on a substrate, naming the group identified:
 ```python
 out = tqc.realized_group(km0, characters={0: "A1'"})
 print(str(out).splitlines()[0])
-#  Refusal[unknown_label]: the group identified is P6mm1' #183.186, every operation of it obeyed; orbital 0: "A1'" is not an irrep of this site group, a sum of its irreps, a shell or a known shorthand.
+#  Refusal[unknown_label]: the group identified is P6mm1' #183.186, every operation of it obeyed; orbital 0: "A1'" is not an irrep of this site group, a sum of its irreps, a shell or a shorthand. Declare one of the words listed below.
 ```
 
 A model periodic in fewer than two directions is not a layer: a chain or a
