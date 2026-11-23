@@ -312,6 +312,9 @@ print(str(out).splitlines()[0])
 #  Refusal[unknown_label]: the group identified is P6mm1' #183.186, every operation of it obeyed; orbital 0: "A1'" is not an irrep of this site group, a sum of its irreps, a shell or a shorthand. Declare one of the words listed below.
 ```
 
+The lines that follow it list the words the site accepts
+([When it refuses](orbitals.md#when-it-refuses)).
+
 A model periodic in fewer than two directions is not a layer: a chain or a
 ribbon such as pythtb's `ssh`, periodic in one, or a molecule, periodic in none,
 whatever the dimension of its positions. It is refused with
