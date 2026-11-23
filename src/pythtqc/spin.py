@@ -132,7 +132,7 @@ class SpinBasis:
                   for c, (up, dn) in enumerate(self.pairs)]
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return f"SpinBasis({len(self.pairs)} pairs)"
 
 

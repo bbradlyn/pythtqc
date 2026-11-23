@@ -771,7 +771,7 @@ def _induced_bands(group, assignment, site, chi) -> int:
                   and np.array_equal(np.asarray(s.rotation), np.eye(3, dtype=int))
                   and np.allclose(np.asarray(s.translation) % 1.0, 0.0, atol=1e-8)), None)
     if ident is None or any(ident not in table[label] for label in content):
-        return 0                               # pragma: no cover - a guard
+        return 0                               # pragma: no cover: a guard
     return int(round(sum(m * float(np.real(table[label][ident]))
                          for label, m in content.items())))
 

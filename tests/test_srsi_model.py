@@ -1,4 +1,4 @@
-r"""Wave S1b: a **model's** stable real-space invariants, and a band subset's.
+r"""A **model's** stable real-space invariants, and a band subset's.
 
 Where ``test_srsi_tables.py`` says the shipped tables are the paper's, this file
 says the two routes onto a model are right.  Both of them turn on one thing that
@@ -10,7 +10,7 @@ Wyckoff letter is read in** — so that is where it starts.
    ``wyckoff_positions_spglib()`` (``irrep`` -> ``pyxtal`` -> spglib's
    transformation) and spglib's own per-site letters both live in spglib's
    standardization, which is *not* the setting
-   ``irreptables``' rows and the SRSI tables are written in.  Route G differs
+   ``irreptables``' rows and the SRSI tables are written in.  The tables' letter differs
    from spglib's per-site answer on **every one** of the four fixtures here, and
    from ``wyckoff_positions_spglib()``'s on the diamond; the disagreements are
    asserted as **measurements**, not reconciled.  The setting itself is audited
@@ -24,7 +24,7 @@ Wyckoff letter is read in** — so that is where it starts.
    and every localization of it carries the same SRSIs, which is the adiabatic
    shift measured rather than assumed.
 3. **A band subset -> its Z-SRSIs** (``srsi.srsi_of_bands``), reproducing the
-   fixture table of wave S1 through the public entry point.
+   fixture table of ``test_srsi_tables.py`` through the public entry point.
 4. **The identity that ties the two**: a model's ``theta_Z`` equals the band
    route's on *all* of its bands, on lin3g and on the odd Kane-Mele regime.
 """
@@ -120,7 +120,7 @@ WYCKOFF_LETTERS = {
 @pytest.mark.slow
 def test_wyckoff_tables_reads_the_letters_the_tables_are_keyed_by(
         fkm_undistorted, lin3g_declared_cross_checked, km_realized, fkm_strong):
-    """Route G on the four fixtures, and the two answers that disagree with it.
+    """The tables' letters on the four fixtures, and the two answers that disagree.
 
     The letter that matters for a table lookup is the one in the **reference
     (conventional) cell** ``irrep``'s own ``refUC``/``shiftUC`` define — the cell
@@ -158,7 +158,7 @@ def test_wyckoff_tables_reads_the_letters_the_tables_are_keyed_by(
         assert sites and all(site._residual < 1e-9 for site in sites), name
 
     # the diamond's sites in the tables' setting, and what the other letter
-    # would cost: `8b` is a different orbit here, not the same one relabelled
+    # would cost: `8b` is a different orbit here, not the same one relabeled
     # (the gate is WYCKOFF_REFERENCE_TOL = 1e-4)
     group = fkm_undistorted.group
     references = [site._reference for site in tqg.wyckoff_sites_tables(group)]
@@ -225,7 +225,7 @@ def test_the_distorted_orbit_sits_on_the_6c_line_between_3a_and_3b(fkm_strong):
 def test_pyxtal_is_in_the_tables_setting_for_every_one_of_the_230_space_groups():
     """**The audit**, swept: zero offenders, and the sweep is not vacuous.
 
-    Route G rests entirely on ``pyxtal``'s Wyckoff list being written in the
+    The tables' letter rests entirely on ``pyxtal``'s Wyckoff list being written in the
     same setting as ``irreptables``' operations, and that is measured rather
     than assumed: for every maximal position the group's EBR list names, the
     letter must exist in ``pyxtal``'s list with the same conventional
@@ -236,7 +236,7 @@ def test_pyxtal_is_in_the_tables_setting_for_every_one_of_the_230_space_groups()
 
     The two sides come from independent sources, so an origin choice or an axis
     convention that differed between them would collapse the stabilizer.
-    Measured 2026-09-03 over all 230 space groups: **0 offenders**, 837 maximal
+    Measured over all 230 space groups: **0 offenders**, 837 maximal
     positions checked.  Both valuednesses induce from the same positions, so the
     sweep runs once per group.
 
@@ -274,7 +274,7 @@ def test_a_drifted_center_reads_as_the_general_position_rather_than_refusing():
     """Measured, and worth stating: the ``wyckoff_unresolved`` gate cannot fire.
 
     The **general** position's variety is the whole cell, so in exact arithmetic
-    every point lies on *some* variety and a centre that has drifted off ``8a``
+    every point lies on *some* variety and a center that has drifted off ``8a``
     reads as ``192i`` — the honest geometric answer, not a failure.  What that
     costs is nothing here and everything downstream: the general position's
     closure carries all four letters the tables list EBRs at, and
@@ -283,11 +283,11 @@ def test_a_drifted_center_reads_as_the_general_position_rather_than_refusing():
     ``wyckoff_orbit_not_localizable``.  The gate stays as a guard against a ``pyxtal``
     list with no general position; this test is what says it is a guard.
 
-    ``site._residual`` is **not** what says the centre drifted: the general
+    ``site._residual`` is **not** what says the center drifted: the general
     position's projector is the zero matrix, so the residual is 0.0 for any
     point whatsoever.  What the drift cost is measured against ``8a``'s own
     arms, where the point is 0.18 away in reduced coordinates -- 1.8e3 times the
-    1e-4 gate, and the same number reads 0.0 for a centre that is on ``8a``.
+    1e-4 gate, and the same number reads 0.0 for a center that is on ``8a``.
 
     The group is the diamond cell's, ``Fd-3m1' #227.129``, read off the geometry:
     a Wyckoff letter is a property of the cell's point set, which is all this
@@ -303,7 +303,7 @@ def test_a_drifted_center_reads_as_the_general_position_rather_than_refusing():
         "every position the tables list EBRs at is on the closure of the general one, "
         "and the general one is not among them")
     assert "wyckoff_unresolved" in tqg.wyckoff_sites_tables.__doc__
-    # what drifting cost: the point is no longer on the maximal variety
+    # what drifting cost: the point is off the maximal variety
     arms = {position["letter"]: position["arms"]
             for position in _spacegroup._pyxtal_wyckoff(int(group._sg_number))[0]}
     drifted = float(_spacegroup._variety_residual(arms["a"], [site._reference])[0])
@@ -344,8 +344,8 @@ def test_a_drifted_center_reads_as_the_general_position_rather_than_refusing():
 #: induce a composite band representation); the row's integer-valued invariants
 #: and its invariants valued modulo n.  Then the model's two.
 MODEL_SRSIS = {
-    # -E1 since 2026-09-10 (the served matrices carry the tables' lift); the first
-    # two Z-SRSIs count the two 8a spinor EBRs, so the total moved with the name
+    # -E1 (the served matrices carry the tables' lift); the first two Z-SRSIs
+    # count the two 8a spinor EBRs, so the total follows the name
     "FKM diamond": ((("8a", (0, 1), "-E1", "8a", (("-E1", "8a"),),
                       ("1", "0", "0", "0", "0", "0", "0", "0"), ()),),
                     ("1", "0", "0", "0", "0", "0", "0", "0"), ()),
@@ -377,7 +377,7 @@ ORBIT_POINTS = {"FKM diamond": ("GM", "L", "W", "X"), "FKM strong": ("GM", "F", 
                 "Kane-Mele odd": ("GM", "K", "M"), "lin3g": ("GM", "M", "X"),
                 "P-43m 3c": ("GM", "M", "R", "X")}
 
-#: How many bands each fixture has in total (the identity of § 4 is asserted on
+#: How many bands each fixture has in total (the identity of section 4 is asserted on
 #: *all* of them).
 ALL_BANDS = {"lin3g": 8, "Kane-Mele odd": 4}
 
@@ -412,8 +412,8 @@ def test_srsi_of_model_localizes_every_orbit_and_pins_the_total(request, name):
     """Every Wyckoff orbit's position, its localization and the model's SRSIs, measured.
 
     A row for each row of ``r.wyckoff_orbits``, its orbitals and site irreps
-    the same.  The positions are route G's (the § 1 tests above) and the
-    localizations are route C's — the row's own symmetry data vector,
+    the same.  The positions are the tables' letters (the section 1 tests
+    above) and the localizations are the content's — the row's own symmetry data vector,
     decomposed over the EBR columns of a position on the closure of its
     variety — and the two must land in the same place, which is the one safety
     gate left in this route.  The symmetry data vector is identified only at
@@ -505,7 +505,7 @@ def test_the_safety_gate_can_tell_a_setting_problem_from_a_modeling_one(
     """Which letters a content *does* fit, when the geometry's letters do not.
 
     Two different diagnoses hide behind "the decomposition failed": a content
-    that is a band representation of *nothing* (a modelling statement,
+    that is a band representation of *nothing* (a modeling statement,
     ``wyckoff_orbit_not_localizable``) and one that is a band representation of a
     position the geometry says the orbitals are not on (a **setting** statement,
     ``wyckoff_setting``).  ``_letters_that_do_fit`` is what separates them, and

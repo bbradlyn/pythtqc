@@ -45,7 +45,7 @@ GOLDENS = os.path.join(_HERE, "data", "example_goldens")
 #: (``conftest.py`` puts it on ``sys.path``; a subprocess needs ``PYTHONPATH``).
 SRC = os.path.normpath(os.path.join(_HERE, "..", "src"))
 
-#: generous -- the scripts measure 8-60 s each on the reference machine.
+#: generous -- the scripts take 8-60 s each.
 TIMEOUT = 600
 
 #: every example, read off the directory, so a twelfth script cannot slip in

@@ -1,10 +1,9 @@
-r"""Wave S1: the stable-RSI tables as verified package data.
+r"""The stable-RSI tables as verified package data.
 
 The TeX longtables of the stable-RSI paper
 (https://doi.org/10.1038/s41467-026-74844-w) are converted into
 ``src/pythtqc/data/srsi_{single,double}.json``; this file is what says the
-result is the paper's tables and not something else.  Six statements, in the
-order the spec puts them:
+result is the paper's tables and not something else.  Six statements:
 
 1. **Resolution.**  Every ``(site-symmetry irrep, Wyckoff letter)`` term of
    every SRSI of all 217 + 217 tabulated groups either carries the index of
@@ -32,7 +31,7 @@ order the spec puts them:
    fractional Z-SRSI`` on this suite's own band sets is
    ``tests/test_srsi_model.py``'s.
 
-Wave S1b adds three more:
+And three more:
 
 7. **The derived indicator rows.**  Every printed indicator is re-derived from
    the momentum-space side, and the four rows the derivation disagrees with are
@@ -111,7 +110,7 @@ def test_every_term_of_every_group_resolves_to_exactly_one_ebr_or_says_why(every
     The two ways a term can have no column are counted rather than tolerated:
     a **non-maximal** Wyckoff position (the paper's ``p`` runs over all of them,
     an EBR basis over none) and a **maximal** position whose induced band
-    representation is composite.  Measured 2026-09-02: without SOC, 8460 terms
+    representation is composite.  Measured: without SOC, 8460 terms
     on EBR columns, 160 at maximal positions with no EBR and 7184 at
     non-maximal ones; with SOC, 3097 / 0 / 2231.
 
@@ -211,7 +210,7 @@ def test_a_space_group_number_outside_the_230_refuses_scope():
 def test_the_measured_counts_of_the_shipped_tables(
         valuedness, groups, srsi_rows, zn, si_groups, si_moduli, split_groups,
         splittings):
-    """Every number in the spec's table of the source, re-measured from the data.
+    """Every count of the source's tables, re-measured from the data.
 
     Not read out of the provenance block — recounted from the served records,
     so a provenance that drifted from its own file would fail here.  The
@@ -300,7 +299,7 @@ def test_the_provenance_names_the_paper_and_the_versions_it_was_converted_agains
 
 #: The four shipped indicator expressions that do NOT vanish on their own
 #: group's EBRs, and how many of its columns each fails on.  Measured
-#: 2026-09-02 over all 4731 EBR columns of the 434 tabulated systems; these are
+#: over all 4731 EBR columns of the 434 tabulated systems; these are
 #: the only failures, and SGs 147, 162, 163 without SOC are also the only three
 #: groups whose indicator rows carry fractional theta-coefficients.
 NOT_INDICATORS = {(147, "z2,3"): (2, 12, 14), (147, "z4"): (4, 11, 14),
@@ -649,7 +648,7 @@ def test_the_kernel_check_that_gates_the_conversion(every_table):
 
 
 #: The coefficients of every Z_n-valued row of every tabulated system, tallied
-#: as ``(n, coefficient)``.  Measured 2026-09-09 over all 638 such terms: they
+#: as ``(n, coefficient)``.  Measured over all 638 such terms: they
 #: are printed as residues, and every one of them is already in ``[1, n)`` --
 #: the mod-2 rows are plain parities of an occupation sum.
 ZN_COEFFICIENTS = {(2, 1): 617, (4, 1): 5, (4, 2): 15, (4, 3): 1}
@@ -673,7 +672,7 @@ def test_the_shipped_rows_generate_the_group_their_structure_names(every_table):
               \mathbb{Z}^{n_\mathbb{Z}} \times \prod_j \mathbb{Z}_{n_j}
 
     has to be **onto**.  Doubling ``theta_1`` would land it in
-    :math:`2\mathbb{Z}\times\cdots`: the row would no longer take every integer
+    :math:`2\mathbb{Z}\times\cdots`: the row would not take every integer
     value on an integer occupation, and the ``Z`` its modulus ``None`` advertises
     would be the wrong group.  Checked exactly over the integers, on the paper's
     *whole* site basis rather than the EBR projection: the columns of the
@@ -693,7 +692,7 @@ def test_the_shipped_rows_generate_the_group_their_structure_names(every_table):
     term, and of the indicator values ``tests/test_vocabulary.py``'s value gate
     compares with ``irreptables``' own forms in the 170 systems with an
     indicator group; this test is why a non-unimodular corruption of any row is
-    no longer invisible.
+    not invisible.
 
     The :math:`\mathbb{Z}_n` half has to be pinned the other way round, because a
     modulus makes the lattice statement insensitive to it (77 and 1 generate the
@@ -828,7 +827,7 @@ def test_theta_takes_a_mapping_by_position_and_a_sum_of_term_rows_alike(
     """
     group = lin3g_declared_cross_checked.group
     table = tqr.srsi_tables(group)
-    # #99.164 with SOC, measured 2026-09-09: neither half of the reading is zero
+    # #99.164 with SOC, measured: neither half of the reading is zero
     got = table.theta({("-E1", "1a"): 2, ("-E", "2c"): 1})
     assert got.theta_Z == {"theta_1": 1, "theta_2": 3, "theta_3": 0}
     assert got.theta_Zn == {"theta_4": tqr.ModularValue(0, 2),
@@ -941,7 +940,7 @@ def test_srsi_tables_takes_a_number_or_a_group_and_serves_the_same_table(
             call("x")
 
 
-#: The SRSI names ``pythtqc`` exports at the top level, frozen in wave C1:
+#: The SRSI names ``pythtqc`` exports at the top level, a fixed set:
 #: the entry points a user calls and the records they hand back.  Everything
 #: else reaches through ``pythtqc.srsi`` / ``pythtqc.groups``.
 FROZEN_TOP_LEVEL = frozenset({
@@ -960,13 +959,11 @@ NOT_TOP_LEVEL = ("SiteIrrep", "SplitEBR", "WyckoffOrbitSRSIs", "WyckoffOrbitSRSI
 
 
 def test_the_frozen_api_and_the_names_kept_off_the_top_level():
-    """**The C1 freeze**: the top-level namespace, and what stays below it.
+    """**The fixed SRSI names**: the top-level namespace, and what stays below it.
 
-    The SRSI names at the top level are exactly the frozen set, each the
+    The SRSI names at the top level are exactly the fixed set, each the
     ``pythtqc.srsi`` object itself, and the module's other public names are
-    reached through ``pythtqc.srsi``.  The names the freeze retired --
-    ``srsi_table``, folded into ``srsi_tables``, and the four arithmetic methods
-    that are now ``theta`` / ``theta_unreduced`` -- are not among them.
+    reached through ``pythtqc.srsi``.
     """
     import pythtqc as tqc
 
@@ -1084,11 +1081,11 @@ def test_the_terms_without_an_ebr_column_are_served_rather_than_dropped():
 
 
 # ---------------------------------------------------------------------------
-# 7.  the derived indicator rows (S1b)
+# 7.  the derived indicator rows
 # ---------------------------------------------------------------------------
 
-#: The four corrected rows, as the S1 rider derived them and as the conversion
-#: now ships them: ``{index: coefficient}`` over the paper's own theta indices,
+#: The four corrected rows, as the momentum-space derivation gives them and as
+#: the conversion ships them: ``{index: coefficient}`` over the paper's own theta indices,
 #: all of them Z-valued rows.  Each is integer and even like every other row of
 #: the tables, and none is a re-normalization of the printed one -- they differ
 #: by a rational vector.

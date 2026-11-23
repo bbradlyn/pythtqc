@@ -113,7 +113,7 @@ def _grey_symbol(number_str: str, spinor: bool) -> str:
     """
     try:
         return str(_spacegroup._irrep_table(number_str, spinor, True).name)
-    except (ImportError, OSError):              # pragma: no cover - tables not installed
+    except (ImportError, OSError):              # pragma: no cover: tables not installed
         return ""
 
 
@@ -328,7 +328,7 @@ class Invariants:
     theta_Z: dict
     theta_Zn: dict
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return f"Invariants({_invariants_text(self.theta_Z, self.theta_Zn)})"
 
 
@@ -676,7 +676,7 @@ class SiteIrrep:
     _letter: str = field(default="", repr=False)
     _column: int | None = field(default=None, repr=False)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return (f"SiteIrrep({self.irrep} at {self.wyckoff}, "
                 f"{'maximal' if self.maximal else 'not maximal'}, "
                 + ("an elementary band representation" if self.ebr
@@ -723,7 +723,7 @@ class SplitEBR:
                 f"{'do not add' if self.srsi_mismatch else 'add'} up to the whole's"
                 "   (.srsi_mismatch)")
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return f"SplitEBR({self.label}, srsi_mismatch={self.srsi_mismatch})"
 
 
@@ -774,7 +774,7 @@ class StablePair:
             f"  the invariants both carry: {_invariants_text(self.theta_Z, self.theta_Zn)}"
             + ("   (.theta_Z, .theta_Zn)" if self.theta_Zn else "   (.theta_Z)")])
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return f"StablePair({'/'.join(self.irreps)} at {self.wyckoff})"
 
 
@@ -854,7 +854,7 @@ class SRSITables:
     _terms_without_ebr_column: tuple = field(repr=False)
     _multiplicities: dict = field(repr=False, compare=False)
 
-    # -- the shape of the invariant group ----------------------------------
+    # The shape of the invariant group
     @property
     def _names(self) -> tuple:
         """Every invariant's name, in the paper's order."""
@@ -879,7 +879,7 @@ class SRSITables:
         """The pairs of site irreps that no stable real-space invariant distinguishes."""
         return _stable_pairs(int(self._sg), bool(self._spinor))
 
-    # -- the arithmetic ----------------------------------------------------
+    # The arithmetic
     def theta(self, p) -> Invariants:
         r"""The stable real-space invariants of a site-symmetry vector.
 
@@ -1055,7 +1055,7 @@ class SRSITables:
                               else total)
         return out
 
-    # -- the full site-symmetry vector -------------------------------------
+    # The full site-symmetry vector
     def _site_lookup(self) -> dict:
         """The paper's spelling of each site irrep, keyed by either spelling and letter.
 
@@ -1183,7 +1183,7 @@ class SRSITables:
             out.append(total)
         return tuple(out)
 
-    # -- the basis of the atomic realizations: the maximal positions -------
+    # The basis of the atomic realizations: the maximal positions
     @property
     def _maximal_keys(self) -> tuple:
         r"""Every maximal site irrep, with the bands one copy of it carries.
@@ -1262,7 +1262,7 @@ class SRSITables:
             + [f"  {head:<{width}} = {formula}"
                for head, formula in zip(heads, self.invariants.values())])
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return (f"SRSITables({_label(self.group)}, {_valuedness(self._spinor)}, "
                 f"{_count(len(self.invariants), 'invariant')}, "
                 f"{_count(len(self.indicators), 'indicator')}, "
@@ -1714,10 +1714,10 @@ def _stable_pairs(sg: int, spinor: bool) -> tuple:
     elementary band representations cannot be read.
     """
     tables = _table_of_number(int(sg), bool(spinor))
-    if not tables:                            # pragma: no cover - gated above
+    if not tables:                            # pragma: no cover: gated above
         return ()
     data = _tables._ebr_data(_TableKey(tables._number_str, spinor))
-    if not data:                              # pragma: no cover - install-dependent
+    if not data:                              # pragma: no cover: install-dependent
         return ()
     matrix = np.asarray(data["matrix"], dtype=int)
     labels = list(data["labels_physics_convention"])
@@ -1855,7 +1855,7 @@ def indicator_vocabularies() -> tuple:
         return frozenset(), frozenset()
     try:
         from irreptables.symmetry_indicators import load_si_table
-    except Exception:                          # pragma: no cover - table defect
+    except Exception:                          # pragma: no cover: table defect
         load_si_table = None
     paper, shipped = set(), set()
     for valuedness in ("single", "double"):
@@ -1946,7 +1946,7 @@ class NamePair:
     mod: int | None = None
     reason: str = ""
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return (f"NamePair({self.paper} <-> {self.irreptables}, "
                 f"{self.relation}, mod {self.mod})")
 
@@ -2004,7 +2004,7 @@ def name_correspondence(group_or_tables):
         entry = _spacegroup._indicator_table(tables._spinor, True).get(
             tables._number_str, {})
         forms = dict(entry.get("indicators", {}))
-    except Exception as exc:                   # pragma: no cover - table defect
+    except Exception as exc:                   # pragma: no cover: table defect
         return Refusal("irreptables_indicator_tables",
                        f"the indicator table of irreptables cannot be read: {exc}. "
                        "Check the irreptables installation.",
@@ -2363,7 +2363,7 @@ class _MaximalKey:
         """The site irrep and its Wyckoff letter as the paper writes them, ``"(B2)_d"``."""
         return f"({self.irrep})_{self.letter}"
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         kind = (f"column {self.column}" if self.ebr
                 else "composite band representation")
         return f"_MaximalKey({self.label}, {self.dim} bands, {kind})"
@@ -2467,19 +2467,19 @@ def _maximal_basis(sg: int, spinor: bool) -> tuple:
     """
 
     tables = _table_of_number(int(sg), bool(spinor))
-    if not tables:                            # pragma: no cover - gated above
+    if not tables:                            # pragma: no cover: gated above
         raise InternalError(
             f"no SRSI table is returned for space group {sg} ({_valuedness(spinor)}), "
             f"whose tables were read before: {tables.gate}. Report it, with the model "
             "and the call.")
     data = _tables._ebr_data(_TableKey(tables._number_str, spinor))
-    if not data:                              # pragma: no cover - install-dependent
+    if not data:                              # pragma: no cover: install-dependent
         raise InternalError(
             f"#{tables._number_str}: the list of elementary band representations the "
             f"table's columns index cannot be read: {data}. Report it, with the model "
             "and the call.")
     installed = tuple(_ebr_key(name, position) for name, position in data["ebrs"])
-    if installed != tables._ebrs:              # pragma: no cover - install-dependent
+    if installed != tables._ebrs:              # pragma: no cover: install-dependent
         raise InternalError(
             f"#{tables._number_str}: the {len(installed)} elementary band "
             "representations the installed irreptables lists differ from the "
@@ -2499,7 +2499,7 @@ def _maximal_basis(sg: int, spinor: bool) -> tuple:
     for name, position in data["ebrs"]:
         entry_at.setdefault(_ebr_key(name, position)[1], _tables._ebr_term(name, position))
     if set(by_column) != set(range(len(tables._ebrs))):
-        raise InternalError(          # pragma: no cover - table-dependent
+        raise InternalError(          # pragma: no cover: table-dependent
             f"#{tables._number_str}: the site irreps the table's formulas count induce "
             f"{len(by_column)} of the {len(tables._ebrs)} elementary band representations "
             "of the list. Report it, with the model and the call.")
@@ -2509,7 +2509,7 @@ def _maximal_basis(sg: int, spinor: bool) -> tuple:
                   for i in tables._z_rows]
     band_form = _solve_left(theta_zero, nu)
     if band_form is None:
-        raise InternalError(          # pragma: no cover - table-dependent
+        raise InternalError(          # pragma: no cover: table-dependent
             f"#{tables._number_str}: on this group's EBR columns, the number of bands "
             "is not a linear form in the ZSRSIs. Report it, with the model and the "
             "call.")
@@ -2529,14 +2529,14 @@ def _maximal_basis(sg: int, spinor: bool) -> tuple:
     for key in composite:
         raw = tables._raw_of({(key._paper, key._letter): Fraction(1)})
         if any(value.denominator != 1 for value in raw):
-            raise InternalError(      # pragma: no cover - table-dependent
+            raise InternalError(      # pragma: no cover: table-dependent
                 f"#{tables._number_str}: the invariants of one copy of the site irrep "
                 f"({key._paper})_{key._letter}, whose band representation is a sum of "
                 "others, are not all integers. Report it, with the model and the call.")
         dim = sum((band_form[i] * raw[r] for i, r in enumerate(tables._z_rows)),
                   Fraction(0))
         if dim.denominator != 1 or dim <= 0:
-            raise InternalError(      # pragma: no cover - table-dependent
+            raise InternalError(      # pragma: no cover: table-dependent
                 f"#{tables._number_str}: the band count the ZSRSIs give for the site irrep "
                 f"({key._paper})_{key._letter}, whose band representation is a sum of "
                 f"others, is {dim}, which is not a positive integer. Report it, with the "

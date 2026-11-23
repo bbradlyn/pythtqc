@@ -1,16 +1,16 @@
-"""Performance phase, wave P3: symmetrization, and the signal that licenses it.
+"""Symmetrization, and the signal that licenses it.
 
 A Hamiltonian that came out of a wannier90 run is symmetric only to its own
 numerical defect (~1e-7 relative, measured), five decades above machine
 precision, and every gate downstream of the detector is exact by design.  The
-route this wave adds is not a looser gate anywhere: it is to **declare** the
+route for such a model is not a looser gate anywhere: it is to **declare** the
 defect as the detector's ``tol``, read the resulting per-operation residual as
 *exact* / *near* / *broken*, and — on the ``near`` signal — project ``H`` onto
 its group-invariant part and run the exact pipeline on the result.
 
 What is regressed here, and the number that closes each:
 
-* **the theorem of the wave** — lin3g with *every* hopping jittered at relative
+* **the theorem** — lin3g with *every* hopping jittered at relative
   1e-7 comes back, after symmetrization, with the **clean model's** labels,
   representation matrices (identical to ``0.0``), high-symmetry-point content,
   partitions and EBR decomposition, having moved ``H`` by 9.5e-7 against a
@@ -28,8 +28,8 @@ What is regressed here, and the number that closes each:
   largest rebuilt coefficient outside the range box (1e-17 … 3e-16 relative)
   and ``max_k |H_new(k) − H_sym(k)|`` on random k off the transform grid
   (1e-15);
-* **broken is not near** — a genuine 1e-2 distortion is refused by
-  ``realized_group`` exactly as before this wave, and ``_symmetrize`` on a
+* **broken is not near** — a genuine 1e-2 distortion is descended to by
+  ``realized_group``, never symmetrized away, and ``_symmetrize`` on a
   hand-built record that *lists* such an operation refuses
   ``symmetrize_broken_operation`` rather than imposing the symmetry;
 * **idempotence** — a symmetrized model classifies every operation ``exact``
@@ -37,17 +37,17 @@ What is regressed here, and the number that closes each:
 * **exact is untouched** — every existing fixture through ``realized_group`` at
   the default tolerance gives ``symmetrization is None`` (the rest of the suite
   is that test);
-* **the other defect** — a wannier90 model's *centres* are numerically
-  determined too, and centres that miss the group's own action by ``δ`` cost
+* **the other defect** — a wannier90 model's *centers* are numerically
+  determined too, and centers that miss the group's own action by ``δ`` cost
   ``2π·δ·max|H|`` of covariance whatever the hoppings do (one Kane-Mele orbital
   displaced by 1e-8 costs 2.4e-7).  ``_symmetrize_positions`` moves them onto the
   nearest positions the group carries exactly, in the model's own frame, which is
   a **k-dependent gauge transformation** and therefore free: the spectrum moves
   by rounding and the residual returns to rounding.  Positions further off than ``max_move`` are
   refused rather than moved — "broken is not near", for the geometry;
-* **and that defect measured first, on a declaration** (§ 8, wave P3b) —
+* **and that defect measured first, on a declaration** (section 8 here) —
   ``realized_group(position_tol=)`` is the absolute, reduced-coordinate
-  tolerance for the centres, measured before the detector runs and before any
+  tolerance for the centers, measured before the detector runs and before any
   hopping is projected.  The lossless step precedes the lossy one, and where
   both defects are present the ordering is what makes the answer the clean
   model's.
@@ -298,7 +298,7 @@ def km_odd_free_standing(realized):
     """Kane-Mele's odd regime as a free-standing layer, from exact numbers.
 
     ``P-6m21' #187.210`` descended to the ``P3m11' #156.50`` the Hamiltonian
-    obeys: the clean record the centre and hopping passes below are measured
+    obeys: the clean record the center and hopping passes below are measured
     against.  No test here reads the cross-check against the substrate
     reading, so it is not run.
     """
@@ -315,7 +315,7 @@ def km_odd_free_standing(realized):
 
 @pytest.mark.slow
 def test_the_three_classes_are_read_off_the_measured_residuals(lin3g, lin3g_jittered):
-    """The one principle of the wave, as a measurement on ``ValidatedGroup``.
+    """The one principle of symmetrization, as a measurement on ``ValidatedGroup``.
 
     The exact gate is ``_build_rep``'s own: never below the floor
     ``EXACT_GATE``, which is ``EXACT_TOL`` and not retyped here, and above it
@@ -349,7 +349,7 @@ def test_the_three_classes_are_read_off_the_measured_residuals(lin3g, lin3g_jitt
 
 @pytest.mark.slow
 def test_the_jittered_lin3g_comes_back_as_the_clean_one(lin3g, lin3g_clean, lin3g_jittered):
-    """The theorem of this wave, on the primary golden.
+    """The theorem, on the primary golden.
 
     Every hopping jittered at 1e-7 breaks the representation outright — at the
     exact covariance gate the best candidate misses by 1.5e-6 — and after the
@@ -538,10 +538,10 @@ def test_symmetrization_recovers_the_clean_answer_on_every_presentation(name, re
     ``E'``/``E''``, and ``A1`` names no irrep of it — the declaration for a
     layer of odd (``p_z``) orbitals is ``pz``, which resolves to ``A2''``: even
     under ``C3z`` and the vertical mirrors, odd under ``σ_h``.  That is the
-    physics Kane-Mele has and the in-plane reading simply could not state.
+    physics Kane-Mele has and an in-plane reading cannot state.
 
-    Both layers declare ``environment="free-standing"``, which wave R4c made
-    necessary rather than optional: a ``dim_r = 2`` model is read on a
+    Both layers declare ``environment="free-standing"``, which is necessary
+    rather than optional: a ``dim_r = 2`` model is read on a
     substrate unless told otherwise, and there the ``σ_h`` family this test's
     descents are made of is not in the cell at all.
     """
@@ -719,8 +719,8 @@ def test_a_genuine_distortion_is_descended_to_and_never_symmetrized_away(lin3g):
     So the symmetrizing pass is never reached: there is no ``near`` operation to
     license it.  What the pipeline does instead is what a genuine distortion
     deserves: it **descends**, and the group it serves is the same
-    ``Pmm21' #25.58``, 8 operations, that the in-plane reading served before
-    this wave; only the upper bound it descended *from* is bigger.  The four
+    ``Pmm21' #25.58``, 8 operations, that an in-plane reading gives; only the
+    upper bound it descended *from* is bigger.  The four
     unitary operations kept are ``E``, ``C2(z)`` and the two vertical mirrors
     ``m(x)``, ``m(y)``, with their time-reversed partners.
     """
@@ -1044,7 +1044,7 @@ def _thick_slab(shifts=None):
 
     The outer layers hold two sites each, at ``(1/2, 0)`` and ``(0, 1/2)``, which
     the fourfold exchanges, and the middle one a site at the origin: the cell is
-    ``P4/mmm``.  ``shifts`` moves each centre, in reduced coordinates.
+    ``P4/mmm``.  ``shifts`` moves each center, in reduced coordinates.
     """
     lat = np.zeros((3, 3))
     lat[:2, :2] = np.eye(2)
@@ -1068,7 +1068,7 @@ def _thick_slab(shifts=None):
 
 
 def _move_one_center(model, delta, which=1, direction=0):
-    """The same model with one orbital centre displaced — the w90 defect, isolated."""
+    """The same model with one orbital center displaced — the w90 defect, isolated."""
     orb = np.asarray(model.orb_vecs, dtype=float).copy()
     orb[which, direction] += delta
     dim_r = int(model.lattice.dim_r)
@@ -1085,14 +1085,13 @@ def _move_one_center(model, delta, which=1, direction=0):
 def _lifted_supercell(sc, lift=0.3, seed=0):
     """A Fu-Kane-Mele supercell with its folding degeneracy lifted, and its typing.
 
-    The construction ``test_detector.py`` and ``test_symmetry.py`` § 11b both
-    use: a random **inversion-symmetric** on-site potential breaks the small
+    The construction ``test_detector.py`` and ``test_symmetry.py`` section 11b
+    both use: a random **inversion-symmetric** on-site potential breaks the small
     cell's translations and the star degeneracy while leaving inversion exact,
     and the sites are typed by inversion orbit because the bare supercell's
     *positions* still carry the small cell's translations — ``_group_of`` reads
-    the index-8 lattice supergroup off it (wave R4a; before that it refused
-    ``non_primitive_cell``), and the typing is the truth about this Hamiltonian
-    as well as much the cheaper route.
+    the index-8 lattice supergroup off it, and the typing is the truth about
+    this Hamiltonian as well as much the cheaper route.
     """
     model = tqc_models.fu_kane_mele_z2("strong").make_supercell(sc, to_home=True)
     pos = np.asarray(model.orb_vecs, dtype=float) % 1.0
@@ -1149,18 +1148,15 @@ def test_a_tied_orientation_branch_is_measured_the_same_representation():
     — builds the **same** unitary matrices on both orientation branches,
     differing only by a phase per generator.
 
-    **Re-pinned in wave R4e.**  ``_build_rep`` used to assert uniqueness on the
-    pre-normalization candidates, see two, and refuse ``rep_not_unique``, and
-    this pass then decided the tie for itself by measuring the phase-fitted
-    difference ``min_λ ‖D₂(g) − λD₁(g)‖`` between the two separately built
-    branches (measured 0.0, and recorded as ``branch_ambiguity``).  The tie is
-    now settled where it belongs — in ``_build_rep``, by convention, with
-    ``branch_tie`` saying so — so this pass never reaches its own fallback and
-    ``branch_ambiguity`` is ``None``.  The claim the test was written for is
-    unchanged and is asserted directly here instead: the two branches build the
+    ``_build_rep`` settles the tie by convention, with ``branch_tie`` saying
+    so, rather than refusing ``rep_not_unique``; so this pass never reaches
+    its own fallback, which measures the phase-fitted difference
+    ``min_λ ‖D₂(g) − λD₁(g)‖`` between two separately built branches and
+    records it as ``branch_ambiguity``, and ``branch_ambiguity`` is ``None``.
+    The claim is asserted directly instead: the two branches build the
     identical matrices, measured **0.0** on every operation.  The fallback
-    itself stays reachable and is still needed, for the branch tie that arrives
-    as ``rep_search_too_large`` (the read-off deferred for some other reason and
+    stays reachable and is needed for the branch tie that arrives as
+    ``rep_search_too_large`` (the read-off deferred for some other reason and
     the enumeration is too big to run).
 
     Measured on the block-jittered cell, where the tie meets a near-symmetric
@@ -1175,7 +1171,7 @@ def test_a_tied_orientation_branch_is_measured_the_same_representation():
     val = _measure._validate_group(model, group, nk=3, tol=tol)
     assert len(val._indices) == 4, "the grey group survives the block jitter"
 
-    # the tie this test is about, now served rather than refused
+    # the tie this test is about, served rather than refused
     rep = _build._build_rep(model, group, asg, validated=val, tol=tol, internal_tol=1e-5)
     assert rep, str(rep)
     assert rep._branch_tie is True and rep._choice["orientation"] == 1
@@ -1196,26 +1192,26 @@ def test_a_tied_orientation_branch_is_measured_the_same_representation():
 
 # ---------------------------------------------------------------------------
 # 8.  the position defect, measured FIRST, against a declared tolerance
-#     (wave P3b: ``realized_group(position_tol=)``)
+#     (``realized_group(position_tol=)``)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.slow
 def test_a_declared_position_tol_snaps_the_centers_before_anything_else(
         km_odd, km_odd_free_standing):
-    """The public regression that motivated the wiring, through the one call.
+    """A displaced center, declared noise, through the one public call.
 
-    One Kane-Mele centre displaced by 1e-8 gives a position defect of **2.0e-8**
+    One Kane-Mele center displaced by 1e-8 gives a position defect of **2.0e-8**
     (the defect is ``|AΔ − Δ|``, up to twice the displacement) and costs the
     Hamiltonian its symmetry outright: ``2π·δ·max|H|`` = 3.7e-7 against the
-    default tolerance 1e-8, so with nothing declared about the centres the call
+    default tolerance 1e-8, so with nothing declared about the centers the call
     refuses ``positions_not_exactly_symmetric`` as soon as the layer cell's
     ``P-6m21' #187.210`` is identified, before the detector runs.  Declaring
-    ``position_tol = 1e-6`` says those centres are
-    noise; they are fitted about their own origin -- a shift of every centre
-    together is no displacement -- so the one centre's 1e-8 is shared, each
-    centre moved by **5.0e-9** onto the positions the group puts them at, and the
+    ``position_tol = 1e-6`` says those centers are
+    noise; they are fitted about their own origin -- a shift of every center
+    together is no displacement -- so the one center's 1e-8 is shared, each
+    center moved by **5.0e-9** onto the positions the group puts them at, and the
     shift of both together that leaves, 5e-9, is itself within the declaration
-    and removed: the centres come back exactly where the clean model has them,
+    and removed: the centers come back exactly where the clean model has them,
     in its own frame, the defect goes to rounding, and every operation of the
     group the Hamiltonian then realizes reads *exact* (worst residual 1.5e-14,
     below ``_build_rep``'s own 5e-14) — so the **hopping** pass never runs at
@@ -1224,9 +1220,9 @@ def test_a_declared_position_tol_snaps_the_centers_before_anything_else(
     That served group is ``P3m11' #156.50``, twelve operations, reached from the
     24-operation **free-standing** cell by a **descent**: the two sublattices are
     declared inequivalent here, so the Hamiltonian's ``σ_h`` fibers cut the cell
-    in half.  That reading is declared, since wave R4c reads a ``dim_r = 2``
-    model on a substrate unless told otherwise — and there the ``σ_h`` family is
-    not in the cell for a centre defect to be measured against.
+    in half.  That reading is declared, since a ``dim_r = 2`` model is read
+    on a substrate unless told otherwise — and there the ``σ_h`` family is
+    not in the cell for a center defect to be measured against.
     The clean model reaches the same group the same way, which is the point —
     the displacement changes the numbers on the way, not the answer.
 
@@ -1234,10 +1230,10 @@ def test_a_declared_position_tol_snaps_the_centers_before_anything_else(
     sense that matters: the spectrum of the model that comes back is the
     **displaced** model's, to 5.3e-15 on a scale of 3.21.
 
-    ``precision=1e-6`` says the same thing about the centres that
+    ``precision=1e-6`` says the same thing about the centers that
     ``position_tol=1e-6`` says, and moves them the same way; it also declares a
     tolerance for the Hamiltonian, which changes nothing here, because with the
-    centres right every operation is exact and the hopping pass never runs.
+    centers right every operation is exact and the hopping pass never runs.
     """
     clean = km_odd_free_standing
     displaced = _move_one_center(km_odd, 1e-8)
@@ -1256,7 +1252,7 @@ def test_a_declared_position_tol_snaps_the_centers_before_anything_else(
         "half the displacement each: the origin is fitted to the centres"
     assert pos.defect_after < 1e-14, "the centres now satisfy the group exactly"
     # ... and the shift of both together the fit left is noise, removed: the
-    # centres are the clean model's, the displaced one back by the whole 1e-8
+    # centers are the clean model's, the displaced one back by the whole 1e-8
     assert pos.frame == "model"
     assert pos.offset == pytest.approx((-5e-9, 0.0, 0.0), rel=1e-6, abs=1e-15)
     assert float(np.abs(np.asarray(out.model.orb_vecs)
@@ -1308,14 +1304,14 @@ def test_a_declared_position_tol_snaps_the_centers_before_anything_else(
         k_pts=k, flatten_spin_axis=True)))
     assert float(np.abs(Ea - Eb).max()) < 1e-13
 
-    # the one declaration for a numerical model says the same about the centres
+    # the one declaration for a numerical model says the same about the centers
     prec = tqg.realized_group(displaced, environment="free-standing", typat=[0, 1],
                               characters={0: "A1"}, precision=1e-6, cross_check=False)
     assert prec, str(prec)
     assert prec.numerical.positions == out.numerical.positions, "the centres moved exactly as position_tol does"
     assert prec.numerical.symmetrization is None, "and the hoppings needed nothing, whatever tol"
 
-    # `position_tol=None` refuses before the detector runs: centres that miss the
+    # `position_tol=None` refuses before the detector runs: centers that miss the
     # group's action by 2e-8 cost H(k) a covariance residual of 3.7e-7, above
     # the default tolerance, so every verdict read after it would be the
     # geometry's as much as the hoppings'.  The measured defect opens the
@@ -1342,8 +1338,8 @@ def test_the_position_pass_runs_before_the_hopping_projection(km_odd,
                                                               km_odd_free_standing):
     """The order, on a model carrying **both** defects — and it is the answer.
 
-    A 1e-8 centre displacement *and* every hopping jittered at 1e-7.  With
-    ``position_tol`` declared the centres are snapped first (defect 2.0e-8 →
+    A 1e-8 center displacement *and* every hopping jittered at 1e-7.  With
+    ``position_tol`` declared the centers are snapped first (defect 2.0e-8 →
     3.9e-16), so the projection that follows sees a geometry that satisfies the
     group exactly — ``operators["position_defect"]`` on its own record reads
     3.9e-16 — classifies eleven of the twelve operations of the descended
@@ -1351,16 +1347,16 @@ def test_the_position_pass_runs_before_the_hopping_projection(km_odd,
     3.0e-6, and returns the clean model's group, matrices, labels, content and
     EBR verdict.
 
-    Without the declaration the centres' defect costs ``H(k)`` a covariance
+    Without the declaration the centers' defect costs ``H(k)`` a covariance
     residual of order ``2π·δ·max|H|`` = 3.7e-7, below the declared ``tol`` of
     3.0e-6: at the detector's tolerance it breaks nothing, so it is not refused
-    up front.  The **free-standing** cell — declared, since wave R4c reads a flat
-    model on a substrate by default — allows ``P-6m21' #187.210``, 24
+    up front.  The **free-standing** cell — declared, since a flat model is
+    read on a substrate by default — allows ``P-6m21' #187.210``, 24
     operations, and descends by tensor structure to the same ``P3m11'
     #156.50``; the hopping projection is then asked for, and refuses: its
-    operators are built on centres the operations carry to ``1e-9``, these
+    operators are built on centers the operations carry to ``1e-9``, these
     miss them by 2e-8, and no projection of the hoppings reaches a defect in
-    the centres.  It refuses ``positions_not_exactly_symmetric``, naming the
+    the centers.  It refuses ``positions_not_exactly_symmetric``, naming the
     group, quoting the defect -- the number to act on -- and ``precision=``,
     which is what fixes it.
 
@@ -1392,7 +1388,7 @@ def test_the_position_pass_runs_before_the_hopping_projection(km_odd,
     assert pos.adjusted is True and pos.defect == pytest.approx(2e-8, rel=1e-6, abs=0)
     assert pos.defect_after < 1e-14
     assert rec is not None, "the hoppings still carry their own defect"
-    # the ordering, as a number: the projection ran on exact centres, the moved
+    # the ordering, as a number: the projection ran on exact centers, the moved
     # ones, which miss the group by rounding as the pass measured them
     assert rec._operators["position_defect"] < 1e-14 and pos.defect_after < 1e-14
     assert len(rec.near) == 11 and len(rec._classes) == 12
@@ -1418,9 +1414,9 @@ def test_the_position_pass_runs_before_the_hopping_projection(km_odd,
     assert da.decomposable and db.decomposable
     assert _sum_labels(da) == _sum_labels(db)
 
-    # the same call with the centres undeclared: their defect is inside the
+    # the same call with the centers undeclared: their defect is inside the
     # declared tol, so the descent is the clean model's, and the projection
-    # refuses centres its operators do not carry, with the defect and the route
+    # refuses centers its operators do not carry, with the defect and the route
     head = _realized._realize(both, environment="free-standing", typat=[0, 1],
                               characters={0: "A1"}, tol=tol)
     assert not head and head.gate == "positions_not_exactly_symmetric"
@@ -1487,18 +1483,18 @@ def test_the_position_pass_runs_before_the_hopping_projection(km_odd,
 
 @pytest.mark.slow
 def test_centers_too_far_from_symmetric_break_the_operations_they_miss(km_odd):
-    """"Broken is not near", for the geometry — now through the pipeline.
+    """"Broken is not near", for the geometry, through the pipeline.
 
-    A centre displaced by **1e-3**, asked (``symprec = 2e-3``) about the group
+    A center displaced by **1e-3**, asked (``symprec = 2e-3``) about the group
     it only **nearly** has — the layer cell's ``P-6m21' #187.210``, 24
-    operations.  Carrying the centres onto that group's positions, the origin
+    operations.  Carrying the centers onto that group's positions, the origin
     fitted to them, would move one by **5.0e-4** (the defect, read against that
-    group written about the same fitted origin, which sees each centre's half
+    group written about the same fitted origin, which sees each center's half
     of the displacement from both sides, reads 1.0e-3), far above the declared 1e-6:
-    that is not a numerical defect in a symmetric set of centres, it is a
-    different set.  So the operations that would move a centre that far are
-    broken by the centres, in the verdict stage beside the hoppings' -- twenty of
-    them -- and the group descends to what both carry: the centres are carried
+    that is not a numerical defect in a symmetric set of centers, it is a
+    different set.  So the operations that would move a center that far are
+    broken by the centers, in the verdict stage beside the hoppings' -- twenty of
+    them -- and the group descends to what both carry: the centers are carried
     as they are by ``{E, m(z)}``, the hoppings break ``m(z)`` by tensor
     structure, and the group returned is ``P11'``, the group the default
     ``symprec`` finds outright, with the declared ``A1`` restricted to its
@@ -1506,23 +1502,23 @@ def test_centers_too_far_from_symmetric_break_the_operations_they_miss(km_odd):
 
     ``symprec`` and ``position_tol`` are therefore uncoupled by construction:
     the first decides which group is asked about, the second what counts as
-    noise once it is.  ``max_move`` is ``position_tol``: the centres' own pass,
-    called directly, refuses a centre that far off rather than moving it.  And
+    noise once it is.  ``max_move`` is ``position_tol``: the centers' own pass,
+    called directly, refuses a center that far off rather than moving it.  And
     a slab thick enough that the padding it is read in follows its own spread
     along the normal, noisy along it as well, descends the same way: the group
-    its cell allows is read against the noisy and the moved centres in that
+    its cell allows is read against the noisy and the moved centers in that
     group's own lattice.
 
-    Asked as a **free-standing** layer throughout, since wave R4c reads a
-    ``dim_r = 2`` model on a substrate unless told otherwise and the
+    Asked as a **free-standing** layer throughout, since a ``dim_r = 2``
+    model is read on a substrate unless told otherwise and the
     24-operation cell these counts are measured against is the free-standing
     one.
     """
     bad = _move_one_center(km_odd, 1e-3)
 
-    # 1. asked about the group they only nearly have: the operations the centres
+    # 1. asked about the group they only nearly have: the operations the centers
     #    miss by more than the declaration are broken by them, the group
-    #    descends to what the centres and the hoppings both carry, and the
+    #    descends to what the centers and the hoppings both carry, and the
     #    declared `A1` comes back restricted to the site group the descent reached
     got = tqg.realized_group(bad, environment="free-standing", typat=[0, 1],
                              characters={0: "A1"},
@@ -1563,9 +1559,9 @@ def test_centers_too_far_from_symmetric_break_the_operations_they_miss(km_odd):
     # 3. a slab whose vacuum is thinner than the padding the finder reads it in
     #    -- three layers 12 A thick in a 30 A cell -- is padded by its own spread
     #    along the normal, which noise on an outer site changes: the group the
-    #    cell allows, named on the centres projected onto its positions, is read
-    #    against the noisy and the moved centres in its own lattice, and the
-    #    descent the centres make labels its bands
+    #    cell allows, named on the centers projected onto its positions, is read
+    #    against the noisy and the moved centers in its own lattice, and the
+    #    descent the centers make labels its bands
     noisy = _thick_slab([[0.0, 0.0, 1e-4], [0.0, 0.0, 0.0], [4e-3, 0.0, 0.0],
                          [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
     thick = tqg.realized_group(noisy, precision=1e-3, cross_check=False)
@@ -1584,11 +1580,10 @@ def test_centers_too_far_from_symmetric_break_the_operations_they_miss(km_odd):
 
 # ---------------------------------------------------------------------------
 # 9.  the operations themselves: a numerical cell's do not close
-#     (wave P3b, second finding)
 # ---------------------------------------------------------------------------
 
 def _rigid_shift(model, delta, which=None):
-    """The same model with ``delta`` added to one orbital's centre, or to all."""
+    """The same model with ``delta`` added to one orbital's center, or to all."""
     orb = np.asarray(model.orb_vecs, dtype=float).copy()
     orb[slice(None) if which is None else which, :len(delta)] += np.asarray(delta, float)
     dim_r = int(model.lattice.dim_r)
@@ -1614,7 +1609,7 @@ def _cell_group(model2d, typat=(0, 1)):
 def _tetragonal_pair(phase=0.0):
     """Two ``s`` orbitals on a tetragonal cell's fourfold axis, at ``(0, 0, ±0.2)``.
 
-    The cell allows ``P4/mmm1' #123.340``, with the inversion centre between
+    The cell allows ``P4/mmm1' #123.340``, with the inversion center between
     the two.  The hoppings along ``x`` and ``y`` differ, so the Hamiltonian
     obeys ``Pmmm1' #47.250``; a phase ``e^{iφ}`` on the ``x`` hopping breaks
     time reversal and every operation that reverses ``k_x`` as well, leaving
@@ -1638,13 +1633,13 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
 
     spglib reads each operation's translation off the atom pairs it maps, so
     positions carrying a Wannierization's noise give every operation its own
-    share of it — *inconsistently*.  Displace one Kane-Mele centre by
+    share of it — *inconsistently*.  Displace one Kane-Mele center by
     ``(+1e-8, −1e-8)`` and the identified ``P3m11'`` carries translations of 0,
     1e-8 and 2e-8 where the exact cell carries 0, closing only to **2.0e-8**
     against exactly ``0.0``.  With operations that do not close there is **no
     exactly symmetric configuration of positions** they describe, and
     ``bloch_operator`` *raises* on its integer-shift identity from the first
-    ``hsp_table``; the centres themselves are moved onto the nearest set the
+    ``hsp_table``; the centers themselves are moved onto the nearest set the
     operations carry exactly without reading those translations at all.
 
     :func:`..groups._exact_operations` repairs it where it is measurably broken
@@ -1652,24 +1647,24 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
     reference-cell operation through the one origin shift (spglib's rotations
     and integer parts kept), and the closure goes to **0.0**.  That is the cell
     identified with nothing declared.  A representation built by hand on it at
-    a declared tolerance is built, and the operations still miss its centres
-    by 2e-8: its operators check the centres at their own 1e-9, as ``hsp_table``
+    a declared tolerance is built, and the operations still miss its centers
+    by 2e-8: its operators check the centers at their own 1e-9, as ``hsp_table``
     does, so no orbit's band representation is read, and each says why.
-    Declared, the centres are made exact
+    Declared, the centers are made exact
     before the cell's setting is read -- projected onto the nearest set the
     operations found carry exactly, which needs neither tables nor repaired
     translations -- so the operations found on them close to rounding as they
     are, and nothing is rebuilt.
 
-    **Every cell identified after the centres moved reads the moved centres.**
+    **Every cell identified after the centers moved reads the moved centers.**
     A descent names its group on the parent cell's own points plus a generic
     orbit, and so does the unitary group's identification once time reversal is
-    measured broken.  On a tetragonal pair with one centre off by 1e-5 along the
-    axis, under ``precision=1e-4``, those points were once the centres as handed
-    in, each identification read translations 1.0e-5 off the operations it was
-    built to carry, and the first ``hsp_table`` raised on the integer-shift
-    identity, in ``Pmmm1'`` and in ``Pmm2`` alike.  The cell is now built on the
-    exact centres, the pair's own midpoint, 5e-6 off the model's origin, moved
+    measured broken.  On a tetragonal pair with one center off by 1e-5 along the
+    axis, under ``precision=1e-4``, a cell built on the centers as handed in
+    would have each identification read translations 1.0e-5 off the operations
+    it was built to carry, and the first ``hsp_table`` would raise on the
+    integer-shift identity, in ``Pmmm1'`` and in ``Pmm2`` alike.  The cell is
+    built on the exact centers, the pair's own midpoint, 5e-6 off the model's origin, moved
     back onto it as noise: a second position pass finds nothing to move, and
     every record is the exact pair's.
     """
@@ -1697,7 +1692,7 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
     rots = sorted(np.asarray(s.rotation, dtype=int).tobytes() for s in group._symmetries)
     assert rots == sorted(np.asarray(s.rotation, dtype=int).tobytes()
                           for s in clean.group._symmetries)
-    # a representation built by hand on the displaced centres, at a declared
+    # a representation built by hand on the displaced centers, at a declared
     # tolerance: built, and its orbits read no content, each saying why
     m3, cell_group, asg, val = _pipeline(displaced, [0, 1], tol=1e-6)
     by_hand = _build._build_rep(m3, cell_group, asg, validated=val, tol=1e-6,
@@ -1711,12 +1706,12 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
                and orbit.sentence().endswith(f" at {orbit.wyckoff}: {orbit.note}")
                for orbit in orbits)
 
-    # ... and now the whole pipeline reaches the answer
+    # ... and the whole pipeline, the centers declared, reaches the answer
     out = tqg.realized_group(displaced, typat=[0, 1], characters={0: "A1"},
                              position_tol=1e-6)
     assert out, str(out)
     assert out.numerical.positions.adjusted is True
-    # declared, the centres are made exact before the setting is read: the
+    # declared, the centers are made exact before the setting is read: the
     # operations found on them close to rounding, and nothing is rebuilt
     assert out.group._closure_measured <= _FEW_ULP
     assert out.group._closure_repaired <= _FEW_ULP
@@ -1732,12 +1727,12 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
     assert max(float(np.abs(out.rep.matrices[i] - clean.rep.matrices[i]).max())
                for i in clean.rep._indices) == 0.0
     assert out.rep._characters.irreps == clean.rep._characters.irreps
-    table = tqw.hsp_table(out, bands=2)         # this is what used to RAISE
+    table = tqw.hsp_table(out, bands=2)         # the call that needs closed operations
     assert table.complete and set(table.symmetry_data.values()) == {1}
     assert tqe.decompose(table).decomposable
 
     # The control that says the answer IS the clean crystal: the same rigid
-    # displacement applied to EVERY centre is the clean model in a moved origin,
+    # displacement applied to EVERY center is the clean model in a moved origin,
     # and the corep *names* at K (not a TRIM: an origin shift multiplies the C3
     # character by a cube root of unity) would follow that origin.  It is noise
     # within the declaration, so it is removed, for the control as for the
@@ -1748,7 +1743,7 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
     assert ctrl, str(ctrl)
     assert np.allclose(np.asarray(ctrl.group._shiftUC), np.asarray(out.group._shiftUC))
     assert ctrl.numerical.positions.max_move <= _FEW_ULP, "a rigid shift is no displacement"
-    # one rigid shift between the two sets of centres, to a reduced coordinate out
+    # one rigid shift between the two sets of centers, to a reduced coordinate out
     # of thirds arithmetic through a group average by two routes
     gap = np.asarray(out.model.orb_vecs) - np.asarray(ctrl.model.orb_vecs)
     assert float(np.abs(gap - gap[0]).max()) < _FEW_ULP, "the same crystal about another origin"
@@ -1766,7 +1761,7 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
                                                 which=0), precision=1e-4)
         assert exact and noisy, str(noisy)
         assert noisy.numerical.positions.adjusted is True
-        # two centres are symmetric about their own midpoint: the origin fitted to
+        # two centers are symmetric about their own midpoint: the origin fitted to
         # them is that midpoint, and neither moves; the midpoint sits 5e-6 off the
         # model's own origin, within the declaration, so both are shifted back
         # together and the pair is the exact one, its height grown by 5e-6
@@ -1779,10 +1774,10 @@ def test_a_numerical_cells_operations_do_not_close_and_are_rebuilt(km_odd, reali
         assert noisy.descent.cell_group.number_str == "123.340"
         assert len(noisy.descent.dropped) == len(exact.descent.dropped) == n_broken
         assert noisy.time_reversal.outcome == exact.time_reversal.outcome
-        # the moved centres satisfy the operations returned: measured 4.4e-16
+        # the moved centers satisfy the operations returned: measured 4.4e-16
         _again, rec = _symmetrize_positions(noisy.model, noisy.group, noisy._assignment)
         assert rec["defect_before"] <= _FEW_ULP, "nothing left for a second pass to move"
-        table = tqw.hsp_table(noisy, bands=1)       # this is what used to RAISE
+        table = tqw.hsp_table(noisy, bands=1)       # the call that needs the moved centers
         ref = tqw.hsp_table(exact, bands=1)
         assert table.complete and table.symmetry_data == ref.symmetry_data
         assert max(float(np.abs(noisy.rep.matrices[i] - exact.rep.matrices[i]).max())
@@ -1801,8 +1796,8 @@ def test_a_cell_built_from_exact_numbers_closes_exactly_and_is_untouched(name):
     IEEE machine, because dyadic arithmetic is exact whatever the order the
     summands arrive in — so :func:`..groups._exact_operations` returns
     immediately and no translation is rebuilt.  ``closure_repaired == 0.0`` is
-    the statement that nothing was touched, bit for bit, which is what makes
-    the rest of the suite the regression it was before this wave.
+    the statement that nothing was touched, bit for bit, so the rest of the
+    suite reads exact cells the repair never reaches.
 
     A cell whose operations carry *thirds* is arithmetic rather than exact.
     ``_decorated_cell``'s honest recipe puts one substrate shadow species at
@@ -1812,8 +1807,8 @@ def test_a_cell_built_from_exact_numbers_closes_exactly_and_is_untouched(name):
     two sites are one orbit — the cell is ``P6mm1' #183.186``, whose 24
     operations include the ones that exchange them.  Sums of thirds are not
     representable in binary floating point, so there the closure is a few ulp
-    of a reduced coordinate rather than ``0.0`` — **1.1e-16** on both machines
-    measured — read against ``groups._EXACT_CLOSURE = 1e-12``, the package's
+    of a reduced coordinate rather than ``0.0`` — **1.1e-16** measured — read
+    against ``groups._EXACT_CLOSURE = 1e-12``, the package's
     own scale for arithmetic, five decades below the 2.0e-8 a genuinely
     numerical cell reads.  The tables matched, so the repair runs and rebuilds
     each translation from the tabulated reference-cell operation, moving none
@@ -1904,7 +1899,7 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
     """``precision=1e-6`` on the P3 golden: the same run, from one number.
 
     The two declarations this module is about are one fact — the model's own
-    numerical precision — wearing two units: the centres are in **reduced**
+    numerical precision — wearing two units: the centers are in **reduced**
     coordinates, where a relative precision is already absolute, and the
     covariance gate is **absolute in the units of H**, where it is not.  A
     wannier90 user should not have to know which is which, so ``precision``
@@ -1947,18 +1942,18 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
     That licenses the projection: the model's own blocks on each multiplet made
     an exact representation, ``H`` moved by about the turn, and every call returns
     ``R3m1'`` with its covariance and product table at machine precision, the
-    rows the characters name.  The same shell at both sites of
-    ``6c`` of ``R-3m`` -- a bismuth-like geometry -- is one multiplet per site
+    rows the characters name.  The same shell at both sites of the ``6c``
+    position of ``R-3m`` is one multiplet per site
     without the precision, and ``R-3m1'``, 24 of 24, with its ``p_z`` and pair
     apart under it; declared or not, at either precision, every subset of its
     bands reads the same labels.  Written in the coreps its rows are returned
     as, ``2x-E1 + -1E2E``, the shell states the corep content alone, which
-    ``A1 + E`` and ``A2 + E`` share, so the four labellings of the undeclared
+    ``A1 + E`` and ``A2 + E`` share, so the four labelings of the undeclared
     crystal stay open where the orbital spellings leave two.  Its spin blocks
     written in a frame turned by 5e-9 -- a spinor import's own numerical
     defect -- and read through ``spin=`` with no precision, the pair is
     ``R-3m1'``, 24 of 24: each operation's own form, its own spin rotation,
-    carries ``H(k)`` onto ``H(gk)`` within the covariance gate, and ``H`` is
+    carries ``H(k)`` onto its image within the covariance gate, and ``H`` is
     moved onto the group by less than the turn.  Turned by 1.5e-8, past what
     the gate allows, the sixteen operations whose lift the turn changes are
     broken by tensor structure, and the pair is ``C2/m1'``, the group it has in
@@ -2109,7 +2104,7 @@ def test_one_declaration_gives_the_explicit_tolerances_answer(lin3g_clean,
     # declared orbital by orbital or as the shell, at either precision: the same
     # crystal, and every subset of the bands reads the undeclared crystal's labels
     labels = {n: coreps_by_point(tqw.hsp_table(bare, bands=n)) for n in (2, 4, 6)}
-    # the labellings that keep every site corep and label some band otherwise,
+    # the labelings that keep every site corep and label some band otherwise,
     # each by what set it aside
     def set_aside(out):
         return [key for choice in out.rep._characters._labelings["choices"]
@@ -2178,7 +2173,7 @@ def test_the_declaration_is_grammar(km_odd):
 @pytest.mark.slow
 def test_the_finders_tolerance_is_raised_only_when_the_declaration_would_defeat_it(
         km_odd, lin3g_clean):
-    """The ``symprec`` rule — and why it is not the coupling P3b ruled out.
+    """The ``symprec`` rule, and why it does not couple ``symprec`` to ``position_tol``.
 
     ``position_tol`` and ``symprec`` answer different questions and are not
     computed from each other anywhere.  What *can* move both is one declaration
@@ -2220,7 +2215,7 @@ def test_the_finders_tolerance_is_raised_only_when_the_declaration_would_defeat_
     assert at_w90.numerical.precision.symprec_raised is False
     assert at_w90.numerical.precision.symprec == 1e-5
     assert "symprec raised" not in repr(at_w90)
-    # ... and on this exact model the declaration changes nothing: the centres'
+    # ... and on this exact model the declaration changes nothing: the centers'
     # own defect is the thirds arithmetic of the honeycomb (measured 1.1e-16)
     # and the move with it (2.2e-16, one ulp of a reduced coordinate)
     assert at_w90.numerical.symmetrization is None, "nothing was near, so nothing was projected"
@@ -2253,12 +2248,12 @@ def test_the_finders_tolerance_is_raised_only_when_the_declaration_would_defeat_
 @pytest.mark.slow
 def test_a_defect_above_the_declaration_descends_as_the_explicit_knobs_do(km_odd,
                                                                          monkeypatch):
-    """One centre displaced by **1e-3**, asked about the group it only nearly has.
+    """One center displaced by **1e-3**, asked about the group it only nearly has.
 
-    The declaration is not a licence: centres beyond it are a crystal of their
+    The declaration is not a license: centers beyond it are a crystal of their
     own, and the operations of the substrate cell's ``P3m11' #156.50`` they are
     not carried by within it -- all but the identity, here -- are broken by the
-    centres, so the cell descends to ``P11'``, with the measured defect on the
+    centers, so the cell descends to ``P11'``, with the measured defect on the
     record and the declared ``A1`` restricted to the trivial site group reached.
     The run is the explicit-knob run, group and rows alike, which is the
     statement that ``precision`` is a convenience and not a second mechanism.
@@ -2285,7 +2280,7 @@ def test_a_defect_above_the_declaration_descends_as_the_explicit_knobs_do(km_odd
     assert got.numerical.positions == expl.numerical.positions
     assert got.descent.dropped_by == {"centers": 10}
     assert got.numerical.positions.carried == 2 and got.numerical.positions.max_move == 0.0
-    # against the cell's group written about the origin fitted to the centres,
+    # against the cell's group written about the origin fitted to the centers,
     # each of which then sits half the displacement off
     assert got.numerical.positions.defect == pytest.approx(1e-3, rel=1e-6, abs=0)
     assert got.rep._characters.irreps == expl.rep._characters.irreps == ("-AA", "-AA")

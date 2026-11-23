@@ -345,9 +345,11 @@ class Symmetrization:
     ``r.numerical.symmetrization`` where it projects ``H`` onto its symmetric
     part; that field is ``None`` where it does not.  An operation's covariance
     residual is how far its matrix misses carrying ``H(k)`` onto ``H`` at the
-    image of k: the largest entry of ``U H(k) U† − H(gk)`` over k, in the
-    units of ``H``.  ``H`` is averaged over the operations of the group, those
-    combined with time reversal included, on a grid of k-points.  The average
+    image of k: the largest entry of ``U H(k) U† − H(Rk)`` over k for the
+    operation ``{R|t}``, and of ``U H(k)* U† − H(−Rk)`` for ``{R|t}`` combined
+    with time reversal, in the units of ``H``.  ``H`` is averaged over the
+    operations of the group, those combined with time reversal included, on
+    a grid of k-points.  The average
     is taken with a representation of the group on the orbitals that is built
     from ``H`` for the projection and made an exact representation of the
     group.  The average is written back as a hopping list by an inverse
@@ -527,7 +529,7 @@ class Symmetrization:
                          "   (.near, .verification)")
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         relative = self._relative
         mixed = (f", site multiplets mixed at {self.site_multiplets.mixing:.3g}"
                  if self.site_multiplets is not None else "")
@@ -996,7 +998,7 @@ def _average_on_grid(model, group, assignment, ops, D, kpts, divisions, *,
     for ind, sym in ops.items():
         kp = group._k_action_of(sym)(kpts)
         mm = np.rint(kp * n)
-        if np.abs(kp * n - mm).max() > 1e-7:      # pragma: no cover - guarded by design
+        if np.abs(kp * n - mm).max() > 1e-7:      # pragma: no cover: guarded by design
             raise InternalError(
                 f"operation #{ind} of {group.name} #{group.number_str} does not carry the "
                 f"{' x '.join(str(c) for c in counts)} grid of k-points onto itself, though "
@@ -1030,13 +1032,15 @@ def _average_at(model, group, assignment, ops, D, k, *, bloch_tol, apart=None,
     r"""The group average of ``H`` at any k, and the covariance there.
 
     At each point the average over the operations of
-    ``U(g;k)† H(gk) U(g;k)``, conjugated for an operation combined with time
+    ``U(g;k)† H(Rk) U(g;k)`` for ``g = {R|t}``, and of its complex conjugate,
+    with ``H(−Rk)`` in place of ``H(Rk)``, for ``g`` combined with time
     reversal, is the ``H_sym`` :func:`_average_on_grid` gives, with no grid.
     ``model``, ``group``, ``assignment``, ``ops``, ``D``, ``bloch_tol``,
     ``apart`` and ``held`` are as :func:`_average_on_grid` takes them, and
     ``k`` holds the points in reduced k.  Returns ``(H_sym, residue)``: the
-    average at ``k``, and ``max_g max_k |U H(k) U† − H(gk)|``, the covariance
-    of the model against these operators, in the units of ``H``.
+    average at ``k``, and the largest entry over the operations and the points
+    of ``U H(k) U† − H(Rk)``, or of ``U H(k)* U† − H(−Rk)``, the covariance of
+    the model against these operators, in the units of ``H``.
     """
     k = np.atleast_2d(np.asarray(k, dtype=float))
     evaluate = _bloch.evaluator(model)
@@ -1385,7 +1389,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
     dim_k = int(group._dim_k)
     syms_by_ind = {int(s.ind): s for s in group._symmetries}
 
-    # ---- 1. the classification, and what is refused before anything is built
+    # 1. The classification, and what is refused before anything is built
     # against the exact gate of this model and operation set, measured once: the
     # detection record carries neither the number of states nor max|H|
     if _operators is not None:
@@ -1439,7 +1443,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
             value=pos_defect, threshold=_BLOCH_TOL,
             context={"position_defect": pos_defect, "bloch_tol": _BLOCH_TOL})
 
-    # ---- 2. the operators, and the classes read on them ---------------------
+    # 2. The operators, and the classes read on them
     rep, prov = (handed if handed is not None else
                  _projection_operators(model, group, assignment, validated, tol=tol,
                                        build_kw=build_kw))
@@ -1487,7 +1491,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
         "reduced coordinates. Declare the model's precision with `precision=`, or a "
         "tolerance for the centers alone with `position_tol=`, before reporting it."))
 
-    # ---- 3. the transform grid --------------------------------------------
+    # 3. The transform grid
     # one division count per periodic direction, twice the reach the group
     # carries a hopping to along it and a shell more, alike along directions an
     # operation's k-action mixes, so that the grid is carried onto itself
@@ -1527,7 +1531,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
     _, kpts = _grid(divisions)
     k_random = np.random.default_rng(20260902).uniform(-0.5, 0.5, size=(16, dim_k))
 
-    # ---- 4. the average, the transform, and the model ----------------------
+    # 4. The average, the transform, and the model
     current, passes, per_pass, floor = model, 0, [], 0.0
     checks: dict[str, Any] = {}
     step = _slice_points(work, _POINT_MATRICES * matrix, n_points)
@@ -1630,7 +1634,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
         if residue <= floor or per_pass[-1] <= floor:
             break
 
-    # ---- 5. how far the model moved, in total ------------------------------
+    # 5. How far the model moved, in total
     # both Hamiltonians over slices of the grid, no grid of either held, and
     # the scale about the mean on-site energy, which a constant shift moves
     mu = _bloch.onsite_mean(model)
@@ -1661,7 +1665,7 @@ def _symmetrized(model, group, assignment, validated, *, tol, k_grid=None,
                      "per_pass": tuple(per_pass), "scale": scale,
                      "position_defect": float(pos_defect)})
 
-    # ---- 6. the verification: the exact pipeline may now run ---------------
+    # 6. The verification: the exact pipeline may now run
     verification: dict[str, Any] = {}
     if verify:
         # with nothing asked, the gate a model of exact numbers is held to,
@@ -1809,7 +1813,7 @@ def _symmetrize_positions(model, group, assignment, *, max_move=1e-5, params=Non
     shift = np.asarray(assignment.lattice_shift, dtype=float)[unitary]
     rows = list(range(len(unitary)))
     x, trans, closure = _centers._symmetric_sites(frame, perm, shift, rotations, rows)
-    if not closure <= _EXACT_CLOSURE:          # pragma: no cover - an assignment is an action
+    if not closure <= _EXACT_CLOSURE:          # pragma: no cover: an assignment is an action
         raise InternalError(
             f"the unitary operations of {group.name} #{group.number_str} do not carry "
             f"the positions projected onto them, missing by {closure:.3g}. Report it, with "

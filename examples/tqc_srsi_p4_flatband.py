@@ -175,7 +175,7 @@ def wilson_row(label, ky, trace, winding):
 
 print("\n1. the supplement's two Hamiltonians, typed as hoppings and checked")
 
-# --- the flat-band model ------------------------------------------------------
+# The flat-band model
 # The paper's Bloch states, in the momentum basis e^{i k.(R + t_alpha)}, which
 # is pythtb's convention I. In this convention, a hopping <0,alpha|H|R,beta>
 # enters H(k) with the phase e^{i k.(R + t_beta - t_alpha)}:
@@ -249,7 +249,7 @@ for index, (k1, k2) in enumerate(k_random):
 row("flat-band model", f"{flat_model.norb} orbitals, {flat_model.nstate} bands, "
     f"{len(flat_model.hoppings)} typed hoppings")
 
-# --- the Z2 model -------------------------------------------------------------
+# The Z2 model
 # The supplement's blocks, in the same basis and the same convention:
 #
 #   A  = 2 t_NNN cos ky . 1        (the x site)
@@ -510,7 +510,7 @@ hsp = tqc.high_symmetry_points(group)
 path = [hsp["GM"], hsp["X"], hsp["M"], hsp["GM"]]
 fig, axes = plt.subplots(2, 2, figsize=(12.6, 8.4))
 
-# --- the flat-band model's spectrum, with the mirrors broken ---
+# The flat-band model's spectrum, with the mirrors broken
 kv, kd, kn = chiral_model.k_path(path, NK_PATH, report=False)
 bands = np.asarray(chiral_model.solve_ham(kv))
 for i in range(4):
@@ -530,7 +530,7 @@ axes[0, 0].set_title(f"(i) the flat-band model, mirrors broken, "
                      fr"$\theta_{{\mathbb{{Z}}_2}}[H]={mod_n(m_srsi.theta_Zn, modulus)}$"
                      f"\nsplitting: {reading(split_flat)}", fontsize=9.5)
 
-# --- the same model's Wilson loops ---
+# The same model's Wilson loops
 for column in range(2):
     axes[0, 1].plot(ky_axis, phases_lower[:, column], "o", ms=2.6, color="tab:blue")
 for column in range(2):
@@ -543,7 +543,7 @@ axes[0, 1].set_title(f"(i) $k_x$ Wilson loops: lower set (blue) winds "
                      + ("does not wind" if int(round(winding_upper)) == 0
                         else f"winds ±{int(round(winding_upper))}"), fontsize=9.5)
 
-# --- the Z2 model's spectrum, with the same mirrors broken ---
+# The Z2 model's spectrum, with the same mirrors broken
 kv, kd, kn = z2_chiral.k_path(path, NK_PATH, report=False)
 bands_z2 = np.asarray(z2_chiral.solve_ham(kv))
 for i in range(4):
@@ -559,7 +559,7 @@ axes[1, 0].set_title(f"(ii) the $\\mathbb{{Z}}_2$ model, mirrors broken, "
                      fr"$\theta_{{\mathbb{{Z}}_2}}[H]={mod_n(z2_srsi.theta_Zn, modulus)}$"
                      f"   splitting: {reading(split_z2)}", fontsize=9.5)
 
-# --- the Z2 model's Wilson loops ---
+# The Z2 model's Wilson loops
 for column in range(2):
     axes[1, 1].plot(ky_axis, phases_z2_v[:, column], "o", ms=2.6, color="tab:blue")
 for column in range(2):

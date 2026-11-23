@@ -87,8 +87,8 @@ def test_lin3g_matches_the_pythtb18_golden():
     validation script the builder was lifted from, under pythtb 1.8 and the
     original spin-resolved library -- a different code, so it is an oracle for
     the copy in ``fixture_models.py`` rather than a second copy of it.
-    Measured max|delta| = 1.2e-14 on the development machine, 2.1e-14 on an
-    M1 with OpenBLAS.
+    Measured max|delta| is 1e-14 to 2e-14, depending on the linear-algebra
+    library.
     """
     golden = tqm.lin3g_golden()
     e = tqm.lin3g().solve_ham(golden["k_test"])
@@ -189,7 +189,7 @@ def test_pwv_reproduces_the_published_closed_form_bloch_hamiltonian():
     that use it: it exists only in Fig. 10 of arXiv:1807.09729 / Fig. 1(c) of
     arXiv:1709.06551.  Po *et al.* do print the **closed-form Bloch
     Hamiltonian** (their App. A), which needs no figure at all -- so the
-    symmetrised bond construction is checked against it here rather than taken
+    symmetrized bond construction is checked against it here rather than taken
     on trust, for the four-band ``H_0`` and for the six-band interpolation.
 
     And every number the papers state about the model, measured:
@@ -241,7 +241,7 @@ def test_pxpy_reproduces_the_papers_hamiltonian_in_its_own_convention():
     by ``k -> -k``, and nothing else -- so the check is ``H_pythtb(k) ==
     conj(H_paper(k))`` **matrix-for-matrix**, not merely spectrally.  If only
     the spectra agreed, the sign of the ``sigma_x`` term (the
-    ``delta_2 <-> delta_3`` labelling of Fig. 1a) would go unverified.
+    ``delta_2 <-> delta_3`` labeling of Fig. 1a) would go unverified.
 
     The ``tci`` regime is gapped as Fig. 1c says, and its *direct* gap is an
     exact number: it sits at ``K``, where the supplement's closed forms give

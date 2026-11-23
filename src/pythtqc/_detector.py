@@ -95,8 +95,8 @@ class _IntertwinerSpace:
         ``dim <= 1`` and ``dim + 1`` otherwise.
     residuals : ndarray, shape (n_candidates,)
         ``max_k ‖U H(k) U† − H(Rk)‖_max`` of each candidate over every point
-        supplied, in the units of ``H``; ``H(k)*`` in place of ``H(k)`` for an
-        antiunitary operation.
+        supplied, in the units of ``H``; ``H(k)*`` in place of ``H(k)`` and
+        ``H(−Rk)`` in place of ``H(Rk)`` for an antiunitary operation.
     unitarity : ndarray, shape (n_candidates,)
         ``‖X†X − 1‖_max`` of each candidate before its polar factor is taken,
         ``X`` of Frobenius norm ``sqrt(nstate)``.
@@ -148,7 +148,7 @@ class _IntertwinerSpace:
         The windows the eigen route tried and widened, in order, before
         :attr:`window`.
     antiunitary : bool
-        Whether the antiunitary equation ``X H(k)* = H(Rk) X`` was solved.
+        Whether the antiunitary equation ``X H(k)* = H(−Rk) X`` was solved.
     vacuous : bool
         Whether the constraint vanished: ``H(k)`` and ``H(Rk)`` are the same
         multiple of the identity at every point, to within ``1e-9`` of
@@ -207,7 +207,7 @@ class _IntertwinerSpace:
     def __bool__(self) -> bool:
         return self.dim > 0
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         res = "-" if self.dim == 0 else f"{float(np.min(self.residuals)):.2e}"
         nk = (f"nk={self.n_kpts}" if self.n_kpts_solve == self.n_kpts
               else f"nk={self.n_kpts_solve}/{self.n_kpts}")
@@ -1081,7 +1081,7 @@ def _find_intertwiners(model, k_action, k_pts, *, antiunitary=False, tol=DEFAULT
                        _floor=None) -> _IntertwinerSpace | Refusal:
     r"""Every matrix ``X`` with ``X H(k) = H(Rk) X`` at every point of a grid.
 
-    For an antiunitary operation the equation is ``X H(k)* = H(Rk) X``.
+    For an antiunitary operation the equation is ``X H(k)* = H(−Rk) X``.
     Nothing is assumed about how the operation acts on the orbitals.  The
     solutions are fixed up to a factor and, at ``dim > 1``, a change of basis.
 

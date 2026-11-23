@@ -641,12 +641,12 @@ A space group by its symbol, its number and its number of operations.
 One operation a descent dropped, and what dropped it.
 
 A field that does not apply to what dropped the operation is `None`.  A
-matrix `U` carries `H(k)` onto `H(gk)`, for `g` the operation,
-where `U H(k) U^-1 = H(gk)`, with `H(k)*` in place of `H(k)` for an
-operation combined with time reversal.  The operation's solution space is
+matrix `U` carries `H(k)` onto its image under the operation `{R|t}`
+where `U H(k) U^-1 = H(Rk)`, and under `{R|t}` combined with time
+reversal where `U H(k)* U^-1 = H(-Rk)`.  The operation's solution space is
 the set of such matrices at the k measured.  Its covariance residual, for the
-best unitary `U` found, is the largest entry of `U H(k) U^-1 - H(gk)`
-over the k measured, in the units of H, and it is held to the tolerance
+best unitary `U` found, is the largest entry of the difference of the two
+sides over the k measured, in the units of H, and it is held to the tolerance
 `r.numerical.validated.tol`.  The operation's form is a matrix that
 carries each site's orbitals onto the orbitals of the site it moves them
 to, times the operation's own spin rotation where the states carry spin.
@@ -665,9 +665,9 @@ to, times the operation's own spin rotation where the states carry spin.
   carries the translation in Seitz form, `{E|1/2,0,0}`.
 
 - **`refuted_by`** (`str`): What dropped it.  `"no symmetry matrix"`: no matrix carries `H(k)`
-  onto `H(gk)`.  `"covariance"`: such matrices exist, and the
+  onto its image.  `"covariance"`: such matrices exist, and the
   covariance residual is above the tolerance.  `"tensor structure"`: no
-  matrix of the operation's form carries `H(k)` onto `H(gk)` within
+  matrix of the operation's form carries `H(k)` onto its image within
   the tolerance.  A pure translation acts on every k as the identity
   does, so a matrix always carries `H(k)` onto `H(k)`, and one this
   test refutes reads `"tensor structure"`.  `"out of plane"`: an
@@ -1666,9 +1666,9 @@ largest modulus of an entry of a difference of matrices.
 
 - **`residuals`** (`dict`): `{index: residual}`, in the units of H: how far each operation's
   matrix `D` misses carrying the Hamiltonian onto itself.  The residual
-  is the largest over the k-points measured of `D H(k) D† − H(gk)`,
-  `gk` the image of `k`, with `H(k)*` in place of `H(k)` for an
-  operation combined with time reversal.
+  is the largest over the k-points measured of `D H(k) D† − H(Rk)`
+  for the operation `{R|t}`, and of `D H(k)* D† − H(−Rk)` for
+  `{R|t}` combined with time reversal.
 
 - **`product_residual`** (`float`): How far the matrices miss multiplying as the group does: `D(g1)`
   times `D(g2)`, the second conjugated where `g1` is combined with
@@ -1765,9 +1765,11 @@ precision, and `tol` from `max_h` as well.
   is subtracted, in the units of `H`.
 
 - **`tol`** (`float`): A tolerance for checking whether an operation is a symmetry, in the
-  units of `H`.  An operation is obeyed where its covariance residual,
-  the largest entry of `U H(k) U^-1 - H(gk)` over the k measured for
-  the best matrix `U` found, is at most `tol`.  It decides whether
+  units of `H`.  An operation is obeyed where its covariance residual
+  is at most `tol`: for the operation `{R|t}`, the largest entry of
+  `U H(k) U^-1 - H(Rk)` over the k measured for the best matrix `U`
+  found, with `H(k)*` and `H(-Rk)` in their places for an operation
+  combined with time reversal.  It decides whether
   an operation holds; `cut` decides which matrices are found for it.
   Computed from `precision` and `max_h`.
 
@@ -1780,9 +1782,13 @@ precision, and `tol` from `max_h` as well.
   is at most `cut` times the largest singular value.  Computed from
   `precision`.
 
-- **`window`** (`float`): A dimensionless tolerance for checking degeneracy of `H`.  Two
-  eigenvectors are treated as degenerate when their energies differ by
-  at most `window` times `max|H|`.  Computed from `precision`.
+- **`window`** (`float`): A dimensionless tolerance for pairing an eigenvector of `H(k)` with
+  one of its image `H(Rk)`, or `H(-Rk)` for an operation combined
+  with time reversal, when the equations of an operation are solved.
+  Two are paired where their energies differ by at most `window` times
+  the largest entry of `H(k)` or of its image at that point, the mean
+  on-site energy subtracted, or by at most `tol`, whichever is larger.
+  Computed from `precision`.
 
 - **`symprec`** (`float`): The tolerance of spglib, which finds the group from the positions, as
   a Cartesian length in the model's length units.  It is `symprec=` as
@@ -1875,9 +1881,11 @@ The record [`realized_group`](functions.md#realized_group) returns on
 `r.numerical.symmetrization` where it projects `H` onto its symmetric
 part; that field is `None` where it does not.  An operation's covariance
 residual is how far its matrix misses carrying `H(k)` onto `H` at the
-image of k: the largest entry of `U H(k) U† − H(gk)` over k, in the
-units of `H`.  `H` is averaged over the operations of the group, those
-combined with time reversal included, on a grid of k-points.  The average
+image of k: the largest entry of `U H(k) U† − H(Rk)` over k for the
+operation `{R|t}`, and of `U H(k)* U† − H(−Rk)` for `{R|t}` combined
+with time reversal, in the units of `H`.  `H` is averaged over the
+operations of the group, those combined with time reversal included, on
+a grid of k-points.  The average
 is taken with a representation of the group on the orbitals that is built
 from `H` for the projection and made an exact representation of the
 group.  The average is written back as a hopping list by an inverse

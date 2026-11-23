@@ -365,7 +365,7 @@ def _covariant_subgroup(group, kept_u, requirements, *, unitary_only=False, tol=
             broken=tuple(sorted(i for i in baseline if i not in allowed)))
     consistent = {frozenset(int(i) for i in sub)
                   for sub in _subgroups_inside(group, allowed) if _met(sub)}
-    if not consistent:                   # pragma: no cover - {E} always is
+    if not consistent:                   # pragma: no cover: {E} always is
         return _CovariantSubgroup(subgroup=frozenset(), candidates=(),
                                   broken=tuple(sorted(keep)))
     # The largest consistent subgroup, with the tie rule only where several
@@ -820,7 +820,7 @@ def _lifted_scale(group, layout, positions, cperm, classes, ref, blocks, *, base
         M = np.zeros((len(states), len(states)), dtype=complex)
         for c in members:
             image = int(images[p][c])
-            if image not in members:      # pragma: no cover - a class is an orbit
+            if image not in members:      # pragma: no cover: a class is an orbit
                 return None
             rows = [local[int(a)] for a in layout._chan_states[image]]
             cols = [local[int(a)] for a in layout._chan_states[c]]
@@ -1581,7 +1581,7 @@ def _characters_read(model, anc, ops, prt, scl, *, tol):
         for i, (scale_chan, scale_of) in scales.items():
             if scale_of is None:
                 S_norm = lift_of[scale_chan]
-                if S_norm is None:        # pragma: no cover - a guard, not a path
+                if S_norm is None:        # pragma: no cover: a guard, not a path
                     continue
             elif p in scale_of:
                 S_norm = scale_of[p]
@@ -2066,8 +2066,8 @@ def _stated(row, which) -> str:
 def _declared_atoms(d, chan_states, su2, nspin):
     """The states of each atom declaration ``d`` names, in its order.
 
-    An atom is one orbital, or the two states of one Wannier function, which
-    carry an operation's spin-1/2 lift together
+    An atom is one orbital, or the up and the down state of one spinful
+    orbital, which carry an operation's spin-1/2 lift together
     (:func:`.._matrices._atom_blocks`).  ``chan_states`` holds each
     multiplet's states, ``su2`` says whether the states carry the spin-1/2
     lift, and ``nspin`` is the model's number of spin states per orbital.
@@ -2133,7 +2133,7 @@ def _declaration_entries(characters, model, assignment, *, spin=None):
     parse, so the two name the same orbitals.  In the list form, the orbitals
     of one site written with the same word are one entry, and a per-operation
     declaration is one entry per orbital.  An atom is one orbital, or the two
-    of a declared spin pair, one Wannier function.  Returns
+    of a declared spin pair, one spinful orbital.  Returns
     ``(entries, atom_of, atom_orbs)``: ``entries`` one
     ``(orbitals, spec, joint)`` per declaration in the order written,
     ``joint`` true for a key naming several orbitals; ``atom_of`` maps each
@@ -2530,7 +2530,7 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
     where it resolves.
 
     The piece counted is the atom: one orbital, or the two of a declared spin
-    pair, one Wannier function, never split.  A joint key names what its atoms
+    pair, one spinful orbital, never split.  A joint key names what its atoms
     hold together, an irrep, a sum of irreps or a shell, whose dimension is
     the number of atoms: ``{(0, 2): "E"}`` on spin pairs ``(0, 1)`` and
     ``(2, 3)`` is a doublet of the two pairs.  A word whose irrep is wider
@@ -2584,7 +2584,7 @@ def _normalize_declaration(characters, model, assignment, group, tables, layout,
         return tuple(int(o) for k in keys for o in atom_orbs[k])
 
     # The word written for each orbital, whichever declaration it came in: both
-    # states of a declared spinor pair, one Wannier function, and every orbital
+    # states of a declared spinor pair, one spinful orbital, and every orbital
     # of a declaration already resolved.  A multiplet the Hamiltonian glued
     # and declared orbital by orbital (``{0: "px", 1: "py"}`` on a
     # ``p_x, p_y`` pair) resolves once per orbital to the whole multiplet, and
@@ -2890,7 +2890,7 @@ def _multiplet_spelling(site, atoms, dim, spec, table, *, paired, bound=(), own=
 
     ``site`` is the site's index and ``atoms`` its atoms, each given by its
     orbitals (:func:`_site_atoms`): its orbitals, or with ``paired`` its
-    declared spin pairs, each one Wannier function.  ``spec`` is the word
+    declared spin pairs, each one spinful orbital.  ``spec`` is the word
     declared, ``dim`` its dimension counted in atoms, and ``table`` the site's
     character table.  ``bound`` holds the multiplets of ``dim`` atoms the
     hoppings measure at the site that hold an atom the declaration names and
@@ -3012,7 +3012,7 @@ def _site_reading(orbitals, measured, groups, table, pair):
             and not (corep and len(measured) > 1)):
         return {}
     one = _block_content([groups[g] for g in groups], list(measured), table, pair)
-    if one is None:                       # pragma: no cover - a guard, not a path
+    if one is None:                       # pragma: no cover: a guard, not a path
         raise InternalError(
             f"the declarations at the site of orbitals {tuple(sorted(orbitals))} do not add "
             "up to site irreps as wide as the orbitals they name. Report it, with the "

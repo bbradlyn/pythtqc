@@ -1,8 +1,8 @@
-"""Phase A2 regressions: the representation constructor of ``tqc.symmetry``.
+"""Regressions of the representation constructor of ``tqc.symmetry``.
 
 What each test is for, and the number that closes it:
 
-* **rep pinning, unique of 32 at covariance <= 5e-14** — the phase closer.
+* **rep pinning, unique of 32 at covariance <= 5e-14** — the anchor.
   A reference implementation machine-pinned ``(rowphase, dC4, 2cC4, dMx, 2cMx) =
   (-1,-1,+1,+1)`` out of 32 candidates in the *strictly-periodic* convention;
   this suite reproduces the same enumeration in **pythtb's** convention
@@ -10,8 +10,8 @@ What each test is for, and the number that closes it:
   gets the same four orbital signs with the same uniqueness.
 * **the uniqueness gate is joint** — covariance, the group's own internal
   factor, and its multiplication table, with the per-candidate record of which
-  one fired.  The anchor above is untouched by the two new gates (they kill
-  nothing there); the fixture that *needs* them is inversion-symmetric
+  one fired.  The anchor above is untouched by the two further gates (they
+  kill nothing there); the fixture that *needs* them is inversion-symmetric
   Kane–Mele in ``P6mm1'``, whose two orientation branches are both covariant
   **and** both multiplicative and are separated only by the internal factor.
   Both halves of that are measured here, including the negative one — the
@@ -21,10 +21,10 @@ What each test is for, and the number that closes it:
   independent loop; the nonsymmorphic factor system of the Bloch operators is
   ``test_multiorbital.py``'s, on SG 199.
 * **the antiunitary anchor** — a ``(-i)x`` operator is planted and caught, and
-  the corep relabelling it would have caused is displayed alongside.
+  the corep relabeling it would have caused is displayed alongside.
 * **the Bloch covariance battery** on a multi-orbit model whose orbitals sit at
-  half lattice vectors, which is where the site-permutation keying of gotcha #3
-  bites and where single-orbit models are silent.
+  half lattice vectors, which is where a row phase keyed to the wrong end of
+  a site permutation shows and where single-orbit models are silent.
 * **the canonical norm and the anchor as refusal gates**, each on a matrix
   built to fail it.
 """
@@ -110,12 +110,12 @@ def inline_2c_model():
     with an integer lattice shift ``(-1, 0)``, so every row phase of the Bloch
     operator has to follow the row's *preimage* through the operation.  A
     single-orbit model (every orbital at the origin, or one site per cell)
-    cannot expose that bug, which is exactly why gotcha #3 survived so long.
+    cannot expose a row phase keyed to the image rather than the preimage.
     """
     lat = Lattice([[1, 0], [0, 1]], [[0, 0], [0.5, 0.0], [0.0, 0.5]], periodic_dirs=[0, 1])
     m = TBModel(lat, spinful=False)
     m.set_onsite([0.4, -0.2, -0.2], mode="add")
-    for R in ([1, 0], [0, 1]):                       # 1a-1a nearest neighbours
+    for R in ([1, 0], [0, 1]):                       # 1a-1a nearest neighbors
         m.set_hop(0.35, 0, 0, R, mode="add")
     for R in ([0, 0], [-1, 0]):                      # 1a - 2c(1/2,0)
         m.set_hop(0.5, 0, 1, R, mode="add")
@@ -133,7 +133,7 @@ def inline_rep():
 
 
 # ---------------------------------------------------------------------------
-# 1.  the phase closer: rep pinning, unique of 32
+# 1.  rep pinning, unique of 32
 # ---------------------------------------------------------------------------
 
 def test_lin3g_rep_is_pinned_unique_of_32_by_covariance(lin3g_rep_enum):
@@ -221,7 +221,7 @@ def _decoupled_two_class_layer(e1=0.45, t0=0.30, t1=-0.19, d0=0.05, d1=-0.03):
     that the covariance battery cannot see, which is what makes this the
     fixture that reaches the third gate (see the test below).  ``typat``
     separates the two sites: undecorated, ``(0,0)`` and ``(1/2,1/2)`` are one
-    body-centred point set and the two orbitals would land in one class.
+    body-centered point set and the two orbitals would land in one class.
     """
     lattice = Lattice(np.array([[1.0, 0.0], [0.0, 1.0]]),
                       [[0.0, 0.0], [0.5, 0.5]], periodic_dirs=[0, 1])
@@ -357,7 +357,7 @@ def test_lin3g_reps_reproduce_the_product_table_with_spinor_factors(lin3g_rep):
 def km191_bundle():
     """Inversion-symmetric Kane-Mele (``delta = rashba = 0``) in ``P6mm1' #183.186``.
 
-    The fixture whose orientation branch used to need a workaround.  Built
+    The fixture whose orientation branch covariance cannot decide.  Built
     through ``groups.realized_group``'s own pieces so this test can re-run
     ``_build_rep`` with different gate settings on the *same* group.
     """
@@ -374,16 +374,16 @@ def km191_bundle():
 def test_kane_mele_at_191_pins_with_default_settings(km191_bundle):
     """The regression: both branches are asked, one is read, and the record says why.
 
-    ``kane_mele(delta=0, rashba=0)`` is the case that forced the joint gate.
+    ``kane_mele(delta=0, rashba=0)`` is the case that needs the joint gate.
     It conserves ``s_z``, so the detector's solution space for ``C₃`` holds its
     own matrix times every rotation about ``z``, ``S(C₃)†`` among them, and
-    both orientation branches read off that space are covariant; the build
-    used to need ``orientation_branch=+1``, which does not decide anything, it
-    just stops asking.  Each operation's space is read in its own form, whose
-    members carry ``S(g)`` alone, so the ``g⁻¹`` branch, which reads a member
-    as ``D(g)†``, has no member to be read: its block is not a multiple of the
-    lift, the defect the internal-factor gate measured when the branch was
-    built, and the answer is the one the workaround took.
+    both orientation branches read off that space are covariant; passing
+    ``orientation_branch=+1`` does not decide anything, it just stops asking.
+    Each operation's space is read in its own form, whose members carry
+    ``S(g)`` alone, so the ``g⁻¹`` branch, which reads a member as ``D(g)†``,
+    has no member to be read: its block is not a multiple of the lift, the
+    defect the internal-factor gate measures when the branch is built, and the
+    answer is the one ``orientation_branch=+1`` gives.
 
     Why the product table is **not** what pins this, measured rather than
     assumed: the losing branch, asked for alone with the internal-factor gate
@@ -413,7 +413,7 @@ def test_kane_mele_at_191_pins_with_default_settings(km191_bundle):
     # the s orbitals' A1 of the site group, returned on this spinful model as the corep -E1
     assert rep._characters.irreps == ("-E1", "-E1") and rep._characters.residual < 1e-12
 
-    # ... and it is bit-for-bit what the old workaround produced
+    # ... and it is bit-for-bit what orientation_branch=+1 produces
     old = _build._build_rep(model, group, assignment, validated=validated,
                          characters={0: "A1"}, orientation_branch=+1)
     assert old, str(old)
@@ -446,7 +446,7 @@ def test_kane_mele_at_191_pins_with_default_settings(km191_bundle):
 
 
 # ---------------------------------------------------------------------------
-# 2c.  the orientation branch where NOTHING can decide (wave R4e, 2026-09-06)
+# 2c.  the orientation branch where NOTHING can decide
 # ---------------------------------------------------------------------------
 #
 # Section 2b is the case a measurement settles: `S(C3)^dag` is not a multiple of
@@ -565,13 +565,12 @@ def test_a_weakly_broken_4mm_model_restricts_to_its_parent_on_the_pinned_branch(
     ``realized_group(M')`` serves that ``mm2`` on the **default** branch, ``+1``,
     with ``branch_tie`` — every element is an involution and no gate can choose.
     The child's representation is then the parent's restriction **on the nose**:
-    the two agree at roundoff -- 2.54e-16 on the development machine, 3.22e-16
-    on an M1 with OpenBLAS -- the whole ``mm2`` coset included.  Until
-    2026-09-10 they differed by exactly one real linear character of ``mm2``,
+    the two agree at roundoff, about 3e-16, the whole ``mm2`` coset included.
+    Both builds multiply their reference-gauge offsets into the matrices, so
+    the real linear character between them is the identity.  An offset
+    recorded and not applied would show here as a nontrivial one, such as
     ``λ = (E: +1, C2(z): −1, m(y): +1, m(x): −1)`` and the same on the four
-    antiunitary operations: the reference-gauge offset was recorded and not
-    applied.  Now both builds multiply their offsets into the matrices and
-    ``λ`` is the identity.
+    antiunitary operations.
 
     The deviation being roundoff is what makes the "continuity constant" of
     ``max‖D_M'(g) − λ(g)D_M(g)‖ ≤ C·δ`` zero: the representation is discrete
@@ -641,18 +640,17 @@ def test_the_spinless_4mm_model_never_tied_and_restricts_exactly():
     """The control: with no SU(2) factor there is no branch and no character.
 
     The same descent on a **spinless** square layer — one ``s`` orbital, an
-    anisotropic nearest-neighbour hopping breaking ``4mm`` to ``mm2``.  Here
+    anisotropic nearest-neighbor hopping breaking ``4mm`` to ``mm2``.  Here
     ``S(g)`` is ``[[1]]``, so ``D`` and ``D†`` are the *same matrix* on every
     generator and the deduplication merges the two branches outright: one
-    distinct candidate of the two built, ``branch_tie`` ``False``, and nothing
-    about this model changed in wave R4e.
+    distinct candidate of the two built, ``branch_tie`` ``False``.
 
     And because there is no SU(2) sign for ``normalize_rep`` to choose, there is
     no global character between parent and child either: the child's
     representation is the parent's restriction at exactly **0.0**, on every
-    operation of both cosets.  That is the isolation of the finding above — the
-    character the spinful case carries is the sign of the spinor lift, not
-    anything about the orientation branch.
+    operation of both cosets.  That isolates the finding above: the character
+    the spinful case carries is the sign of the spinor lift, not anything about
+    the orientation branch.
     """
     parent = tqg.realized_group(_square_s_layer(), environment="substrate",
                                 cross_check=False)
@@ -676,7 +674,7 @@ def test_the_spinless_4mm_model_never_tied_and_restricts_exactly():
     assert _deviation(child.rep, child.group, parent.rep, parent.group, rho) == 0.0
 
 
-# --- the induced representation, built from the tables and nothing else ------
+# The induced representation, built from the tables and nothing else
 
 def _induced_rep(model, group, assignment, indices):
     """``{ind: P(g) ⊗ S(g)}`` — the EBR the site content induces, from the tables.
@@ -794,19 +792,17 @@ def test_a_pure_ebr_is_the_induced_representation_in_the_tables_convention(
     nothing is lost by the room: were the served matrices off by a character,
     or by the orientation branch, the same differences would be ``O(1)``.
 
-    **Until 2026-09-10 the scalar was not the identity** but the real linear
-    character ``λ = (E: +1, C2(z): −1, m(y): −1, m(x): +1)``: the raw build's
-    reference orbital measured ``A2`` against the tables' lift — its spin block
-    on ``C2(z)`` and ``m(y)`` was *minus* ``S(g)`` — and the gauge offset that
-    undoes it was recorded and not applied, so the record read ``A1`` over
-    matrices that were the induced representation of ``A2``.  The rule: the
-    served matrices are the induced representation in the tables'
-    convention (spin up along +z, right-handed frame), so the offset is
-    multiplied into the matrices.  The record still names it — ``B2``, ``mm2``'s
-    name for that character, on the ``1a`` model, whose reference site group is
-    the whole group — and declaring that label serves ``λ·D_ind``, the other
-    sign, which is the witness that the declaration moves the matrices and the
-    default no longer does.
+    **The raw build is off by a character.**  Its reference orbital measures
+    ``A2`` against the tables' lift — its spin block on ``C2(z)`` and ``m(y)``
+    is *minus* ``S(g)`` — so left alone it would be ``λ·D_ind`` with
+    ``λ = (E: +1, C2(z): −1, m(y): −1, m(x): +1)``.  The rule: the served
+    matrices are the induced representation in the tables' convention (spin up
+    along +z, right-handed frame), so the gauge offset that undoes it is
+    multiplied into the matrices.  The record still names it — ``B2``,
+    ``mm2``'s name for that character, on the ``1a`` model, whose reference
+    site group is the whole group — and declaring that label serves
+    ``λ·D_ind``, the other sign, which is the witness that the declaration
+    moves the matrices and the default does not.
 
     The global one-dimensional character is the one thing the hoppings cannot
     supply — every row of every one of these builds reads the convention, the
@@ -880,9 +876,9 @@ def test_a_pure_ebr_is_the_induced_representation_in_the_tables_convention(
     if orbit == "1a":
         # the reference orbital's site group IS this group, so declaring B2 --
         # mm2's name for (C2(z): -1, m(y): -1, m(x): +1), the sign the raw spin
-        # block carried on C2(z) and m(y) against the tables' lift -- serves
-        # Ind(B2), the old matrices, which is what shows the default moved and
-        # the declaration still does
+        # block carries on C2(z) and m(y) against the tables' lift -- serves
+        # Ind(B2), the raw build's matrices, which is what shows the default
+        # is Ind(A1) and the declaration moves it
         b2 = {"E": 1.0, "C2(z)": -1.0, "m(y)": -1.0, "m(x)": 1.0}
         b2_of = {int(s.ind): b2[_sitechars.operation_name(s, got.group._lattice)]
                  for s in got.group._symmetries if int(s.ind) in induced}
@@ -912,11 +908,11 @@ def test_a_spinful_s_orbital_off_the_mirror_planes_is_the_tables_induced_represe
     operations carry the site to another site.  For a spinor that sign is
     nonetheless fixed, by how the spin is chosen to transform under inversion:
     it does not (``S(I·R) = S(R)``), which makes a spinful ``s`` orbital the
-    *gerade* spinor at an inversion centre and the ``Ē1`` (not ``Ē2``) doublet
+    *gerade* spinor at an inversion center and the ``Ē1`` (not ``Ē2``) doublet
     at a ``4mm`` site.  That is the reason the
     lowest-``l`` rule reads, between the sites an operation exchanges, the
     functions of the point group the orbitals read as when each is paired with
-    its image (the labelling's frame key): only then is the default the
+    its image (the labeling's frame key): only then is the default the
     induced representation ``P(g) ⊗ S(g)`` in the tables' convention on the
     nose.
 
@@ -939,11 +935,11 @@ def test_a_spinful_s_orbital_off_the_mirror_planes_is_the_tables_induced_represe
 
     The build's raw offset is ``A2g``, as on every layer: it is ``−1`` only on
     the twofolds and mirrors, where ``4/mmm``'s spinor characters vanish, so
-    here the rule moves the matrices (the mirror blocks) and no label -- the
-    mutation "offset left out of the matrices" fails this test at the block
-    comparison and nowhere in its content.  The mutation "``spin_bonds`` lifts
-    an improper operation by its full matrix" cannot even build the model
-    (``spinor_of`` refuses an improper matrix).
+    here the rule moves the matrices (the mirror blocks) and no label -- an
+    offset left out of the matrices fails this test at the block comparison
+    and nowhere in its content.  A ``spin_bonds`` that lifted an improper
+    operation by its full matrix could not even build the model (``spinor_of``
+    refuses an improper matrix).
     """
     model = build()
     got = tqg.realized_group(model)
@@ -1010,7 +1006,7 @@ def test_a_spinful_s_orbital_off_the_mirror_planes_is_the_tables_induced_represe
 def test_antiunitary_anchor_catches_a_planted_minus_i(lin3g_rep):
     """Plant ``(-i) x D(C4)`` and watch every gate except the anchor let it through.
 
-    This is gotcha #2 in the act.  The planted operator
+    A phase the gates cannot see, in the act.  The planted operator
     * is exactly as covariant as the true one (the equation is homogeneous),
     * satisfies the canonical norm ``D**4 = -1`` exactly, because ``(-i)**4 = 1``,
     * and rotates **every** sewing eigenvalue by ``-pi/2``, which relabels every
@@ -1054,7 +1050,7 @@ def test_antiunitary_anchor_catches_a_planted_minus_i(lin3g_rep):
     assert len(rec.candidates) == 4
     assert len(rec.accepted) == 2
 
-    # the corep relabelling the plant would have caused, displayed
+    # the corep relabeling the plant would have caused, displayed
     Hg = np.asarray(model.hamiltonian(k_pts=np.zeros((1, 2)), flatten_spin_axis=True))[0]
     _w, V = np.linalg.eigh(Hg)
     for lo in (0, 2, 4, 6):
@@ -1068,8 +1064,8 @@ def test_antiunitary_anchor_catches_a_planted_minus_i(lin3g_rep):
         # the plant rotates every eigenvalue by -pi/2 ...
         shifted = np.sort(((true_ang - 0.5 + 1.0) % 2.0) - 1.0)
         assert np.allclose(shifted, bad_ang, atol=1e-9)
-        # ... which destroys the +- pairing itself: the multiplet no longer reads as
-        # any corep at all, and it does so on all four multiplets at once.
+        # ... which destroys the +- pairing itself: the multiplet then reads as
+        # no corep at all, and it does so on all four multiplets at once.
         assert abs(bad_ang.sum()) > 0.1
 
     # the time-reversal operator's own phase is phase-blind
@@ -1135,7 +1131,7 @@ def test_normalize_rep_refuses_when_the_anchor_disagrees(lin3g_rep):
 # ---------------------------------------------------------------------------
 
 def test_bloch_covariance_battery_on_a_permuted_wyckoff_orbit(inline_rep):
-    """Gotcha #3's pythtb-convention case: a 2c orbit exchanged by C4.
+    """The site-permutation keying in pythtb's convention: a 2c orbit exchanged by C4.
 
     Both forms of the identity are gated: at the **unwrapped** image (where
     convention I hides the positions entirely) and at the image folded back
@@ -1264,11 +1260,11 @@ def test_embedding_phase_sign_is_pinned_at_third_lattice_vectors(km_odd):
 
 
 # ---------------------------------------------------------------------------
-# 6.  the surface phase A3 consumes
+# 6.  the surface sewing consumes
 # ---------------------------------------------------------------------------
 
 def test_sewing_operators_commute_with_H_at_high_symmetry_points(lin3g_rep):
-    """What A3 needs: ``U(g;k) H(k) U† = H(k)`` for every little-group operation.
+    """What sewing needs: ``U(g;k) H(k) U† = H(k)`` for every little-group operation.
 
     At ``M``, where every operation is in the little group and the images wrap
     by an integer reciprocal-lattice vector ``in_little_group`` returns.
@@ -1397,8 +1393,8 @@ def test_the_positivity_tie_is_what_left_the_unitary_gauge_free(i41_soc_unitary)
     For a spinful four-fold the principal entry is ``S(4+)[0,0] = e^{-i pi/4}``,
     so ``lam = 1`` and ``lam = i`` give ``e^{-i pi/4}`` and ``e^{+i pi/4}`` —
     **the same** ``Re = 0.7071`` — and the tie-break hands it to ``i``.  That is
-    the whole of the bug: not a wrong measurement anywhere, one coin flip in a
-    convention, and it twists the whole representation by the linear character
+    the whole of the hazard: not a wrong measurement anywhere, one coin flip in
+    a convention, and it twists the whole representation by the linear character
     ``lambda(E, 2_z, 4+, 4-) = (1, -1, +i, -i)`` of #80's Z4.
 
     With time reversal in the group the same call keeps only the *real*
@@ -1525,13 +1521,12 @@ def test_the_table_anchor_errors_rather_than_refusing(monkeypatch):
     refusal is a measurement about the model that a caller can act on, and
     there is nothing here for a caller to supply.
 
-    Corrupting **one** operation instead is now caught a gate earlier, and that
-    is the R4b closure rather than a loss.  ``_internal_defect`` measures the
-    ansatz on every block of every kept unitary operation, not only on the
-    channels an operation fixes, and ``I4_1``'s two screws fix none — their site
-    permutations are ``(0 1)(2 4 3 5)`` and its inverse, with no fixed point —
-    so on the fixed channels alone there was nothing to measure on either of
-    them, which is the hole this forcing used to walk through.  Corrupt the
+    Corrupting **one** operation instead is caught a gate earlier.
+    ``_internal_defect`` measures the ansatz on every block of every kept
+    unitary operation, not only on the channels an operation fixes, and
+    ``I4_1``'s two screws fix none — their site permutations are
+    ``(0 1)(2 4 3 5)`` and its inverse, with no fixed point — so on the fixed
+    channels alone there would be nothing to measure on either of them.  Corrupt the
     generator's lift alone and its powers inherit the corruption while their own
     lifts do not: the gate reads 1.0 against 1e-09 and refuses
     ``rep_internal_factor``.  That is a Refusal and belongs to the model —
@@ -1552,11 +1547,11 @@ def test_the_table_anchor_errors_rather_than_refusing(monkeypatch):
     true_internal = _matrices._internal_from_table
     gen = 3                                    # the four-fold screw, #80's only generator
 
-    # the two screws fix no site, which is why the fixed-channel gate was blind
+    # the two screws fix no site, so a gate on the fixed channels alone is blind
     perms = np.asarray(assignment.permutations)
     assert not any(int(perms[p][s]) == s for p in (2, 3) for s in range(perms.shape[1]))
 
-    # 1.  one operation's lift corrupted: the R4b gate catches it, and refuses
+    # 1.  one operation's lift corrupted: the internal-factor gate catches it, and refuses
     def one_operation(sym):
         S = true_internal(sym)
         return S @ np.diag([1.0, -1.0]).astype(complex) if int(sym.ind) == gen else S
@@ -1621,7 +1616,7 @@ def test_the_table_anchor_errors_rather_than_refusing(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# 10b.  the anchor against the DECLARATION protocol (2026-08-25)
+# 10b.  the anchor against the DECLARATION protocol
 # ---------------------------------------------------------------------------
 #
 # Section 10 measures the anchor on the DEFAULT declaration.  The principle
@@ -1716,25 +1711,24 @@ def test_the_skipped_reference_block_is_a_branch_covariance_has_already_killed()
 #       about valuedness
 # ---------------------------------------------------------------------------
 #
-# The anchor of section 10 above used to fire on both mismatches and blame
-# *this package*: `_table_anchored` raises InternalError saying "a bug in this
-# package's application of that convention", and that verdict rests on a premise
-# -- the internal factor is a pseudo-real SU(2) lift written in the tables the
-# group ships -- which either mismatch falsifies.  No real phase exists, and
-# nothing is a package bug.  Both are refusals now, for different reasons:
+# Left to itself, the anchor of section 10 above would fire on both mismatches
+# and blame *this package*: `_table_anchored` raises InternalError saying "a bug
+# in this package's application of that convention", and that verdict rests on
+# a premise -- the internal factor is a pseudo-real SU(2) lift written in the
+# tables the group ships -- which either mismatch falsifies.  No real phase
+# exists, and nothing is a package bug.  Both are refusals, for different
+# reasons:
 #
-# * **spinless model, DOUBLE-valued tables** -- a real thing to want, and a
-#   docket item of its own rather than a magnetic-program rider.  It says the
-#   orbitals carry half-integer spin themselves: a spinor Wannier basis, which
-#   is how pythtb's `wannier90` importers deliver a spinor calculation (always a
-#   spinless model with its spin partners in a canonical order -- non-magnetic, groups
-#   already in scope), or one without local time-reversal symmetry, which is the
-#   magnetic case and the only half that waits on the magnetic program.  What is
-#   missing either way is a double-valued *site* declaration.
-# * **spinful model, SINGLE-valued tables** -- not a deferred feature but an
-#   invalid ask: a spinful model, ``nspin == 2``, always invokes the double
-#   group, at this level and at every other.  Refused at `_group_of` and again
-#   here.
+# * **spinless model, DOUBLE-valued tables** -- a real thing to want.  It says
+#   the orbitals carry half-integer spin themselves: a spinor Wannier basis,
+#   which is how pythtb's `wannier90` importers deliver a spinor calculation
+#   (always a spinless model with its spin partners in a canonical order --
+#   non-magnetic, groups in scope), or one without local time-reversal
+#   symmetry, which is the magnetic case.  What is missing either way is a
+#   double-valued *site* declaration.
+# * **spinful model, SINGLE-valued tables** -- an invalid ask: a spinful
+#   model, ``nspin == 2``, always invokes the double group, at this level and
+#   at every other.  Refused at `_group_of` and again here.
 
 @pytest.fixture(scope="module")
 def spinless_asked_double_valued():
@@ -1759,21 +1753,18 @@ def test_a_spinless_model_asked_with_double_valued_tables_refuses(
         spinless_asked_double_valued):
     """The reproduction, in code: a falsy ``Refusal``, never an error.
 
-    Before the gate this call reached ``_table_anchored`` and raised
-    ``InternalError``.  The six phases that message listed for the six-fold
+    Without the gate this call would reach ``_table_anchored`` and raise
+    ``InternalError``.  The six phases the anchor is offered for the six-fold
     -- the sixth roots of ``-1``, ``e^{i pi (2k+1)/6}`` -- are exactly the
     **double-valued characters of C6**, i.e. precisely the set a site
-    declaration would have picked one from.  The crash message was the
-    specification of the missing feature, not a bug report: nothing pinned the
-    phase because nothing had been declared, and there is no way to declare it.
+    declaration would pick one from: nothing pins the phase because nothing
+    has been declared.
 
-    The reason names what it waits on, and since the spinor-basis declaration
-    landed (2026-09-02) the non-magnetic half is no longer waiting: a
-    ``wannier90`` spinor import arrives exactly like this, and ``spin=`` is
+    A ``wannier90`` spinor import arrives exactly like this, and ``spin=`` is
     what it is missing.  Haldane's two orbitals are **not** such a basis --
     they are two genuinely spin-free s orbitals on a honeycomb -- so this
-    refusal is still the right answer for this model, and the message now says
-    which ask would not be refused.
+    refusal is the right answer for this model, and the message says which
+    ask would not be refused.
     """
     model, group, assignment, validated = spinless_asked_double_valued
     assert len(validated._indices) == 12 and len(validated.broken) == 12, \
@@ -1781,7 +1772,7 @@ def test_a_spinless_model_asked_with_double_valued_tables_refuses(
 
     try:
         out = _build._build_rep(model, group, assignment, validated=validated)
-    except InternalError as exc:            # pragma: no cover - the defect
+    except InternalError as exc:            # pragma: no cover: the defect
         pytest.fail("the anchor's premise is false here, so its verdict -- 'a bug in "
                     f"this package' -- is wrong; it must refuse instead: {exc}")
 
@@ -1850,13 +1841,12 @@ def test_a_spinful_model_cannot_be_asked_for_single_valued_tables():
 
 # ---------------------------------------------------------------------------
 # 11.  the read-off: the discrete choices measured off the detector's own space
-#      (performance phase, wave P2, 2026-09-02)
 # ---------------------------------------------------------------------------
 #
-# `_build_rep` used to pin its ansatz `D(g) = O(g) (x) S(g)` by ENUMERATION --
-# one phase from `phases` per (generator, channel class) except the reference
-# one, times the orientation branch, each candidate through the three gates.
-# That is 2-512 candidates on the fixtures above and `2**46` on a
+# `strategy="enumerate"` pins the ansatz `D(g) = O(g) (x) S(g)` by ENUMERATION
+# -- one phase from `phases` per (generator, channel class) except the
+# reference one, times the orientation branch, each candidate through the three
+# gates.  That is 2-512 candidates on the fixtures above and `2**46` on a
 # wannier90-scale model, which is the cliff this section is about.
 #
 # The detector has already solved `X H(k) = H(Rk) X` for every operation and
@@ -1938,7 +1928,7 @@ def readoff_pairs(lin3g_rep, lin3g_rep_enum, p4232_decorated):
 def test_the_readoff_returns_the_enumerations_representation(readoff_pairs, name):
     """Same discrete choices, same matrices to ``0.0``, same gate residuals.
 
-    This is the whole claim of the wave: ``strategy="readoff"`` is a cheaper way
+    This is the whole claim of the read-off: ``strategy="readoff"`` is a cheaper way
     to *find* the candidate the enumeration would have found, not a different
     answer -- including on a degenerate solution space, where the read-off
     projects the space onto ansatz form before it reads.
@@ -2059,7 +2049,7 @@ def test_an_enumeration_larger_than_max_candidates_is_refused_not_run(lin3g_rep)
 # ---------------------------------------------------------------------------
 
 def _inversion_permutation(model):
-    """Which orbital each one maps to under the cell's own inversion centre."""
+    """Which orbital each one maps to under the cell's own inversion center."""
     pos = np.asarray(model.orb_vecs, dtype=float) % 1.0
     for j in range(pos.shape[0]):
         target = (pos[0] + pos[j] - pos) % 1.0
@@ -2079,8 +2069,8 @@ def _lifted_supercell(sc, lift=0.3, seed=0):
     translations and the star degeneracy while leaving inversion exact.  The
     sites are then typed by inversion orbit -- the bare supercell's *positions*
     still carry the small translations, so what ``_group_of`` reads off it is the
-    **lattice supergroup** (``Fd-3m1' #227.129`` at ``lattice_index`` 8 and 27;
-    before wave R4a it was refused ``non_primitive_cell``), and the typing says
+    **lattice supergroup** (``Fd-3m1' #227.129`` at ``lattice_index`` 8 and
+    27), and the typing says
     the truth about this Hamiltonian rather than asserting a symmetry -- as well
     as being much the cheaper route: 0.2 s against 20.3 s at n = 108, since the
     supergroup carries 2592 operations.
@@ -2100,12 +2090,12 @@ def sc108_bundle():
     """A degeneracy-lifted 3x3x3 Fu-Kane-Mele supercell (n = 108), group and all.
 
     ``orientation_branch=+1`` is used with it below, and that is a statement
-    about the convention rather than about this wave: the only generator is
+    about the convention rather than about the read-off: the only generator is
     inversion, a Hermitian involution, so its two branches build the identical
     unitary matrices and differ only in the sign of ``D(T)`` -- a twist all
-    three gates are blind to.  Since wave R4e the default build settles that tie
-    itself (``branch_tie``, +1 by convention), so the restriction is no longer
-    needed here; it is kept because the test below is about the **read-off
+    three gates are blind to.  The default build settles that tie itself
+    (``branch_tie``, +1 by convention), so the restriction is not needed here;
+    it is kept because the test below is about the **read-off
     against the enumeration** and a restricted search is the cleanest way to
     hold the candidate count fixed while that is measured.
     """

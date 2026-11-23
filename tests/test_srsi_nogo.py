@@ -1,4 +1,4 @@
-r"""Wave S2: the paper's **no-go criterion for a band splitting**, in theta-coordinates.
+r"""The paper's **no-go criterion for a band splitting**, in theta-coordinates.
 
 Where ``test_srsi_tables.py`` says the shipped tables are the paper's and
 ``test_srsi_model.py`` says the two routes onto a model are right, this file says
@@ -195,7 +195,7 @@ def test_the_band_count_is_a_unique_linear_form_in_the_z_srsis_everywhere():
     ``Theta``: on each of the 4731 EBR columns, against the ``(n)`` written into
     that EBR's own ``_tables._ebr_data`` name.  On a *composite* key the same expression
     is how ``_maximal_basis`` computed ``dim`` in the first place, so that line
-    restates the construction and is labelled as such.
+    restates the construction and is labeled as such.
 
     Measured: 434 systems, 4731 EBR columns, 39 composite maximal keys in 28
     systems (all without SOC), zero rank-deficient blocks, and **no maximal key

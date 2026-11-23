@@ -1,4 +1,4 @@
-"""The machinery wave P1 added, and the one thing it may not do: change an answer.
+"""The measurement's shared machinery, and the one thing it may not do: change an answer.
 
 Two objects are measured here.
 
@@ -17,7 +17,7 @@ Two objects are measured here.
     a bounded, process-level LRU of :func:`~pythtqc.groups._group_of` answers.
     The tests are its hit/miss accounting, that a hit is the object the first
     call built, that every flag the answer depends on is in the key, and that
-    the bound is honoured.
+    the bound is honored.
 
 Nothing here is a performance assertion: wall clock is not a property of the
 package.  What is asserted is that the sharing is invisible in the answer.
@@ -70,7 +70,7 @@ def _nudged_hopping(model, delta=1e-3):
 
 
 def _moved_orbital(model, delta=1e-3):
-    """The same hoppings on centres one of which has been displaced."""
+    """The same hoppings on centers one of which has been displaced."""
     orb = np.asarray(model.orb_vecs, dtype=float).copy()
     orb[0, 0] += delta
     out = TBModel(Lattice(model.lat_vecs, orb.tolist(),
@@ -165,8 +165,8 @@ def test_a_context_changes_nothing_validate_group_measures(name):
     # the grid is built once.  The sharing *within* one call is
     # `_validate_group`'s own `solved_class` dict and needs no context at all —
     # the context's serving is measured by the next test, where a second call
-    # can hit.  (Until 2026-09-09 these two lines were read as "solved once and
-    # served to the rest"; `hits` is 0 here, so nothing was served.)
+    # can hit.  These two lines do not say "solved once and served to the
+    # rest": `hits` is 0 here, so nothing was served.
     assert (ctx.hits, ctx.misses) == (0, len(plain._k_action_classes))
     assert ctx.rebuilds == 1
     assert len(ctx.spaces) == len(plain._k_action_classes)
@@ -185,9 +185,9 @@ def test_a_second_measurement_of_the_same_group_is_all_hits(monkeypatch):
     identity on the stored bases — the served space *is* the stored one, because
     ``bases[ind] = space.basis`` keeps it by reference.  Neither claim can rest on
     ``hits``/``misses``: they are incremented by the dict lookup itself and say
-    nothing about whether what it returned was used (found 2026-09-09 by the
-    honesty audit — with the lookup's result thrown away the counters do not
-    move and a ``np.array_equal`` on the bases still passes).
+    nothing about whether what it returned was used (with the lookup's result
+    thrown away the counters do not move and a ``np.array_equal`` on the bases
+    still passes).
     """
     model = _layers._slab_presentation(kane_mele(0.0, -1.0, 0.3, 0.0))
     group = _spacegroup._group_of(model)
@@ -336,16 +336,15 @@ def test_the_grid_is_only_served_for_the_mesh_it_was_built_on():
 def test_the_position_pass_and_the_projection_both_invalidate_the_context():
     """The two steps of the chain that change ``H``, in one real call.
 
-    A model whose centres are off by 1e-9 and whose hoppings are off by 1e-9
-    goes down both branches: the position pass moves the centres (a new model),
+    A model whose centers are off by 1e-9 and whose hoppings are off by 1e-9
+    goes down both branches: the position pass moves the centers (a new model),
     and the hopping projection projects the Hamiltonian (another new model).
     The record says both ran, and the context was rebuilt for each of them.
 
     The position pass runs **before** the first measurement, so on a fresh
     context its adjusted cell would arrive as the first bind and not as an
     invalidation — a ``rebuilds >= 2`` would then be satisfied by one bind plus
-    one rebuild and could not tell the two steps apart (found 2026-09-09 by the
-    honesty audit).  The context is therefore bound on the Hamiltonian **as
+    one rebuild and could not tell the two steps apart.  The context is therefore bound on the Hamiltonian **as
     handed in** first, which makes both steps invalidations: three binds exactly,
     with the ends named — the last Hamiltonian bound is the projected one the
     answer is about, and it is not the one handed in.
@@ -384,7 +383,7 @@ def test_the_position_pass_and_the_projection_both_invalidate_the_context():
     assert _measure._model_key(dirty) != _measure._model_key(shared.model), \
         "and it is not the one handed in"
 
-    # a parameterized model, its centre off by 1e-8, read under a declared
+    # a parameterized model, its center off by 1e-8, read under a declared
     # precision: the position pass rebuilds it, and what is returned is what the
     # model with the values in place returns
     for cell in (np.eye(2), np.eye(3)):
@@ -486,9 +485,9 @@ def test_the_memo_is_bounded_and_evicts_the_least_recently_used(clean_memo,
     entry goes is **recency**, not arrival order, and that is measured here by
     asking again: seven distinct cells through a memo of three, with one of the
     three survivors asked for in the middle.  It outlives the next two inserts
-    and its untouched neighbour does not — the ``move_to_end`` on a hit is the
-    only thing that makes that true, and a FIFO fails it.  (Until 2026-09-09 the
-    eviction *counter* was the whole of the evidence and a FIFO passed.)
+    and its untouched neighbor does not — the ``move_to_end`` on a hit is the
+    only thing that makes that true, and a FIFO fails it.  The eviction
+    *counter* alone would not tell: a FIFO passes it.
     """
     patch_everywhere(monkeypatch, "_IDENT_MEMO_MAX", 3)
 

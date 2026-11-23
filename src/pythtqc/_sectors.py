@@ -732,7 +732,7 @@ class SectorSearch:
             except _Unread:
                 self.complete = False
 
-    # ---- the factors the orbital part of a representation carries --------------
+    # The factors the orbital part of a representation carries
     def _lift(self, p):
         if p not in self._lifts:
             self._lifts[p] = _matrices._lift_of(self.syms[p], self.reading.su2)
@@ -770,7 +770,7 @@ class SectorSearch:
         return _composed(wa, wb, wab, after_antiunitary=after_antiunitary,
                          tol=self.reading.tol)
 
-    # ---- one orbit of sectors under a subgroup ---------------------------------
+    # One orbit of sectors under a subgroup
     def _orbit(self, orbit, H):
         """The stabilizer, frames and representations of one orbit under ``H``.
 
@@ -929,7 +929,7 @@ class SectorSearch:
         self._theta_of[key] = out
         return out
 
-    # ---- whether the declarations are carried -----------------------------------
+    # Whether the declarations are carried
     def _holds(self, i, content, H):
         """Whether declared site ``i`` holds what was declared.
 
@@ -1592,7 +1592,7 @@ class InducedOrbit:
             character = {k: sum((chars[i][k] for i in combo), 0j) for k in self.Ku}
             self.candidates.append(_InducedCandidate(self, combo, X, character))
 
-    # ---- the orbital part's own factor system ------------------------------------
+    # The orbital part's own factor system
     def _orbital_table(self, x, y):
         """The factor ``τ`` with ``O(x) O(y) = τ O(xy)`` on the orbital part.
 
@@ -1617,7 +1617,7 @@ class InducedOrbit:
             raise _Unread
         return 1.0 + 0.0j
 
-    # ---- the multiplets the orbit lies on -----------------------------------------
+    # The multiplets the orbit lies on
     def _members(self, reference, shared=None):
         layout = self.layout
         loose = noise_floor(_IN_BLOCKS, self.tol) * 10.0
@@ -1686,7 +1686,7 @@ class InducedOrbit:
                 per[h] = here
             self.theta[c] = per
 
-    # ---- the stabilizer's representations -----------------------------------------
+    # The stabilizer's representations
     def _b(self, combo):
         m = self.m
         out = {}
@@ -1790,7 +1790,7 @@ class InducedOrbit:
                 out[k] = np.kron(b[u] @ cand.X / self.nu[(u, a)], self.w[k])
         return out
 
-    # ---- what a candidate gives -----------------------------------------------------
+    # What a candidate gives
     def contents(self, cand):
         """What each multiplet holds under the candidate ``cand``, as a character.
 

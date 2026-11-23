@@ -6,8 +6,8 @@ ImportError`` and, on failure, rebinds the name to
 import: it is an object that only complains when it is *called*, and several
 ``irrep`` code paths call it lazily or not at all.  A ``tqc`` run against a
 half-installed ``irreptables`` would therefore not crash -- it would quietly
-produce results with no character tables behind them.  These tests are the
-tripwire: they assert the real tables are bound, that they load *complete*
+produce results with no character tables behind them.  These tests check
+that: they assert the real tables are bound, that they load *complete*
 character tables for two spinless and two spinful groups -- counts and k-point
 sets, not a lower bound a single surviving row would satisfy -- and that the
 table versions are the ones the rest of the suite pinned its labels against.
@@ -54,7 +54,7 @@ def _child(body):
 #: accepts it.  Those pins are properties of the tables and of nothing in this
 #: package, so a release that moves a label fails the tests that pin it and the
 #: stored baseline: read such failures against the release first, and
-#: re-measure the affected pins in the same commit.
+#: re-measure the affected pins in the same change.
 TABLE_VERSIONS = {"irrep_version": "3.2.0", "irreptables_version": "3.1.0"}
 
 
@@ -108,17 +108,14 @@ def test_irreptables_load_real_character_tables():
     """``irreptables`` returns its whole table for each group, not a first row.
 
     The counts and the k-point set are pinned exactly, and that is the point of
-    the test rather than a tightening of it.  A ``min_irreps`` of 1 stood here
-    until wave P6, in all four rows -- 10x to 20x below the true counts (15, 20,
-    10, 20) and one-sided on top of that -- so a table that came back holding
-    one irrep out of fifteen satisfied every assertion in the file whose entire
-    reason for existing is that a half-installed ``irreptables`` fails quietly.
-    A truncated table is exactly what the structural statements catch: the full
-    k-point set (the two cubic groups carry ``{GM,M,R,X}``, the two tetragonal
-    ones also ``A`` and ``Z``) and the operation count, which was not checked at
-    all.
+    the test.  A lower bound of one irrep would pass a table that came back
+    holding one irrep out of fifteen, and a half-installed ``irreptables`` fails
+    quietly in just that way.  A truncated table is exactly what the structural
+    statements catch: the full k-point set (the two cubic groups carry
+    ``{GM,M,R,X}``, the two tetragonal ones also ``A`` and ``Z``) and the
+    operation count.
 
-    Provenance of the numbers: measured from ``irreptables`` 3.1.0 under
+    The numbers are measured from ``irreptables`` 3.1.0 under
     ``irrep`` 3.2.0, the versions every pinned label, corep name and conjugated
     point in this suite is a property of.  They are regression pins on the
     installed tables -- a genuine upstream table revision is expected to move
@@ -132,7 +129,7 @@ def test_irreptables_load_real_character_tables():
             f"IrrepTable({sg_number!r}, {spinor}) loaded {len(table.irreps)} irreps, "
             f"expected {n_irreps} -- a truncated table is the failure this file exists for")
         assert len(table.symmetries) == n_symmetries, sg_number
-        # every entry really is a labelled irrep at a named k-point
+        # every entry really is a labeled irrep at a named k-point
         for irrep in table.irreps:
             assert irrep.name and irrep.kpname, sg_number
         assert {ir.kpname.upper() for ir in table.irreps} == kpoints, sg_number

@@ -1,4 +1,4 @@
-r"""Phase A3 regressions: sewing matrices, characters and corep content.
+r"""Regressions for the sewing matrices, the characters and the corep content.
 
 What each test closes, and the number that closes it:
 
@@ -22,30 +22,29 @@ What each test closes, and the number that closes it:
   being 7.3e-15 — 1.8e-14 at X, 8.3e-14 at M) and a measured list of readouts on
   which the flat and conditioned rules disagree.
 
-The eigenvector currency is pythtb's (A3r)
-------------------------------------------
+The eigenvector currency is pythtb's
+------------------------------------
 Every call here hands the module one of pythtb's own objects — a solved
 ``WFArray``, the ``(evals, evecs)`` pair ``TBModel.solve_ham`` returns, or the
 model itself — because the package deliberately owns **no** eigenvector
 container.  Three tests lock that seam rather than the physics on top of it:
 ``test_the_two_state_sources_agree`` (WFArray path ≡ model path, on content and
-on sewing angles), ``test_a_feature_sector_wfarray_sews`` (phase B2's payoff:
-the *same* sewing code on a ``P±`` sector ``WFArray`` from
-``tqc_models.psp_sector_wfarrays``, whose fibers carry three states out of
-eight and no energies at all), and the ``k``-provenance gates that replace what the
-old package-local container used to enforce by holding onto its own ``k``.
+on sewing angles), ``test_a_feature_sector_wfarray_sews`` (the *same* sewing
+code on a ``P±`` sector ``WFArray`` from ``tqc_models.psp_sector_wfarrays``,
+whose fibers carry three states out of eight and no energies at all), and the
+``k``-provenance gates, which measure that states handed in belong to the ``k``
+asked about.
 
 Why the 2D goldens are presented in a mirror-broken slab cell
 -------------------------------------------------------------
-This is the phase's one architectural surprise and it is load-bearing, so it is
-stated here rather than buried.
+This is load-bearing, so it is stated here rather than buried.
 
 ``groups._group_of`` answers "what does this cell allow?", and for a 2D model
 padded into a slab cell with every orbital at ``z = 0`` the answer always
 contains the horizontal mirror ``sigma_h``: a flat point set is ``sigma_h``
 symmetric no matter what the Hamiltonian does.  lin3g's slab cell therefore
-reads P4/mmm1' (#123.340) and Kane–Mele's reads P-6m21' (#187.210), and phase
-A1's ``_validate_group`` cannot refute the ``sigma_h``-composed operations
+reads P4/mmm1' (#123.340) and Kane–Mele's reads P-6m21' (#187.210), and
+``_validate_group`` cannot refute the ``sigma_h``-composed operations
 either, because their action on *in-plane* k duplicates an in-plane partner's
 (``test_groups_fixtures.py``: the mechanism on Kane–Mele in
 ``test_kane_mele_sigma_h_survives_only_because_the_slab_hides_it``, lin3g's
@@ -55,7 +54,7 @@ terms (lin3g's ``vMz``, Kane–Mele's Rashba) are odd under it, which
 ``_build_rep`` detects — it leaves the ``sigma_h``-composed operations out of
 the representation, and forcing them in raises.
 
-The consequence for A3 is sharp: half of the unitary little group at every
+The consequence for the corep content is sharp: half of the unitary little group at every
 high-symmetry point is then unrepresented, and a corep label of #123 or #187
 describes a Hamiltonian that represents *all* of its little group.  A
 representation of that group, which only a build by hand makes, is short of
@@ -67,7 +66,7 @@ the one the P4₂32 fixture already uses (and the one arXiv:1711.11045 itself
 describes for its own model): decorate the *cell* with non-orbital atoms that
 create a crystal field of the right symmetry.  Here two atoms of **different**
 species at ``(0, 0, ±dz)`` do it — they break every operation with
-``R[2,2] = -1`` and leave the slab centred on ``z = 0``, so the model's own
+``R[2,2] = -1`` and leave the slab centered on ``z = 0``, so the model's own
 padded presentation is untouched.  ``groups._slab_presentation`` first
 re-presents the 2D model in a 3D slab lattice with a *bit-identical*
 Hamiltonian (it measures that itself, and refuses on any difference) so that
@@ -264,7 +263,7 @@ def test_coreps_at_raises_on_a_representation_short_of_its_little_group(lin3g_sl
 
 
 # ---------------------------------------------------------------------------
-# 1.  the phase closer: lin3g content at Gamma / X / M
+# 1.  lin3g content at Gamma / X / M, against the reference
 # ---------------------------------------------------------------------------
 
 #: The reference's C4 (Gamma, M) and C2 (X) sewing angle sets, in units of
@@ -308,7 +307,7 @@ LIN3G_BLOCKS = {"P_4": (0, 1, 2, 3), "P_2": (4, 5), "P_6": tuple(range(6)),
 
 
 def test_lin3g_coreps_at_matches_the_reference_port(lin3g_undeclared):
-    """PHASE CLOSER -- lin3g content at Gamma/X/M against out100 (= SM Sec. 3G).
+    """lin3g content at Gamma/X/M against out100 (= SM Sec. 3G).
 
     out100 measured, for the coupled model:
       ``P_6``  Gamma ``Ebar1 + 2xEbar2``, M ``2xEbar1 + Ebar2``, X ``+-i x3``;
@@ -318,7 +317,7 @@ def test_lin3g_coreps_at_matches_the_reference_port(lin3g_undeclared):
     M -- the content of an EBR induced from a maximal Wyckoff position.  Every
     one of those is reproduced here as an ``irreptables`` label set, and the
     underlying sewing angle sets are identical to out100's printout, to 1e-9.
-    Angles are what out100 printed and what survives any relabelling: the C4
+    Angles are what out100 printed and what survives any relabeling: the C4
     sewing eigenvalues of a spinful two-dimensional corep sit at ``exp(±i pi/4)``
     (``Ebar1``) or ``exp(±3i pi/4)`` (``Ebar2``), and the C2 ones at ``±i``.
 
@@ -439,7 +438,7 @@ def test_the_VG_fold_is_what_makes_the_boundary_points_identifiable(lin3g_undecl
 # ---------------------------------------------------------------------------
 
 def test_sewing_has_one_states_slot_and_gates_its_k_provenance(lin3g_undeclared):
-    """What replaces the old container's self-declared k: two measured gates.
+    """The ``k`` the states belong to, held by two measured gates.
 
     The signature has exactly one ``states`` slot, so bras and kets from two
     different solves cannot be expressed at all.  The remaining door -- handing
@@ -605,11 +604,11 @@ def test_an_antiunitary_operation_sews_through_the_conjugating_branch(lin3g_unde
 
 
 # ---------------------------------------------------------------------------
-# 4.  labelling the isolated block, never an energy-ordered pair
+# 4.  labeling the isolated block, never an energy-ordered pair
 # ---------------------------------------------------------------------------
 
 def test_a_block_that_cuts_a_multiplet_is_refused_everywhere(lin3g_undeclared):
-    """The occupancy boundary inside a Kramers doublet is refused, not labelled."""
+    """The occupancy boundary inside a Kramers doublet is refused, not labeled."""
     undeclared = lin3g_undeclared
     model, group, rep = undeclared.model, undeclared.group, undeclared.rep
     k = tqg.high_symmetry_points(group)["GM"]
@@ -651,9 +650,9 @@ def test_a_readout_where_the_two_rules_disagree_is_listed_not_reclassified(lin3g
     against effective thresholds of 1.0e-14 / 1.8e-14 / 8.3e-14).  At M they
     land *between* the two rules -- zero under the conditioned one and nonzero
     under the flat one -- which is where the conditioning bites; how many land
-    there, and how far, is the machine's arithmetic (24 readouts near 3.6e-14 on
-    the development machine, 28 between 4.3e-14 and 5.2e-14 on an M1 with
-    OpenBLAS).  Whichever they are, they are listed; none is silently
+    there, and how far, is the machine's arithmetic (24 to 28 readouts, between
+    3.6e-14 and 5.2e-14, by the linear-algebra library).  Whichever they are,
+    they are listed; none is silently
     reclassified, and the flat rule is not widened to make them go away.
 
     The thresholds themselves are the reference's block thresholds,
@@ -786,11 +785,11 @@ def test_multiplet_helpers_are_the_analysis_over_pythtb_s_arrays():
 
 
 # ---------------------------------------------------------------------------
-# 6.  the table phase A4 consumes
+# 6.  the table the EBR machinery reads
 # ---------------------------------------------------------------------------
 
 def test_hsp_table_shape(lin3g_undeclared):
-    """The record A4's EBR machinery reads, and the flag it must gate on.
+    """The record the EBR machinery reads, and the flag it must gate on.
 
     The character table under it has columns in ``little_group(...).unitary``
     order, and an antiunitary operation never appears among them.  Both records
@@ -981,7 +980,7 @@ def test_the_degeneracy_tolerance_is_an_argument_of_the_table(lin3g_undeclared):
     assert fine.numerical.spread == pytest.approx(0.0, abs=1e-13)
     assert fine.numerical.thresholds.separation == pytest.approx(3.9751, abs=1e-3)
     # the unsafe grouping, in the two numbers that say so: the within-multiplet
-    # spread is now the *same size* as the separation, not orders below it
+    # spread is the *same size* as the separation, not orders below it
     assert coarse.numerical.spread == pytest.approx(3.9751, abs=1e-3)
     assert coarse.numerical.thresholds.separation == pytest.approx(8.0501, abs=1e-3)
 
@@ -1063,7 +1062,7 @@ def test_the_label_tolerance_is_the_gate_the_labels_are_read_at(lin3g_undeclared
 
 
 # ---------------------------------------------------------------------------
-# 7.  the A3r seam: pythtb's eigenvector currency
+# 7.  the seam: pythtb's eigenvector currency
 # ---------------------------------------------------------------------------
 
 def test_the_two_state_sources_agree(lin3g_undeclared, lin3g_wfarray):
@@ -1123,11 +1122,11 @@ def test_the_two_state_sources_agree(lin3g_undeclared, lin3g_wfarray):
 
 
 def test_a_feature_sector_wfarray_sews(lin3g_undeclared):
-    """Phase B2's payoff, smoke-tested: the *same* sewing code on a P+ sector.
+    """The *same* sewing code on a P+ sector, smoke-tested.
 
     ``tqc_models.psp_sector_wfarrays`` builds, with pythtb alone, the ``P±``
     sector ``WFArray``\\ s whose fibers carry three states out of eight and
-    **no energies at all** -- the ``nstates <= norb*nspin`` case the A3r API
+    **no energies at all** -- the ``nstates <= norb*nspin`` case the API
     exists to support.  Nothing here
     is a corep claim; this is plumbing, and what it measures is which
     little-group operations the sector is even closed under:

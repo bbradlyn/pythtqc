@@ -1150,7 +1150,7 @@ def _labeling(D, raw, decls, *, pool, model, group, assignment, layout, syms, u_
                      or [o for o in options if _ok(i, o, matrices=False)]
                      or [o for o in options if _ok(i, o, True, matrices=False)])
         if not cands:
-            if int(ref_chan) in chans:     # pragma: no cover - the verdict rules it out
+            if int(ref_chan) in chans:     # pragma: no cover: the verdict rules it out
                 raise InternalError(
                     "the hoppings were found covariant under this group with the declared site "
                     "irreps, and no choice the hoppings leave open gives the declarations made "
@@ -1531,7 +1531,7 @@ def _atomic_limit_table(raw, worst, decls, choice, *, group, assignment, model, 
             note_a = (note_a + "; " if note_a else "") + spin_note[a]
         content = None if part is None else part.get("content")
         written = dict(getattr(content, "written", ()) or ())
-        if (named_by == "unnamed") == bool(label):    # pragma: no cover - a defect guard
+        if (named_by == "unnamed") == bool(label):    # pragma: no cover: a defect guard
             raise InternalError(
                 f"at site {s}, the atomic-limit table gives orbital {int(a)} the label "
                 f"{label!r} with named_by {named_by!r}. A label is blank exactly where "

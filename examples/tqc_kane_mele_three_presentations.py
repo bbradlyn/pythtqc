@@ -304,7 +304,7 @@ print(f"   declaring s in the plane instead gives {values(si_a.values)}, with th
 print("\nE. the layer's bands, and the stack's at k_z = 0 and k_z = 1/2")
 fig, axes = plt.subplots(1, 2, figsize=(12.4, 5.4), sharey=True)
 
-# --- the layer, labeled in its own layer group ---
+# The layer, labeled in its own layer group
 kv, kd, kn = layer.k_path(PATH, NK_PATH, report=False)
 bands_2d = np.asarray(layer.solve_ham(kv))
 for i in range(4):
@@ -327,7 +327,7 @@ axes[0].set_ylabel("$E$", fontsize=16)
 axes[0].set_title(f"the layer in the plane\n#{g191.number_str} {g191.name}   "
                   f"class {si_b.values} in {si_b.indicator_group}", fontsize=10)
 
-# --- the stack, at k_z = 0 and at k_z = 1/2, overlaid ---
+# The stack, at k_z = 0 and at k_z = 1/2, overlaid
 path_kz0 = [[k[0], k[1], 0.0] for k in PATH]
 path_kz_half = [[k[0], k[1], 0.5] for k in PATH]
 kv0, kd0, kn0 = stack.k_path(path_kz0, NK_PATH, report=False)

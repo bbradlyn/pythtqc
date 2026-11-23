@@ -764,7 +764,7 @@ def _represented_operations(model, group, assignment, *, validated, multiplets, 
             f"spinor=True.")
 
     # 0b. A declared spinor basis: the two orbitals of a declared (up, dn) pair
-    # are one Wannier function and share a center, which `realized_group` checks
+    # are one spinful orbital and share a center, which `realized_group` checks
     # before anything is identified, and the build checks on the sites handed in.
     if spin is not None:
         split = _spin_pair_split(spin, assignment.site_orbitals,
@@ -844,7 +844,7 @@ def _represented_operations(model, group, assignment, *, validated, multiplets, 
                 f"{tuple(int(syms[p].ind) for p in u_pos)}. Pass generators= that generate "
                 f"them, or leave it out.")
     words, parent = _bfs_words(gens, prod, ident, u_pos)
-    if set(words) != set(u_pos):  # pragma: no cover - guarded by the closure test
+    if set(words) != set(u_pos):  # pragma: no cover: guarded by the closure test
         raise InternalError(
             f"the words in the generators do not reach the operations "
             f"{tuple(int(syms[p].ind) for p in set(u_pos) - set(words))}. Report it, with "
@@ -1070,7 +1070,7 @@ def _measurement_read(model, group, assignment, ops, mul, *, internal_tol, max_c
                   for chi in _real_characters(kept, gens, words, parent,
                                               (au_of if T_pos is not None else {}),
                                               prod, ident)]
-    if not admissible:            # pragma: no cover - the trivial character always is
+    if not admissible:            # pragma: no cover: the trivial character always is
         admissible = [{ind_of_pos[p]: 1.0 + 0.0j for p in kept}]
     pool = (admissible if au_pos else
             [{int(k): complex(v) for k, v in chi.items()}
@@ -1309,7 +1309,7 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
     if strategy == "readoff":
         try:
             read = _read_off(ops, mul, meas, bat)
-        except np.linalg.LinAlgError as exc:  # pragma: no cover - not seen on any fixture
+        except np.linalg.LinAlgError as exc:  # pragma: no cover: not seen on any fixture
             # The read-off is a way to find the candidate faster; it must never
             # be the reason a build refuses.  An SVD that will not converge is a
             # reason to enumerate, not an error to return.
@@ -1355,7 +1355,7 @@ def _accepted_candidate(group, ops, mul, meas, bat, *, strategy, max_candidates,
         if n_enumeration > max_candidates:
             try:
                 measured = float(n_enumeration)
-            except OverflowError:  # pragma: no cover - past 2**1024 choices
+            except OverflowError:  # pragma: no cover: past 2**1024 choices
                 measured = float("inf")
             hint = ("" if fallback is None else
                     f" The choices were not read off the measurement because {fallback}.")
@@ -1722,7 +1722,7 @@ def _returned_representation(model, group, assignment, ops, mul, meas, bat, acc,
                                                     * (kact[c](k_pts) @ delta[per]))
                     factor_residual = max(factor_residual, float(
                         np.abs(lhs - omega[:, None, None] * Uc).max()))
-    except Exception:  # pragma: no cover - the check must never mask what was built
+    except Exception:  # pragma: no cover: the check must never mask what was built
         factor_residual = float("nan")
 
     indices = tuple(int(syms[p].ind) for p in sorted(kept))
@@ -1846,9 +1846,10 @@ def _covariance_of(ops, bat, D, p):
 
     ``ops`` and ``bat`` are the build's :class:`_Operations` and
     :class:`_Battery`, and ``D`` maps each operation's position to its matrix.
-    Returns ``max_k |D(g) H(k) D(g)† − H(gk)|``, the largest modulus of an
-    entry over the battery's k-points, with ``H(k)*`` in place of ``H(k)`` for
-    an operation combined with time reversal, in the units of ``H``.
+    Returns ``max_k |D(g) H(k) D(g)† − H(Rk)|`` for ``g = {R|t}``, the largest
+    modulus of an entry over the battery's k-points, with ``H(k)*`` in place
+    of ``H(k)`` and ``H(−Rk)`` in place of ``H(Rk)`` for ``g`` combined with
+    time reversal, in the units of ``H``.
     """
     U = D[p]
     src = bat.H.conj() if ops.syms[p].time_reversal else bat.H
@@ -2161,7 +2162,7 @@ def _read_off(ops, mul, meas, bat):
                      "ansatz_defect": float(defect), "ansatz_scale": float(scale),
                      "conditioning": float(sv_[-1] / sv_[0]) if sv_[0] > 0 else 0.0}
             per_gen[ind] = entry
-            if float(sv_[0]) <= 1e-12:  # pragma: no cover - a guard, not a path
+            if float(sv_[0]) <= 1e-12:  # pragma: no cover: a guard, not a path
                 why = (f"the projection of generator #{ind}'s solution space onto "
                        f"the tensor structure is the zero matrix")
                 break
@@ -2526,8 +2527,8 @@ def _with_multiplicity_spaces(table, chosen, group, assignment):
         site = int(rec.site)
         tab = table.site_tables.get(site)
         here = wyckoff.get(site)
-        # how many Wannier functions of the copies one site holds: its orbitals,
-        # or its declared spinor pairs
+        # how many orbitals of the copies one site holds, a declared spinor
+        # pair counted once, as one spinful orbital
         on_site = set(int(o) for o in assignment.site_orbitals[site])
         held = sum(1 for o in rec.orbitals if int(o) in on_site)
         spaces.append(_MultiplicitySpace(

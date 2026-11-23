@@ -66,7 +66,7 @@ def pytest_configure(config):
 # 337 top-level `realized_group` calls run over this suite and only 203 of them
 # are distinct: 134 are the same builder with the same keyword arguments, rebuilt
 # because the module-scoped fixture that holds it lives in one file and the next
-# file wants the same answer (measured 2026-09-06, before this cache; the twelve
+# file wants the same answer (measured without this cache; the twelve
 # worst are the lin3g quartet at 11 rebuilds, free-standing Kane-Mele at 9, the
 # bond-decorated Fu-Kane-Mele phases at 9, and the two #156 regimes at 8 each).
 # `realized_group` is a measurement of a Hamiltonian and its answer is a frozen
@@ -201,7 +201,7 @@ def p41_band(chiral):
     return build
 
 
-#: The bond-centre crystal field the distorted Fu-Kane-Mele phases are declared
+#: The bond-center crystal field the distorted Fu-Kane-Mele phases are declared
 #: with: one non-orbital species at the midpoint of the detuned bond, which names
 #: ``R-3m1' #166.98`` outright from the cell.  ``examples/tqc_fkm_diamond.py``
 #: reads the same phases without it, by descent from ``Fd-3m1' #227.129``.
@@ -227,8 +227,8 @@ def p4232_descended():
     """The ``P4_232`` golden, reached by the lattice descent: ``P4_2321' #208.45``.
 
     ``realized_group(tqc_models.p4232_cano2018())``.  The ``2a``
-    orbitals alone are a body-centred point set, ``Im-3m1' #229.141``; the
-    Hamiltonian breaks the centring translation, and the record descends to the
+    orbitals alone are a body-centered point set, ``Im-3m1' #229.141``; the
+    Hamiltonian breaks the centering translation, and the record descends to the
     48 operations it obeys (``group._provenance == "descended"``).  Each site's
     ``(d_z2, d_x2-y2)`` pair is one two-dimensional multiplet.
     """

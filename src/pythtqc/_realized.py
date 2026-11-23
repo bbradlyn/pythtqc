@@ -133,12 +133,12 @@ class DroppedOperation:
     """One operation a descent dropped, and what dropped it.
 
     A field that does not apply to what dropped the operation is ``None``.  A
-    matrix ``U`` carries ``H(k)`` onto ``H(gk)``, for ``g`` the operation,
-    where ``U H(k) U^-1 = H(gk)``, with ``H(k)*`` in place of ``H(k)`` for an
-    operation combined with time reversal.  The operation's solution space is
+    matrix ``U`` carries ``H(k)`` onto its image under the operation ``{R|t}``
+    where ``U H(k) U^-1 = H(Rk)``, and under ``{R|t}`` combined with time
+    reversal where ``U H(k)* U^-1 = H(-Rk)``.  The operation's solution space is
     the set of such matrices at the k measured.  Its covariance residual, for the
-    best unitary ``U`` found, is the largest entry of ``U H(k) U^-1 - H(gk)``
-    over the k measured, in the units of H, and it is held to the tolerance
+    best unitary ``U`` found, is the largest entry of the difference of the two
+    sides over the k measured, in the units of H, and it is held to the tolerance
     ``r.numerical.validated.tol``.  The operation's form is a matrix that
     carries each site's orbitals onto the orbitals of the site it moves them
     to, times the operation's own spin rotation where the states carry spin.
@@ -154,9 +154,9 @@ class DroppedOperation:
         carries the translation in Seitz form, ``{E|1/2,0,0}``.
     refuted_by : str
         What dropped it.  ``"no symmetry matrix"``: no matrix carries ``H(k)``
-        onto ``H(gk)``.  ``"covariance"``: such matrices exist, and the
+        onto its image.  ``"covariance"``: such matrices exist, and the
         covariance residual is above the tolerance.  ``"tensor structure"``: no
-        matrix of the operation's form carries ``H(k)`` onto ``H(gk)`` within
+        matrix of the operation's form carries ``H(k)`` onto its image within
         the tolerance.  A pure translation acts on every k as the identity
         does, so a matrix always carries ``H(k)`` onto ``H(k)``, and one this
         test refutes reads ``"tensor structure"``.  ``"out of plane"``: an
@@ -1438,9 +1438,11 @@ class Precision:
         is subtracted, in the units of ``H``.
     tol : float
         A tolerance for checking whether an operation is a symmetry, in the
-        units of ``H``.  An operation is obeyed where its covariance residual,
-        the largest entry of ``U H(k) U^-1 - H(gk)`` over the k measured for
-        the best matrix ``U`` found, is at most ``tol``.  It decides whether
+        units of ``H``.  An operation is obeyed where its covariance residual
+        is at most ``tol``: for the operation ``{R|t}``, the largest entry of
+        ``U H(k) U^-1 - H(Rk)`` over the k measured for the best matrix ``U``
+        found, with ``H(k)*`` and ``H(-Rk)`` in their places for an operation
+        combined with time reversal.  It decides whether
         an operation holds; ``cut`` decides which matrices are found for it.
         Computed from ``precision`` and ``max_h``.
     position_tol : float
@@ -1453,9 +1455,13 @@ class Precision:
         is at most ``cut`` times the largest singular value.  Computed from
         ``precision``.
     window : float
-        A dimensionless tolerance for checking degeneracy of ``H``.  Two
-        eigenvectors are treated as degenerate when their energies differ by
-        at most ``window`` times ``max|H|``.  Computed from ``precision``.
+        A dimensionless tolerance for pairing an eigenvector of ``H(k)`` with
+        one of its image ``H(Rk)``, or ``H(-Rk)`` for an operation combined
+        with time reversal, when the equations of an operation are solved.
+        Two are paired where their energies differ by at most ``window`` times
+        the largest entry of ``H(k)`` or of its image at that point, the mean
+        on-site energy subtracted, or by at most ``tol``, whichever is larger.
+        Computed from ``precision``.
     symprec : float
         The tolerance of spglib, which finds the group from the positions, as
         a Cartesian length in the model's length units.  It is ``symprec=`` as
@@ -2080,9 +2086,10 @@ def realized_group(model, *, typat=None, environment=None, cross_check=True,
         the orbital centers.  ``max|H|`` is the largest entry of ``H(k)`` once
         the mean on-site energy is subtracted.  Pass it for a numerical model,
         such as one read from Wannier90.  Left out, the model is read as
-        exact: an operation is obeyed where its covariance residual, the
-        largest entry of ``U H(k) U^-1 - H(gk)`` over the k measured for the
-        best matrix ``U`` found, is at most ``1e-8`` times ``max|H|``.
+        exact: an operation ``{R|t}`` is obeyed where its covariance residual,
+        the largest entry of ``U H(k) U^-1 - H(Rk)`` over the k measured for
+        the best matrix ``U`` found, is at most ``1e-8`` times ``max|H|``;
+        combined with time reversal, the entry is of ``U H(k)* U^-1 - H(-Rk)``.
     position_tol : float, optional
         How far an orbital center may miss the position the group puts it at
         and still be moved onto it, in reduced coordinates.  Pass it, in place
@@ -2091,9 +2098,9 @@ def realized_group(model, *, typat=None, environment=None, cross_check=True,
         The tolerance of spglib, which finds the group from the positions, as
         a Cartesian length in the model's length units.
     spin : str, mapping or SpinBasis, optional
-        Which pairs of orbitals are the spin states of one Wannier function,
-        for a model built without pythtb's spin whose orbital index carries
-        spin, as one imported from Wannier90 does.  Pass ``"interleaved"``,
+        Which pairs of orbitals are the up and the down state of one spinful
+        orbital, for a model built without pythtb's spin whose orbital index
+        carries spin, as one imported from Wannier90 does.  Pass ``"interleaved"``,
         ``"blocked"``, a mapping of the keyword arguments of
         :func:`.spin.spin_basis`, or what that call returns.  Left out, such a
         model is read spinless.
@@ -2212,13 +2219,20 @@ def realized_group(model, *, typat=None, environment=None, cross_check=True,
         projected onto its symmetric part is broken after it.
     ``rep_not_covariant``
         no candidate representation of the operations ``H`` was measured to
-        obey carries ``H(k)`` onto ``H(gk)`` within the tolerance, for every
-        operation ``g``.
+        obey carries ``H(k)`` onto its image within the tolerance, for every
+        operation: onto ``H(Rk)`` for ``{R|t}``, and ``H(k)*`` onto
+        ``H(-Rk)`` for ``{R|t}`` combined with time reversal.
     ``rep_not_unique``
         more than one representation passes every check.
     ``rep_internal_factor`` / ``rep_not_multiplicative`` / ``site_group``
         the representation, or a site group read for a declaration, fails a
         check that holds in exact arithmetic.
+    ``canonical_norm`` / ``antiunitary_anchor``
+        no phase of an operation's matrix makes its ``n``-th power, ``n`` the
+        operation's order modulo the lattice translations, the multiple of the
+        identity the group's
+        multiplication table requires, or none of those phases makes the
+        matrix agree with time reversal.
     ``symmetrize_defect_exceeds_tol`` / ``symmetrize_range_not_closed``
         the projection of ``H`` onto its symmetric part moves ``H`` by more
         than the tolerance, or leaves weight on hoppings beyond the range the
@@ -2869,8 +2883,8 @@ def _call_resolved(model, *, typat, environment, decorations, c, nk, tol, cut, w
     _declaration_grammar(int(model.norb), characters=build_kw.get("characters"),
                          multiplets=build_kw.get("multiplets"), spin=spin,
                          site_of=site_of)
-    # The one thing the centers alone say about a spinor basis: the two spin
-    # states of one Wannier function share its center.  A pair across two
+    # The one thing the centers alone say about a spinor basis: the up and the
+    # down state of one spinful orbital share its center.  A pair across two
     # centers is refused here, before anything is identified or measured, and
     # the refusal names no group.
     if spin is not None:

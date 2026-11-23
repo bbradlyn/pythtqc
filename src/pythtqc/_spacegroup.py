@@ -61,7 +61,7 @@ def _set_irreptables_version(info: dict[str, Any]) -> None:
     try:
         import irreptables
         info["irreptables_version"] = getattr(irreptables, "__version__", "unknown")
-    except ImportError:  # pragma: no cover - a spec that will not import
+    except ImportError:  # pragma: no cover: a spec that will not import
         pass
 
 
@@ -98,7 +98,7 @@ def tables_status() -> dict[str, Any]:
         import irrep
         from irrep import spacegroup_irreps as _sgi
         from irrep.utility import DummyMethodTables
-    except ImportError as exc:  # pragma: no cover - environment without irrep
+    except ImportError as exc:  # pragma: no cover: environment without irrep
         info["reason"] = f"the package irrep cannot be imported: {exc}. Install it."
         return info
     info["irrep_version"] = getattr(irrep, "__version__", "unknown")
@@ -395,7 +395,7 @@ class GroupData:
     _wyckoff_audit: dict = field(default_factory=dict, init=False, repr=False,
                                  compare=False)
 
-    # -- delegated to ``irrep`` --------------------------------------------
+    # Delegated to ``irrep``
     @property
     def _u_symmetries(self) -> list:
         """The unitary operations of :attr:`_symmetries`."""
@@ -414,7 +414,7 @@ class GroupData:
         """The number of operations :attr:`_symmetries` lists."""
         return len(self._symmetries)
 
-    # -- computed here, once for each ``irrep`` object ----------------------
+    # Computed here, once for each ``irrep`` object
     def _get_product_table(self, get_diff: bool = True):
         """The multiplication table of :attr:`_symmetries`.
 
@@ -439,7 +439,7 @@ class GroupData:
             return tuple(np.array(a) for a in got)
         return np.array(got[0])
 
-    # -- delegated to ``irrep`` --------------------------------------------
+    # Delegated to ``irrep``
     def _get_inverse_table(self):
         """The position in :attr:`_symmetries` of each operation's inverse.
 
@@ -448,7 +448,7 @@ class GroupData:
         """
         return self._sg.get_inverse_table()
 
-    # -- k between the model and the 3D cell -------------------------------
+    # Converting k between the model and the 3D cell
     def _k_to_3d(self, k) -> np.ndarray:
         """The model's reduced ``k`` as points of the three-dimensional cell.
 
@@ -525,7 +525,7 @@ class GroupData:
                          "   (.periodic_dirs)")
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         if int(self._lattice_index) > 1:
             tag = (f" [lattice supergroup, index {int(self._lattice_index)}; "
                    "tables on the finer lattice]")
@@ -624,7 +624,7 @@ class LittleGroup:
                          + _index_ranges(self.antiunitary) + "   (.antiunitary)")
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         primed = _index_ranges(self.antiunitary)
         point = (f"{self.kpoint} {_point_text(self.k)}" if self.kpoint
                  else f"k = {_point_text(self.k)}")
@@ -734,7 +734,7 @@ class SiteReference:
     _reference: np.ndarray = field(default=None, repr=False, compare=False)
     _residual: float = field(default=0.0, repr=False, compare=False)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return (f"SiteReference({self.wyckoff}, n_free={self.n_free}, "
                 f"slides_onto {self.slides_onto})")
 
@@ -874,7 +874,7 @@ class OrbitalAssignment:
                   "it lands in   (.permutations, .lattice_shift)"]
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         norb, nsite = len(self.site_of_orbital), len(self.site_group)
         parts = []
         for orbit in self.orbits:
@@ -1023,7 +1023,7 @@ class KGrid:
                          + "   (.contains)")
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         sampled = [str(name) for name, hit in self.contains.items() if hit]
         missed = [str(name) for name, hit in self.contains.items() if not hit]
         return (f"KGrid({'x'.join(str(int(d)) for d in self.divisions)} mesh, "
@@ -1303,7 +1303,7 @@ def _lift_set_cocycle(rots, lifts, corrections):
     lam = np.einsum("nab,nbc,nac->n", lift[ii], lift[jj], lift[kk].conj()) / 2
     dev = np.maximum(np.abs(np.abs(lam) - 1.0), np.abs(lam.imag))
     pairs = int(ii.size)
-    if not pairs:                             # pragma: no cover - defensive
+    if not pairs:                             # pragma: no cover: defensive
         return 0.0, 0, 0, None
     worst = int(np.argmax(dev))
     mixed = int(np.count_nonzero(sign[ii] * sign[jj] * sign[kk] < 0))
@@ -1368,14 +1368,14 @@ def _canonical_spinor_signs(sg, *, tol=1e-3):
     gram = conv @ conv.T
     try:
         standard = np.linalg.cholesky(gram)                  # ... in standard orientation
-    except np.linalg.LinAlgError as exc:                     # pragma: no cover - defensive
+    except np.linalg.LinAlgError as exc:                     # pragma: no cover: defensive
         raise InternalError(
             f"{where}: the conventional cell of the tables, written in this cell, is "
             f"singular (Gram determinant {np.linalg.det(gram):.3g}): {exc}. Report it, "
             f"with the model and the call.") from None
     frame = conv.T @ np.linalg.inv(standard.T)
     ortho = float(np.abs(frame @ frame.T - np.eye(3)).max())
-    if ortho > 1e-6:                                         # pragma: no cover - defensive
+    if ortho > 1e-6:                                         # pragma: no cover: defensive
         raise InternalError(
             f"{where}: the map from the standard orientation of the conventional cell "
             f"to this cell's is not orthogonal (defect {ortho:.3g}). Report it, with "
@@ -1586,7 +1586,7 @@ def _hermite_basis(rows) -> np.ndarray:
                     M[i] = [a - q * b for a, b in zip(M[i], head)]
             M = [r for r in M if any(r)]
         pivot = [r for r in M if r[col] != 0]
-        if not pivot:                               # pragma: no cover - defensive
+        if not pivot:                               # pragma: no cover: defensive
             raise InternalError(
                 "the lattice vectors of this cell and its pure translations do not "
                 "span three dimensions. Report it, with the model and the call.")
@@ -1752,7 +1752,7 @@ def _translation_closure(symmetries) -> float:
     for a in range(nrot):
         for b in range(nrot):
             key = (rots[a] @ rots[b]).tobytes()
-            if key not in rot_of:                   # pragma: no cover - defensive
+            if key not in rot_of:                   # pragma: no cover: defensive
                 return float("inf")                 # not closed even as rotations
             prod_rot[a, b] = rot_of[key]
 
@@ -1772,7 +1772,7 @@ def _translation_closure(symmetries) -> float:
     for g in range(n):
         c = prod_rot[rot_id[g], rot_id]                    # (n,)
         b = (tr[g] != tr).astype(int)                      # (n,)
-        if not bool(have[c, b].all()):              # pragma: no cover - defensive
+        if not bool(have[c, b].all()):              # pragma: no cover: defensive
             return float("inf")                     # a product with no partner at all
         j = cand[c, b]                                     # (n, width)
         target = t[g] + t @ R[g].astype(float).T           # (n, 3)
@@ -1913,7 +1913,7 @@ def _exact_operations(sg, symprec, tables_ready, lattice) -> tuple | Refusal:
                   bool(tb.time_reversal)): _snap_rational(np.asarray(tb.t, dtype=float))
                  for tb in tsyms}
     if len(tabulated) != len(tsyms) or len(tsyms) != len(sg.symmetries):
-        raise InternalError(                         # pragma: no cover - guard
+        raise InternalError(                         # pragma: no cover: guard
             f"{sg.name} #{sg.number_str}: the cell has {len(sg.symmetries)} operations, "
             f"and the table {len(tsyms)} with {len(tabulated)} distinct rotations. "
             "Report it, with the model and the call.")
@@ -1924,13 +1924,13 @@ def _exact_operations(sg, symprec, tables_ready, lattice) -> tuple | Refusal:
         R = np.asarray(s.rotation, dtype=float)
         Rref = inv @ R @ refUC
         if float(np.abs(Rref - np.rint(Rref)).max()) > 1e-6:
-            raise InternalError(                     # pragma: no cover - guard
+            raise InternalError(                     # pragma: no cover: guard
                 f"{sg.name} #{sg.number_str}: the rotation of operation #{s.ind}, "
                 "written in the conventional cell of the tables, is not an integer "
                 f"matrix (defect {float(np.abs(Rref - np.rint(Rref)).max()):.3g}). "
                 "Report it, with the model and the call.")
         key = (np.rint(Rref).astype(int).tobytes(), bool(s.time_reversal))
-        if key not in tabulated:                       # pragma: no cover - guard
+        if key not in tabulated:                       # pragma: no cover: guard
             raise InternalError(
                 f"{sg.name} #{sg.number_str}: the rotation of operation #{s.ind}, "
                 "written in the conventional cell of the tables, matches no operation of "
@@ -1960,7 +1960,7 @@ def _exact_operations(sg, symprec, tables_ready, lattice) -> tuple | Refusal:
         s.translation = t_new                          # the rotations are untouched
     after = _translation_closure(sg.symmetries)
     if after > gate:
-        raise InternalError(                         # pragma: no cover - guard
+        raise InternalError(                         # pragma: no cover: guard
             f"{sg.name} #{sg.number_str}: the operations rebuilt from the tables miss "
             f"closing into a group by {after:.3g}, in reduced coordinates, more than "
             f"{gate:.3g}. Report it, with the model and the call.")
@@ -2205,7 +2205,7 @@ def _origin_nearest(sg, lattice, vacuum_dirs, symprec):
     ``shiftUC`` of the first of them on the grid.
     """
     per = [d for d in range(3) if d not in tuple(vacuum_dirs)]
-    if not per:                                     # pragma: no cover - a cell has a lattice
+    if not per:                                     # pragma: no cover: a cell has a lattice
         return None
     lattice = np.asarray(lattice, dtype=float)
     shift_uc = np.asarray(sg.shiftUC, dtype=float).reshape(-1)
@@ -2447,7 +2447,7 @@ def _group_of(model, *, spinor=None, include_TR=True, symprec=DEFAULT_FINDER, ty
     number_str = str(sg.number_str)
     try:
         sg_number = int(number_str.split(".")[0])
-    except ValueError:  # pragma: no cover - defensive
+    except ValueError:  # pragma: no cover: defensive
         sg_number = -1
 
     out = GroupData(
@@ -2506,7 +2506,7 @@ def _wyckoff_positions_spglib(group: GroupData) -> tuple | Refusal:
     cell = (group._lattice, group._site_positions, np.asarray(group._typat, dtype=int))
     try:
         exprs = _SG.wyckoff_positions(cell)
-    except Exception as exc:  # pragma: no cover - pyxtal/spglib disagreement
+    except Exception as exc:  # pragma: no cover: pyxtal/spglib disagreement
         return Refusal("wyckoff_enumeration",
                        f"irrep could not list the Wyckoff positions of {group.name} "
                        f"#{group.number_str}: {exc}",

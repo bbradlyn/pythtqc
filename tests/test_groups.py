@@ -1,4 +1,4 @@
-r"""Regressions for ``tqc.groups`` (phase A1) and the ``tqc.symmetry`` detector.
+r"""Regressions for ``tqc.groups`` and the ``tqc.symmetry`` detector.
 
 Self-contained by design: every model here is built inline, or taken from
 ``pythtqc.models``, so these tests exercise the adapter and nothing else.  The
@@ -212,7 +212,7 @@ def rhombohedral(spinful=True, theta_deg=50.0):
 
 
 # ---------------------------------------------------------------------------
-# test-local character builder (phase A3 owns the library version)
+# test-local character builder (the library's own is in ``pythtqc.sewing``)
 # ---------------------------------------------------------------------------
 
 def bloch_characters(model, group, asg, k, blocks, *, orbital_phase=None, cov_tol=1e-6):
@@ -229,7 +229,7 @@ def bloch_characters(model, group, asg, k, blocks, *, orbital_phase=None, cov_to
     one-dimensional character of the group; that freedom is exactly what
     distinguishes an s-like from a p_z-like orbital on the same lattice, and
     it is still a valid representation (which is why the covariance battery
-    alone cannot pin it -- phase A2's ``_build_rep`` does).
+    alone cannot pin it -- ``_build_rep`` does).
     """
     lg = G.little_group(group, k)
     assert not isinstance(lg, Refusal), lg
@@ -268,7 +268,7 @@ def z_parity(op):
 
 
 # ---------------------------------------------------------------------------
-# packaging tripwire
+# the packaging check: the real tables are bound
 # ---------------------------------------------------------------------------
 
 def test_tables_tripwire_refuses_on_the_dummy_fallback(monkeypatch):
@@ -318,11 +318,11 @@ def test_square_lattice_slab_group():
 
 
 def test_graphene_slab_group():
-    """The honeycomb's slab group, its grey group, and the orbit labelling splits.
+    """The honeycomb's slab group, its grey group, and the orbit labeling splits.
 
     ``include_TR=True`` doubles ``#191`` into its grey group: the parent stays in
     ``sg_number`` and the BNS key is ``number_str``, ``191.<bns>``.  With the
-    default species labelling the two sites are one orbit, ``2c``; declaring the
+    default species labeling the two sites are one orbit, ``2c``; declaring the
     sublattices inequivalent -- which is what a staggered potential does
     physically -- splits it into the two one-site orbits ``e`` and ``c`` of
     ``P-6m2``.
@@ -360,7 +360,7 @@ def test_the_wyckoff_match_gate_is_a_position_tolerance():
     The letter is measured by asking which Wyckoff varieties the transported
     site lies on, and the gate of that question is a distance in the reference
     cell's own reduced coordinates -- the same quantity ``position_tol`` names
-    wherever a centre is compared with where the group would put it.  Widening
+    wherever a center is compared with where the group would put it.  Widening
     it past the separation between varieties makes a general position answer to
     a special one, which is what a gate of ``0.5`` shows here.
     """
@@ -632,14 +632,12 @@ def test_padded_cell_preserves_reduced_k_and_positions():
 # ---------------------------------------------------------------------------
 
 def test_default_typat_treats_same_content_sites_as_one_species():
-    """Documented limit of the default: two like sites make the cell look centred.
+    """Documented limit of the default: two like sites make the cell look centered.
 
-    Re-pinned in wave R4a, which retired the ``non_primitive_cell`` refusal this
-    used to assert: a centred cell is now *served*, as the lattice supergroup it
-    is (``lattice_index == 2``, the centring translation among the operations),
+    A centered cell is *served*, as the lattice supergroup it
+    is (``lattice_index == 2``, the centering translation among the operations),
     and only ``realized_group`` can say whether the Hamiltonian obeys it.  The
-    statement being made is unchanged and is now measured in more detail: the
-    default typing makes the cell look centred, and ``typat=[0, 1]`` is the
+    default typing makes the cell look centered, and ``typat=[0, 1]`` is the
     declaration that removes the appearance.  ``tests/test_lattice_descent.py``
     carries the rest.
     """
@@ -747,9 +745,7 @@ def test_magnetic_types_iii_and_iv_are_refused_at_the_constructor(monkeypatch):
     assert "anti-translation" in four.reason
 
     # The same cell WITHOUT the moments is the lattice supergroup of the test
-    # above -- re-pinned in wave R4a, which retired the `non_primitive_cell`
-    # refusal this line used to assert: it is the pure translation the moments
-    # break, and which the bare cell carries as a UNITARY operation
+    # above: it is the pure translation the moments break, and which the bare cell carries as a UNITARY operation
     # (`lattice_index == 2`), that makes the magnetic group type IV rather than
     # type II.  Grey it stays type II, which is what `_magnetic_type` reads off
     # `{1|0}.T` before any of this.
@@ -870,7 +866,7 @@ def test_product_table_with_spinor_factors():
         assert int(table[i, inv[i]]) == e == int(flat[inv[i], i])
 
     # irrep's own table, all three arrays entry for entry, on two lists it is
-    # slow to build: the diamond's 96 operations, and a centred list, where
+    # slow to build: the diamond's 96 operations, and a centered list, where
     # several operations share each rotation and are told apart by translation
     diamond_group = _spacegroup._group_of(diamond(), spinor=True)
     centered = _spacegroup._group_of(square_two_orbitals(), spinor=True)
@@ -1034,15 +1030,15 @@ def test_diamond_content_matches_the_EBR_oracle_at_every_point_including_W():
     ``A1↑G(2) @ 8a`` of Fd-3m reads ``GM1+ GM2- L1+ L2- W1 X1``, and every one
     of those is reproduced from the Hamiltonian.
 
-    ``W`` is the historical case: it used to come back as multiplicities
-    ``0.5 / 0.5`` and an ``integer_multiplicity`` refusal, because the tabulated
-    characters were compared without conjugating ``irreptables``' factor system
-    (BCS represents a lattice translation by ``e^{+ik·t}``, pythtb by the
-    physical ``e^{-ik·t}``; see ``groups._transported_table``).  ``W`` is the
+    ``W`` is the hard case: compared without conjugating ``irreptables``'
+    factor system, the tabulated characters give multiplicities ``0.5 / 0.5``
+    and an ``integer_multiplicity`` refusal (BCS represents a lattice
+    translation by ``e^{+ik·t}``, pythtb by the physical ``e^{-ik·t}``; see
+    ``groups._transported_table``).  ``W`` is the
     only k-point of Fd-3m that is *not* time-reversal invariant and whose
     little group carries fractional translations, which is exactly the
     condition under which the two conventions differ.  The residual
-    integrality defect is now 1.3e-6 —
+    integrality defect is 1.3e-6 —
     ``irreptables``' own printed precision, not a physical effect.
 
     The setting this rests on is asserted first: ``Fd-3m`` is nonsymmorphic,
@@ -1202,7 +1198,7 @@ def test_the_transported_table_conjugates_only_the_factor_system(build, kname, k
        :mod:`tqc.sewing` measures in.
 
     The parametrization takes one case of each kind -- symmorphic/nonsymmorphic,
-    primitive/centred and TRIM/non-TRIM -- so that the statement is not carried
+    primitive/centered and TRIM/non-TRIM -- so that the statement is not carried
     by the one case (diamond's ``W``) where the two conventions give different
     numbers.
     """
@@ -1245,7 +1241,7 @@ def test_irreps_own_transport_is_not_a_character_of_ours_at_diamonds_W():
     ``W``, the only one that is neither time-reversal invariant nor free of
     fractional translations.  At ``W`` ``irrep``'s row is not a character of our
     little group at all: worst class-function violation 2.83 = 2√2, which is
-    exactly where the old ``0.5 / 0.5`` multiplicities came from.
+    exactly where untransported ``0.5 / 0.5`` multiplicities come from.
     """
     g = _spacegroup._group_of(diamond(), include_TR=False)
     hsp = G.high_symmetry_points(g)
@@ -1518,9 +1514,9 @@ def test_indicator_group_serves_a_group_whose_shipped_smith_r_is_flat():
     triclinic cell with nothing but translations -- is the smallest such case:
     eight irrep rows, one column, ``R = [1, 0, ..., 0]``, so the vector is
     already the diagonal padded with the empty rows.
-    :func:`ebr._smith_system` normalizes that shape; ``indicator_group`` now
-    carries the same guard, where it used to raise ``ValueError`` on the way to
-    an answer.  And the answer is that ``P1`` has no indicator at all -- with
+    :func:`ebr._smith_system` normalizes that shape, and ``indicator_group``
+    carries the same guard rather than raising ``ValueError`` on the way to an
+    answer.  And the answer is that ``P1`` has no indicator at all -- with
     one atomic limit and no nontrivial divisor there is nothing to be
     nontrivial about, which is a verdict and not a failure.
     """
@@ -1551,7 +1547,7 @@ def test_indicator_group_serves_a_group_whose_shipped_smith_r_is_flat():
 
 @pytest.mark.slow
 def test_the_bare_key_indicator_forms_are_withheld_from_a_unitary_group():
-    """A5.1 audit finding (ii), fixed: the passthrough no longer partial-sums.
+    """A unitary group is not handed the grey tables' forms, which would partial-sum.
 
     ``irreptables``' ``single_indicators.json`` / ``double_indicators.json`` are
     the **grey** tables keyed by the bare space-group number, byte for byte, so
@@ -1564,11 +1560,11 @@ def test_the_bare_key_indicator_forms_are_withheld_from_a_unitary_group():
     shipped forms are written over twelve labels, of which eight
     (``-GM4GM5``, ``-F3F4``, ...) are grey coreps the unitary group does not
     have; none of the four vanishes on the group's own EBRs (``z2w,i`` fail on
-    12 of its 20 EBR columns, ``z4`` on 6), and the old sum reported
+    12 of its 20 EBR columns, ``z4`` on 6), and the sum reports
     ``z2w,i = 1.5`` and ``z4 = 3`` on *band representations* -- non-integers, on
     objects every indicator is zero on by construction.
 
-    The fix keeps what is valid and drops what is not: the Smith-derived
+    What is served keeps what is valid and drops what is not: the Smith-derived
     structure ``Z2`` is served, the named forms are not, and the note says why.
     ``symmetry_indicator`` is where a value comes from.
     """
@@ -1609,10 +1605,10 @@ def test_the_bare_key_indicator_forms_are_withheld_from_a_unitary_group():
     assert tuple(int(d) for d in G.indicator_group(grey)["elementary_divisors"]) \
         == (2, 4)
 
-    # and the same withholding downstream, where the sum was actually taken.
+    # and the same withholding downstream, where the sum would be taken.
     # Every EBR column IS an atomic limit, so a true indicator is zero on each
-    # of them; the old passthrough came back nonzero on 12 of the 20, at
-    # half-integer values.
+    # of them; the shipped forms summed as they stand come back nonzero on 12 of
+    # the 20, at half-integer values.
     matrix, labels = data.matrix, data.corep_names
     columns = [{lab: int(v) for lab, v in zip(labels, matrix[:, col]) if v}
                for col in range(matrix.shape[1])]
@@ -1713,7 +1709,7 @@ def test_k_grid_reports_which_high_symmetry_points_it_contains():
 
 
 def test_k_grid_returns_a_pythtb_mesh_the_membership_record_describes():
-    """A3r: the mesh currency is pythtb's, and ``.kpoints`` is derived from it.
+    """The mesh currency is pythtb's, and ``.kpoints`` is derived from it.
 
     ``k_grid`` builds its Monkhorst-Pack grid through ``Mesh.build_grid`` rather
     than a hand-rolled ``meshgrid``, so what comes back can be handed straight
@@ -1778,8 +1774,8 @@ def test_k_grid_refuses_a_grid_the_group_does_not_respect():
 def test_validate_group_handles_antiunitary_operations():
     """The conjugated solve, on a model where conjugating changes the answer.
 
-    ``square(tx=-1.0, ty=-0.6)`` cannot carry this claim, which is what this
-    test used to be asked on: one band and real hoppings make ``H(k)`` a real
+    ``square(tx=-1.0, ty=-0.6)`` cannot carry this claim: one band and real
+    hoppings make ``H(k)`` a real
     1x1, so ``H(k)* == H(k)`` bit for bit and the antiunitary equation
     ``X H(k)* = H(Rk) X`` *is* the unitary one -- the conjugation could be
     deleted from the library without moving a number.  Kane-Mele's spin-orbit
@@ -1896,8 +1892,8 @@ def test_find_intertwiners_zero_nullspace_is_a_proof():
 
     The ``method``/``n_kpts_solve`` bookkeeping differs between the two by
     construction -- the stacked route stacks all 64 points, the eigen route
-    parametrizes at one and sifts -- so each is asserted of its own solver
-    (2026-09-02).  The *verdict* is asserted of both, and they agree.
+    parametrizes at one and sifts -- so each is asserted of its own solver.
+    The *verdict* is asserted of both, and they agree.
     """
     m = square(tx=-1.0, ty=-0.6)
     k = np.stack(np.meshgrid(*([np.linspace(0, 1, 8, endpoint=False)] * 2),
@@ -1929,14 +1925,14 @@ def test_find_intertwiners_subset_solve_moves_the_solve_not_the_verdict():
     and every candidate is then re-measured against **all** of them, so the
     capped and uncapped routes agree on ``dim`` and both report a full-grid
     residual.  ``singular_values[0]/scale`` reads machine zero on a true
-    nullvector in either, which is the property the normal-equation route this
-    replaces did not have: squaring the matrix and square-rooting the
-    eigenvalues floors a true nullvector at ``sqrt(eps) ~ 1e-8``, exactly the
-    default ``tol``, so it could rule ``dim == 0`` on an exact symmetry.
+    nullvector in either, which a normal-equation route would not give:
+    squaring the matrix and square-rooting the eigenvalues floors a true
+    nullvector at ``sqrt(eps) ~ 1e-8``, exactly the default ``tol``, so it
+    could rule ``dim == 0`` on an exact symmetry.
 
     ``max_solve_entries`` and the subset are the **stacked** solver's own
     bookkeeping -- the eigen route has no stack to cap -- so this asks for that
-    solver by name (2026-09-02).  The default route is measured beside it: it
+    solver by name.  The default route is measured beside it: it
     reaches the same ``dim`` from 5 of the 64 points.
 
     The two full-grid covariance residuals are bounded in ulp of ``max |H|``,
@@ -1972,26 +1968,25 @@ def test_find_intertwiners_subset_solve_moves_the_solve_not_the_verdict():
 
 
 # ---------------------------------------------------------------------------
-# (b') the vacuous constraint -- ``dim == 0`` is a proof, and this was not one
+# (b') the vacuous constraint -- ``dim == 0`` is a proof only where it does not vanish
 # ---------------------------------------------------------------------------
 #
 # ``X H(k) - H(Rk) X`` is the **zero operator** whenever ``H(k)`` and ``H(Rk)``
 # are the same *scalar* matrix.  A one-band model does that at every operation
 # its ``h(k)`` obeys; so does any ``H(k) = c(k) * 1`` at any number of states.
-# The nullspace cut used to be purely relative -- ``s <= tol * s_max`` -- so on
-# a vanished operator it took the operator's own rounding noise for a scale,
-# admitted nothing, and returned ``dim == 0``: the record's documented *proof*
-# of breaking, handed down on operations obeyed to ``1.1e-16``.  Measured
-# before the fix: the one-orbital cubic kept 32 of 96, the one-orbital
-# tetragonal 16 of 32.  Fixed 2026-08-28 by testing vacuity *absolutely*,
-# against ``max |H|`` over the grid.
+# A purely relative nullspace cut -- ``s <= tol * s_max`` -- takes a vanished
+# operator's own rounding noise for a scale, admits nothing, and returns
+# ``dim == 0``: the record's documented *proof* of breaking, handed down on
+# operations obeyed to ``1.1e-16``.  Measured with such a cut: the one-orbital
+# cubic keeps 32 of 96, the one-orbital tetragonal 16 of 32.  Vacuity is
+# therefore tested *absolutely*, against ``max |H|`` over the grid.
 #
-# Each test asserts the cure on both solvers: the eigen route, and the stacked
-# operator the defect lived in.
+# Each test asserts this on both solvers: the eigen route, and the stacked
+# operator, where a relative cut is fooled.
 
 
 def _grid(n, dim_k):
-    """Gamma-centred ``n**dim_k`` mesh, as the neighbouring tests build it."""
+    """Gamma-centered ``n**dim_k`` mesh, as the neighboring tests build it."""
     return np.stack(np.meshgrid(*([np.linspace(0, 1, n, endpoint=False)] * dim_k),
                                 indexing="ij"), axis=-1).reshape(-1, dim_k)
 
@@ -2009,7 +2004,7 @@ def _census(model, group, k, **kw):
 
 @pytest.mark.slow
 def test_the_same_false_proof_on_the_one_orbital_tetragonal():
-    """32 of 32, where the relative cut was fooled -- the measured case.
+    """32 of 32, where a relative cut is fooled -- the measured case.
 
     Every operation of ``P4/mmm1'`` is obeyed by the one-band ``h(k)`` exactly
     -- entrywise rounding and nothing else, measured here at
@@ -2018,16 +2013,16 @@ def test_the_same_false_proof_on_the_one_orbital_tetragonal():
     what the bounds below are written against: scale the hoppings and the
     residual scales with them.  The constraint operator is ``(h(k) - h(Rk)) *
     X``, so it vanishes, so *every* ``X`` solves and the honest answer is the
-    whole matrix space: ``dim = nstate**2``.  What the relative cut returned
-    instead was ``dim = 0`` on half the group, a **proof** of breaking issued
+    whole matrix space: ``dim = nstate**2``.  A relative cut returns
+    ``dim = 0`` on half the group instead, a **proof** of breaking issued
     against a Hamiltonian that obeys the operation to the last bit -- and the
-    ones that survived did so only because their constraint matrix came out
-    bit-exactly zero and took the ``else`` branch.  *Which* operations those are
+    ones that survive it do so only because their constraint matrix comes out
+    bit-exactly zero.  *Which* operations those are
     is a fact about floating-point summation -- a rotation reassociates the
     three-term Bloch sum, and whether that costs a bit is the machine's
-    arithmetic (16 of 32 on the development machine; the one-orbital cubic
-    measured 32 of 96 the same way) -- so what is asserted is the cure: this
-    cut is fooled on no operation, on either solver.
+    arithmetic (16 of 32 measured; the one-orbital cubic 32 of 96 the same
+    way) -- so what is asserted is that the absolute cut is fooled on no
+    operation, on either solver.
     The identity is served first, so the polar extraction starts there, and one
     band is degenerate at every point, so the eigen route scans the whole grid.
     """
@@ -2048,7 +2043,7 @@ def test_the_same_false_proof_on_the_one_orbital_tetragonal():
         "the identity is served first, so the polar extraction starts there"
     assert all(sp.method == "eigen" and sp.n_kpts_solve == 64 for sp, _ in seen), \
         "one band is degenerate at every point, so the eigen route scans the grid"
-    old = _census(m, g, k, solver="stacked")               # the old cut's own object
+    old = _census(m, g, k, solver="stacked")               # where a relative cut is fooled
     assert all(sp.vacuous and sp.dim == 1 for sp, _ in old)
 
 
@@ -2064,13 +2059,13 @@ def test_vacuity_is_about_scalar_H_not_about_one_band():
     commutes with every ``2x2`` unitary there is.  Measured on the spinful
     square with its diagonal hoppings, whose ``h(k)`` has four summands that a
     rotated ``k`` may reassociate.  Where that arithmetic hands the stacked
-    operator rounding noise, the old relative cut refused it identically, and
-    for the identical wrong reason -- it kept 4 of 16 on the development
-    machine; the verdict is asserted on both solvers.
+    operator rounding noise, a relative cut refuses it identically, and
+    for the identical wrong reason -- it keeps 4 of 16 where measured; the
+    verdict is asserted on both solvers.
 
     The identity's residual closes it.  Its candidate is the served ``1``, and
     the measured number is ``max_k |h(k) - h(k)|`` through one polar extraction:
-    bit-exactly ``0.0`` on this machine, because this LAPACK's SVD of ``1`` --
+    bit-exactly ``0.0`` where the LAPACK's SVD of ``1`` --
     whose singular spectrum is completely degenerate, so the basis is arbitrary
     -- returns ``(1, 1)``.  Another driver's equally valid pair would leave a few
     ulp of ``max |H|``, which is what is asserted.
@@ -2093,7 +2088,7 @@ def test_vacuity_is_about_scalar_H_not_about_one_band():
     # dim >= 2, so the searched-unitary path runs on top of the served identity
     assert all(len(sp.unitaries) == 5 and sp.search for sp, _ in seen)
     assert all(float(np.min(sp.residuals)) <= _ROUNDOFF * h_scale for sp, _ in seen)
-    old = _census(m, g, k, solver="stacked")               # the old cut's own object
+    old = _census(m, g, k, solver="stacked")               # where a relative cut is fooled
     assert all(sp.vacuous and sp.dim == 4 for sp, _ in old)
 
     # ... and the identity's own residual is the number the caller gates on
@@ -2138,35 +2133,35 @@ def test_a_genuinely_broken_operation_is_not_vacuous_at_any_number_of_states():
 
 
 def test_the_isotropic_square_passes_by_the_vacuity_test_not_by_luck():
-    """``square()`` survived the old cut by an accident of the arithmetic.
+    """``square()`` passes a relative cut only by an accident of the arithmetic.
 
     Its ``h(k) = f(kx) + f(ky)`` has two summands, and every operation of
     ``P4/mmm`` either leaves them alone or swaps them -- ``f`` is even, and
     floating addition commutes exactly -- so the constraint matrices come out
     **bit-exactly** zero here (measured: ``s_max == 0.0`` at all 16, on both
-    solvers), ``s_max > 0`` is false, and the old ``else`` branch handed back
-    ``scale = 1.0``, under which every singular value passes any cut.  The right
-    answer, for a reason that is not a reason.
+    solvers), ``s_max > 0`` is false, and a relative cut's ``else`` branch for
+    that case hands back ``scale = 1.0``, under which every singular value
+    passes any cut.  The right answer, for a reason that is not a reason.
 
     Add the two diagonal hoppings and nothing about the symmetry changes --
-    still ``P4/mmm``, still obeyed exactly -- but ``h(k)`` now has four
+    still ``P4/mmm``, still obeyed exactly -- but ``h(k)`` has four
     summands, so a rotated k may *reassociate* the sum rather than merely
     commuting it.  Whether either model's sum actually costs a bit is the
-    machine's arithmetic and not the code's -- the development machine measured
-    ``s_max = 1.8e-15`` on the four-summand model, an M1 with OpenBLAS 0.3.33
-    measures exactly ``0.0`` -- so neither bit-exactness is asserted: what is
+    machine's arithmetic and not the code's -- ``s_max = 1.8e-15`` on the
+    four-summand model with one linear-algebra library, exactly ``0.0`` with
+    another -- so neither bit-exactness is asserted: what is
     asserted is that both models vanish to roundoff *against the scale the record
-    published*.  Where the noise existed, the old relative cut kept **4 of 16**:
+    published*.  Where the noise exists, a relative cut keeps **4 of 16**:
     three quarters of an exactly symmetric group refused, on rounding noise, by a
     proof.
 
-    The cure is asserted unconditionally and on both models: the verdict is
+    The verdict is asserted unconditionally and on both models: it is
     vacuous, 16 of 16, on both solvers, and the ``scale`` the record publishes is
-    ``max |H|`` over the grid -- the absolute test's own scale, which is what the
-    old route could never report (the operator's rounding noise where the sum
-    reassociated, the ``else`` branch's ``1.0`` where it did not).
+    ``max |H|`` over the grid -- the absolute test's own scale, which a relative
+    route cannot report (the operator's rounding noise where the sum
+    reassociates, the ``else`` branch's ``1.0`` where it does not).
 
-    The luck and the old cut were both properties of the *stacked* operator, so
+    The luck and the relative cut are both properties of the *stacked* operator, so
     the verdict is measured on ``solver="stacked"`` as well as on the eigen
     route, which reaches it on both models from its own per-point
     ``|h(k) - h(Rk)|``.
@@ -2187,7 +2182,7 @@ def test_the_isotropic_square_passes_by_the_vacuity_test_not_by_luck():
     noisy_e = _census(m2, g2, k)
     assert all(sp.vacuous and sp.dim == 1 for sp, _ in noisy_e)
 
-    # the cure, with nothing conditional in it: both models reach the vacuity
+    # the absolute test, with nothing conditional in it: both models reach the vacuity
     # branch through the **absolute** test on both solvers, and the record names
     # the scale they were judged against -- max|H| over the grid, against which
     # the constraint operator and the covariance residual have both vanished
@@ -2209,17 +2204,15 @@ def test_a_generic_multi_band_model_never_reaches_the_vacuity_branch():
     Diamond's two-band ``H(k)`` carries an off-diagonal of its own, so the
     constraint operator has singular values of order ``||H||`` whether the
     operation holds or not -- ``s_max / max|H| >= 0.9`` at every one of the 48
-    -- and every call takes the untouched relative-cut branch.  This is the
-    model the bit-identity check was run against: ``basis``, ``unitaries``,
-    ``residuals``, ``singular_values`` and ``scale`` are unchanged to the last
-    bit, on the full solve and on the capped one.  A *scalar* multi-band model
-    is deliberately not used here -- that one is expected to change.
+    -- and every call takes the relative-cut branch, which the vacuity test
+    leaves alone.  A *scalar* multi-band model is deliberately not used here:
+    that one reaches the vacuity branch.
 
     What ``scale`` *is* differs between the two solvers by construction, and
-    both are measured (2026-09-02).  The stacked route's is the largest
+    both are measured.  The stacked route's is the largest
     singular value of the stacked operator, ``8.0 max|H|`` here -- stacking 64
     points multiplies the per-point value by up to ``sqrt(64)`` -- and it is
-    also ``singular_values[-1]``, so the old relative cut can be reconstructed
+    also ``singular_values[-1]``, so a relative cut can be reconstructed
     from the record.  The eigen route's is the *Sylvester operator norm* at the
     deciding point, ``max_ab |E_b - E'_a| = 1.0 max|H|``, which is **not** its
     largest reported singular value (those are the constraint restricted to the
@@ -2229,7 +2222,7 @@ def test_a_generic_multi_band_model_never_reaches_the_vacuity_branch():
 
     The verdict itself is ``dim == 1`` at all 48 -- one intertwiner per
     operation, up to phase -- and it rests on a wide gap, measured here
-    (2026-09-09) rather than recomputed from the record's own cut.  The stacked
+    rather than recomputed from the record's own cut.  The stacked
     route publishes all ``nstate**2 = 4`` singular values, so the first
     *rejected* one can be read off: ``singular_values[dim] / scale ==
     0.6209484`` at every one of the 48 and at the identity, seven decades above
@@ -2246,7 +2239,7 @@ def test_a_generic_multi_band_model_never_reaches_the_vacuity_branch():
     ``_sift`` uses when no stage is informative: on diamond the eigen route's
     Sylvester norm is 4.0 and max|H| is also 4.0, so the measured value and the
     fallback are the same number and no assertion on this fixture can tell them
-    apart (verified by mutation, 2026-09-09).  The stacked floor of ``7.9`` is
+    apart.  The stacked floor of ``7.9`` is
     a real separation from max|H|; the eigen ``0.99`` is not, and says only that
     the eigen scale is of order ``||H||``.
     """
@@ -2417,7 +2410,7 @@ def test_the_realized_record_is_read_by_name_and_taken_whole(p41_substrate, call
 
 
 # ---------------------------------------------------------------------------
-# realized_group on a 3D model (2026-08-25)
+# realized_group on a 3D model
 # ---------------------------------------------------------------------------
 #
 # A fully periodic model is already its own presentation and its own cell, so
@@ -2438,7 +2431,7 @@ def test_realized_group_takes_a_3d_model_and_matches_the_hand_chain(realized):
     set was the cell), ``presentation["c"] is None`` (no third vector was invented)
     and ``n_check == 0`` (nothing was measured, because nothing changed).
 
-    The same crystal with every centre shifted together by a few millionths of a
+    The same crystal with every center shifted together by a few millionths of a
     cell, its precision declared, is named as this one is: the shift is noise
     within the declaration and is removed before the tables' setting is read,
     so the tables are read about the same origin.
@@ -2475,7 +2468,7 @@ def test_realized_group_takes_a_3d_model_and_matches_the_hand_chain(realized):
 
     # the same crystal written about an origin a noise-sized shift away, as a
     # fitted model's can be, its precision declared: the shift is noise and is
-    # removed, the centres come back where they were, and every name is the
+    # removed, the centers come back where they were, and every name is the
     # exact crystal's -- the tables read about the same origin
     orb = np.asarray(model.orb_vecs, dtype=float)
     shifted = TBModel(Lattice(np.asarray(model.lat_vecs, dtype=float),
@@ -2574,8 +2567,8 @@ def test_time_reversal_is_measured_down_and_the_descent_is_on_the_record():
     grey record with rows struck out.  The descent is narrated on the record and
     printed in its short form: which grey group it started from, how many
     antiunitary operations were refuted, and what it descended to.  The chiral
-    decoration puts that case in ``P3`` in both readings, untouched by this
-    wave: the decoration already breaks every operation with ``R[2,2] = -1``.
+    decoration puts that case in ``P3`` in both readings, whatever time reversal
+    does: the decoration already breaks every operation with ``R[2,2] = -1``.
     The scope of what is served is a fact about the physics and not about the
     fixture, so the call says it, once, as a ``MagneticScopeWarning`` naming the
     type-I unitary subgroup and saying that composite antiunitary operations are
@@ -2681,7 +2674,7 @@ def test_a_surviving_antiunitary_operation_is_served_in_scope_and_warned_about()
     group settles, against the ``P6`` returned: it counts where the matrices
     measured make a representation of the magnetic group it generates with
     that group, up to a one-dimensional character of it.  The representation
-    returned relabelled by a complex one-dimensional character of ``P6`` names
+    returned relabeled by a complex one-dimensional character of ``P6`` names
     the same six; turned by a unitary, a representation of ``P6`` still but not
     the one these states carry beside the primed mirrors' matrices, it names
     none.  Both are provoked: the build hands back its matrices so changed.
@@ -2773,7 +2766,7 @@ def test_a_surviving_antiunitary_operation_is_served_in_scope_and_warned_about()
     assert "{E|1/2,1/2,0}'" in {o.name for o in layer.beyond_grey.operations}
 
     # THE MATRICES ARE READ, up to a one-dimensional character of P6: the
-    # build hands back its representation relabelled by a complex one, and
+    # build hands back its representation relabeled by a complex one, and
     # turned by a unitary
     chi = next(c for c in _matrices._characters_of_subgroup(
         hal.group, [int(s.ind) for s in hal.group._symmetries], roots=True)
@@ -2859,7 +2852,7 @@ def test_a_surviving_antiunitary_operation_is_served_in_scope_and_warned_about()
 
 
 # ---------------------------------------------------------------------------
-# the EBR-row convention transport (2026-08-21)
+# the EBR-row convention transport
 # ---------------------------------------------------------------------------
 #
 # `irreptables` ships EBR rows in BCS's e^{+ik.t} convention; this package
@@ -2882,7 +2875,7 @@ _TRANSPORT_CASES = [
 ]
 
 #: The instances of :data:`_TRANSPORT_CASES` whose transported EBR rows differ
-#: from the shipped ones -- 7 of the 21, measured 2026-09-09; the other 14 come
+#: from the shipped ones -- 7 of the 21, measured; the other 14 come
 #: back row for row identical, so a test that only checks invariants there is
 #: checking them against the identity map.  Every row that moves does so at a
 #: **non-TRIM** point: ``K``/``H`` (and their ``A`` arms) in the hexagonal C3
@@ -2974,10 +2967,10 @@ def test_the_EBR_transport_fixes_Gamma_the_dimensions_and_the_positions():
     Where a row may move is a property of the *tables*, not of the code.  The
     induced character at ``k`` is convention-blind whenever ``e^{4πi k·m} = 1``
     for every integer displacement ``m`` — i.e. at every TRIM.  A TRIM row can
-    still be *relabelled*, but only when conjugating the tabulated factor system
+    still be *relabeled*, but only when conjugating the tabulated factor system
     relabels the little-group table there too (a nonsymmorphic point with
     ``2k·t ∉ ℤ``, measured: SG 208's ``R`` and ``X``), and then the same
-    relabelling has already happened on the measurement side in
+    relabeling has already happened on the measurement side in
     :func:`groups._transported_table` — which is the whole point of doing both.
     So: **a row may differ from the shipped one only at a k-point that is not a
     TRIM, or at one whose transported table is not the tabulated table.**  The
@@ -3139,10 +3132,10 @@ def test_the_EBR_transport_swaps_1b_and_1c_of_spinful_SG156():
 
 
 # ---------------------------------------------------------------------------
-# the completion of the transport (2026-08-21): whole-character conjugation
+# the completion of the transport: whole-character conjugation
 # ---------------------------------------------------------------------------
 #
-# Where the tabulated labelling names no physical representation -- a complex
+# Where the tabulated labeling names no physical representation -- a complex
 # tabulated factor system, or a grey time-reversal gluing built on a complex
 # phase -- `groups._transported_table` serves conj(chi_BCS) under the same BCS
 # names.  These tests are at the *data* level: they check the rule the adapter
@@ -3155,7 +3148,7 @@ def _served_rows(table, kp, irreps, conjugated):
     """What ``_transported_table`` serves at ``kp``, on the table's own reps.
 
     ``t_ours = t_table`` and ``sym.sign = 1`` in that gauge, so the two branches
-    of :func:`groups._transported_table` reduce to ``χ·φ`` (tabulated labelling
+    of :func:`groups._transported_table` reduce to ``χ·φ`` (tabulated labeling
     kept) and ``conj(χ)`` (whole-character conjugation), which is what the
     sweep needs -- the setting transformation is a separate concern, tested on
     real cells by ``test_the_transported_table_conjugates_only_the_factor_system``.
@@ -3184,9 +3177,8 @@ def _served_named(table, kp, irreps, conjugated, c):
     """:func:`_served_rows` re-keyed by the name ``_transported_table`` serves it under.
 
     ``_served_rows`` keys by the *tabulated* name because the row checks do not
-    care; every statement about **labels** has to go through ``c``, which since
-    2026-08-24 is no longer the identity on a unitary table's conjugated points
-    (the served name follows the printed character -- see
+    care; every statement about **labels** has to go through ``c``, which is not
+    the identity on a unitary table's conjugated points (the served name follows the printed character -- see
     ``groups._table_conjugation``).
     """
     rows = _served_rows(table, kp, irreps, conjugated)
@@ -3267,7 +3259,7 @@ def _rep_geometry(rot, trans, k, su2=None):
                 break
             ell_j.append(pos[ell])
             ph_j.append(s * np.exp(-2j * np.pi * k @ (tp - trans[ell])))
-        else:                                     # pragma: no cover - order > 24
+        else:                                     # pragma: no cover: order > 24
             ell_j = None
         if ell_j is None:
             continue
@@ -3397,11 +3389,11 @@ def test_the_served_table_is_a_physical_representation_for_every_group(shipped_t
       This is the census the ``conjugated`` count measures without that rule
       (176 = these 174 plus the spinful ``L`` of ``178.156``/``179.162``, where
       the grey table's own character matching disagreed with the parent's
-      relabelling and the parent had to win);
+      relabeling and the parent had to win);
     * ``divergent`` (**59** entries, 25 unitary and 34 grey): the shipped
       character set is not closed under conjugation, so no permutation of BCS's
       rows is the physical table.  Every one of them is a ``P``/``W``-type point
-      of a body- or face-centred group, which is the geometry that makes the
+      of a body- or face-centered group, which is the geometry that makes the
       shipped page describe the other star member ``−k``.
     """
     unitary, grey = _sweep_instances()
@@ -3478,23 +3470,23 @@ def test_the_served_table_is_a_physical_representation_for_every_group(shipped_t
         220, 227, 228, 230}
     #  the memoized public wrapper, against values typed here rather than
     #  against the scan above -- which would be the same loop over the same
-    #  predicate on both sides (measured 2026-09-09); the transport-record test
+    #  predicate on both sides; the transport-record test
     #  reads #199 spinful, #80.30 and #143 through the published record
     assert _tables._divergent_kpoints("199", False, False) == frozenset({"P"})
     assert _tables._divergent_kpoints("199.12", False, True) == frozenset({"P", "PA"})
     assert _tables._divergent_kpoints("227", True, False) == frozenset({"W"})
     assert _tables._divergent_kpoints("80.29", True, True) == frozenset()
 
-    #  the suspected equivalence, measured: "exchange ⟺ all
+    #  an equivalence one might expect, measured: "exchange ⟺ all
     #  characters real" vs "irreducible ⟺ some character complex".  One
     #  direction is exact -- an all-real character set is closed under
     #  conjugation by inspection, so it is NEVER divergent -- and the converse
     #  is false: 1137 k-points have a complex character and are still a
     #  permutation of BCS's rows (the complex rows pair up with each other).
-    #  Restricted to the class the conjecture was formed on -- the 31 k-point
-    #  entries the re-gluing census alone listed -- it *is* exact: the
-    #  28 with all-real corep characters all became exchanges, and the 3 with a
-    #  complex one (80.30/109.240/110.246 ``P``) are all still irreducible.  The
+    #  Restricted to the 31 k-point entries the re-gluing census lists, it
+    #  *is* exact: the 28 with all-real corep characters are all exchanges,
+    #  and the 3 with a complex one (80.30/109.240/110.246 ``P``) are all
+    #  irreducible.  The
     #  live half of that is the pair of assertions "every re-glued point is
     #  divergent" (in the re-glued census below) and "all-real is never
     #  divergent" (here).
@@ -3522,7 +3514,7 @@ def test_whole_character_conjugation_is_load_bearing_where_it_is_applied():
        *any* of the physical characters -- ``χ_D·φ`` differs from every
        ``conj(χ_E)``.  Since the whole-conjugate set is the physical one
        (asserted by the sweep above), that is the precise sense in which the
-       tabulated labelling names no physical representation there, and it is
+       tabulated labeling names no physical representation there, and it is
        what makes the conjugation forced rather than a choice.  The converse is
        asserted too: at a conjugated point that *does* have a tabulated pairing
        (``144.5``'s ``H``/``HA``, ``169.114``'s ``L``) nothing is stranded, and
@@ -3626,7 +3618,7 @@ def test_the_sweeps_served_rows_are_what_transported_table_serves():
     would otherwise be invisible to all of them.  Here the real function is
     handed a group whose operations *are* one table's, at six k-points chosen so
     that the phase it re-attaches is not 1: ``227``'s ``W`` and ``X`` and
-    ``194``'s ``A`` keep the tabulated labelling, with 6 of 8, 8 of 16 and 12 of
+    ``194``'s ``A`` keep the tabulated labeling, with 6 of 8, 8 of 16 and 12 of
     24 little-group operations carrying ``φ = e^{-4πi k·t} ≠ 1``, while
     ``194``'s ``H``, ``152``'s ``L`` and ``80.30``'s ``P`` take the conjugation
     branch -- the last of them onto ``-P4P4``, a corep name the tables do not
@@ -3668,24 +3660,24 @@ def test_the_sweeps_served_rows_are_what_transported_table_serves():
 def test_the_two_transport_rules_agree_as_sets_wherever_the_tabulated_one_stands():
     """The consistency check the completion rests on, measured on every table.
 
-    At a k-point where the tabulated labelling *is* kept, the whole-character
+    At a k-point where the tabulated labeling *is* kept, the whole-character
     conjugate of each served row is another served row -- that is precisely the
     involution ``c``, and it is why the completion can leave those points
     untouched: the two rules give the **same set** of physical characters there
     and differ only in which BCS name is attached to which.  They agree
     *entry by entry* exactly where the loaded content ``Γ(R)`` is real, and
     differ by ``c`` elsewhere; SG 143's ``K`` (``c: K2 ↔ K3``) is the standing
-    example, and the tabulated labelling is the right one there because the
+    example, and the tabulated labeling is the right one there because the
     little group at ``K`` carries no translations at all, so the physical and
     tabulated tables are literally the same operators.
 
     Nothing in the completion may disturb that -- if the conjugation rule were
-    applied at a point where the tabulated labelling stands, SG 143 would start
+    applied at a point where the tabulated labeling stands, SG 143 would start
     reporting ``K3`` for a band whose character is ``e^{2πi/3}``.
 
     **What carries which half.**  That the two rules give the same *set* is
     :func:`groups._matching`'s own acceptance criterion at these k-points --
-    the library reaches the "tabulated labelling stands" branch exactly when it
+    the library reaches the "tabulated labeling stands" branch exactly when it
     has found the pairing, so the row comparison below can only measure how far
     inside its 2e-3 tolerance the arithmetic lands (worst deviation over the 340
     rows: **6.3e-16**).  The teeth are in the **naming**: ``c`` is asserted
@@ -3745,7 +3737,7 @@ def test_the_two_transport_rules_agree_as_sets_wherever_the_tabulated_one_stands
 
 
 # ---------------------------------------------------------------------------
-# the fourth face (2026-08-21): the time-reversal gluing is convention-sensitive
+# the time-reversal gluing is convention-sensitive
 # ---------------------------------------------------------------------------
 #
 # Plain conjugation of whole character vectors is the wrong closure test for a
@@ -3764,7 +3756,7 @@ def test_the_A_twisted_gluing_reproduces_every_shipped_grey_corep_table(shipped_
     Six statements per tabulated k-point, all from the table's own numbers:
 
     1. the little group predicted from the *centering* -- ``R^{-T}k ≡ k``
-       modulo the primitive reciprocal lattice, which for a body-centred group
+       modulo the primitive reciprocal lattice, which for a body-centered group
        is the ``h+k+l`` even rule -- is exactly ``irreptables``' own tabulated
        little-group index list.  This is what makes ``P = (½,½,½)`` of SG 80 a
        non-TRIM and puts ``C4·T`` rather than ``T`` in its extended little
@@ -3911,17 +3903,17 @@ def test_every_served_corep_name_spells_its_own_unitary_constituents(shipped_tab
 
 @pytest.mark.data
 def test_every_group_transports_and_the_only_refusal_is_a_data_defect():
-    """Zero refusals left in the sweep; the one survivor is an ``irreptables`` bug.
+    """Zero refusals in the sweep; the one data defect is an ``irreptables`` bug.
 
-    Over the 920 instances ``_to_physical_convention`` now completes for **all**
-    460 unitary and **all** 460 grey ones.  ``80.30`` used to be the exception,
-    refused because its shipped corep list at ``P`` is not closed under plain
-    conjugation -- which is true, and is not a defect: the gluing there is
-    convention-sensitive, so the physical corep list doubles the *other* irrep
-    (``-P3 ⊕ -P4P4`` against BCS's ``-P3P3 ⊕ -P4``) and no whole-character
-    relabelling could have expressed it.  What is left is ``80.31``, a type-III group outside the sweep
+    Over the 920 instances ``_to_physical_convention`` completes for **all**
+    460 unitary and **all** 460 grey ones.  ``80.30`` among them: its shipped
+    corep list at ``P`` is not closed under plain conjugation -- which is true,
+    and is not a defect: the gluing there is convention-sensitive, so the
+    physical corep list doubles the *other* irrep (``-P3 ⊕ -P4P4`` against
+    BCS's ``-P3P3 ⊕ -P4``) and no whole-character relabeling could express it.
+    The defect is ``80.31``, a type-III group outside the sweep
     whose EBR entries ship with no ``wyckoff_position`` at all -- a plain
-    missing field, and the only remaining upstream data defect.
+    missing field, and the only upstream data defect.
 
     And where a unitary group's EBR rows list a point ``-k`` its character
     table does not -- ``KA``, ``HA``, ``PA``, ``WA``, in 40 tables of 20
@@ -4017,8 +4009,8 @@ def test_the_transport_record_publishes_where_the_characters_were_conjugated():
       conjugate.  The *name* served with it is the BCS name of the row that
       comes out, so the printed table there is still BCS's own and the reader
       will find the numbers exactly where the book puts them.  ``c`` is
-      correspondingly no longer the identity there: it is that name exchange,
-      and it is what the EBR relabelling carries;
+      correspondingly not the identity there: it is that name exchange,
+      and it is what the EBR relabeling carries;
     * ``divergent_points`` -- where the printed table is not a permutation of
       BCS's rows at all, so the reader *will* see numbers the book does not
       print under that name.  These are the ``P``/``W`` points where the shipped
@@ -4054,7 +4046,7 @@ def test_the_transport_record_publishes_where_the_characters_were_conjugated():
 
 
 # ---------------------------------------------------------------------------
-# the naming policy (2026-08-24): the served name follows the printed character
+# the naming policy: the served name follows the printed character
 # ---------------------------------------------------------------------------
 
 
@@ -4183,7 +4175,7 @@ def test_at_a_divergent_point_the_served_table_conjugates_onto_the_shipped_one(
     by naming branch, and the split is asserted because the identity
     ``conj(served[c(D)]) = χ_BCS[D]`` is not one statement:
 
-    * **46 points, 160 rows** keep the tabulated labelling (not in
+    * **46 points, 160 rows** keep the tabulated labeling (not in
       ``conjugated``): the served row is ``χ_D·φ`` under ``D``'s own name and
       the identity is :func:`groups._matching`'s postcondition, measured
       9.8e-16 inside its 2e-3 acceptance;
@@ -4208,7 +4200,7 @@ def test_at_a_divergent_point_the_served_table_conjugates_onto_the_shipped_one(
     for, so the per-k-point dimension is conserved while the individual corep
     dimensions need not be (``80.30`` ``P``: ``2+1 ↔ 1+2``).  The pairing
     antiunitary is never pure time reversal: every member is a non-TRIM ``P``
-    or ``W`` point of a body- or face-centred group, with a non-empty
+    or ``W`` point of a body- or face-centered group, with a non-empty
     antiunitary coset.
     """
     unitary, grey = _sweep_instances()
@@ -4337,17 +4329,17 @@ def test_at_a_divergent_point_the_served_table_conjugates_onto_the_shipped_one(
 
 
 # ---------------------------------------------------------------------------
-# the spinor branch (2026-08-25): the table's frame, not irrep's random fit
+# the spinor branch: the table's frame, not irrep's random fit
 # ---------------------------------------------------------------------------
 #
 # `irrep.spacegroup_irreps.match_spinor_rotations` obtains the spin-basis
 # transformation that matches our operations' SU(2) lifts to the tables' by
 # `scipy.optimize.minimize` from an UNSEEDED `np.random.random` start, and the
-# residual it minimises takes a `min` over the sign of each operation -- so both
-# branches of the fit are exact minima and `sym.sign` came out differently from
-# run to run.  The character ROWS are blind to it (twisting the tabulated set by
-# a linear character permutes it), but the name-to-row pairing is not, so a
-# per-level corep name was not reproducible.  `groups._canonical_spinor_signs`
+# residual it minimizes takes a `min` over the sign of each operation -- so both
+# branches of the fit are exact minima and `sym.sign` can come out differently
+# from run to run.  The character ROWS are blind to it (twisting the tabulated set
+# by a linear character permutes it), but the name-to-row pairing is not, so a
+# per-level corep name read off the fit is not reproducible.  `groups._canonical_spinor_signs`
 # computes the sign instead, from the Cartesian frame the tables' own shipped
 # `S` matrices are written in; these are its regressions.
 
@@ -4453,7 +4445,7 @@ def test_the_spinor_branch_is_pinned_for_every_shipped_table(synthetic_spinor_gr
     460 instances -- the 230 space groups and the 230 type-II grey groups, in
     the spinful valuedness that is the only one where ``sym.sign`` exists at all
     (``match_symmetries(signs=self.spinor)``; a scalar table ships ``S = 1``).
-    Measured 2026-08-25: **zero** ``InternalError``, worst defect **1.0e-05**
+    Measured: **zero** ``InternalError``, worst defect **1.0e-05**
     at SG 149 -- ``irreptables``' own printed precision for ``S``, five decimals
     -- against the ``1e-3`` tolerance, and the competing branch is off by order
     1, so there is nothing in between for the check to be fooled by.
@@ -4463,7 +4455,7 @@ def test_the_spinor_branch_is_pinned_for_every_shipped_table(synthetic_spinor_gr
     valuednesses) are written in a Cartesian frame turned from the conventional
     cell's standard orientation, and every other lattice system's are written in
     the standard orientation itself -- which the 36 cubic groups pin with no
-    residual freedom at all (their point groups have trivial centraliser in
+    residual freedom at all (their point groups have trivial centralizer in
     SO(3), so exactly one frame reproduces their data).
 
     The *order* of ``_TABLE_SPIN_FRAMES`` is checked not to matter: both frames
@@ -4497,7 +4489,7 @@ def test_the_spinor_branch_is_pinned_for_every_shipped_table(synthetic_spinor_gr
 @pytest.mark.data
 def test_the_canonical_lifts_realize_the_tabulated_factor_system_everywhere(
         shipped_tables, synthetic_spinor_groups):
-    r"""The lift-set census, and the post-condition that closes it (2026-08-25).
+    r"""The lift-set census, and the post-condition that closes it.
 
     The frame sweep above says every stored lift is ``±`` the tables' own.  This
     one says what that ``±`` *does*: a lift set is fixed by its ℤ₂ factor system
@@ -4529,10 +4521,10 @@ def test_the_canonical_lifts_realize_the_tabulated_factor_system_everywhere(
        here and asking :func:`groups._canonical_spinor_signs` to re-derive the
        sign cannot fail, since that rule reads the sign off the same trace it
        was applied to;
-    3. **it was needed almost everywhere** -- measured 2026-08-25 on one generic
-       cell per group: **356** of the 460 instances (167 unitary, 189 grey) had a
-       lift set that did *not* realize ``ω_table``, 94734 of 261905 composable
-       pairs twisted; 62 instances needed no correction at all and 42 needed one
+    3. **it is needed almost everywhere** -- measured on one generic
+       cell per group: **356** of the 460 instances (167 unitary, 189 grey) have a
+       lift set that does *not* realize ``ω_table``, 94734 of 261905 composable
+       pairs twisted; 62 instances need no correction at all and 42 need one
        that happens to be a homomorphism (a harmless character twist -- it
        permutes the tabulated rows and moves no page).
 
@@ -4541,7 +4533,7 @@ def test_the_canonical_lifts_realize_the_tabulated_factor_system_everywhere(
     LAPACK's eigenvector sign is not a function of the space group, and a second
     generic cell gives 358 affected instances with a substantially different
     list (measured).  That is itself the argument for correcting the lifts at
-    this package's boundary rather than cataloguing the groups where it matters.
+    this package's boundary rather than cataloging the groups where it matters.
     """
     unitary, grey = _sweep_instances()
     spinful = [(ns, mag) for ns, sp, mag in unitary + list(grey) if sp]
@@ -4634,7 +4626,7 @@ def test_the_two_spinor_branches_differ_by_a_character_of_the_point_group():
 def test_an_undecidable_spinor_frame_raises_an_internal_error_not_a_refusal():
     """The error path: a frame that cannot be applied is a **bug**, not a verdict.
 
-    Two ways to make the canonicalisation undecidable, both of which are
+    Two ways to make the canonicalization undecidable, both of which are
     statements about this package's use of a convention the tables fix outright:
     a frame list that does not contain the group's own frame, and an operation
     whose SU(2) lift is not a lift of the rotation the table pairs it with.
@@ -4698,20 +4690,20 @@ for point in ("K", "H"):
 
 @pytest.mark.slow
 def test_the_spinor_branch_is_the_same_in_every_fresh_process(capsys):
-    """The guarantee, measured where it failed: two processes, one answer.
+    """The guarantee, measured where a random fit fails: two processes, one answer.
 
     A fresh subprocess and the test's own process each build the Kane-Mele
-    decorated cell (``#183.186``, the group whose ``K`` exchanged ``-K4`` and
-    ``-K5`` from run to run) and a genuinely three-dimensional ``P3m11'``
-    (``#156.50``, whose ``K`` and ``H`` carry the same conjugate 1-dimensional
-    pairs), and print the *whole* served table -- names **and** rows -- plus
-    the canonical sign vector.  Two processes are the point: ``np.random``'s
-    state is what used to decide this, so re-running in one interpreter would
-    prove nothing.
+    decorated cell (``#183.186``, the group whose ``K`` exchanges ``-K4`` and
+    ``-K5`` from run to run under an unpinned fit) and a genuinely
+    three-dimensional ``P3m11'`` (``#156.50``, whose ``K`` and ``H`` carry the
+    same conjugate 1-dimensional pairs), and print the *whole* served table --
+    names **and** rows -- plus the canonical sign vector.  Two processes are the
+    point: ``np.random``'s state is what decides an unpinned fit, so re-running
+    in one interpreter would prove nothing.
 
-    Before the convention was applied this exact payload printed ``-K4`` and
+    With the fit's sign left as it comes, this payload prints ``-K4`` and
     ``-K5`` the other way round on roughly a third of runs (measured 7/10 vs
-    3/10 over fresh fits of ``#183.186``); the rows were bit-stable throughout,
+    3/10 over fresh fits of ``#183.186``); the rows are bit-stable throughout,
     which is why names and rows are compared together.  The rows themselves are
     the datum read off the Bilbao Crystallographic Server, which the served-page
     test below pins in process.
@@ -4722,11 +4714,11 @@ def test_the_spinor_branch_is_the_same_in_every_fresh_process(capsys):
     (``_get_operation_type``), whose sign ``np.linalg.eig`` fixes arbitrarily --
     and at the two-folds and mirrors, where the lift is ``exp(-i pi n.sigma/2)``,
     that sign goes straight into the lift.  Wrapping that call to return the
-    other eigenvector moved ``#183.186``'s vector from six bars to eight (and
-    ``mixed`` from 216 to 192) while **every** served row at ``K`` stayed
+    other eigenvector moves ``#183.186``'s vector from six bars to eight (and
+    ``mixed`` from 216 to 192) while **every** served row at ``K`` stays
     byte-identical to all 17 digits: the bar the tables' frame removes is exactly
     the bar ``irrep`` put in.  So the vectors are compared across the two
-    processes -- whatever this LAPACK chooses, the pinned branch reproduces it --
+    processes -- whatever the LAPACK chooses, the pinned branch reproduces it --
     and checked for shape, while the *served page* carries the values (measured
     here: ``#183.186`` bars 6 of its 24, ``#156.50`` 2 of its 12).
     """
@@ -4763,18 +4755,18 @@ def test_the_served_page_at_K_of_183_is_bcs_element_by_element():
     ``−K4`` carries ``−i`` on **all three** mirrors and ``−K5`` carries ``+i`` on
     all three; ``−K6`` is two-dimensional with ``0`` on all three.
 
-    Before the lift-set correction this package served ``−K4`` as
+    Without the lift-set correction ``−K4`` would be served as
     ``(+i, −i, −i)`` over operations ``(10, 11, 12)`` -- a *mixed* pattern, and
-    therefore a page BCS never printed.  Nothing was wrong with the naming (the
+    therefore a page BCS never printed.  The naming would not be at fault (the
     character-anchored naming sweep compares BCS characters evaluated on our
-    representatives, so the bars sit on both sides and cancel) and nothing was
-    wrong with the frame constant either: the datum is what *confirms*
-    ``_TABLE_SPIN_FRAMES``' hexagonal offset, since the other frame would have
-    exchanged the two names.  What was wrong was that ``irrep``'s per-operation
-    lift for the third mirror stored the ``Ē·m`` partner of the ``C3``-consistent
+    representatives, so the bars sit on both sides and cancel), and neither
+    would the frame constant: the datum is what *confirms*
+    ``_TABLE_SPIN_FRAMES``' hexagonal offset, since the other frame would
+    exchange the two names.  The fault is that ``irrep``'s per-operation
+    lift for the third mirror stores the ``Ē·m`` partner of the ``C3``-consistent
     set -- ``S(C3⁺)S(m₁₁)S(C3⁺)⁻¹ = +S(m₁₂)`` but
-    ``S(C3⁺)S(m₁₂)S(C3⁺)⁻¹ = −S(m₁₀)`` -- and the old convention put that bar on
-    the *character*.
+    ``S(C3⁺)S(m₁₂)S(C3⁺)⁻¹ = −S(m₁₀)`` -- and an uncorrected lift puts that
+    bar on the *character*.
 
     So this asserts the numbers twice over: against the datum spelled
     out, and against ``irreptables``' shipped row entry by entry.
@@ -4783,7 +4775,7 @@ def test_the_served_page_at_K_of_183_is_bcs_element_by_element():
     # so reaching irreptables before irrep leaves that module half-built when irrep
     # runs its own `from irreptables.irreps import IrrepTable` and irrep falls back
     # to DummyMethodTables for the rest of the process (see test_fixtures_smoke.py).
-    # Measured 2026-09-09: without this line the test refuses with `irrep_tables`
+    # Measured: without this line the test refuses with `irrep_tables`
     # whenever it is the first in its process to reach irreptables (`pytest -k`).
     assert G.tables_status()["tables"]
     from irreptables.irreps import IrrepTable
@@ -4834,10 +4826,10 @@ def test_the_served_page_at_K_of_183_is_bcs_element_by_element():
     for src, dst in ((10, 11), (11, 12), (12, 10)):
         assert np.abs(S[2] @ S[src] @ S[2].conj().T - S[dst]).max() < 1e-9, (src, dst)
 
-    # and what it took to get there.  *How many* of irrep's per-operation lifts
-    # came out backwards, and which, is a property of the cell as presented
+    # and what it takes to get there.  *How many* of irrep's per-operation lifts
+    # come out backwards, and which, is a property of the cell as presented
     # (LAPACK's eigenvector sign in `_get_operation_type`), so none of it is
-    # asserted: on this machine the barred one inside this little group is
+    # asserted: where measured, the barred one inside this little group is
     # operation 10, with 216 of the 576 composable pairs then carrying a twisted
     # factor system.  The frame those signs were read in is not arbitrary, and it
     # is the thing the datum confirms.
@@ -4971,7 +4963,7 @@ def test_transporting_a_little_group_table_to_the_other_star_member_needs_the_ba
 
 
 def test_a_shipped_lift_set_that_does_not_close_raises_an_internal_error(monkeypatch):
-    r"""The second error path of the coboundary solve (2026-08-25).
+    r"""The second error path of the coboundary solve.
 
     Solving ``δc = ω_ours/ω_table`` needs a right-hand side, and that is the
     statement that the **shipped** SU(2) matrices close as a lift set:

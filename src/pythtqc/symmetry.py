@@ -328,8 +328,8 @@ class _MultiplicitySpace:
     contents: tuple
     n_representations: int = 1
     determined_by: str = "lowest-l"
-    # how many Wannier functions of the copies one site holds, orbitals or, where
-    # ``_pairs``, declared spinor pairs; it says what one copy is
+    # how many orbitals of the copies one site holds, where ``_pairs`` each
+    # declared spinor pair counted once; it says what one copy is
     _per_site: int = field(default=0, repr=False, compare=False)
     _pairs: bool = field(default=False, repr=False, compare=False)
 
@@ -377,8 +377,8 @@ class _MultiplicitySpace:
                "lowest-l": "assigned by the lowest-angular-momentum rule",
                "hamiltonian": "the one content the group's own table admits"}.get(
                    self.determined_by, self.determined_by)
-        # what one copy is: the Wannier functions it holds at one site, orbitals
-        # or declared spinor pairs, and whether the orbit has several sites
+        # what one copy is: the orbitals it holds at one site, or the declared
+        # spinor pairs, and whether the orbit has several sites
         unit = "spinor pair" if self._pairs else "orbital"
         held = len(self.orbitals) // (2 if self._pairs else 1)
         per_site = int(self._per_site) or held
@@ -550,7 +550,7 @@ class _OrbitalTable:
             rows.append("  lowest-l: " + _LOWEST_L_LEGEND)
         return "\n".join(rows)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return (f"_OrbitalTable({'/'.join(self.irreps)}"
                 + (", lowest-l" if any(o.determined_by == "lowest-l"
                                        for o in self.orbitals) else "") + ")")
@@ -663,7 +663,7 @@ class BandRepresentation:
     def __hash__(self) -> int:
         return hash(tuple(self.terms))
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return f"{type(self).__name__}({self.label})"
 
 
@@ -841,7 +841,7 @@ class WyckoffOrbitNumerical:
     contents: tuple = ()
     n_representations: int = 1
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return (f"WyckoffOrbitNumerical(residual={self.residual:.1e}, named by "
                 f"{self.named_by})")
 
@@ -961,7 +961,7 @@ class WyckoffOrbit:
                      + "   (.site_multiplets)")
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return f"{type(self).__name__}({self._line()})"
 
 
@@ -1039,7 +1039,7 @@ class AtomicLimitTableNumerical:
     site_multiplets_determined_by: str
     accidental: tuple = ()
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return (f"AtomicLimitTableNumerical({len(self.checks)} checks, "
                 f"residual={self.residual:.1e})")
 
@@ -1128,7 +1128,7 @@ class AtomicLimitTable:
             lines.append("  lowest-l: " + _LOWEST_L_LEGEND)
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return (f"AtomicLimitTable({'/'.join(o.label or 'unnamed' for o in self._rows)}"
                 + (", lowest-l" if any(o.determined_by == "lowest-l"
                                        for o in self._rows) else "") + ")")
@@ -1450,9 +1450,9 @@ class SpaceGroupRepNumerical:
     residuals : dict
         ``{index: residual}``, in the units of H: how far each operation's
         matrix ``D`` misses carrying the Hamiltonian onto itself.  The residual
-        is the largest over the k-points measured of ``D H(k) D† − H(gk)``,
-        ``gk`` the image of ``k``, with ``H(k)*`` in place of ``H(k)`` for an
-        operation combined with time reversal.
+        is the largest over the k-points measured of ``D H(k) D† − H(Rk)``
+        for the operation ``{R|t}``, and of ``D H(k)* D† − H(−Rk)`` for
+        ``{R|t}`` combined with time reversal.
     product_residual : float
         How far the matrices miss multiplying as the group does: ``D(g1)``
         times ``D(g2)``, the second conjugated where ``g1`` is combined with
@@ -1479,7 +1479,7 @@ class SpaceGroupRepNumerical:
             f"the Bloch operators to {self.factor_residual:.2g}"
             "   (.product_residual, .factor_residual)"])
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         worst = max(self.residuals.values()) if self.residuals else float("nan")
         return (f"SpaceGroupRepNumerical(covariance<={worst:.1e}, "
                 f"product={self.product_residual:.1e}, factor={self.factor_residual:.1e})")
@@ -1599,7 +1599,7 @@ class SpaceGroupRep:
     # a layer's indicator is completed on
     _model_key: str | None = field(default=None, repr=False, compare=False)
 
-    # lookups --------------------------------------------------------------
+    # Lookups
     def __len__(self) -> int:
         return len(self.matrices)
 
@@ -1987,9 +1987,9 @@ class SpaceGroupRep:
         """Each operation's covariance residual, measured again, in the units of H.
 
         The residual of an operation with matrix ``D`` is the largest modulus
-        of an entry of ``D H(k) D† − H(gk)`` over the k-points, ``gk`` the image
-        of ``k``, with ``H(k)*`` in place of ``H(k)`` for an operation combined
-        with time reversal.
+        of an entry of ``D H(k) D† − H(Rk)`` over the k-points for the
+        operation ``{R|t}``, and of ``D H(k)* D† − H(−Rk)`` for ``{R|t}``
+        combined with time reversal.
 
         Parameters
         ----------
@@ -2041,7 +2041,7 @@ class SpaceGroupRep:
                          "conjugation   (.antiunitary)")
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         worst = (max(self.numerical.residuals.values()) if self.numerical.residuals
                  else float("nan"))
         norb, nspin = int(self._model.norb), int(self._model.nspin)

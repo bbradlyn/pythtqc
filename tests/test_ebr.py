@@ -1,4 +1,4 @@
-"""Phase A4: ``tqc.ebr`` — EBR decompositions, honest "none"s, and the counting.
+"""``tqc.ebr`` — EBR decompositions, honest "none"s, and the counting.
 
 Every asserted number is commented with where it comes from: a paper, an
 ``irreptables`` row, or a measurement made here.
@@ -100,17 +100,15 @@ def km191_realized(realized):
     substrate's own word, is not a label of the free-standing ``-6m2`` site
     group, and a declaration in it is not compared at all.)
 
-    Built with the **default** search space.  This fixture used to carry
-    ``orientation_branch=+1``, because covariance and the product table are
-    both blind to the ``g -> g^-1`` branch here; the internal-factor gate added
-    with A3b's wave pins it by measurement instead (the losing branch carries
-    ``S(C3)^dag`` where the group says ``S(C3)``), so the restriction is no
-    longer needed.  ``test_symmetry.py`` owns the regression that both branches
-    survive the other two gates, on the detector's own solution spaces; here
-    each operation's space is read in its own form, whose members carry
-    ``S(C3)`` alone, so the losing branch is not built at all, and what is
-    asserted is only that removing the restriction did not change this
-    fixture's answer -- the search closes on exactly one representation.
+    Built with the **default** search space, with no ``orientation_branch``.
+    Covariance and the product table are both blind to the ``g -> g^-1``
+    branch here; the internal-factor gate pins it by measurement (the losing
+    branch carries ``S(C3)^dag`` where the group says ``S(C3)``).
+    ``test_symmetry.py`` owns the regression that both branches survive the
+    other two gates, on the detector's own solution spaces; here each
+    operation's space is read in its own form, whose members carry ``S(C3)``
+    alone, so the losing branch is not built at all, and what is asserted is
+    only that the search closes on exactly one representation.
     """
     out = realized(tqm.kane_mele_inversion, environment="substrate",
                    characters={0: "s"})
@@ -141,7 +139,7 @@ def test_the_in_plane_restriction_is_verified_row_by_row_in_each_group(
         lin3g_declared_cross_checked, km_odd_realized):
     """SG 99 and SG 156: every dropped row is a label-mapped copy of a retained one.
 
-    Measured (2026-08-19), and the reason the restricted decomposition is
+    Measured, and the reason the restricted decomposition is
     reported as *exact* rather than merely necessary: ``-A6 = -M6``,
     ``-A7 = -M7``, ``-R5 = -X5``, ``-Z6 = -GM6``, ``-Z7 = -GM7`` as vectors over
     the five EBRs.  The rank is unchanged by the restriction, which is the same
@@ -175,7 +173,7 @@ def test_the_in_plane_restriction_is_verified_row_by_row_in_each_group(
 
 
 # ---------------------------------------------------------------------------
-# 2.  lin3g -- the phase closers
+# 2.  lin3g -- the decompositions
 # ---------------------------------------------------------------------------
 
 def test_lin3g_P6_decomposes_and_the_raw_passthrough_refuses(lin3g_declared_cross_checked):
@@ -194,7 +192,7 @@ def test_lin3g_P6_decomposes_and_the_raw_passthrough_refuses(lin3g_declared_cros
     model, group, rep = record.model, record.group, record.rep
     table = tqw.hsp_table(record, bands=P6)
     assert table.complete, table.refusals
-    # measured content, phase A3 (docs/guide/atomic-limits.md)
+    # measured content (docs/guide/atomic-limits.md)
     assert table.symmetry_data == {"-GM6": 2, "-GM7": 1, "-M6": 1, "-M7": 2, "-X5": 3}
 
     d = tqe.decompose(table)
@@ -249,7 +247,7 @@ def test_lin3g_P2_is_exactly_the_1b_row_directly_and_as_a_difference(
     t6 = tqw.hsp_table(record, bands=P6)
     t4 = tqw.hsp_table(record, bands=list(P4))
     t2 = tqw.hsp_table(record, bands=list(P2))
-    assert t2.symmetry_data == {"-GM6": 1, "-M7": 1, "-X5": 1}       # measured, phase A3
+    assert t2.symmetry_data == {"-GM6": 1, "-M7": 1, "-X5": 1}       # measured
     assert t4.symmetry_data == _in_plane(group, _row(group, "2c")[1]), "P4 is the 2c row"
 
     diff = tqe.subtract(t6, t4)
@@ -285,7 +283,7 @@ def test_lin3g_P2_and_Q2_sum_to_the_1a_pair_but_neither_half_is_one(
     model, group, rep = record.model, record.group, record.rep
     p2 = tqw.hsp_table(record, bands=list(P2)).symmetry_data
     q2 = tqw.hsp_table(record, bands=list(Q2)).symmetry_data
-    assert q2 == {"-GM7": 1, "-M6": 1, "-X5": 1}              # measured, phase A3
+    assert q2 == {"-GM7": 1, "-M6": 1, "-X5": 1}              # measured
     total = {lab: p2.get(lab, 0) + q2.get(lab, 0) for lab in set(p2) | set(q2)}
 
     d = tqe.decompose(total, record)
@@ -441,7 +439,7 @@ def test_pwv_valence_is_the_1a_EBR_and_the_conduction_pair_is_a_none(pwv_realize
     pipeline:
 
     * valence ``{-GM9, -K6, -M5}`` decomposes **uniquely** as ``-E1^G(2)@1a``,
-      the paper's ``(E1bar ^ G)_1a`` at the empty hexagon centre;
+      the paper's ``(E1bar ^ G)_1a`` at the empty hexagon center;
     * conduction ``{-GM8, -K4, -K5, -M5}`` admits **no** nonnegative-integer
       decomposition (CP-SAT infeasible over a proved-exhaustive bound), while
       the signed probe finds ``[-E1^G(4)@2b] - [-E1^G(2)@1a]``.  A group of
@@ -696,7 +694,7 @@ def test_kpoint_of_label_parses_every_label_of_every_fixture_group(
 def fkm_strong(realized):
     """Fu-Kane-Mele's strong distorted phase in ``R-3m1' #166.98``.
 
-    Declared with the bond-centre species (``FKM_BOND``), which names the group
+    Declared with the bond-center species (``FKM_BOND``), which names the group
     outright from the cell.  ``examples/tqc_fkm_diamond.py`` reads the same
     phase without the species, by descent from ``Fd-3m1' #227.129``.
     """
@@ -782,7 +780,7 @@ def test_the_shipped_smith_basis_is_the_convention_and_a_de_novo_snf_verifies_it
     # ... and the check that carries (ii) is the one that can fail: double row 0
     # of the shipped `u` AND the matching entry of `R`.  That keeps `u M v = R`
     # exactly -- check (i) passes -- and keeps every factor integer, but the
-    # shipped divisors are now (2, 2, 4) where the matrix's own are (2, 4), so
+    # shipped divisors are then (2, 2, 4) where the matrix's own are (2, 4), so
     # the de-novo Smith form is what refutes it.  A convention the tables fix
     # leaves no gauge for a caller to supply, so this raises rather than
     # refusing.
@@ -806,7 +804,7 @@ def test_the_shipped_smith_basis_is_the_convention_and_a_de_novo_snf_verifies_it
 
 @pytest.mark.data
 def test_the_indicator_sweep_over_every_group_this_package_validates():
-    """A5.1's closing regressions, swept over the whole validated universe.
+    """The indicator's regressions, swept over the whole validated universe.
 
     The universe is the 230 space groups as unitary groups and the 230 grey
     (type-II) groups, both valuednesses: 920 systems.  Three statements are
@@ -825,7 +823,7 @@ def test_the_indicator_sweep_over_every_group_this_package_validates():
     **The transport moves no indicator value.**  The indicator GROUP is
     transport-invariant because a row permutation is a Smith equivalence.  The
     VALUE could in principle shift by an automorphism of that group -- ``y' =
-    u.y`` is a linear form on labelled coordinates and the transport relabels
+    u.y`` is a linear form on labeled coordinates and the transport relabels
     them.  It does not, and the reason is structural rather than lucky:
     ``groups.ebr_data`` rewrites ``u`` by exactly the permutation ``P`` that
     relabels the content vector, so ``u' y_phys = (u P)(P y_BCS) = u y_BCS``
@@ -890,7 +888,7 @@ def test_the_indicator_sweep_over_every_group_this_package_validates():
                         assert here[i] == there[i], (number_str, spinor, i)
                     elif di > 1:
                         assert (here[i] - there[i]) % di == 0, (number_str, spinor, i)
-    # measured 2026-08-28: 920 systems in scope, 379 with a nontrivial indicator
+    # measured: 920 systems in scope, 379 with a nontrivial indicator
     # group, and in 193 of those the transport really does permute the rows --
     # so the agreement above is not the vacuous statement that nothing moved
     assert (systems, nontrivial) == (920, 379), (systems, nontrivial)
@@ -1069,7 +1067,7 @@ def _stacked(model, c=8.0):
     return out
 
 
-#: The layer-group anchor, measured 2026-08-28.  ``X_BS(#191.234) = Z6 x Z12``;
+#: The layer-group anchor, measured.  ``X_BS(#191.234) = Z6 x Z12``;
 #: the Kane-Mele valence pair at ``delta = rashba = 0``, six-point content, sits
 #: at ``(1, 0)`` of order 6, with ``z2w,3 = 1`` and ``z4 = 2``: every component
 #: an invariant of the layer's decoupled stack, fixed by the layer's own content.
@@ -1088,7 +1086,7 @@ def test_the_layer_class_moves_only_by_the_declaration_it_states():
     The site character is a **declaration**: ``s`` (= ``A1'``, even under
     ``sigma_h``) and ``A2'`` (odd under it, even under the twofold axes — that
     is how this position's own site-symmetry listing spells that row) are both
-    labellings of these orbitals, and the hoppings cannot choose between them.
+    labelings of these orbitals, and the hoppings cannot choose between them.
     The lowest-``l`` functions that carry ``A2'`` are
     ``z x (x^2 - 3y^2)``: odd under ``sigma_h`` and ``C2z``, even under
     inversion.  Declaring it moves the labels at ``GM``, ``A``, ``H`` and
@@ -1448,7 +1446,7 @@ def test_the_bare_call_serves_the_class_under_the_named_s_convention():
 
     A pythtb orbital carries no symmetry character: the hoppings fix how the
     orbitals transform relative to one another, not what they are, and
-    *somebody* has to choose the labelling.  The choice here is a named
+    *somebody* has to choose the labeling.  The choice here is a named
     convention -- **the lowest-l rule**: each site's content is put at the
     lowest angular momentum it allows, then the letter the orbitals read as
     and the band labels decide, and only last the group's order of operations
@@ -1463,7 +1461,7 @@ def test_the_bare_call_serves_the_class_under_the_named_s_convention():
     site group has no operation that moves ``z`` for a declaration to disagree
     about -- so there the Hamiltonian decides and nothing needs explaining.  A
     **free-standing** layer has a larger site group (``-6m2``, whose
-    ``sigma_h`` *does* move ``z``), so there the labelling is the convention's,
+    ``sigma_h`` *does* move ``z``), so there the labeling is the convention's,
     named on the record, and the class of the layer group -- the free-standing
     question -- completes on the layer's own stack under it.
     """
@@ -1752,7 +1750,7 @@ def test_the_indicator_refuses_on_physics_and_raises_on_a_broken_convention(
     model, group, rep = fkm_strong.model, fkm_strong.group, fkm_strong.rep
     table = tqw.hsp_table(fkm_strong, bands=2)
 
-    # --- refusals: every one of these is a measurement ---------------------
+    # Refusals: every one of these is a measurement
     holed = dataclasses.replace(
         table, complete=False,
         refusals={"T": Refusal("integer_multiplicity", "synthetic", value=0.5)})
@@ -1804,7 +1802,7 @@ def test_the_indicator_refuses_on_physics_and_raises_on_a_broken_convention(
     assert tqe._magnetic_type(_spacegroup._group_of(kane_mele(0.0, -1.0, 0.3, 0.0),
                                             include_TR=False)) == "I"
 
-    # --- and the convention failure raises ---------------------------------
+    # And the convention failure raises
     real = _tables._ebr_data(group)
     broken = dict(real)
     u, r, v = real["smith"]
@@ -1860,8 +1858,8 @@ def test_named_indicator_forms_are_transported_before_they_are_read():
     assert "re-keyed by the row permutation of the change of convention" in note
 
     # ... and the coefficients it evaluated are not the shipped ones: they differ
-    # exactly on the P/PA labels the transport swaps (measured 2026-09-09; the
-    # eight entries there change sign)
+    # exactly on the P/PA labels the transport swaps (measured: the eight
+    # entries there change sign)
     labels_bcs = list(data["convention"]["labels_bcs"])
     shipped = [float(grey["220.90"]["indicators"]["z2"]["factors"].get(l, 0.0))
                for l in labels_bcs]
@@ -1961,7 +1959,7 @@ def test_a_call_handed_what_it_does_not_take_raises_saying_what_to_pass(
 
 
 def test_module_surface():
-    """The names phase A5 and the docs will import."""
+    """The names the rest of the package and the docs import."""
     import pythtqc as tqc
 
     # the three content helpers are the module's own and stay in `pythtqc.ebr`,

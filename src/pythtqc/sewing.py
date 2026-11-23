@@ -146,7 +146,7 @@ class Thresholds:
             f"machine precision, |H(k)| = {self.norm:.4g} and Δ = {self.separation:.4g}, the "
             "smallest gap between distinct multiplets   (.noise_floor, .norm, .separation)"])
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return (f"Thresholds(effective={self.effective:.2g}, flat={self.flat:.2g}, "
                 f"nf={self.noise_floor:.2g}, |H|={self.norm:.4g}, "
                 f"sep={self.separation:.4g})")
@@ -301,8 +301,8 @@ def multiplets(energies, degeneracy_tol=DEGENERACY_TOL) -> tuple:
     The bands are grouped from the lowest up.  A band joins a multiplet where
     it lies within ``degeneracy_tol`` of the multiplet's lowest band, so every
     two bands of a multiplet lie within ``degeneracy_tol`` of each other.
-    :func:`characters`, :func:`coreps_at` and :func:`hsp_table` group the rows
-    of their character tables the same way.  The grouping is the same at any
+    :func:`characters`, :func:`coreps_at` and :func:`hsp_table` group the
+    bands they read the same way.  The grouping is the same at any
     tolerance at least the largest spread inside a multiplet,
     :func:`multiplet_spread`, and below the smallest gap between multiplets,
     :func:`multiplet_separation`.
@@ -786,7 +786,7 @@ class SewingMatrixNumerical:
             held.append(".residual")
         return ", ".join(measured) + f"   ({', '.join(held)})"
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return (f"SewingMatrixNumerical(unitarity={self.unitarity:.2e}, "
                 f"commutator={self.commutator:.2e}, residual={self.residual:.2e})")
 
@@ -870,7 +870,7 @@ class SewingMatrix:
                          "close their multiplets was not measured   (.numerical.residual)")
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return (f"SewingMatrix({self._named()}, {len(self.bands)} bands, "
                 f"unitarity={self.numerical.unitarity:.2e})")
 
@@ -1134,7 +1134,7 @@ class MultipletCharacters:
     # printed at
     _degeneracy_tol: float = field(default=DEGENERACY_TOL, repr=False, compare=False)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         energy = float(_resolved([self.energy], self._degeneracy_tol)[0])
         return (f"MultipletCharacters(band{'s' if len(self.bands) > 1 else ''} "
                 f"{_index_ranges(self.bands)} at {energy:.4g})")
@@ -1204,7 +1204,7 @@ class BandCharactersNumerical:
                          "(.disagreements, .thresholds)")
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return (f"BandCharactersNumerical(residual={self.residual:.2e}, "
                 f"spread={self.spread:.2e}, {len(self.disagreements)} disagreements)")
 
@@ -1296,7 +1296,7 @@ class BandCharacters:
                       + end for label, cells, end in rows]
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         n = len(self.multiplets)
         return (f"BandCharacters({_kpoint_text(self.kpoint, self.k)}, bands "
                 f"{_index_ranges(self.bands)} in {n} multiplet{'' if n == 1 else 's'})")
@@ -1497,7 +1497,7 @@ def _characters(rep, k, *, states, bands, degeneracy_tol, atol, mesh_tol,
     unit, comm = {}, {}
     for c, ind in enumerate(ours_u):
         whole = _sewing_core(rep, ind, k, V, idx, H, call=call, atol=atol, residual=resid)
-        if isinstance(whole, Refusal):  # pragma: no cover - membership tested above
+        if isinstance(whole, Refusal):  # pragma: no cover: membership tested above
             return whole
         unit[ind] = whole.numerical.unitarity
         comm[ind] = whole.numerical.commutator
@@ -1622,7 +1622,7 @@ class Multiplet:
         return (f"band{'s' if len(self.bands) > 1 else ''} {_index_ranges(self.bands)} at "
                 f"{energy:.4g}: {self.label}")
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return f"Multiplet({self.kpoint}, {self._line()})"
 
 
@@ -1655,7 +1655,7 @@ class CorepsAtNumerical:
         lines += ["  " + line for line in self.identification.summary().splitlines()]
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return (f"CorepsAtNumerical({self.identification.kpoint}, integrality="
                 f"{float(self.identification.integrality):.2g})")
 
@@ -1719,7 +1719,7 @@ class CorepsAt:
                          "units of H   (.isolation)")
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return f"CorepsAt({self.kpoint}: {format_coreps(self.coreps)})"
 
 def _isolation(spectrum, bands):
@@ -2023,7 +2023,7 @@ class HSPTable:
             lines.append(f"  {self.note}   (.note)")
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         n = len(self.multiplets)
         return (f"HSPTable(bands {_index_ranges(self.bands)}, {n} k-point{'' if n == 1 else 's'} "
                 f"measured, {len(self.refusals)} refused)")

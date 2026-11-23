@@ -337,7 +337,7 @@ def _sites_in_tables_setting(group: GroupData, positions=None, *,
     ebr_positions = []
     for _name, position in data["ebrs"]:
         match = re.match(r"^(\d+)([a-zA-Z])\((.*)\)$", str(position))
-        if match is None:                              # pragma: no cover - guard
+        if match is None:                              # pragma: no cover: guard
             raise InternalError(
                 f"#{group.number_str}: the tables write the Wyckoff position of an "
                 f"elementary band representation as {position!r}, which is not "
@@ -390,7 +390,7 @@ def _sites_in_tables_setting(group: GroupData, positions=None, *,
     for i, (x, x_ref) in enumerate(zip(raw, reference)):
         hits = [p for p in pyxtal_positions
                 if residuals[p["letter"]][i] <= position_tol]
-        if not hits:                     # pragma: no cover - the general position's
+        if not hits:                     # pragma: no cover: the general position's
             # variety is the whole cell, so this needs a pyxtal list without one
             nearest = min(pyxtal_positions, key=lambda p: residuals[p["letter"]][i])
             return Refusal(
@@ -555,7 +555,7 @@ def _assign_orbitals(model, group: GroupData, *, typat=None,
             (lat, pos, np.asarray(species, dtype=int)), symprec=tol)
         if ds is not None:
             spg_letters = tuple(ds.wyckoffs)
-    except Exception:  # pragma: no cover - spglib API drift must not break the record
+    except Exception:  # pragma: no cover: spglib API drift must not break the record
         pass
 
     # The name of each site-symmetry group, spelled as the atomic-limit table
@@ -948,7 +948,7 @@ def _resolve_kpoint(call: str, group: GroupData, k):
         return points[k]
     if k in points.out_of_plane:
         refused = _little_group(group, _table_kpoints(group)[k], call=call)
-        if not isinstance(refused, Refusal):        # pragma: no cover - guard
+        if not isinstance(refused, Refusal):        # pragma: no cover: guard
             raise InternalError(
                 f"{group.name} #{group.number_str}: {k} is listed as out of the layer's "
                 "plane, but its little group was read. Report it, with the model and the "
@@ -1039,7 +1039,7 @@ def _as_representative(R, t, S, ops, centering, spinor) -> tuple:
         if np.abs(S + Sj).max() < _SU2_TOL:
             return j + 1, m, -1.0
         break
-    raise _EBRTransportError(                          # pragma: no cover - guard
+    raise _EBRTransportError(                          # pragma: no cover: guard
         "the operations the tables list are not closed under products, up to lattice "
         "translations.")
 
@@ -1936,7 +1936,7 @@ def _conjugation_involution(table, labels) -> dict:
                 f"{label} → {image} → {conj.get(image)}.",
                 points=[_label_kpoint(label)])
         if _label_kpoint(image) != _label_kpoint(label):
-            raise _EBRTransportError(          # pragma: no cover - structural
+            raise _EBRTransportError(          # pragma: no cover: structural
                 f"complex conjugation sends the label {label!r} to {image!r}, at "
                 "another point.",
                 points=[_label_kpoint(label)])
@@ -2331,7 +2331,7 @@ class EBRData:
     group: Any = field(repr=False)
     _raw: Any = field(default=None, repr=False, compare=False)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         kind = "irreps" if getattr(self.group, "magnetic_type", None) == "I" else "coreps"
         return (f"EBRData({self.group.name} #{self.group.number_str}: {len(self.ebrs)} "
                 f"elementary band representations over {len(self.corep_names)} {kind})")

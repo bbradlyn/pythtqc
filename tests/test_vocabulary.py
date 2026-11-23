@@ -1,9 +1,9 @@
-r"""Wave A5.5: the stable-RSI paper's vocabulary as canonical, ``irreptables``' as backend.
+r"""The stable-RSI paper's vocabulary as canonical, ``irreptables``' as backend.
 
 The paper's vocabulary is canonical, with a conversion to the ``irreptables``
 conventions where that is needed.  This file is what says the package does that
 and that the doing is licensed by measurement rather than by preference.  Five
-statements, in the order the wave's spec puts them:
+statements:
 
 1. **Coverage.**  The paper's symmetry-indicator rows cover *exactly* the grey
    systems whose EBR matrix has a nontrivial Smith form -- none missing, none
@@ -21,8 +21,7 @@ statements, in the order the wave's spec puts them:
    on every EBR, which the coverage sweep checks.
 3. **The value gate.**  Every name the conversion pairs agrees in value with its
    counterpart on every EBR column, on random atomic ``p`` and on every
-   generator of the indicator group, in all 170 systems.  S1's tie test over 20
-   groups, promoted to the whole table and to package data.  A pairing that
+   generator of the indicator group, in all 170 systems.  A pairing that
    failed this is a bug in the map and never a tolerance.
 4. **The fixtures**, in the paper's names: Fu-Kane-Mele's strong and trivial
    phases in ``#166.98``, lin3g's ``P2`` where the indicator group is trivial,
@@ -36,16 +35,14 @@ statements, in the order the wave's spec puts them:
    way round -- through momentum-space forms rather than real-space ones; the
    spelling map applied to real data is the layer's.
 
-What A5.5 measured that its spec did not expect is in statement 3: with the
-qualifier-order rule in the map, **nothing is paper-only**.  The "nine paper
-rows with no ``irreptables`` counterpart" S1b recorded is the *derivation's*
-count (rows shipping ``derived: null``, where only the literal and
-transliterated spellings were tried), not a name-correspondence count.  Those
-nine are among the **eleven** rows this wave's reorder rule pairs; the other two
-of the eleven (SGs 124, 128) and SG 130's ``Theta2``, which the alphabet rule
-pairs, are exactly the three S1b derived from the group's own Smith coordinate
-instead.  Nine + three = the twelve rows of that family, and A5.5's map pairs
-all twelve.
+Statement 3 carries one fact worth stating here: with the qualifier-order rule
+in the map, **nothing is paper-only**.  Nine rows ship ``derived: null``, where
+the derivation tried only the literal and transliterated spellings; that is the
+*derivation's* count, not a name-correspondence count.  Those nine are among the
+**eleven** rows the reorder rule pairs; the other two of the eleven (SGs 124,
+128) and SG 130's ``Theta2``, which the alphabet rule pairs, are exactly the
+three whose rows are derived from the group's own Smith coordinate instead.
+Nine + three = the twelve rows of that family, and the map pairs all twelve.
 """
 
 import collections
@@ -227,7 +224,7 @@ def test_the_paper_s_indicator_rows_cover_exactly_the_groups_with_a_class(sweep)
     """170 = 170: an indicator group iff a canonical name for it.
 
     This is what makes the paper's vocabulary usable as *the* vocabulary rather
-    than as one more table to consult.  Measured 2026-09-05 over all 434
+    than as one more table to consult.  Measured over all 434
     tabulated systems: the systems whose EBR matrix has a nontrivial Smith form
     and the systems the paper prints indicator rows for are the **same set**,
     170 of them (53 single-valued + 117 double-valued).  A group in the first
@@ -274,7 +271,7 @@ def test_every_served_indicator_row_vanishes_on_every_ebr_of_its_group(sweep):
     """A form that is not zero on an atomic limit is not an indicator.
 
     The row :meth:`SRSITables.indicators_of` actually evaluates -- the printed
-    one, or S1b's derived one for the four expressions of SGs 147, 162 and 163
+    one, or the derived one the data ships for the four expressions of SGs 147, 162 and 163
     without SOC where the printed one is wrong -- must vanish modulo its own
     modulus on every EBR column of its group.  Measured over all 434 systems:
     **5003 (form, EBR column) evaluations over the 390 served rows, zero
@@ -297,7 +294,7 @@ def test_the_paper_s_names_determine_the_class_in_every_one_of_the_170(sweep):
 
     Enumerated: one representative ``y = sum_i c_i u^-1 e_slot_i`` per element of
     ``{BS}/{AI}``, its canonical values from the exact rational solve of
-    ``BR.p = y``.  Measured 2026-09-05 over the 170 systems with an indicator
+    ``BR.p = y``.  Measured over the 170 systems with an indicator
     group: **263 generators, 1355 classes, and the map class -> canonical values
     is injective in every single system** -- no two classes anywhere share every
     canonical value.  So the paper's names carry exactly the information the
@@ -422,11 +419,10 @@ def test_the_two_vocabularies_agree_in_value_on_every_name_the_map_pairs(sweep):
     system, and the generators of ``{BS}/{AI}`` themselves, where both sides are
     nonzero by construction.
 
-    Measured 2026-09-05 over all 170 systems: **7295 comparisons, zero
+    Measured over all 170 systems: **7295 comparisons, zero
     disagreements**, and ``irreptables`` served a usable form set in every one.
-    S1's tie test made the same measurement over 20 chosen groups (3796
-    comparisons); this is it over the whole table, which is what promoting the
-    map from a test's transliteration dict into package data requires.
+    The comparison covers the whole table, which is what holding the map as
+    package data requires.
     """
     assert sweep["named_none"] == []
     assert sweep["compared"] == 7295
@@ -445,15 +441,13 @@ def test_the_name_correspondence_is_a_bijection_over_the_whole_table(sweep):
     alphabet (``z3m,pi`` against ``z3m,π``), the order of the qualifiers on one
     family, and one letter's case.
 
-    **This corrects an expectation, and the correction is the point.**  S1b
-    recorded "nine paper rows with no ``irreptables`` counterpart"; that is the
-    *derivation's* count -- rows that ship ``derived: null`` because the
-    derivation tried only the literal and transliterated spellings -- and not a
-    statement about the vocabularies.  Those nine (SGs 10, 83, 84, 87 and 175,
-    all without SOC) are a subset of the **eleven** rows the reorder rule pairs
-    here; the other two of the eleven (SGs 124 and 128), together with SG 130's
-    ``Theta2`` that the alphabet rule pairs, are exactly the three S1b derived
-    from the group's own Smith coordinate instead.  Both counts are pinned --
+    Nine paper rows ship ``derived: null``, because the derivation tried only
+    the literal and transliterated spellings; that is the *derivation's* count,
+    and not a statement about the vocabularies.  Those nine (SGs 10, 83, 84, 87
+    and 175, all without SOC) are a subset of the **eleven** rows the reorder
+    rule pairs here; the other two of the eleven (SGs 124 and 128), together
+    with SG 130's ``Theta2`` that the alphabet rule pairs, are exactly the three
+    whose rows are derived from the group's own Smith coordinate instead.  Both counts are pinned --
     the eleven and the nine's names in this test, the derivation's nine by the
     ``tqc_srsi_tables`` golden's "9 with no derived row" -- so neither can drift.
     """
@@ -473,7 +467,7 @@ def test_the_name_correspondence_is_a_bijection_over_the_whole_table(sweep):
         (87, "delta2+,0", "δ2,0+"),
         (124, "delta2+,pi", "δ2,π+"), (128, "delta2+,pi", "δ2,π+"),
         (175, "z2,+", "z2+"), (175, "z2,-", "z2-")])
-    # ... and the nine S1b could not derive against a name are the subset of
+    # ... and the nine the derivation could not match to a name are the subset of
     # those eleven whose groups have no Smith coordinate to fall back on
     nine = {(10, "z2,+"), (10, "z2,-"), (83, "delta2+,pi"), (83, "delta2-,pi"),
             (84, "delta2+,0"), (84, "delta2-,0"), (87, "delta2+,0"),
@@ -543,7 +537,7 @@ def test_name_correspondence_reports_per_group_and_propagates_refusals(
 def fkm_canonical(realized):
     """Fu-Kane-Mele's strong and trivial phases in ``R-3m1' #166.98``, with content.
 
-    The phases are declared with the bond-centre species (``FKM_BOND``), which
+    The phases are declared with the bond-center species (``FKM_BOND``), which
     names ``R-3m1' #166.98`` outright from the cell; ``examples/tqc_fkm_diamond.py``
     reads the same phases without it, by descent from ``Fd-3m1' #227.129``.
     """

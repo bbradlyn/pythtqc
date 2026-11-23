@@ -1,15 +1,14 @@
-"""The R4 baseline: every served field of the goldens, pinned field for field.
+"""The baseline: every served field of the goldens, pinned field for field.
 
-This module exists for one reason — wave P1 is a **performance** wave, and its
-hard rule is that no result may change.  ``tests/data/r4_baseline.json`` was
-captured on the R4e tree before anything was touched (the commit that closed the
-R series), and every entry here recomputes the same call and compares the answer
+This module exists for one reason: a change made for speed or for tidiness must
+change no result.  ``tests/data/r4_baseline.json`` holds the answers, and every
+entry here recomputes the same call and compares the answer
 against that file field for field: the group's number and name, its size and the
 kept count, the site labels, the corep content at every high-symmetry point of
 the fixture's own occupation, the symmetry indicator's values and class, the
 cross-check outcome and its row counts, the descent summary (``from``, ``to``,
 ``n_dropped`` and the per-step ``refuted_by`` histogram), the branch
-tie, the product residual and the orbital centres.
+tie, the product residual and the orbital centers.
 
 What is pinned and what is only bounded
 ---------------------------------------
@@ -56,8 +55,9 @@ Four sections, each captured in both readings where the fixture is 2D:
     the model the ``kane_mele`` entry builds with the same keywords, so its
     records would be those records field for field and it has none of its own.
 ``r1``
-    the fixtures of the R1 baseline (``scratchpad/r1_baseline.json``), which the
-    orchestrator's verification scripts have compared against since wave R1.
+    the declared goldens: lin3g, the two ``#156`` Kane-Mele regimes, Kane-Mele's
+    ``p_z`` layer, and Fu-Kane-Mele on diamond, undistorted and in its three
+    bond-decorated phases.
 ``ebr``
     the **pure-EBR self-decomposition**: one spinful ``s`` at ``1a`` of a square
     layer serves ``{-GM7, -M7, -X5}`` — the tabulated ``Ē₁@1a`` row, not
@@ -65,10 +65,9 @@ Four sections, each captured in both readings where the fixture is 2D:
     layer serves ``{-GM5, -S5, -X5, -Y5}``, with and without a Rashba term.
     That the served content **is** the induced representation's is the check,
     and each entry also carries the measured ``D(g) = λ(g)·S(g)`` deviation
-    against the tables' own lifts.  The four ``mm2_s`` records were captured
-    again once the builders were called by keyword: a bare number had been read
-    as the ``x`` hopping, which left the ``soc=0.2`` pair with no Rashba term
-    and the ``soc=0`` pair with no ``x`` bond.
+    against the tables' own lifts.  The builders are called by keyword: a bare
+    number would be read as the ``x`` hopping of ``mm2_s``, which would leave the
+    ``soc=0.2`` pair with no Rashba term and the ``soc=0`` pair with no ``x`` bond.
 ``srsi``
     the SRSI outputs of the SRSI examples' models: θ vectors, the splitting
     verdicts and the consistent pairs, plus the tables of SGs 211/147/162/163 in
@@ -289,7 +288,7 @@ def snapshot(r, occ):
     out["content"] = {str(k): int(v) for k, v in t.symmetry_data.items()}
     try:
         si = tqe.symmetry_indicator(t)
-    except Exception as exc:      # a served crash is a served fact; see the report
+    except Exception as exc:      # a served crash is a served fact, pinned as one
         out["indicator"] = {"__exception__": type(exc).__name__,
                             "args": str(exc)[:200]}
         return out
@@ -409,7 +408,7 @@ LAYER_2D = {
 
 @pytest.mark.parametrize("key", sorted(BASELINE["layer"]))
 def test_the_2d_fixtures_serve_the_r4_baseline_in_both_readings(key, realized):
-    """Every field of every 2D golden, in both readings, against the R4 capture."""
+    """Every field of every 2D golden, in both readings, against the baseline."""
     build, kw = record_call("layer", key)
     want = BASELINE["layer"][key]
     r = realized(build, **kw)
@@ -423,7 +422,7 @@ def test_the_2d_fixtures_serve_the_r4_baseline_in_both_readings(key, realized):
 
 
 # ---------------------------------------------------------------------------
-# section 2: the R1 baseline's own fixtures
+# section 2: the declared goldens, the ``r1`` section
 # ---------------------------------------------------------------------------
 
 #: Each fixture's model builder and keywords; a 2D record adds the reading its
@@ -432,7 +431,7 @@ def test_the_2d_fixtures_serve_the_r4_baseline_in_both_readings(key, realized):
 #: ``fkm_undistorted``, Kane-Mele's ``p_z`` layer read free-standing
 #: ``km_inversion_free_standing``, the declared lin3g in the default reading (the
 #: ``srsi`` section's) ``lin3g_declared_cross_checked``, and the bond-decorated
-#: phases, in the bond-centre crystal field ``FKM_BOND``, are records several
+#: phases, in the bond-center crystal field ``FKM_BOND``, are records several
 #: modules read.  ``fu_kane_mele_z2(regime)`` is
 #: ``fu_kane_mele(1.0, 0.125, dt)`` with the regime's ``dt``, and
 #: ``kane_mele_inversion()`` is ``kane_mele(0.0, -1.0, 0.3, 0.0)``.
@@ -454,7 +453,7 @@ R1_BUILDERS = {
 
 @pytest.mark.parametrize("key", sorted(BASELINE["r1"]))
 def test_the_r1_fixtures_serve_the_r4_baseline(key, realized):
-    """The R1 goldens, every field, 2D ones in both readings."""
+    """The ``r1`` section's goldens, every field, 2D ones in both readings."""
     build, kw = record_call("r1", key)
     want = BASELINE["r1"][key]
     r = realized(build, **kw)

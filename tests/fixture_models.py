@@ -33,7 +33,7 @@ fixture                      what it is
                              arXiv:1711.11045 -- the same paper as the P4_232 fixture.
                              The only fixture whose sigma_h-composed operations are
                              GENUINE, so its realized slab group is the full #191.
-:func:`i213_flicker2018`    3D **spinless** body-centred cubic, 4 bands, SG **199**
+:func:`i213_flicker2018`    3D **spinless** body-centered cubic, 4 bands, SG **199**
                              (I2_1 3).  Flicker *et al.*, PRB **98**, 155145 (2018) =
                              arXiv:1806.09642 App. F.1.  Nonsymmorphic with no
                              intrinsic screw, non-primitive conventional cell, and
@@ -47,7 +47,7 @@ fixture                      what it is
                              quartz's group): ``s`` at 3a below, ``s`` at 3b above.  The
                              3_1 companion of the above, whose ``A``/``H``/``L`` labels
                              *discriminate* the two orbits.
-:func:`i41_atomic`           3D **spinful** body-centred tetragonal, 12 bands, SG **80**
+:func:`i41_atomic`           3D **spinful** body-centered tetragonal, 12 bands, SG **80**
                              (I4_1): ``s`` at 4a below a gap, ``s`` at the general 8b
                              above.  The anchor of the **re-gluing** class: at the
                              non-TRIM ``P`` the physical corep list is ``{-P3 (1),
@@ -91,14 +91,13 @@ Metadata (band sets, occupancies, group labels, regime names) rides along in
 
 .. note::
 
-   **Promotion of 2026-08-25.**  The shared construction helpers and the model
-   families the ``examples/tqc_*.py`` worked examples need -- SG 80 (I4_1),
-   SG 171 (P6_2), SG 199 (I2_1 3), SG 208 (P4_232) and the ``lin3g`` layer --
-   now live in the public
-   :mod:`pythtqc.models`.  They are imported at the top of this module
-   and re-exported through :data:`__all__`, so every
-   ``tqc_models.<name>`` call site is unchanged and the tests and the examples
-   build the **same** object.  What stays here is test-only scaffolding: the
+   **Shared with the package.**  The shared construction helpers and the
+   model families the ``examples/tqc_*.py`` worked examples need -- SG 80
+   (I4_1), SG 171 (P6_2), SG 199 (I2_1 3), SG 208 (P4_232) and the ``lin3g``
+   layer -- live in the public :mod:`pythtqc.models`.  They are imported at
+   the top of this module and re-exported through :data:`__all__`, so a
+   ``tqc_models.<name>`` call site and the examples build the **same**
+   object.  What stays here is test-only scaffolding: the
    :class:`FixtureMeta` records with their measured locks, and the fixtures
    that exist only so the pipeline has something to refuse.
 
@@ -117,11 +116,10 @@ from dataclasses import dataclass, field
 import numpy as np
 from pythtb import Lattice, TBModel
 
-# Every model builder below the metadata lives in the package now (2026-08-25):
-# the tests and the ``examples/tqc_*.py`` worked examples import the SAME
-# object, so a fixture can never drift from what a user runs.  Imported here and
-# re-exported through ``__all__`` so every existing ``tqc_models.<name>`` call
-# site keeps working unchanged.
+# Every model builder below the metadata lives in the package: the tests and
+# the ``examples/tqc_*.py`` worked examples import the SAME object, so a
+# fixture can never drift from what a user runs.  Imported here and re-exported
+# through ``__all__`` so every ``tqc_models.<name>`` call site reaches it.
 from pythtqc.models import (  # noqa: E402,F401
     PAULI, I41_CENTERING, I41_LATTICE, I41_OPS, I41_PARAMS, I41_PRIM_OPS,
     I41_SOC_SEEDS, P62_LATTICE, P62_OPS, P62_PARAMS, P4232_NN_VECTORS,
@@ -266,7 +264,7 @@ LIN3G = FixtureMeta(
 #: pythtb-1.8 reference data for lin3g, vendored from
 #: ``nested_and_spin_resolved_Wilson_loop_v2/validation/golden/fragile_2D.npz``
 #: (written there by ``validation/gen_golden.py`` with pythtb 1.8 and the
-#: original spin-resolved library, 2026-05-30).  It is the one oracle in this
+#: original spin-resolved library).  It is the one oracle in this
 #: suite that is a *different code*: ``k_test``/``e_test`` are energies at four
 #: k-points; ``k_path``/``spin_bands`` the ``P s_z P`` spectrum of bands
 #: ``occ = [4, 5]`` on a 300-point path; ``k1``/``gamma_plus``/``gamma_minus``
@@ -374,8 +372,8 @@ _KM_COMMON = dict(
     n_occupied=2,
     band_sets={"P2": (0, 1), "Q2": (2, 3)},
     # nominal: the honeycomb cell with delta != 0 makes the two sublattices
-    # inequivalent, so the wallpaper content is p3m1.  Phase A1's `groups`
-    # adapter is what determines this from the model rather than by hand.
+    # inequivalent, so the wallpaper content is p3m1.  The `groups` adapter is
+    # what determines this from the model rather than by hand.
     group="p3m1",
     sg_number=None,
     slab_sg_number=187,   # P-6m2; the two sublattices are inequivalent (delta != 0)
@@ -436,9 +434,9 @@ def kane_mele_z2(regime: str = "odd"):
 
 # The builders and their constants -- ``P4232_PARAMS``, ``P4232_NN_VECTORS``,
 # :func:`p4232_bloch_hamiltonian`, :func:`p4232_cano2018`,
-# :func:`p4232_operations` and :func:`p4232_symmetry_cell` -- were promoted to
-# the public :mod:`pythtqc.models` on 2026-08-25 and are imported
-# (and re-exported) at the top of this module.  What stays here is
+# :func:`p4232_operations` and :func:`p4232_symmetry_cell` -- live in the
+# public :mod:`pythtqc.models` and are imported (and re-exported) at the top
+# of this module.  What stays here is
 # the test-facing :class:`FixtureMeta` record.
 
 P4232 = FixtureMeta(
@@ -476,11 +474,11 @@ P4232 = FixtureMeta(
 
 
 # ---------------------------------------------------------------------------
-# 4.  Fu-Kane-Mele -- the 3D spinful diamond golden (phase A4)
+# 4.  Fu-Kane-Mele -- the 3D spinful diamond golden
 # ---------------------------------------------------------------------------
 
 #: Distortion patterns for :func:`fu_kane_mele_z2`, as ``pythtb.models``'
-#: ``dt`` argument (offsets added to the four nearest-neighbour bonds, in the
+#: ``dt`` argument (offsets added to the four nearest-neighbor bonds, in the
 #: order ``R = [0,0,0], [-1,0,0], [0,-1,0], [0,0,-1]``).  ``t = 1``,
 #: ``soc = 0.125``.
 _FKM_ARGS = {
@@ -706,7 +704,7 @@ def kane_mele_inversion():
 #    own Fig. 2(a) shows, and it produces the gap closing at mu ~ 0.6 that their
 #    text describes (with 36 the gap never closes).
 # 3. Bradlyn et al. give ``lambda^z_5 = 0.12`` where Po et al. give 0.  It makes
-#    no difference: that component symmetrises to exactly zero on bond 5's orbit
+#    no difference: that component symmetrizes to exactly zero on bond 5's orbit
 #    (measured: largest matrix element 0.0), so both tables define one model.
 #
 # The bond *geometry* is printed in neither paper -- it exists only in Fig. 10 of
@@ -731,9 +729,9 @@ PWV_BOND_PARAMS = {
 #: Bond geometry, ``(origin site, endpoint site, endpoint cell offset)``, read
 #: off Fig. 10 of arXiv:1807.09729 and **verified** by the closed-form check.
 #: Sites: ``"A"`` = ``r1`` = ``(1/3, 2/3)``, ``"B"`` = ``r2`` = ``(2/3, 1/3)``
-#: (the honeycomb, Wyckoff 2b), ``"C"`` = ``(0, 0)`` (the hexagon centre, 1a).
+#: (the honeycomb, Wyckoff 2b), ``"C"`` = ``(0, 0)`` (the hexagon center, 1a).
 #: The shells are 1st-NN A-B, 1st-NN A-A, 3rd-NN A-B (across the hexagon),
-#: 4th-NN A-B, 2nd-NN A-A, then the two couplings to the hexagon centre.
+#: 4th-NN A-B, 2nd-NN A-A, then the two couplings to the hexagon center.
 PWV_BOND_GEOMETRY = {
     1: ("A", "B", (0, 0)),
     2: ("A", "A", (0, -1)),
@@ -757,7 +755,7 @@ _PWV_SIGMA = (np.eye(2, dtype=complex),
 
 
 def pwv_operations():
-    """The 12 operations of ``6mm`` about the hexagon centre.
+    """The 12 operations of ``6mm`` about the hexagon center.
 
     Returns ``[(R_cart, U_spin, name, fixes_A), ...]``: the 2x2 Cartesian
     matrix, the spin-1/2 matrix (``exp(-i theta sigma_z / 2)`` for a rotation,
@@ -797,7 +795,7 @@ def _pwv_site_and_cell(pos_cart, tol=1e-8):
 
 
 def _pwv_accumulate(bonds, x=None):
-    """The symmetrised sum of Eqs. (9)-(10), before the 1/12 and the ``+ h.c.``.
+    """The symmetrized sum of Eqs. (9)-(10), before the 1/12 and the ``+ h.c.``.
 
     ``{(site_from, site_to, cell_offset): 2x2 spin block}``.  The paper writes
     ``h_i = (t + i lambda.sigma) c^dag_f c_o``, i.e. the matrix element
@@ -844,7 +842,7 @@ def pwv_bloch_hamiltonian(k, mu=0.0, six_band=False):
         carries ``sin(pi mu)`` and the ancillary on-site energy is
         ``3 (1 - 2 mu)`` (**3**, not the 36 that equation misprints).
     six_band : bool, optional
-        Include the two ancillary states at the hexagon centre.
+        Include the two ancillary states at the hexagon center.
 
     Returns
     -------
@@ -978,11 +976,11 @@ PWV6 = FixtureMeta(
 def pwv_fragile(mu: float = 0.0, six_band: bool = False, x=None):
     """Build the Po-Watanabe-Vishwanath fragile honeycomb model.
 
-    The construction is the papers' own: for each of the seven bonds, symmetrise
+    The construction is the papers' own: for each of the seven bonds, symmetrize
     ``h_i = (t_i + i lambda_i . sigma) c^dag_f c_o`` over the twelve operations
     of ``6mm``, divide by 12, and add the Hermitian conjugate (which pythtb's
     ``set_hop`` does).  Bonds 1-5 give ``H_0``; bonds 6-7 give the coupling
-    ``H_c`` to the hexagon centre.
+    ``H_c`` to the hexagon center.
 
     Parameters
     ----------
@@ -1028,7 +1026,7 @@ def pwv_fragile(mu: float = 0.0, six_band: bool = False, x=None):
 
 
 # ---------------------------------------------------------------------------
-# 7.  The spinless p_x, p_y honeycomb TCI -- the 2D-multiplet golden (A3b(b))
+# 7.  The spinless p_x, p_y honeycomb TCI -- the 2D-multiplet golden
 # ---------------------------------------------------------------------------
 #
 # PROVENANCE.  Cano, Bradlyn, Wang, Elcoro, Vergniory, Felser, Aroyo &
@@ -1042,7 +1040,7 @@ def pwv_fragile(mu: float = 0.0, six_band: bool = False, x=None):
 #     e_1 = (sqrt3/2) x + (1/2) y,   e_2 = (sqrt3/2) x - (1/2) y
 # * sites (second display):  r_A = (2/3) e_1 - (1/3) e_2,
 #                            r_B = (1/3) e_1 - (2/3) e_2   -- Wyckoff 2b
-# * nearest-neighbour vectors (the commented-out ``eq:defdelta`` block of the
+# * nearest-neighbor vectors (the commented-out ``eq:defdelta`` block of the
 #   supplement, and the only definition of ``delta_i`` anywhere in the paper):
 #     d_1 = -(e_1 + e_2)/3,  d_2 = (2 e_1 - e_2)/3,  d_3 = (-e_1 + 2 e_2)/3
 # * Eq. (2):  H^0_k = [[0, h_k], [h_k^dag, 0]]  (A/B sublattice blocks)
@@ -1074,7 +1072,7 @@ def pwv_fragile(mu: float = 0.0, six_band: bool = False, x=None):
 #
 # One right-handedness bookkeeping note: pythtb requires a right-handed basis
 # and the paper's ``(e_1, e_2)`` is left-handed, so :data:`PXPY_LATTICE` is
-# ``(e_2, e_1)``.  That is a relabelling of the two reduced indices and nothing
+# ``(e_2, e_1)``.  That is a relabeling of the two reduced indices and nothing
 # else; :func:`pxpy_bloch_hamiltonian` takes **cartesian** k precisely so the
 # comparison never has to care.
 
@@ -1085,7 +1083,7 @@ PXPY_E2 = np.array([np.sqrt(3) / 2, -0.5])
 #: The builder's lattice rows: ``(e_2, e_1)`` -- see the right-handedness note.
 PXPY_LATTICE = np.array([PXPY_E2, PXPY_E1])
 
-#: Nearest-neighbour vectors ``delta_{1,2,3}`` of Fig. 1a, in cartesian units.
+#: Nearest-neighbor vectors ``delta_{1,2,3}`` of Fig. 1a, in cartesian units.
 PXPY_DELTAS = np.array([-(PXPY_E1 + PXPY_E2) / 3,
                         (2 * PXPY_E1 - PXPY_E2) / 3,
                         (-PXPY_E1 + 2 * PXPY_E2) / 3])
@@ -1167,8 +1165,8 @@ def pxpy_bloch_hamiltonian(k_cart, t_sigma=None, t_pi=None, x=None):
 def pxpy_honeycomb(t_sigma=None, t_pi=None, x=None, regime="tci", turn=0.0):
     """Build the spinless ``p_x, p_y`` honeycomb model of arXiv:1711.11045.
 
-    Nearest-neighbour Slater-Koster hoppings (Eqs. (2)-(3)) plus the
-    next-nearest-neighbour gap opener (Eq. (4)), which expands as
+    Nearest-neighbor Slater-Koster hoppings (Eqs. (2)-(3)) plus the
+    next-nearest-neighbor gap opener (Eq. (4)), which expands as
 
     ``H^1_k = (x/4) [sin(k.(e1-e2)) - sin(k.e1) + sin(k.e2)] tau_z (x) sigma_y``
 
@@ -1252,11 +1250,11 @@ def pxpy_honeycomb_spinful(soc=None, lam=0.1, turn_a=0.0, turn_b=0.0):
         on-site ``lam · L_z S_z``, with ``L_z = sigma_y`` on each ``(p_x, p_y)``
         pair; ``S_z`` is conserved and the horizontal mirror holds.
     ``"sigma.d"``
-        nearest-neighbour ``i lam (sigma . d)`` on each bond ``d``, the orbital
+        nearest-neighbor ``i lam (sigma . d)`` on each bond ``d``, the orbital
         carried to itself: the in-plane twofolds hold, the horizontal and the
         vertical mirrors do not, and no spin component is conserved.
     ``"rashba"``
-        nearest-neighbour ``i lam (sigma x d)_z``: the vertical mirrors hold, the
+        nearest-neighbor ``i lam (sigma x d)_z``: the vertical mirrors hold, the
         horizontal mirror and the in-plane twofolds do not.
 
     ``turn_a`` and ``turn_b`` write the ``A`` and ``B`` pairs in bases turned by
@@ -1402,14 +1400,14 @@ PXPY = {
 
 
 # ---------------------------------------------------------------------------
-# 8.  I2_1 3 (SG 199) -- the deliberately pathological golden (A3b(c))
+# 8.  I2_1 3 (SG 199) -- the deliberately pathological golden
 # ---------------------------------------------------------------------------
 #
 # The builders and their constants -- ``I213_LATTICE``, ``I213_U``,
 # ``I213_BONDS``, :func:`i213_sites`, :func:`i213_bloch_hamiltonian`,
 # :func:`i213_flicker2018` and :func:`i213_conventional` (the deliberate
-# conventional-cell supercell that ``_group_of`` must refuse) -- moved to
-# :mod:`pythtqc.models` on 2026-08-25, provenance comment and all;
+# conventional-cell supercell that ``_group_of`` must refuse) -- live in
+# :mod:`pythtqc.models`, provenance comment and all;
 # they are imported and re-exported at the top of this module.
 
 
@@ -1477,7 +1475,7 @@ I213 = FixtureMeta(
 # pythtb's convention by re-attaching a phase, and whose physical table is
 # therefore the whole-character conjugate of the tabulated one (see
 # ``groups._table_conjugation``).  Both are deep atomic limits, so their
-# content at *every* point -- the previously-refused ones included -- is
+# content at *every* point -- the screw points included -- is
 # closed-form arithmetic: an s orbital on a maximal Wyckoff orbit induces
 # exactly one EBR row, and ``decompose`` must return that row and nothing else.
 
@@ -1525,11 +1523,10 @@ P3121_PARAMS = dict(x_a=0.45, x_b=0.20, delta=2.5, t_a=0.09, t_b=0.05,
 
 # The shared construction helpers -- :func:`orbit_of`, :func:`closed_bonds`,
 # :func:`atomic_model`, ``PAULI``, :func:`cartesian_rotation`,
-# :func:`spinor_of`, :func:`spin_bonds` and :func:`primitive_ops` -- moved to
-# :mod:`pythtqc.models` on 2026-08-25 (the #80/#171 models in the next
-# section need them, and those are public now).  The #91 /
-# #152 controls below still build on them, through the re-export at the top of
-# this module.
+# :func:`spinor_of`, :func:`spin_bonds` and :func:`primitive_ops` -- live in
+# :mod:`pythtqc.models` (the public #80/#171 models in the next section need
+# them).  The #91 / #152 controls below build on them, through the re-export at
+# the top of this module.
 
 
 def p4122_sites(y_a=None, y_b=None):
@@ -1587,7 +1584,7 @@ def p3121_atomic(x_a=None, x_b=None, delta=None, t_a=None, t_b=None, t_ab=None):
     orbit ``(x,0,5/6)`` above, as in :func:`p4122_atomic`.  The three occupied
     bands are ``A^G(3) @ 3a`` and the three empty ones ``A^G(3) @ 3b``.
 
-    Here the previously-refused points ``A``, ``H`` (and ``HA``) and ``L``
+    Here the screw points ``A``, ``H`` (and ``HA``) and ``L``
     *discriminate*: the 3a row carries ``A1 + A3`` and the 3b row ``A2 + A3``,
     so the fixture tests the transported labels and not only their integrality.
 
@@ -1657,10 +1654,9 @@ P4122 = FixtureMeta(
 # ---------------------------------------------------------------------------
 #
 # The builders -- ``I41_*``, ``P62_*``, :func:`i41_sites`, :func:`i41_atomic`,
-# :func:`i41_soc`, :func:`p62_sites`, :func:`p62_atomic` -- moved to
-# :mod:`pythtqc.models` on 2026-08-25, taking the exchange-versus-irreducible
-# discussion with them; they are imported and
-# re-exported at the top of this module.  What stays here is the test-facing
+# :func:`i41_soc`, :func:`p62_sites`, :func:`p62_atomic` -- live in
+# :mod:`pythtqc.models`, with the exchange-versus-irreducible discussion;
+# they are imported and re-exported at the top of this module.  What stays here is the test-facing
 # :class:`FixtureMeta` records, whose notes carry the measured locks.
 
 
@@ -2046,7 +2042,7 @@ PNMA_OPS = space_group_closure([
     (-np.eye(3, dtype=int), np.zeros(3))])                                         # -x, -y, -z
 assert len(PNMA_OPS) == 8
 
-#: ``4a`` of ``Pnma``: the inversion centres, site group ``-1``, on no mirror plane.
+#: ``4a`` of ``Pnma``: the inversion centers, site group ``-1``, on no mirror plane.
 PNMA_4A = np.array([[0.0, 0.0, 0.0], [0.5, 0.0, 0.5], [0.0, 0.5, 0.0], [0.5, 0.5, 0.5]])
 
 
@@ -2064,13 +2060,13 @@ def _spinful_s_model(lattice, sites, ops, seeds):
 
 
 def p4mmm_s_2g(z=0.21, c=1.7, t=-1.0, rashba=0.35, t_pair=-0.6, t_c=-0.25):
-    """Spinful ``s`` at ``2g`` ``(0,0,±z)`` of ``P4/mmm``: off the inversion centre and the horizontal mirror.
+    """Spinful ``s`` at ``2g`` ``(0,0,±z)`` of ``P4/mmm``: off the inversion center and the horizontal mirror.
 
     Site group ``4mm`` (the vertical mirrors pass through the sites; ``σ_h`` and
     the inversion exchange them).  One in-plane bond carrying a Rashba term on
     the upper site -- the group average puts the opposite Rashba term on the
     lower one -- plus the vertical pair bond and an inter-pair bond along ``c``.
-    Measured 2026-09-10: ``realized_group`` reads ``P4/mmm1' #123.340``, 32 of
+    Measured: ``realized_group`` reads ``P4/mmm1' #123.340``, 32 of
     32, and the four bands are ``-E1g↑G(2)@1a + -E1u↑G(2)@1a`` (``2g`` is not a
     maximal position; the ``1b`` pair is the same band representation), the
     ``Ē1`` doublet of ``4mm`` induced with both parities.
@@ -2083,12 +2079,12 @@ def p4mmm_s_2g(z=0.21, c=1.7, t=-1.0, rashba=0.35, t_pair=-0.6, t_c=-0.25):
 
 
 def pnma_s_4a(b=1.3, c=1.6):
-    """Spinful ``s`` at ``4a`` of ``Pnma``: inversion centres that lie on no mirror plane.
+    """Spinful ``s`` at ``4a`` of ``Pnma``: inversion centers that lie on no mirror plane.
 
     Site group ``-1``; every mirror, screw and the remaining inversions carry a
     site to another site, so the whole mirror and inversion content of the
     served representation is transport.  Four generic SOC-carrying seeds, group
-    averaged.  Measured 2026-09-10: ``realized_group`` reads ``Pnma1' #62.442``,
+    averaged.  Measured: ``realized_group`` reads ``Pnma1' #62.442``,
     16 of 16, and the eight bands are the tables' row ``-AgAg↑G(8)@4a`` -- the
     *gerade* spinor pair, the statement "the spin does not transform under
     inversion" read off a band structure.
@@ -2129,7 +2125,7 @@ def r3m_s_6c(u=0.18, alpha=55.0):
     the two.  Three spin-orbit-carrying seeds -- the pair bond along the
     threefold axis, a pair bond and a same-site bond along a lattice vector --
     group averaged, so the model obeys ``R-3m1'`` exactly; ``alpha`` (degrees)
-    keeps the lattice rhombohedral rather than cubic.  Measured 2026-09-26:
+    keeps the lattice rhombohedral rather than cubic.  Measured:
     flattened by ``spinless_presentation`` and asked for its unitary
     single-valued group, ``_group_of`` reads ``R-3m #166``, all 12 operations
     obeyed, each spinor one measured doublet, and the representation is ``E``
@@ -2355,7 +2351,7 @@ def _rephased(model, phases):
     return out
 
 
-#: The body-centred cubic cell of ``Im-3m`` (#229), primitive vectors as rows.
+#: The body-centered cubic cell of ``Im-3m`` (#229), primitive vectors as rows.
 IM3M_LATTICE = np.array([[-0.5, 0.5, 0.5], [0.5, -0.5, 0.5], [0.5, 0.5, -0.5]])
 #: The four body diagonals the ``8c`` sites of the primitive cell sit on.
 IM3M_8C_AXES = np.array([[1, 1, 1], [1, 1, -1], [1, -1, 1], [-1, 1, 1]], dtype=float)
@@ -2385,10 +2381,10 @@ def im3m_8c(shells=("p", "d"), rotated=False, center=False, seed=5, rotation_see
     ``Eg`` are written in no basis that separates them.
 
     The ``8c`` sites alone make a simple cubic point set of half the cell's
-    edge, whose own lattice is finer than the body-centred one, so the crystal
+    edge, whose own lattice is finer than the body-centered one, so the crystal
     is found by a descent from ``Pm-3m1'``.  ``center`` puts an ``s`` orbital
     at ``2a``, the origin, as orbital 0: the point set then has the
-    body-centred lattice and nothing finer, and the ``s`` is the reference the
+    body-centered lattice and nothing finer, and the ``s`` is the reference the
     other orbitals are read against.
 
     Parameters
@@ -2667,7 +2663,7 @@ def p4mmm_p_shell(angle=0.0, seed=3):
     the covariance gate at its floor.  The site group is ``4/mmm``, under which the shell
     is ``A2u + Eu`` -- ``p_z`` and the ``(p_x, p_y)`` pair -- and the hoppings
     obey ``P4/mmm1'`` (#123.340).  The site is centrosymmetric, so the shell's
-    one orbital ``p_z`` taken on its own would be the ``s`` labelling's twin;
+    one orbital ``p_z`` taken on its own would be the ``s`` labeling's twin;
     the whole site's content is one ``p`` shell whichever orbital is listed first.
 
     ``angle`` turns every orbital through that angle about
@@ -2810,7 +2806,7 @@ def p4mm_pxpy_two_heights(swap=False):
 #
 # The pair is the doublet 1E2E of 3 at every site, and the operations that
 # exchange the sites can carry it onto the next site's pair with either sign:
-# two labellings of the crystal that give every site the same site irrep and
+# two labelings of the crystal that give every site the same site irrep and
 # the lower bands different labels.  Random hoppings averaged over the point
 # group, the pairs carried as (p_x, p_y), so each model obeys its group exactly.
 
@@ -2892,7 +2888,7 @@ def p321_pxpy_pair(turn_a=0.0, turn_b=0.0, soc=None, seed=7):
     a random hopping block between every two sites within 1.25 averaged over
     the six operations of ``32``, so the hoppings obey ``P3211'`` (#150.26).
     Every site's pair is ``1E2E`` of ``3``, and the twofolds can carry one
-    site's pair onto the other's with either sign -- two labellings with one
+    site's pair onto the other's with either sign -- two labelings with one
     site irrep that label the lower two bands differently.  ``turn_a`` and
     ``turn_b`` write each site's pair in a basis turned inside itself; ``soc``
     gives the orbitals their spin and each pair an on-site ``soc L_z S_z``,
@@ -2917,7 +2913,7 @@ def p31m_pxpy_honeycomb(turn_a=0.0, turn_b=0.0, seed=7):
 
     The sites of :data:`PXPY_SITES` on :data:`PXPY_LATTICE`, a random hopping
     block between every two sites within 1.2 averaged over the threefold and
-    the three mirrors through the hexagon centre that exchange the
+    the three mirrors through the hexagon center that exchange the
     sublattices.  On a substrate the crystal is ``P31m1'`` (#157.54) and
     free-standing ``P-62m1'`` (#189.222); every pair is the doublet of its
     site, and the mirrors can carry one sublattice's pair onto the other's
@@ -2979,7 +2975,7 @@ def p43m_3c_p_shell(turned=False, seed=5, on_site=3.0, hopping=0.2, scale=0.08,
     """A ``p`` shell with spin at each ``3c`` site of ``P-43m``, one written turned on request.
 
     Every pair of the shells' states within ``cutoff`` -- on site, the
-    ``3c``-``3c`` neighbours at ``a/sqrt(2)``, and the same site one lattice
+    ``3c``-``3c`` neighbors at ``a/sqrt(2)``, and the same site one lattice
     vector away -- gets a random complex block, ``on_site`` on site and
     ``hopping`` between sites; the blocks are averaged over the 24 operations
     of ``-43m``, the ``p`` orbitals carried as the vectors they are and the spin

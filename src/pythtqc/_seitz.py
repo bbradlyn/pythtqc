@@ -70,7 +70,7 @@ def _rotation_axis(proper) -> tuple:
         u = np.cross(rows[i], rows[j])
         if u.any():
             return _primitive_direction(u)
-    raise InternalError(                             # pragma: no cover - guard
+    raise InternalError(                             # pragma: no cover: guard
         "the proper rotation det(R)·R of an operation fixes a plane, and is not the "
         "identity. Report it, with the model and the call.")
 
@@ -82,7 +82,7 @@ def _direction_text(axis) -> str:
     Returns the string.
     """
     if max(abs(int(x)) for x in axis) > 9:
-        raise InternalError(                         # pragma: no cover - guard
+        raise InternalError(                         # pragma: no cover: guard
             f"the axis {tuple(int(x) for x in axis)} of an operation has a component "
             "above nine, which no crystallographic axis has. Report it, with the model "
             "and the call.")
@@ -136,7 +136,7 @@ def _fraction_mod_one(x) -> Fraction:
     """
     value = Fraction(float(x)).limit_denominator(_SEITZ_DENOMINATOR)
     if abs(float(value) - float(x)) > _LATTICE_TOL:
-        raise InternalError(                         # pragma: no cover - guard
+        raise InternalError(                         # pragma: no cover: guard
             f"the translation component {float(x):.9g}, in the conventional cell used "
             "by the irreptables package, is no fraction of denominator "
             f"{_SEITZ_DENOMINATOR} or less. Report it, with the model and the call.")
@@ -175,7 +175,7 @@ def _centering_of(group) -> tuple:
     """
     letter = str(group.name)[:1]
     if letter not in _CENTERINGS:
-        raise InternalError(                         # pragma: no cover - guard
+        raise InternalError(                         # pragma: no cover: guard
             f"the name {group.name!r} of group #{group.number_str} does not start with "
             "a Bravais lattice letter. Report it, with the model and the call.")
     return _CENTERINGS[letter]
@@ -287,7 +287,7 @@ def _seitz_key(sym, group) -> tuple:
     det = int(round(float(np.linalg.det(rotation))))
     proper = det * rotation
     trace = int(round(float(np.trace(proper))))
-    if trace not in _ROTATION_ORDER:                   # pragma: no cover - guard
+    if trace not in _ROTATION_ORDER:                   # pragma: no cover: guard
         raise InternalError(
             f"the rotation of operation #{int(sym.ind)}, in the conventional cell used "
             f"by the irreptables package, has determinant {det}, and its proper rotation "
@@ -512,7 +512,7 @@ class OperationTable(dict):
         group = self.group
         return "" if group is None else f"{group.name} #{group.number_str}"
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return f"OperationTable({self._named()}, operations {_index_ranges(self)})"
 
     def summary(self) -> str:
@@ -545,7 +545,7 @@ def _operation_rows(group, indices=None) -> OperationTable | Refusal:
     if isinstance(group, Refusal):
         return group
     if not isinstance(group, GroupData):
-        raise InternalError(                         # pragma: no cover - guard
+        raise InternalError(                         # pragma: no cover: guard
             f"the operations were asked of a {type(group).__name__}, which is not a "
             "group. Report it, with the model and the call.")
     gate = _lattice_not_descended(group)

@@ -1,24 +1,23 @@
-r"""Phase A3a regressions: declared orbital characters (``_build_rep(characters=)``).
+r"""Regressions of declared orbital characters (``_build_rep(characters=)``).
 
 What this suite closes, and why each number is the one that closes it:
 
 * **undeclared, every orbital is assigned by the lowest-``l`` rule.**
-  ``characters=None`` reproduces the representation ``_build_rep`` built before
-  the option existed — asserted on the matrices, and on the corep census through
-  ``tests/test_baseline_r4.py``, whose ``r1/lin3g`` record pins
+  ``characters=None`` reproduces, bit for bit, the declared build this file
+  measures the default against — asserted on the matrices, and on the corep
+  census through ``tests/test_baseline_r4.py``, whose ``r1/lin3g`` record pins
   ``{-GM6: 2, -GM7: 1}`` at Gamma, ``{-M6: 1, -M7: 2}`` at M and ``{-X5: 3}``
-  for the declared build this file measures the default against bit for bit —
-  and each row says whether its site irrep rests on that rule
+  — and each row says whether its site irrep rests on that rule
   (``determined_by``).
-* **lin3g's own physics is that labelling.**  Declaring the fixture's stated
+* **lin3g's own physics is that labeling.**  Declaring the fixture's stated
   orbital content — ``s`` and ``d_x2-y2`` on the ``1a`` quartet, ``s`` on the
   ``2c`` pair — changes nothing: the model's hoppings and the caller's physics
   agree, which is the honest way to find that out.
-* **a B-type declaration is another labelling.**  Declaring orbital 0 to be
+* **a B-type declaration is another labeling.**  Declaring orbital 0 to be
   ``B1`` -- or orbital 1 to be ``A1``, the same statement, since the hoppings
   couple the two -- reproduces ``reference_orbital=1`` at machine precision,
   and under that reference ``-GM6`` and ``-GM7`` swap wholesale, partitions
-  untouched: a relabelling, stated as physics instead of an index.
+  untouched: a relabeling, stated as physics instead of an index.
 * **the returned matrices are induced from the returned content**: every
   site block's trace is its rows' character, and every block between sites is
   the model's own transport, a member of the operation's solution space.
@@ -83,7 +82,7 @@ import tqc_models
 # builders come from that module rather than being written out a second time:
 # two copies of a fixture recipe are two fixtures the day one of them is edited.
 import test_baseline_r4 as _baseline
-# the jitter a numerical model's noise is modelled by, the one the symmetrizing
+# the jitter a numerical model's noise is modeled by, the one the symmetrizing
 # pass's own tests use
 from test_symmetrize import jitter
 
@@ -148,7 +147,7 @@ def test_undeclared_orbitals_follow_the_lowest_l_rule_and_say_so(lin3g_undeclare
     """The lowest-``l`` rule, pinned as a contract rather than as an accident.
 
     The hoppings fix how the orbitals transform relative to one another, not
-    what they are, so without a declaration a labelling has to be *chosen*:
+    what they are, so without a declaration a labeling has to be *chosen*:
     the rule puts every orbital at the lowest angular momentum the
     Hamiltonian's symmetry allows, and among what that leaves the letter the
     orbitals read as, then the band labels, and last the group's order of
@@ -157,9 +156,9 @@ def test_undeclared_orbitals_follow_the_lowest_l_rule_and_say_so(lin3g_undeclare
     What that choice does *not* touch is the orbitals' content relative to one
     another: orbital 1 is undeclared and comes back ``B1`` -- ``d_x2-y2`` --
     because the hoppings say so.  Which rows the choice decides is on the
-    record: the ``1a`` pair's site coreps differ between labellings (``-E1``
+    record: the ``1a`` pair's site coreps differ between labelings (``-E1``
     against ``-E2``), so both rows are ``lowest-l``; the ``2c`` sites' ``mm2``
-    has one spinor corep, ``-E``, which every labelling gives them, so theirs
+    has one spinor corep, ``-E``, which every labeling gives them, so theirs
     is ``hamiltonian``.
     """
     rep = lin3g_undeclared.rep
@@ -180,7 +179,7 @@ def test_undeclared_orbitals_follow_the_lowest_l_rule_and_say_so(lin3g_undeclare
     assert [o.wyckoff for o in rec.orbitals] == ["1a", "1a", "2c", "2c"]
     assert rec.orbitals[int(rep._reference["orbital"])].irrep == "-E1"
 
-    # (2) deterministic, and the report says what the labelling is rather than
+    # (2) deterministic, and the report says what the labeling is rather than
     # hiding it
     again = rebuild(lin3g_undeclared)
     assert again, str(again)
@@ -228,11 +227,11 @@ def test_declaring_nothing_and_declaring_the_truth_agree_bit_for_bit(
 @pytest.mark.slow
 def test_a_declaration_fixes_the_labeling_as_far_as_its_site_symmetry_reaches(
         lin3g_undeclared):
-    """What a declaration settles is every labelling it rules out, and no more.
+    """What a declaration settles is every labeling it rules out, and no more.
 
     ``{2: "s"}`` is true, and exactly what the hoppings measure at ``2c``
     relative to an ``s``-like orbital 0; but the ``mm2`` of ``2c`` cannot tell
-    the ``s`` labelling of the ``1a`` pair from the ``B1`` one, both trivial on it,
+    the ``s`` labeling of the ``1a`` pair from the ``B1`` one, both trivial on it,
     so the ``1a`` rows stay ``lowest-l``.  A declaration at the ``4mm`` site --
     on the reference or on its partner -- sees every character of the group,
     and then every undeclared row is fixed by the Hamiltonian relative to it.
@@ -274,7 +273,7 @@ def test_a_declaration_fixes_the_labeling_as_far_as_its_site_symmetry_reaches(
 
 
 def _pxpy_with_s(s_first):
-    """The honeycomb ``(p_x, p_y)`` pairs with an ``s`` orbital at the hexagon centre.
+    """The honeycomb ``(p_x, p_y)`` pairs with an ``s`` orbital at the hexagon center.
 
     The pairs and their hoppings are ``tqc_models.pxpy_honeycomb``'s own; the
     ``s`` at ``1a`` is σ-bonded to the six nearest ``p`` sites, ``0.7`` times
@@ -323,12 +322,12 @@ def _pxpy_s_first():
 def test_the_honeycomb_doublet_bonded_to_an_s_is_assigned_alike_in_either_order(realized):
     """The honeycomb ``(p_x, p_y)`` pair with an ``s`` bonded to it, in either order.
 
-    The doublet is ``E`` at the ``3m`` site under every labelling -- ``E ⊗ A2 =
-    E`` -- so the pair's own site content cannot choose between two labellings
+    The doublet is ``E`` at the ``3m`` site under every labeling -- ``E ⊗ A2 =
+    E`` -- so the pair's own site content cannot choose between two labelings
     that differ by a sign on every mirror.  The crystal's content can: with an ``s``
-    at the hexagon centre σ-bonded to the pairs, the hoppings pin the ``s`` and
+    at the hexagon center σ-bonded to the pairs, the hoppings pin the ``s`` and
     the pairs to one another, and the ``s`` reads ``A1``, the lowest angular
-    momentum at the hexagon centre, whichever orbital is listed first -- the
+    momentum at the hexagon center, whichever orbital is listed first -- the
     reference's own site when the ``s`` comes first, the whole crystal when the
     pair does.  Either way every operation that fixes a site is, on that site's
     pair, the Cartesian matrix of the operation on ``(x, y)`` -- ``+R`` on each
@@ -386,7 +385,7 @@ def test_declaring_either_orbital_of_the_pair_is_the_same_twist(lin3g_undeclared
     orbital imposes nothing, the reference orbital included: which of the two
     was declared moves which row reads ``declaration``, and nothing else.
 
-    The twist is a relabelling asked for in physics rather than as an index:
+    The twist is a relabeling asked for in physics rather than as an index:
     ``{0: "B1"}`` and ``reference_orbital=1`` agree at machine precision
     (measured 3e-16; asserted at 1e-14), and under that reference every corep
     label swaps wholesale while the phase-invariant partition stays where it was.
@@ -517,7 +516,7 @@ def test_unknown_label_names_the_site_group_and_prints_the_frame(lin3g_undeclare
 def test_a_hoppings_forbidden_declaration_names_what_was_measured(lin3g_undeclared):
     """The **positions** allow both ``1a`` orbitals to be ``s``; the Hamiltonian does not.
 
-    This is the A3b(a) program.  Nothing about the *geometry* forbids two
+    This is program (a) of ``test_multiorbital.py``.  Nothing about the *geometry* forbids two
     ``s`` orbitals at ``1a`` — ``A1`` is an irrep of that site's ``4mm`` and
     the position hosts as many of them as one likes — so ``_assign_orbitals``
     is happy and every gate that looks at the cell is happy.  What forbids it
@@ -574,7 +573,7 @@ def test_a_hoppings_forbidden_declaration_names_what_was_measured(lin3g_undeclar
         "and the crystal it describes is the same one, written the other way round"
 
     # the near miss is the twist, not a contradiction: B1 of 4mm restricts to A1
-    # of mm2, so the 2c declarations survive the relabelling untouched and only
+    # of mm2, so the 2c declarations survive the relabeling untouched and only
     # the 1a pair changes hands
     consistent = rebuild(lin3g_undeclared, characters=["dx2-y2", "s", "s", "s"])
     assert consistent, str(consistent)
@@ -592,7 +591,7 @@ def test_the_flat_list_refuses_when_it_cannot_group_a_multiplet(lin3g_undeclared
     """A 2D label on one orbital of a two-orbital site is ambiguous by construction.
 
     Orbitals of two sites written as one key are no multiplet at all: the sites
-    are read off the centres alone, so that is grammar, and it raises before
+    are read off the centers alone, so that is grammar, and it raises before
     anything is measured.
     """
     out = rebuild(lin3g_undeclared, characters=["E", None, None, None])
@@ -648,7 +647,7 @@ def test_p4232_declares_a_two_dimensional_multiplet_jointly(p4232_decorated):
     The two orbitals of P4_232's ``2a`` site are one measured channel, and its
     block is the two-dimensional physically irreducible ``1E2E`` (a
     complex-conjugate pair glued by time reversal).  ``chi (x) 1E2E`` is
-    ``1E2E`` again for every real character here, so every labelling gives the
+    ``1E2E`` again for every real character here, so every labeling gives the
     rows the same site irrep: undeclared they are already ``hamiltonian``, and
     a two-dimensional declaration of them is a check that settles nothing new.
     The paper's own words for the site -- ``d_z2`` and ``d_x2-y2``, which
@@ -935,7 +934,7 @@ def _axis_p_at_2c():
     """``p_x`` at ``(½, 0)`` and ``p_y`` at ``(0, ½)`` of a square lattice, spinless.
 
     Each ``2c`` site's ``p`` along its own axis, with Slater-Koster nearest
-    neighbours: ``-0.9`` along that axis, ``0.3`` across it, and between the two
+    neighbors: ``-0.9`` along that axis, ``0.3`` across it, and between the two
     sites the ``±0.25`` a ``p_x`` and a ``p_y`` share across a diagonal bond, its
     sign the product of the bond's two components.  The fourfold carries ``p_x``
     at ``(½, 0)`` onto ``p_y`` at ``(0, ½)``, and that onto ``-p_x`` one cell
@@ -1266,8 +1265,8 @@ def test_group_provenance_rides_into_the_character_tables(lin3g_undeclared):
     labels mean one thing when the group was measured on ``H`` and another when
     a cell merely allowed it.
 
-    **Both stamps are exercised, and wave R4c is why there are two here.**  This
-    module's fixture takes the default reading of a ``dim_r = 2`` model, which is
+    **Both stamps are exercised, and the two readings of a layer are why.**
+    This module's fixture takes the default reading of a ``dim_r = 2`` model, which is
     the layer **on a substrate**: the ``σ_h``-composed operations are absent from
     the cell by construction, the cell allows ``P4mm1' #99.164`` outright, the
     Hamiltonian obeys all sixteen and nothing is cut — ``"realized"``.  Declared
@@ -1275,7 +1274,7 @@ def test_group_provenance_rides_into_the_character_tables(lin3g_undeclared):
     it allows ``P4/mmm1' #123.340`` — 32 operations, ``σ_h`` and everything
     composed with it included — the Hamiltonian breaks half of them, and the
     pipeline lowers the cell to the sixteen that hold and serves the same
-    ``P4mm1' #99.164`` this module has always labelled its bands with:
+    ``P4mm1' #99.164`` this module labels its bands with:
     ``"descended"``.  Every statement ``"realized"`` makes is true of a descended
     record — the group was measured on ``H``, not merely allowed by a geometry —
     and it additionally says the cell was an upper bound the measurement had to
@@ -1327,9 +1326,8 @@ def test_group_provenance_rides_into_the_character_tables(lin3g_undeclared):
 def spinless_diamond():
     """One spinless ``s`` on each diamond site: the ``8a`` position of Fd-3m1'.
 
-    The same model the P4 review's prototype measured the naming on, with the
-    site group ``-43m`` whose five rows ``_mulliken`` could only call
-    ``A_a``, ``A_b``, ``E``, ``T_a``, ``T_b``.
+    The site group is ``-43m``, whose five rows a name computed from the
+    characters alone could only call ``A_a``, ``A_b``, ``E``, ``T_a``, ``T_b``.
     """
     lat = Lattice([[0.0, 0.5, 0.5], [0.5, 0.0, 0.5], [0.5, 0.5, 0.0]],
                   [[0.0, 0.0, 0.0], [0.25, 0.25, 0.25]], periodic_dirs=[0, 1, 2])
@@ -1353,7 +1351,7 @@ def test_the_diamond_site_irreps_are_the_names_the_tables_print(spinless_diamond
     site group's own action on Cartesian polynomials and land on ``A1``, ``T2``
     and ``E`` for ``s``, the ``p`` triple and the ``d`` pair — that is a
     statement about the diamond and holds whatever anything is called; and the
-    **declaration grammar**, where the tables' words are now what a caller may
+    **declaration grammar**, where the tables' words are what a caller may
     write and the placeholder is not.
 
     ``{0: "T2"}`` is refused ``ambiguous_multiplet`` and not ``unknown_label``:
@@ -1635,7 +1633,7 @@ ORACLE_SLOW = frozenset({"r1/lin3g|substrate", "layer/kane_mele|free-standing",
 
 # Read at collection, not in a test of its own: every representative has to be a
 # record of the gate, so that a fixture renamed there cannot leave the oracle
-# standing on something the gate no longer measures.
+# standing on something the gate does not measure.
 for _key in BASELINE_KEYS:
     _section, _, _rest = _key.partition("/")
     assert _rest in _baseline.BASELINE[_section], (

@@ -1,10 +1,10 @@
-r"""P1b: **the declared content** — what the caller says the orbitals are.
+r"""**The declared content** — what the caller says the orbitals are.
 
 The hoppings cannot measure what an orbital *is*.  They measure which operations
 are symmetries once the orbitals are stated, so a declaration the hoppings are
 not covariant under is not a wrong declaration: it is a crystal with less
 symmetry, and the group **descends** exactly as it does for a hopping that
-breaks an operation.  ``character_mismatch`` is gone with no shim.
+breaks an operation.
 
 Three things make that work, and this file pins all three on measured numbers.
 
@@ -14,7 +14,7 @@ tables of the group the loop is on, into one
 constraint ``{ind: chi(g)}``, the label, the dimension and the group it was read
 in — and every re-identification below **re-keys** those ``.ind`` through the
 step's own pairing rather than resolving the label again.  Operations the smaller
-group no longer has drop out of the constraint, and that dropping *is* the
+group lacks drop out of the constraint, and that dropping *is* the
 restriction of the declared irrep to the smaller site group: ``A2`` of ``3m``
 served as ``A`` of ``3``, and a restriction that has become reducible spelled as
 the sum of its irreps (``B2 + B1``) rather than left empty.
@@ -27,7 +27,7 @@ orbitals are left out.  So ``{0: "s", 1: "dx2-y2"}`` on a square lattice's
 ``p_x, p_y`` pair that nothing couples says the pair is ``A1 + B1``, which the
 hoppings carry as faithfully as the ``p`` doublet, and the fourfold stays.
 What no content says is the basis: ``E`` of ``4mm`` times any one-dimensional
-character of the group is ``E`` again, so the labellings the hoppings leave
+character of the group is ``E`` again, so the labelings the hoppings leave
 open give the pair one site irrep, and generator matrices are the declaration
 that tells them apart, returned as declared or, in a basis the hoppings do not
 carry, a crystal with less symmetry.
@@ -45,10 +45,10 @@ One refusal remains, and it is honest.  ``_build_rep`` on a **fixed** group says
 ``declaration_breaks_group`` and names the subgroup ``realized_group`` descends
 to.  Where no antiunitary operation is represented, a **complex** character of
 the whole group can meet every requirement while no real one does: nothing in
-such a group's measurement forbids one, so P1c **serves** the content with that
+such a group's measurement forbids one, so the content is **served** with that
 twist rather than lowering a group the Hamiltonian has.
 
-Section 6 is P1c's own: a measurement is read **once**.  The verdict stage
+Section 6 is that a measurement is read **once**.  The verdict stage
 chooses as well as judging — the member of each solution space the
 representation is assembled from, its free blocks settled by the declaration
 where there is one and by the least twist where there is not, on every site —
@@ -100,13 +100,13 @@ def _km():
 def _square_pxpy(angle=0.0, diagonal=0.0, sigma_y=1.0):
     """A ``p_x, p_y`` pair at one ``4mm`` site of a square lattice, spinless.
 
-    Slater-Koster nearest neighbours, ``t_sigma = 1.0`` along the bond and
+    Slater-Koster nearest neighbors, ``t_sigma = 1.0`` along the bond and
     ``t_pi = 0.3`` across it.  Nothing couples ``p_x`` to ``p_y``, so the
     commutant of ``H(k)`` is a torus and the layout measures one
-    two-dimensional channel: the same model P1a's tests read ``E`` at ``1a``.
+    two-dimensional channel, read ``E`` at ``1a``.
     ``angle`` writes the pair in a basis turned by it inside the site: at
     ``π/4`` the orbitals are ``(p_x ± p_y)/√2``.  ``diagonal`` adds the
-    second neighbours along the diagonals, ``t_sigma = diagonal`` and no
+    second neighbors along the diagonals, ``t_sigma = diagonal`` and no
     ``t_pi``, which couple ``p_x`` to ``p_y`` and leave nothing else
     commuting with ``H(k)``.  ``sigma_y`` is ``t_sigma`` along ``y``: away
     from ``1.0`` the hoppings break the fourfold of the square cell.
@@ -130,7 +130,7 @@ def _square_pxpy(angle=0.0, diagonal=0.0, sigma_y=1.0):
 def _tri_pxpy(t_sigma=1.0, t_pi=0.3, orbital_field=0.0):
     r"""A ``p_x, p_y`` pair at the one ``6mm`` site of a triangular lattice, spinless.
 
-    Slater-Koster nearest neighbours over the three bond directions of the
+    Slater-Koster nearest neighbors over the three bond directions of the
     lattice ``a1 = (1, 0)``, ``a2 = (1/2, sqrt3/2)`` — ``t_ab = t_sigma n_a n_b
     + t_pi (delta_ab - n_a n_b)`` with ``n`` the unit bond vector, the same form
     the ``p_x, p_y`` honeycomb is built from.  The threefold axis mixes the two
@@ -205,7 +205,7 @@ def _lines(dim=2, coupling=0.0, odd=False):
     """Three orbitals at the one site of a hexagonal lattice, each hopping along its own line.
 
     Line ``i`` runs along ``a1``, ``a2`` or ``a2 - a1``: every orbital hops
-    ``-1`` to its nearest neighbours and ``0.35`` to the second along its own
+    ``-1`` to its nearest neighbors and ``0.35`` to the second along its own
     line alone, and in three dimensions ``-0.4`` along the axis.  Nothing
     couples the three unless ``coupling`` says so; then orbital 0 hops to the
     other two along its own line, even under the mirror across it, or odd where
@@ -256,8 +256,8 @@ def test_kane_mele_declared_a1_a2_descends_to_p3(realized):
 
     The declaration is carried across the descent as content, never resolved
     again: ``A2`` of ``3m`` has no name in ``3``, so the constraint is re-keyed
-    through the step's own pairing and the operations the smaller group no
-    longer has drop out.  And ``typat=[0, 1]`` has already split the cell, so
+    through the step's own pairing and the operations the smaller group lacks
+    drop out.  And ``typat=[0, 1]`` has already split the cell, so
     the declaration reduces nothing before the hoppings are read.
     """
     declaration = {0: "A1", 1: "A2"}
@@ -576,7 +576,7 @@ def test_the_square_doublet_declared_s_and_d_keeps_the_fourfold():
 
     What the content leaves open is the basis, and generator matrices declare
     it.  ``E`` of ``4mm`` times any one-dimensional character is ``E`` again,
-    so undeclared the band labels rest on a labelling no content chooses.  The
+    so undeclared the band labels rest on a labeling no content chooses.  The
     ``p`` pair's own matrices, ``C4(z)`` carrying ``p_x`` onto ``p_y`` and
     ``m(x)`` turning ``p_x`` over, are the matrices returned, the rows read
     ``declaration``, and no label rests on a choice; with ``m(x)`` even on
@@ -586,7 +586,7 @@ def test_the_square_doublet_declared_s_and_d_keeps_the_fourfold():
     matrices of ``p_x ± i p_y``, declared on the real pair, are a basis the
     hoppings do not carry.  Where nothing couples ``p_x`` to ``p_y`` the
     pair's representations are read through their characters, and the rows
-    say the matrices are not carried; where the diagonal neighbours couple
+    say the matrices are not carried; where the diagonal neighbors couple
     it, the fourfold and the mirrors are broken by the declaration and the
     crystal is ``P21'``, the pair declared one multiplet at a time there.  Matrices are
     read in the group the layer's environment and its hoppings leave: one on
@@ -756,10 +756,10 @@ def test_a_measured_multiplet_is_assigned_the_lowest_l_its_characters_allow():
     than refused.
 
     Declared, the doublet carries what the declaration names.  ``E1`` is the
-    undeclared labelling itself.  ``E2`` is ``E1`` times ``B1``/``B2`` — ``-1``
+    undeclared labeling itself.  ``E2`` is ``E1`` times ``B1``/``B2`` — ``-1``
     on ``C2`` and the two sixfolds, ``+1`` on ``C3`` — which is the statement
     that the pair is ``d_xy, d_x²₋y²`` rather than ``p_x, p_y``: another
-    labelling of this crystal and not a reason to lower it.  The verdict stage
+    labeling of this crystal and not a reason to lower it.  The verdict stage
     measures it so: with no one-dimensional multiplet, the pair's own blocks,
     settled into a representation, are the scale -- a ``(p_x, p_y)`` pair's
     blocks carry ``E1`` -- and against them the declared ``E2`` differs from
@@ -822,8 +822,8 @@ def test_a_declaration_a_complex_twist_serves_is_served_with_it():
     group carries no antiunitary operation to forbid that: such a character
     preserves the covariance, the canonical norm and the whole product table, so
     nothing measured here can see it and it is a physical twist rather than a
-    reason to lower a group the Hamiltonian has.  P1c therefore **serves** it —
-    ``declaration_needs_complex_twist`` is retired — and what it does is exchange
+    reason to lower a group the Hamiltonian has.  It is therefore **served**,
+    not refused, and what it does is exchange
     the ``P`` labels the corep naming rests on, level by level, which is measured
     below.
 
@@ -1014,7 +1014,7 @@ def _two_sites(coupling=0.0):
     """Two ``s``-like orbitals on inequivalent sites of a square lattice.
 
     ``1a`` at the origin with isotropic hoppings ``-1`` and ``1b`` at the cell
-    centre with ``0.4``; on-site energies 0 and 1 and, unless ``coupling`` says
+    center with ``0.4``; on-site energies 0 and 1 and, unless ``coupling`` says
     otherwise, **nothing between them**.  The second site is then a channel the
     hoppings never reach: what it carries relative to the first is not a
     measurement this Hamiltonian can make, on this site or on any other.
@@ -1036,7 +1036,7 @@ def _two_sites(coupling=0.0):
 def test_a_free_block_on_another_site_takes_the_least_twist(realized):
     """Undeclared, the decoupled second site reads ``A1`` — the trivial relative character.
 
-    The least twist is no longer confined to one site.  Nothing couples orbital
+    The least twist is not confined to one site.  Nothing couples orbital
     1 to orbital 0, so its solution-space block is free at every operation and
     the convention names it, exactly as it names two decoupled orbitals *at* one
     site.  What was decoupled is still said — ``conserved`` counts the matrix
@@ -1079,11 +1079,10 @@ def test_a_free_block_takes_the_declared_character_and_nothing_breaks(
         declaration, labels, determined_by):
     """The declaration settles the free block, and no operation is broken by it.
 
-    This is the call the committed tree crashed on.  Nothing couples orbital 1,
-    so the hoppings measure nothing about its character — there is no
-    measurement for a declaration to contradict, and a verdict that said
-    otherwise was a second reading of a measurement the verdict stage had
-    already made.  ``{1: "dx2-y2"}`` is served on the whole of ``P4mm1'`` for the
+    Nothing couples orbital 1, so the hoppings measure nothing about its
+    character — there is no measurement for a declaration to contradict, and a
+    verdict that said otherwise would be a second reading of a measurement the
+    verdict stage has already made.  ``{1: "dx2-y2"}`` is served on the whole of ``P4mm1'`` for the
     same reason ``{1: "s"}`` is: a decoupled orbital can be anything.  Declared
     on one site alone, either site, the other is assigned by the lowest-``l``
     rule, and nothing on this path raises.
@@ -1138,7 +1137,7 @@ def test_the_verdict_stage_chooses_and_the_build_does_not_re_measure(realized):
 # 7.  step 1: what the declared content takes out of the cell
 # ---------------------------------------------------------------------------
 #
-# P2.  A declaration says what the crystal IS, and both kinds of statement it
+# A declaration says what the crystal IS, and both kinds of statement it
 # can make reduce the cell before any Hamiltonian is read: two sites of one
 # orbit declared different content are different sites, and a declared
 # *function* whose span its site group does not preserve leaves only the
@@ -1200,7 +1199,7 @@ def test_kane_mele_a1_a2_with_no_typat_splits_the_cell_before_it_descends():
     they break the three mirrors that *fix* each sublattice, exactly as they do
     when ``typat=[0, 1]`` says the same thing about the atoms.
 
-    So the eighteen operations this call used to charge to a descent are two
+    So the eighteen operations a descent alone would be charged with are two
     different statements: twelve about what the crystal is, six about what its
     Hamiltonian does.
 
@@ -1259,8 +1258,7 @@ def test_one_px_at_a_3m_site_is_the_crystal_with_one_mirror():
     are not symmetries of it.  What is left is the one mirror that carries
     ``p_x`` to ±itself, and the cell is ``Cm1' #8.33``.
 
-    This used to refuse ``ambiguous_multiplet`` — and offer ``{(0,): 'px'}``,
-    which is not a spelling at all.  It is not a grammar error: it is a
+    It is not a grammar error to refuse ``ambiguous_multiplet``: it is a
     crystal with less symmetry, measured before any hopping is read, so the
     identification's provenance is ``realized`` and ``descent`` is empty.  The
     words a declaration at the ``m`` site is written in are ``A'`` and ``A''``,
@@ -1472,7 +1470,7 @@ def test_a_declared_function_whose_orbit_is_the_multiplet_reduces_nothing(realiz
     was declared *is* the orbit — and an orbit is invariant, so nothing is
     reduced.  The ``p_x, p_y`` honeycomb declared orbital by orbital is
     therefore the same crystal as the undeclared one, down to the matrices,
-    with every row now the declaration's.
+    with every row the declaration's.
     """
     # the undeclared honeycomb is the session's shared record of that call
     bare = realized(tqm.pxpy_honeycomb)
@@ -1519,9 +1517,9 @@ def test_a_joint_shorthand_of_the_wrong_dimension_suggests_a_valid_spelling():
     the shorthand a doublet, the joint form names that doublet:
     ``{(0, 1): "dz2"}`` at a ``23`` site is P4₂32's paper's own spelling,
     pinned in ``test_characters``.)
-    Every spelling a message offers has to be one this package accepts, which
-    is what P2 fixed: the ``{(0,): 'px'}`` a single-orbital site used to be
-    offered was never a spelling at all.  What a site holds is counted in
+    Every spelling a message offers has to be one this package accepts: a key
+    such as ``{(0,): 'px'}`` for a single-orbital site is not a spelling at
+    all, and is never offered.  What a site holds is counted in
     Wannier functions where a spinor basis is declared, so a doublet written on
     one of them is offered the contents one Wannier function holds rather than
     the other spelling of the same doublet, and only contents that fit the site
@@ -1727,7 +1725,7 @@ def test_a_declaration_on_either_sublattice_states_the_same_crystal(realized):
     matrix is minus the undeclared crystal's.
 
     In a group with no antiunitary operation every one-dimensional character
-    is such a labelling, the complex ones included.  Haldane's model with a
+    is such a labeling, the complex ones included.  Haldane's model with a
     sublattice mass and its sublattices declared different atoms is ``P3 #143``,
     time reversal broken; declared ``{0: "1E"}`` it stays ``P3``, both rows
     ``1E``, orbital 1 fixed by the hoppings relative to orbital 0: the crystal

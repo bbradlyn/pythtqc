@@ -832,7 +832,9 @@ def _precision_holding(steps, scale_of):
 
     An operation broken by its tensor structure has a ``covariance`` in its
     entry: how far the member of its solution space nearest its own form, taken
-    in that form, carries ``H(k)`` onto ``H(gk)``.  Such an operation holds
+    in that form, carries ``H(k)`` onto ``H(Rk)`` for the operation ``{R|t}``,
+    or ``H(k)*`` onto ``H(-Rk)`` for one combined with time reversal.  Such
+    an operation holds
     under a declared precision ``p`` whose gate, ``10 · p · max|H|``, reaches
     that far.  A precision is named only where the detector's matching window
     at it (:func:`.._tolerance.eigen_window`) stays below its ceiling.

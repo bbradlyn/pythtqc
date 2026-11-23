@@ -293,7 +293,7 @@ def spinor_of(R_cart, tol=1e-9):
         The determinant of ``R_cart`` differs from 1 by more than ``tol``.
     """
     Rc = np.asarray(R_cart, dtype=float)
-    if abs(np.linalg.det(Rc) - 1.0) > tol:             # pragma: no cover - guard
+    if abs(np.linalg.det(Rc) - 1.0) > tol:             # pragma: no cover: guard
         raise AssertionError("spinor_of(): R_cart= has a determinant other than 1. Pass a "
                              "proper rotation; for an improper rotation R, pass -R.")
     theta = np.arccos(np.clip((np.trace(Rc) - 1.0) / 2.0, -1.0, 1.0))
@@ -384,7 +384,7 @@ def spin_bonds(sites, ops, lattice, seeds, tol=1e-6):
             L2 = tuple(s[j] + np.rint(R @ L).astype(int) - s[i])
             T2 = S @ T @ S.conj().T
             key, rkey = (i2, j2, L2), (j2, i2, tuple(-x for x in L2))
-            if key == rkey:                              # pragma: no cover - guard
+            if key == rkey:                              # pragma: no cover: guard
                 raise AssertionError("spin_bonds(): a seed of seeds= is an on-site term. Set "
                                      "it with pythtb's set_onsite instead.")
             if rkey in out:
@@ -433,7 +433,7 @@ def primitive_ops(ops, centering_rows):
     out = []
     for R, t in ops:
         rp = inv @ np.asarray(R, dtype=float).reshape(3, 3) @ mt
-        if np.abs(rp - np.rint(rp)).max() > 1e-9:      # pragma: no cover - guard
+        if np.abs(rp - np.rint(rp)).max() > 1e-9:      # pragma: no cover: guard
             raise AssertionError("primitive_ops(): a rotation of ops= is not an integer "
                                  "matrix in the basis of the rows of centering_rows=. Pass "
                                  "as centering_rows= the primitive lattice vectors of the "
@@ -641,7 +641,7 @@ def i41_soc(soc="generic", lam=0.4, **kwargs):
     """
     p = dict(I41_PARAMS)
     for key, val in kwargs.items():
-        if key not in p:                                 # pragma: no cover - guard
+        if key not in p:                                 # pragma: no cover: guard
             raise TypeError(f"i41_soc(): {key}= is not a parameter of i41_soc. Pass soc=, "
                             "lam=, or any of z_a=, seed_b=, delta=, t_a=, t_b= and t_ab=.")
         if val is not None:

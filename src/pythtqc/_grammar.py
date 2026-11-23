@@ -160,8 +160,10 @@ def _characters_grammar(characters, norb, pairs, site_of=None) -> None:
     orbitals names orbitals of one site, where ``site_of`` is given.  A
     mapping from operations names at least one, by its index or its name.  It
     gives every operation a finite number, or every operation a square matrix
-    as wide as the Wannier functions its orbitals are.  The two orbitals of a
-    spin pair, where both are declared, are given one value.  A value that is
+    with a row for each of its orbitals, a spin pair counted as one spinful
+    orbital.  The
+    two orbitals of a spin pair, where both are declared, are given one value.
+    A value that is
     a :class:`.._sitechars.DeclaredContent`, a declaration already read and
     carried from one group to the next, is passed over.
     """
@@ -215,7 +217,8 @@ def _characters_grammar(characters, norb, pairs, site_of=None) -> None:
                 malformed(f"{where} is given an empty mapping; name at least one "
                           "operation")
             # A matrix is the operation's matrix on the orbitals named, one row
-            # and one column per Wannier function, a spin pair counting as one
+            # and one column per orbital, a spin pair counting as one spinful
+            # orbital
             pair_of = {int(o): c for c, pair in enumerate(pairs) for o in pair}
             width = len({pair_of.get(int(o), ("orbital", int(o))) for o in orbs})
             kinds = set()
@@ -247,7 +250,7 @@ def _characters_grammar(characters, norb, pairs, site_of=None) -> None:
             malformed(f"{where} is given None; leave the orbital out of the mapping "
                       "to declare nothing about it")
         malformed(f"{where} is given {_shown(value)}")
-    # the two states of one Wannier function are given one value
+    # the up and the down state of one spinful orbital are given one value
     for c, (up, dn) in enumerate(pairs):
         if (up in holder and dn in holder
                 and _spec_key(holder[up][0]) != _spec_key(holder[dn][0])):

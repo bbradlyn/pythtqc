@@ -227,7 +227,7 @@ print("   each isolated half is topological")
 print("\n6. the bands of both models, one panel each")
 fig, axes = plt.subplots(1, 2, figsize=(14.0, 6.0))
 
-# --- space group 199, along GM-H-N-GM-P-H ---
+# Space group 199, along GM-H-N-GM-P-H
 kv199, kd199, kn199 = m199.k_path(PATH199, NK_PATH, report=False)
 bands199 = np.asarray(m199.solve_ham(kv199))
 xof199 = {}                        # k-point name -> the first x on the path it sits at
@@ -259,7 +259,7 @@ axes[0].set_title(f"space group 199, #{g199.number_str} {g199.name}\n"
                   f"{d199.candidate_sums[0].label}\nconnected: every inter-band gap "
                   "closes somewhere", fontsize=10)
 
-# --- space group 208, along GM-X-M-GM-R-X ---
+# Space group 208, along GM-X-M-GM-R-X
 kv208, kd208, kn208 = m208.k_path(PATH208, NK_PATH, report=False)
 bands208 = np.asarray(m208.solve_ham(kv208))
 xof208 = {}

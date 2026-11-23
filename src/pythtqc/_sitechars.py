@@ -89,7 +89,7 @@ def _axis_name(v_cart, lattice) -> str:
     # lattice coordinates: v_cart = sum_i u_i a_i
     try:
         u = np.linalg.solve(np.asarray(lattice, dtype=float).T, v)
-    except np.linalg.LinAlgError:  # pragma: no cover - a degenerate cell
+    except np.linalg.LinAlgError:  # pragma: no cover: a degenerate cell
         return "[?]"
     top = float(np.abs(u).max())
     if top > 1e-12:
@@ -436,7 +436,7 @@ def _merge_conjugate_pairs(chars, tol=1e-8):
         q = next((j for j in range(r)
                   if j not in used and j != p
                   and np.abs(chars[j] - np.conj(chars[p])).max() <= tol), None)
-        if q is None:                       # pragma: no cover - no partner: keep as is
+        if q is None:                       # pragma: no cover: no partner: keep as is
             rows.append(chars[p])
             merged.append(False)
             used.add(p)
@@ -956,14 +956,14 @@ def declaration_words(table) -> tuple:
 def fitting_words(table, n) -> tuple:
     """The names of the site irreps that fit on a site holding ``n`` orbitals.
 
-    ``table`` is the site's table.  ``n`` counts the site's orbitals, or on a
-    spinful site its Wannier functions.  The site irreps of dimension at most
-    ``n`` come first, by the name a declaration writes them in
-    (:func:`_declared_name`), in order of dimension, the one nearest the
+    ``table`` is the site's table.  ``n`` counts the site's orbitals, a
+    declared spin pair counted once, as one spinful orbital.  The site irreps
+    of dimension at most ``n`` come first, by the name a declaration writes
+    them in (:func:`_declared_name`), in order of dimension, the one nearest the
     trivial character first (:func:`_row_distance`), then in the order
     :func:`_listed` gives.  On a spinful site their labels follow, the
     double-valued site irrep, or sum of them, each irrep becomes with spin:
-    ``A1``, ``A2`` and ``-E1`` at a ``3m`` site holding one Wannier function.
+    ``A1``, ``A2`` and ``-E1`` at a ``3m`` site holding one spinful orbital.
     Each name stands once.
     """
     rank = {p: i for i, p in enumerate(_listed(table))}

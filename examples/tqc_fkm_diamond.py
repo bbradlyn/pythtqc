@@ -289,7 +289,7 @@ path = [hsp_strong["GM"], hsp_strong["T"], hsp_strong["F"], hsp_strong["L"],
         hsp_strong["GM"]]
 fig, axes = plt.subplots(1, 3, figsize=(14.4, 4.8), sharey=False)
 
-# --- the strong phase ---
+# The strong phase
 kv, kd, kn = m_strong.k_path(path, NK_PATH, report=False)
 bands = np.asarray(m_strong.solve_ham(kv))
 for i in range(4):
@@ -315,7 +315,7 @@ axes[0].set_title("strong: delta_t = +0.4\n"
                   f"#{g_strong.number_str} {g_strong.name}   class "
                   f"{si_strong.values} in {si_strong.indicator_group}", fontsize=10)
 
-# --- the weak phase ---
+# The weak phase
 kv, kd, kn = m_weak.k_path(path, NK_PATH, report=False)
 bands = np.asarray(m_weak.solve_ham(kv))
 for i in range(4):
@@ -337,7 +337,7 @@ axes[1].set_title("weak: delta_t = -0.4\n"
                   f"#{g_weak.number_str} {g_weak.name}   class "
                   f"{si_weak.values} in {si_weak.indicator_group}", fontsize=10)
 
-# --- the dimers ---
+# The dimers
 kv, kd, kn = m_dimers.k_path(path, NK_PATH, report=False)
 bands = np.asarray(m_dimers.solve_ham(kv))
 for i in range(4):

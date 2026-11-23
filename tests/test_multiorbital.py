@@ -1,10 +1,10 @@
-r"""Phase A3b: multi-orbital rep hardening -- three programs, three pathologies.
+r"""Multi-orbital representations -- three programs, three pathologies.
 
-The suite before this file has exactly one multi-orbital site in it -- the
-``2a`` doublet of the P4_232 golden, on a hand-assembled 3D bundle.  This file is about what happens when that stops
-being a special case: two new fixtures whose orbital structure is the *point*,
-and the lin3g declaration machinery carried the rest of the way down the
-pipeline.  Three programs, chosen so that no two of them break the same thing.
+Outside this file the one multi-orbital site is the ``2a`` doublet of the
+P4_232 golden, on a hand-assembled 3D bundle.  Here two fixtures whose orbital
+structure is the *point*, and the lin3g declaration machinery carried the rest
+of the way down the pipeline.  Three programs, chosen so that no two of them
+break the same thing.
 
 (a) **lin3g's declared content, end to end.**  Declaring ``s`` at 1a orbital
     0 and ``d_x2-y2`` at orbital 1 leaves the *matrices* where they were, and
@@ -12,14 +12,14 @@ pipeline.  Three programs, chosen so that no two of them break the same thing.
     is carried through the rest of the pipeline here is the point of the whole
     gauge apparatus: a *deliberate* ``B1`` twist moves every corep label and
     every EBR site-irrep name while leaving ``decompose``'s **Wyckoff
-    positions** exactly where they were.  Labels rest on a labelling;
+    positions** exactly where they were.  Labels rest on a labeling;
     positions do not.  ``EBRDecomposition.site_content`` says so in prose; this asserts it
     in numbers.
 
 (b) **The spinless ``p_x, p_y`` honeycomb of arXiv:1711.11045** -- the same
-    paper as the P4_232 golden, its *other* model.  Two firsts:
+    paper as the P4_232 golden, its *other* model.  Two points:
 
-    * a **two-dimensional channel** runs, for the first time, through the
+    * a **two-dimensional channel** runs through the
       whole 2D pipeline -- ``realized_group`` -> ``coreps_at`` ->
       ``decompose`` -- rather than on a hand-assembled 3D bundle as the P4_232
       golden does.  C_3 rotates ``(p_x, p_y)`` into each other by 120 degrees,
@@ -41,17 +41,17 @@ pipeline.  Three programs, chosen so that no two of them break the same thing.
       ``sigma_h``-even ones and ``E''`` flips every parity label wholesale.
 
 (c) **The SG-199 (``I2_1 3``) model of arXiv:1806.09642 App. F.1** -- chosen for
-    being pathological three independent ways at once: a body-centred Bravais
+    being pathological three independent ways at once: a body-centered Bravais
     lattice (so the conventional cell must be refused), a nonsymmorphic group
     **none of whose rotations is intrinsically a screw**, and a Wyckoff orbit
-    whose four sites permute *between unit cells*.  It also turned up a second
-    instance of the ``Fd-3m`` W-point class: at ``P`` and ``-P`` the raw
-    tabulated characters disagree with the measured ones by a sign on exactly
-    the fractionally-translated operations, which used to produce half-integer
-    multiplicities and a refusal.  That sign was BCS's ``e^{+ik·t}`` convention
-    for the lattice translations meeting pythtb's physical ``e^{-ik·t}``; the
-    adapter now conjugates the factor system at the boundary and both points
-    identify exactly, as ``P1 + P3`` and ``PA1 + PA3`` -- the content the EBR
+    whose four sites permute *between unit cells*.  It is also an instance
+    of the ``Fd-3m`` W-point class: at ``P`` and ``-P`` the raw tabulated
+    characters disagree with the measured ones by a sign on exactly the
+    fractionally-translated operations, which read unconverted would give
+    half-integer multiplicities and a refusal.  That sign is BCS's
+    ``e^{+ik·t}`` convention for the lattice translations meeting pythtb's
+    physical ``e^{-ik·t}``; the adapter conjugates the factor system at the
+    boundary and both points identify exactly, as ``P1 + P3`` and ``PA1 + PA3`` -- the content the EBR
     row predicts, with the two *distinct* (chiral) points keeping their own
     labels.
 """
@@ -147,7 +147,7 @@ def lin3g_twisted(lin3g):
 @pytest.mark.slow
 def test_the_b1_twist_moves_every_label_and_no_wyckoff_position(
         lin3g_undeclared, lin3g_twisted, lin3g_declared_cross_checked):
-    """The A3a gauge measurement, carried into the EBR layer.
+    """The gauge measurement of ``test_characters.py``, carried into the EBR layer.
 
     Twisting by the one-dimensional character ``B1`` sends every corep label
     ``rho -> rho (x) B1`` and every EBR ``sigma@q -> (sigma (x) B1)@q``.  The
@@ -158,7 +158,7 @@ def test_the_b1_twist_moves_every_label_and_no_wyckoff_position(
     its positions rather than its names.  Measured on all four lin3g band blocks at once.
 
     The same twist declared in function words, ``d_x2-y2`` wherever lin3g's own
-    content has ``s`` and ``s`` where it has ``d_x2-y2``, is another labelling of
+    content has ``s`` and ``s`` where it has ``d_x2-y2``, is another labeling of
     the same hoppings, each row echoing the word declared for it; and the site
     content of a build whose every row is declared carries its site irreps and
     says that every row was declared.
@@ -251,7 +251,7 @@ def pxpy_bare():
     ``environment="free-standing"`` is the statement that the horizontal mirror
     is a real symmetry of *these* orbitals: the layer is suspended, the cell is
     the point set as given with ``sigma_h`` and everything composed with it
-    kept, and the Hamiltonian selects.  Since wave R4c it has to be said, a
+    kept, and the Hamiltonian selects.  It has to be said, a
     ``dim_r = 2`` model being read on a substrate by default -- and a substrate
     would remove exactly the mirror this fixture is about.  Measured:
     ``#191.234``, 48 of 48.
@@ -268,10 +268,10 @@ def pxpy_183():
     """The paper's own group ``P6mm1' (#183.186)``: the layer on a substrate.
 
     Restricting to the ``sigma_h``-free subgroup is legitimate (it is the
-    in-plane image) and it is what arXiv:1711.11045's Sec. S1B analyses, so this
+    in-plane image) and it is what arXiv:1711.11045's Sec. S1B analyzes, so this
     is the reading whose labels can be compared with the paper's sentences.
-    ``environment="substrate"`` is how that restriction is asked for, and since
-    wave R4c it is also a ``dim_r = 2`` model's default: the model is pressed
+    ``environment="substrate"`` is how that restriction is asked for, and it
+    is also a ``dim_r = 2`` model's default: the model is pressed
     onto its own plane (``H(k)`` bit-identical), one shadow species goes under
     every site, and every ``sigma_h`` fiber is collapsed by definition, leaving
     the 24 in-plane operations -- measured 24 of 24, ``#183.186``, Wyckoff
@@ -367,14 +367,12 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
     i.e. the ``E'`` versus ``E''`` declaration, and **the scalar must be the
     declared one** -- ``+1`` for ``E'`` (the in-plane doublet, which is what
     ``p_x, p_y`` are; ``chi_E'(sigma_h) = +2``) and ``-1`` for ``E''``.  That
-    comparison is the measurement this test is named for, and until 2026-09-09
-    it was not made: the build served ``E'`` with ``eta = -1`` -- the
-    ``sigma_h``-ODD induced representation, E1g + E2u at Gamma where in-plane p
-    orbitals at ``2c`` induce E1u + E2g -- because a gauge offset the build
-    then applied (meaningless for a two-dimensional site multiplet)
-    hid the raw sign from the declaration, and the two label sets pinned below
-    were the inverted ones.  A measured channel's build carries no offset, the
-    declaration twists the matrices, and the labels are the textbook ones:
+    comparison is the measurement this test is named for.  Serving ``E'`` with
+    ``eta = -1`` would be the ``sigma_h``-ODD induced representation, E1g + E2u
+    at Gamma, where in-plane p orbitals at ``2c`` induce E1u + E2g, and the two
+    label sets pinned below would be inverted.  A measured channel's build
+    carries no gauge offset, the declaration twists the matrices, and the
+    labels are the textbook ones:
     ``E'`` gives ``GM6-`` + ``GM5+`` (E1u + E2g), ``E''`` the ``+``/``-`` swap.
 
     The detector alone cannot say the ``sigma_h`` half is genuine: a
@@ -386,9 +384,9 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
     The same pairs listed in turned bases read one valence content, and the
     honeycomb with site group ``3`` (``tqc_models.p31m_pxpy_honeycomb``) reads
     one lowest band at ``K`` and ``M`` in every listing: there the orbitals
-    cannot tell the two labellings apart, and the band labels decide.  So do
+    cannot tell the two labelings apart, and the band labels decide.  So do
     they for ``(p_x, p_y)`` at the two sites ``(0, 0, ±0.2)`` of ``P321``
-    (``tqc_models.p321_pxpy_pair``), where the labelling returned is the one
+    (``tqc_models.p321_pxpy_pair``), where the labeling returned is the one
     whose labels come first in the tables' order and its table says so; with
     the spin and an on-site ``L_z S_z`` no band label depends on the choice, and
     nothing is said.
@@ -466,7 +464,7 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
     # the two sublattices the functions the pairs read as, each paired with its
     # image, which a turn common to both leaves alone:
     # the valence pair is the paper's set at every angle.  The site irreps leave
-    # four labellings open, and the pair's labels -- two of the four bands --
+    # four labelings open, and the pair's labels -- two of the four bands --
     # rest on the one returned, which its content says; so do the labels each
     # energy multiplet of all four bands carries, though not their sum.
     for turn in (0.37, 1.3):
@@ -481,9 +479,9 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
         assert tqw._ANOTHER_LABELING_RELABELS in valence.summary()
         assert tqw.hsp_table(turned, bands=4).note == tqw._ANOTHER_LABELING_RELABELS
 
-    # The honeycomb with site group 3 -- the mirrors through the hexagon centre
+    # The honeycomb with site group 3 -- the mirrors through the hexagon center
     # exchanging the sublattices, P31m1' on a substrate and P-62m1' free-standing
-    # -- leaves two labellings under which the pairs read as the same
+    # -- leaves two labelings under which the pairs read as the same
     # functions, and the band labels decide: the lowest band reads one set of
     # labels at K and M however each sublattice's pair is listed.
     for environment, lowest in (("substrate", {"K": {"K1": 1}, "M": {"M2": 1}}),
@@ -502,11 +500,11 @@ def test_pxpy_sigma_h_acts_as_a_scalar_and_that_scalar_is_the_declaration(pxpy_b
 
     # ... and in three dimensions: (p_x, p_y) at the two sites (0, 0, ±0.2) of
     # P321, each pair 1E2E of its site group 3, the twofolds exchanging the
-    # sites carrying one pair onto the other with either sign -- two labellings
+    # sites carrying one pair onto the other with either sign -- two labelings
     # that label the lower pair of bands M1 twice or M2 twice.  The one returned
     # is the one whose labels come first in the tables' order, so every listing
     # -- as built, both pairs turned alike by 90 degrees (which is the other
-    # labelling's frame exactly), one pair negated -- reads the lower pair alike,
+    # labeling's frame exactly), one pair negated -- reads the lower pair alike,
     # and its table says the labels rest on the choice.  With the spin and an on-site
     # L_z S_z no band label depends on the choice, which the group's own order
     # then makes, and nothing is said.
@@ -587,7 +585,7 @@ def test_pxpy_declares_its_two_dimensional_multiplet_jointly(pxpy_bare):
     assert "1-dimensional, and the key names 2 orbitals" in as_s.reason
     assert as_s.context["orbitals"] == (0, 1) and as_s.context["dim"] == 1
 
-    # ``E'`` at one site of the orbit and ``E''`` at the other: no labelling of
+    # ``E'`` at one site of the orbit and ``E''`` at the other: no labeling of
     # these hoppings carries both.  In a crystal of multiplets the verdict reads
     # a declared character against one pair's own blocks, settled into a
     # representation, and the two parities differ on m(z) and the S6 pair,
@@ -709,7 +707,7 @@ def test_pxpy_the_191_presentation_refines_the_labels_and_decomposes_in_the_laye
 
     In ``P6/mmm`` the corep labels carry the parity the ``P6mm`` ones cannot
     (``GM5+``, the E2g of the lower in-plane p pair, where ``P6mm`` says
-    ``GM5``), which is more information, and the group's EBR basis now has
+    ``GM5``), which is more information, and the group's EBR basis has
     ``A``/``H``/``L`` rows that are **not** copies of in-plane ones over every
     band representation, so the in-plane restriction of the whole basis is
     not exact.  The layer's own band representations are those of the
@@ -731,10 +729,10 @@ def test_pxpy_the_191_presentation_refines_the_labels_and_decomposes_in_the_laye
 def test_pxpy_declared_content_is_the_hand_derived_induced_character(pxpy_bare):
     r"""The declared ``E'`` against the band representation it must induce.
 
-    The gap the 2026-09-09 sign inversion lived in: nothing in this file
-    compared a *declared* site irrep with its own induced character, and that
-    comparison is four lines with the oracle the screw fixtures already own
-    (``_induced_character`` and ``_decompose_against``, further down).
+    This compares a *declared* site irrep with its own induced character, so
+    an inverted sign on the declaration cannot pass; the comparison is four
+    lines with the oracle the screw fixtures own (``_induced_character`` and
+    ``_decompose_against``, further down).
 
     For one Wyckoff orbit whose sites share a stabilizer -- measured below --
     the induced character factors,
@@ -759,8 +757,7 @@ def test_pxpy_declared_content_is_the_hand_derived_induced_character(pxpy_bare):
 
     The negative half is the other parity: ``Ind(E'')`` shares not one label
     with the served content at any of the three points, so a build that served
-    the declaration's matrices untwisted -- which is what used to happen --
-    cannot pass this.
+    the declaration's matrices untwisted cannot pass this.
     """
     model, group, assignment = pxpy_bare.model, pxpy_bare.group, pxpy_bare._assignment
     rep = pxpy_bare.rep
@@ -814,7 +811,7 @@ def test_pxpy_declared_content_is_the_hand_derived_induced_character(pxpy_bare):
 
 
 # ===========================================================================
-# (c)  SG 199 -- nonsymmorphic without a screw, body-centred, permuting sites
+# (c)  SG 199 -- nonsymmorphic without a screw, body-centered, permuting sites
 # ===========================================================================
 
 @pytest.fixture(scope="module")
@@ -938,7 +935,7 @@ def test_i213_rep_reproduces_the_nonsymmorphic_factor_system(i213_bundle):
 
 @pytest.mark.slow
 def test_i213_operation_naming_in_the_T_family_is_sane(i213_bundle):
-    """``_sitechars`` naming on a tetrahedral group with a body-centred basis.
+    """``_sitechars`` naming on a tetrahedral group with a body-centered basis.
 
     The names are read off the *measured* Cartesian matrices and the axes are
     reported as **lattice** directions, which for a primitive bcc basis is a
@@ -1059,24 +1056,24 @@ def test_i213_declares_the_trivial_site_irrep_the_appendix_uses(i213_bundle):
 
 @pytest.mark.slow
 def test_i213_P_and_PA_identify_and_keep_their_chirality(i213_bundle):
-    """The second measured instance of the ``Fd-3m`` W-point class -- resolved.
+    """A second measured instance of the ``Fd-3m`` W-point class, identified.
 
     At ``P = (1/4,1/4,1/4)`` the little group is all twelve unitary operations
     and its factor system is the nontrivial class of the Schur multiplier of
     ``A_4``, so ``irreptables`` lists three **two**-dimensional projective
-    irreps (``P1``, ``P2``, ``P3``) and the spectrum is two doublets.  This
-    point used to refuse with ``integer_multiplicity`` and a defect of exactly
-    0.5: the measured characters were the tabulated ``P1`` and ``P3`` *in
-    absolute value* but differed from them by ``-1`` on precisely the
-    operations carrying a half fractional translation, so the inner product
-    split the difference.  That factor of ``-1`` was BCS's convention for the
+    irreps (``P1``, ``P2``, ``P3``) and the spectrum is two doublets.  Read
+    against the raw tables, the measured characters are the tabulated ``P1``
+    and ``P3`` *in absolute value* but differ from them by ``-1`` on precisely
+    the operations carrying a half fractional translation, so the inner
+    product would split the difference: ``integer_multiplicity`` with a defect
+    of exactly 0.5.  That factor of ``-1`` is BCS's convention for the
     lattice translations (``e^{+ik·t}``, the historical artifact) meeting
     pythtb's physical ``e^{-ik·t}``; conjugating the factor system at the
     boundary removes it, and the transported characters are the measured ones
     -- defect at ``irreptables``' printed precision.
 
     ``P`` and ``PA = -P`` are **distinct** points -- SG 199 is chiral, so no
-    operation of the group maps one to the other -- and the fix must not
+    operation of the group maps one to the other -- and the conversion must not
     exchange them: ``P`` carries ``P1 + P3`` and ``PA`` carries ``PA1 + PA3``.
     Flipping the sign of ``k`` to repair the multiplicities would have passed
     every count and swapped these two label sets.  Stability is checked the way
@@ -1136,15 +1133,14 @@ def test_i213_P_and_PA_identify_and_keep_their_chirality(i213_bundle):
 
 # ===========================================================================
 # (d)  the screw-group atomic controls: the completion of the convention
-#      transport, measured from Hamiltonians (2026-08-21)
+#      transport, measured from Hamiltonians
 # ===========================================================================
 #
-# `groups._transported_table` used to keep the tabulated point-group content
-# and re-attach our phase everywhere.  At a k-point whose tabulated factor
-# system is complex -- a 3_1/4_1/6_1-type screw at the zone boundary -- that is
-# not a representation of the physical factor system at all, and identification
-# there produced the 0.5/0.5 multiplicities that used to be blamed on the
-# tables.  The completion serves the WHOLE-CHARACTER CONJUGATE at those points,
+# Keeping the tabulated point-group content and re-attaching our phase
+# everywhere fails at a k-point whose tabulated factor system is complex -- a
+# 3_1/4_1/6_1-type screw at the zone boundary: that is not a representation of
+# the physical factor system at all, and identification there gives 0.5/0.5
+# multiplicities that look like a defect of the tables.  The completion serves the WHOLE-CHARACTER CONJUGATE at those points,
 # with each label keeping its BCS name, and these two fixtures are what makes
 # that testable from a Hamiltonian: deep atomic limits whose content at every
 # k-point is closed-form.
@@ -1284,7 +1280,7 @@ def test_p3121_screw_point_content_is_the_hand_derived_induced_character(
 ])
 def test_screw_fixture_content_is_its_own_EBR_row_at_every_point(
         request, fixture, occ, rows, pin):
-    """The oracle, at **every** k-point including the previously-refused ones.
+    """The oracle, at **every** k-point, the screw points included.
 
     An ``s`` orbital on a maximal Wyckoff orbit induces exactly one EBR, so the
     occupied block must reproduce that row entry for entry and the empty block
@@ -1295,7 +1291,7 @@ def test_screw_fixture_content_is_its_own_EBR_row_at_every_point(
     What that comparison certifies is the **multiplicity vector and the Wyckoff
     position**, not the names: ``ebr_rows`` takes its labels from
     ``_ebr_transport`` and ``hsp_table`` takes its from ``corep_table``, and both
-    read the one map ``_table_conjugation`` returns, so a consistent relabelling
+    read the one map ``_table_conjugation`` returns, so a consistent relabeling
     of the served naming moves the row and the measurement together and cancels
     out.  The names are pinned separately, by the one thing that is outside the
     package: two labels per fixture tied to ``irreptables``' own printed
@@ -1385,7 +1381,7 @@ def test_screw_points_refuse_without_the_whole_character_conjugation(
 
 # ===========================================================================
 # (e)  the RE-GLUING points: the time-reversal gluing itself is
-#      convention-sensitive, measured from Hamiltonians (2026-08-21)
+#      convention-sensitive, measured from Hamiltonians
 # ===========================================================================
 #
 # At a k-point where the pairing antiunitary is not pure time reversal -- or
@@ -1415,7 +1411,7 @@ def _spinful_induced_character(sites, ops, su2, k, s=-1):
 
     The hoppings of these fixtures are spin-independent, so the band
     representation is the spinless one tensored with spin 1/2 and the character
-    factorises: ``chi(g) = tr(S_R) * chi_spinless(g)`` with ``S_R`` the
+    factorizes: ``chi(g) = tr(S_R) * chi_spinless(g)`` with ``S_R`` the
     operation's own SU(2) matrix (taken from ``irreptables``, not
     reconstructed).  Since ``tr(S) = 2cos(theta/2)``, a two-fold rotation
     contributes zero and kills the whole term whatever the orbit does.
@@ -1449,7 +1445,7 @@ def test_reglue_atomic_content_is_its_own_EBR_row_at_every_point(
 
     As in the screw section above, that comparison certifies the multiplicity
     vector and the Wyckoff position and **not** the names: row and measurement
-    read the same transported naming map, so a consistent relabelling cancels
+    read the same transported naming map, so a consistent relabeling cancels
     out of it.  The names are pinned by the served character vectors at ``H``,
     where the ``3a`` orbit's induced character is ``(6, 0, 0)`` on the unitary
     little group ``{E, 3+, 3-}`` -- the two threefold screws fix no site -- and
@@ -1493,15 +1489,15 @@ def test_reglue_atomic_content_is_its_own_EBR_row_at_every_point(
 @pytest.mark.slow
 def test_the_reglued_labels_and_the_EBR_transport_need_the_lift(
         monkeypatch, i41_bundle, p62_bundle, i41_soc_bundle):
-    """Switch the re-gluing off: SG 80 still fails hard, SG 171 no longer needs it.
+    """Switch the re-gluing off: SG 80 fails hard, SG 171 does not need it.
 
     * **SG 80** fails hard, and this half does not depend on the naming
       rule: with the corep naming decided by plain conjugation of whole
       character vectors, ``P``'s shipped list is not conjugation-closed (its
       dimensions are ``2+1`` and the physical ones ``1+2``), the table is
       declared corrupt, and ``ebr_data`` -- hence ``decompose`` -- refuses the
-      whole group with ``gate="ebr_convention"``.  That refusal is exactly the
-      "data defect" the point used to be filed under, and it is why ``P`` is
+      whole group with ``gate="ebr_convention"``.  That refusal is what reads
+      as a "data defect" of the tables at this point, and it is why ``P`` is
       one of the 59 ``divergent`` entries: no naming rule can reach it.
     * **SG 171 does not need the lift.**  Without the naming rule it is the
       *quiet* failure -- the served rows at ``H`` are the same characters under
@@ -1524,7 +1520,7 @@ def test_the_reglued_labels_and_the_EBR_transport_need_the_lift(
     three are arithmetically impossible under BCS's gluing: its one-dimensional
     corep has ``chi(2_z) = +i`` and the measured singlets ``-i``, so each
     refuses ``integer_multiplicity`` at a defect of exactly **0.5**, and the
-    doublet is *mislabelled rather than refused* -- ``(2, +2i)`` is two copies
+    doublet is *mislabeled rather than refused* -- ``(2, +2i)`` is two copies
     of BCS's ``-P4``, an accidental degeneracy of two one-dimensional coreps,
     which is precisely what an enforced pair is not.
     """
@@ -1636,7 +1632,7 @@ def test_the_reglued_labels_and_the_EBR_transport_need_the_lift(
 
 
 # ===========================================================================
-# (f)  the SOC-doublet demonstration at the re-glued point (2026-08-24):
+# (f)  the SOC-doublet demonstration at the re-glued point:
 #      WHICH irrep doubles is a fact about a spectrum, not a convention
 # ===========================================================================
 #
@@ -1676,20 +1672,19 @@ def _P_valence(bundle):
 
 
 # ---------------------------------------------------------------------------
-# (f2) the same crystal on the UNITARY tables (2026-08-25): the gauge the
+# (f2) the same crystal on the UNITARY tables: the gauge the
 #      grey build gets from time reversal, and the unitary one from the tables
 # ---------------------------------------------------------------------------
 #
-# Building #80 with ``include_TR=False`` used to land on the rep twisted by the
-# linear character ``lambda(E, 2_z, 4+, 4-) = (1, -1, +i, -i)`` of its Z4 --
-# measured as the exact ratio of the two builds' matrices -- and so read P's
-# levels the other way round (singlets ``-P4``, doublet ``2 x -P3``).  Nothing
-# downstream could catch it: a linear-character twist preserves the entire
-# factor system, so covariance, the internal factor, the product table and
-# ``hsp_table``'s completeness are all blind to it.  The tables fix that
-# gauge, so the unitary build is anchored to
-# the group's own ``spinor_rotation`` (``test_symmetry.py`` section 10 measures
-# the anchor itself), and what the two builds must now agree on is *everything*.
+# A build of #80 with ``include_TR=False`` left unanchored can land on the rep
+# twisted by the linear character ``lambda(E, 2_z, 4+, 4-) = (1, -1, +i, -i)``
+# of its Z4, and so read P's levels the other way round (singlets ``-P4``,
+# doublet ``2 x -P3``).  Nothing downstream can catch that: a linear-character
+# twist preserves the entire factor system, so covariance, the internal factor,
+# the product table and ``hsp_table``'s completeness are all blind to it.  The
+# tables fix that gauge, so the unitary build is anchored to the group's own
+# ``spinor_rotation`` (``test_symmetry.py`` section 10 measures the anchor
+# itself), and what the two builds must agree on is *everything*.
 
 
 @pytest.fixture(scope="module")
@@ -1891,7 +1886,7 @@ def test_the_unitary_build_names_P_and_GM_the_way_the_grey_one_does(
 
 
 # ===========================================================================
-# (f3) the anchor realizes the DECLARATION protocol (2026-08-25): the built
+# (f3) the anchor realizes the DECLARATION protocol: the built
 #      rep is Ind(declared content) for EVERY declaration, not the default one
 # ===========================================================================
 #
@@ -2008,7 +2003,7 @@ def test_a_declared_B_site_irrep_on_the_unitary_tables_is_its_own_induced_rep(
     L       ``L1 + 2 L2``                   ``2 L1 + L2``
     ======  ==============================  ==============================
 
-    All six agree, and the two that are NOT related by a relabelling of one
+    All six agree, and the two that are NOT related by a relabeling of one
     pair (``M`` and ``L``, where the multiplicities themselves move) are the
     ones that make it a measurement rather than a naming convention.
 
@@ -2024,7 +2019,7 @@ def test_a_declared_B_site_irrep_on_the_unitary_tables_is_its_own_induced_rep(
     _m, grey_group, g_a, g_v, grey_default = p3121_bundle
     assert u_group.number_str == "152" and grey_group.number_str == "152.34"
 
-    # the site group really does carry a B, and the A2 labelling is what supplies it
+    # the site group really does carry a B, and the A2 labeling is what supplies it
     tab = u_default._characters.site_tables[0]
     assert set(tab.labels) == {"A", "B"} and int(tab.order) == 2
     assert u_declared._characters.irreps == ("B",) * 6
@@ -2130,8 +2125,8 @@ def test_the_operation_no_site_group_contains_is_pinned_by_induction(request, fi
     spelled in ulps rather than as a decimal for exactly that reason.
     The search's own record says the same thing from the other side: the winner
     is ``orientation = +1`` with every free class sign ``+1``, i.e. the bare
-    ansatz, and the anchor's job was to leave the phase at ``lam = 1`` rather
-    than at the ``i`` the positivity tie used to hand it.
+    ansatz, and the anchor's job is to leave the phase at ``lam = 1`` rather
+    than at the ``i`` a positivity tie would hand it.
     """
     bundle = request.getfixturevalue(fixture)
     model = bundle[0]
@@ -2204,7 +2199,7 @@ def test_the_twist_no_site_group_separates_is_a_genuine_equivalence(i41_soc_bund
     the trivial ``8b`` group alike, so no declaration can separate it from
     ``A``; and since ``chi_Ind(4+/-) = 0`` at every k, ``B (x) Ind`` is
     character-identical to ``Ind`` everywhere.  The record says exactly that:
-    both labellings give every row the same site irrep, so every row is
+    both labelings give every row the same site irrep, so every row is
     ``hamiltonian``.  And the equivalence is *measured*, not argued: the
     ``B``-twisted rep is built by hand and its content is identical at every
     high-symmetry point, on the valence block and on all twelve bands, and per
@@ -2294,7 +2289,7 @@ def test_the_declared_twist_and_the_table_anchor_compose_exactly_once(
       it is applied once, not squared into ``B1 (x) B1 = A1``;
     * no ``InternalError`` is raised on either side, and the declared build's
       own reference block is a real ``-1`` multiple of ``S(4+)`` at defect 0 up
-      to roundoff (bit-exact on the development machine, one ulp on an M1),
+      to roundoff (bit-exact or one ulp, by machine),
       which the anchor **accepts**: its reality half is the tables', and
       re-normalizing the declared matrix hands back ``lam = -1`` -- its
       positivity half would put the reference orbital back on ``A1``, which is
@@ -2460,7 +2455,7 @@ def test_the_declared_twist_and_the_table_anchor_compose_exactly_once(
 def _square_pxpy(sublattices=1):
     """A ``p_x, p_y`` pair at every ``4mm`` site of a square lattice, spinless.
 
-    Slater-Koster nearest-neighbour hoppings with ``t_sigma = 1.0`` along the
+    Slater-Koster nearest-neighbor hoppings with ``t_sigma = 1.0`` along the
     bond and ``t_pi = 0.3`` across it: along ``x`` the ``p_x`` orbital hops by
     ``t_sigma`` and ``p_y`` by ``t_pi``, and along ``y`` the other way about.
     Nothing couples ``p_x`` to ``p_y``, and with ``sublattices=2`` nothing
@@ -2928,7 +2923,7 @@ def test_two_decoupled_sublattices_are_measured_and_the_convention_names_the_res
     translation between the two sites and the Hamiltonian obeys it, so the model
     is a supercell of its own primitive cell and no group is served on the cell
     as handed in.  Declared as two species, the translation is not an operation
-    of the cell at all, and P1c serves the model rather than refusing
+    of the cell at all, and the model is served rather than refused
     ``rep_not_unique``: a channel class the hoppings leave free takes the
     trivial relative character wherever it sits, on this site or the next, so
     both sublattices read ``E`` and what is decoupled is said on the record --
@@ -2950,9 +2945,9 @@ def test_two_decoupled_sublattices_are_measured_and_the_convention_names_the_res
     ``-6m2``, and the spin never chosen.  With each pair written in its own
     turned basis, what a change of basis cannot move stays -- the group, the
     rows, the band representation -- and the band labels read alike wherever
-    no label rests on the labelling returned: the two pairs are turned by more
+    no label rests on the labeling returned: the two pairs are turned by more
     than a right angle relative to one another, past which the orbitals as
-    listed read as the other labelling's letter, and the table says where.
+    listed read as the other labeling's letter, and the table says where.
     """
     model = _square_pxpy(sublattices=2)
     same = tqg.realized_group(model, typat=[0, 0, 0, 0])
@@ -3003,7 +2998,7 @@ def test_two_decoupled_sublattices_are_measured_and_the_convention_names_the_res
                     t.note == tqw._ANOTHER_LABELING_RELABELS
                     for t in (bands[n], bands_turned[n])), (soc, environment, n)
             if soc and environment == "substrate":
-                # the six bands read alike under every labelling, and which
+                # the six bands read alike under every labeling, and which
                 # multiplet carries which label rests on the one returned
                 assert bands[6].note == tqw._ANOTHER_LABELING_RELABELS
                 assert coreps_by_point(bands[6]) == {
@@ -3020,7 +3015,7 @@ def test_a_stated_layout_that_is_not_a_partition_is_a_grammar_error(monkeypatch)
     channel, a list of channels where one list per site goes -- so it raises
     rather than refusing, and before anything is measured: none of it is a
     measurement about the Hamiltonian, and ``realized_group`` reads it before
-    any group is identified, the sites off the centres alone.  Which site index
+    any group is identified, the sites off the centers alone.  Which site index
     holds which channel is not the declaration's business: the channels are
     read as a flat set and re-keyed onto the assignment's own sites, which is
     what carries one layout to another presentation of a model.

@@ -1,4 +1,4 @@
-r"""The Hamiltonian sets the primitive cell — the lattice descent (wave R4a).
+r"""The Hamiltonian sets the primitive cell — the lattice descent.
 
 ``_group_of`` answers what a *cell* allows.  On a cell whose orbital positions
 repeat under a fractional translation that answer is the whole **lattice
@@ -53,7 +53,7 @@ def cubic_2x1x1(t1=1.0, t2=1.0):
     point set is the primitive cubic one, so the cell repeats under
     ``τ = (½,0,0)``.  ``t2 == t1`` is that cubic crystal written twice; ``t2 !=
     t1`` is a dimerized chain — a legitimate *primitive* model of ``P4/mmm``
-    whose origin sits at a bond centre, and whose bonds no symmetry finder can
+    whose origin sits at a bond center, and whose bonds no symmetry finder can
     see, since no atom moved.
     """
     m = TBModel(Lattice(np.diag([2.0, 1.0, 1.0]), [[0, 0, 0], [0.5, 0, 0]],
@@ -70,7 +70,7 @@ def square_two_orbitals():
     """``test_groups.py``'s square cell: orbitals at ``1a`` and ``1c``, ``±0.3`` on site.
 
     Under the lattice-honest default typing the two sites are one species, so
-    the point set is centred and the cell carries ``τ = (½,½,0)``.  The on-site
+    the point set is centered and the cell carries ``τ = (½,½,0)``.  The on-site
     energies are what break it.
     """
     lat = Lattice([[1.0, 0.0], [0.0, 1.0]], [[0.0, 0.0], [0.5, 0.5]],
@@ -236,14 +236,14 @@ def test_group_of_serves_the_lattice_supergroup(cubic_supergroup):
 
 @pytest.mark.slow
 def test_the_dimerized_chain_descends_to_the_bond_centered_p4mmm(dimerized):
-    """``P4/mmm1' #123.340``, 32 of 32, with the origin at a bond centre.
+    """``P4/mmm1' #123.340``, 32 of 32, with the origin at a bond center.
 
     The dimerization moves no atom, so the point set still repeats under
     ``τ = (½,0,0)`` and the cell allows 64 operations.  The Hamiltonian breaks
     ``τ`` (measured covariance residual 1.0 against ``tol = 1e-8``) and the cell
     is lowered to the 32 that hold.  Both sites read Wyckoff ``g`` in the tables'
     setting — ``2g = (0,0,z), (0,0,-z)`` with the origin between them, which is
-    where the mirror and inversion centres of a dimerized chain actually sit.
+    where the mirror and inversion centers of a dimerized chain actually sit.
 
     The record names the lattice step: ``τ`` refuted by ``"tensor structure"``,
     with 15 coset partners.  16 of the supergroup's 32 unitary operations go —
@@ -285,7 +285,7 @@ def test_the_dimerized_chain_descends_to_the_bond_centered_p4mmm(dimerized):
 def test_the_tables_served_are_the_descended_groups(dimerized):
     """``coreps_at`` at Γ and X reads the descended group's own page.
 
-    The point of the wave: the supergroup's tables would have labelled a folded
+    The point of the descent: the supergroup's tables would have labeled a folded
     zone, and these are the tables of the group on the model's own lattice.  The
     two bands are the bonding/antibonding pair, and they carry opposite parity
     at every one of these points.
@@ -462,7 +462,7 @@ def test_a_translation_obeyed_with_each_sites_orbitals_turned_is_a_supercell():
 def test_p4232_both_routes_give_the_same_group_and_letters(route, request):
     """``P4_232 1' #208.45``, 48 of 48, from the Hamiltonian and from the geometry.
 
-    ``realized_group(m208)`` measures the centring translation
+    ``realized_group(m208)`` measures the centering translation
     (covariance residual 2.4 against a tolerance of ``1e-8`` of ``max|H|``),
     refutes it and its coset,
     and descends; the paper's own decoration — the 24-fold orbit of a generic
@@ -506,12 +506,12 @@ def test_p4232_both_routes_give_the_same_group_and_letters(route, request):
 
 @pytest.mark.slow
 def test_i213_conventional_cell_is_refused_as_a_supercell():
-    """``supercell`` naming ``(½,½,½)`` — the message the fixture always wanted.
+    """``supercell`` naming ``(½,½,½)``: the conventional cell is not primitive.
 
-    ``_group_of`` still knows the crystal perfectly well (``I2_131' #199.13``);
-    what it now says about the conventional cell is that it is an index-2
-    supercell of the body-centred lattice, and the Hamiltonian obeying the
-    centring translation (residual below ``1e-12``, measured 3.5e-15 here) is
+    ``_group_of`` knows the crystal perfectly well (``I2_131' #199.13``);
+    what it says about the conventional cell is that it is an index-2
+    supercell of the body-centered lattice, and the Hamiltonian obeying the
+    centering translation (residual below ``1e-12``, measured 3.5e-15 here) is
     what makes the model a supercell rather than a crystal with a bigger cell.
     The refusal names ``τ`` reduced and Cartesian, the index, and the finer
     lattice; reached inside the measurement, it opens with the cell's group at
@@ -543,7 +543,7 @@ def test_i213_conventional_cell_is_refused_as_a_supercell():
     assert "sublattice of index 2" in r.reason
     assert "primitive cell" in r.reason
     assert r.context["lattice"]["operations"][0]["residual"] == pytest.approx(0.0, abs=1e-12)
-    # the finer lattice is ``Z^3 + Z.tau``, which is what "body centred" means.
+    # the finer lattice is ``Z^3 + Z.tau``, which is what "body centered" means.
     # It takes two facts to say that and neither does it alone: the index, and
     # that ``tau`` itself is a lattice vector of the basis returned.  |det| = 1/2
     # with half-integer entries does not pin it — diag(1/2, 1, 1) has both and
@@ -553,7 +553,7 @@ def test_i213_conventional_cell_is_refused_as_a_supercell():
     n = np.linalg.solve(basis.T, np.asarray(r.context["translations"][0], dtype=float))
     np.testing.assert_allclose(n, np.rint(n), atol=1e-12)
     # ... and the basis as measured, in the Hermite form `_primitive_lattice`
-    # returns: the centring vector and two integer vectors, not three members of
+    # returns: the centering vector and two integer vectors, not three members of
     # Z^3 + (1/2,1/2,1/2)
     np.testing.assert_allclose(basis, [[0.5, 0.5, 0.5], [0.0, 1.0, 1.0],
                                        [0.0, 0.0, 1.0]], atol=1e-12)
@@ -611,7 +611,7 @@ def test_the_square_cells_hamiltonian_breaks_the_centring():
 # ---------------------------------------------------------------------------
 
 def _inversion_permutation(model):
-    """Which orbital each one maps to under the cell's own inversion centre."""
+    """Which orbital each one maps to under the cell's own inversion center."""
     pos = np.asarray(model.orb_vecs, dtype=float) % 1.0
     for j in range(pos.shape[0]):
         target = (pos[0] + pos[j] - pos) % 1.0
@@ -869,20 +869,18 @@ def test_the_substrate_decoration_does_not_hide_the_translation():
     operations in 2 cosets of 8, and asked as a **free-standing** layer --
     where the cell is the point set as it stands -- the model is refused the
     same way, with the same ``τ`` at the same residual (2.0e-16 measured).
-    Before wave R4b the geometry hid the translation and the call served
-    ``#25.58``, 8 of 8, on a folded zone.
+    A geometry that hid the translation would serve ``#25.58``, 8 of 8, on a
+    folded zone.
 
-    Re-pinned in wave R4c for the recipe itself: one shadow below, not a pair at
-    ``±dz``.  The depth is written out as ``-0.05`` rather than read back off
+    The recipe itself is pinned too: one shadow below, not a pair at ``±dz``.
+    The depth is written out as ``-0.05`` rather than read back off
     ``DECORATION_DZ``, so that half of the claim is a pin and not ``f(x) == x``.
-    Two species removed the same operations and described a layer
+    Two species would remove the same operations and describe a layer
     encapsulated between two different materials; one shadow is the physics of a
-    substrate.  The decorated cell here therefore carries 4
-    orbitals rather than 6, of two species rather than three, and reads the same
-    ``Pmm21' #25.58`` at the same lattice index.
+    substrate.  The decorated cell here therefore carries 4 orbitals, of two
+    species, and reads ``Pmm21' #25.58`` at lattice index 2.
 
-    What the recipe is *for* is unchanged, and the honeycomb beside it is the
-    measurement: a point set with no fractional repeat keeps lattice index 1,
+    The honeycomb beside it measures what the recipe is *for*: a point set with no fractional repeat keeps lattice index 1,
     and the decoration removes exactly the operations with ``R[2,2] = −1`` —
     ``P-6m21' #187.210``, 24 operations, down to ``P3m11' #156.50``, 12.
     """
@@ -932,7 +930,7 @@ def test_the_substrate_decoration_does_not_hide_the_translation():
 
 
 # ---------------------------------------------------------------------------
-# the lattice branch: a translation realized only up to a gauge (2026-09-09)
+# the lattice branch: a translation realized only up to a gauge
 
 #: pi flux per plaquette on the 2x2 cell, in a sign gauge under which NO bare
 #: translation survives: ``PI_FLUX_SX[(x, y)]`` is the sign of the x hop leaving
@@ -984,7 +982,7 @@ def pi_flux_landau_2x1(t=1.0, tz=1.0):
 
 
 def _bare_symmetries_of_the_sign_pattern(sx, sy):
-    """Every operation of D4h, about every centre that maps the 2x2 site set to itself,
+    """Every operation of D4h, about every center that maps the 2x2 site set to itself,
     under which the hopping SIGN PATTERN is invariant as written -- no gauge transformation
     allowed.  Pure combinatorics on the hopping list: nothing from ``pythtqc`` enters.
     Returned as ``{(rotation rows, translation mod 1)}`` in the reduced coordinates of the
@@ -1055,7 +1053,7 @@ def test_magnetic_translations_leave_the_cell_its_bare_subgroup():
     can be written on.
 
     The oracle owes nothing to the code: the same eight operations come out of a
-    brute-force enumeration of D4h about every admissible centre, keeping the operations
+    brute-force enumeration of D4h about every admissible center, keeping the operations
     under which the hopping SIGN PATTERN is invariant as written.  Which operations are
     bare is a gauge-dependent notion -- the Landau-gauge 2x1 cell of the same flux
     descends to ``Pmmm1' #47.250``, since there the sign a column shift needs is the boost

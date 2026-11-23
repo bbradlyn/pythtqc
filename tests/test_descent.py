@@ -1,9 +1,9 @@
-r"""Wave R1: **realized means realized** — the unitary descent in ``realized_group``.
+r"""**Realized means realized** — the unitary descent in ``realized_group``.
 
-A cell group is an upper bound.  Before this wave ``realized_group`` refused
-(``cell_group_not_realized``) whenever the Hamiltonian broke part of it and left
-the caller to describe a better cell; now it **lowers** the cell to the
-operations that were measured to hold and serves that group, so nothing
+A cell group is an upper bound.  When the Hamiltonian breaks part of it,
+``realized_group`` **lowers** the cell to the operations that were measured to
+hold and serves that group, rather than refusing and leaving the caller to
+describe a better cell.  So nothing
 downstream — corep labels, EBR rows, indicators, SRSIs — is ever read in a group
 the model does not have.
 
@@ -30,8 +30,7 @@ The tests below are the three claims that makes: the two measured descents
 Hamiltonian is measured; every fixture whose operations are all obeyed comes
 back untouched; and the verification raises where it must.
 
-Wave R2 adds the second measurement the descent reads, and with it the
-horizontal mirror.  The detector answers about a **k-action class**: on a slab
+A second measurement the descent reads concerns the horizontal mirror.  The detector answers about a **k-action class**: on a slab
 every class is the pair ``{g, σ_h·g}``, the two pose the identical intertwiner
 problem, the in-plane partner satisfies it, and both members are marked
 ``"undetermined"``.  No presentation repairs that,
@@ -49,16 +48,16 @@ a detector discrepancy does (``refuted_by == "tensor structure"``).  Kane–Mele
 Read free-standing, the cell is the slab point set *as given*, with no
 decoration at all, so it keeps ``σ_h`` and everything composed with it.  The
 Hamiltonian then does all the selecting, and every 2D fixture whose realized
-group is smaller than its geometry's reaches that group by a **descent** where
-it used to reach it by construction: ``lin3g`` ``#123.340 → #99.164``,
+group is smaller than its geometry's reaches that group by a **descent**, not
+by construction: ``lin3g`` ``#123.340 → #99.164``,
 Kane–Mele ``#187.210 → #156.50``, Po–Watanabe–Vishwanath
 ``#191.234 → #183.186``, each of them a free-standing record of the baseline
 gate, and the flat Rashba slab of section 5 here.
 The served group, its size, the Wyckoff letters, the corep labels and the SRSIs
-are unchanged in every case; what is new is that ``.descent`` is a record rather
-than ``None`` and the provenance stamp reads ``"descended"``.
+are the same by either route; ``.descent`` is a record rather than ``None``
+and the provenance stamp reads ``"descended"``.
 
-Two of the wave's own gates bear on the models here.  The tensor test holds
+Two gates of the descent bear on the models here.  The tensor test holds
 every operation the detector leaves undetermined to its own spin lift, so of
 each ``σ_h`` fiber the Hamiltonian breaks one member survives: the chiral
 ``P41'`` lattice of section 2 read free-standing keeps ``(E, C4, C2, C4⁻¹)``
@@ -75,10 +74,9 @@ the most operations that keep its side, then the most rotations, then the
 highest-order rotation, then its axis — with the operations only the other
 carries marked ``refuted_by == "tie"``.
 That model is asked here the question it answers without the rule —
-``environment="substrate"``, which since wave R4c is a ``dim_r = 2`` model's
-own default and the reading ``examples/tqc_srsi_p4_flatband.py`` uses — and the
-paper's own group, corep contents and SRSIs come back exactly as this file has
-always pinned them.
+``environment="substrate"``, which is a ``dim_r = 2`` model's own default and
+the reading ``examples/tqc_srsi_p4_flatband.py`` uses — and the paper's own
+group, corep contents and SRSIs come back exactly.
 """
 
 import numpy as np
@@ -149,7 +147,7 @@ CHIRAL_CELL = tuple([([x, y, 0.05], "top") for x, y in _PINWHEEL]
 def fkm_phases(realized):
     """The strong and weak distorted Fu-Kane-Mele regimes, descended and decorated.
 
-    The decorated half is the session's shared record of the bond-centre
+    The decorated half is the session's shared record of the bond-center
     decoration, the call the invariant modules make.
     """
     out = {}
@@ -256,7 +254,7 @@ def p41_routes(p41_chiral_substrate):
     """The chiral P41' lattice collapsed onto its plane, and the paper's own model decorated.
 
     The chiral model is read **on a substrate**, which is a ``dim_r = 2``
-    model's default since wave R4c and the one of the two readings this model
+    model's default and the one of the two readings this model
     answers without the tie rule: read free-standing its survivors hold the
     fourfold rotations and the fourfold rotoinversions alike, and the rule keeps
     the rotations.  The decorated route needs no such choice — the pinwheel says
@@ -281,8 +279,8 @@ def test_the_chiral_pattern_descends_the_square_lattice_to_p4(p41_routes):
     ``m([110])``, ``m([1-10])`` and their primed partners, every one
     ``"no symmetry matrix"``.  Time reversal is untouched, and the result is grey.
 
-    Two things about the **parent** cell moved in wave R4b, and neither moves
-    the answer.  The reading asked for is the substrate one, since the
+    Two things about the **parent** cell matter here, and neither moves the
+    answer.  The reading asked for is the substrate one, since the
     free-standing reading of this model is the one question it cannot answer.
     And the substrate's own decoration goes over *every* projected
     site rather than once at the origin, so the flat point set — two sites at
@@ -380,11 +378,11 @@ def test_the_chiral_pattern_descends_the_square_lattice_to_p4(p41_routes):
     pytest.param(tqm.p3121_atomic, ("152.34", 12), id="p3121"),
 ])
 def test_a_fixture_that_obeys_its_cell_group_is_untouched(realized, build, served):
-    """``descent is None``, and the record is the one this suite has always pinned.
+    """``descent is None``, and the record is the cell group's own.
 
     The descent exists for the models whose Hamiltonians break something; every
-    fixture that obeys its cell group must reach exactly the record it reached
-    before, which is what makes the wave a strict addition.  The pinned fields
+    fixture that obeys its cell group must reach exactly the record the cell
+    group gives, untouched by the descent.  The pinned fields
     are the ones a descent would have moved: the group and its stamp, the
     survivor list, the cell (which a descent replaces) and the decoration
     record (which a descent's own species must stay out of).
@@ -452,18 +450,18 @@ def _flat_rashba_slab(own_c=5.0):
 def test_a_flat_fixture_reaches_the_same_group_by_the_layer_descent(
         name, build, kw, parent, served, refuted_by, closure_names,
         labels, letters):
-    """A flat slab, whose group is now measured rather than decorated for.
+    """A flat slab, whose group is measured rather than decorated for.
 
-    Before wave R4b a flat model reached its group by construction: the cell
-    was decorated so that ``sigma_h`` and everything composed with it left the
-    geometry before the Hamiltonian was consulted.  The **free-standing**
-    reading — declared here, since wave R4c makes the substrate a flat model's
-    default — removes nothing, so all of that arrives at the detector and the
-    tensor test, and what comes back is a **descent**: the ``R[2,2] = -1``
-    operations refuted one by one, ``refuted_by == "tensor structure"``, plus
-    the ones the staggered potential breaks outright.  The group, its size,
-    the corep labels and the Wyckoff letters are the ones the decoration used
-    to supply; the goldens' own descents are records of the baseline gate.
+    A decoration would reach this group by construction: the cell decorated so
+    that ``sigma_h`` and everything composed with it leave the geometry before
+    the Hamiltonian is consulted.  The **free-standing** reading — declared
+    here, since the substrate is a flat model's default — removes nothing, so
+    all of that arrives at the detector and the tensor test, and what comes
+    back is a **descent**: the ``R[2,2] = -1`` operations refuted one by one,
+    ``refuted_by == "tensor structure"``, plus the ones the staggered potential
+    breaks outright.  The group, its size, the corep labels and the Wyckoff
+    letters are the ones the decoration gives; the goldens' own descents are
+    records of the baseline gate.
 
     The step's ``refuted_by`` histogram settles the whole of the dropped list's
     bookkeeping — ``n_dropped`` is ``len(dropped)`` and the histogram is taken
@@ -490,7 +488,7 @@ def test_a_flat_fixture_reaches_the_same_group_by_the_layer_descent(
     assert {b.name for b in d.dropped
             if b.refuted_by == "closure"} == closure_names
 
-    # the served answer, unchanged: this is what the decoration used to supply
+    # the served answer: the same one the decoration gives
     assert (r.group.number_str, r.group.name, len(r.operations)) == served
     assert r.group._provenance == r.rep._group._provenance == "descended"
     assert len(r.numerical.validated._indices) == len(r.operations)
@@ -624,7 +622,7 @@ class _TranslatedOp:
 
 
 # ---------------------------------------------------------------------------
-# 5.  wave R2: the mirror the detector cannot refute, refuted by tensor structure
+# 5.  the mirror the detector cannot refute, refuted by tensor structure
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="module")
@@ -632,7 +630,7 @@ def slab_mirror():
     """Kane-Mele at ``rashba = 0.25``, asked with ``sigma_h`` kept.
 
     The cell keeps the mirror and the Hamiltonian refutes it — the
-    **free-standing** reading, declared, since wave R4c reads a flat model on a
+    **free-standing** reading, declared, since a flat model is read on a
     substrate unless told otherwise.
     """
     rashba = kane_mele(0.0, -1.0, 0.3, 0.25)
@@ -662,8 +660,8 @@ def test_the_slab_mirror_is_refuted_by_tensor_structure_and_the_cell_descends(
     share and so tells them apart by nothing, is made by the spin lift alone:
     each member held to its own lift on that whole space, with any orbital
     factor.  The spinful ``(p_x, p_y)`` honeycomb, each site's pair one
-    multiplet, descends the same way with a nearest-neighbour Rashba term, the
-    same 24 refuted.  With a nearest-neighbour ``i lam (sigma . d)`` instead
+    multiplet, descends the same way with a nearest-neighbor Rashba term, the
+    same 24 refuted.  With a nearest-neighbor ``i lam (sigma . d)`` instead
     every rotation holds, the in-plane twofolds among them, and every improper
     operation is refuted: ``P6221' #177.150``, whose side-preserving half is
     the ``P61' #168.110`` the substrate reads.  Every refuted member misses its

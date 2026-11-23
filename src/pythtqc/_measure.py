@@ -399,7 +399,7 @@ def _validate_group(model, group: GroupData, *, nk=8, tol=DEFAULT_ENERGY, cut=No
 
     Each operation of ``group`` is put to
     :func:`.._detector._find_intertwiners`, which finds every matrix ``X``
-    with ``X H(k) = H(Rk) X`` on a grid of ``k``, and ``X H(k)* = H(Rk) X``
+    with ``X H(k) = H(Rk) X`` on a grid of ``k``, and ``X H(k)* = H(−Rk) X``
     for an antiunitary operation.  Operations that act alike on ``k``, and
     alike in whether they are antiunitary, pose one problem, solved once, and
     share its verdict.  Nothing checks that ``group`` is ``model``'s: its

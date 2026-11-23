@@ -1,10 +1,10 @@
-"""Performance phase, wave P1: the eigen-sift detector, against its own oracle.
+"""The eigen-sift detector, against its own oracle.
 
-``_find_intertwiners`` no longer stacks the Sylvester operator over the grid and
-takes its SVD.  It **parametrizes** the solution space at one k-point — where
+``_find_intertwiners`` does not stack the Sylvester operator over the grid and
+take its SVD.  It **parametrizes** the solution space at one k-point — where
 the equation has an explicit nullspace, the outer products of matching-energy
 eigenvector pairs — and **sifts** the remaining points through ``n**2 x m``
-constraints.  The stacked route survives as ``solver="stacked"``: the audit
+constraints.  The stacked route is kept as ``solver="stacked"``: the audit
 oracle, and the faithful instrument for a *near*-symmetry, where the eigen
 route's window inflates the breaking.
 
@@ -27,8 +27,8 @@ What is regressed here, and the number that closes each:
   L^3 lattice translations in the commutant of ``{H(k)}``, and the detector
   returns exactly ``dim = L**3`` with no ansatz;
 * **a spectrum too degenerate to parametrize inside the memory bound is
-  refused, not answered wrongly** — the failure mode that reached a wrong
-  ``dim = 3`` at residual 0.93 before the valve was made honest;
+  refused, not answered wrongly** — where a valve that answered anyway would
+  reach a wrong ``dim = 3`` at residual 0.93;
 * **``H(k)`` is the model's own Bloch sum, bit for bit pythtb's** — summed from
   lattice-vector blocks gathered once per model content, a mesh that fits the
   budget in one call and a larger one in bounded chunks.
@@ -90,7 +90,7 @@ def _peak_rss(fn):
     """``(result, seconds, peak RSS growth in MB)`` — ``None`` MB without psutil."""
     try:
         import psutil
-    except ImportError:                       # pragma: no cover - optional
+    except ImportError:                       # pragma: no cover: optional
         t0 = time.perf_counter()
         return fn(), time.perf_counter() - t0, None
     proc = psutil.Process()
@@ -116,9 +116,9 @@ def _peak_rss(fn):
 
 
 def _inversion_permutation(model):
-    """The orbital permutation of ``r -> s - r``, with the centre ``s`` measured.
+    """The orbital permutation of ``r -> s - r``, with the center ``s`` measured.
 
-    The inversion centre of a pythtb cell is not at the coordinate origin in
+    The inversion center of a pythtb cell is not at the coordinate origin in
     general (diamond's is at ``(1/8, 1/8, 1/8)``), so it is found from the
     orbital set rather than assumed.
     """
@@ -763,16 +763,14 @@ def test_the_detector_at_a_hundred_orbitals(sc108):
     """n = 108, one operation: measured 0.53 s and +150 MB peak.
 
     The stacked route's own numbers at this size, from a 96-orbital wannier90 model:
-    13-51 min and an extrapolated ~19 GB *per call*, on a machine with 17 GB.
+    13-51 min and an extrapolated ~19 GB *per call*.
     The bounds below carry more than an order of magnitude of slack in both
     quantities: what they are for is catching a regression to *minutes and
     gigabytes*, and both a loaded machine and the operating system's own
-    working-set management move these numbers by factors of a few (measured:
-    this test failed its 600 MB bound only while a second copy of the suite was
-    competing for a 17 GB machine).
+    working-set management move these numbers by factors of a few.
 
-    The RSS half of that is measured only where ``psutil`` is installed (it is
-    here).  Without it ``_peak_rss`` returns ``None`` MB and **no memory bound
+    The RSS half of that is measured only where ``psutil`` is installed.
+    Without it ``_peak_rss`` returns ``None`` MB and **no memory bound
     is asserted at all** -- the timing and the dimension still are.
     """
     k = _mesh(4, 3)
@@ -821,11 +819,11 @@ def test_a_spectrum_too_degenerate_to_parametrize_is_refused_not_guessed(monkeyp
 
     A spectrum with exactly degenerate blocks has matching-energy pairs at
     *zero* gap, and narrowing the window to fit a budget cannot drop them: it
-    collapses to machine precision, the basis can no longer represent an exact
+    collapses to machine precision, the basis cannot represent an exact
     solution, and the returned space is **wrong** rather than coarse --
     measured ``dim = 3`` at residual 0.93 on an unperturbed 4x4x3 supercell
-    (n = 192), whose 1,264 such pairs need 0.75 GB against the 0.51 GB default,
-    before this was closed.  A resource limit is not a measurement about the
+    (n = 192), whose 1,264 such pairs need 0.75 GB against the 0.51 GB default.
+    A resource limit is not a measurement about the
     physics, so it is refused, ``detector_too_large``, with what the honest
     solve needs and what runs it.
 

@@ -1,4 +1,4 @@
-r"""Substrate or free-standing — the physics a 2D model is silent about (wave R4d).
+r"""Substrate or free-standing — the physics a 2D model is silent about.
 
 A ``dim_r = 2`` pythtb model carries no out-of-plane coordinate, so it cannot
 say what is on the other side of its layer, and the two answers are different
@@ -17,8 +17,8 @@ pythtb's convention.
 **The default for a ``dim_r = 2`` model is the substrate**, because it is the
 reading that is always well defined: the free-standing lift of a
 substrate-bound model need not be unique (a declared content can leave two
-readings of the largest order, and the tie rule keeps one), and it is what the
-old decorated cell always assumed.
+readings of the largest order, and the tie rule keeps one), and it is what a
+decorated cell assumes.
 A ``dim_r = 3`` slab is not silent — its geometry is the answer — so its default
 is free-standing.
 
@@ -163,9 +163,9 @@ def rewritten(slab, third):
 
 
 def jittered(model, size, seed=1):
-    """The same model with every orbital centre moved at random by about ``size``, reduced.
+    """The same model with every orbital center moved at random by about ``size``, reduced.
 
-    The noise a fitted model's centres carry, every hopping and on-site term
+    The noise a fitted model's centers carry, every hopping and on-site term
     kept as it was.
     """
     rng = np.random.default_rng(seed)
@@ -184,7 +184,7 @@ def jittered(model, size, seed=1):
 
 
 def fcc_s(t=-1.0):
-    """One ``s`` orbital on a face-centred cubic lattice, its twelve nearest neighbours."""
+    """One ``s`` orbital on a face-centered cubic lattice, its twelve nearest neighbors."""
     m = TBModel(Lattice([[0.0, 0.5, 0.5], [0.5, 0.0, 0.5], [0.5, 0.5, 0.0]],
                         [[0.0, 0.0, 0.0]], periodic_dirs=[0, 1, 2]))
     m.set_onsite([0.0])
@@ -286,7 +286,7 @@ def conjugate_p4mm(t=1.0, delta=0.3):
 
     Sites at ``(½,0)`` and ``(0,½)``.  ``C4`` about ``(0,½)`` carries each onto
     itself, so unequal on-site energies leave it alone while they break the
-    ``C4`` about the origin, which exchanges them.  The four nearest-neighbour
+    ``C4`` about the origin, which exchanges them.  The four nearest-neighbor
     bonds are one orbit under it and carry equal amplitudes.
     """
     m = TBModel(Lattice(np.eye(2), [[0.5, 0.0], [0.0, 0.5]], periodic_dirs=[0, 1]))
@@ -299,7 +299,7 @@ def conjugate_p4mm(t=1.0, delta=0.3):
 def p_shell_honeycomb(t_sigma=1.0, t_pi=0.4, t_z=0.3):
     """A ``p`` shell at both honeycomb sites: ``p_z`` π bonds, and ``p_x, p_y`` σ and π ones.
 
-    Orbitals ``(p_z, p_x, p_y)`` at each site, nearest neighbours only: ``t_z``
+    Orbitals ``(p_z, p_x, p_y)`` at each site, nearest neighbors only: ``t_z``
     between the two ``p_z``, and the Slater-Koster ``t_sigma n_a n_b + t_pi
     (δ_ab − n_a n_b)`` between the in-plane pairs, ``n`` the unit bond vector.
     ``p_z`` is odd under ``σ_h`` and the pair even, so nothing couples them and
@@ -324,15 +324,15 @@ def p_shell_honeycomb(t_sigma=1.0, t_pi=0.4, t_z=0.3):
 
 
 def pxpy_centered(t_sp=0.4, e_s=0.5, t_ss=0.0, s_first=False):
-    """The ``p_x, p_y`` honeycomb with an ``s`` orbital at the hexagon centre.
+    """The ``p_x, p_y`` honeycomb with an ``s`` orbital at the hexagon center.
 
-    The centre is ``1a`` of ``P6/mmm``, and the ``s`` is σ-bonded to the six
+    The center is ``1a`` of ``P6/mmm``, and the ``s`` is σ-bonded to the six
     ``p`` doublets around it, ``t_sp (n · p)`` with ``n`` the unit vector from
-    the centre to each site.  That bond is carried onto itself by every
+    the center to each site.  That bond is carried onto itself by every
     operation of the layer, so the model obeys ``P6/mmm1'`` whole, and the
     ``s`` gives the declared content a one-dimensional multiplet the doublets'
     characters are measured against.  ``t_ss`` hops the ``s`` to the six
-    centres around it; with ``t_sp = 0`` it is then a band of its own that no
+    centers around it; with ``t_sp = 0`` it is then a band of its own that no
     hopping couples to the doublets.  ``s_first`` lists the ``s`` before the
     doublets, as orbital 0, rather than after them.
     """
@@ -372,8 +372,8 @@ def test_a_flat_model_defaults_to_the_substrate_and_a_slab_to_free_standing():
     The default, made into the API: a ``dim_r = 2`` model has no
     out-of-plane coordinate and is silent about its environment, so the reading
     that is *always* well defined is the default — the substrate.  Measured,
-    Kane–Mele then reads ``P6mm1' #183.186``, 24 of 24, where wave R4b's default
-    read ``#191.234``.  A ``dim_r = 3`` slab is not silent: its own ``z``
+    Kane–Mele then reads ``P6mm1' #183.186``, 24 of 24, where a free-standing
+    default would read ``#191.234``.  A ``dim_r = 3`` slab is not silent: its own ``z``
     coordinates are the answer, and its default is free-standing —
     ``P-3m11' #164.86``, 24 of 24, on a buckled honeycomb.  Both records say
     which reading they are and that nobody declared it.
@@ -463,10 +463,9 @@ def test_a_free_standing_kane_mele_reads_its_whole_layer_group(km_inversion_free
     and the twelve operations composed with it, and the Hamiltonian is measured
     to obey all 48.  The site character is the physical orbital — ``p_z``
     resolves to ``A2''``, odd under the mirror — and it is a distinction this
-    group can express, where a substrate reading cannot.  This is the answer
-    wave R4b served by default; in R4c it is asked for, because a flat model
-    cannot tell a reader which layer it is, and the record's repr says which
-    reading it is and that it was declared.
+    group can express, where a substrate reading cannot.  This answer is asked
+    for, because a flat model cannot tell a reader which layer it is, and the
+    record's repr says which reading it is and that it was declared.
 
     The detector leaves all 48 undetermined -- every class on a flat cell has a
     partner -- and the tensor test refutes none of them, because where the
@@ -516,15 +515,15 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
     carries holds and the other is refuted by tensor structure -- ``S4`` and
     ``S4⁻¹`` among them, whose own lifts are not their partners' ``S(C4)``,
     ``S(C4⁻¹)``.  The free-standing group is ``P41'`` as well, the subgroup
-    statement holds, the outcome is ``"agree"``, and nothing ties.  Its centres
+    statement holds, the outcome is ``"agree"``, and nothing ties.  Its centers
     jittered by 1e-5 and its precision declared at 1e-4, the same cell reads
-    the same group and labels: the centres are made exact before the tables'
-    setting is read, where a setting search on the jittered centres themselves
+    the same group and labels: the centers are made exact before the tables'
+    setting is read, where a setting search on the jittered centers themselves
     finds no match.
 
     A declaration's readings can tie, and the cross-check counts them.  The
     ``p_x, p_y`` honeycomb with an ``s`` at
-    the hexagon centre, its sublattices declared ``E'`` and ``E''`` of
+    the hexagon center, its sublattices declared ``E'`` and ``E''`` of
     ``-6m2``, is the cell ``P-6m21' #187.210`` before a hopping is read; the
     ``s`` is the one-dimensional multiplet the doublets' characters are read
     against, and ``E''`` holds against the hoppings neither ``σ_h`` nor ``S6``.
@@ -574,10 +573,10 @@ def test_the_chiral_pattern_lifts_to_its_own_group_and_a_declared_tie_is_the_rul
     assert w.tie == (), "the free-standing lift is unique"
     assert "the free-standing group P41' #75.2 agrees" in repr(r)
 
-    # the same cell with every centre jittered by 1e-5, as a fitted model's can
-    # be, its precision declared: the centres are made exact before the setting
+    # the same cell with every center jittered by 1e-5, as a fitted model's can
+    # be, its precision declared: the centers are made exact before the setting
     # is read, so the group is named, every label is the exact model's, and the
-    # centres come back where the exact model has them
+    # centers come back where the exact model has them
     exact = tqc_models.p41_flat_band(chiral=True)
     fitted = tqg.realized_group(jittered(exact, 1e-5), precision=1e-4)
     assert not isinstance(fitted, Refusal), str(fitted)
@@ -809,10 +808,9 @@ def test_a_flat_spinless_layer_keeps_sigma_h_and_the_declaration_names_it():
     ``χ(σ_h) = χ(i) = −1`` for the orbital the caller named, and a flat model
     has nothing out of plane that could contradict it (which is what the
     sibling test states).  They are asserted so that the label and the table it
-    came from stay the same statement.  Re-pinned in wave R4c only in the
-    keyword: ``σ_h`` and inversion are what a free-standing layer has and a
-    substrate-bound one does not, so this is asked of the free-standing reading
-    by name.
+    came from stay the same statement.  ``σ_h`` and inversion are what a
+    free-standing layer has and a substrate-bound one does not, so this is
+    asked of the free-standing reading by name.
 
     That sign is the one choice a flat layer read without spin leaves: each of
     the 32 operations shares its action on the orbitals and on in-plane ``k``
@@ -924,7 +922,7 @@ def test_a_buckled_honeycomb_is_read_from_its_real_geometry():
     vector on the normal, and each orbital's in-plane reduced coordinates move
     by its reduced height times the tilt, ``±0.005 × (0.3, 0.2)`` here, a gauge
     on ``H(k)`` measured to rounding.  pythtb's ``cut_piece`` keeps a crystal's
-    lattice vectors, so three ``{111}`` layers cut from a face-centred cubic
+    lattice vectors, so three ``{111}`` layers cut from a face-centered cubic
     crystal come with the vector tilted, and read ``P-3m11'`` as the same three
     layers written on the normal do, label for label; one layer, its orbital at
     the origin, moves nothing and is presented bit for bit.
@@ -1021,23 +1019,22 @@ def test_a_buckled_honeycomb_is_read_from_its_real_geometry():
 def test_the_buckled_honeycomb_on_a_substrate_is_p3m1():
     """``P3m11' #156.50``, 12 of 12 — the side-preserving half of its ``p-3m1``.
 
-    Wave R4d's changed reading, and the one that made the wave.  A buckled slab
-    put on a substrate keeps its geometry: nothing is projected, the shadow goes
+    A buckled slab put on a substrate keeps its geometry: nothing is projected, the shadow goes
     under each site at that site's own height, and what the substrate removes is
     every operation with ``R[2,2] = −1`` — the ``S3``s, the inversion and the
     three in-plane twofolds of ``P-3m11' #164.86``.  Exactly the threefold and
     the three vertical mirrors survive, which is ``p3m1``, and the Hamiltonian
     obeys all 12 of them with no descent.
 
-    Wave R4b read this cell by *projecting* it flat and serving each in-plane
-    operation with whichever lift the model carried, which made it ``p6mm``
+    Reading this cell by *projecting* it flat and serving each in-plane
+    operation with whichever lift the model carried would make it ``p6mm``
     (``#183.186``, six operations on their ``σ_h`` partner's lift ``S(σ_h)S(g)``)
-    — and with spin–orbit coupling that reading refused ``substrate_spinor_action``,
-    because ``(S(σ_h)S(C6))⁶ = +1`` where a sixfold of ``p6mm``'s double group
+    — and with spin–orbit coupling that reading would refuse, because
+    ``(S(σ_h)S(C6))⁶ = +1`` where a sixfold of ``p6mm``'s double group
     needs ``−1``.  The subgroup reading never builds that mismatch: ``p3m1``'s
     double group is its own.  So Kane–Mele on the buckled layer reads the same
-    group as the spinless layer does, without a refusal, where R4b's reading
-    separated them.
+    group as the spinless layer does, without a refusal, where a projected
+    reading would separate them.
     """
     r = tqg.realized_group(buckled(kane_mele(0.0, -1.0, 0.3, 0.0)), **SUB)
     assert not isinstance(r, Refusal), str(r)
@@ -1066,9 +1063,9 @@ def test_a_mirror_symmetric_bilayer_keeps_its_sigma_h():
     the point set and of the Hamiltonian.  Put on a substrate the mirror and
     everything composed with it goes and the group halves, but the **geometry
     stays**: the two layers remain two sites at ``±d``, each at ``1a`` of its own
-    plane.  In wave R4b's projected reading they became one site — the number
-    served was the same ``#99.164``, and that it is the same is the measurement
-    that the subgroup reading did not move this fixture.
+    plane.  A projected reading would make them one site and serve the same
+    ``#99.164``; that the number is the same is the measurement that the
+    subgroup reading agrees with it on this fixture.
 
     Free-standing, the bilayer is decomposed over its own band
     representations, those of the positions within it: ``1b``, ``1d`` and
@@ -1142,8 +1139,8 @@ def test_the_translation_conjugate_p4mm_is_the_one_the_hamiltonian_realizes(p41_
     inequivalent (that is what selects this conjugate) and sit at ``1a`` and
     ``1b`` rather than one ``2c`` orbit.  Nothing about the coordinates was
     declared either way — only the environment, and both readings are the
-    substrate's here.  The paper's cell with its centres jittered by 1e-5 and
-    its precision declared reads the paper's conjugate too: the centres are made
+    substrate's here.  The paper's cell with its centers jittered by 1e-5 and
+    its precision declared reads the paper's conjugate too: the centers are made
     exact in the model's own frame before anything is named.
     """
     def _tau(group, name):
@@ -1165,8 +1162,8 @@ def test_the_translation_conjugate_p4mm_is_the_one_the_hamiltonian_realizes(p41_
     assert _tau(paper.group, "C4(z)") == (0.0, 0.0, 0.0)
     assert paper._assignment.wyckoff_tables == ("c", "c")
 
-    # the paper's cell with every centre jittered by 1e-5, its precision
-    # declared, reads the same conjugate: the centres are made exact in the
+    # the paper's cell with every center jittered by 1e-5, its precision
+    # declared, reads the same conjugate: the centers are made exact in the
     # model's own frame, and the fourfold passes through its origin
     fitted = tqg.realized_group(jittered(tqc_models.p41_flat_band(), 1e-5),
                                 precision=1e-4, cross_check=False, **SUB)
@@ -1185,7 +1182,7 @@ def test_the_translation_conjugate_p4mm_is_the_one_the_hamiltonian_realizes(p41_
 def test_the_record_names_the_side_flippers_and_the_error_reads_them():
     """The record and the mismatch it raises, on a substrate group that keeps ``σ_h``.
 
-    The doctored case, rebuilt in wave R4d for the subgroup statement.  Handing
+    The doctored case, built for the subgroup statement.  Handing
     ``_environment_record`` Kane–Mele's *free-standing* ``P6/mmm1' #191.234`` in
     the substrate slot is a claim no substrate can make: 24 of its 48 operations
     have ``R[2,2] = −1`` — the inversion, the horizontal mirror, the in-plane
@@ -1248,7 +1245,7 @@ def test_realized_group_itself_raises_when_the_two_environments_disagree(monkeyp
     A word on one orbital of a doublet is the same kind of statement.
     ``{0: "A2''"}`` says a ``p_x, p_y`` site holds an ``A2''`` of ``-6m2``, odd
     under ``σ_h``, where the pair holds ``E'``: only on an ``mm2`` site group
-    does one labelling of the pair contain it, and the free-standing crystal is
+    does one labeling of the pair contain it, and the free-standing crystal is
     ``Cmmm1' #65.482``, every operation it loses broken by the declaration.  On
     a substrate the same word is read where it was written and restricted to
     ``3m``, the ``A1`` it restricts to, which the pair contains on one mirror:
@@ -1420,8 +1417,7 @@ def test_the_opposite_axis_transcription_reads_its_own_layer_group():
     twofold's, so the layer group this transcription obeys is ``D2d`` where the
     converted one obeys ``C4v`` — isomorphic as abstract groups, and not the
     same operations.  The free-standing reading reads it off the geometry and
-    the spin lifts, with the two fourfold operations left out by closure exactly
-    as before.
+    the spin lifts, with the two fourfold operations left out by closure.
     """
     r = tqg.realized_group(raw_axis(tqc_models.p41_flat_band()), **FREE)
     assert not isinstance(r, Refusal), str(r)
@@ -1432,10 +1428,8 @@ def test_the_opposite_axis_transcription_reads_its_own_layer_group():
     assert r.descent.cell_group.number_str == "123.340"
     assert r.environment.cross_check.outcome == "agree"
     assert r.environment.cross_check.substrate.number_str == "25.58", (
-        "re-pinned in wave R4d: the substrate reading is the side-preserving "
-        "subgroup of THIS group, and D2d keeps only {E, C2(z), m(x), m(y)}; "
-        "R4b's projected reading served #99.164 there by giving four operations "
-        "their sigma_h partner's lift")
+        "the substrate reading is the side-preserving subgroup of this group, "
+        "and D2d keeps only {E, C2(z), m(x), m(y)}")
 
 
 @pytest.mark.slow
@@ -1448,9 +1442,9 @@ def test_the_opposite_axis_transcription_on_a_substrate_is_the_axial_mm2():
     obeys ``C4``, ``C4⁻¹`` and the two diagonal mirrors — its free-standing group
     is ``P-4m21' #115.284``.  Every one of those four flips the layer's side, so
     a substrate breaks them and what is left is ``{E, C2(z), m(x), m(y)}``: the
-    axial ``mm2``.  Wave R4b served ``P4mm1' #99.164`` here instead, by
-    representing ``C4`` with its ``σ_h`` partner's lift ``S(σ_h)S(C4)`` — which
-    is reading the model through a flipped axis, by measurement.
+    axial ``mm2``.  Serving ``P4mm1' #99.164`` here instead, by representing
+    ``C4`` with its ``σ_h`` partner's lift ``S(σ_h)S(C4)``, would be reading
+    the model through a flipped axis, by measurement.
 
     The tensor test is asked on the ``g`` branch only in this reading, and that
     is the same rule: on the ``g⁻¹`` branch the candidate carries ``S(g)†``, and
@@ -1458,8 +1452,8 @@ def test_the_opposite_axis_transcription_on_a_substrate_is_the_axial_mm2():
     cell, the ``g`` branch reads 1.0 for ``C4`` and ``C4⁻¹`` and ~7e-16 for the
     four it keeps.
 
-    The **representation** of that group used to be refused ``rep_not_unique``,
-    and wave R4e serves it: every element of ``mm2`` is an involution whose lift
+    The **representation** of that group is served, not refused
+    ``rep_not_unique``: every element of ``mm2`` is an involution whose lift
     satisfies ``S(g)† ∝ S(g)``, so the two orientation branches ``D`` and ``D†``
     both close all three gates at machine zero (covariance 1.0e-16 each;
     internal factor 6.1e-17 against 1.2e-16; product table 0.0 against 4.9e-16),
@@ -1479,9 +1473,9 @@ def test_the_opposite_axis_transcription_on_a_substrate_is_the_axial_mm2():
     same in every frame: ``P-11' #2.5``, the other twenty operations refuted by
     tensor structure at scaled defects 0.51 to 0.87.  Turned whole, lattice and
     spin blocks together, it returns ``#166.98`` with the labels it has as
-    written.  Before the lift was held per operation the turned crystal kept
-    all 24 and its representation missed the covariance gate by 0.03, which
-    was raised as the package disagreeing with itself.
+    written.  Were the lift not held per operation, the turned crystal would
+    keep all 24 and its representation would miss the covariance gate by 0.03,
+    the package disagreeing with itself.
     """
     raw = raw_axis(tqc_models.p41_flat_band())
     full = tqg.realized_group(raw, cross_check=False, **SUB)
@@ -1492,7 +1486,7 @@ def test_the_opposite_axis_transcription_on_a_substrate_is_the_axial_mm2():
     assert _names(g) == ["C2(z)", "E", "m(x)", "m(y)"]
     assert full.descent.cell_group.number_str == "99.164"
     assert full.descent.steps[0].refuted_by == {"tensor structure": 24}
-    assert full.rep._branch_tie is True, "re-pinned in wave R4e; it used to refuse"
+    assert full.rep._branch_tie is True, "a tie between the two branches is returned, not refused"
     assert full.rep._choice["orientation"] == 1
     assert full.rep._search["n_survivors"] == 2, "what the GATES found"
     assert full.rep._search["n_covariant"] == 2
@@ -1555,26 +1549,23 @@ def test_the_opposite_axis_transcription_on_a_substrate_is_the_axial_mm2():
 
 @pytest.mark.slow
 def test_the_closed_gate_raises_on_the_raw_blocks_on_the_tables_own_lift(p41_substrate):
-    """The hole, and it is shut: the site-swapping operations have no matrix of their own.
+    """The closed gate: the site-swapping operations have no matrix of their own.
 
     Handed the *converted* model's substrate group ``P4mm1' #99.164`` but the
     **paper's** raw blocks, the four site-swapping blocks carry
-    ``S(σ_h)·S(g)``.  Before wave R4b that build was *served*, because the
-    gate looked only at the channels an operation fixes and ``C4`` and the
-    diagonal mirrors fix none; the product table closed too, at 5e-16, because
-    ``C4v ≅ D2d``.  A faithful representation of one layer group under
-    another's name is what the closed gate refused, at defect 1.0; each
-    operation's space is now read in its own form before anything is built,
-    so the build stops there, naming ``C4``, ``C4⁻¹``, the two diagonal
-    mirrors and each of them with time reversal, by their spin lift.  The
-    operations a representation is built for are the ones measured to hold
-    in their own form, so it raises: no measurement of this model hands the
-    build that group.
+    ``S(σ_h)·S(g)``.  A gate that looked only at the channels an operation
+    fixes would serve that build, since ``C4`` and the diagonal mirrors fix
+    none; the product table closes too, at 5e-16, because ``C4v ≅ D2d``.  A
+    faithful representation of one layer group under another's name is what
+    the closed gate refuses, at defect 1.0; each operation's space is read in
+    its own form before anything is built, so the build stops there, naming
+    ``C4``, ``C4⁻¹``, the two diagonal mirrors and each of them with time
+    reversal, by their spin lift.  The operations a representation is built
+    for are the ones measured to hold in their own form, so it raises: no
+    measurement of this model hands the build that group.
 
-    Re-pinned in wave R4d only in where the group comes from: the raw model's
-    own substrate reading is ``Pmm21' #25.58`` now, so the ``#99.164`` this
-    tests against is taken from the converted model, which is the group R4b
-    served the raw blocks in.
+    The raw model's own substrate reading is ``Pmm21' #25.58``, so the
+    ``#99.164`` this tests against is taken from the converted model.
     """
     raw = raw_axis(tqc_models.p41_flat_band())
     host = p41_substrate                # the session's shared record of that reading

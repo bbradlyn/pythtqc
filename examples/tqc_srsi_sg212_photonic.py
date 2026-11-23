@@ -1,12 +1,13 @@
-# Example of the stable real-space invariants of photonic bands, using pythTQC.
+# Example of the stable real-space invariants (SRSIs) of photonic bands, using
+# pythTQC.
 # The model is the space group 212 (P4_332) tight-binding model of Hwang et al.,
-# arXiv:2601.06293, H_SG212,1 of its supplementary note. Its two orbitals at
-# each 4a site carry the site irrep E of the site group 32. Its hoppings are
-# between nearest neighbors. Its energies stand for ω^2. Its 8 bands stand for
-# a photonic crystal's 4 lowest bands together with 4 auxiliary bands. The paper
-# adds them because the two transverse modes at Γ and ω = 0 carry no
-# representation of the little group, and the 8 bands together carry a symmetry
-# data vector. GM is the tables' name for Γ.
+# arXiv:2601.06293, H_SG212,1 of its supplementary note: two orbitals at each
+# 4a site, carrying the site irrep E of the site group 32, with hoppings between
+# nearest neighbors. Its energies stand for ω^2. Its 8 bands stand for a
+# photonic crystal's 4 lowest bands together with 4 auxiliary bands. The paper
+# adds the auxiliary bands because the two transverse modes at GM and ω = 0
+# carry no representation of the little group, and the 8 bands together carry
+# a symmetry data vector.
 # Run with python3, PythTB version 2.0 and pythTQC.
 
 # The calculations in this python file include

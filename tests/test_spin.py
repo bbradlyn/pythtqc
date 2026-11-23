@@ -2,9 +2,9 @@
 
 What each test is for, and the number that closes it.
 
-* **the re-encoding theorem** -- the wave's anchor.  A native spinful fixture,
+* **the re-encoding theorem** -- the anchor.  A native spinful fixture,
   re-presented as the spinless ``2N``-orbital model ``wannier90`` would deliver
-  and re-labelled through the declaration, must give **the same physics**: the
+  and re-labeled through the declaration, must give **the same physics**: the
   same space group, the same surviving operations, the same matrices under the
   basis permutation ``Pi``, the same site-character labels, the same corep
   content at every high-symmetry point and the same EBR verdict.  Measured on
@@ -24,7 +24,7 @@ What each test is for, and the number that closes it.
   invented.
 * **the presentation identity** -- ``max_k |H_flat(k) - Pi H_native(k) Pi^T| ==
   0.0`` exactly, on every fixture and layout.  The re-presentation is a
-  relabelling of the state index and nothing else; the gate is ``0.0`` and is
+  relabeling of the state index and nothing else; the gate is ``0.0`` and is
   not to be weakened.
 * **the unitary anchor survives the re-encoding** -- ``i41_soc`` with
   ``include_TR=False`` is the fixture whose gauge only the *tables* can fix
@@ -35,7 +35,7 @@ What each test is for, and the number that closes it.
   ``table_anchored`` flags.
 * **the gates**, each a falsy ``Refusal`` naming its fix: a pair whose members
   sit ``0.57735`` apart (``spin_pair_split``, which ``realized_group`` returns
-  from the centres alone, before any group is identified, and which a
+  from the centers alone, before any group is identified, and which a
   declared precision lifts for a pair apart only by noise), a declared basis
   against single-valued tables (a ``ValueError``, as for a native spinful
   model, since it is the same statement), spinor states
@@ -181,7 +181,7 @@ def _realized(model, *, typat=None, nk=6, **build_kw):
     ``realized_group`` serves *the group the Hamiltonian realizes*; the bare
     ``_group_of`` chain above serves the **cell's** group, which is a strictly
     larger thing and, on three of these four fixtures, too large to label bands
-    in.  Measured on that chain, with ``FIXTURES`` as it stood at ``9668d78``:
+    in.  Measured on that chain:
 
     ==========  ===================  ======================================
     fixture     cell group           ``hsp_table``
@@ -193,7 +193,7 @@ def _realized(model, *, typat=None, nk=6, **build_kw):
     ==========  ===================  ======================================
 
     each refusal a representation short of its group's little group, which
-    reading coreps now raises on.  Two different reasons, one symptom.  KM and
+    reading coreps raises on.  Two different reasons, one symptom.  KM and
     lin3g are **layers**: ``_group_of`` sets them in a 3D cell,
     ``_validate_group`` cannot refute the operations on its vacuum direction
     (``H(k)`` has no out-of-plane ``k``), and ``_build_rep`` then leaves them
@@ -321,7 +321,7 @@ def reencoded(request, natives):
 
 
 # ---------------------------------------------------------------------------
-# 1.  the presentation: a relabelling of the state index and nothing else
+# 1.  the presentation: a relabeling of the state index and nothing else
 # ---------------------------------------------------------------------------
 
 @pytest.mark.slow
@@ -408,9 +408,9 @@ def test_a_paired_operator_is_the_permuted_spin_fast_one():
     than invented so that one declaration serves both the symmetry pipeline
     here and the projected-spin (``P s P``) machinery there, which is only true
     if the operators are the same object: ``0.0``, and ``np.array_equal``, over
-    the three kinds and both axes.  That oracle is a **separate package in a
-    separate checkout**, so it is measured where ``spin_resolved_analysis`` is
-    importable, and the kinds above stand without it.
+    the three kinds and both axes.  That oracle is a **separate package**, so
+    it is measured where ``spin_resolved_analysis`` is importable, and the
+    kinds above stand without it.
     """
     km = tqc_models.kane_mele_z2("odd")
     flat, _sb = tqsp.spinless_presentation(km)
@@ -593,7 +593,7 @@ def test_the_pair_carries_the_orbitals_own_site_character(reencoded):
     with one label and the echo record repeats it on both members, each flagged
     ``up``/``dn``.  The function, the site symmetry and ``determined_by`` agree
     with the native build too: the declarations leave exactly the same
-    labellings open.
+    labelings open.
     """
     name, layout, native, flat, basis, bundle, _identity = reencoded
     repN = native[4]
@@ -1029,7 +1029,7 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     symmetry: the group descends to ``Pmmm1'``, where one carries it.  Where
     every representation of the copies gives one site content -- two copies of
     an ``s`` at the general position of ``P-1``, ``2xA`` under each -- they are
-    labellings like any other: the lowest two bands read differently under
+    labelings like any other: the lowest two bands read differently under
     another, and one sentence says so, naming the pseudospin.
 
     The mirror is a time reversal squaring to ``+1`` read in double-valued
@@ -1344,7 +1344,7 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
                                                  "R4-": 1, "X3-": 1, "X4-": 1, "Z5-": 1}
     assert "pseudospin" in lowest.note and "2xEu" in lowest.note
     # ... and copies every representation of which gives one site content: a
-    # labelling like any other, under the one sentence
+    # labeling like any other, under the one sentence
     note = tqw.hsp_table(tqg.realized_group(tqc_models.p1bar_s_copies()), bands=2).note
     assert note == tqw._ANOTHER_LABELING_RELABELS, note
     # ... and copies none of whose representations is admitted: the build
@@ -1502,7 +1502,7 @@ def test_a_declaration_on_a_declared_basis_is_about_the_pairs_spatial_character(
 
     Written out (``2N`` entries, both members of a pair agreeing) or as a
     mapping keyed on either member, it is the same statement and it fixes the
-    same labelling as the native model's own declaration.  A tuple key naming
+    same labeling as the native model's own declaration.  A tuple key naming
     both members is one multiplet of dimension one -- not a doublet.
     """
     km, flat, basis, group, assignment, validated = km_flat
@@ -1647,7 +1647,7 @@ def test_the_indicator_class_of_fu_kane_mele_survives_the_re_encoding(realized):
     ``(0, 1)`` of order 4 in ``X_BS = Z2 x Z4``, i.e. ``z4 = 3`` with weak
     indices ``1, 1, 1`` -- Fu-Kane's ``(1; 111)``.  Re-presented as four
     spinless orbitals in the **blocked** layout, a genuine reordering of the
-    index, and re-labelled through the declaration, it is the same crystal, the
+    index, and re-labeled through the declaration, it is the same crystal, the
     same content and the same class, with the representation itself identical
     under ``Pi`` to machine precision.  It is the one 3D grey crystal the
     re-encoding is measured on.
@@ -1741,10 +1741,9 @@ def test_the_transcription_in_pythtbs_convention_is_labeled_s_in_its_own_group()
     """The paper's ``s`` on the ``2c`` pair is the label each frame's own group serves.
 
     The SRSI paper writes its fourfold operator as ``tau_1 . e^{+i pi sigma_3 / 4}``,
-    the opposite sign from pythtb's ``e^{-i theta n.sigma / 2}``.  Since wave R4d
-    the library does not flip spin axes, so the paper's frame (``_onto_the_papers_axis``
-    above, the same four lines the retired ``flip_quantization_axis`` ran) reads a
-    *different group* -- free-standing ``P-4m21' #115.284`` where ours is
+    the opposite sign from pythtb's ``e^{-i theta n.sigma / 2}``.  The library
+    does not flip spin axes, so the paper's frame (``_onto_the_papers_axis``
+    above) reads a *different group* -- free-standing ``P-4m21' #115.284`` where ours is
     ``P4mm1' #99.164`` -- and there is no page on which the two models' blocks can
     be compared operation by operation; tests/test_layer.py pins those groups and
     the closed internal-factor gate that refuses the cross-build.

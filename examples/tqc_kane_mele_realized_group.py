@@ -278,8 +278,9 @@ row("coreps at K", *(f"{fmt(c.coreps)} at E = {e:+.6f}, dimension {n}"
 print(f"\n5. the conserved operators, read off H(k) on a {NK_MESH}x{NK_MESH} mesh "
       "of in-plane k")
 
-# realized_group tests each operation g on H(k) over its 6 x 6 mesh, solving
-# X H(k) = H(gk) X at every k at once.  For the identity that is
+# realized_group tests each operation {R|t} on H(k) over its 6 x 6 mesh,
+# solving X H(k) = H(Rk) X at every k at once, or X H(k)* = H(-Rk) X for an
+# operation combined with time reversal.  For the identity that is
 # X H(k) = H(k) X, whose solutions are the operators the Hamiltonian conserves.
 # conserved.dim counts them beyond the identity.  They are found from H alone,
 # and the commutator with s_z below says which operator it is.
@@ -382,7 +383,7 @@ print("   the decomposition of bands 0 and 1 is at the position of the orbital w
 print("\n8. the bands along GM-K-M-GM, one panel per parameter set")
 fig, axes = plt.subplots(1, 4, figsize=(20.8, 5.6), sharey=False)
 
-# --- delta = 1.0, rashba = 0.25 ---
+# delta = 1.0, rashba = 0.25
 kv, kd, kn = m1.k_path(PATH, NK_PATH, report=False)
 bands = np.asarray(m1.solve_ham(kv))
 for i in range(4):
@@ -408,7 +409,7 @@ axes[0].set_ylabel("$E$", fontsize=16)
 axes[0].set_title(f"delta = 1.0, rashba = 0.25\n#{g1.number_str} {g1.name}\n"
                   f"valence at {seat1}   |   conduction: no decomposition", fontsize=9.5)
 
-# --- delta = 2.5, rashba = 0.25 ---
+# delta = 2.5, rashba = 0.25
 kv, kd, kn = m2.k_path(PATH, NK_PATH, report=False)
 bands = np.asarray(m2.solve_ham(kv))
 for i in range(4):
@@ -432,7 +433,7 @@ axes[1].set_title(f"delta = 2.5, rashba = 0.25\n#{g2.number_str} {g2.name}\n"
                   f"valence at {seat2}   |   conduction at "
                   f"{min(t.wyckoff for t in d_con2.candidate_sums[0])}", fontsize=9.5)
 
-# --- delta = 0, rashba = 0 ---
+# delta = 0, rashba = 0
 kv, kd, kn = m3.k_path(PATH, NK_PATH, report=False)
 bands = np.asarray(m3.solve_ham(kv))
 for i in range(4):
@@ -455,7 +456,7 @@ axes[2].set_ylim(bands.min() - 0.30 * (bands.max() - bands.min()),
 axes[2].set_title(f"delta = 0, rashba = 0\n#{g3.number_str} {g3.name}\n"
                   f"valence at {seat3}   |   conduction: no decomposition", fontsize=9.5)
 
-# --- delta = 0, rashba = 0.25: K resolved level by level ---
+# delta = 0, rashba = 0.25: K resolved level by level
 kv, kd, kn = m4.k_path(PATH, NK_PATH, report=False)
 bands = np.asarray(m4.solve_ham(kv))
 for i in range(4):

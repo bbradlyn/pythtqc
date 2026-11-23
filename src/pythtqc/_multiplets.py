@@ -1350,7 +1350,7 @@ def _ansatz_defects(model, group, assignment, validated, positions, *,
             continue
         S_of_chan = [blocks_here.get(c, None if layout._chan_kind[c] == "measured" else lift)
                      for c in range(nchan)]
-        if any(S is None for S in S_of_chan):  # pragma: no cover - a guard, not a path
+        if any(S is None for S in S_of_chan):  # pragma: no cover: a guard, not a path
             rec["note"] = "no internal block of the right size could be read"
             out[ind] = rec
             continue
@@ -1359,7 +1359,7 @@ def _ansatz_defects(model, group, assignment, validated, positions, *,
             blocks = _ansatz_blocks(chan_states, cperm[p], orient)
             try:
                 X, defect, scale = _ansatz_member(basis, blocks, lifts, class_blocks)
-            except np.linalg.LinAlgError:      # pragma: no cover - not seen on a fixture
+            except np.linalg.LinAlgError:      # pragma: no cover: not seen on a fixture
                 rec["note"] = "the projection onto the tensor-structure form did not converge"
                 continue
             norm = float(np.linalg.norm(X))
@@ -1398,8 +1398,10 @@ def _own_form_spaces(model, group, assignment, validated, positions, *, spin=Non
     With ``covariance``, the form is also held to the detector's own measure.
     Where the members are of the form only within the gate, and not to
     rounding, the nearest member's part in the form must carry ``H(k)`` onto
-    ``H(gk)`` within ``validated.tol``, the gate the operation was kept at,
-    or the operation is refuted.  Where no member is of the form within the
+    its image, ``H(Rk)`` for the operation ``{R|t}`` (``H(k)*`` onto
+    ``H(-Rk)`` combined with time reversal), within ``validated.tol``, the
+    gate the operation was kept at, or the operation is refuted.  Where no
+    member is of the form within the
     gate, that part is kept as the operation's one member where it is within
     ``validated.tol`` and nonsingular on every site block.
 
@@ -1439,7 +1441,7 @@ def _own_form_spaces(model, group, assignment, validated, positions, *, spin=Non
         was measured, ``own_form`` and ``spin_lift``.  ``own_form`` is
         ``None`` where the operation holds, and otherwise the condition that
         failed: ``"spin lift"`` where a matrix keeping every site carries
-        ``H(k)`` onto ``H(gk)`` and none with the operation's own lift does,
+        ``H(k)`` onto its image and none with the operation's own lift does,
         ``"site permutation"`` otherwise; ``spin_lift`` is true for the
         first.  An operation with no space, or a space past the read-off's
         memory ceiling, is in neither: nothing was measured.
@@ -1509,7 +1511,7 @@ def _own_form_spaces(model, group, assignment, validated, positions, *, spin=Non
             # in the form, held to the covariance gate the operation was kept
             # at, as below where no member is within the gate.  Spin blocks
             # written in a frame turned against the lattice by a small angle
-            # miss the form within any gate on it, and carry H(k) onto H(gk)
+            # miss the form within any gate on it, and carry H(k) onto its image
             # with the operation's own lift only as far as the turn allows
             part = X - _ansatz_residual(X, pieces, lifts)
             residual = float(covariance(p, part))
@@ -1660,7 +1662,7 @@ def _spin_lift_defects(model, group, validated, positions, *, spin=None, tol=Non
         u = u[:, sv > cut] if sv.size else u[:, :0]
         dim = int(u.shape[1])
         rec["dim"] = dim
-        if not dim:                               # pragma: no cover - a guard, not a path
+        if not dim:                               # pragma: no cover: a guard, not a path
             rec["note"] = "the measured solution space is empty"
             continue
         members = u.T.reshape(dim, npair, 2, npair, 2)

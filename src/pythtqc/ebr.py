@@ -2725,7 +2725,7 @@ def _stack_in_group(table, group, rep, restriction, *, c, characters_tol):
             f"({number:.3g}). Report it, with the model "
             "and the call.")
 
-    # ---- 1. the stack, and the identity that makes it the layer ------------
+    # 1. The stack, and the identity that makes it the layer
     stack, identity = _stack_hamiltonian(rep, c)
     if isinstance(stack, Refusal):
         # A layer the stack is not built for: one with a hopping along the normal.
@@ -2738,7 +2738,7 @@ def _stack_in_group(table, group, rep, restriction, *, c, characters_tol):
         defect("hamiltonian_identity", identity["residual"],
                "its H(k, k_z) is not the layer's H(k) in the stack's gauge")
 
-    # ---- 2. the layer's group and matrices, on the stack ----------------
+    # 2. The layer's group and matrices, on the stack
     represented = {int(i) for i in rep._indices}
     unrepresented = tuple(sorted(int(s.ind) for s in group._symmetries
                                  if int(s.ind) not in represented))
@@ -2778,7 +2778,7 @@ def _stack_in_group(table, group, rep, restriction, *, c, characters_tol):
                        "periodic_dirs": tuple(int(p) for p in g3.periodic_dirs),
                        "typat": typat}
 
-    # ---- 3. the symmetry data vector on the stack, of the same bands ------
+    # 3. The symmetry data vector on the stack, of the same bands
     within = f"the stack's table, read in {group.name} #{group.number_str},"
     table3 = _sewing._hsp_table_rep(rep3, bands=_table_bands(table))
     if isinstance(table3, Refusal):
@@ -2790,7 +2790,7 @@ def _stack_in_group(table, group, rep, restriction, *, c, characters_tol):
                     f"{sorted(table3.refusals, key=_tables.point_order)}",
                     refusals={k: r.gate for k, r in table3.refusals.items()})
 
-    # ---- 4. the characters, where the two presentations meet --------------
+    # 4. The characters, where the two presentations meet
     worst_chi, n_chi, shared_points = _shared_characters(
         table, table3, {int(i): int(i) for i in rep._indices})
     labels_equal = all(dict(table._records[a].coreps) == dict(table3._records[b].coreps)
@@ -2812,14 +2812,14 @@ def _stack_in_group(table, group, rep, restriction, *, c, characters_tol):
                "its little-group representations differ from the layer's at the k-points "
                "they share")
 
-    # ---- 5. the bands at k_z = 1/2 are the bands at k_z = 0 ---------------
+    # 5. The bands at k_z = 1/2 are the bands at k_z = 0
     fibers, bad = _stack_fibers(table3, characters_tol, scale)
     record["gates"]["fibers"] = fibers
     if bad is not None:
         defect("fibers", max(bad["energy_defect"], bad["character_defect"]),
                f"its bands at {bad['point']} are not its bands at {bad['in_plane_point']}")
 
-    # ---- 6. the class, in the layer's own group ----------------------------
+    # 6. The class, in the layer's own group
     indicator3 = _indicator_in(
         _Source(group=g3, table=table3, rep=rep3, site_content=table3._site_content,
                 free_standing=getattr(rep3, "_free_standing_group", None),
@@ -3032,7 +3032,7 @@ def _indicator_in(source, symmetry_data) -> SymmetryIndicator | Refusal:
                                                         restriction.gate))
     layered = int(getattr(group, "_dim_k", 3)) < 3
 
-    # ---- the rows out of the layer's own plane, measured on the stack -----
+    # The rows out of the layer's own plane, measured on the stack
     # Only for a table: it names the bands the stack measures again, and its
     # representation carries the model and the matrices the stack is built
     # from.  The stack obeys exactly what the layer obeys, so the class is
@@ -3046,7 +3046,7 @@ def _indicator_in(source, symmetry_data) -> SymmetryIndicator | Refusal:
         if stacked is not None:
             return stacked
 
-    # ---- a vector written out by hand, read on the layer's own band
+    # A vector written out by hand, read on the layer's own band
     # representations: there every row out of its plane repeats one in it, so a
     # little-group representation there the vector does not name takes its
     # partner's multiplicity

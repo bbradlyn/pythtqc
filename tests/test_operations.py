@@ -24,7 +24,7 @@ the comparison fails.
 
 **The translation the tables carry is the shortest representative of itself.**
 A Seitz symbol's translation is fixed only modulo the crystal's lattice, and on
-a centred lattice the conventional cell holds more than one representative of
+a centered lattice the conventional cell holds more than one representative of
 it: ``Fd-3m``'s twofold is ``1/4,1/4,0`` and ``3/4,3/4,0`` at once.  What is
 written is the group's own tabulated translation, so that a symbol read here and
 a general position read off the tables are the same string; what a *written*
@@ -52,7 +52,7 @@ whose reference setting was never determined is refused ``tables_not_ready``.
 The census
 ----------
 :data:`CENSUS` is fourteen builds over thirteen space groups, 364 operations,
-chosen so that every part of the spelling is reached: the ``P`` centring (ten
+chosen so that every part of the spelling is reached: the ``P`` centering (ten
 builds), ``I`` (two), ``F`` and ``R``; symmorphic groups and groups whose
 operations carry screws and glides; five two-dimensional slab cells and nine
 fully periodic ones; eleven spinful models and three spinless; and all sixteen
@@ -64,7 +64,7 @@ The other three -- undistorted Fu-Kane-Mele, the free-standing Kane-Mele
 layer and ``p4mmm_s_2g`` -- are Hamiltonians that obey their cell's whole
 group, so the group their cell allows *is* the group served, and they are read
 off the cell alone: a symbol names an operation of a group, and nothing in the
-naming asks for the Hamiltonian.  The ``A``, ``B`` and ``C`` centrings and the
+naming asks for the Hamiltonian.  The ``A``, ``B`` and ``C`` centerings and the
 monoclinic and triclinic systems are not reached: no fixture realizes a group
 with one.
 """
@@ -89,9 +89,9 @@ from conftest import FKM_BOND, fkm_regime, km_z2_regime
 #: keyword arguments are ``None`` is read off its cell (``_group_of``): its
 #: Hamiltonian obeys every operation the cell allows.
 CENSUS = {
-    # -- groups read off the cell alone --
+    # Groups read off the cell alone
     "fkm_diamond": (fkm_regime("uniform"), None, "227.129"),
-    # -- the shared builds, already in the session cache in a whole-suite run --
+    # The shared builds, already in the session cache in a whole-suite run
     "fkm_strong": (fkm_regime("strong"),
                    dict(decorations=FKM_BOND, characters={0: "s"}), "166.98"),
     "lin3g": (tqm.lin3g, dict(typat=[0, 0, 1, 1],
@@ -103,16 +103,16 @@ CENSUS = {
     "km_inversion": (tqm.kane_mele_inversion,
                      dict(environment="substrate", cross_check=False,
                           characters={0: "A1"}), "183.186"),
-    # -- the free-standing layer group, which is where `-6` and `-3` are --
+    # The free-standing layer group, which is where `-6` and `-3` are
     "km_inversion_free": (tqm.kane_mele_inversion, None, "191.234"),
-    # -- screws and glides --
+    # Screws and glides
     "pnma": (tqm.pnma_s_4a, {}, "62.442"),
     "p4122": (tqm.p4122_atomic, {}, "91.104"),
     "p3121": (tqm.p3121_atomic, {}, "152.34"),
     "p62": (tqm.p62_atomic, {}, "171.122"),
     "i213": (tqm.i213_flicker2018, {}, "199.13"),
     "i41_soc": (tqm.i41_soc, {}, "80.30"),
-    # -- the rotoinversions of a tetragonal layer --
+    # The rotoinversions of a tetragonal layer
     "p4mmm": (tqm.p4mmm_s_2g, None, "123.340"),
 }
 
@@ -140,7 +140,7 @@ def census_group(realized, key):
 
 
 #: The groups where ``irreptables`` keeps a translation that is not the shortest
-#: representative of its operation: the ``c``-glide F-centred cubic groups,
+#: representative of its operation: the ``c``-glide F-centered cubic groups,
 #: where ``1/2,1/2,1/2`` stands where ``0,0,1/2`` would be shorter.  Measured
 #: over all 230 space groups in both valuednesses: 108 operations of these three
 #: and none of the other 227.
@@ -177,7 +177,7 @@ def test_every_operation_resolves_to_a_symbol_that_names_it_back(realized, key):
     not use.  The two must be one vector modulo that lattice, always; and
     outside #219, #226 and #228 they must be equal outright, the tables keeping
     the shortest representative everywhere else.  A reduction that lost a
-    centring translation, or an origin shift the two routes disagreed about,
+    centering translation, or an origin shift the two routes disagreed about,
     fails here.
     """
     group, rep = census_group(realized, key)
@@ -279,7 +279,7 @@ def test_a_symbol_is_read_as_the_operation_it_names_and_not_as_a_string(realized
     """The two spellings of an axis, and any representative of a translation.
 
     ``n+`` about ``[uvw]`` and ``n-`` about ``[-u-v-w]`` turn the same way, and
-    the printed tables choose between them per group; on a centred lattice the
+    the printed tables choose between them per group; on a centered lattice the
     conventional cell holds several translations of one operation.  A symbol
     written either way, and with any of those translations, is the same
     operation and resolves to it.  Asked of diamond's ``Fd-3m1'``, read off the
@@ -291,7 +291,7 @@ def test_a_symbol_is_read_as_the_operation_it_names_and_not_as_a_string(realized
     assert tqg.operations(group)[threefold].seitz == "{3+_111|0,0,0}"
 
     twofold = tqg.operation_index(group, "{2_001|1/4,1/4,0}")
-    # the F centring: the same operation, the other three representatives
+    # the F centering: the same operation, the other three representatives
     for other in ("{2_001|3/4,3/4,0}", "{2_001|1/4,3/4,1/2}", "{2_001|3/4,1/4,1/2}"):
         assert tqg.operation_index(group, other) == twofold, other
     # and the spacing, the underscore and the braces' padding are free

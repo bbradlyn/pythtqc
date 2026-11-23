@@ -1,4 +1,4 @@
-r"""Phase A1 regressions that run the ``tqc.groups`` adapter against the A0 goldens.
+r"""Regressions that run the ``tqc.groups`` adapter against the golden fixtures.
 
 ``test_groups.py`` exercises the adapter on inline toy models; this file runs it
 on the three published fixtures of ``fixture_models.py`` — **lin3g**,
@@ -7,7 +7,7 @@ arXiv:1711.11045 — and locks what it measures there.
 
 Every asserted number carries a comment saying where it comes from: a fixture
 docstring, a literature fact, or a *measured lock* (a number this file measured
-once and now pins so a regression shows up as a test failure rather than as a
+and pins, so a regression shows up as a test failure rather than as a
 quietly different answer).
 
 Three route decisions, all forced by what the adapter actually supports
@@ -22,9 +22,9 @@ Three route decisions, all forced by what the adapter actually supports
   :func:`_validate_group` measures which of the 191 operations survive.
 
 * **The bare P4_232 cell is a supercell of its own point set.**  Its two 2a
-  orbital sites form a *body-centred* point set, so the cubic cell they live in
+  orbital sites form a *body-centered* point set, so the cubic cell they live in
   is not primitive and ``_group_of`` serves the **lattice supergroup**:
-  ``Im-3m1' #229.141``, 192 operations, ``lattice_index == 2``, the centring
+  ``Im-3m1' #229.141``, 192 operations, ``lattice_index == 2``, the centering
   translation ``(1/2,1/2,1/2)`` among them.  That record *is* the "the cell
   reads Im-3m (229)" statement in the adapter's own voice, and no BCS table is
   served with it (``gate="lattice_not_descended"``) because the tables belong
@@ -197,7 +197,7 @@ def lin3g_validated(lin3g, lin3g_group):
 
 @pytest.fixture(scope="module")
 def km_odd_group(km_odd):
-    """Kane-Mele's cell group with the *default* species labelling -> P6/mmm."""
+    """Kane-Mele's cell group with the *default* species labeling -> P6/mmm."""
     g = _spacegroup._group_of(km_odd, include_TR=False)
     assert not isinstance(g, Refusal), g
     return g
@@ -234,10 +234,9 @@ def p4232_validated(p4232, p4232_candidate_group):
 def test_p4232_bare_orbital_cell_is_body_centered_and_is_served_as_a_supergroup(p4232):
     """The bare 2a orbital point set is bcc, so its cubic cell is a supercell.
 
-    Re-pinned in wave R4a, which retired the ``non_primitive_cell`` refusal this
-    used to assert.  ``fixture_models`` records that this point set reads Im-3m
-    (SG 229), and the adapter now says so *directly*: ``Im-3m1' #229.141``, 192
-    operations = 48 rotations times the two cosets of the centring translation
+    ``fixture_models`` records that this point set reads Im-3m
+    (SG 229), and the adapter says so *directly*: ``Im-3m1' #229.141``, 192
+    operations = 48 rotations times the two cosets of the centering translation
     ``(1/2,1/2,1/2)`` -- 96 unitary, and the same again antiunitary -- with
     ``lattice_index == 2``.  No table is served off it —
     the tables belong to the finer (bcc) lattice — and it is
@@ -249,14 +248,14 @@ def test_p4232_bare_orbital_cell_is_body_centered_and_is_served_as_a_supergroup(
     assert (r.number_str, r.name, r._size) == ("229.141", "Im-3m1'", 192)
     assert sum(1 for s in r._symmetries if not s.time_reversal) == 96
     assert r._lattice_index == 2
-    assert r._fractional_translations == ((0.5, 0.5, 0.5),)  # the 1/2 1/2 1/2 centring
+    assert r._fractional_translations == ((0.5, 0.5, 0.5),)  # the 1/2 1/2 1/2 centering
     assert r._tables_ready is False
     gate = _spacegroup._wyckoff_positions_spglib(r)
     assert isinstance(gate, Refusal) and gate.gate == "lattice_not_descended"
 
 
 # ---------------------------------------------------------------------------
-# 2. the run01-style audit on a real golden: the cell allows Pm-3n, H obeys SG 208
+# 2. the audit on a real golden: the cell allows Pm-3n, H obeys SG 208
 # ---------------------------------------------------------------------------
 
 @pytest.mark.slow
@@ -281,7 +280,7 @@ def test_p4232_hamiltonian_realizes_exactly_space_group_208(p4232_candidate_grou
     """
     g, v = p4232_candidate_group, p4232_validated
     assert (g._sg_number, g.name, g._size) == (223, "Pm-3n1'", 96)   # 48 unitary + 48 antiunitary
-    # record echoes, not behaviour: `n_kpoints` is `8**dim_k` off `_detection_grid`
+    # record echoes, not behavior: `n_kpoints` is `8**dim_k` off `_detection_grid`
     # and `tol` is the argument copied back.  Pinned so a changed default shows up
     assert v.n_kpoints == 512 and v.tol == 1e-8      # 8**3, the 3D defaults
 
@@ -300,8 +299,8 @@ def test_p4232_hamiltonian_realizes_exactly_space_group_208(p4232_candidate_grou
     # the 4_2 screw: half the survivors carry the nonsymmorphic translation
     screws = [s for s in unitary if np.abs(np.mod(s.translation, 1.0) - 0.5).max() < 1e-6]
     assert len(screws) == 12
-    # roundoff: measured worst 1.6e-15 on arm64/OpenBLAS 0.3.33 (3.5e-15 where the
-    # lock was captured), 64x clear of the bound
+    # roundoff: measured worst 1.6e-15 to 3.5e-15, by the linear-algebra library,
+    # at least 28x clear of the bound
     assert max(v.residuals[i] for i in v._indices) < 1e-13
 
     # every inversion-composed candidate dies, and with a proof
@@ -310,8 +309,8 @@ def test_p4232_hamiltonian_realizes_exactly_space_group_208(p4232_candidate_grou
     assert all(round(np.linalg.det(g._symmetries[d.index - 1].rotation)) == -1 for d in v.discrepancies)
     assert sum(1 for d in v.discrepancies if g._symmetries[d.index - 1].time_reversal) == 24
     smallest = [v._records[d.index]["smallest_singular_value"] for d in v.discrepancies]
-    # re-measured 2026-09-09 on arm64/OpenBLAS 0.3.33: 0.7822 for all 48 (the
-    # spread over them is 1e-15), against the 1e-8 nullspace cut
+    # measured 0.7822 for all 48 (the spread over them is 1e-15), against the
+    # 1e-8 nullspace cut
     assert min(smallest) > 1e-2
     assert all(v._nullspace_dims[d.index] == 0 for d in v.discrepancies)
 
@@ -337,16 +336,14 @@ def test_kane_mele_hamiltonian_keeps_exactly_the_Pminus6m2_subgroup(km_odd, km_o
     assert (g._sg_number, g._size) == (191, 24)     # the cell's maximal group
     assert len(v._indices) == 12 and v.closed
     assert all(d.refuted_by == "no symmetry matrix" for d in v.discrepancies)
-    # the broken constraints' smallest singular value: 0.0223 for all twelve
-    # (spread below 1e-15), re-measured 2026-09-09 on arm64/OpenBLAS 0.3.33 --
-    # the 0.42 the lock used to record is not reproducible here.  Not a roundoff
-    # quantity; the bound only has to stay decades above the 1e-8 nullspace cut,
+    # the broken constraints' smallest singular value: measured 0.0223 for all
+    # twelve (spread below 1e-15).  Not a roundoff quantity; the bound only has to stay decades above the 1e-8 nullspace cut,
     # which is what makes "no symmetry matrix" a proof rather than a tolerance verdict
     assert min(v._records[d.index]["smallest_singular_value"] for d in v.discrepancies) > 1e-3
     # a covariance residual at 1e-14 is roundoff, and this one travels: measured
-    # 2.3e-14 on arm64/OpenBLAS 0.3.33 against 4.4e-15 where the lock was
-    # captured, a factor 5 on the same code.  1e-13 left it 4.4x clear, which a
-    # different BLAS could cross; 1e-12 is two decades of headroom
+    # 4.4e-15 to 2.3e-14 by the linear-algebra library, a factor 5 on the same
+    # code.  1e-13 would leave it 4.4x clear, which another BLAS could cross;
+    # 1e-12 is two decades of headroom
     assert max(v.residuals[i] for i in v._indices) < 1e-12
 
     # the survivors are the P-6m2 operations, matched by rotation and translation;
@@ -518,7 +515,7 @@ def test_k_grid_membership_on_the_p4232_cubic_group(p4232_candidate_group):
 def _verify_membership(grid, hsp):
     """The ``contains`` record must agree with a direct search of **the pythtb mesh**.
 
-    ``k_grid`` returns a pythtb :class:`pythtb.Mesh` (A3r: the mesh currency is
+    ``k_grid`` returns a pythtb :class:`pythtb.Mesh` (the mesh currency is
     pythtb's, not a private point array), and ``grid.kpoints`` is derived from
     it rather than stored alongside — so the membership ledger is checked
     against the mesh object a caller would actually hand to a ``WFArray``.
@@ -546,7 +543,7 @@ def _verify_membership(grid, hsp):
 
 
 # ---------------------------------------------------------------------------
-# 6. k-action-class verdicts (the A1c annotation)
+# 6. k-action-class verdicts
 # ---------------------------------------------------------------------------
 
 @pytest.mark.slow
@@ -591,8 +588,8 @@ def test_slab_goldens_annotate_sigma_h_partners_as_shared(lin3g_validated,
         assert all(len(c) == 2 for c in classes)
         # every survivor shares its class, so every survivor is "undetermined";
         # and nothing is lost on the way in: an `out_of_plane` discrepancy never
-        # reaches `verdicts` at all (neither golden has one, and the guard that
-        # used to hide it is gone)
+        # reaches `verdicts` at all (neither golden has one, and no guard hides
+        # one)
         assert set(validated.undetermined) == set(validated._indices)
         assert set(validated.broken) <= set(validated._verdicts)
 

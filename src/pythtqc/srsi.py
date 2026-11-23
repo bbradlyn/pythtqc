@@ -181,7 +181,7 @@ class BandSRSIs:
         return (out + f"; class {self.indicator.values} in {self.indicator.indicator_group}, "
                 f"of order {self.indicator.order}")
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return (f"BandSRSIs({_label(self.group)}, {_invariants_text(self.theta_Z)}, "
                 f"{'fractional' if _fractional(self.theta_Z) else 'integral'})")
 
@@ -518,7 +518,7 @@ class ModelSRSIs:
             lines.append(f"{text}: {values}")
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return (f"ModelSRSIs({_label(self.group)}, "
                 f"{_count(len(self.wyckoff_orbits), 'Wyckoff orbit')}, "
                 f"{_invariants_text(self.theta_Z)})")
@@ -799,7 +799,7 @@ def srsi_of_model(realized) -> "ModelSRSIs | Refusal":
 
         geometry = [sites[int(s)] for s in row._sites]
         letters = {site.letter for site in geometry}
-        if len(letters) != 1:                     # pragma: no cover - guard
+        if len(letters) != 1:                     # pragma: no cover: guard
             raise InternalError(
                 f"#{group.number_str}: the sites of the Wyckoff orbit of orbitals "
                 f"{list(orbitals)} are at different Wyckoff letters {sorted(letters)} in "
@@ -1319,7 +1319,7 @@ class Realizations:
             lines += [f"    {_pair_text(pair)}" for pair in pairs]
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return (f"Realizations({_label(self.group)}, "
                 f"{_count(len(self.realizations), 'realization')})")
 
@@ -1452,7 +1452,7 @@ class Splitting:
             lines += [f"    {_pair_text(pair)}" for pair in self.stably_equivalent]
         return "\n".join(lines)
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return (f"Splitting({_label(self.group)}, {'nsit' if self.nsit else 'not nsit'}, "
                 f"{_count(len(self.consistent_pairs), 'consistent pair')})")
 

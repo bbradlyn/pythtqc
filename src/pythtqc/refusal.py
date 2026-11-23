@@ -126,7 +126,7 @@ class Refusal:
             head += f"\n    context: {keys}"
         return head
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         return (f"Refusal(gate={self.gate!r}, value={self.value!r}, "
                 f"threshold={self.threshold!r}, reason={self.reason!r})")
 

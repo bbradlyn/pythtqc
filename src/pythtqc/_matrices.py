@@ -92,7 +92,7 @@ def _order_and_zeta(group, p, prod=None, spf=None):
         zeta *= int(spf[p, q])
         q = int(prod[p, q])
         n += 1
-        if n > limit:  # pragma: no cover - impossible for a genuine group
+        if n > limit:  # pragma: no cover: impossible for a genuine group
             raise InternalError(
                 f"operation #{group._symmetries[p].ind} of the group has no finite order "
                 "in its multiplication table. Report it, with the model and the call.")
@@ -690,7 +690,7 @@ class NormalizedRep:
     table_anchored: bool = False
     product_anchored: bool = False
 
-    def __repr__(self) -> str:  # pragma: no cover - convenience only
+    def __repr__(self) -> str:  # pragma: no cover: convenience only
         anc = "-" if self.anchor_residual is None else f"{self.anchor_residual:.1e}"
         return (f"NormalizedRep(factor={self.factor:.4f}, D^{self.order}="
                 f"{self.required:+d}, norm={self.norm_residual:.1e}, anchor={anc})")
@@ -888,7 +888,7 @@ def normalize_rep(D, op, group, *, spinful=None, anchor=None, tol=1e-9,
     if anchor.internal is not None:
         tied = [l for l in accepted
                 if _positivity_key(l * entry) == _positivity_key(lam * entry)]
-        if len(tied) > 1:  # pragma: no cover - a guard: two distinct phases cannot
+        if len(tied) > 1:  # pragma: no cover: a guard: two distinct phases cannot
             #                 agree on a nonzero entry, and the entry is nonzero here
             raise InternalError(
                 f"operation #{op.ind}: the spin rotation in the tables leaves {len(tied)} "
@@ -1525,7 +1525,7 @@ def _minimal_generators(positions, prod, ident, max_size=3, max_combos=200_000):
     for size in range(1, max_size + 1):
         for combo in itertools.combinations(ordered, size):
             tried += 1
-            if tried > max_combos:  # pragma: no cover - a guard, not a path
+            if tried > max_combos:  # pragma: no cover: a guard, not a path
                 return None
             if _closure(combo, prod, ident) == target:
                 return combo
@@ -1668,7 +1668,7 @@ def _spin_pair_split(spin, site_orbitals, site_positions, lattice):
     ``spin`` is the declared :class:`..spin.SpinBasis`, ``site_orbitals``
     holds each site's orbitals, ``site_positions`` each site's position in
     reduced coordinates, and ``lattice`` the lattice vectors they are reduced
-    in.  The two spin states of one Wannier function share its center, so
+    in.  The up and the down state of one spinful orbital share its center, so
     only the sites are read and no group is needed.  Returns the refusal
     ``spin_pair_split`` for the first pair split, its ``value`` the Cartesian
     distance between the pair's two sites modulo the lattice and its
@@ -1916,7 +1916,7 @@ def _multiplets_of(model, assignment, spin, parts, *, ties=(), source="measured"
     """
     nspin = int(model.nspin)
     # the states carry a spin natively, or by a declared spinor basis, whose
-    # (up, down) pairs are each one Wannier function of two orbitals
+    # (up, down) pairs are each the two states of one spinful orbital
     su2 = nspin == 2 or spin is not None
     site_orbs = tuple(tuple(int(o) for o in orbs) for orbs in assignment.site_orbitals)
     if order is None:
@@ -1959,7 +1959,7 @@ def _atoms_of_site(site_orbs, spin):
 
     ``site_orbs`` holds each site's orbitals and ``spin`` the declared
     :class:`..spin.SpinBasis`, or ``None``.  A declared ``(up, down)`` pair is
-    one Wannier function, which no multiplet splits.  Returns, for each site,
+    one spinful orbital, which no multiplet splits.  Returns, for each site,
     a list of its pieces in the order the site lists them: one orbital each
     where ``spin`` is ``None``, and otherwise a pair's two orbitals as
     ``(up, down)``.
@@ -2277,7 +2277,7 @@ def _ansatz_residual(X, blocks, lifts, classes=None, weights=None):
                 if lifts[i] is None:
                     R[np.ix_(*blocks[i])] = 0.0
             denom = sum(float(np.vdot(lifts[i], lifts[i]).real) for i in live)
-            if denom <= 0:               # pragma: no cover - S is unitary here
+            if denom <= 0:               # pragma: no cover: S is unitary here
                 continue
             coef = sum(complex(np.vdot(lifts[i], R[np.ix_(*blocks[i])])) for i in live)
             coef /= denom
@@ -2296,7 +2296,7 @@ def _ansatz_residual(X, blocks, lifts, classes=None, weights=None):
             w, S = complex(weights[i]), lifts[i]
             num += np.conj(w) * complex(np.vdot(S, R[np.ix_(*blocks[i])]))
             den += float(abs(w) ** 2) * float(np.vdot(S, S).real)
-        if den <= 0:                     # pragma: no cover - a guard, not a path
+        if den <= 0:                     # pragma: no cover: a guard, not a path
             continue
         coef = num / den
         for i in live:
@@ -2374,7 +2374,7 @@ def _ansatz_member(basis, blocks, lifts, classes=None, *, prefer=None, weights=N
                            for X in members], axis=1)
             try:
                 _u2, _s2, vh2 = np.linalg.svd(A2, full_matrices=False)
-            except np.linalg.LinAlgError:  # pragma: no cover - a guard, not a path
+            except np.linalg.LinAlgError:  # pragma: no cover: a guard, not a path
                 vh2 = None
             if vh2 is not None:
                 w = vh2[-1].conj()
@@ -2650,7 +2650,7 @@ def _characters_of_subgroup(group, subset, *, roots=False, tol=1e-9):
     if not gens:
         return []
     words, parent = _bfs_words(gens, prod, ident, positions)
-    if set(words) != set(positions):      # pragma: no cover - a closed set is reached
+    if set(words) != set(positions):      # pragma: no cover: a closed set is reached
         return []
     ind_of = {p: int(group._symmetries[p].ind) for p in positions}
     if roots:
