@@ -1,18 +1,22 @@
-# What the package cannot do yet
+# What the package does not cover
 
-This page lists what `pythtqc` does not do yet, each limit once: what a call does instead,
-and where the rest of the documentation treats it. A limit is a statement about the
-package: where a call meets one it refuses, or returns what it can measure, and what it
-returns holds for the group it names. The blocks run on pythtb's
-`ssh` chain and on models built in place; the words are
-[the glossary's](../reference/glossary.md).
+This page lists what pythTQC does not cover, each limit once. For each it says
+what the call does instead, and links the page that treats it. Where a call meets
+a limit it refuses, raises, or returns what it can measure. What a call returns
+is correct for the group it names, which can be smaller than all of the model's
+symmetry. The examples are pythtb's SSH chain, Kane-Mele and Haldane models, and
+models built in place. The terms are defined in the
+[Glossary](../reference/glossary.md).
 
 ## Fewer than two periodic directions
 
-The package reads crystals periodic in three directions and layers periodic in two, whose
-symmetry is a space group. A model periodic in fewer is refused before anything is
-measured: with one periodic direction it is a chain or a ribbon, whose symmetry is a rod
-or frieze group, and with none a molecule, whose symmetry is a point group.
+pythTQC reads crystals periodic in three directions and layers periodic in two,
+whose symmetry is a space group. A model periodic in fewer directions is refused
+with `fewer_than_two_periodic_directions` before anything is measured. With one
+periodic direction it is a chain or a ribbon, whose symmetry is a rod or frieze
+group. With none it is a molecule, whose symmetry is a point group.
+
+The example is the SSH chain, `ssh(v, w)` from `pythtb.models`:
 
 ```python
 import pythtqc as tqc
@@ -25,9 +29,17 @@ print(chain)
 #      context: dim_r, periodic_dirs
 ```
 
-The refusal is the same whatever the dimension of the cell the model is written in: the
-same chain in a plane and in space, and one orbital in a plane with no periodic direction
-at all, a molecule.
+- `Refusal[fewer_than_two_periodic_directions]`: the check that stopped the
+  call, `chain.gate`. A refusal is a returned record, and it is falsy.
+- `this model has one periodic direction ...`: the reason, `chain.reason`.
+- `(measured 1, threshold 2)`: the number of periodic directions,
+  `chain.value`, and the number the check asks for, `chain.threshold`.
+- `context: dim_r, periodic_dirs`: the keys of `chain.context`, the dimension
+  of the cell and its periodic directions.
+
+The refusal is the same whatever the dimension of the cell the model is written
+in. The example builds the same chain in a plane and in space, and one orbital
+in a plane with no periodic direction, a molecule:
 
 ```python
 plane = TBModel(Lattice([[1.0, 0.0], [0.0, 1.0]], [[0.0, 0.0]], periodic_dirs=[0]))
@@ -45,43 +57,44 @@ print(tqc.realized_group(dot))                       # one orbital, no periodic 
 #      context: dim_r, periodic_dirs
 ```
 
-A chain is silent about its transverse environment, as a layer is about what lies under
-it ([a layer is silent](measurement.md#a-layer-is-silent-about-what-lies-under-it)), and
-its rod or frieze group is a question of its own, as a molecule's point group is. Each
-waits for that work.
-
 ## A supercell is refused, not folded
 
-A model whose Hamiltonian obeys a pure translation of its own cell is written on a
-supercell of its primitive cell, and is refused `supercell` at any index: on its folded
-zone every label would name the wrong k-points
-([when the cell is a supercell](../guide/group.md#when-the-cell-is-a-supercell)). The model
-is rebuilt on its primitive cell instead. A layer is refused the same in either
-environment, since neither a substrate nor free-standing vacuum breaks a translation in
-its plane. Folding a supercell's bands onto the primitive cell may come later, since there
-is physics where the extra translation is the point: the critical point between two
-topological phases can obey one, as the SSH chain does at equal hoppings, and so can
-certain charge-density-wave critical points.
+A model whose Hamiltonian obeys a fractional translation, one that is not a
+lattice vector of its cell, is written on a supercell of its primitive cell. A
+model at a critical point can obey one: at the transition between two
+topological phases, as a plane of coupled SSH chains does at equal hoppings, or
+at a charge-density-wave critical point. The call refuses such a model with
+`supercell`, whatever the index of the supercell. On the folded zone every label
+would name the wrong k-points. Rebuilt on its primitive cell, the model is read
+as any other
+([When the cell is a supercell](../guide/group.md#when-the-cell-is-a-supercell)).
+A layer is refused the same in either environment, since neither a substrate
+nor vacuum breaks a translation in its plane.
 
-A cell whose positions repeat under a fractional translation the Hamiltonian breaks is
-not a supercell, and the group descends onto the model's own lattice. A translation the
-Hamiltonian obeys once each site's orbitals are carried onto its translate's by a change
-of basis within the site, a frame turned or a phase on an orbital, is a translation, and
-the cell is a supercell; a spin is carried unturned, as a translation's own spin rotation
-leaves it ([the spin frame is the model's](#the-spin-frame-is-the-models)). Translations
-the Hamiltonian obeys only with changes of basis that do not commute, magnetic
-translations about a flux, are outside the groups returned: no crystal's translations are
-obeyed, and the cell descends to the group of the translations it obeys as written.
+A cell whose positions repeat under a fractional translation that the
+Hamiltonian breaks is not a supercell. The group descends onto the model's own
+lattice. A translation that holds only together with a change of basis within
+each site, a frame turned or a phase on an orbital, is still a translation of
+the crystal, and the cell is a supercell. The change of basis acts on the
+orbitals and leaves a spin untouched, since the spin rotation of a translation
+is the identity ([The spin frame is the model's](#the-spin-frame-is-the-models)).
+Translations that hold only with changes of basis that do not commute with one
+another, the magnetic translations of a lattice threaded by a flux, are not the
+translations of any crystal. The group returned then has as its lattice the
+translations the Hamiltonian obeys as written.
 
 ## A slab with glued edges is read as the slab it is written on
 
-pythtb's `cut_piece(n, direction, glue_edges=True)` keeps `n` cells of a crystal along one
-of its periodic directions and joins the hoppings that leave the last cell onto the first:
-the slab closes into a ring, the crystal with periodic boundary conditions over `n` cells,
-whose Hamiltonian is the crystal's at the `n` wavevectors `2πm/n` along the cut, folded onto
-one zone. Nothing on the model records the glue, only its hoppings, so the package reads
-the slab its orbitals sit in and returns that slab's group, which the glued Hamiltonian
-obeys:
+pythtb's `cut_piece(n, direction, glue_edges=True)` keeps `n` cells of a crystal
+along one of its periodic directions, and joins the hoppings that leave the last
+cell onto the first. The slab closes into a ring, the crystal with periodic
+boundary conditions over `n` cells. Its Hamiltonian is the crystal's at the `n`
+wavevectors `2πm/n` along the cut, folded onto one zone. Its orbitals sit in a
+slab, open along the cut, and the glue is held only in its hoppings. The call
+reads that slab and returns its group, which the glued Hamiltonian obeys.
+
+The example is a simple cubic crystal with one s orbital, cut four cells thick
+along z, open and glued:
 
 ```python
 crystal = TBModel(Lattice([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], [[0.0, 0.0, 0.0]],
@@ -94,142 +107,229 @@ print(tqc.realized_group(open_slab).group.name, tqc.realized_group(ring).group.n
 #  P4/mmm1' P4/mmm1'
 ```
 
-The ring also obeys the shift of its cells by one along the cut, the top cell onto the
-bottom, which no layer group holds; it commutes with every `H(k)`, so it is among the
-record's additional commuting matrices. The group returned is therefore one the ring obeys
-and not all of its symmetry, and its band labels at each wavevector in the plane gather the
-`n` wavevectors along the cut. For those, read the crystal the slab was cut from.
+- `P4/mmm1' P4/mmm1'`: the group of the open slab and the group of the ring,
+  the same.
+
+The ring also obeys the shift of its cells by one along the cut, which no layer
+group holds. The shift commutes with every `H(k)`, so it is among the conserved
+operators counted in `r.conserved`, where `r` is the record `realized_group`
+returns. The group returned is one the ring obeys, and not all of its symmetry.
+The little-group representations returned for the ring's bands at a wavevector
+in the plane are those of the crystal's bands at all `n` wavevectors along the
+cut together. To label the crystal's bands at each of them, read the crystal the
+slab was cut from.
 
 ## Layer groups are not named
 
-A two-dimensional model is returned a three-dimensional space group, that of its slab with
-an empty third direction, and its layer group is not reported: its number is the slab's.
-A layer's indicator is read in the group the layer was returned, the rows its plane does not
-contain measured on a stack of the layer
-([a layer's class](../guide/indicators.md#a-layers-class-is-a-three-dimensional-class)).
+A model with two periodic directions is returned a space group, that of its
+slab: a three-dimensional cell with vacuum along the normal. `r.group` names
+that space group, by its symbol and number, and the layer group is not
+returned. A layer's symmetry indicator is that of its decoupled stack, read in
+the space group returned
+([A layer's class is a three-dimensional class](../guide/indicators.md#a-layers-class-is-a-three-dimensional-class)).
 
-Whether the layer lies on a substrate or stands free is not in the model, and the
-substrate is a default: `r.environment.declared` says whether it was stated.
-A free-standing layer handed in with nothing declared is returned its
-one-sided group, without its inversion and the indicator that would read it
-([a 2D model](../guide/layers.md)).
+Whether the layer lies on a substrate or stands free is not in the model. A
+layer written with two-dimensional positions is read on a substrate by default,
+and a slab with three-dimensional positions free-standing.
+`r.environment.declared` says whether the environment was given. A free-standing
+layer written with two-dimensional positions and handed in with nothing declared
+is returned its group on a substrate, without the operations that turn the layer
+over. The record also names the group in the other environment, in
+`r.environment.cross_check`. The example is Kane-Mele,
+`kane_mele(delta, t, soc, rashba)` from `pythtb.models`, whose arguments are the
+staggered potential, the hopping, the spin-orbit coupling and the Rashba term.
+With no staggered potential and no Rashba term, `kane_mele(0.0, -1.0, 0.3, 0.0)`
+is returned `P6mm1'`, whose symmetry-indicator group is trivial. Declared
+free-standing, with `environment="free-standing"`, it is returned `P6/mmm1'`,
+whose symmetry-indicator group is `Z6 x Z12`
+([Is my 2D model on a substrate or free-standing?](../guide/layers.md)).
 
 ## The spin frame is the model's
 
-The package assumes pythtb's spin quantization axis, `+z` in a right-handed frame: an
-operation is a symmetry only with its own spin rotation in that convention. Spin along
-another axis usually comes from a source written for `−z`, or from a wannier90 spinor
-projection or DFT calculation whose spin axis (VASP's `SAXIS`) is set along another
-direction. A model written for the opposite quantization axis,
-or with its spin blocks turned against its lattice, obeys other operations and is returned
-a different group: a true verdict on the model as written. Nothing here converts it; the
-conversion is the model's to make
-([a model written for the other axis](../guide/spin.md#a-model-written-for-the-other-axis)).
+pythTQC takes pythtb's spin quantization axis, `+z` in a right-handed frame. An
+operation is a symmetry only together with its own spin rotation in that
+convention. A model written for another axis, or with its spin written in axes
+rotated from those of its lattice, obeys other operations and is returned a
+different group. That group is a true verdict on the model as written. Spin
+along another axis usually comes from a source written for `−z`, or from a
+Wannier90 spinor projection or a DFT calculation whose spin axis (VASP's
+`SAXIS`) is set along another direction. The conversion is made where the source
+is transcribed
+([A model written for the other axis](../guide/spin.md#a-model-written-for-the-other-axis)).
+Kane-Mele, `kane_mele(1.0, -1.0, 0.3, 0.25)` with its two sites declared
+different atoms, `typat=[0, 1]`, is returned `P3m11'`. With every spin block
+conjugated by `i σ_x`, the same spectrum written for `−z`, it is returned
+`Cm1'`.
 
 ## Magnetic groups of types I and II only
 
-The groups returned are the 230 space groups as unitary groups and the 230 grey groups,
-time reversal adjoined, and the package is validated over those two magnetic types alone.
+The groups returned are the 230 space groups, of magnetic type I, and the 230
+grey groups, of type II, which have time reversal adjoined.
 
-- A Hamiltonian that breaks time reversal is returned the unitary subgroup of its magnetic
-  group, of type I, with a `MagneticScopeWarning` saying so. The operations of the cell
-  that combine a unitary operation with time reversal are read against the group
-  returned once it has settled, and those that hold while time reversal itself is
-  broken, the states' matrices representing the magnetic group they make with it, are
-  named on the record's `beyond_grey`, with the magnetic type they make, and are not
-  part of the group returned: Haldane's model breaks its six mirrors and obeys each
-  combined with time reversal, a magnetic group of type III with its six rotations, and
-  the group returned is `P6`, the unitary half
-  ([time reversal is measured](../guide/group.md#time-reversal-is-measured),
-  [every field of the record](../reference/records.md#every-field)).
-- An antiunitary operation that is not an operation of the cell, a composite `g·T` obeyed
-  while neither factor is, is not searched for: the group returned is the largest one
-  measured, with the composite invisible. Everything returned in that group is correct;
-  what is not returned is the constraint the composite would add, so a zero indicator on a
-  magnetic model is a statement about the group found.
-- For types III and IV the data are missing as well as the conventions. The tables read
-  here carry their
-  [elementary band representations](tqc-primer.md#band-representations-and-atomic-limits)
-  and the characters of the unitary part's irreps at the maximal k-points, but not how
-  the antiunitary operations glue those irreps at a k-point, nor the site-symmetry coreps,
-  and nothing read here carries the coordinates of the magnetic Wyckoff positions. No
-  named indicator formulas exist for a spinless group of those types, and the
-  [stable real-space invariants](tqc-primer.md#real-space-invariants-and-the-stable-ones)
-  are tabulated for the grey groups alone.
+- A Hamiltonian that breaks time reversal is returned the unitary subgroup of
+  its magnetic group, of type I. The call issues a `MagneticScopeWarning` that
+  says so. The operations of the cell that hold only combined with time
+  reversal are listed in `r.beyond_grey`, with the magnetic type they make with
+  the group returned. They are not part of the group returned. Haldane's model,
+  `haldane(0.0, -1.0, 0.15)` from `pythtb.models`, with no staggered potential,
+  breaks its six mirrors and obeys each combined with time reversal. With its
+  six rotations they make a magnetic group of type III, and the group returned
+  is `P6`, the unitary half
+  ([Time reversal is measured](../guide/group.md#time-reversal-is-measured)).
+- The labels, decompositions and symmetry indicators returned for such a model
+  are those of the type-I group. The stable real-space invariants (SRSIs) are
+  tabulated for the grey groups alone, and every call on them refuses a type-I
+  group with `srsi_scope`.
+- An operation combined with time reversal whose unitary part is not an
+  operation of the cell is not measured. The group returned is the largest one
+  measured, and such an operation is not in it. What is returned holds for that
+  group and carries no constraint from an operation outside it. A zero
+  indicator of a magnetic model is a zero in the indicator group of the group
+  returned. Haldane's model with its two sites declared different atoms,
+  `typat=[0, 1]`, is returned `P3`. Its `beyond_grey` names three of the six
+  mirrors combined with time reversal, and the three that exchange the two
+  sites are not measured.
 
 ## An unpaired spinor orbital
 
-A spinless model whose orbitals are the up and down states of Wannier functions, as a
-spinor wannier90 import is, is represented once the pairing is declared with `spin=`
-([a wannier90 spinor import](../guide/spin.md#a-wannier90-spinor-import)). Out of reach is
-the unpaired spinor orbital: a single Wannier function carrying half-integer spin with no
-partner in the model at all, the locally time-reversal-broken magnetic basis. It needs
-site declarations in the double group, which the declaration's tables, single-valued,
-cannot state, and it waits on the magnetic types as well. A pairing whose two members
-sit at different centres, each orbital one spin state with no partner at its own centre,
-is that configuration or a mislabelled pairing, and is refused
-[`spin_pair_split`](../reference/refusals.md#spin_pair_split) before any group is
-identified.
+From a spin-orbit calculation, pythtb's Wannier90 importer returns a spinless
+model whose orbitals are the up and down states of each spinful orbital.
+Declared with `spin=`, each pair is read as one spinful orbital
+([A Wannier90 spinor import](../guide/spin.md#a-wannier90-spinor-import)). A
+model in which an orbital carries one spin state and no orbital at its center
+carries the other, as in a locally time-reversal-broken magnet, is not read with
+its spin. pythTQC reads half-integer spin only as the two states of a spinor at
+one center: a pythtb spinful orbital, or a pair declared with `spin=`. Handed
+in without a pairing at one center, a model whose orbitals are spin states is
+read in one of three ways:
 
-## Missing content is refused, not filled
+- With no `spin=`, the model is read as spinless, in the single-valued tables,
+  where time reversal squares to +1. Where no matrix of time reversal the
+  Hamiltonian obeys squares to +1, time reversal is measured broken and the
+  unitary group is returned. A Hamiltonian that mixes the spin states, such as
+  Kane-Mele with its Rashba term, is such a case: its time reversal squares to
+  −1. One that conserves the spin along `z` obeys a time reversal that squares
+  to +1, and is returned a grey group.
+- With `spinor=True`, which asks `realized_group` to read the double-valued
+  tables, and no `spin=`, the call refuses with `rep_double_valued_spinless`.
+- A pairing whose two members sit at different centers is refused with
+  [`spin_pair_split`](../reference/refusals.md#spin_pair_split) before any group
+  is identified. Such a pairing means either that each orbital carries one spin
+  state with no partner at its center, the case above, or that the wrong
+  orbitals were paired.
 
-A symmetry indicator reads every row of the matrix of the group's elementary band
-representations, one row per corep at each high-symmetry point. Rows out of a layer's
-plane that repeat an in-plane row are filled from it and named, and the others are
-measured on a stack of the layer, or, for a vector written out by hand, read off the
-layer's own band representations. What is left, a k-point whose labels refused
-or a layer whose stack did not pass its checks, is refused (`incomplete_content`,
-`indicator_not_evaluable`). Completing missing
-content by solving for it against the stable real-space invariants is future work, which
-is why the indicator takes no `allow_incomplete`
-([symmetry indicators](../guide/indicators.md)).
+## A symmetry indicator reads every high-symmetry point
 
-## Centres noisier than the symmetry finder
+A symmetry indicator is read from the multiplicities of the little-group
+representations at every high-symmetry point of the group's tables. Where
+`hsp_table` refused at some high-symmetry point, `symmetry_indicator` of that
+table refuses with `incomplete_content`. `decompose` with
+`allow_incomplete=True` leaves the points refused out, for points where the
+tables of the irreptables package cannot be read. `symmetry_indicator` takes no
+such argument, since a class is read from the whole symmetry data vector
+([Which symmetry-indicator class do these bands occupy?](../guide/indicators.md)).
 
-The cell's operations are found from the orbital centres, to the finder's tolerance
-`symprec`. Centres noisier than that are a less symmetric set of points to the finder, and
-with nothing declared the group returned is that set's, as low as `P1`, rather than a
-refusal that names the noise. `precision=` is the route
-([centres noisier than symprec](../guide/numerical.md#centres-noisier-than-symprec)).
+A layer's `H(k)` has no `k_z`, and its points at `k_z = 1/2` are completed
+instead. A little-group representation there that occurs in every elementary
+band representation as often as one at a point in the plane takes that one's
+multiplicity. The others are measured on the layer's decoupled stack. Where that
+measurement stops at one of its checks, the call refuses with
+`indicator_not_evaluable`, whose `context["stack"]` names the check.
+
+## Centers noisier than the symmetry finder
+
+The cell's operations are found from the orbital centers by spglib, the symmetry
+finder, to its tolerance `symprec`. Centers noisier than that are a less
+symmetric set of points to the finder. With no `precision=` declared, the call
+returns that set's group, as low as `P1`. Where the centers still miss that
+group's operations by enough to move `H(k)` beyond the tolerance its covariance
+is held to, the call refuses with `positions_not_exactly_symmetric` instead.
+Kane-Mele, `kane_mele(0.0, -1.0, 0.3, 0.25)`, with orbital 0 moved by
+`(5e-5, 0)` in reduced coordinates, is returned `P21'`. With `precision=1e-3`
+declared, it is returned `P6mm1'`
+([How do I measure a numerical or Wannier90 model?](../guide/numerical.md)).
 
 ## A precision too coarse for the cell's geometry
 
-A declared precision also sets the tolerance the finder reads positions at, `10 × precision
-× L` with `L` the longest lattice vector along the periodic directions
-([numerical precision](../guide/numerical.md)). Where that is a sizable fraction of the
-distances between the cell's points, the finder cannot tell them apart. The points it is
-handed include, where the Hamiltonian obeys fewer operations than the cell allows, a
-generic orbit placed to carry a group of the operations that hold, and those lie closer
-together than the orbital centres. The call then raises `InternalError`, its message naming
-the finder's tolerance as the cause. Kane–Mele with its two sites declared different atoms reads
-`P3m11'` up to `precision=0.015` and raises from `0.02`, where the finder reads at 0.2
-lattice constants and the centres are 0.58 apart. A model's own precision lies decades
-below this; a wannier90 model's is about `1e-6`.
+A declared precision also sets the tolerance the finder reads positions at:
+`10 * precision * L` where `precision * L` exceeds `symprec`, and `symprec`
+otherwise, with `L` the length of the longest lattice vector along the periodic
+directions
+([How do I measure a numerical or Wannier90 model?](../guide/numerical.md)).
+Where the Hamiltonian obeys fewer operations than the cell allows, the points
+handed to the finder include, besides the orbital centers, the orbit of a point
+in general position under the operations that hold, whose symmetry is the group
+of those operations. Those points lie closer together than the centers. Where
+the finder's tolerance is comparable to or larger than their distance, the
+finder cannot tell them apart, and the call raises `InternalError`, whose
+message names the finder's tolerance. Kane-Mele,
+`kane_mele(1.0, -1.0, 0.3, 0.25)` with its two sites declared different atoms,
+is returned `P3m11'` up to `precision=0.015` and raises from `0.02`. There the
+finder reads at 0.2 lattice constants, and the centers are 0.58 apart. The
+orbit the message lists, of the last of the three points the call tries, has
+its points 0.09 apart. A fitted model's precision lies far below this: the
+silicon model of
+[Silicon from Wannier90: the group the model has](../start/tutorial-wannier90.md)
+declares `precision=1e-4`.
 
 ## Two equally near origins
 
-The names of Wyckoff positions, and of the irreps at some k-points, depend on the point
-the tables are read about, and they are read about the one nearest the model's own origin
-([conventions](conventions.md#the-origin-the-names-are-read-about)). A model whose origin
-is exactly as near two such points has no nearest one: a centred layer with its orbitals
-at `(½, 0)` and `(0, ½)`, whose group `Cmm2` can be read about any of `(±¼, ±¼)`, all
-four equally near. Its names are read about the one `irrep` chooses on the cell, the same
-choice in every run; another of them would give the same bands other names, and nothing
-about the model picks one.
+The names of Wyckoff positions, and of the little-group representations at some
+k-points, depend on the point the tables are read about. They are read about the
+point, among those the tables' origin can be placed at, nearest the model's own
+origin
+([The origin the names are read about](conventions.md#the-origin-the-names-are-read-about)).
+A model whose origin is equally near two or more such points has no nearest one.
+Its names are read about the one the irrep package chooses on the cell, where
+that is one of them, and otherwise about the first of them on a fixed grid. The
+choice is the same in every run. Another of them would give the same bands other
+names, and nothing in the model picks one.
+
+The example is a checkerboard of two species on a square cell, its orbitals at
+`(1/2, 0)` and `(0, 1/2)`. Its group `P4mm1'` can be read about either orbital,
+and the fourfold axes nearest the origin, `(±1/2, 0)` and `(0, ±1/2)`, are all
+equally near. Moved by `(−0.1, 0)`, the same crystal has orbital 0 nearest its
+origin:
+
+```python
+def board(centers):
+    m = TBModel(Lattice([[1.0, 0.0], [0.0, 1.0]], centers, periodic_dirs=[0, 1]))
+    m.set_onsite([0.5, -0.5])
+    for R in ([0, 0], [1, 0], [0, -1], [1, -1]):
+        m.set_hop(-1.0, 0, 1, R)
+    return m
+
+for centers in ([[0.5, 0.0], [0.0, 0.5]], [[0.4, 0.0], [-0.1, 0.5]]):
+    rb = tqc.realized_group(board(centers), typat=[0, 1])
+    print([o.wyckoff for o in rb.wyckoff_orbits], tqc.hsp_table(rb, bands=1).symmetry_data)
+#  ['1b', '1a'] {'GM1': 1, 'M1': 1, 'X1': 1}
+#  ['1a', '1b'] {'GM1': 1, 'M3': 1, 'X3': 1}
+```
+
+- `['1b', '1a']`: the Wyckoff positions of orbitals 0 and 1, as written. The
+  rule reads the names about orbital 1.
+- `['1a', '1b']`: moved, the names are read about orbital 0, the one nearest
+  the origin.
+- `{'GM1': 1, 'M1': 1, 'X1': 1}` and `{'GM1': 1, 'M3': 1, 'X3': 1}`: the
+  irreps of the lowest band as written and as moved, the same band under other
+  names. `GM` is the tables' name for Γ.
 
 ## A block as the value of a parameter
 
-pythtb's `hamiltonian` takes a `2×2` block as the value of a parameter of a
-spinful model. `realized_group` and the other calls that take a model take a
-number for each parameter and raise `ValueError` for a block. A hopping that
-acts on spin is written as a function of its parameter that returns the block
-([a model with free parameters](../guide/group.md#a-model-with-free-parameters)).
+pythtb's `hamiltonian` takes a two-by-two block as the value of a parameter of a
+spinful model. Every call that takes `params=`, `realized_group`, `solve_at`,
+`spinless_presentation` and `stack_presentation`, takes a number for each
+parameter and raises `ValueError` for a block. A hopping that acts on spin is
+written as a function of its parameter that returns the block
+([A model with free parameters](../guide/group.md#a-model-with-free-parameters)).
 
-## Feature-resolved and Wilson-loop verdicts
+## Wilson loops and spectra resolved by an operator
 
-The symmetry analysis over spectra, sectors and Wilson loops resolved by a feature,
-everything built on the eigenspaces of a projected operator `P Ô P`, the spin-resolved
-case `Ô = n̂·s` among them, is planned and not present: sewing matrices projected onto a
-sector, the corep content of a sector and verdicts read off a Wilson spectrum. A decomposition reads
-the content at isolated k-points only, and is blind to what lies between them
-([what a decomposition cannot certify](../guide/atomic-limits.md#what-a-decomposition-cannot-certify)).
+pythTQC reads the little-group representations of a set of bands at isolated
+high-symmetry points
+([What a decomposition cannot certify](../guide/atomic-limits.md#what-a-decomposition-cannot-certify)).
+It computes no Wilson loop, and no eigenspaces of an operator `O` projected onto
+a set of bands, `P O P` with `P` their projector, such as the spin-resolved case
+`O = n·σ`, with `n` a unit vector and `σ` the Pauli matrices. `spin_operator`
+returns `n·σ` on each spin pair, the operator a spin-resolved calculation
+projects onto the occupied bands.

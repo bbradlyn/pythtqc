@@ -1,16 +1,24 @@
 # What does a refusal mean, and what do I do about it?
 
-A call that cannot complete returns a `Refusal` in place of its record: a falsy record that
-names the check that stopped it, the number that check measured, and what to do. This
-chapter reads one, sorts refusals into their four kinds, follows one through the calls
-after it, and says what raises instead. The model is pythtb's Kane–Mele with a sublattice
-offset and a Rashba term. [The refusals reference](../reference/refusals.md) lists every
-refusal a call can return, each with what it means, its usual cause and what to do.
+A call that cannot complete returns a `Refusal` in place of its record. A
+refusal names the check that stopped the call and the number that check
+measured. Its reason says what was found, and what to do where there is a step
+to take. [Refusals](../reference/refusals.md) gives, for every check, what it
+means, its usual cause and what to do.
 
 ## The call
 
-Asked for the [corep](../reference/glossary.md#words-the-pages-use) content of Kane–Mele's
-lowest band alone at Γ, `coreps_at` refuses:
+A call returns a refusal and never raises it. A refusal is falsy.
+`isinstance(x, tqc.Refusal)` tells it apart from every other value a call
+returns. Printed, it shows the check, the reason, the number measured, the
+threshold it is compared with, and the keys of its `context`.
+
+The example is Kane-Mele, `kane_mele(delta, t, soc, rashba)` from
+`pythtb.models`, with a staggered potential, spin-orbit coupling and a Rashba
+term. `coreps_at` is asked for the corep of its lowest band alone at Γ. A corep
+is the little-group representation a set of bands carries where time reversal
+is kept. `high_symmetry_points(r.group)["GM"]` is Γ, `GM` being the name the
+irreptables package's tables use for it. The call refuses:
 
 ```python
 import pythtqc as tqc
@@ -19,7 +27,7 @@ from pythtb.models import kane_mele
 km = kane_mele(1.0, -1.0, 0.3, 0.25)                  # delta, t, soc, rashba
 r = tqc.realized_group(km, typat=[0, 1], characters={0: "A1"})
 gamma = tqc.high_symmetry_points(r.group)["GM"]
-out = tqc.coreps_at(r, gamma, bands=1)                # the lowest band alone, at Γ
+out = tqc.coreps_at(r, gamma, bands=1)                # the lowest band alone
 print(isinstance(out, tqc.Refusal), bool(out))
 #  True False
 print(out)
@@ -29,23 +37,32 @@ print(out)
 
 ## How to read it
 
-- **`True False`**: `isinstance(out, tqc.Refusal)` is the test to branch on; it tells a
-  refusal apart from every value a call returns. A refusal is falsy as well, but so are
-  some ordinary values, which a truth test would read as refusals: the
-  `stably_equivalent` of an `SRSITables`, which has no pairs for most groups, and `subtract` of two
-  equal contents, which leaves none.
-- **`Refusal[multiplet_split]`**: `out.gate`, the name of the check that stopped the call.
-  The name is stable, and it is the heading of the refusal's entry in
-  [the reference](../reference/refusals.md#multiplet_split).
-- **the sentence after it**: `out.reason`, the diagnosis, naming what is at fault (here the
-  bands, the k-point and their energies) and what to do.
-- **`(measured 0, threshold 2.96873e-08)`**: `out.value`, the number the check measured, and
-  `out.threshold`, what the check demanded. Here the value is the energy spread of the
-  levels the lowest band belongs to, in the units of `H`, and two levels closer than the
-  threshold, `1e-8 × max|H|` with `max|H| = 2.97` here, are one multiplet. A check with
-  no number to measure, such as a word that names nothing, carries `None` in both.
-- **`context: bands, energies, k, multiplet`**: the keys of `out.context`, everything
-  needed to act on the refusal without running the call again.
+- `True False`: `isinstance(out, tqc.Refusal)` and `bool(out)`. The `isinstance`
+  test is the one to branch on, since some returned values are falsy too.
+  `subtract` of a table from itself returns an empty mapping of multiplicities,
+  and the `stably_equivalent` of an `SRSITables` is empty for most groups.
+  Every returned record other than a refusal is truthy, including a
+  decomposition that finds no sum.
+- `Refusal[multiplet_split]`: `out.gate`, the name of the check that stopped
+  the call. The name is stable, and it heads the check's entry in
+  [Refusals](../reference/refusals.md#multiplet_split).
+- the text after the colon: `out.reason`, what was found, with the bands, the
+  k-point and the energies concerned, and what to do.
+- `measured 0`: `out.value`, the number the check measured. Here it is the
+  energy spread of the degenerate multiplet the lowest band belongs to, in the
+  units of the Hamiltonian `H`. A check with no number to measure carries
+  `None` in `out.value` and `out.threshold`, and the printout shows neither.
+  The check on a word in `characters=` that names nothing is one.
+- `threshold 2.96873e-08`: `out.threshold`, the threshold the measured value is
+  compared with. Here it is `coreps_at`'s `degeneracy_tol`, an energy in the
+  units of `H`. Two energies closer than it belong to one multiplet. Left out,
+  it is computed from `max|H|`, the largest entry of `H(k)` once the mean
+  on-site energy is subtracted.
+- `context: bands, energies, k, multiplet`: the keys of `out.context`, which
+  holds what acting on the refusal needs without running the call again.
+
+The fields can be read directly. Asked for the two lowest bands, the whole
+multiplet, `coreps_at` returns their corep:
 
 ```python
 print(out.gate, out.value, out.threshold, out.context["multiplet"])
@@ -54,17 +71,23 @@ print(tqc.coreps_at(r, gamma, bands=2).coreps)
 #  {'-GM6': 1}
 ```
 
-The verdict is physics. Kane–Mele keeps time reversal, so every level at Γ, a
-time-reversal-invariant momentum, is a Kramers pair, and the lowest band alone is half of
-one: its characters would depend on the basis the diagonalization chose inside the pair,
-so it has no label. The pair has one, `-GM6`
-([label an isolated set of bands](labels.md#label-an-isolated-set-of-bands)).
+- `(0, 1)`: `out.context["multiplet"]`, the bands degenerate with the lowest
+  band at Γ.
+- `{'-GM6': 1}`: the corep multiplicities of the two lowest bands at Γ.
+
+The refusal is a statement about the bands. Kane-Mele is spinful and keeps time
+reversal, and Γ is a time-reversal-invariant momentum, so every level there is
+a Kramers pair. The lowest band alone is half of one and carries no corep. The
+pair carries `-GM6`
+([Which little-group representations do these bands carry?](labels.md)).
 
 ## The group named in it
 
-A refusal that `realized_group` returns once the group is identified opens by naming it,
-with its symbol and its number, and carries it in `context["group"]`, so a question asked
-after the group never loses it:
+A refusal that `realized_group` returns once the group is identified opens by
+naming the group, by its symbol and its number, and carries it in
+`context["group"]`. The example declares the two-dimensional single-valued site
+irrep `E` on orbital 0 of Kane-Mele, with `characters={0: "E"}`. `E` needs two
+orbitals at its site, and orbital 0 is the only one there:
 
 ```python
 bad = tqc.realized_group(km, typat=[0, 1], characters={0: "E"})
@@ -75,72 +98,100 @@ print(bad.context["group"].name, bad.context["group"].number_str)
 #  P3m11' 156.50
 ```
 
-The declaration puts the two-dimensional `E` on a site that holds one orbital, and no
-content of one orbital is two-dimensional. A refusal reached while the
-group is still being measured names the group the cell has at that point, an upper bound
-on what the Hamiltonian obeys. The question which group a Hamiltonian has is itself refused
-in two cases only, each about how the model is written
-([when the group question is refused](../background/measurement.md#when-the-group-question-is-refused)).
+- `the group identified is P3m11' #156.50, every operation of it obeyed`: the
+  group the Hamiltonian obeys. The rest of the reason says what is wrong with
+  the declaration, and lists the site irreps of one orbital that fit.
+- `P3m11' 156.50`: `bad.context["group"]`, by its `name` and its `number_str`.
+
+A refusal reached while the group is still being measured names the group the
+cell allows, which contains the group the Hamiltonian obeys. For a model
+periodic in two or three directions, the question which group its Hamiltonian
+obeys is refused in two cases only, both about how the model is written
+([When the group question is refused](../background/measurement.md#when-the-group-question-is-refused)).
 
 ## Four kinds
 
-Every refusal is one of four kinds, and the kind says where the fix lies;
-[the reference](../reference/refusals.md) groups them so.
+Every refusal is one of four kinds, and the kind says where the fix lies.
+[Refusals](../reference/refusals.md) groups its entries by them.
 
-1. **A verdict about the physics.** What was asked does not exist for these bands or this
-   model as written: a set of bands cutting a multiplet, as above; a
-   [symmetry data vector](../reference/glossary.md#words-the-pages-use), the count of each
-   corep at each high-symmetry point, that fails the group's compatibility relations and
-   so has no [indicator class](../background/tqc-primer.md#how-a-symmetry-indicator-is-computed);
-   a representation the tables' conventions cannot carry; a model written on a supercell
-   of its own primitive cell. The reason says what was measured, and the fix is in the
-   question or in the model.
-2. **A practical limit.** A search, an enumeration or a memory budget would pass its
-   ceiling, or the installation lacks the tables a question needs. The reason names the
-   number, or the data, that runs it, and the same call with that number does. Below, the
-   projection a declared precision calls for on a copy of `km` with every hopping off by
-   about `1e-7`, given a budget set small on purpose:
+1. **A verdict about the physics.** What was asked does not exist for these
+   bands, or for this model as written. A set of bands that cuts a degenerate
+   multiplet is one, as above. A symmetry data vector is the multiplicities of
+   the little-group representations at every high-symmetry point, taken
+   together. One that fails the group's compatibility relations is another
+   verdict, since no set of bands separated by a gap from the others at every
+   `k` has it. A model written on a supercell of its own primitive cell is a
+   third. The fix is in the question or in the model.
+2. **A practical limit.** A search, an enumeration, a measurement or a
+   projection would need more than its ceiling allows, or the installation
+   lacks the tables a question needs. Nothing in the model is at fault. Where
+   the ceiling is an argument of the call, the reason says which argument to
+   raise. Where something is missing from the installation, the reason names
+   it.
+3. **A grammar error in a declaration or a question.** `characters=` or `spin=`
+   declares something that the orbitals it is written on cannot hold: a word
+   that is not a site irrep of its site-symmetry group, a site irrep wider than
+   one orbital written on orbitals that make no whole number of copies of it,
+   as above, or a declared spin pair whose two orbitals sit at different
+   centers. For a word in `characters=`, the reason lists the site irreps that
+   would fit. A call handed an argument it cannot read refuses the same way: a
+   k-point off a layer's plane, a Seitz symbol the group does not hold
+   ([Operations: a Seitz symbol and a Cartesian name](../background/conventions.md#operations-a-seitz-symbol-and-a-cartesian-name)),
+   or a negative multiplicity.
+4. **The package's checks on itself.** A few checks measure an identity that
+   holds in exact arithmetic, or compare two measurements of one thing. They
+   check the representation of the group on the orbitals, the projection of
+   `H` onto its symmetric part, and the setting in which Wyckoff positions are
+   read against the tables. One that fails means the package has met a case it
+   does not handle. Nothing in the model is to change, and the refusal is worth
+   reporting with the model and the call
+   ([The package's checks on itself](../reference/refusals.md#the-packages-checks-on-itself)).
+   `tol` is the tolerance of the covariance check, on how far a matrix for an
+   operation misses carrying `H(k)` onto `H(gk)`, in the units of `H`. The
+   exception is `rep_not_covariant` reached close to `tol`. There each
+   operation alone is obeyed within `tol`, and only the representation built
+   for the group carries `H(k)` onto `H(gk)` beyond it. Its reason asks for
+   `precision=` ([Refusals](../reference/refusals.md#rep_not_covariant)).
 
-   ```python
-   import numpy as np
-   from pythtb import TBModel
-   rng = np.random.default_rng(7)
-   noisy = TBModel(km.lattice, spinful=True)          # km with every hopping off by ~1e-7
-   noisy.set_onsite(km.onsite, mode="set")
-   for h in km.hoppings:
-       noisy.set_hop(h["amplitude"] * (1 + 1e-7 * rng.normal()), h["from_orbital"],
-                     h["to_orbital"], h.get("lattice_vector", [0, 0]), mode="add")
-   limit = tqc.realized_group(noisy, typat=[0, 1], characters={0: "A1"}, precision=1e-7,
-                              max_bytes=1e4)
-   print(limit.gate, limit.context["group"].name, f"{limit.value:.3g} against {limit.threshold:.3g}")
-   #  projection_too_large P3m11' 3.01e+04 against 1e+04
-   print(repr(tqc.realized_group(noisy, typat=[0, 1], characters={0: "A1"}, precision=1e-7,
-                                 max_bytes=1e5)))
-   #  RealizedGroup(P3m11' #156.50; precision 1e-07 declared -> tol 2.97e-06 (cut 1e-06, window 0.01), position_tol 1e-07 (measured max|H| 2.969); symmetrized (defect 1.09e-07); on a substrate (the default), the free-standing group P3m11' #156.50 agrees)
-   ```
+The example of a practical limit is a copy of Kane-Mele with every hopping off
+by a random relative amount of order `1e-7`, read with `precision=1e-7`. The
+declared precision calls for the projection of `H` onto its symmetric part,
+and `max_bytes=1e4` sets the memory budget small on purpose:
 
-   The projection needs `3.01e4` bytes against the `1e4` allowed; its reason names the
-   `max_bytes=` that runs it, and with `1e5` it runs.
-3. **A grammar error in a declaration or a question.** `characters=` or `spin=` says
-   something that names nothing at the site: a word that is not an irrep of its site group,
-   a doublet on a site of one orbital as above, the two spin states of one Wannier function
-   on two centres. The reason lists what would parse. A call asked a question it does not take,
-   such as a k-point off a layer's plane, a
-   [Seitz symbol](../background/conventions.md#operations-a-seitz-symbol-and-a-cartesian-name)
-   the group does not carry or a negative multiplicity, refuses the same way.
-4. **The package's checks on itself.** A few checks measure an identity that holds in exact
-   arithmetic, or two measurements of one thing that must agree: a representation of a
-   group the Hamiltonian was measured to obey, the projection onto the symmetric part of
-   `H`, the tables' setting. One that fails means the package has met a case it does not
-   handle; nothing in the model is to change, and the refusal is worth reporting with the
-   model and the call ([these checks](../reference/refusals.md#the-packages-checks-on-itself)).
+```python
+import numpy as np
+from pythtb import TBModel
+rng = np.random.default_rng(7)
+noisy = TBModel(km.lattice, spinful=True)
+noisy.set_onsite(km.onsite, mode="set")
+for h in km.hoppings:
+    noisy.set_hop(h["amplitude"] * (1 + 1e-7 * rng.normal()), h["from_orbital"],
+                  h["to_orbital"], h.get("lattice_vector", [0, 0]), mode="add")
+limit = tqc.realized_group(noisy, typat=[0, 1], characters={0: "A1"}, precision=1e-7,
+                           max_bytes=1e4)
+print(limit.gate, limit.context["group"].name, f"{limit.value:.3g} against {limit.threshold:.3g}")
+#  projection_too_large P3m11' 3.01e+04 against 1e+04
+print(repr(tqc.realized_group(noisy, typat=[0, 1], characters={0: "A1"}, precision=1e-7,
+                              max_bytes=1e5)))
+#  RealizedGroup(P3m11' #156.50; precision 1e-07 declared -> tol 2.97e-06 (cut 1e-06, window 0.01), position_tol 1e-07 (measured max|H| 2.969); symmetrized (defect 1.09e-07); on a substrate (the default), the free-standing group P3m11' #156.50 agrees)
+```
+
+- `projection_too_large`: `limit.gate`, the check that stopped the call.
+- `P3m11'`: the group identified, `limit.context["group"]`, by its name.
+- `3.01e+04`: `limit.value`, the bytes the projection needs at its peak.
+- `1e+04`: `limit.threshold`, the bytes `max_bytes=` allows.
+- `RealizedGroup(P3m11' #156.50; ...; symmetrized (defect 1.09e-07); ...)`: the
+  same call with `max_bytes=1e5` returns the group, with `H` projected onto its
+  symmetric part. [How do I measure a numerical or Wannier90 model?](numerical.md)
+  explains the rest of the line.
 
 ## A refusal inside a record
 
-A call that reads several points keeps each point's refusal inside its record. `hsp_table`
-labels the lowest band at every high-symmetry point, and two points, the
-time-reversal-invariant `GM` and `M`, refuse; the table is truthy and says it is
-incomplete, and the call after it does not fill the gap:
+A call that reads several high-symmetry points keeps each point's refusal
+inside the record it returns. The example asks `hsp_table` for the corep of
+Kane-Mele's lowest band alone at every high-symmetry point. At Γ and `M`, both
+time-reversal invariant, the band is half of a Kramers pair. The table returned
+holds those two refusals, and `decompose` refuses the table:
 
 ```python
 table = tqc.hsp_table(r, bands=1)
@@ -151,15 +202,24 @@ print(missing.gate, missing.context["refusals"])
 #  incomplete_content {'GM': 'multiplet_split', 'M': 'multiplet_split'}
 ```
 
-`decompose` refuses `incomplete_content`, naming the points and what refused at each: a
-decomposition of a symmetry data vector with a point missing would be a confident verdict on a
-different vector, and `symmetry_indicator` refuses it the same way. A refusal is carried
-forward.
+- `True`: `bool(table)`. The table is a record, and truthy.
+- `False`: `table.complete`, whether every high-symmetry point was labeled.
+- `{'GM': 'multiplet_split', 'M': 'multiplet_split'}`: `table.refusals`, the
+  refusal met at each point, here read by its `gate`.
+- `incomplete_content {...}`: by default, `decompose` refuses a table that
+  holds a refusal at some point. `missing.context["refusals"]` names the check
+  that refused at each.
+
+With a point missing, the multiplicities in hand are not the bands' symmetry
+data vector, so `decompose` refuses. `symmetry_indicator` refuses an
+incomplete table the same way. With `allow_incomplete=True`, `decompose`
+leaves out the points where a refusal was met, and does not refuse.
 
 ## Turning one into an exception
 
-No call raises a refusal. A script that wants to stop at the first one asks for it:
-`.raise_()` raises `RefusalError`, a `RuntimeError` that carries the refusal on `.refusal`.
+`out.raise_()` raises a refusal as a `RefusalError`, a `RuntimeError` that
+carries the refusal on `error.refusal`. A script that stops at the first
+refusal calls it. The Kane-Mele refusal above, raised:
 
 ```python
 try:
@@ -169,11 +229,15 @@ except tqc.RefusalError as error:
 #  RefusalError True True
 ```
 
+- `RefusalError True True`: the exception's type, that it is a `RuntimeError`,
+  and that `error.refusal` is the refusal raised.
+
 ## What is not a refusal
 
-- **A malformed argument** raises `ValueError` before anything about the physics is
-  measured: here a precision that is not a positive number. A keyword a call does
-  not take raises `TypeError`, as in any Python call.
+- **A malformed argument** raises `ValueError` before anything about the
+  physics is measured. A keyword a call does not take raises `TypeError`, as in
+  any Python call. Kane-Mele read with `precision=0`, which is not a positive
+  number:
 
   ```python
   try:
@@ -183,29 +247,37 @@ except tqc.RefusalError as error:
   #  realized_group(): precision=0 is not a positive number
   ```
 
-- **The package disagreeing with itself** raises `InternalError`: two measurements of one
-  Hamiltonian that contradict each other, such as a layer's two environments contradicting
-  the statement that the substrate's group is the part of the free-standing one that
-  preserves the layer's normal, or a representation of the identified group that carries
-  `H(k)` under an operation worse, by more than the tolerance, than that operation's own
-  matrix does. Where each operation is obeyed within the tolerance on its own and the
-  representation built for the group misses it by less than that, the Hamiltonian's
-  asymmetry is close to the tolerance: the group is named and refused, `rep_not_covariant`,
-  and the reason asks for a precision, above the asymmetry if it is noise and below it if
-  it is a term to keep.
-  A presentation of the model that changes it raises too, though it
-  only relabels the Hamiltonian or moves it by a gauge: the slab and the decoupled stack
-  of a layer, the spinless presentation of a spinful model and the model with its centres
-  moved are each measured against the model on eight random `k`. It is a defect in the
-  package and says nothing about the model: report it, with the model and the call.
-- **`MagneticScopeWarning`** is a warning: time reversal was measured
-  broken, and the group returned is the unitary group the Hamiltonian obeys
-  ([time reversal is measured](group.md#time-reversal-is-measured)).
+- **The package disagreeing with itself** raises `InternalError`. One case is
+  a layer measured on a substrate and free-standing, where the substrate's
+  group is not the subgroup of the free-standing group that preserves the
+  layer's normal. Another is a representation of the identified group that
+  does not carry `H(k)` onto `H(gk)` within `tol`, though every operation of
+  the group was measured to hold within it. Close to `tol` that case is the
+  refusal `rep_not_covariant` instead, as kind 4 above says. With neither
+  `precision=` nor `position_tol=` declared, it is the refusal
+  `positions_not_exactly_symmetric` where the orbital centers sit far enough
+  from the positions the group puts them at to account for the miss. The
+  package also builds other forms of
+  the model that equal it up to a relabeling of orbitals and a gauge: the slab
+  and the decoupled stack of a layer, the spinless form of a spinful model, and
+  the model with its centers moved. Each is compared with the model at eight
+  random `k`, and a difference raises `InternalError`.
+  An `InternalError` is a defect in the package and says nothing about the
+  model: report it, with the model and the call.
+- **`MagneticScopeWarning`** is a warning. `realized_group` issues it where time
+  reversal is measured broken, and the group returned is then the unitary
+  subgroup of the Hamiltonian's magnetic group
+  ([Time reversal is measured](group.md#time-reversal-is-measured)).
+  `warnings.simplefilter("ignore", tqc.MagneticScopeWarning)` silences it.
 
-## Further
+## Where to go next
 
-Every refusal, with its meaning, its usual cause and what to do:
-[the refusals reference](../reference/refusals.md). The refusals each call can return: its
-entry in [the functions reference](../reference/functions.md). The record's fields:
-[`Refusal`](../reference/records.md#refusal). The two cases in which the group question is
-refused: [how pythTQC reads a Hamiltonian](../background/measurement.md#when-the-group-question-is-refused).
+- [Refusals](../reference/refusals.md) gives, for every check, what it means,
+  its usual cause and what to do.
+- [Functions](../reference/functions.md) lists, under each call, the refusals it
+  can return.
+- [Returned records](../reference/records.md) lists the fields of
+  [`Refusal`](../reference/records.md#refusal).
+- [How pythTQC reads a Hamiltonian](../background/measurement.md#when-the-group-question-is-refused)
+  gives the two cases in which the question which group a Hamiltonian obeys is
+  refused.

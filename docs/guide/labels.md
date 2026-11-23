@@ -576,7 +576,8 @@ then `False`. The checks these calls meet:
   [`operations`](../reference/functions.md#operations),
   [`operation_index`](../reference/functions.md#operation_index) and
   [`sewing_matrix`](../reference/functions.md#sewing_matrix).
-- [Coreps at a k-point](../background/conventions.md#coreps-at-a-k-point), in
+- [Little-group representations at a k-point](../background/conventions.md#little-group-representations-at-a-k-point),
+  in
   [Conventions: operations, labels and band representations](../background/conventions.md),
   says how the labels are spelled.
 - [Could these bands be an atomic limit?](atomic-limits.md),
