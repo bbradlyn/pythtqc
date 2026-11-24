@@ -155,8 +155,9 @@ for o in rd.wyckoff_orbits:
 
 Several subgroups of the largest order can fit the measurement: where the
 operations that hold do not close into a group, where a declaration leaves
-several readings, and where spinor states read without their spin carry an
-ordinary representation on several subgroups. One rule picks the group returned
+several readings, and where the states carry an ordinary representation on
+several subgroups and on no larger one, as spinor states read without their
+spin can. One rule picks the group returned
 ([The descent, and the tie rule](../background/measurement.md#the-descent-and-the-tie-rule)).
 
 A distortion can also be declared before anything is measured. `decorations=`

@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### What refuses or raises differently
+
+- `realized_group` returns a group for a spinless model that keeps time reversal and
+  whose states carry no single-valued corepresentation of the group its Hamiltonian
+  obeys. Where the matrices of two commuting operations do not commute, or an operation
+  combined with time reversal squares to `-1`, the group descends to the largest
+  subgroup on which the states carry one, and each operation left out has
+  `refuted_by = "projective class"`. The bare `P4_232` model of Cano et al.,
+  `p4232_cano2018(t4=0, t5=0, t6=0)`, returns `P4_2321'` where it was refused with
+  `antiunitary_anchor`. A model whose states carry one returns what it did.
+
+### Messages and printouts
+
+- Where a step of the descent broke a translation of the cell and a later step lowered
+  the group further, the descent's note and that step's own note said the first step's
+  group was the one returned. They no longer name it.
+
 ## 0.2.0a1 — the third public version
 
 In this version what the calls return is held in records read by name, whose fields name

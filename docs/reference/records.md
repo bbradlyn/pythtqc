@@ -685,9 +685,9 @@ to, times the operation's own spin rotation where the states carry spin.
   close into a group, and no subgroup of them of the largest order
   contains it.  `"tie"`: several subgroups of the operations measured
   to hold have the largest order, and the one the tie rule
-  ([`Descent`](#descent)) keeps does not contain it.  For the declaration and
-  the centers, an operation combined with time reversal is dropped where
-  its unitary part is.
+  ([`Descent`](#descent)) keeps does not contain it.  For the declaration,
+  the centers and the projective class, an operation combined with time
+  reversal is dropped where its unitary part is.
 
 - **`residual`** (`float`): The number the measurement rests on.  For `"covariance"`, the
   covariance residual, in the units of H.  For `"translation"`, the
@@ -723,10 +723,12 @@ to, times the operation's own spin rotation where the states carry spin.
 
 - **`pair`, `names`** (`tuple or None`): Where the states' projective class dropped it, two commuting
   operations whose matrices on the states do not commute, by index and
-  by name.
+  by name; or an operation and time reversal, where the operation
+  combined with time reversal squares to `-1` on the states.
 
 - **`commutation_phase`** (`complex or None`): The phase `c` in `D(a) D(b) = c D(b) D(a)`, with `a` and `b`
-  that pair and `D` their matrices.
+  that pair and `D` their matrices; `-1` for a pair with time
+  reversal, with `D(a)` scaled to square to `+1`.
 
 - **`spin_half`** (`bool or None`): Whether `c` is also the phase between `S(a) S(b)` and
   `S(b) S(a)`, with `S` the operations' spin-1/2 rotations, as for
@@ -886,7 +888,8 @@ What the states' projective class kept at one descent step.
 
 Held in [`DescentStep.projective`](#descentstep) where the class lowered the group:
 no single-valued representation of the step's group exists on the states,
-as for spinor states read without their spin.
+as for spinor states read without their spin, or for spinless states on
+which an operation combined with time reversal squares to `-1`.
 
 **Held in** [`DescentStep.projective`](#descentstep).
 
@@ -894,7 +897,8 @@ as for spinor states read without their spin.
 
 **Attributes**
 
-- **`pairs`** (`tuple of ProjectivePair`): Each pair of commuting operations whose matrices do not commute.
+- **`pairs`** (`tuple of ProjectivePair`): Each pair of commuting operations whose matrices do not commute, and
+  after them each operation paired with time reversal.
 
 - **`kept`** (`tuple of int`): The operations kept, by index: the largest subgroup on which the
   states carry a single-valued representation.
@@ -915,7 +919,10 @@ as for spinor states read without their spin.
 Two commuting operations whose matrices on the states do not commute.
 
 Such a pair shows that the states carry no single-valued representation
-of a group that contains both.
+of a group that contains both.  On a group with time reversal, the pair
+can also be an operation `a` that squares to a lattice translation and
+time reversal itself, where `a` combined with time reversal squares to
+`-1` on the states and to `+1` in a single-valued representation.
 
 **Held in** [`StepProjective.pairs`](#stepprojective).
 
@@ -929,7 +936,9 @@ of a group that contains both.
 
 - **`commutation_phase`** (`complex`): The phase `c` in `D(a) D(b) = c D(b) D(a)`, with `a` and `b`
   the two operations and `D` their matrices.  No rescaling of either
-  matrix removes it.
+  matrix removes it.  For a pair with time reversal it is `-1`: with
+  `D(a)` scaled to square to `+1`, `D(a)` and time reversal
+  anticommute.
 
 - **`spin_half`** (`bool`): Whether `c` is also the phase between `S(a) S(b)` and
   `S(b) S(a)`, with `S` the operations' spin-1/2 rotations, as for
@@ -971,7 +980,7 @@ does not turn the layer over is carried onto the substrate.
 
 **Attributes**
 
-- **`group`** (`NamedGroup`): The free-standing layer's group.
+- **`group`** (`NamedGroup`): The free-standing layer's group, without time reversal.
 
 - **`kept`** (`int`): The number of its operations in the largest subgroup on which the
   states carry a single-valued representation.

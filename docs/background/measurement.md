@@ -149,8 +149,8 @@ that order can qualify with nothing measured between them:
   does;
 - each of several groups keeps every orbital center within a declared
   precision;
-- spinor states read without their spin carry an ordinary representation on
-  each of several subgroups.
+- the states carry an ordinary representation on each of several subgroups and
+  on no larger one, as spinor states read without their spin can.
 
 The one returned is the first by one rule:
 

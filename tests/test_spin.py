@@ -1032,6 +1032,15 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     labelings like any other: the lowest two bands read differently under
     another, and one sentence says so, naming the pseudospin.
 
+    Spinless states can carry another class with time reversal kept: the bare
+    ``P4_232`` model of Cano et al. obeys ``Pn-3m1'``, 72 pairs of whose
+    commuting operations have anticommuting matrices, and whose inversion and
+    axis mirrors, each with time reversal, square to ``-1``.  The class is read
+    on the grey group, and the rule keeps ``P4_2321'`` of the two subgroups of
+    order 24 free of both.  A flat oblique layer whose twofold with time
+    reversal squares to ``-1`` keeps ``Pm1'`` free-standing and ``P11'`` on a
+    substrate, where the class is read on the free-standing layer.
+
     The mirror is a time reversal squaring to ``+1`` read in double-valued
     tables: a spinful model with real, spin-independent hoppings and a Zeeman
     field along ``z`` keeps complex conjugation, which squares to ``+1``, and
@@ -1364,6 +1373,64 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     assert (false.group.number_str, len(false.numerical.validated._indices)) == ("47.250", 16)
     assert false.descent.steps[0].refuted_by == {"declaration": 16}
     assert {o.determined_by for o in false.rep._characters.orbitals} == {"declaration"}
+
+    # spinless states that keep time reversal and carry another class: the bare
+    # P4_232 model, Pn-3m1' after the hoppings.  72 commuting pairs anticommute,
+    # and the inversion and the three axis mirrors, each with time reversal,
+    # square to -1; the order-24 subgroups free of both tie, and the rule keeps
+    # P4_232, time reversal kept on it
+    bare = tqg.realized_group(tqm.p4232_cano2018(t4=0, t5=0, t6=0))
+    assert bare, str(bare)
+    assert (bare.group.name, bare.group.number_str) == ("P4_2321'", "208.45")
+    assert bare.time_reversal.outcome == "kept"
+    assert bare.time_reversal.square.measured == pytest.approx(1.0, abs=1e-12)
+    step = bare.descent.steps[-1]
+    assert (step.cell_group.number_str, step.refuted_by) == ("224.111",
+                                                             {"projective class": 48})
+    reversed_ = [w for w in step.projective.pairs if w.names[1] == "E'"]
+    assert (len(step.projective.pairs), len(reversed_), len(step.projective.tied)) == (76, 4, 2)
+    assert all(w.commutation_phase == -1 and not w.spin_half for w in reversed_)
+    assert sorted(w.names[0].split("|")[0] for w in reversed_) == [
+        "{i", "{m(x)", "{m(y)", "{m(z)"]
+    assert ("combined with time reversal squares to -1, a sign no rescaling of a matrix "
+            "changes, where a single-valued representation gives +1, and 4 such operations "
+            "were measured") in bare.descent.note
+    assert "`spin=`" not in bare.descent.note
+    # ... and a flat oblique layer, four orbitals at the origin, C2(z) acting as
+    # 1 x i sigma_y: C2(z) with time reversal squares to -1.  Free-standing the
+    # class leaves out C2(z) and i; on a substrate it is read on the
+    # free-standing layer and leaves out C2(z), and the two environments agree
+    from pythtb import Lattice, TBModel
+
+    s0, sx, sy, sz = np.eye(2), np.array([[0, 1], [1, 0]]), np.array([[0, -1j], [1j, 0]]), \
+        np.diag([1.0, -1.0])
+    terms = {(0, 0): 0.05 * np.kron(sx, s0) - 0.1 * np.kron(sz, s0),
+             (1, 0): 0.25 * np.kron(sx, s0) - 0.3j * np.kron(sy, sx),
+             (0, 1): 0.2 * np.kron(sz, s0) - 0.175j * np.kron(sy, sz)}
+    oblique = TBModel(Lattice([[1.0, 0.0], [0.31, 1.17]], [[0, 0]] * 4, periodic_dirs=[0, 1]))
+    oblique.set_onsite(terms[(0, 0)].diagonal().real.tolist())
+    for R, H in terms.items():
+        for i, j in zip(*np.nonzero(H)):
+            if R != (0, 0) or i < j:
+                oblique.set_hop(H[i, j], int(i), int(j), list(R), mode="add")
+    for kw, want, cell, n in (({}, "P11'", "P21'", 2),
+                              ({"environment": "substrate", "cross_check": False},
+                               "P11'", "P21'", 2),
+                              ({"environment": "free-standing"}, "Pm1'", "P2/m1'", 4)):
+        got = tqg.realized_group(oblique, **kw)
+        assert got and got.group.name == want, (kw, str(got))
+        assert got.time_reversal.outcome == "kept"
+        step = got.descent.steps[-1]
+        assert (step.cell_group.name, step.refuted_by) == (cell, {"projective class": n})
+        assert all(w.names[1] == "E'" and w.commutation_phase == -1
+                   for w in step.projective.pairs)
+        assert (step.projective.read_on is None) == (want == "Pm1'")
+        if step.projective.read_on is not None:
+            assert step.projective.read_on.group.name == "P2/m"
+            assert ("The class is read on the unitary operations of the free-standing layer, "
+                    "P2/m #10") in got.descent.note
+        if kw != {"environment": "substrate", "cross_check": False}:
+            assert got.environment.cross_check.outcome == "agree"
 
     zeeman = tqm.i41_atomic()
     zeeman.set_onsite([0.3 * np.diag([1.0, -1.0])] * int(zeeman.norb), mode="add")
