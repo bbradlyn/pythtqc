@@ -12,6 +12,14 @@
   `refuted_by = "projective class"`. The bare `P4_232` model of Cano et al.,
   `p4232_cano2018(t4=0, t5=0, t6=0)`, returns `P4_2321'` where it was refused with
   `antiunitary_anchor`. A model whose states carry one returns what it did.
+- `realized_group` returns a group for a model with spin whose states carry no
+  double-valued corepresentation of the group its Hamiltonian obeys, where only the
+  identity commutes with the Hamiltonian, or only the spin's SU(2) does. The group
+  descends to the largest subgroup on which the states carry one, read on the matrices
+  themselves in the first case and on their orbital parts in the second. The bare
+  `P4_232` model with spin and no spin-orbit coupling returns `P4_2321'`, as the
+  spinless model does, where it was refused with `antiunitary_anchor`. A model whose
+  states carry one returns what it did.
 
 ### Messages and printouts
 

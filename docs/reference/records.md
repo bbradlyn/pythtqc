@@ -562,7 +562,8 @@ the group the Hamiltonian obeys: the group of the operations kept is
 identified again, in one step or several.  An operation is dropped where
 the hoppings break it, or where it does not carry the declared site irreps
 or the orbital centers.  An operation the hoppings obey is dropped where
-the states carry no single-valued representation of a group containing it.
+the states carry no single-valued representation of a group containing it,
+or, on a model with spin, no double-valued one.
 It is also dropped where the operations that hold do not close into a group
 and it lies outside the subgroup kept.
 
@@ -680,10 +681,10 @@ to, times the operation's own spin rotation where the states carry spin.
   irreps.  `"centers"`: it is outside the largest group that carries
   the orbital centers within the tolerance declared for them.
   `"projective class"`: the hoppings obey it, and the states carry no
-  single-valued representation of a group containing it and the
-  operations kept.  `"closure"`: the operations measured to hold do not
-  close into a group, and no subgroup of them of the largest order
-  contains it.  `"tie"`: several subgroups of the operations measured
+  ordinary representation of a group containing it and the operations
+  kept, single-valued without spin and double-valued with it.
+  `"closure"`: the operations measured to hold do not close into a
+  group, and no subgroup of them of the largest order contains it.  `"tie"`: several subgroups of the operations measured
   to hold have the largest order, and the one the tie rule
   ([`Descent`](#descent)) keeps does not contain it.  For the declaration,
   the centers and the projective class, an operation combined with time
@@ -722,17 +723,21 @@ to, times the operation's own spin rotation where the states carry spin.
   part in the form, in the units of H.
 
 - **`pair`, `names`** (`tuple or None`): Where the states' projective class dropped it, two commuting
-  operations whose matrices on the states do not commute, by index and
-  by name; or an operation and time reversal, where the operation
-  combined with time reversal squares to `-1` on the states.
+  operations whose matrices on the states do not commute as an ordinary
+  representation's do, by index and by name; or an operation and time
+  reversal, where the operation combined with time reversal squares to
+  the sign opposite to an ordinary representation's.
 
 - **`commutation_phase`** (`complex or None`): The phase `c` in `D(a) D(b) = c D(b) D(a)`, with `a` and `b`
   that pair and `D` their matrices; `-1` for a pair with time
-  reversal, with `D(a)` scaled to square to `+1`.
+  reversal.  On a model with spin, `c` is the phase beyond the sign a
+  double-valued representation gives, and where the model conserves
+  spin, `D` is the orbital part of each matrix
+  ([`ProjectivePair`](#projectivepair)).
 
 - **`spin_half`** (`bool or None`): Whether `c` is also the phase between `S(a) S(b)` and
   `S(b) S(a)`, with `S` the operations' spin-1/2 rotations, as for
-  spinor states read without their spin.
+  spinor states read without their spin.  False on a model with spin.
 
 - **`rows`** (`tuple of symmetry.DeclarationCheck or None`): Where the declared site irreps dropped it, each declaration checked
   against it, or against its unitary part for an operation combined
@@ -889,7 +894,8 @@ What the states' projective class kept at one descent step.
 Held in [`DescentStep.projective`](#descentstep) where the class lowered the group:
 no single-valued representation of the step's group exists on the states,
 as for spinor states read without their spin, or for spinless states on
-which an operation combined with time reversal squares to `-1`.
+which an operation combined with time reversal squares to `-1`.  On a
+model with spin, no double-valued one exists.
 
 **Held in** [`DescentStep.projective`](#descentstep).
 
@@ -901,7 +907,8 @@ which an operation combined with time reversal squares to `-1`.
   after them each operation paired with time reversal.
 
 - **`kept`** (`tuple of int`): The operations kept, by index: the largest subgroup on which the
-  states carry a single-valued representation.
+  states carry a single-valued representation, double-valued on a
+  model with spin.
 
 - **`tied`** (`tuple`): If nonempty, the subgroups of that order on which they carry one, each
   by its operations' indices.  They stand in the order of the tie rule
@@ -924,6 +931,17 @@ can also be an operation `a` that squares to a lattice translation and
 time reversal itself, where `a` combined with time reversal squares to
 `-1` on the states and to `+1` in a single-valued representation.
 
+On a model with spin the pair shows that the states carry no
+double-valued representation of such a group: the two matrices commute
+up to a phase other than the sign a double-valued representation gives
+them, or `a` combined with time reversal squares to the sign opposite
+to that representation's.  Where the model conserves spin, the matrices
+that carry `H(k)` onto `H(gk)` are `O(g) ⊗ M` for every matrix
+`M` on the spin, and an operation is represented with its own spin
+rotation, `O(g) ⊗ S(g)`.  The pair is then read on the orbital parts
+`O`: `O ⊗ S` is a double-valued representation exactly where `O`
+is a single-valued one.
+
 **Held in** [`StepProjective.pairs`](#stepprojective).
 
 **Exported by** `pythtqc.groups`.
@@ -936,13 +954,17 @@ time reversal itself, where `a` combined with time reversal squares to
 
 - **`commutation_phase`** (`complex`): The phase `c` in `D(a) D(b) = c D(b) D(a)`, with `a` and `b`
   the two operations and `D` their matrices.  No rescaling of either
-  matrix removes it.  For a pair with time reversal it is `-1`: with
-  `D(a)` scaled to square to `+1`, `D(a)` and time reversal
-  anticommute.
+  matrix removes it.  For a pair with time reversal it is `-1`: `a`
+  combined with time reversal squares to the sign opposite to an
+  ordinary representation's, and on a model without spin `D(a)`,
+  scaled to square to `+1`, then anticommutes with time reversal.  On
+  a model with spin, `c` is the phase beyond the sign a double-valued
+  representation gives, and `D` is `O` where the model conserves
+  spin.
 
 - **`spin_half`** (`bool`): Whether `c` is also the phase between `S(a) S(b)` and
   `S(b) S(a)`, with `S` the operations' spin-1/2 rotations, as for
-  spinor states read without their spin.
+  spinor states read without their spin.  False on a model with spin.
 
 ###### `ProjectiveMirror`
 
@@ -952,7 +974,8 @@ On a flat layer an operation `g` and its product with the horizontal
 mirror, `m g`, act alike on k and share one measurement, which fixes the
 mirror's matrix only up to a sign.  The matrix of `m g` is taken as that
 sign times the matrix of `g`.  The sign commutes with every matrix, so
-the projective class does not depend on it.
+the projective class does not depend on it.  On a layer with spin that
+conserves it, the same holds of the orbital parts of the matrices.
 
 **Held in** [`StepProjective.horizontal_mirror`](#stepprojective).
 
@@ -983,7 +1006,8 @@ does not turn the layer over is carried onto the substrate.
 - **`group`** (`NamedGroup`): The free-standing layer's group, without time reversal.
 
 - **`kept`** (`int`): The number of its operations in the largest subgroup on which the
-  states carry a single-valued representation.
+  states carry a single-valued representation, or, on a layer with spin
+  that conserves it, a double-valued one.
 
 ##### `DescentLattice`
 

@@ -169,10 +169,10 @@ class DroppedOperation:
         irreps.  ``"centers"``: it is outside the largest group that carries
         the orbital centers within the tolerance declared for them.
         ``"projective class"``: the hoppings obey it, and the states carry no
-        single-valued representation of a group containing it and the
-        operations kept.  ``"closure"``: the operations measured to hold do not
-        close into a group, and no subgroup of them of the largest order
-        contains it.  ``"tie"``: several subgroups of the operations measured
+        ordinary representation of a group containing it and the operations
+        kept, single-valued without spin and double-valued with it.
+        ``"closure"``: the operations measured to hold do not close into a
+        group, and no subgroup of them of the largest order contains it.  ``"tie"``: several subgroups of the operations measured
         to hold have the largest order, and the one the tie rule
         (:class:`Descent`) keeps does not contain it.  For the declaration,
         the centers and the projective class, an operation combined with time
@@ -211,17 +211,21 @@ class DroppedOperation:
         part in the form, in the units of H.
     pair, names : tuple or None
         Where the states' projective class dropped it, two commuting
-        operations whose matrices on the states do not commute, by index and
-        by name; or an operation and time reversal, where the operation
-        combined with time reversal squares to ``-1`` on the states.
+        operations whose matrices on the states do not commute as an ordinary
+        representation's do, by index and by name; or an operation and time
+        reversal, where the operation combined with time reversal squares to
+        the sign opposite to an ordinary representation's.
     commutation_phase : complex or None
         The phase ``c`` in ``D(a) D(b) = c D(b) D(a)``, with ``a`` and ``b``
         that pair and ``D`` their matrices; ``-1`` for a pair with time
-        reversal, with ``D(a)`` scaled to square to ``+1``.
+        reversal.  On a model with spin, ``c`` is the phase beyond the sign a
+        double-valued representation gives, and where the model conserves
+        spin, ``D`` is the orbital part of each matrix
+        (:class:`ProjectivePair`).
     spin_half : bool or None
         Whether ``c`` is also the phase between ``S(a) S(b)`` and
         ``S(b) S(a)``, with ``S`` the operations' spin-1/2 rotations, as for
-        spinor states read without their spin.
+        spinor states read without their spin.  False on a model with spin.
     rows : tuple of ..symmetry.DeclarationCheck or None
         Where the declared site irreps dropped it, each declaration checked
         against it, or against its unitary part for an operation combined
@@ -352,6 +356,17 @@ class ProjectivePair:
     time reversal itself, where ``a`` combined with time reversal squares to
     ``-1`` on the states and to ``+1`` in a single-valued representation.
 
+    On a model with spin the pair shows that the states carry no
+    double-valued representation of such a group: the two matrices commute
+    up to a phase other than the sign a double-valued representation gives
+    them, or ``a`` combined with time reversal squares to the sign opposite
+    to that representation's.  Where the model conserves spin, the matrices
+    that carry ``H(k)`` onto ``H(gk)`` are ``O(g) ⊗ M`` for every matrix
+    ``M`` on the spin, and an operation is represented with its own spin
+    rotation, ``O(g) ⊗ S(g)``.  The pair is then read on the orbital parts
+    ``O``: ``O ⊗ S`` is a double-valued representation exactly where ``O``
+    is a single-valued one.
+
     Attributes
     ----------
     pair : tuple of int
@@ -361,13 +376,17 @@ class ProjectivePair:
     commutation_phase : complex
         The phase ``c`` in ``D(a) D(b) = c D(b) D(a)``, with ``a`` and ``b``
         the two operations and ``D`` their matrices.  No rescaling of either
-        matrix removes it.  For a pair with time reversal it is ``-1``: with
-        ``D(a)`` scaled to square to ``+1``, ``D(a)`` and time reversal
-        anticommute.
+        matrix removes it.  For a pair with time reversal it is ``-1``: ``a``
+        combined with time reversal squares to the sign opposite to an
+        ordinary representation's, and on a model without spin ``D(a)``,
+        scaled to square to ``+1``, then anticommutes with time reversal.  On
+        a model with spin, ``c`` is the phase beyond the sign a double-valued
+        representation gives, and ``D`` is ``O`` where the model conserves
+        spin.
     spin_half : bool
         Whether ``c`` is also the phase between ``S(a) S(b)`` and
         ``S(b) S(a)``, with ``S`` the operations' spin-1/2 rotations, as for
-        spinor states read without their spin.
+        spinor states read without their spin.  False on a model with spin.
     """
 
     pair: tuple
@@ -384,7 +403,8 @@ class ProjectiveMirror:
     mirror, ``m g``, act alike on k and share one measurement, which fixes the
     mirror's matrix only up to a sign.  The matrix of ``m g`` is taken as that
     sign times the matrix of ``g``.  The sign commutes with every matrix, so
-    the projective class does not depend on it.
+    the projective class does not depend on it.  On a layer with spin that
+    conserves it, the same holds of the orbital parts of the matrices.
 
     Attributes
     ----------
@@ -414,7 +434,8 @@ class ProjectiveReading:
         The free-standing layer's group, without time reversal.
     kept : int
         The number of its operations in the largest subgroup on which the
-        states carry a single-valued representation.
+        states carry a single-valued representation, or, on a layer with spin
+        that conserves it, a double-valued one.
     """
 
     group: NamedGroup
@@ -428,7 +449,8 @@ class StepProjective:
     Held in :attr:`DescentStep.projective` where the class lowered the group:
     no single-valued representation of the step's group exists on the states,
     as for spinor states read without their spin, or for spinless states on
-    which an operation combined with time reversal squares to ``-1``.
+    which an operation combined with time reversal squares to ``-1``.  On a
+    model with spin, no double-valued one exists.
 
     Attributes
     ----------
@@ -437,7 +459,8 @@ class StepProjective:
         after them each operation paired with time reversal.
     kept : tuple of int
         The operations kept, by index: the largest subgroup on which the
-        states carry a single-valued representation.
+        states carry a single-valued representation, double-valued on a
+        model with spin.
     tied : tuple
         If nonempty, the subgroups of that order on which they carry one, each
         by its operations' indices.  They stand in the order of the tie rule
@@ -668,7 +691,8 @@ class Descent:
     identified again, in one step or several.  An operation is dropped where
     the hoppings break it, or where it does not carry the declared site irreps
     or the orbital centers.  An operation the hoppings obey is dropped where
-    the states carry no single-valued representation of a group containing it.
+    the states carry no single-valued representation of a group containing it,
+    or, on a model with spin, no double-valued one.
     It is also dropped where the operations that hold do not close into a group
     and it lies outside the subgroup kept.
 
@@ -1623,6 +1647,9 @@ def _projective(rec) -> StepProjective | None:
     if rec is None:
         return None
     mirror, read_on = rec.get("horizontal_mirror"), rec.get("read_on")
+    # what was read, single-valued, double-valued or the orbital parts, sets
+    # the words of the descent's note and is no field of the record
+    rec = {k: v for k, v in rec.items() if k != "valued"}
     return _record(
         StepProjective, rec,
         pairs=tuple(_record(ProjectivePair, pair) for pair in rec["pairs"]),
@@ -3251,7 +3278,10 @@ def _descent_said(model, res, sld, rpd):
         # counts against the group the cell allowed adding up to the group
         # arrived at
         counts = _descent_counts(steps, time_reversal)
-        split, lowered = _descent_clauses(counts)
+        # states with spin read the class against the double group's tables
+        split, lowered = _descent_clauses(counts, rep=(
+            "double-valued" if any((st.get("projective") or {}).get("valued")
+                                   for st in steps) else "single-valued"))
         # the states' class, said where it lowered the group: the pair that
         # names it and, where subgroups of the kept order tied, the rule; on a
         # layer, the free-standing layer it was read on, and the sign the
@@ -3270,14 +3300,27 @@ def _descent_said(model, res, sld, rpd):
             tied = (f", the first of {len(rec['tied'])} of that order by the tie rule "
                     f"`realized_group` states -- {rec.get('rule')} -- since "
                     f"{rec.get('reason')}" if rec.get("tied") else "")
+            # what was read: spinless states against single-valued tables, or
+            # states with spin against the double group's, their matrices or,
+            # where spin is conserved, the orbital parts of them
+            valued = rec.get("valued")
+            rep = "single-valued" if valued is None else "double-valued"
+            part = "orbital part" if valued == "orbital" else "matrix"
             said = []
             if commuting:
                 first = commuting[0]
                 a, b = first["names"]
                 phase = complex(first["commutation_phase"])
                 said.append(
-                    f"the matrices of {a} and {b}, two operations that commute, "
-                    + ("anticommute" if abs(phase + 1.0) <= _CLASS_MARGIN else
+                    ("the orbital parts of the matrices" if valued == "orbital" else
+                     "the matrices")
+                    + f" of {a} and {b}, two operations that commute, "
+                    + (("commute up to a sign opposite to the one a double-valued "
+                        "representation gives them" if abs(phase + 1.0) <= _CLASS_MARGIN else
+                        f"commute up to the phase {phase.real:+.3g}{phase.imag:+.3g}j beyond "
+                        "the sign a double-valued representation gives them")
+                       if valued == "double" else
+                       "anticommute" if abs(phase + 1.0) <= _CLASS_MARGIN else
                        f"commute only up to the phase {phase.real:+.3g}{phase.imag:+.3g}j")
                     # said of spinor states alone, which a group that keeps
                     # time reversal does not hold
@@ -3287,16 +3330,24 @@ def _descent_said(model, res, sld, rpd):
                     f"#{st['from']['number_str']}")
             if reversed_:
                 # the first by name, and how many there are
+                name = reversed_[0]["names"][0]
                 said.append(
-                    f"{reversed_[0]['names'][0]} combined with time reversal squares to "
-                    "-1, a sign no rescaling of a matrix changes, where a single-valued "
-                    "representation gives +1"
+                    (f"the orbital part of the matrix of {name} combined with time reversal "
+                     "squares to -1, a sign no rescaling of a matrix changes, where it "
+                     "squares to +1 in a double-valued representation"
+                     if valued == "orbital" else
+                     f"{name} combined with time reversal squares to the sign opposite to "
+                     "the one a double-valued representation gives, which no rescaling of a "
+                     "matrix changes" if valued == "double" else
+                     f"{name} combined with time reversal squares to -1, a sign no rescaling "
+                     "of a matrix changes, where a single-valued representation gives +1")
                     + ("" if len(reversed_) == 1 else
                        f", and {len(reversed_)} such operations were measured"
                        + ("" if commuting else f" in #{st['from']['number_str']}")))
             projective += (
-                " On the states of this spinless reading " + "; and ".join(said)
-                + ": no single-valued representation of a group holding "
+                (" On the states of this spinless reading " if valued is None else
+                 " On these states ") + "; and ".join(said)
+                + f": no {rep} representation of a group holding "
                 + ("one" if not reversed_ else
                    "one of these pairs, or one of these operations with time reversal,"
                    if commuting else
@@ -3315,7 +3366,7 @@ def _descent_said(model, res, sld, rpd):
                     + ("those of this group" if grey else "this group")
                     + " with the horizontal "
                     "mirror adjoined, where each operation composed with the mirror has "
-                    "its partner's matrix times the mirror's sign: the largest subgroup "
+                    f"its partner's {part} times the mirror's sign: the largest subgroup "
                     "there on which the states carry an ordinary representation is kept"
                     + tied + ", and the operations of it that keep the layer's side"
                     + (", with time reversal," if grey else "") + " are "
@@ -3328,14 +3379,16 @@ def _descent_said(model, res, sld, rpd):
                 projective += (
                     ". Each operation composed with the horizontal mirror acts on these "
                     "orbitals and on in-plane k as its partner does, and has its "
-                    "partner's matrix times the mirror's sign, "
+                    f"partner's {part} times the mirror's sign, "
                     + (f"{int(mirror['sign']):+d}, the parity the declared content states"
                        if mirror.get("determined_by") == "declaration" else
                        "+1, the even one the lowest-angular-momentum rule assigns")
                     + ", on which the class does not depend")
             # spinor states read without their spin lose time reversal first, so
-            # a class read on a group that keeps it is not theirs
-            projective += "." if grey else ". `spin=` reads the same states in the double group."
+            # a class read on a group that keeps it is not theirs; states read
+            # with their spin are in the double group already
+            projective += ("." if grey or valued is not None else
+                           ". `spin=` reads the same states in the double group.")
         readings = tuple(c for step in steps
                          for c in (step.get("declaration") or {}).get("tied", ()))
         # the ties, said where the tie rule chose: which subgroups tied, which

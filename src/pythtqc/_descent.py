@@ -34,7 +34,8 @@ from ._matrices import (
     _ansatz_blocks, _atoms_of_site, _block_members, _channel_permutation,
     _characters_of_subgroup, _commuting_pair_phases, _filled_check,
     _generic_members, _identity_position, _minimal_generators, _multiplets_of,
-    _proportionality, _rephasable, _unitarized)
+    _proportionality, _rephasable, _site_spaces, _unitarized)
+from ._sectors import _atoms_of, _orbital_factor
 from ._centers import _position_defect
 from ._naming import _site_tables
 from ._multiplets import _ansatz_defects, _multiplet_blocks
@@ -1088,14 +1089,16 @@ def _mirror_sign(group, partners, decls=()) -> dict:
 
 
 def _class_members(group, validated, partners=None, sign=1):
-    r"""One matrix per operation of a spinless reading, to read its projective class.
+    r"""One matrix per unitary operation, to read the states' projective class.
 
     The matrices are the detector's own members of the unitary operations,
-    read only where each is fixed up to a phase: a single-valued group, every
-    operation of it kept, only the identity commuting with ``H``, and each
-    operation alone in its action on ``k`` or, on a flat layer, paired with
-    its product with the horizontal mirror.  Such a product is given ``sign``
-    times its partner's matrix, ``D(σ_h·g) = D(σ_h) D(g)``.
+    read only where each is fixed up to a phase: every operation of the group
+    kept, only the identity commuting with ``H``, and each operation alone in
+    its action on ``k`` or, on a flat layer read without spin, paired with its
+    product with the horizontal mirror.  Such a product is given ``sign``
+    times its partner's matrix, ``D(σ_h·g) = D(σ_h) D(g)``.  On a
+    double-valued group no operation is paired: the mirror's matrix acts on
+    the spin, and the rule holds of states without one.
 
     ``group`` is the round's group, ``validated`` the detector's verdicts on
     it, ``partners`` the pairs of :func:`_mirror_partners` and ``sign`` the
@@ -1106,7 +1109,7 @@ def _class_members(group, validated, partners=None, sign=1):
     """
 
     syms = group._symmetries
-    if bool(group.spinor):
+    if bool(group.spinor) and partners:
         return None
     inds = [int(s.ind) for s in syms]
     if set(inds) - {int(i) for i in validated._indices}:
@@ -1129,13 +1132,16 @@ def _class_members(group, validated, partners=None, sign=1):
     return D, positions
 
 
-def _class_kept(group, D, positions, reversed_pairs=()):
+def _class_kept(group, D, positions, reversed_pairs=(), spf=None):
     r"""The largest subgroup on which the matrices ``D`` are an ordinary representation.
 
     ``D`` holds one matrix per unitary position in ``group``, and
     ``positions`` lists the positions it covers (:func:`_class_members`).
+    The matrices are read against the signs ``spf``, by pair of positions:
+    the multiplication table's own where ``None``, all ``+1`` for the orbital
+    parts of a model that conserves spin (:func:`_orbital_members`).
     The pairs of commuting operations whose matrices commute only up to a
-    phase the multiplication table lacks are read first
+    phase those signs lack are read first
     (:func:`.._matrices._commuting_pair_phases`).  ``reversed_pairs`` holds
     the pairs ``(g, t, -1)`` of a group with time reversal, ``t`` time
     reversal's position, for each ``g`` whose product with time reversal
@@ -1154,7 +1160,8 @@ def _class_kept(group, D, positions, reversed_pairs=()):
     """
 
     syms = group._symmetries
-    prod, _tdiff, spf = group._get_product_table(get_diff=True)
+    prod, _tdiff, table = group._get_product_table(get_diff=True)
+    spf = table if spf is None else spf
     commuting = _commuting_pair_phases(D, positions, syms, prod, spf, tol=_CLASS_MARGIN)
     pairs = tuple(commuting) + tuple(reversed_pairs)
     if not pairs:
@@ -1175,7 +1182,8 @@ def _class_kept(group, D, positions, reversed_pairs=()):
     return pairs, kept, ranked
 
 
-def _class_record(group, pairs, kept, ranked, *, rule_group=None, rule_ranked=None):
+def _class_record(group, pairs, kept, ranked, *, rule_group=None, rule_ranked=None,
+                  valued=None):
     r"""The operations a class reading leaves out, each with the pair that names it, and the step's record.
 
     Parameters
@@ -1197,6 +1205,12 @@ def _class_record(group, pairs, kept, ranked, *, rule_group=None, rule_ranked=No
     rule_ranked : sequence, default None
         The tied subgroups as ``rule_group`` holds them.  ``None`` is
         ``ranked``.
+    valued : {None, "double", "orbital"}, default None
+        What was read: ``None``, the matrices of spinless states against a
+        single-valued table; ``"double"``, the matrices of states with spin
+        against the double group's table; ``"orbital"``, the orbital parts of
+        the matrices of states that conserve spin, against signs all ``+1``.
+        It sets the notes' words and is kept on the record as ``valued``.
 
     Returns
     -------
@@ -1220,7 +1234,7 @@ def _class_record(group, pairs, kept, ranked, *, rule_group=None, rule_ranked=No
     """
 
     syms = group._symmetries
-    _prod, _tdiff, spf = group._get_product_table(get_diff=True)
+    prod, _tdiff, spf = group._get_product_table(get_diff=True)
     at = {int(s.ind): p for p, s in enumerate(syms)}
     lattice = np.asarray(group._lattice, dtype=float)
 
@@ -1229,9 +1243,10 @@ def _class_record(group, pairs, kept, ranked, *, rule_group=None, rule_ranked=No
 
     witnesses = []
     for a, b, c in pairs:
-        if bool(syms[b].time_reversal):
+        if bool(syms[b].time_reversal) or valued is not None:
             # g paired with time reversal: g T squares to the other sign than
-            # the table's, which no spin-1/2 rotation is asked about
+            # the table's, which no spin-1/2 rotation is asked about; and states
+            # with spin carry the spin-1/2 lifts' signs in their own matrices
             half = None
         else:
             Sa = np.asarray(syms[a].spinor_rotation, dtype=complex)
@@ -1250,6 +1265,11 @@ def _class_record(group, pairs, kept, ranked, *, rule_group=None, rule_ranked=No
     # its unitary part does, below
     reversing = {int(s.ind) for s in syms if s.time_reversal}
     staying = set(kept) | reversing
+    # the words for what was read: spinless states against a single-valued
+    # table, or states with spin against the double group's
+    rep = "single-valued" if valued is None else "double-valued"
+    crystal = "the spinless crystal" if valued is None else "the crystal"
+    t = _reversal_position(group)
     refuted = {}
     for i in sorted(set(at) - set(kept) - reversing):
         mine = [w for w in witnesses if i in w["pair"]]
@@ -1259,36 +1279,59 @@ def _class_record(group, pairs, kept, ranked, *, rule_group=None, rule_ranked=No
             refuted[i] = {"refuted_by": "projective class", "pair": None, "names": None,
                           "commutation_phase": None, "spin_half": None, "note": (
                               f"no subgroup holding {_name(i)} together with the operations "
-                              "kept carries a single-valued representation on these states")}
+                              f"kept carries a {rep} representation on these states")}
             continue
         a, b = best["names"]
         if best["pair"][1] in reversing:
+            if valued == "orbital":
+                found = (f"the orbital part of the matrix of {a} combined with time reversal "
+                         "squares to -1 on these states, a sign no rescaling of it changes, "
+                         "where it squares to +1 in a double-valued representation")
+            else:
+                # the sign the table gives the square of g T; the states' is the other
+                gt = int(prod[at[best["pair"][0]], t])
+                asked = 1 if valued is None else int(spf[gt, gt])
+                found = (f"{a} combined with time reversal squares to {-asked:+d} on these "
+                         "states, a sign no rescaling of its matrix changes, where a "
+                         f"{rep} representation gives {asked:+d}")
             refuted[i] = dict(best, refuted_by="projective class", note=(
-                f"{a} combined with time reversal squares to -1 on these states, a sign no "
-                "rescaling of its matrix changes, where a single-valued representation "
-                f"gives +1. No single-valued representation of a group holding {a} and "
-                f"time reversal exists on these states, so {a} is not an operation of the "
-                "spinless crystal: the largest subgroup on which the states carry one, "
+                f"{found}. No {rep} representation of a group holding {a} and "
+                f"time reversal exists on these states, so {a} is not an operation of "
+                f"{crystal}: the largest subgroup on which the states carry one, "
                 f"time reversal with it, is kept, and it does not hold {a}."))
             continue
+        phase = complex(best["commutation_phase"])
+        if valued == "orbital":
+            found = (f"{a} and {b} commute, and on these states the orbital parts O of their "
+                     f"matrices do not: O({a}) O({b}) = {_fmt_char(phase)} O({b}) O({a}), "
+                     "a phase no rescaling of either removes")
+        elif valued == "double":
+            # the phase read is beyond the sign the double group's table gives
+            # the pair; the note states the product as it is
+            sign = int(spf[at[best["pair"][0]], at[best["pair"][1]]]) * int(
+                spf[at[best["pair"][1]], at[best["pair"][0]]])
+            found = (f"{a} and {b} commute, and on these states D({a}) D({b}) = "
+                     f"{_fmt_char(sign * phase)} D({b}) D({a}), where a double-valued "
+                     f"representation gives {sign:+d}: a phase no rescaling of either "
+                     "matrix removes")
+        else:
+            found = (
+                f"{a} and {b} commute, and on these states their matrices do not: "
+                f"D({a}) D({b}) = {_fmt_char(phase)} "
+                f"D({b}) D({a}), a phase no rescaling of either matrix removes"
+                # said of spinor states read without their spin, which lose time
+                # reversal first: on a group that keeps it the states are not spinors
+                + (" -- the sign the spin-1/2 lifts of the two operations carry"
+                   if best["spin_half"] and not reversing else ""))
         refuted[i] = dict(best, refuted_by="projective class", note=(
-            f"{a} and {b} commute, and on these states their matrices do not: "
-            f"D({a}) D({b}) = {_fmt_char(best['commutation_phase'])} "
-            f"D({b}) D({a}), a phase no rescaling of either matrix removes"
-            # said of spinor states read without their spin, which lose time
-            # reversal first: on a group that keeps it the states are not spinors
-            + (" -- the sign the spin-1/2 lifts of the two operations carry"
-               if best["spin_half"] and not reversing else "")
-            + f". No single-valued representation of a group holding both exists on "
-            f"these states, so {_name(i)} is not an operation of the spinless crystal: "
+            f"{found}. No {rep} representation of a group holding both exists on "
+            f"these states, so {_name(i)} is not an operation of {crystal}: "
             "the largest subgroup on which the states carry one is kept, and it does not "
             f"hold {_name(i)}."))
     # on a group with time reversal, each unitary operation left out takes its
     # product with time reversal with it: a group holding that product and time
     # reversal holds the operation
-    t = _reversal_position(group)
     if t is not None:
-        prod = group._get_product_table(get_diff=False)
         for i, rec in list(refuted.items()):
             mate = int(syms[int(prod[t, at[i]])].ind)
             refuted[mate] = dict(rec, note=(
@@ -1296,6 +1339,8 @@ def _class_record(group, pairs, kept, ranked, *, rule_group=None, rule_ranked=No
                 f"group holding it and time reversal holds {_name(i)}"))
     record = {"pairs": tuple(witnesses), "kept": tuple(sorted(kept)),
               "tied": tuple(ranked) if len(ranked) > 1 else ()}
+    if valued is not None:
+        record["valued"] = str(valued)
     if len(ranked) > 1:
         # the rule's keys as the group they were read in reads them, and why it
         # kept the first, for the descent's note
@@ -1346,20 +1391,140 @@ def _reversed_pairs(group, validated, positions, partners, *, tolerances=EXACT):
     return tuple(found)
 
 
-def _projective_class_refuted(group, validated, *, assignment=None, decls=(),
-                              refuted=None, square=None, tolerances=EXACT):
-    r"""The operations of a spinless reading that no single-valued representation carries.
+def _spin_conserved(model, group, validated, spin, H, tol):
+    r"""Whether the matrices commuting with ``H`` are exactly the spin's own, ``1 ⊗ M``.
 
-    The detector's members of the unitary operations of a single-valued group
-    are the matrices of a projective representation.  Where its class is not
-    the multiplication table's, the unitary operations outside the largest
-    subgroup that carries an ordinary representation, the first by the tie
-    rule, are refuted (:func:`_class_kept`).  The class is read only where
-    every member is fixed up to a phase (:func:`_class_members`).  On a flat
-    layer each operation composed with the horizontal mirror is given its
-    partner's matrix times the mirror's sign, ``D(σ_h·g) = D(σ_h) D(g)``
-    (:func:`_mirror_partners`, :func:`_mirror_sign`); the sign commutes with
-    every matrix, so the class does not depend on it.
+    On a double-valued group whose states carry a spin, the identity's
+    solution space has dimension four, and each component ``1 ⊗ σ_i`` of the
+    spin, written in the states' own spin order (:func:`.._sectors._atoms_of`),
+    commutes with ``H(k)`` on the grid: the two together say the matrices
+    commuting with ``H`` are ``1 ⊗ M``, ``M`` any ``2 × 2`` matrix.  ``model``
+    is the model, ``group`` the round's group, ``validated`` the detector's
+    verdicts on it, ``spin`` the declared spinor basis or ``None``, ``H`` a
+    callable returning the Hamiltonians on the detection grid, shape
+    ``(nk, n, n)``, read only where the first two hold, and ``tol`` the
+    covariance tolerance every operation is held to there, in the units of
+    ``H``.  Returns a bool.
+    """
+    if not bool(group.spinor):
+        return False
+    _atoms, order, su2 = _atoms_of(model, spin)
+    ident = int(group._symmetries[_identity_position(group)].ind)
+    # the 2 x 2 matrices on the spin span four dimensions
+    if not su2 or int((validated._nullspace_dims or {}).get(ident, 0) or 0) != 4:
+        return False
+    H = np.asarray(H(), dtype=complex)
+    n = int(H.shape[-1])
+    pauli = (np.array([[0, 1], [1, 0]], dtype=complex),
+             np.array([[0, -1j], [1j, 0]], dtype=complex),
+             np.array([[1, 0], [0, -1]], dtype=complex))
+    for sigma in pauli:
+        S = np.zeros((n, n), dtype=complex)
+        S[np.ix_(order, order)] = np.kron(np.eye(n // 2), sigma)
+        # each component of the spin carried onto itself as an operation's
+        # matrix is: S H(k) S† against H(k), within the covariance tolerance
+        if float(np.abs(np.einsum("ab,kbc,dc->kad", S, H, S.conj()) - H).max()) > tol:
+            return False
+    return True
+
+
+def _orbital_members(model, group, assignment, spin, validated, *, partners=None, sign=1,
+                     tolerances=EXACT):
+    r"""One orbital factor per operation of a model that conserves spin, to read its class.
+
+    Where the spin's SU(2) commutes with ``H`` (:func:`_spin_conserved`) the
+    solution space of each operation is ``O(g) ⊗ M``, ``M`` any ``2 × 2``
+    matrix, and the orbital factor ``O(g)`` is fixed up to a phase
+    (:func:`.._sectors._orbital_factor`, read on each operation's solution
+    space within sites, :func:`.._matrices._site_spaces`).  An operation is
+    represented with its own spin rotation, ``O(g) ⊗ S(g)``
+    (:func:`.._matrices._lift_of`), which is a double-valued representation
+    exactly where the factors ``O`` are a single-valued one, so the factors
+    are read against signs all ``+1``.  On a flat
+    layer each operation composed with the horizontal mirror is given
+    ``sign`` times its partner's factor, as on spinless states
+    (:func:`_class_members`).  The factors are read only where every
+    operation of the group is kept, each one's factors span one dimension,
+    and time reversal's own factor squares to ``+1``.
+
+    ``model`` is the model, ``group`` the round's group, ``assignment`` the
+    orbitals' orbits in it, ``spin`` the declared spinor basis or ``None``,
+    ``validated`` the detector's verdicts, ``partners`` and ``sign`` as
+    :func:`_class_members` takes them, and ``tolerances`` the call's declared
+    tolerances.  Returns ``(D, positions, reversed_pairs)``: the unitary
+    operations' factors by position, those positions, and the pairs
+    ``(g, t, -1)`` of each unitary ``g`` that squares to the identity modulo
+    the lattice and whose ``g·T`` has a factor ``X`` with ``X X̄ = -1``, ``t``
+    time reversal's position.  ``None`` where the class is not read here.
+    """
+    syms = group._symmetries
+    inds = [int(s.ind) for s in syms]
+    if set(inds) - {int(i) for i in validated._indices}:
+        return None
+    partners = dict(partners or {})
+    if {int(i) for i in validated.undetermined} - set(partners) - set(partners.values()):
+        return None
+    tol = tolerances.matrix or None
+    _atoms, order, su2 = _atoms_of(model, spin)
+    spaces, _layout, _mixing = _site_spaces(model, group, assignment, spin, validated,
+                                            tol=tol)
+    at = {ind: p for p, ind in enumerate(inds)}
+    factors = {}
+    for p, ind in enumerate(inds):
+        source = int(partners.get(ind, ind))
+        if source not in spaces:
+            return None
+        O = _orbital_factor(spaces[source], syms[at[source]], order, su2, tol)
+        if len(O) != 1:
+            return None
+        # unitary, up to the phase the class does not read
+        factors[p] = ((int(sign) if ind in partners else 1)
+                      * np.sqrt(O.shape[1]) * np.asarray(O[0], dtype=complex))
+
+    def _square(p):
+        """The sign of ``X X̄`` for the factor ``X`` at ``p``, or ``None``."""
+        X = factors[p]
+        sq = X @ X.conj()
+        scalar = complex(np.trace(sq)) / X.shape[0]
+        if (float(np.abs(sq - scalar * np.eye(X.shape[0])).max())
+                > _TIME_REVERSAL_SQUARE_MARGIN or scalar.real == 0.0):
+            return None
+        return int(np.sign(scalar.real))
+
+    positions = [p for p, s in enumerate(syms) if not s.time_reversal]
+    t = _reversal_position(group)
+    found = []
+    if t is not None:
+        if _square(t) != 1:
+            return None
+        prod = group._get_product_table(get_diff=False)
+        ident = _identity_position(group)
+        for p in positions:
+            if int(prod[p, p]) == ident and _square(int(prod[p, t])) == -1:
+                found.append((int(p), int(t), complex(-1.0)))
+    return {p: factors[p] for p in positions}, positions, tuple(found)
+
+
+def _projective_class_refuted(group, validated, *, assignment=None, decls=(),
+                              refuted=None, square=None, tolerances=EXACT, model=None,
+                              spin=None, conserved=False):
+    r"""The operations that no ordinary representation on the states carries.
+
+    The detector's members of the unitary operations are the matrices of a
+    projective representation.  Where its class is not the multiplication
+    table's, single-valued or double-valued as the group is, the unitary
+    operations outside the largest subgroup that carries an ordinary
+    representation, the first by the tie rule, are refuted
+    (:func:`_class_kept`).  The class is read only where every member is fixed
+    up to a phase (:func:`_class_members`).  Where the spin's SU(2) commutes
+    with ``H`` instead (:func:`_spin_conserved`), it is read on the orbital
+    factors of the matrices, against signs all ``+1``
+    (:func:`_orbital_members`).  On a flat layer read without spin, or one
+    that conserves spin, each operation composed with the horizontal mirror
+    is given its partner's matrix or factor times the mirror's sign,
+    ``D(σ_h·g) = D(σ_h) D(g)`` (:func:`_mirror_partners`,
+    :func:`_mirror_sign`); the sign commutes with every matrix, so the class
+    does not depend on it.
 
     On a group that holds time reversal the class is read only where time
     reversal's own square has the sign the tables ask for and no operation
@@ -1388,6 +1553,14 @@ def _projective_class_refuted(group, validated, *, assignment=None, decls=(),
         where ``group`` has no pure time reversal or the detector refuted it.
     tolerances : Tolerances, default EXACT
         The call's declared tolerances, against which each square is read.
+    model : pythtb.TBModel, default None
+        The model, whose orbital factors are read where it conserves spin;
+        with ``assignment``, needed for that reading.
+    spin : SpinBasis, default None
+        The declared spinor basis, or ``None``.
+    conserved : bool, default False
+        Whether the matrices commuting with ``H`` are exactly the spin's
+        (:func:`_spin_conserved`), where the orbital factors are read.
 
     Returns
     -------
@@ -1397,8 +1570,6 @@ def _projective_class_refuted(group, validated, *, assignment=None, decls=(),
         determined (``horizontal_mirror``).  ``({}, None)`` where the class is
         the table's, or is not read here.
     """
-    if bool(group.spinor):
-        return {}, None
     reversing = {int(s.ind) for s in group._symmetries if s.time_reversal}
     if reversing and (square is None or not square.obeyed
                       or reversing & (set(validated.broken) | set(refuted or ()))):
@@ -1410,17 +1581,30 @@ def _projective_class_refuted(group, validated, *, assignment=None, decls=(),
         if partners is None:
             return {}, None
     mirror = _mirror_sign(group, partners, decls) if partners else None
-    members = _class_members(group, validated, partners,
-                             sign=1 if mirror is None else mirror["sign"])
-    if members is None:
-        return {}, None
-    D, positions = members
-    reversed_pairs = (_reversed_pairs(group, validated, positions, partners,
-                                      tolerances=tolerances) if reversing else ())
-    got = _class_kept(group, D, positions, reversed_pairs)
+    sign = 1 if mirror is None else mirror["sign"]
+    orbital = bool(conserved)
+    if orbital:
+        if model is None or assignment is None:
+            return {}, None
+        members = _orbital_members(model, group, assignment, spin, validated,
+                                   partners=partners, sign=sign, tolerances=tolerances)
+        if members is None:
+            return {}, None
+        D, positions, reversed_pairs = members
+        spf = np.ones((len(group._symmetries),) * 2, dtype=int)
+    else:
+        members = _class_members(group, validated, partners, sign=sign)
+        if members is None:
+            return {}, None
+        D, positions = members
+        reversed_pairs = (_reversed_pairs(group, validated, positions, partners,
+                                          tolerances=tolerances) if reversing else ())
+        spf = None
+    got = _class_kept(group, D, positions, reversed_pairs, spf=spf)
     if got is None:
         return {}, None
-    out, record = _class_record(group, *got)
+    out, record = _class_record(group, *got, valued=(
+        "orbital" if orbital else "double" if bool(group.spinor) else None))
     if mirror is not None:
         record["horizontal_mirror"] = dict(mirror)
     return out, record
@@ -1543,7 +1727,8 @@ def _free_standing_lift(model, group, free_standing):
 
 
 def _projective_class_carried(model, group, validated, *, free_standing, refuted=None,
-                              square=None, tolerances=EXACT):
+                              square=None, tolerances=EXACT, assignment=None, spin=None,
+                              conserved=False):
     r"""A flat layer's projective class on a substrate, read on the free-standing layer.
 
     The class is read once on the free-standing group, ``group`` with the
@@ -1557,7 +1742,11 @@ def _projective_class_carried(model, group, validated, *, free_standing, refuted
     is a class to read, and name the pairs on the record.  Where
     :func:`_free_standing_lift` returns ``None``, the class is read on
     ``group`` itself, with no operation paired with the mirror
-    (:func:`_projective_class_refuted`).
+    (:func:`_projective_class_refuted`).  Where the layer conserves spin the
+    matrices are the orbital factors (:func:`_orbital_members`), read as a
+    spinless layer's.  On a double-valued group whose matrices are fixed up
+    to a phase, the class is read on ``group`` itself: the mirror's matrix
+    acts on the spin, and no operation shares its partner's.
 
     On a group that holds time reversal the class is read under the condition
     :func:`_projective_class_refuted` sets, and each unitary ``g`` whose
@@ -1567,8 +1756,9 @@ def _projective_class_carried(model, group, validated, *, free_standing, refuted
 
     ``model`` is the model, ``validated`` the detector's verdicts on
     ``group``, ``free_standing`` the free-standing cell
-    :func:`_free_standing_lift` reads, and ``refuted``, ``square`` and
-    ``tolerances`` as :func:`_projective_class_refuted` takes them.  Returns
+    :func:`_free_standing_lift` reads, and ``refuted``, ``square``,
+    ``tolerances``, ``assignment``, ``spin`` and ``conserved`` as
+    :func:`_projective_class_refuted` takes them.  Returns
     ``(refuted, record)`` as
     :func:`_projective_class_refuted` does, the pairs those of ``group``, the
     record naming the free-standing group the class was read on and how many
@@ -1583,29 +1773,43 @@ def _projective_class_carried(model, group, validated, *, free_standing, refuted
         where :func:`_free_standing_lift` raises.
     """
 
-    if bool(group.spinor):
-        return {}, None
     reversing = {int(s.ind) for s in group._symmetries if s.time_reversal}
     if reversing and (square is None or not square.obeyed
                       or reversing & (set(validated.broken) | set(refuted or ()))):
         return {}, None
-    members = _class_members(group, validated)
-    if members is None:
-        return {}, None
-    D, positions = members
+    orbital = bool(conserved)
+    if bool(group.spinor) and not orbital:
+        return _projective_class_refuted(group, validated, refuted=refuted, square=square,
+                                         tolerances=tolerances)
     prod, _tdiff, spf = group._get_product_table(get_diff=True)
+    if orbital:
+        if assignment is None:
+            return {}, None
+        members = _orbital_members(model, group, assignment, spin, validated,
+                                   tolerances=tolerances)
+        if members is None:
+            return {}, None
+        D, positions, reversed_pairs = members
+        spf = np.ones_like(spf)
+    else:
+        members = _class_members(group, validated)
+        if members is None:
+            return {}, None
+        D, positions = members
+        reversed_pairs = (_reversed_pairs(group, validated, positions, {},
+                                          tolerances=tolerances) if reversing else ())
     pairs = _commuting_pair_phases(D, positions, group._symmetries, prod, spf,
                                    tol=_CLASS_MARGIN)
-    reversed_pairs = (_reversed_pairs(group, validated, positions, {},
-                                      tolerances=tolerances) if reversing else ())
     if not pairs and not reversed_pairs:
         # the free-standing pairs are these and their products with the mirror,
         # which commutes with every matrix: no pair here, none there
         return {}, None
     lift = _free_standing_lift(model, group, free_standing)
     if lift is None:
-        return _projective_class_refuted(group, validated, refuted=refuted, square=square,
-                                         tolerances=tolerances)
+        return _projective_class_refuted(group, validated, assignment=assignment,
+                                         refuted=refuted, square=square,
+                                         tolerances=tolerances, model=model, spin=spin,
+                                         conserved=conserved)
     free, of = lift
     # each operation composed with the mirror is given the mirror's sign times
     # its partner's matrix, D(sigma_h g) = D(sigma_h) D(g), with the sign +1,
@@ -1642,7 +1846,8 @@ def _projective_class_carried(model, group, validated, *, free_standing, refuted
     ranked = tuple(_here(c) for c in franked)
     out, record = _class_record(group, tuple(pairs) + tuple(reversed_pairs),
                                 frozenset(_here(fkept)), ranked,
-                                rule_group=free, rule_ranked=franked)
+                                rule_group=free, rule_ranked=franked,
+                                valued="orbital" if orbital else None)
     record["read_on"] = {"number_str": str(free.number_str), "name": str(free.name),
                          "size": int(free._size), "kept": len(fkept)}
     return out, record
@@ -3077,7 +3282,7 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
     (:func:`.._declaration._verdicts_and_choices`); the declaration
     (:func:`_declaration_refuted`); the pure translations
     (:func:`_lattice_verdict`); and, where every unitary operation still
-    stands, the states' projective class on a spinless reading
+    stands, the states' projective class
     (:func:`_projective_class_refuted`, or on a substrate
     :func:`_projective_class_carried`).
 
@@ -3232,27 +3437,42 @@ def _operation_verdicts(model, group, assignment, validated, *, tolerances, nk,
     if lattice and lattice["refuted"]:
         refuted = {**refuted, **lattice["refuted"]}
     # The states' projective class, last, read only where every unitary
-    # operation still stands.  On a spinless reading whose states carry a class
-    # the single-valued tables do not, such as spinors in the orbital index,
-    # the operations no single-valued representation carries are refuted, as
-    # broken ones are; on a group holding time reversal, only where every
-    # operation combined with it stands.  On a substrate the class is read on
-    # the free-standing layer, and its part that preserves the layer's normal
-    # is carried.
+    # operation still stands.  Where the states carry a class the tables do
+    # not, such as spinors in the orbital index of a spinless reading, the
+    # operations no ordinary representation carries are refuted, as broken
+    # ones are; on a group holding time reversal, only where every operation
+    # combined with it stands.  A model that conserves spin is read on the
+    # orbital parts of its matrices.  On a substrate the class is read on the
+    # free-standing layer, and its part that preserves the layer's normal is
+    # carried.
     projective = None
     unitary = {int(s.ind) for s in syms if not s.time_reversal}
     if not unitary & (set(validated.broken) | set(refuted)):
+        # whether the matrices commuting with H are exactly the spin's, read on
+        # the detection grid's H(k), the one the translations reuse
+        def _grid_hamiltonians():
+            """``H(k)`` on the detection grid, the measurement's own where it holds it."""
+            k_pts = _detection_grid(int(group._dim_k), int(nk))
+            grid = None if context is None else context.grid_for(model, k_pts)
+            return (grid.full() if grid is not None
+                    else _bloch.hamiltonian(model, np.atleast_2d(k_pts)))
+
+        conserved = _spin_conserved(model, group, validated, spin, _grid_hamiltonians,
+                                    tolerances.energy)
         if free_standing is not None:
             more, projective = _projective_class_carried(model, group, validated,
                                                          free_standing=free_standing,
                                                          refuted=refuted, square=square,
-                                                         tolerances=tolerances)
+                                                         tolerances=tolerances,
+                                                         assignment=assignment, spin=spin,
+                                                         conserved=conserved)
         else:
             more, projective = _projective_class_refuted(group, validated,
                                                          assignment=assignment,
                                                          decls=decls or (),
                                                          refuted=refuted, square=square,
-                                                         tolerances=tolerances)
+                                                         tolerances=tolerances, model=model,
+                                                         spin=spin, conserved=conserved)
         refuted = {**refuted, **more}
     return {**refuted, **centered}, lattice, declaration, choices, projective
 
@@ -3561,10 +3781,12 @@ def _descent_counts(steps, time_reversal) -> dict:
             "projective class": named["projective class"]}
 
 
-def _descent_clauses(counts) -> tuple:
+def _descent_clauses(counts, rep="single-valued") -> tuple:
     r"""A descent's counts by cause, and what its operations kept carry, in words.
 
-    ``counts`` is what :func:`_descent_counts` returns.  Returns ``(split,
+    ``counts`` is what :func:`_descent_counts` returns, and ``rep`` the kind
+    of representation the states' projective class was read against,
+    ``"single-valued"`` or ``"double-valued"``.  Returns ``(split,
     lowered)``.  ``split`` says what dropped the cell's operations: each of
     the hoppings and the declaration that did, or, where any other cause did,
     each cause once in the order the measurement meets them.  ``lowered``
@@ -3609,7 +3831,7 @@ def _descent_clauses(counts) -> tuple:
                         f"{d_tr} operations combined with it")
         if d_proj:
             said.append(f"{d_proj} {'more' if said else 'of them'}, which the Hamiltonian "
-                        "obeys, carry no single-valued representation on these states")
+                        f"obeys, carry no {rep} representation on these states")
         split = ", and ".join(said)
     lowered = None
     if d_cen or d_closure or d_tie or d_proj:
@@ -3621,7 +3843,7 @@ def _descent_clauses(counts) -> tuple:
         if d_decl:
             kept_as.append("that carry the declared orbital content")
         if d_proj:
-            kept_as.append("on which these states carry a single-valued representation")
+            kept_as.append(f"on which these states carry a {rep} representation")
         lowered = (f"the largest group of its {'unitary ' if d_tr else ''}operations "
                    + _listed(kept_as) + (", the first by the tie rule" if d_tie else ""))
     return split, lowered

@@ -700,7 +700,7 @@ assert len(PMMM_OPS) == 8
 
 
 def _pxpy_spinor(c=1.3, soc=0.3, seed=5, b=1.0, ops=tqc_models.P4MMM_OPS,
-                 bonds=((1, 0, 0), (1, 0, 1))):
+                 bonds=((1, 0, 0), (1, 0, 1)), spinor_orbitals=False):
     """A spin-orbit-coupled ``(p_x, p_y)`` doublet at ``1a`` of ``P4/mmm``, natively spinful.
 
     One site, two orbitals, four states, in 3D: the smallest crystal whose
@@ -714,6 +714,8 @@ def _pxpy_spinor(c=1.3, soc=0.3, seed=5, b=1.0, ops=tqc_models.P4MMM_OPS,
     with it.  ``b``, ``ops`` and ``bonds`` build its orthorhombic sibling: with
     ``b`` off ``1``, ``PMMM_OPS`` and the ``(1, 1, 0)`` and ``(1, 0, 1)`` bonds,
     the same doublet obeys ``Pmmm1'`` and, again, nothing else commutes with it.
+    With ``spinor_orbitals``, the doublet is carried by each operation's SU(2)
+    lift as the spin is.
     """
     from pythtb import Lattice, TBModel
 
@@ -726,7 +728,8 @@ def _pxpy_spinor(c=1.3, soc=0.3, seed=5, b=1.0, ops=tqc_models.P4MMM_OPS,
     hops = {}
     for R, _t in ops:
         Rc = tqm.cartesian_rotation(R, lattice)
-        D = np.kron(Rc[:2, :2], tqm.spinor_of(np.sign(np.linalg.det(Rc)) * Rc))
+        lift = tqm.spinor_of(np.sign(np.linalg.det(Rc)) * Rc)
+        D = np.kron(lift if spinor_orbitals else Rc[:2, :2], lift)
         for bond, block in seeds.items():
             image = tuple(int(x) for x in np.rint(np.asarray(R, dtype=float) @ bond))
             hops[image] = (hops.get(image, 0.0) + D @ block @ D.conj().T / len(ops))
@@ -1040,6 +1043,18 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
     order 24 free of both.  A flat oblique layer whose twofold with time
     reversal squares to ``-1`` keeps ``Pm1'`` free-standing and ``P11'`` on a
     substrate, where the class is read on the free-standing layer.
+
+    With spin each operation acts as ``O(g) ⊗ S(g)``, and the states carry a
+    double-valued representation exactly where the orbital parts ``O`` carry a
+    single-valued one.  Where nothing breaks the spin's SU(2), the class is
+    read on ``O``: the bare model and the layer given spin, every hopping the
+    same for both spins, return the groups they return without it.  With
+    spin-orbit coupling and only the identity commuting with ``H``, the
+    matrices themselves are read against the double group's table: the layer's
+    twofold with time reversal squares to the other sign than there, and every
+    environment keeps ``P11'``.  A doublet carried as the spin is has four
+    matrices commuting with ``H`` that are not the spin's, and is refused as
+    before.
 
     The mirror is a time reversal squaring to ``+1`` read in double-valued
     tables: a spinful model with real, spin-independent hoppings and a Zeeman
@@ -1431,6 +1446,69 @@ def test_spinor_states_against_single_valued_tables(km_flat, pxpy_spinor, pmmm_s
                     "P2/m #10") in got.descent.note
         if kw != {"environment": "substrate", "cross_check": False}:
             assert got.environment.cross_check.outcome == "agree"
+
+    # with spin, each operation acts as O(g) x S(g).  Without spin-orbit
+    # coupling the spin's SU(2) commutes with H and the orbital parts O carry
+    # the class: the bare P4_232 model and the oblique layer return what they
+    # do without spin, three spin matrices conserved
+    def with_spin(model):
+        """The model with spin, every hopping the same for both spins."""
+        lat = np.asarray(model.lattice.lat_vecs)
+        spun = TBModel(Lattice(lat.tolist(), np.asarray(model.lattice.orb_vecs).tolist(),
+                               periodic_dirs=list(range(len(lat)))), spinful=True)
+        spun.set_onsite(np.asarray(model.onsite, float).tolist())
+        for h in model.hoppings:
+            R = h.get("lattice_vector")
+            spun.set_hop(h["amplitude"], int(h["from_orbital"]), int(h["to_orbital"]),
+                         [0] * len(lat) if R is None else [int(x) for x in R], mode="add")
+        return spun
+
+    spun = tqg.realized_group(with_spin(tqm.p4232_cano2018(t4=0, t5=0, t6=0)))
+    assert spun, str(spun)
+    assert (spun.group.name, spun.conserved.dim, spun.time_reversal.outcome) == (
+        "P4_2321'", 3, "kept")
+    step = spun.descent.steps[-1]
+    assert (step.cell_group.number_str, step.refuted_by) == ("224.111",
+                                                             {"projective class": 48})
+    assert (len(step.projective.pairs), len(step.projective.tied)) == (76, 2)
+    assert sum(w.names[1] == "E'" for w in step.projective.pairs) == 4
+    assert "On these states the orbital parts of the matrices of" in spun.descent.note
+    assert "no double-valued representation" in spun.descent.note
+    # ... and with spin-orbit coupling, three terms each carried onto itself by
+    # C2(z) and time reversal, only the identity commutes with H: the matrices
+    # themselves are read against the double group's table.  C2(z) with time
+    # reversal squares to the other sign than there, and the horizontal mirror
+    # is broken, so every environment keeps P11'
+    orbit = with_spin(oblique)
+    for R, orbital, spin_part in (((1, 0), -0.075j * np.kron(sx, s0), sx),
+                                  ((0, 1), -0.06j * np.kron(sz, s0), sy),
+                                  ((0, 0), 0.07 * np.kron(s0, sy), sz)):
+        for i, j in zip(*np.nonzero(orbital)):
+            if R != (0, 0) or i < j:
+                orbit.set_hop(orbital[i, j] * spin_part, int(i), int(j), list(R), mode="add")
+    for model, conserved, wants in (
+            (with_spin(oblique), 3, ("P11'", "Pm1'", "P11'")),
+            (orbit, 0, ("P11'", "P11'", "P11'"))):
+        for kw, want in zip(({}, {"environment": "free-standing", "cross_check": False},
+                             {"environment": "substrate", "cross_check": False}), wants):
+            got = tqg.realized_group(model, **kw)
+            assert got and got.group.name == want, (kw, str(got))
+            assert got.conserved.dim == conserved
+            step = got.descent.steps[-1]
+            assert step.refuted_by == {"projective class": 4 if want == "Pm1'" else 2}
+            assert all(w.names[1] == "E'" for w in step.projective.pairs)
+            # on a substrate the orbital parts are read on the free-standing
+            # layer, and a matrix fixed up to a phase on the substrate group
+            assert (step.projective.read_on is not None) == bool(conserved and want == "P11'")
+            assert ("orbital part" in got.descent.note) == bool(conserved)
+            assert "`spin=`" not in got.descent.note
+    # ... and a doublet carried as the spin is, under Pmmm: four matrices
+    # commute with H, and the spin's components are not among them, so the
+    # class is read neither way and the model is refused as before
+    twin = tqg.realized_group(_pxpy_spinor(soc=0.0, b=1.17, ops=PMMM_OPS,
+                                           bonds=((1, 1, 0), (1, 0, 1)), spinor_orbitals=True))
+    assert not twin and twin.gate == "antiunitary_anchor", str(twin)
+    assert twin.context["group"].name == "Pmmm1'"
 
     zeeman = tqm.i41_atomic()
     zeeman.set_onsite([0.3 * np.diag([1.0, -1.0])] * int(zeeman.norb), mode="add")
